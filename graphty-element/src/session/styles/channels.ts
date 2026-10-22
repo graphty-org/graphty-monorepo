@@ -56,13 +56,22 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
-import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import {
+    defaultEdgeStyle,
+    EdgeArrowTypes,
+    EdgeLineTypes,
+    EdgeOutlineTypes,
+    type EdgeStyleConfig,
+} from "../../config/EdgeStyle";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import {
     defaultNodeStyle,
+    NodeBorderPositions,
     NodeBorderStyles,
+    NodeLabelFits,
     NodeShapes,
     NodeSizeModes,
     type NodeStyleConfig,
@@ -230,11 +239,17 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
  */
 export type EdgeLineValue = EdgeLinePattern;
 
+/** A pattern an edge's outline band can be drawn in (`line.outline.type`). */
+export type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
+
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
 /** How heavy a label's letters are, as the `labelWeight` channels take it. */
 export type LabelWeightValue = "normal" | "bold";
+
+/** Where a label's runs of different sizes meet on a line (`labelRunAlign`). */
+export type LabelRunAlignValue = "baseline" | "hanging" | "middle";
 
 /** How a node's size is read: as a multiplier of the shape's own geometry, or as its largest extent. */
 export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["sizeMode"]>;
@@ -242,17 +257,47 @@ export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/** How a node grows to hold its label: its padded label box inside its outline, or as its bounds. */
+export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
+
+/** How an edge's gradient runs (`edge.gradientKind`): along the line, out from its middle, or none. */
+/** How a node's image is sized against the node. */
+export type NodeImageFitValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["fit"]>;
+/** Whether and which way a node's image is tiled. */
+export type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["repeat"]>;
+
+/** How an image drawn at a size of its own fills a side left unset (`node.imageAutoSize`). */
+export type NodeImageAutoSizeValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["autoSize"]>;
+/** Whether a node's image is kept inside the node's outline. */
+export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
+/** Which way a node's stripes follow one another. */
+export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
+/** What a node's chart draws (`node.chartKind`). */
+export type NodeChartKindValue = NonNullable<NonNullable<NodeStyleConfig["chart"]>["kind"]>;
+/** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
+export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
+export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
+/** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
+export type NodeGradientKindValue = "linear" | "radial";
+
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
+
+/** Where a node border sits against the node's size. @public */
+export type NodeBorderPositionValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["position"]>;
 
 /** Every node shape, in schema order. */
 const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
 /** Every line pattern, in schema order. */
 const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeLineTypes.options;
+const EDGE_OUTLINE_VALUES: readonly EdgeOutlineValue[] = EdgeOutlineTypes.options;
 
 /** Every arrow, in schema order. */
 const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
+
+/** The sides of its line `arrowHeadSide` and the other side channels keep a cap's half on. */
+const ARROW_SIDE_VALUES: readonly ("left" | "right")[] = ["left", "right"];
 
 // ---------------------------------------------------------------------------------------------
 // What each channel carries
@@ -274,11 +319,39 @@ export interface ChannelValues {
     "node.labelStyle": LabelStyle;
     "node.labelColor": ColorValue;
     "node.labelSize": number;
+    "node.labelLetterSize": number;
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
+    "node.labelTextAlign": LabelTextAlign;
+    "node.labelLocation": LabelLocation;
+    "node.labelWrapWidth": number;
+    "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapEllipsis": boolean;
+    "node.labelWrapAnywhere": boolean;
+    "node.labelWrapSpaceCount": number;
+    "node.labelRunAlign": LabelRunAlignValue;
+    "node.labelMinScreenSize": number;
+    "node.labelOnTop": boolean;
+    "node.labelDeclutter": LabelDeclutterOrder;
+    "node.labelMinNodeScreenSize": number;
+    "node.labelRotation": number;
+    "node.labelBackground": ColorValue;
     "node.labelOutline": ColorValue;
     "node.labelOutlineWidth": number;
+    "node.labelBorder": ColorValue;
+    "node.labelBorderWidth": number;
+    "node.labelOpacity": number;
+    "node.labelBackgroundOpacity": number;
+    "node.labelOutlineOpacity": number;
+    "node.labelBorderOpacity": number;
+    "node.labelPadding": number;
+    "node.labelCornerRadius": number;
+    "node.labelLineHeight": number;
+    "node.labelOffsetX": number;
+    "node.labelOffsetY": number;
+    "node.labelShiftX": number;
+    "node.labelShiftY": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -301,37 +374,214 @@ export interface ChannelValues {
     "node.drawOrder": number;
     "node.borderColor": ColorValue;
     "node.borderWidth": number;
+    "node.borderScreenWidth": number;
+    "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
+    "node.borderPosition": NodeBorderPositionValue;
+    "node.borderWaveAmplitude": number;
+    "node.borderWavePeriod": number;
+    "node.outerBorderColor": ColorValue;
+    "node.outerBorderWidth": number;
+    "node.outerBorderOpacity": number;
+    "node.outerBorderStyle": NodeBorderStyleValue;
+    "node.outerBorderOffset": number;
     "node.cornerRadius": number;
+    "node.exactCornerRadius": boolean;
+    "node.underlayColor": ColorValue;
+    "node.underlayOpacity": number;
+    "node.underlayPadding": number;
+    "node.underlayShape": NodeShapeValue;
+    "node.underlayCornerRadius": number;
+    "node.overlayColor": ColorValue;
+    "node.overlayOpacity": number;
+    "node.overlayPadding": number;
+    "node.overlayShape": NodeShapeValue;
+    "node.overlayCornerRadius": number;
+    "node.shapePoints": string;
+    "node.shapeStretchPoints": boolean;
+    "node.shapeParts": string;
+    "node.shapeLines": string;
+    "node.shapeTexts": string;
+    "node.shapeLineWidth": number;
+    "node.labelFit": NodeLabelFitValue;
+    "node.labelPaddingX": number;
+    "node.labelPaddingY": number;
+    "node.labelFitSquare": boolean;
+    "node.gradientColor": ColorValue;
+    "node.gradientDirection": number;
+    "node.gradientColors": string;
+    "node.gradientStops": string;
+    "node.gradientKind": NodeGradientKindValue;
+    "node.image": string;
+    "node.imageFallback": string;
+    "node.imageFit": NodeImageFitValue;
+    "node.imageWidth": number;
+    "node.imageHeight": number;
+    "node.imagePixelSize": number;
+    "node.imagePositionX": number;
+    "node.imagePositionY": number;
+    "node.imageOffsetX": number;
+    "node.imageOffsetY": number;
+    "node.imageRepeat": NodeImageRepeatValue;
+    "node.imageClip": NodeImageClipValue;
+    "node.imageSmoothing": boolean;
+    "node.imageAutoSize": NodeImageAutoSizeValue;
+    "node.imageOpacity": number;
+    "node.glyph": string;
+    "node.glyphFont": string;
+    "node.glyphSize": number;
+    "node.glyphWeight": number;
+    "node.glyphColor": ColorValue;
+    "node.pieColors": string;
+    "node.pieSizes": string;
+    "node.pieOpacities": string;
+    "node.pieRadius": number;
+    "node.pieHole": number;
+    "node.pieRotation": number;
+    "node.pieFitBox": boolean;
+    "node.pieOffsetX": number;
+    "node.pieOffsetY": number;
+    "node.stripeColors": string;
+    "node.stripeSizes": string;
+    "node.stripeOpacities": string;
+    "node.stripeDirection": NodeStripeDirectionValue;
+    "node.stripeSize": number;
+    "node.chartKind": NodeChartKindValue;
+    "node.chartValues": string;
+    "node.chartColors": string;
+    "node.chartMin": number;
+    "node.chartMax": number;
+    "node.chartHorizontal": boolean;
+    "node.chartSize": number;
+    "node.chartMargin": number;
+    "node.chartGap": number;
+    "node.chartLineWidth": number;
+    "node.chartBorderColor": ColorValue;
+    "node.chartBorderWidth": number;
     "edge.color": ColorValue;
     "edge.width": number;
+    "edge.minScreenWidth": number;
     "edge.opacity": number;
+    "edge.outlineColor": ColorValue;
+    "edge.outlineWidth": number;
+    "edge.outlineOpacity": number;
+    "edge.outlineStyle": EdgeOutlineValue;
+    "edge.underlayColor": ColorValue;
+    "edge.underlayOpacity": number;
+    "edge.underlayPadding": number;
+    "edge.overlayColor": ColorValue;
+    "edge.overlayOpacity": number;
+    "edge.overlayPadding": number;
+    "edge.gradientColors": string;
+    "edge.gradientStops": string;
+    "edge.gradientKind": EdgeGradientKindValue;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
+    "edge.waveAmplitude": number;
+    "edge.wavePeriod": number;
     "edge.curvature": boolean;
     "edge.bends": string;
+    "edge.fanSpacing": number;
+    "edge.fanned": boolean;
+    "edge.bendCurve": EdgeBendCurveValue;
+    "edge.arcRadius": number;
+    "edge.nodeGap": number;
+    "edge.sourcePort": string;
+    "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
+    "edge.arrowHeadWidth": number;
+    "edge.arrowHeadSide": "left" | "right";
+    "edge.arrowHeadPosition": number;
+    "edge.arrowHeadGap": number;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
+    "edge.arrowHeadImage": string;
     "edge.arrowHeadText": string;
     "edge.arrowHeadTextStyle": LabelStyle;
+    "edge.arrowHeadTextSize": number;
+    "edge.arrowHeadTextLetterSize": number;
+    "edge.arrowHeadTextFont": string;
+    "edge.arrowHeadTextColor": ColorValue;
+    "edge.arrowHeadTextWeight": LabelWeightValue;
+    "edge.arrowHeadTextOpacity": number;
+    "edge.arrowHeadTextDistance": number;
+    "edge.arrowHeadTextRotation": number;
+    "edge.arrowHeadTextOffsetX": number;
+    "edge.arrowHeadTextOffsetY": number;
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
+    "edge.arrowTailWidth": number;
+    "edge.arrowTailSide": "left" | "right";
+    "edge.arrowTailPosition": number;
+    "edge.arrowTailGap": number;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
+    "edge.arrowTailImage": string;
     "edge.arrowTailText": string;
     "edge.arrowTailTextStyle": LabelStyle;
+    "edge.arrowTailTextSize": number;
+    "edge.arrowTailTextLetterSize": number;
+    "edge.arrowTailTextFont": string;
+    "edge.arrowTailTextColor": ColorValue;
+    "edge.arrowTailTextWeight": LabelWeightValue;
+    "edge.arrowTailTextOpacity": number;
+    "edge.arrowTailTextDistance": number;
+    "edge.arrowTailTextRotation": number;
+    "edge.arrowTailTextOffsetX": number;
+    "edge.arrowTailTextOffsetY": number;
+    "edge.arrowMiddleHead": ArrowValue;
+    "edge.arrowMiddleHeadSize": number;
+    "edge.arrowMiddleHeadWidth": number;
+    "edge.arrowMiddleHeadSide": "left" | "right";
+    "edge.arrowMiddleHeadPosition": number;
+    "edge.arrowMiddleHeadColor": ColorValue;
+    "edge.arrowMiddleHeadOpacity": number;
+    "edge.arrowMiddleHeadImage": string;
+    "edge.arrowMiddleTail": ArrowValue;
+    "edge.arrowMiddleTailSize": number;
+    "edge.arrowMiddleTailWidth": number;
+    "edge.arrowMiddleTailSide": "left" | "right";
+    "edge.arrowMiddleTailPosition": number;
+    "edge.arrowMiddleTailColor": ColorValue;
+    "edge.arrowMiddleTailOpacity": number;
+    "edge.arrowMiddleTailImage": string;
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
     "edge.labelColor": ColorValue;
     "edge.labelSize": number;
+    "edge.labelLetterSize": number;
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "edge.labelTextAlign": LabelTextAlign;
+    "edge.labelLocation": LabelLocation;
+    "edge.labelWrapWidth": number;
+    "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapEllipsis": boolean;
+    "edge.labelWrapAnywhere": boolean;
+    "edge.labelWrapSpaceCount": number;
+    "edge.labelRunAlign": LabelRunAlignValue;
+    "edge.labelMinScreenSize": number;
+    "edge.labelOnTop": boolean;
+    "edge.labelRotation": number;
+    "edge.labelBackground": ColorValue;
     "edge.labelOutline": ColorValue;
     "edge.labelOutlineWidth": number;
+    "edge.labelBorder": ColorValue;
+    "edge.labelBorderWidth": number;
+    "edge.labelOpacity": number;
+    "edge.labelBackgroundOpacity": number;
+    "edge.labelOutlineOpacity": number;
+    "edge.labelBorderOpacity": number;
+    "edge.labelPadding": number;
+    "edge.labelCornerRadius": number;
+    "edge.labelLineHeight": number;
+    "edge.labelOffsetX": number;
+    "edge.labelOffsetY": number;
+    "edge.labelShiftX": number;
+    "edge.labelShiftY": number;
 }
 
 /**
@@ -347,13 +597,30 @@ export type ColorChannel =
     | "node.glow"
     | "node.haloColor"
     | "node.labelColor"
-    | "node.labelOutline"
     | "node.borderColor"
+    | "node.gradientColor"
+    | "node.outerBorderColor"
+    | "node.underlayColor"
+    | "node.overlayColor"
+    | "node.glyphColor"
+    | "node.chartBorderColor"
+    | "node.labelBackground"
+    | "node.labelOutline"
+    | "node.labelBorder"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
+    | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleTailColor"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowTailTextColor"
+    | "edge.outlineColor"
+    | "edge.underlayColor"
+    | "edge.overlayColor"
     | "edge.labelColor"
-    | "edge.labelOutline";
+    | "edge.labelBackground"
+    | "edge.labelOutline"
+    | "edge.labelBorder";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -486,6 +753,91 @@ const EDGE_ANIMATION_CAVEAT =
     "patterned line have no moving texture to run. The value is a multiple of the element's own " +
     "pace -- 1 is that pace, 2 is twice it -- and 0 draws a flat line.";
 
+const EDGE_GRADIENT_CAVEAT =
+    "Paints the line in a gradient over its `edge.color`: `edge.gradientColors` are CSS colors separated " +
+    "by spaces, `edge.gradientStops` where each sits from 0 to 1 (unset, or not one per color: evenly " +
+    'spaced), and `edge.gradientKind` "linear" from the source end to the target end, "radial" out from ' +
+    'the line\'s middle to both ends, or "none". Fewer than two colors draw none. Drawn on solid lines.';
+
+/** How an edge's gradient runs, or that it has none. */
+const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
+
+const NODE_GRADIENT_CAVEAT =
+    "Fills the node with a gradient through `node.gradientColors`, CSS colors separated by spaces from " +
+    "its start to its end (unset: from `node.color` into `node.gradientColor`), placed by " +
+    "`node.gradientStops`, fractions from 0 to 1 (unset, or not one per color: evenly spaced). " +
+    '`node.gradientKind` "linear" runs it the way `node.gradientDirection` says; "radial" runs it out ' +
+    "from the node's middle to its edge. Each distinct gradient is its own source mesh and ramp texture.";
+
+/** How a node's gradient fill runs. */
+const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
+const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
+
+const EDGE_OUTLINE_CAVEAT =
+    "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
+    "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
+    "vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash, dot or dash-dot). Drawn only " +
+    "with a width above 0, and under solid lines: a dotted " +
+    "or dashed line drawn as separate pieces has none.";
+
+const NODE_IMAGE_CAVEAT =
+    "A picture drawn over the node's face from `node.image`, its URL (a data: URL too). " +
+    '`node.imageFit` sizes it: "contain" keeps its proportions inside the node, "cover" over the whole ' +
+    'node, "fill" stretches it, "none" draws it at `node.imageWidth` x `node.imageHeight` or its own ' +
+    "pixels at `node.imagePixelSize` each. `node.imagePositionX` / `-Y` place it across the room left " +
+    "(0 to 1), `node.imageOffsetX` / `-Y` move it (y down), in the units of `node.size`. A node of " +
+    'shape "none" with an image is drawn as the image.';
+
+const NODE_GLYPH_CAVEAT =
+    "A character or short text drawn over the node's face, centered on it (vis-network's icon nodes): " +
+    "`node.glyph` in the CSS font family `node.glyphFont` at `node.glyphSize` (the font's size in the units " +
+    "of `node.size`; unset, the node's shorter side), CSS weight `node.glyphWeight`, in `node.glyphColor`. " +
+    'A node of shape "none" with a glyph is drawn as the glyph.';
+
+/** How a node's image is sized. */
+const NODE_IMAGE_FIT_VALUES: readonly NodeImageFitValue[] = ["contain", "cover", "fill", "none"];
+/** How a node's image is tiled. */
+const NODE_IMAGE_REPEAT_VALUES: readonly NodeImageRepeatValue[] = ["no-repeat", "repeat", "repeat-x", "repeat-y"];
+
+/** Every way `node.imageAutoSize` fills an unset side. */
+const NODE_IMAGE_AUTO_SIZE_VALUES: readonly NodeImageAutoSizeValue[] = ["proportional", "natural"];
+/** Whether a node's image is clipped to the node. */
+const NODE_IMAGE_CLIP_VALUES: readonly NodeImageClipValue[] = ["node", "none"];
+/** Which way a node's stripes run. */
+const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down", "right"];
+
+/** What a node's chart draws. */
+const NODE_CHART_KIND_VALUES: readonly NodeChartKindValue[] = ["bar", "stacked-bar", "line", "box", "cells"];
+
+const NODE_CHART_CAVEAT =
+    "A chart over the node's face, drawn when `node.chartValues` (numbers separated by spaces) and " +
+    "`node.chartColors` (CSS colors separated by spaces, item i in color i, the last for the rest) are set: " +
+    '`node.chartKind` "bar" (bars side by side), "stacked-bar" (the values piled into one bar), "line", "box" ' +
+    "(the values are the low whisker, the quartiles and median, the high whisker; its median in the second " +
+    'color, else black) or "cells" (a row of colored cells). The plot is a box `node.chartSize` times the ' +
+    "node's; the values run from `node.chartMin` to `node.chartMax` bottom to top (left to right with " +
+    "`node.chartHorizontal`), the categories along the other side after `node.chartMargin` at each end and " +
+    "`node.chartGap` between them, both shares of that side. `node.chartLineWidth` is a line's and a " +
+    "whisker's width, `node.chartBorderWidth` and `node.chartBorderColor` a bar's and a box's outline.";
+
+const NODE_PIE_CAVEAT =
+    "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
+    "each, `node.pieSizes` each slice's share of the turn (fractions separated by spaces; a slice with " +
+    "none shares what is left), `node.pieOpacities` each one's opacity. The disc is `node.pieRadius` " +
+    "times half the node's shorter side (the ellipse filling the node with `node.pieFitBox`), " +
+    "`node.pieHole` cuts out that fraction of the radius, and the slices run clockwise from " +
+    "`node.pieRotation` degrees clockwise from 12 o'clock; `node.pieOffsetX` / `-Y` move its center (y down).";
+
+const NODE_STRIPES_CAVEAT =
+    "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
+    'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
+    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s.';
+
+const NODE_OUTER_BORDER_CAVEAT =
+    "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
+    "(Cytoscape.js's outline): drawn only with a width above 0. Widths and the offset are in the units " +
+    "of `node.borderWidth`. It is not `node.outline`, which is a highlight drawn over the node's rim.";
+
 const ARROW_CAPTION_CAVEAT =
     "A caption hangs from the cap at that end of the edge, so an end drawn with no arrow carries " +
     'none: a tail caption needs `edge.arrowTail` set to something other than "none". The words ' +
@@ -523,16 +875,16 @@ const NODE_TOOLTIP_CAVEAT =
 const EDGE_LINE_DEFAULT_COLOR =
     typeof defaultEdgeStyle.line?.color === "string" ? colorToHex(defaultEdgeStyle.line.color) : undefined;
 
-/** The six channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
+/** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Color" | "Opacity" | "Text" | "TextStyle"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
- * The six channels of one arrow end, in table order. The head's and the tail's differ only in
+ * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
  * their names, their style paths and the tail's type default (an edge draws a head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
- * @returns The end's channels: type, size, colour, opacity, caption and caption style.
+ * @returns The end's channels: type, size, position, colour, opacity, caption and caption style.
  */
 function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEndChannel<End>, ChannelDescriptor> {
     const id = (suffix: string): { channel: Channel; target: "edge" } => ({
@@ -563,6 +915,56 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             renderable: true,
         },
         {
+            ...id("Width"),
+            plainName: `Arrow ${end} Width`,
+            shortName: `${end} width`,
+            group: "arrows",
+            default: 1,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.width`,
+            renderable: true,
+        },
+        {
+            ...id("Side"),
+            plainName: `Arrow ${end} Side`,
+            shortName: `${end} side`,
+            group: "arrows",
+            accepts: "enum",
+            values: ARROW_SIDE_VALUES,
+            stylePath: `arrow${end}.side`,
+            renderable: true,
+            caveat:
+                "Draws only the half of the cap on one side of its line, cut along the line: left or right " +
+                "looking along the line toward the cap's tip. Unset, the whole cap.",
+        },
+        {
+            ...id("Position"),
+            plainName: `Arrow ${end} Position`,
+            shortName: `${end} position`,
+            group: "arrows",
+            default: 0,
+            accepts: "number",
+            min: 0,
+            max: 1,
+            stylePath: `arrow${end}.position`,
+            renderable: true,
+        },
+        {
+            ...id("Gap"),
+            plainName: `Arrow ${end} Gap`,
+            shortName: `${end} gap`,
+            group: "arrows",
+            default: 0,
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.gap`,
+            renderable: true,
+            caveat:
+                "How far from its node the cap is drawn, as a multiple of the cap's own length along its line; the " +
+                "line stops there too. 0 puts the cap against the node.",
+        },
+        {
             ...id("Color"),
             plainName: `Arrow ${end} Color`,
             shortName: `${end} color`,
@@ -585,6 +987,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             renderable: true,
         },
         {
+            ...id("Image"),
+            plainName: `Arrow ${end} Image`,
+            shortName: `${end} image`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.image`,
+            renderable: true,
+            caveat:
+                "The picture an `image` cap draws, a URL or a data URL, standing on the line with its top " +
+                "edge across the tip; a cap of another type ignores it.",
+        },
+        {
             ...id("Text"),
             plainName: `Arrow ${end} Caption`,
             shortName: `${end} caption`,
@@ -604,32 +1018,299 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
         },
+        {
+            ...id("TextSize"),
+            plainName: `Arrow ${end} Caption Size`,
+            shortName: `${end} caption size`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.fontSize`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextLetterSize"),
+            plainName: `Arrow ${end} Caption Letter Size`,
+            shortName: `${end} caption letter size`,
+            group: "arrows",
+            accepts: "number",
+            min: 0,
+            stylePath: `arrow${end}.text.letterSize`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextFont"),
+            plainName: `Arrow ${end} Caption Font`,
+            shortName: `${end} caption font`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.text.font`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextColor"),
+            plainName: `Arrow ${end} Caption Color`,
+            shortName: `${end} caption color`,
+            group: "arrows",
+            accepts: "color",
+            stylePath: `arrow${end}.text.textColor`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextWeight"),
+            plainName: `Arrow ${end} Caption Weight`,
+            shortName: `${end} caption weight`,
+            group: "arrows",
+            accepts: "enum",
+            values: LABEL_WEIGHT_VALUES,
+            stylePath: `arrow${end}.text.fontWeight`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextOpacity"),
+            plainName: `Arrow ${end} Caption Opacity`,
+            shortName: `${end} caption opacity`,
+            group: "arrows",
+            accepts: "number",
+            min: 0,
+            max: 1,
+            stylePath: `arrow${end}.text.textOpacity`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextDistance"),
+            plainName: `Arrow ${end} Caption Distance`,
+            shortName: `${end} caption distance`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.textDistance`,
+            renderable: true,
+            caveat:
+                "Unset, the caption hangs beside the cap at this end. Set, it is centered on the line this " +
+                "far from where the line leaves this end's node, in scene units, as Cytoscape.js draws its " +
+                "source and target labels.",
+        },
+        {
+            ...id("TextRotation"),
+            plainName: `Arrow ${end} Caption Rotation`,
+            shortName: `${end} caption rotation`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.rotation`,
+            renderable: true,
+            caveat: "How far the caption is turned, in degrees clockwise on screen about its own middle; unset, level.",
+        },
+        {
+            ...id("TextOffsetX"),
+            plainName: `Arrow ${end} Caption Offset X`,
+            shortName: `${end} caption offset x`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.offsetX`,
+            renderable: true,
+            caveat: "How far the caption is moved right of where it sits, in scene units, on screen.",
+        },
+        {
+            ...id("TextOffsetY"),
+            plainName: `Arrow ${end} Caption Offset Y`,
+            shortName: `${end} caption offset y`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.offsetY`,
+            renderable: true,
+            caveat: "How far the caption is moved down from where it sits, in scene units, on screen.",
+        },
     ];
 
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
 }
 
+/** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
+type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image"}`;
+
+/**
+ * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
+ * (`MiddleTail`): the end cap's own, less its caption, with no cap and the middle of the line by default.
+ * @param end - Which of the two.
+ * @returns Its channels: type, size, width, position, colour and opacity.
+ */
+function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
+    end: End,
+): Record<ArrowMidChannel<End>, ChannelDescriptor> {
+    const from = end === "MiddleHead" ? "Head" : "Tail";
+    const plain = end === "MiddleHead" ? "Middle Head" : "Middle Tail";
+    const rows = Object.values(arrowEndChannels(from))
+        // a middle cap has no caption, and no gap from a node it does not touch
+        .filter((row) => {
+            const suffix = row.channel.slice(`edge.arrow${from}`.length);
+            return !suffix.startsWith("Text") && suffix !== "Gap";
+        })
+        .map((row): ChannelDescriptor => {
+            const suffix = row.channel.slice(`edge.arrow${from}`.length);
+            return {
+                ...row,
+                channel: `edge.arrow${end}${suffix}` as Channel,
+                plainName: row.plainName.replace(`Arrow ${from}`, `Arrow ${plain}`),
+                shortName: row.shortName.replace(from, plain),
+                stylePath: row.stylePath?.replace(`arrow${from}`, `arrow${end}`),
+                ...(suffix === "" ? { default: "none" } : {}),
+                ...(suffix === "Position" ? { default: 0.5 } : {}),
+            };
+        });
+
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowMidChannel<End>, ChannelDescriptor>;
+}
+
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "Font" | "Weight" | "Italic" | "Outline" | "OutlineWidth"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "RunAlign" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
     Color: "color",
     Size: "sizePx",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "weight",
     Italic: "italic",
+    WrapWidth: "wrapWidth",
+    WrapTrailingSpace: "wrapTrailingSpace",
+    WrapEllipsis: "wrapEllipsis",
+    WrapAnywhere: "wrapAnywhere",
+    WrapSpaceCount: "wrapSpaceCount",
+    RunAlign: "runAlign",
+    MinScreenSize: "minScreenSize",
+    OnTop: "onTop",
+    Rotation: "rotation",
+    Background: "background",
     Outline: "outline",
     OutlineWidth: "outlineWidth",
+    Border: "borderColor",
+    BorderWidth: "borderWidth",
+    Opacity: "opacity",
+    BackgroundOpacity: "backgroundOpacity",
+    OutlineOpacity: "outlineOpacity",
+    BorderOpacity: "borderOpacity",
+    Padding: "boxPadding",
+    CornerRadius: "cornerRadius",
+    LineHeight: "lineHeight",
+    OffsetX: "offsetX",
+    OffsetY: "offsetY",
+    ShiftX: "shiftX",
+    ShiftY: "shiftY",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
-export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX];
+export type LabelFieldName =
+    | (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX]
+    | "declutter"
+    | "minNodeScreenSize"
+    | "textAlign"
+    | "location";
+
+/** Every way `labelTextAlign` lines up a label's lines. */
+const LABEL_TEXT_ALIGN_VALUES: readonly LabelTextAlign[] = ["left", "center", "right"];
 
 /**
- * The label field channels of one target: color, size, font, weight, italic and the letters
- * outline's color and width.
+ * How a label's lines line up with one another, one field of the label style like the label field channels.
+ * @param target - Nodes or edges.
+ * @returns The channel.
+ */
+function labelTextAlignChannel(target: "node" | "edge"): ChannelDescriptor {
+    const Target = target === "node" ? "Node" : "Edge";
+    return {
+        channel: `${target}.labelTextAlign`,
+        target,
+        plainName: `${Target} Label Text Align`,
+        shortName: "Label text align",
+        group: "text",
+        stylePath: "label.textAlign",
+        renderable: true,
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        caveat:
+            "Lines up the lines of a label of more than one line with one another: their left edges, their " +
+            "middles or their right edges. The label's place against its node or edge is `labelStyle`'s location.",
+    };
+}
+
+/** Every place `labelLocation` puts a label. */
+const LABEL_LOCATION_VALUES: readonly LabelLocation[] = [
+    "top",
+    "top-right",
+    "top-left",
+    "left",
+    "center",
+    "right",
+    "bottom",
+    "bottom-left",
+    "bottom-right",
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
+    "automatic",
+];
+
+/**
+ * Where a label sits against its node or edge, one field of the label style like the label field channels, so a
+ * layer can bind it to a column and give each element its own place.
+ * @param target - Nodes or edges.
+ * @returns The channel.
+ */
+function labelLocationChannel(target: "node" | "edge"): ChannelDescriptor {
+    const Target = target === "node" ? "Node" : "Edge";
+    return {
+        channel: `${target}.labelLocation`,
+        target,
+        plainName: `${Target} Label Location`,
+        shortName: "Label location",
+        group: "text",
+        stylePath: "label.location",
+        renderable: true,
+        accepts: "enum",
+        values: LABEL_LOCATION_VALUES,
+        caveat:
+            "Where the label sits against its node or edge: beyond a side or a corner, in the middle, or inside " +
+            "a node against a side or in a corner. The same field as `labelStyle`'s location.",
+    };
+}
+
+/** Every order `node.labelDeclutter` takes. */
+const LABEL_DECLUTTER_VALUES: readonly LabelDeclutterOrder[] = ["degree", "size"];
+
+/**
+ * The one label field channel of nodes alone: edge labels are never decluttered, so an
+ * `edge.labelDeclutter` would paint nothing.
+ */
+const NODE_LABEL_DECLUTTER: ChannelDescriptor = {
+    channel: "node.labelDeclutter",
+    target: "node",
+    plainName: "Node Label Declutter",
+    shortName: "Label declutter",
+    group: "text",
+    stylePath: "label.declutter",
+    renderable: true,
+    accepts: "enum",
+    values: LABEL_DECLUTTER_VALUES,
+    caveat:
+        "Hides the label where its words would overlap a node label kept before it: a selected " +
+        "node's first, then the node with more edges (`degree`) or the larger label and then the " +
+        "larger node (`size`). Decided again whenever the camera, a label or a node moves.",
+};
+
+/**
+ * The six label field channels of one target: color, size, font, weight, italic and wrap width.
  *
  * Each is ONE FIELD of the label style, which is what lets a rule drive it: a whole label style
  * is a bag of fields no scale produces, while a size is a number a column can be read into. The
@@ -661,11 +1342,127 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Color", "Color", { accepts: "color" }),
         // No minimum: a channel takes exactly the numbers its schema path (`label.fontSize`) takes.
         row("Size", "Size", { accepts: "number" }),
+        row("LetterSize", "Letter Size", { accepts: "number", min: 0 }),
         row("Font", "Font", { accepts: "text" }),
         row("Weight", "Weight", { accepts: "enum", values: LABEL_WEIGHT_VALUES }),
         row("Italic", "Italic", { accepts: "boolean" }),
+        row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
+        row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapEllipsis", "Wrap Ellipsis", {
+            accepts: "boolean",
+            caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
+        }),
+        row("WrapAnywhere", "Wrap Anywhere", {
+            accepts: "boolean",
+            caveat: "A line may break between any two letters, filling each line to the wrap width.",
+        }),
+        row("WrapSpaceCount", "Wrap Space Count", {
+            accepts: "number",
+            min: 0,
+            caveat:
+                "How many blanks one blank between two words counts as against the wrap width; it is still " +
+                "drawn once. Unset, one.",
+        }),
+        row("RunAlign", "Run Align", {
+            accepts: "enum",
+            values: LABEL_RUN_ALIGN_VALUES,
+            caveat:
+                'Where runs of different sizes in one line of label markup meet: "baseline" puts their ' +
+                'alphabetic baselines on one line, "hanging" their hanging baselines, so their tops line ' +
+                'up (vis-network\'s labels below a node), "middle" their middles. Unset, "baseline".',
+        }),
+        // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
+        row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
+        row("OnTop", "On Top", { accepts: "boolean" }),
+        row("Rotation", "Rotation", { accepts: "number" }),
+        row("Background", "Background", {
+            accepts: "color",
+            caveat: "The color of a panel drawn behind the label's words, as a program's label background is.",
+        }),
+        // The outline's color switches it on; a width of 0 switches it off.
         row("Outline", "Outline", { accepts: "color" }),
-        row("OutlineWidth", "Outline Width", { accepts: "number" }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.textOutlineWidth`) takes.
+        row("OutlineWidth", "Outline Width", {
+            accepts: "number",
+            caveat:
+                "How far the outline reaches out from each letter's edge, in pixels of the label drawn at its " +
+                "own size (`labelSize`). 0 draws none.",
+        }),
+        row("Border", "Border", {
+            accepts: "color",
+            caveat: "The color of a line drawn round the panel behind the label's words; `labelBorderWidth` sets how thick.",
+        }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.borderWidth`) takes.
+        row("BorderWidth", "Border Width", {
+            accepts: "number",
+            caveat:
+                "How thick the line round the panel behind the label's words is, in pixels of the label drawn at " +
+                "its own size (`labelSize`). 0 draws none.",
+        }),
+        row("Opacity", "Opacity", {
+            accepts: "number",
+            min: 0,
+            max: 1,
+            caveat: "How opaque the label's words are, over their color's own alpha: 0 draws none.",
+        }),
+        row("BackgroundOpacity", "Background Opacity", {
+            accepts: "number",
+            min: 0,
+            max: 1,
+            caveat: "How opaque the panel behind the label's words is, over its color's own alpha: 0 draws none.",
+        }),
+        row("OutlineOpacity", "Outline Opacity", {
+            accepts: "number",
+            min: 0,
+            max: 1,
+            caveat: "How opaque the outline round the label's letters is, over its color's own alpha: 0 draws none.",
+        }),
+        row("BorderOpacity", "Border Opacity", {
+            accepts: "number",
+            min: 0,
+            max: 1,
+            caveat:
+                "How opaque the line round the panel behind the label's words is, over its color's own alpha: 0 " +
+                "draws none.",
+        }),
+        row("Padding", "Padding", {
+            accepts: "number",
+            min: 0,
+            caveat:
+                "How far the panel behind the label's words (its background and border) reaches past the words' " +
+                "line box on every side, in pixels of the label drawn at its own size (`labelSize`); 0 puts the " +
+                "border against the words. Unset, the label style's margins and padding decide.",
+        }),
+        row("CornerRadius", "Corner Radius", {
+            accepts: "number",
+            caveat:
+                "How far the corners of the panel behind the label's words are rounded, in pixels of the label " +
+                "drawn at its own size (`labelSize`). Unset, square corners.",
+        }),
+        row("LineHeight", "Line Height", {
+            accepts: "number",
+            caveat:
+                "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
+                "box exactly as tall as the font. Unset, 1.2.",
+        }),
+        row("OffsetX", "Offset X", {
+            accepts: "number",
+            caveat: "How far the label is moved to the right of where its location puts it, in the scene's units.",
+        }),
+        row("OffsetY", "Offset Y", {
+            accepts: "number",
+            caveat: "How far the label is moved down from where its location puts it, in the scene's units.",
+        }),
+        row("ShiftX", "Shift X", {
+            accepts: "number",
+            caveat:
+                "How far the label is moved to the right again, as a fraction of its own width: -0.5 puts its " +
+                "right edge where its middle was.",
+        }),
+        row("ShiftY", "Shift Y", {
+            accepts: "number",
+            caveat: "How far the label is moved down again, as a fraction of its own height.",
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -678,15 +1475,64 @@ function labelFieldChannels<Target extends "node" | "edge">(
 const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SUFFIX, string>> = {
     Color: "textColor",
     Size: "fontSize",
+    LetterSize: "letterSize",
     Font: "font",
     Weight: "fontWeight",
     Italic: "fontStyle",
+    WrapWidth: "wrapWidth",
+    WrapTrailingSpace: "wrapTrailingSpace",
+    WrapEllipsis: "wrapEllipsis",
+    WrapAnywhere: "wrapAnywhere",
+    WrapSpaceCount: "wrapSpaceCount",
+    RunAlign: "runAlign",
+    MinScreenSize: "minScreenSize",
+    OnTop: "onTop",
+    Rotation: "rotation",
+    Background: "backgroundColor",
     Outline: "textOutlineColor",
     OutlineWidth: "textOutlineWidth",
+    Border: "borderColor",
+    BorderWidth: "borderWidth",
+    Opacity: "textOpacity",
+    BackgroundOpacity: "backgroundOpacity",
+    OutlineOpacity: "textOutlineOpacity",
+    BorderOpacity: "borderOpacity",
+    Padding: "boxPadding",
+    CornerRadius: "cornerRadius",
+    LineHeight: "lineHeight",
+    OffsetX: "offsetX",
+    OffsetY: "offsetY",
+    ShiftX: "shiftX",
+    ShiftY: "shiftY",
 };
 
 /** Every weight the `labelWeight` channels take. */
 const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
+
+/** Every place the `labelRunAlign` channels take. */
+const LABEL_RUN_ALIGN_VALUES: readonly LabelRunAlignValue[] = ["baseline", "hanging", "middle"];
+
+/**
+ * A node label field channel: an edge label belongs to no node, so an
+ * `edge.labelMinNodeScreenSize` would paint nothing.
+ */
+const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
+    channel: "node.labelMinNodeScreenSize",
+    target: "node",
+    plainName: "Node Label Min Node Screen Size",
+    default: 0,
+    shortName: "Label min node screen size",
+    group: "text",
+    stylePath: "label.minNodeScreenSize",
+    renderable: true,
+    accepts: "number",
+    min: 0,
+    caveat:
+        "Hides the label while its node is drawn smaller than this many screen pixels across (the smaller of " +
+        "its width and height), as sigma.js hides the label of a node drawn under its " +
+        "`labelRenderedSizeThreshold`. Decided again whenever the camera moves. Unset or 0, the node's size " +
+        "never hides its label.",
+};
 
 /**
  * Where a label field channel writes: the label style channel it lands in and the field.
@@ -694,7 +1540,26 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
  */
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
-    const match = /^(node|edge)\.label(Color|Size|Font|Weight|Italic|Outline|OutlineWidth)$/.exec(channel);
+    if (channel === "node.labelDeclutter") {
+        return { into: "node.labelStyle", field: "declutter" };
+    }
+
+    if (channel === "node.labelMinNodeScreenSize") {
+        return { into: "node.labelStyle", field: "minNodeScreenSize" };
+    }
+
+    if (channel === "node.labelLocation" || channel === "edge.labelLocation") {
+        return { into: channel === "node.labelLocation" ? "node.labelStyle" : "edge.labelStyle", field: "location" };
+    }
+
+    if (channel === "node.labelTextAlign" || channel === "edge.labelTextAlign") {
+        return { into: channel === "node.labelTextAlign" ? "node.labelStyle" : "edge.labelStyle", field: "textAlign" };
+    }
+
+    const match =
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|RunAlign|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
+            channel,
+        );
 
     if (match === null) {
         return undefined;
@@ -712,7 +1577,10 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
  * @returns The one-field label style.
  */
 export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyle {
-    const color = field === "color" || field === "outline" ? asColorValue(painted) : null;
+    const color =
+        field === "color" || field === "background" || field === "outline" || field === "borderColor"
+            ? asColorValue(painted)
+            : null;
 
     return { [field]: color === null ? painted : color.hex };
 }
@@ -748,8 +1616,8 @@ export function mergeLabelStyle(held: unknown, over: object): object {
  * What a node border is, written once and read by its three channels.
  */
 const NODE_BORDER_CAVEAT =
-    "A border is a ring drawn OUTSIDE the node's outline, so it never covers the fill, and an edge " +
-    "stops at its outer edge. Its width is in the units of `node.size` and is drawn only when it is " +
+    "A border is a ring drawn OUTSIDE the node's fill, so it never covers it, and an edge " +
+    "stops at its outer edge; `node.borderPosition` sets whether the fill is the node's size or shrinks inside it. Its width is in the units of `node.size` and is drawn only when it is " +
     "above 0. A flat shape's border follows its outline in every view; a solid's follows the " +
     "outline it shows from the front and turns to face the camera in a 3D view. Unlike " +
     "`node.outline`, which is a screen-space glow of one fixed width, a border scales with the node.";
@@ -781,6 +1649,101 @@ function extentChannel(name: "width" | "height" | "depth", axis: "x" | "y" | "z"
             `is as ${EXTENT_ADJECTIVE[name]} as a node of size 4 is across. ` +
             "Unset, the node keeps its shape's own proportions at its size.",
     };
+}
+
+/**
+ * A label padding channel of a node that grows to hold its label.
+ * @param axis - Which padding: "X" or "Y".
+ * @param sides - The sides it is added on, in words.
+ * @returns The descriptor.
+ */
+function labelPaddingChannel(axis: "X" | "Y", sides: string): ChannelDescriptor {
+    return {
+        channel: `node.labelPadding${axis}`,
+        target: "node",
+        plainName: `Node Label Padding ${axis}`,
+        shortName: `Label padding ${axis}`,
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: `shape.labelPadding${axis}`,
+        renderable: true,
+        caveat:
+            `The space ${sides} the label's box, each, in the units of \`node.size\`, when the node ` +
+            "grows to hold its label (`node.labelFit`). Without `node.labelFit` it changes nothing.",
+    };
+}
+
+/** A node's or an edge's underlay (drawn beneath it) or overlay (drawn over it). */
+type HaloKind = "underlay" | "overlay";
+
+/** The channels of a node's underlay or overlay: `node.underlayColor` and so on. */
+type NodeHaloChannel<K extends HaloKind> = `node.${K}${"Color" | "Opacity" | "Padding" | "Shape" | "CornerRadius"}`;
+
+/** The channels of an edge's underlay or overlay: `edge.underlayColor` and so on. */
+type EdgeHaloChannel<K extends HaloKind> = `edge.${K}${"Color" | "Opacity" | "Padding"}`;
+
+/**
+ * The channels of an underlay (a filled band or shape drawn beneath a node or an edge, Cytoscape.js
+ * `underlay-*`) or an overlay (the same drawn over it, `overlay-*`): its color, its opacity, how far
+ * it reaches past the element, and for a node its shape and corner radius.
+ * @param target - Nodes or edges.
+ * @param kind - Beneath or over.
+ * @returns The channels, in table order.
+ */
+function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescriptor[] {
+    const Kind = kind === "underlay" ? "Underlay" : "Overlay";
+    const where = kind === "underlay" ? "beneath" : "over";
+    const at = target === "node" ? kind : `line.${kind}`;
+    const caveat =
+        target === "node"
+            ? `A filled shape drawn ${where} the node, \`node.${kind}Padding\` beyond its box on every side ` +
+              `(in the units of \`node.size\`), as Cytoscape.js draws its ${kind}. Drawn only with an ` +
+              "opacity above 0; unset, its shape is the node's own."
+            : `A band drawn ${where} the edge's line along its whole length, twice \`edge.${kind}Padding\` ` +
+              `wide (in the line's width units) whatever the line's own width, as Cytoscape.js draws its ` +
+              `${kind}. Drawn only with an opacity above 0.`;
+    const row = (suffix: string, rest: Partial<ChannelDescriptor>): ChannelDescriptor =>
+        ({
+            channel: `${target}.${kind}${suffix}` as Channel,
+            target,
+            plainName: `${target === "node" ? "Node" : "Edge"} ${Kind} ${suffix.replaceAll(/([a-z])([A-Z])/g, "$1 $2")}`,
+            shortName: `${Kind} ${suffix.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}`,
+            group: target === "node" ? "shape" : "line",
+            stylePath: `${at}.${suffix.charAt(0).toLowerCase()}${suffix.slice(1)}`,
+            renderable: true,
+            caveat,
+            ...rest,
+        }) as ChannelDescriptor;
+    const rows = [
+        row("Color", { default: "#000000", accepts: "color" }),
+        row("Opacity", { default: 0, accepts: "number", min: 0, max: 1 }),
+        row("Padding", { default: 0, accepts: "number", min: 0 }),
+    ];
+    if (target === "node") {
+        rows.push(
+            row("Shape", { accepts: "enum", values: NODE_SHAPE_VALUES }),
+            row("CornerRadius", { accepts: "number", min: 0 }),
+        );
+    }
+    return rows;
+}
+
+/**
+ * The halo channels keyed by name, for the table.
+ * @param target - Nodes or edges.
+ * @param kind - Beneath or over.
+ * @returns The descriptors by channel.
+ */
+function haloRows<K extends HaloKind>(
+    target: "node" | "edge",
+    kind: K,
+): Record<NodeHaloChannel<K> | EdgeHaloChannel<K>, ChannelDescriptor> {
+    return Object.fromEntries(haloChannels(target, kind).map((row) => [row.channel, row])) as Record<
+        NodeHaloChannel<K> | EdgeHaloChannel<K>,
+        ChannelDescriptor
+    >;
 }
 
 /**
@@ -855,6 +1818,10 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
     },
     ...labelFieldChannels("node"),
+    "node.labelDeclutter": NODE_LABEL_DECLUTTER,
+    "node.labelMinNodeScreenSize": NODE_LABEL_MIN_NODE_SCREEN_SIZE,
+    "node.labelTextAlign": labelTextAlignChannel("node"),
+    "node.labelLocation": labelLocationChannel("node"),
     "node.tooltip": {
         channel: "node.tooltip",
         target: "node",
@@ -1107,6 +2074,35 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
     },
+    "node.borderScreenWidth": {
+        channel: "node.borderScreenWidth",
+        target: "node",
+        plainName: "Node Border Screen Width",
+        shortName: "Border screen width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.screenWidth",
+        renderable: true,
+        caveat:
+            "A border width in screen pixels, the same at every zoom, as vis-network draws its " +
+            "borders: set, it is drawn in place of `node.borderWidth`, and never wider than the node. " +
+            "The ring is rebuilt when a zoom changes its width on screen by more than a few percent.",
+    },
+    "node.borderOpacity": {
+        channel: "node.borderOpacity",
+        target: "node",
+        plainName: "Node Border Opacity",
+        shortName: "Border opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "border.opacity",
+        renderable: true,
+        caveat: `${NODE_BORDER_CAVEAT} At opacity 0 no border is drawn.`,
+    },
     "node.borderStyle": {
         channel: "node.borderStyle",
         target: "node",
@@ -1119,6 +2115,679 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "border.style",
         renderable: true,
         caveat: NODE_BORDER_CAVEAT,
+    },
+    "node.borderPosition": {
+        channel: "node.borderPosition",
+        target: "node",
+        plainName: "Node Border Position",
+        shortName: "Border position",
+        group: "shape",
+        default: "outside",
+        accepts: "enum",
+        values: NodeBorderPositions.options,
+        stylePath: "border.position",
+        renderable: true,
+        caveat:
+            'Where the border sits against the node\'s size. "outside": the fill is the size and the ' +
+            'ring is drawn beyond it. "center": the ring\'s middle runs along the size, as an SVG or ' +
+            'canvas stroke does. "inside": the ring\'s outer edge is the size, so the node is drawn no ' +
+            "larger than its size, as Cytoscape desktop draws it.",
+    },
+    "node.borderWaveAmplitude": {
+        channel: "node.borderWaveAmplitude",
+        target: "node",
+        plainName: "Node Border Wave Amplitude",
+        shortName: "Border wave amplitude",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.waveAmplitude",
+        renderable: true,
+        caveat:
+            "How far a zigzag or sinewave border swings to either side of the ring's middle, in the units of " +
+            "`node.borderWidth`. Set, the border's width is the thickness of the waving line and " +
+            "`node.borderWavePeriod` how often it repeats; unset, the wave is drawn within the ring. A sine " +
+            "wave's periods are each drawn straight from where they start, so on a small node they loop out " +
+            "past it, as Cytoscape desktop draws them.",
+    },
+    "node.borderWavePeriod": {
+        channel: "node.borderWavePeriod",
+        target: "node",
+        plainName: "Node Border Wave Period",
+        shortName: "Border wave period",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.wavePeriod",
+        renderable: true,
+        caveat:
+            "How far round the node a zigzag or sinewave border runs before it repeats, in the units of " +
+            "`node.borderWidth`. Used with `node.borderWaveAmplitude`; unset or 0, it is four times the amplitude.",
+    },
+    "node.outerBorderColor": {
+        channel: "node.outerBorderColor",
+        target: "node",
+        plainName: "Node Outer Border Color",
+        shortName: "Outer border color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "outerBorder.color",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderWidth": {
+        channel: "node.outerBorderWidth",
+        target: "node",
+        plainName: "Node Outer Border Width",
+        shortName: "Outer border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "outerBorder.width",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderOpacity": {
+        channel: "node.outerBorderOpacity",
+        target: "node",
+        plainName: "Node Outer Border Opacity",
+        shortName: "Outer border opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "outerBorder.opacity",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderStyle": {
+        channel: "node.outerBorderStyle",
+        target: "node",
+        plainName: "Node Outer Border Style",
+        shortName: "Outer border style",
+        group: "shape",
+        default: "solid",
+        accepts: "enum",
+        values: NodeBorderStyles.options,
+        stylePath: "outerBorder.style",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.outerBorderOffset": {
+        channel: "node.outerBorderOffset",
+        target: "node",
+        plainName: "Node Outer Border Offset",
+        shortName: "Outer border offset",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "outerBorder.offset",
+        renderable: true,
+        caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    ...haloRows("node", "underlay"),
+    ...haloRows("node", "overlay"),
+    "node.image": {
+        channel: "node.image",
+        target: "node",
+        plainName: "Node Image",
+        shortName: "Image",
+        group: "shape",
+        accepts: "text",
+        stylePath: "image.src",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageFallback": {
+        channel: "node.imageFallback",
+        target: "node",
+        plainName: "Node Image Fallback",
+        shortName: "Image fallback",
+        group: "shape",
+        accepts: "text",
+        stylePath: "image.fallback",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageFit": {
+        channel: "node.imageFit",
+        target: "node",
+        plainName: "Node Image Fit",
+        shortName: "Image fit",
+        group: "shape",
+        default: "contain",
+        accepts: "enum",
+        values: NODE_IMAGE_FIT_VALUES,
+        stylePath: "image.fit",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageWidth": {
+        channel: "node.imageWidth",
+        target: "node",
+        plainName: "Node Image Width",
+        shortName: "Image width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.width",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageHeight": {
+        channel: "node.imageHeight",
+        target: "node",
+        plainName: "Node Image Height",
+        shortName: "Image height",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.height",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePixelSize": {
+        channel: "node.imagePixelSize",
+        target: "node",
+        plainName: "Node Image Pixel Size",
+        shortName: "Image pixel size",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.pixelSize",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePositionX": {
+        channel: "node.imagePositionX",
+        target: "node",
+        plainName: "Node Image Position X",
+        shortName: "Image position x",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "image.positionX",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePositionY": {
+        channel: "node.imagePositionY",
+        target: "node",
+        plainName: "Node Image Position Y",
+        shortName: "Image position y",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "image.positionY",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageOffsetX": {
+        channel: "node.imageOffsetX",
+        target: "node",
+        plainName: "Node Image Offset X",
+        shortName: "Image offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "image.offsetX",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageOffsetY": {
+        channel: "node.imageOffsetY",
+        target: "node",
+        plainName: "Node Image Offset Y",
+        shortName: "Image offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "image.offsetY",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageRepeat": {
+        channel: "node.imageRepeat",
+        target: "node",
+        plainName: "Node Image Repeat",
+        shortName: "Image repeat",
+        group: "shape",
+        default: "no-repeat",
+        accepts: "enum",
+        values: NODE_IMAGE_REPEAT_VALUES,
+        stylePath: "image.repeat",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageClip": {
+        channel: "node.imageClip",
+        target: "node",
+        plainName: "Node Image Clip",
+        shortName: "Image clip",
+        group: "shape",
+        default: "node",
+        accepts: "enum",
+        values: NODE_IMAGE_CLIP_VALUES,
+        stylePath: "image.clip",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageSmoothing": {
+        channel: "node.imageSmoothing",
+        target: "node",
+        plainName: "Node Image Smoothing",
+        shortName: "Image smoothing",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "image.smoothing",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageAutoSize": {
+        channel: "node.imageAutoSize",
+        target: "node",
+        plainName: "Node Image Auto Size",
+        shortName: "Image auto size",
+        group: "shape",
+        default: "proportional",
+        accepts: "enum",
+        values: NODE_IMAGE_AUTO_SIZE_VALUES,
+        stylePath: "image.autoSize",
+        renderable: true,
+        caveat:
+            'How an image drawn at a size of its own (`node.imageFit` "none") fills the side `node.imageWidth` or ' +
+            '`node.imageHeight` leaves unset: "proportional" keeps the picture\'s proportions to the side given, ' +
+            '"natural" draws it at the picture\'s own pixels times `node.imagePixelSize`, as Cytoscape.js draws ' +
+            "a `background-width` with an `auto` height.",
+    },
+    "node.imageOpacity": {
+        channel: "node.imageOpacity",
+        target: "node",
+        plainName: "Node Image Opacity",
+        shortName: "Image opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "image.opacity",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.glyph": {
+        channel: "node.glyph",
+        target: "node",
+        plainName: "Node Glyph",
+        shortName: "Glyph",
+        group: "shape",
+        accepts: "text",
+        stylePath: "glyph.text",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphFont": {
+        channel: "node.glyphFont",
+        target: "node",
+        plainName: "Node Glyph Font",
+        shortName: "Glyph font",
+        group: "shape",
+        accepts: "text",
+        stylePath: "glyph.font",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphSize": {
+        channel: "node.glyphSize",
+        target: "node",
+        plainName: "Node Glyph Size",
+        shortName: "Glyph size",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "glyph.size",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphWeight": {
+        channel: "node.glyphWeight",
+        target: "node",
+        plainName: "Node Glyph Weight",
+        shortName: "Glyph weight",
+        group: "shape",
+        default: 400,
+        accepts: "number",
+        min: 1,
+        max: 1000,
+        stylePath: "glyph.weight",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphColor": {
+        channel: "node.glyphColor",
+        target: "node",
+        plainName: "Node Glyph Color",
+        shortName: "Glyph color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "glyph.color",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.pieColors": {
+        channel: "node.pieColors",
+        target: "node",
+        plainName: "Node Pie Colors",
+        shortName: "Pie colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.colors",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieSizes": {
+        channel: "node.pieSizes",
+        target: "node",
+        plainName: "Node Pie Sizes",
+        shortName: "Pie sizes",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.sizes",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOpacities": {
+        channel: "node.pieOpacities",
+        target: "node",
+        plainName: "Node Pie Opacities",
+        shortName: "Pie opacities",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.opacities",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieRadius": {
+        channel: "node.pieRadius",
+        target: "node",
+        plainName: "Node Pie Radius",
+        shortName: "Pie radius",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "pie.radius",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieHole": {
+        channel: "node.pieHole",
+        target: "node",
+        plainName: "Node Pie Hole",
+        shortName: "Pie hole",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "pie.hole",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieRotation": {
+        channel: "node.pieRotation",
+        target: "node",
+        plainName: "Node Pie Rotation",
+        shortName: "Pie rotation",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.rotation",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieFitBox": {
+        channel: "node.pieFitBox",
+        target: "node",
+        plainName: "Node Pie Fit Box",
+        shortName: "Pie fit box",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "pie.fitBox",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOffsetX": {
+        channel: "node.pieOffsetX",
+        target: "node",
+        plainName: "Node Pie Offset X",
+        shortName: "Pie offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.offsetX",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOffsetY": {
+        channel: "node.pieOffsetY",
+        target: "node",
+        plainName: "Node Pie Offset Y",
+        shortName: "Pie offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.offsetY",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.stripeColors": {
+        channel: "node.stripeColors",
+        target: "node",
+        plainName: "Node Stripe Colors",
+        shortName: "Stripe colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.colors",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeSizes": {
+        channel: "node.stripeSizes",
+        target: "node",
+        plainName: "Node Stripe Sizes",
+        shortName: "Stripe sizes",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.sizes",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeOpacities": {
+        channel: "node.stripeOpacities",
+        target: "node",
+        plainName: "Node Stripe Opacities",
+        shortName: "Stripe opacities",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.opacities",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeDirection": {
+        channel: "node.stripeDirection",
+        target: "node",
+        plainName: "Node Stripe Direction",
+        shortName: "Stripe direction",
+        group: "shape",
+        default: "down",
+        accepts: "enum",
+        values: NODE_STRIPE_DIRECTION_VALUES,
+        stylePath: "stripes.direction",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeSize": {
+        channel: "node.stripeSize",
+        target: "node",
+        plainName: "Node Stripe Size",
+        shortName: "Stripe size",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "stripes.size",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.chartKind": {
+        channel: "node.chartKind",
+        target: "node",
+        plainName: "Node Chart Kind",
+        shortName: "Chart kind",
+        group: "shape",
+        default: "bar",
+        accepts: "enum",
+        values: NODE_CHART_KIND_VALUES,
+        stylePath: "chart.kind",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartValues": {
+        channel: "node.chartValues",
+        target: "node",
+        plainName: "Node Chart Values",
+        shortName: "Chart values",
+        group: "shape",
+        accepts: "text",
+        stylePath: "chart.values",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartColors": {
+        channel: "node.chartColors",
+        target: "node",
+        plainName: "Node Chart Colors",
+        shortName: "Chart colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "chart.colors",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMin": {
+        channel: "node.chartMin",
+        target: "node",
+        plainName: "Node Chart Min",
+        shortName: "Chart min",
+        group: "shape",
+        accepts: "number",
+        stylePath: "chart.min",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMax": {
+        channel: "node.chartMax",
+        target: "node",
+        plainName: "Node Chart Max",
+        shortName: "Chart max",
+        group: "shape",
+        accepts: "number",
+        stylePath: "chart.max",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartHorizontal": {
+        channel: "node.chartHorizontal",
+        target: "node",
+        plainName: "Node Chart Horizontal",
+        shortName: "Chart horizontal",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "chart.horizontal",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartSize": {
+        channel: "node.chartSize",
+        target: "node",
+        plainName: "Node Chart Size",
+        shortName: "Chart size",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.size",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartMargin": {
+        channel: "node.chartMargin",
+        target: "node",
+        plainName: "Node Chart Margin",
+        shortName: "Chart margin",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "chart.margin",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartGap": {
+        channel: "node.chartGap",
+        target: "node",
+        plainName: "Node Chart Gap",
+        shortName: "Chart gap",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "chart.gap",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartLineWidth": {
+        channel: "node.chartLineWidth",
+        target: "node",
+        plainName: "Node Chart Line Width",
+        shortName: "Chart line width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.lineWidth",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBorderColor": {
+        channel: "node.chartBorderColor",
+        target: "node",
+        plainName: "Node Chart Border Color",
+        shortName: "Chart border color",
+        group: "shape",
+        accepts: "color",
+        stylePath: "chart.borderColor",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
+    },
+    "node.chartBorderWidth": {
+        channel: "node.chartBorderWidth",
+        target: "node",
+        plainName: "Node Chart Border Width",
+        shortName: "Chart border width",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "chart.borderWidth",
+        renderable: true,
+        caveat: NODE_CHART_CAVEAT,
     },
     "node.cornerRadius": {
         channel: "node.cornerRadius",
@@ -1134,6 +2803,219 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
             "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
             "a large box keeps small corners. Other shapes ignore it.",
+    },
+    "node.exactCornerRadius": {
+        channel: "node.exactCornerRadius",
+        target: "node",
+        plainName: "Node Exact Corner Radius",
+        shortName: "Exact corner radius",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.exactCornerRadius",
+        renderable: true,
+        caveat:
+            "Whether `node.cornerRadius` is drawn as given, up to half the shorter side, so a large radius " +
+            "draws a pill (true), or capped at a quarter of the shorter side on a round-rectangle and a " +
+            "tenth on the round-* polygons (false). Other shapes ignore it.",
+    },
+    "node.shapePoints": {
+        channel: "node.shapePoints",
+        target: "node",
+        plainName: "Node Polygon Points",
+        shortName: "Polygon points",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.points",
+        renderable: true,
+        caveat:
+            'The corners of a "polygon" node, as `x,y` pairs separated by spaces, each relative to the ' +
+            "node's center as fractions of its half width and half height, y up: `0,1 1,-1 -1,-1` is a " +
+            "triangle. The outline is stretched so its farthest corners reach the node's sides. A node that " +
+            "grows to hold its label (`node.labelFit`) grows by as far as its corners reach past 1. Other " +
+            "shapes ignore it.",
+    },
+    "node.shapeStretchPoints": {
+        channel: "node.shapeStretchPoints",
+        target: "node",
+        plainName: "Node Polygon Stretch",
+        shortName: "Stretch points",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "shape.stretchPoints",
+        renderable: true,
+        caveat:
+            'Whether a "polygon" node\'s corners (`node.shapePoints`) are stretched so the farthest reach ' +
+            "the node's sides (true), or drawn exactly where they say, as fractions of its half width and " +
+            "half height (false), so a regular polygon inside the ellipse of the node's box keeps its size. " +
+            "Other shapes ignore it.",
+    },
+    "node.shapeParts": {
+        channel: "node.shapeParts",
+        target: "node",
+        plainName: "Node Shape Parts",
+        shortName: "Shape parts",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.parts",
+        renderable: true,
+        caveat:
+            "Further closed pieces of a flat node's body beside its outline: polygons as `x,y` pairs separated " +
+            'by spaces, one after another separated by ";", each point relative to the node\'s center as ' +
+            "fractions of its half width and half height, y up, drawn where they say (never stretched). Each is " +
+            "filled in the node's color and outlined in its border's color and width, centered on it: " +
+            '`-1,0.1 1,0.1 1,0.5 -1,0.5; -1,-0.1 1,-0.1 1,-0.5 -1,-0.5` beside a "polygon" node is two bars. ' +
+            "Solid shapes ignore it.",
+    },
+    "node.shapeLines": {
+        channel: "node.shapeLines",
+        target: "node",
+        plainName: "Node Shape Lines",
+        shortName: "Shape lines",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.lines",
+        renderable: true,
+        caveat:
+            "Lines drawn over a flat node in its border's color: polylines as `x,y` pairs separated by spaces, " +
+            'one after another separated by ";", in the frame `node.shapeParts` uses; a polyline that ends ' +
+            "where it starts is closed. Each is centered on its points, `node.shapeLineWidth` wide: " +
+            "`-1,0 1,0` is a line across the node's middle, as Graphviz draws a promoter's baseline. Solid " +
+            "shapes ignore it.",
+    },
+    "node.shapeTexts": {
+        channel: "node.shapeTexts",
+        target: "node",
+        plainName: "Node Shape Texts",
+        shortName: "Shape texts",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.texts",
+        renderable: true,
+        caveat:
+            "Further texts drawn over a node in its label's font, size and color, each one line centered on its " +
+            "point: a JSON list of `[x, y, text]`, the point in the frame `node.shapeParts` uses " +
+            '(`[[-0.5, 0, "a"], [0.5, 0, "b"]]` is two words side by side, as Graphviz draws a record\'s ' +
+            "fields). A fourth item gives what differs from the label: " +
+            '`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the ' +
+            "node's height, the rotation in degrees clockwise (a chart's item labels). Drawn beside the node's " +
+            "label, whatever it says.",
+    },
+    "node.shapeLineWidth": {
+        channel: "node.shapeLineWidth",
+        target: "node",
+        plainName: "Node Shape Line Width",
+        shortName: "Line width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.lineWidth",
+        renderable: true,
+        caveat:
+            "How wide `node.shapeLines` are drawn, in the units of `node.borderWidth`. Unset, the border's " +
+            "width, so a node with no border draws no lines unless this is set.",
+    },
+    "node.labelFit": {
+        channel: "node.labelFit",
+        target: "node",
+        plainName: "Node Label Fit",
+        shortName: "Fit label",
+        group: "shape",
+        accepts: "enum",
+        values: NodeLabelFits.options,
+        stylePath: "shape.labelFit",
+        renderable: true,
+        caveat:
+            "Grows the node to hold its label: its width and height (or size) become its least size. " +
+            '"inside" fits the label\'s box, padded by `node.labelPaddingX` and `node.labelPaddingY`, ' +
+            "inside the node's outline, so an ellipse or a diamond reaches past the box's corners; \"bounds\" " +
+            "makes the padded box the node's width and height whatever its shape. The box is as wide as the " +
+            "label's widest line and as tall as its lines at one font size each. Unset, the node is the size " +
+            "it states. Each distinct label is its own source mesh, so instancing is lost on these nodes.",
+    },
+    "node.labelPaddingX": labelPaddingChannel("X", "left and right"),
+    "node.labelPaddingY": labelPaddingChannel("Y", "above and below"),
+    "node.labelFitSquare": {
+        channel: "node.labelFitSquare",
+        target: "node",
+        plainName: "Node Label Fit Square",
+        shortName: "Fit square",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.labelFitSquare",
+        renderable: true,
+        caveat:
+            "A node that grows to hold its label (`node.labelFit`) stays as wide as it is tall, as a " +
+            "circle or a square does. Without `node.labelFit` it changes nothing.",
+    },
+    "node.gradientColor": {
+        channel: "node.gradientColor",
+        target: "node",
+        plainName: "Node Gradient Color",
+        shortName: "Gradient color",
+        group: "color",
+        accepts: "color",
+        stylePath: "texture.color.colors",
+        renderable: true,
+        caveat:
+            "Fills the node with a linear gradient from its `node.color` into this colour, running " +
+            "the way `node.gradientDirection` says. A gradient is part of the node's mesh rather " +
+            "than of its instance, so each distinct gradient is its own source mesh and its own ramp " +
+            "texture; past 32 distinct ramps in a scene a node is filled flat with its `node.color`.",
+    },
+    "node.gradientDirection": {
+        channel: "node.gradientDirection",
+        target: "node",
+        plainName: "Node Gradient Direction",
+        shortName: "Gradient direction",
+        group: "color",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 360,
+        stylePath: "texture.color.direction",
+        renderable: true,
+        caveat:
+            "Which way a gradient fill (`node.gradientColor`) runs, in degrees on the screen: 0 from " +
+            "left to right, 90 from top to bottom, 45 from the top-left corner to the bottom-right one. " +
+            "Without `node.gradientColor` the node is filled flat with its `node.color`.",
+    },
+    "node.gradientColors": {
+        channel: "node.gradientColors",
+        target: "node",
+        plainName: "Node Gradient Colors",
+        shortName: "Gradient colors",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.color.colors",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientStops": {
+        channel: "node.gradientStops",
+        target: "node",
+        plainName: "Node Gradient Stops",
+        shortName: "Gradient stops",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.color.stops",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientKind": {
+        channel: "node.gradientKind",
+        target: "node",
+        plainName: "Node Gradient Kind",
+        shortName: "Gradient kind",
+        group: "color",
+        default: "linear",
+        accepts: "enum",
+        values: NODE_GRADIENT_KIND_VALUES,
+        stylePath: "texture.color.colorType",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
     },
     "edge.color": {
         channel: "edge.color",
@@ -1156,6 +3038,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.width",
         renderable: true,
     },
+    "edge.minScreenWidth": {
+        channel: "edge.minScreenWidth",
+        target: "edge",
+        plainName: "Edge Min Screen Width",
+        default: 0,
+        shortName: "Min screen width",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.minScreenWidth",
+        renderable: true,
+        caveat:
+            "The fewest screen pixels wide the line is drawn, at any zoom: a line whose `edge.width` comes to " +
+            "less on screen, a width of 0 included, is drawn this wide, as sigma.js draws every edge at least " +
+            "its `minEdgeThickness`. Unset or 0, the line is drawn at its width alone.",
+    },
     "edge.opacity": {
         channel: "edge.opacity",
         target: "edge",
@@ -1168,6 +3066,95 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         max: 1,
         stylePath: "line.opacity",
         renderable: true,
+    },
+    "edge.outlineColor": {
+        channel: "edge.outlineColor",
+        target: "edge",
+        plainName: "Edge Outline Color",
+        shortName: "Outline color",
+        group: "line",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "line.outline.color",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineWidth": {
+        channel: "edge.outlineWidth",
+        target: "edge",
+        plainName: "Edge Outline Width",
+        shortName: "Outline width",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.outline.width",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineOpacity": {
+        channel: "edge.outlineOpacity",
+        target: "edge",
+        plainName: "Edge Outline Opacity",
+        shortName: "Outline opacity",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "line.outline.opacity",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineStyle": {
+        channel: "edge.outlineStyle",
+        target: "edge",
+        plainName: "Edge Outline Pattern",
+        shortName: "Outline pattern",
+        group: "line",
+        default: "solid",
+        accepts: "enum",
+        values: EDGE_OUTLINE_VALUES,
+        stylePath: "line.outline.type",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    ...haloRows("edge", "underlay"),
+    ...haloRows("edge", "overlay"),
+    "edge.gradientColors": {
+        channel: "edge.gradientColors",
+        target: "edge",
+        plainName: "Edge Gradient Colors",
+        shortName: "Gradient colors",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.gradient.colors",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
+    },
+    "edge.gradientStops": {
+        channel: "edge.gradientStops",
+        target: "edge",
+        plainName: "Edge Gradient Stops",
+        shortName: "Gradient stops",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.gradient.stops",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
+    },
+    "edge.gradientKind": {
+        channel: "edge.gradientKind",
+        target: "edge",
+        plainName: "Edge Gradient Kind",
+        shortName: "Gradient kind",
+        group: "line",
+        default: "linear",
+        accepts: "enum",
+        values: EDGE_GRADIENT_KIND_VALUES,
+        stylePath: "line.gradient.kind",
+        renderable: true,
+        caveat: EDGE_GRADIENT_CAVEAT,
     },
     "edge.style": {
         channel: "edge.style",
@@ -1195,6 +3182,35 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "patterned line only: a solid line has no elements to count, and zigzag and " +
             "sinewave always tile the whole edge, so they ignore it. Left unset, the spacing " +
             "rule decides, so a long edge or a thin one draws more of them.",
+    },
+    "edge.waveAmplitude": {
+        channel: "edge.waveAmplitude",
+        target: "edge",
+        plainName: "Edge Wave Amplitude",
+        shortName: "Wave amplitude",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.waveAmplitude",
+        renderable: true,
+        caveat:
+            "How far a sinewave or zigzag line swings to either side of its path, in the units of " +
+            "`edge.width`. Set, the edge's width is the thickness of the waving line and `edge.wavePeriod` " +
+            "how often it repeats; unset, the wave is drawn within the edge's width.",
+    },
+    "edge.wavePeriod": {
+        channel: "edge.wavePeriod",
+        target: "edge",
+        plainName: "Edge Wave Period",
+        shortName: "Wave period",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.wavePeriod",
+        renderable: true,
+        caveat:
+            "How far along its path a sinewave or zigzag line runs before it repeats, in the units of " +
+            "`edge.width`. Used with `edge.waveAmplitude`; unset or 0, it is four times the amplitude.",
     },
     "edge.curvature": {
         channel: "edge.curvature",
@@ -1225,8 +3241,117 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`across` the distance to the left of that line as a fraction of its length. The edge is " +
             "drawn as straight segments through them, with rounded corners when it is also curved.",
     },
+    "edge.fanSpacing": {
+        channel: "edge.fanSpacing",
+        target: "edge",
+        plainName: "Edge Fan Spacing",
+        shortName: "Fan spacing",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.fanSpacing",
+        renderable: true,
+        caveat:
+            "How far apart, at their middle, neighboring curved edges between the same two nodes " +
+            "are drawn, in the scene's units. Left unset, they are two radii of the larger node " +
+            "apart, closer when the nodes are close. A straight edge keeps the line between its nodes.",
+    },
+    "edge.fanned": {
+        channel: "edge.fanned",
+        target: "edge",
+        plainName: "Edge Fanned",
+        shortName: "Fanned",
+        group: "line",
+        accepts: "boolean",
+        stylePath: "line.fanned",
+        renderable: true,
+        caveat:
+            "Whether a curved edge spreads apart from the other curved edges between the same two " +
+            "nodes. Left unset, it does; false draws it as its own curve, bowing to the left of its " +
+            "direction, so two edges joined either way round bow apart.",
+    },
+    "edge.bendCurve": {
+        channel: "edge.bendCurve",
+        target: "edge",
+        plainName: "Edge Bend Curve",
+        shortName: "Bend curve",
+        group: "line",
+        default: "corners",
+        accepts: "enum",
+        values: EDGE_BEND_CURVE_VALUES,
+        stylePath: "line.bendCurve",
+        renderable: true,
+        caveat:
+            'How a curved edge is drawn through its bends: "corners" runs straight through each bend ' +
+            'and rounds its corner; "midpoints" draws one smooth curve that uses the bends as control ' +
+            'points, from the middle of each segment to the next; "bezier" draws one Bezier curve whose ' +
+            'control points are the bends (one: quadratic, two: cubic); "arc" draws the arc of the circle ' +
+            "through both ends and the one bend. A straight edge or one without bends ignores it.",
+    },
+    "edge.arcRadius": {
+        channel: "edge.arcRadius",
+        target: "edge",
+        plainName: "Edge Arc Radius",
+        shortName: "Arc radius",
+        group: "line",
+        accepts: "number",
+        min: 0.5,
+        stylePath: "line.arcRadius",
+        renderable: true,
+        caveat:
+            "Draws a curved edge that does not fan out of a bundle as an arc of the circle through both " +
+            "node centers, with this many times the distance between them as its radius (0.5 is a half " +
+            "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
+            "edge ignores it.",
+    },
+    "edge.nodeGap": {
+        channel: "edge.nodeGap",
+        target: "edge",
+        plainName: "Edge Node Gap",
+        shortName: "Node gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.nodeGap",
+        renderable: true,
+        caveat:
+            "How far from each of its nodes' outlines the line stops, in the scene's units, leaving that " +
+            "much empty between the node and the line's end; an arrow cap there moves out with it. A " +
+            "self-loop ignores it.",
+    },
+    "edge.sourcePort": {
+        channel: "edge.sourcePort",
+        target: "edge",
+        plainName: "Edge Source Port",
+        shortName: "Source port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.sourcePort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its source node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
+    },
+    "edge.targetPort": {
+        channel: "edge.targetPort",
+        target: "edge",
+        plainName: "Edge Target Port",
+        shortName: "Target port",
+        group: "line",
+        accepts: "text",
+        stylePath: "line.targetPort",
+        renderable: true,
+        caveat:
+            "Where the line attaches to its target node, when not where the line from the node's center " +
+            "crosses its outline: `x,y` from the node's center as fractions of its half width and half " +
+            "height, y up (`1,0` is the middle of its right side, `0,1` the middle of its top).",
+    },
     ...arrowEndChannels("Head"),
     ...arrowEndChannels("Tail"),
+    ...arrowMidChannels("MiddleHead"),
+    ...arrowMidChannels("MiddleTail"),
     "edge.animationSpeed": {
         channel: "edge.animationSpeed",
         target: "edge",
@@ -1259,6 +3384,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "label",
         renderable: true,
     },
+    "edge.labelTextAlign": labelTextAlignChannel("edge"),
+    "edge.labelLocation": labelLocationChannel("edge"),
     ...labelFieldChannels("edge"),
 };
 

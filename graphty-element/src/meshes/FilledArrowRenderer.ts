@@ -10,9 +10,119 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { ArrowCap, arrowCapBatch } from "./ArrowCapBatch";
 import { MaterialHelper } from "./MaterialHelper";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** Segments a whole circle is drawn with; an arc gets its share of them. */
+const ARC_SEGMENTS = 32;
+/** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
+const OPEN_FRAME = 0.5 * 0.225;
+
+/**
+ * A disc's piece between two angles, as a fan from its center, in the XZ plane.
+ * @param cx - The center's x.
+ * @param r - The radius.
+ * @param cz - The center's z.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The center, then the arc's points.
+ */
+function arc(cx: number, r: number, cz: number, from: number, to: number): [number, number][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const points: [number, number][] = [[cx, cz]];
+    for (let i = 0; i <= steps; i++) {
+        const a = from + ((to - from) * i) / steps;
+        points.push([cx + r * Math.cos(a), cz + r * Math.sin(a)]);
+    }
+    return points;
+}
+
+/**
+ * An arc drawn as a band between two radii about a center on the axis, one quad per step.
+ * @param cx - The center's x.
+ * @param r - The outer radius.
+ * @param inner - The inner radius as a fraction of the outer.
+ * @param from - The first angle, in radians from +x toward +z.
+ * @param to - The last angle.
+ * @returns The quads.
+ */
+function band(cx: number, r: number, inner: number, from: number, to: number): [number, number][][] {
+    const steps = Math.max(2, Math.ceil((ARC_SEGMENTS * Math.abs(to - from)) / (2 * Math.PI)));
+    const at = (a: number, k: number): [number, number] => [cx + k * r * Math.cos(a), k * r * Math.sin(a)];
+    const quads: [number, number][][] = [];
+    for (let i = 0; i < steps; i++) {
+        const a0 = from + ((to - from) * i) / steps;
+        const a1 = from + ((to - from) * (i + 1)) / steps;
+        quads.push([at(a0, 1), at(a1, 1), at(a1, inner), at(a0, inner)]);
+    }
+    return quads;
+}
+
+/**
+ * A bar across the line, from x0 back to x1, `half` to each side of it.
+ * @param x0 - Its back.
+ * @param x1 - Its front.
+ * @param half - Half its width.
+ * @returns Its corners.
+ */
+function rect(x0: number, x1: number, half: number): [number, number][] {
+    return [
+        [x0, -half],
+        [x1, -half],
+        [x1, half],
+        [x0, half],
+    ];
+}
+
+/**
+ * A convex outline drawn as a frame `t` thick inside it, one quad per side: each side moved in by
+ * `t`, and each corner of the inner outline where two moved sides meet.
+ * @param outline - The outline's corners, in order.
+ * @param t - How thick the frame is.
+ * @returns The quads.
+ */
+function frame(outline: readonly (readonly [number, number])[], t: number): [number, number][][] {
+    const n = outline.length;
+    // the side from corner i to i + 1, moved in by t: a point on it and its direction
+    const area = outline.reduce((sum, [x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        return sum + x * z1 - x1 * z;
+    }, 0);
+    const turn = area > 0 ? 1 : -1;
+    const sides = outline.map(([x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        const length = Math.hypot(x1 - x, z1 - z);
+        const [dx, dz] = [(x1 - x) / length, (z1 - z) / length];
+        // the inward normal: to the left of a side of a counter-clockwise outline
+        const [nx, nz] = [-dz * turn, dx * turn];
+        return { x: x + nx * t, z: z + nz * t, dx, dz };
+    });
+    const inner = outline.map((_, i) => {
+        const a = sides[(i + n - 1) % n];
+        const b = sides[i];
+        const det = a.dx * b.dz - a.dz * b.dx;
+        const k = ((b.x - a.x) * b.dz - (b.z - a.z) * b.dx) / det;
+        return [a.x + k * a.dx, a.z + k * a.dz] as [number, number];
+    });
+    return outline.map((corner, i) => [
+        [corner[0], corner[1]],
+        [outline[(i + 1) % n][0], outline[(i + 1) % n][1]],
+        inner[(i + 1) % n],
+        inner[i],
+    ]);
+}
+
+/** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
+const CROSS_DELTA = {
+    delta: [
+        [0, 0],
+        [-2 / 3, -1 / 6],
+        [-2 / 3, 1 / 6],
+    ] as [number, number][],
+    bar: rect(-1, -11 / 12, 0.25),
+};
 
 export interface FilledArrowOptions {
     size: number; // Screen-space size in pixels
@@ -20,6 +130,9 @@ export interface FilledArrowOptions {
     opacity?: number; // 0-1
     clipEndX?: number; // X-axis clipping: undefined = no clipping, number = clip at X position
 }
+
+/** How long a tee cap is along its line, as a fraction of its size: a bar a third as deep as its 1.5 width. */
+export const TEE_DEPTH = 0.5;
 
 /**
  * Renderer for filled arrow heads using uniform screen-space scaling
@@ -252,7 +365,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         // This allows positionOffset: 0 to place tip exactly at sphere surface
@@ -296,7 +409,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Front tip at origin, extends backward
         // This allows positionOffset: 0 to place front tip exactly at sphere surface
@@ -447,7 +560,7 @@ void main() {
 
         // Normalized dimensions
         const length = 1;
-        const width = 0.8;
+        const width = EDGE_CONSTANTS.NORMAL_ARROW_ASPECT;
 
         // Tip at origin, base extends backward
         const tip = 0;
@@ -504,7 +617,7 @@ void main() {
 
         // Normalized dimensions - 3:1 rectangle (width:depth), 50% larger than base size
         const width = 1.5; // Z-axis (horizontal span)
-        const depth = width / 3; // X-axis (shallow depth) = 0.5
+        const depth = TEE_DEPTH; // X-axis (shallow depth) = width / 3
         const halfWidth = width / 2;
 
         // Front edge at origin, extends backward
@@ -889,6 +1002,112 @@ void main() {
     }
 
     /**
+     * The arrow types drawn from a list of convex pieces (`polygonArrow`), each piece in the XZ
+     * plane with the tip at the origin and the arrow reaching back to x = -1:
+     *
+     * - "half-circle": a filled half disc, its flat side across the tip and its round side back
+     *   along the line (Cytoscape's HALF_CIRCLE), twice as wide as it is long.
+     * - "open-half-circle": the round side of that half disc alone, an arc opening toward the node
+     *   (Cytoscape's OPEN_HALF_CIRCLE, vis-network's inv_curve).
+     * - "curve": the same arc turned round, bulging toward the node (vis-network's curve).
+     * - "triangle-tee": a triangle with a bar behind it (Cytoscape.js's triangle-tee).
+     * - "triangle-cross": a triangle with a thin bar across the line behind it (triangle-cross).
+     * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
+     * - "half-open-flipped": half-open's one arm on the line's other side (Cytoscape's HALF_BOTTOM).
+     * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
+     * - "cross-delta": a delta with a bar across the line a little behind it (Cytoscape's CROSS_DELTA).
+     * - "open-cross-delta": the delta outlined, with the bar (Cytoscape's CROSS_OPEN_DELTA).
+     * - "open-inverted": the inverted triangle's outline, its base across the tip (Graphviz's oinv).
+     */
+    static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
+        "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
+        "open-half-circle": () => band(0, 1, 0.75, Math.PI / 2, (3 * Math.PI) / 2),
+        curve: () => band(-1, 1, 0.75, -Math.PI / 2, Math.PI / 2),
+        "triangle-tee": () => [
+            [
+                [0, 0],
+                [-0.6, -0.3],
+                [-0.6, 0.3],
+            ],
+            rect(-1, -0.8, 0.3),
+        ],
+        "triangle-cross": () => [
+            [
+                [0, 0],
+                [-0.75, -0.375],
+                [-0.75, 0.375],
+            ],
+            rect(-1, -0.92, 0.375),
+        ],
+        "circle-triangle": () => [
+            arc(-0.25, 0.25, 0, 0, 2 * Math.PI),
+            [
+                [-0.5, 0],
+                [-1, -0.25],
+                [-1, 0.25],
+            ],
+        ],
+        // half-open's arm (tip, base corner, middle) reflected across the line, wound the same way
+        "half-open-flipped": () => [
+            [
+                [0, 0],
+                [-0.4, 0],
+                [-1, 0.4],
+            ],
+        ],
+        // Cytoscape's CROSS_DELTA: a delta with a bar across the line behind it, a gap between them
+        "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
+        // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
+        "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
+        // the inverted triangle (base across the tip, point back along the line) as a frame as thick as open-box's
+        "open-inverted": () =>
+            frame(
+                [
+                    [0, -EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [0, EDGE_CONSTANTS.NORMAL_ARROW_ASPECT / 2],
+                    [-1, 0],
+                ],
+                OPEN_FRAME,
+            ),
+        // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
+        "open-box": () => [
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z > 0 ? z : 0.5 - OPEN_FRAME] as [number, number]),
+            rect(-1, -1 + OPEN_FRAME, 0.5 - OPEN_FRAME),
+            rect(-OPEN_FRAME, 0, 0.5 - OPEN_FRAME),
+        ],
+    };
+
+    /**
+     * Build one of {@link POLYGON_ARROWS}: each convex piece fanned from its first corner.
+     * @param type - The arrow type.
+     * @param scene - Babylon.js scene
+     * @returns The mesh, in the XZ plane like every other arrow.
+     */
+    static createPolygonArrow(type: string, scene: Scene): Mesh {
+        const pieces = this.POLYGON_ARROWS[type]();
+        const mesh = new Mesh(`filled-${type}-arrow`, scene);
+        const positions: number[] = [];
+        const indices: number[] = [];
+        for (const piece of pieces) {
+            const first = positions.length / 3;
+            for (const [x, z] of piece) {
+                positions.push(x, 0, z);
+            }
+            for (let i = 1; i + 1 < piece.length; i++) {
+                indices.push(first, first + i, first + i + 1);
+            }
+        }
+
+        const vertexData = new VertexData();
+        vertexData.positions = positions;
+        vertexData.indices = indices;
+        vertexData.applyToMesh(mesh);
+
+        return mesh;
+    }
+
+    /**
      * Apply the filled arrow shader to a mesh
      *
      * Uses tangent billboarding: arrow aligns with line direction in screen space.
@@ -1202,8 +1421,11 @@ void main() {
                 mesh = this.createOpenDiamond(scene);
                 break;
             default:
-                // Default to normal triangle
-                mesh = this.createTriangle(false, scene);
+                // a polygon arrow by its table, and any other as the normal triangle
+                mesh =
+                    type in this.POLYGON_ARROWS
+                        ? this.createPolygonArrow(type, scene)
+                        : this.createTriangle(false, scene);
         }
 
         // Extract vertex data from the temporary mesh

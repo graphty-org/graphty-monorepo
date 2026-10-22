@@ -147,6 +147,76 @@ describe("Graphviz layouts in the element", () => {
         assert.isAbove(radius("d"), radius("a"), "the second ring further out");
     });
 
+    it("draws a DOT file's nodes at their size against the space Graphviz leaves between them", async () => {
+        // Graphviz draws this as two 2 x 0.5 inch boxes one inch apart (0.5 inch of node and the
+        // 0.5 inch ranksep): each box is twice as wide as the step between their centres.
+        const session = graph.getSession();
+        await session.data.import(
+            { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
+            { styles: "file", layout: "recommended" },
+        );
+        await settled();
+
+        assert.strictEqual(session.layout.id, "graphviz-dot");
+        const width = 2 * (graph.getNode("a")?.drawnHalfExtents.x ?? Number.NaN);
+        const step = Math.hypot(at("a").x - at("b").x, at("a").y - at("b").y);
+        assert.closeTo(width / step, 2, 0.1, `a box ${String(width)} wide, its centres ${String(step)} apart`);
+    });
+
+    it("hands Graphviz the styled node sizes when no frame is drawn between the load and its layout", async () => {
+        // A node's mesh takes its styled size when a frame draws the paint, and a load starts its
+        // recommended layout in the same step as its styles. Hold every frame back from the load
+        // until Graphviz has been asked, as a busy machine does: the layout must still read the
+        // 2 x 0.5 inch boxes the file draws, not the unstyled default circles.
+        const dots: string[] = [];
+        const post = Worker.prototype.postMessage;
+        vi.spyOn(Worker.prototype, "postMessage").mockImplementation(function (
+            this: Worker,
+            message: unknown,
+            ...rest: [StructuredSerializeOptions?]
+        ) {
+            const { dot } = (message ?? {}) as { dot?: unknown };
+            if (typeof dot === "string") {
+                dots.push(dot);
+            }
+            post.call(this, message, ...rest);
+        });
+        const held: FrameRequestCallback[] = [];
+        const raf = window.requestAnimationFrame;
+        window.requestAnimationFrame = (callback) => held.push(callback);
+        try {
+            // The frame already queued runs; the one it asks for next is held.
+            await vi.waitFor(() => {
+                assert.isNotEmpty(held);
+            });
+            await graph
+                .getSession()
+                .data.import(
+                    { type: "dot", config: { data: "digraph { node [shape=box, width=2, height=0.5]; a -> b }" } },
+                    { styles: "file", layout: "recommended" },
+                );
+            await vi.waitFor(() => {
+                assert.lengthOf(dots, 1);
+            });
+        } finally {
+            vi.restoreAllMocks();
+            window.requestAnimationFrame = raf;
+            for (const callback of held.splice(0)) {
+                callback(performance.now());
+            }
+        }
+
+        const nodes = dots[0].split("\n").filter((line) => /^n\d+ \[/.test(line));
+        assert.lengthOf(nodes, 2);
+        // The file's 2 x 0.5 inches, drawn about one point (1/72 inch) smaller.
+        for (const line of nodes) {
+            const box = /shape=box, width=([\d.]+), height=([\d.]+)/.exec(line);
+            assert.isNotNull(box, `a box, not the default circle: ${line}`);
+            assert.closeTo(Number(box?.[1]), 2, 0.02, line);
+            assert.closeTo(Number(box?.[2]), 0.5, 0.02, line);
+        }
+    });
+
     // twopi spaces its rings, and patchwork sizes its cells, without reading a node's width: both
     // must be told the drawn size, or nodes 1.5 units wide land 1 unit apart and draw as one blob.
     for (const engine of ["twopi", "patchwork"]) {

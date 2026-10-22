@@ -151,6 +151,23 @@ describe("the six arrow channels", () => {
     });
 });
 
+describe("the arrow width channels", () => {
+    it("land on each end's width, at least 0, and key the cap's mesh", () => {
+        for (const end of ["Head", "Tail"] as const) {
+            const channel = `edge.arrow${end}Width` as const;
+            assert.isTrue(isChannel(channel), channel);
+            assert.strictEqual(CHANNEL_DESCRIPTORS[channel].stylePath, `arrow${end}.width`);
+            assert.strictEqual(CHANNEL_DESCRIPTORS[channel].min, 0);
+            assert.strictEqual(channelRole(channel), "mesh");
+        }
+    });
+
+    it("writes the width into the style the cap is built from", async () => {
+        const { style } = await edgePaintedWith({ "edge.arrowHead": "normal", "edge.arrowHeadWidth": 0.5 });
+        assert.strictEqual(style.arrowHead?.width, 0.5);
+    });
+});
+
 describe("what a layer that writes them paints", () => {
     it("writes the head's size, colour and opacity into the style the cap is built from", async () => {
         const { style } = await edgePaintedWith({

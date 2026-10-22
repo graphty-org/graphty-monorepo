@@ -390,6 +390,30 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        methods: ["UpdateManager.drawArrivedPaint"],
+        prepare: async (element, size) => {
+            const { graph } = element;
+            await graph
+                .getSession()
+                .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
+            const manager = updateManagerOf(graph);
+            return counting(
+                Node.prototype,
+                "applySessionPaint",
+                () => {
+                    manager.drawArrivedPaint();
+                },
+                (count) => {
+                    assert.strictEqual(count.calls, size, "every node was repainted");
+                    assert.isFalse(painter.hasPending, "and nothing is left to paint");
+                },
+            );
+        },
+    },
+    {
         methods: ["StylesApi.highlight"],
         prepare: async (element, size) => {
             const { graph } = element;

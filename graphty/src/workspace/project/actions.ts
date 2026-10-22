@@ -11,7 +11,9 @@ import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/sess
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
+import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
+import { noticeFileStyles } from "../styles/noticeFileStyles";
 import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, rememberRecent } from "./recent";
 
@@ -36,7 +38,25 @@ interface ProjectFileState {
      */
     writeFailed: boolean;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
-    pending: { file: File; handle?: FileSystemFileHandle; recentId?: string } | null;
+    pending: PendingFile | null;
+}
+
+/** Where a file being opened came from. */
+interface FileSource {
+    /** Its handle, where the browser keeps them. */
+    handle?: FileSystemFileHandle;
+    /** Its Recent projects entry, when opened from there. */
+    recentId?: string;
+    /** The new project's name until the file names it, when it opens from the start screen. */
+    name?: string;
+    /** The reader picked it with Open a file, so it may be graph data rather than a project. */
+    intake?: boolean;
+}
+
+/** A file waiting to open, and whether it opens a new project from the start screen. */
+interface PendingFile extends FileSource {
+    file: File;
+    fresh?: boolean;
 }
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
@@ -86,6 +106,31 @@ export function problemSentence(fileName: string, error: unknown): string {
         default:
             return `${fileName} could not be opened.`;
     }
+}
+
+/**
+ * What the reader is told when a file picked with Open a file cannot be opened or added: the
+ * element's own reason after the file's name.
+ * @param fileName - the file's name.
+ * @param fresh - whether it was to open a new project from the start screen.
+ * @param error - what the element refused it with.
+ * @returns the sentence.
+ */
+function intakeProblem(fileName: string, fresh: boolean, error: unknown): string {
+    const reason = error instanceof Error ? error.message : String(error);
+    const what = fresh
+        ? `${fileNameWithoutExtension(fileName)} could not be opened.`
+        : `${fileName} could not be added.`;
+    return `${what} ${reason}`;
+}
+
+/**
+ * A file's name without its extension.
+ * @param name - the file's name.
+ * @returns the name, or the whole name when that would leave nothing.
+ */
+export function fileNameWithoutExtension(name: string): string {
+    return name.replace(/\.[^.]*$/, "") || name;
 }
 
 /**
@@ -345,17 +390,31 @@ export function closeProject(ctx: CommandContext): void {
 async function openInSession(
     ctx: CommandContext,
     session: GraphSession,
-    pending: NonNullable<ProjectFileState["pending"]>,
+    pending: PendingFile,
     discard: boolean,
 ): Promise<void> {
     const { workspace } = ctx;
-    const { file, handle, recentId } = pending;
+    const { file, handle, recentId, intake = false, fresh = false } = pending;
     if (!discard && fileState(workspace).writeFailed) {
         askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
         return;
     }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
+        if (report.opened === "graph") {
+            // A data file: a new project's graph, or added to the open one.
+            // Temporary workaround of a graphty-element defect (#3243): draft.load() does not load
+            // what data.import does (CSV ids are typed, a graph file's `label` field is made the
+            // label column), so the draft is let go and the file imported as before. Load the
+            // draft instead once #3243 is fixed.
+            report.draft?.dispose();
+            await session.data.import(
+                { config: { file }, name: file.name },
+                { ...(fresh ? {} : { mode: "merge" as const }), styles: fileStylesChoice() },
+            );
+            noticeFileStyles(workspace, session);
+            return;
+        }
         if (report.opened !== "project") {
             workspace.set({ notice: { message: `Added ${file.name} to this project` } });
             return;
@@ -378,36 +437,30 @@ async function openInSession(
             askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
             return;
         }
-        workspace.set({ notice: { message: problemSentence(file.name, error) } });
+        workspace.set({
+            notice: { message: intake ? intakeProblem(file.name, fresh, error) : problemSentence(file.name, error) },
+        });
     }
 }
 
 /**
- * Opens a project file: inside an open project it opens in its place (asking first over unsaved
- * changes); from the start screen it opens a project whose element reads the file once it is up.
+ * Opens a file through graphty-element's `project.open`, which decides what it is: inside an open
+ * project a project file opens in its place (asking first over unsaved changes) and a data file is
+ * added to it; from the start screen it opens a project whose element reads the file once it is up.
  * @param ctx - the command context.
  * @param file - the file.
- * @param handle - its handle, where the browser keeps them.
- * @param recentId - its Recent projects entry, when opened from there.
+ * @param source - its handle, its Recent projects entry, and whether Open a file picked it.
  */
-async function openProjectFile(
-    ctx: CommandContext,
-    file: File,
-    handle?: FileSystemFileHandle,
-    recentId?: string,
-): Promise<void> {
-    const pending = {
-        file,
-        ...(handle === undefined ? {} : { handle }),
-        ...(recentId === undefined ? {} : { recentId }),
-    };
+export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
+    const { name = file.name, ...from } = source;
+    const pending: PendingFile = { file, ...from };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = pending;
+    fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: file.name, id: newProjectId(state) },
+        project: { name, id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,
@@ -470,7 +523,7 @@ export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<R
         if (file === null) {
             return "missing";
         }
-        await openProjectFile(ctx, file, handle, entry.id);
+        await openProjectFile(ctx, file, { handle, recentId: entry.id });
         return "opened";
     });
 }
@@ -488,7 +541,10 @@ export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise
         if (located === undefined) {
             return "cancelled";
         }
-        await openProjectFile(ctx, located.file, located.handle, entry.id);
+        await openProjectFile(ctx, located.file, {
+            ...(located.handle === undefined ? {} : { handle: located.handle }),
+            recentId: entry.id,
+        });
         return "opened";
     });
 }

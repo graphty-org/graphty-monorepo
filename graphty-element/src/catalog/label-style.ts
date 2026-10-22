@@ -19,7 +19,11 @@
  * was a sentence in a channel caveat. They are gone rather than kept as a promise nothing keeps.
  */
 
-/** Where a label sits relative to the node or edge it belongs to. */
+/**
+ * Where a label sits relative to the node or edge it belongs to: beyond a side or a corner of it, in its middle
+ * (`center`), or inside a node against a side or in a corner (`inside-top`, `inside-top-right`, ...), as a group's
+ * header label sits along its top. An edge's label has no inside: an `inside-` location draws it in the middle.
+ */
 export type LabelLocation =
     | "top"
     | "top-right"
@@ -30,7 +34,22 @@ export type LabelLocation =
     | "bottom"
     | "bottom-left"
     | "bottom-right"
+    | "inside-top"
+    | "inside-bottom"
+    | "inside-left"
+    | "inside-right"
+    | "inside-top-left"
+    | "inside-top-right"
+    | "inside-bottom-left"
+    | "inside-bottom-right"
     | "automatic";
+
+/**
+ * Which labels {@link LabelStyle.declutter} keeps first where two would overlap: the node with more
+ * edges (`"degree"`, as `layoutBehavior.labels.declutter` does), or the larger label and then the
+ * larger node (`"size"`).
+ */
+export type LabelDeclutterOrder = "degree" | "size";
 
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
@@ -99,27 +118,113 @@ export interface LabelStyle {
      * `sizePx` only sets how sharply the letters are drawn.
      */
     size?: number;
+    /**
+     * How tall the letters are drawn in the scene -- one font size, an em -- in the same units as a
+     * node's `size`, whatever the font's own line height. Set, it decides the label's size in the
+     * scene over `size`, and `sizePx` only sets how sharply the letters are drawn.
+     */
+    letterSize?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
     color?: string;
     /** Whether the letters are drawn italic. */
     italic?: boolean;
+    /**
+     * How wide one line may be drawn before its words wrap onto the next, in the units of `size`
+     * (the scene's). Unset, a line is as long as its words.
+     */
+    wrapWidth?: number;
+    /**
+     * Whether a space after each word counts toward `wrapWidth`, the last word's too: a line keeps a
+     * word only while the word and a space after it still fit, as Cytoscape desktop measures a line.
+     * Unset or false, only the words count, as a browser wraps text.
+     */
+    wrapTrailingSpace?: boolean;
+    /**
+     * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
+     * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
+     */
+    wrapEllipsis?: boolean;
+    /**
+     * Whether a line may break between any two letters, filling each line to `wrapWidth`, not only at the spaces
+     * between words (Cytoscape.js `text-overflow-wrap: anywhere`). Unset or false, only at spaces.
+     */
+    wrapAnywhere?: boolean;
+    /**
+     * How many blanks one blank between two words counts as when a line is measured against `wrapWidth`; the
+     * blank is still drawn once (vis-network counts three). Unset, one.
+     */
+    wrapSpaceCount?: number;
+    /**
+     * Where runs of different sizes in one line of label markup meet: their alphabetic baselines ("baseline"), their
+     * hanging baselines, so their tops line up ("hanging", as vis-network draws a label below a node), or their middles
+     * ("middle"). Unset, their alphabetic baselines.
+     */
+    runAlign?: "baseline" | "hanging" | "middle";
+    /**
+     * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
+     * Unset or 0, it reads level.
+     */
+    rotation?: number;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
+    /**
+     * The label is not drawn while its letters are drawn smaller than this many pixels on screen,
+     * as a program that hides labels too small to read does. Decided again whenever the camera
+     * moves. Unset or 0, the label is drawn at any size.
+     */
+    minScreenSize?: number;
+    /**
+     * Hides this node label where its words would overlap a label kept before it, the way
+     * `layoutBehavior.labels.declutter` hides every node label, but for the labels this style
+     * reaches only. The value says which label is kept first: a selected node's always, then
+     * the node with more edges (`"degree"`) or the larger label and then the larger node
+     * (`"size"`). Unset, only `layoutBehavior.labels.declutter` hides labels. Node labels only.
+     */
+    declutter?: LabelDeclutterOrder;
+    /**
+     * This node label is not drawn while its node is drawn smaller than this many pixels across on
+     * screen (the smaller of its width and height), as sigma.js hides the label of a node drawn
+     * under its `labelRenderedSizeThreshold`. Decided again whenever the camera moves. Unset or 0,
+     * the node's size never hides its label. Node labels only.
+     */
+    minNodeScreenSize?: number;
     /** How the lines are lined up against each other. */
     textAlign?: LabelTextAlign;
 
+    /**
+     * How opaque the words are, from 0 (not drawn) to 1, applied over their colour's own alpha.
+     * Unset, 1.
+     */
+    opacity?: number;
+
     /** The colour of the panel behind the words. */
     background?: string;
+    /**
+     * How opaque that panel is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    backgroundOpacity?: number;
     /** How much room there is between the words and the edge of that panel. */
     padding?: number;
+    /**
+     * How far the panel (its background and border) reaches past the words' line box on every
+     * side, in pixels of the label drawn at its own size; 0 puts the border against the words.
+     * Set, it replaces the margins and `padding`. Unset, they decide.
+     */
+    boxPadding?: number;
     /** How far the panel's corners are rounded. */
     cornerRadius?: number;
     /** How thick a border is drawn around the panel; zero draws none. */
     borderWidth?: number;
     /** The colour of that border. */
     borderColor?: string;
+    /**
+     * How opaque that border is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    borderOpacity?: number;
     /** Whether the panel is filled with a gradient rather than a single colour. */
     gradient?: boolean;
     /** Whether that gradient runs in a line or out from the centre. */
@@ -133,6 +238,22 @@ export interface LabelStyle {
     location?: LabelLocation;
     /** How far from the node or edge it sits, in world units. */
     attachOffset?: number;
+    /**
+     * How far the label is moved to the right of where `location` puts it, in the units of `size`
+     * (the scene's). Unset, 0.
+     */
+    offsetX?: number;
+    /** How far the label is moved down from where `location` puts it, in the units of `size`. Unset, 0. */
+    offsetY?: number;
+    /**
+     * How far the label is moved to the right of where `location` and `offsetX` put it, as a
+     * fraction of its own width: -0.5 puts its right edge where its middle was. Measured along the
+     * label's own axes, turned by `rotation`, so a turned label turns about the point the shift
+     * pins. Unset, 0.
+     */
+    shiftX?: number;
+    /** How far the label is moved down, as a fraction of its own height; see `shiftX`. Unset, 0. */
+    shiftY?: number;
     /**
      * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
      * the other side of its node (right to left, top to bottom), then is moved in if it still
@@ -165,6 +286,11 @@ export interface LabelStyle {
     outline?: string;
     /** How thick that outline is drawn. */
     outlineWidth?: number;
+    /**
+     * How opaque that outline is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    outlineOpacity?: number;
     /** Whether the letters cast a shadow. */
     shadow?: boolean;
     /** The colour of that shadow. */
@@ -256,22 +382,42 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     sizePx: 0,
     sizeMode: 0,
     size: 0,
+    letterSize: 0,
     weight: 0,
     color: 0,
     italic: 0,
+    wrapWidth: 0,
+    wrapTrailingSpace: 0,
+    wrapEllipsis: 0,
+    wrapAnywhere: 0,
+    wrapSpaceCount: 0,
+    runAlign: 0,
+    rotation: 0,
     lineHeight: 0,
+    minScreenSize: 0,
+    declutter: 0,
+    minNodeScreenSize: 0,
+    onTop: 0,
     textAlign: 0,
+    opacity: 0,
     background: 0,
+    backgroundOpacity: 0,
     padding: 0,
+    boxPadding: 0,
     cornerRadius: 0,
     borderWidth: 0,
     borderColor: 0,
+    borderOpacity: 0,
     gradient: 0,
     gradientType: 0,
     gradientColors: 0,
     gradientDirection: 0,
     location: 0,
     attachOffset: 0,
+    offsetX: 0,
+    offsetY: 0,
+    shiftX: 0,
+    shiftY: 0,
     keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
@@ -285,6 +431,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     pointerCurve: 0,
     outline: 0,
     outlineWidth: 0,
+    outlineOpacity: 0,
     shadow: 0,
     shadowColor: 0,
     shadowBlur: 0,
@@ -308,5 +455,4 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     maxNumber: 0,
     overflowSuffix: 0,
     closeButton: 0,
-    onTop: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];

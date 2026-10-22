@@ -133,7 +133,14 @@ import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshe
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import {
+    alongRay,
+    nodeActionManagerOf,
+    nodePointerRosterOf,
+    pickAsDrawn,
+    pickNodeId,
+    pointerEventTime,
+} from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -915,6 +922,12 @@ export class Graph implements GraphContext {
                 ),
         };
 
+        // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).
+        dispatcherOf(this.session).services.viewport = () => {
+            const { clientWidth: width, clientHeight: height } = this.canvas;
+            return width > 0 && height > 0 ? { width, height } : null;
+        };
+
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
         // (design/sets 6.2): a held frame holds that work too.
         setsNotifierOfSession(this.session).useFrames((callback) => {
@@ -1052,6 +1065,9 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        this.layoutManager.drawArrivedPaint = () => {
+            this.updateManager.drawArrivedPaint();
+        };
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -3803,7 +3819,8 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const ray = this.scene.createPickingRay(x, y, null, null);
+            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {

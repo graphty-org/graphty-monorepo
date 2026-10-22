@@ -1,6 +1,6 @@
 import { Matrix, Mesh, type Scene, VertexBuffer, VertexData } from "@babylonjs/core";
 
-import type { Point2, RingPiece } from "./shapeOutlines";
+import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
 
 /**
  * Collects the triangles of a slab: a 2D shape given a depth along z, front face towards -z (where
@@ -44,7 +44,7 @@ class SlabBuilder {
      * Build the mesh.
      * @param name - The mesh's name.
      * @param scene - The scene it belongs to.
-     * @returns The mesh, with normals.
+     * @returns The mesh, with normals and texture coordinates.
      */
     build(name: string, scene?: Scene): Mesh {
         const mesh = new Mesh(name, scene);
@@ -55,9 +55,35 @@ class SlabBuilder {
         data.positions = this.positions;
         data.indices = this.indices;
         data.normals = normals;
+        data.uvs = this.planarUvs();
         data.applyToMesh(mesh);
 
         return mesh;
+    }
+
+    /**
+     * Texture coordinates laid flat across the shape's box, u left to right and v bottom to top,
+     * so a texture (a gradient fill's ramp) covers the face the way it covers a square. Without
+     * them every vertex samples one texel and a gradient draws as one flat colour.
+     * @returns Two coordinates per vertex.
+     */
+    private planarUvs(): number[] {
+        let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+        for (let i = 0; i < this.positions.length; i += 3) {
+            x0 = Math.min(x0, this.positions[i]);
+            x1 = Math.max(x1, this.positions[i]);
+            y0 = Math.min(y0, this.positions[i + 1]);
+            y1 = Math.max(y1, this.positions[i + 1]);
+        }
+
+        const w = x1 - x0 || 1;
+        const h = y1 - y0 || 1;
+        const uvs: number[] = [];
+        for (let i = 0; i < this.positions.length; i += 3) {
+            uvs.push((this.positions[i] - x0) / w, (this.positions[i + 1] - y0) / h);
+        }
+
+        return uvs;
     }
 
     private triangle(...corners: [Point2, number][]): void {
@@ -71,8 +97,9 @@ class SlabBuilder {
 /**
  * A flat shape as a closed slab: its outline filled front and back, and walled round.
  *
- * The face is fanned from the origin, which every flat outline in `shapeOutlines` is drawn round
- * and which lies inside each of them where every corner can be seen from it.
+ * The face is fanned from the origin where every corner can be seen from it, which holds for
+ * every flat outline in `shapeOutlines` but a figure's; that one is cut into triangles by clipping
+ * its ears.
  * @param name - The mesh's name.
  * @param outline - The outline, counter-clockwise round the origin.
  * @param depth - How deep the slab is along z.
@@ -82,12 +109,41 @@ class SlabBuilder {
 export function outlineSlab(name: string, outline: readonly Point2[], depth: number, scene?: Scene): Mesh {
     const slab = new SlabBuilder(-depth / 2, depth / 2);
     const centre: Point2 = [0, 0];
+    const fan = fansFromOrigin(outline);
 
     outline.forEach((point, i) => {
         const next = outline[(i + 1) % outline.length];
-        slab.face(centre, point, next);
+        if (fan) {
+            slab.face(centre, point, next);
+        }
+
         slab.wall(point, next);
     });
+
+    if (!fan) {
+        for (const [a, b, c] of earClip(outline)) {
+            slab.face(outline[a], outline[b], outline[c]);
+        }
+    }
+
+    return slab.build(name, scene);
+}
+
+/**
+ * A node with no body: the corners of its box and no face, so it takes up its box -- for its
+ * bounds, its label and the edges that meet it -- and draws nothing.
+ * @param name - The mesh's name.
+ * @param outline - The box's outline.
+ * @param depth - How deep the box is along z.
+ * @param scene - The scene it belongs to.
+ * @returns The mesh.
+ */
+export function bodilessSlab(name: string, outline: readonly Point2[], depth: number, scene?: Scene): Mesh {
+    const slab = new SlabBuilder(-depth / 2, depth / 2);
+
+    for (const [x, y] of outline) {
+        slab.positions.push(x, y, -depth / 2, x, y, depth / 2);
+    }
 
     return slab.build(name, scene);
 }

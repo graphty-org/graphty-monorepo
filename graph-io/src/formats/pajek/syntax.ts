@@ -471,7 +471,7 @@ export function isIntervalToken(token: string): boolean {
 }
 
 /**
- * Parse a Pajek time interval token into spells: `[1-5,7-*]` is `[[1, 5], [7, Infinity]]`, a
+ * Parse a Pajek time interval token into spells: `[1-5,7-*]` (or `[1-5/7-*]`) is `[[1, 5], [7, Infinity]]`, a
  * single time point `[3]` is `[[3, 3]]`, `*` at either end is the corresponding infinity, blanks
  * around the parts are ignored and an empty `[]` is no spell at all.
  * @param token - a token isIntervalToken() accepted
@@ -484,7 +484,9 @@ export function parseIntervals(token: string): [number, number][] {
         return [];
     }
     const spells: [number, number][] = [];
-    for (const part of body.split(",")) {
+    // the manual separates intervals with ","; Pajek's own course data writes "/" too (lin-rel4.net:
+    // `[141-383/669-670]`), which no other part of the token uses
+    for (const part of body.split(/[,/]/)) {
         spells.push(parseSpell(token, part));
     }
     return spells;
@@ -609,3 +611,26 @@ export function isParameterKey(text: string): boolean {
     // a number, or a non-finite spelling, at that place reads as a coordinate or the line value
     return !/^[+-]?(\.\d|\d)/.test(text) && !/^[+-]?(?:nan|inf|infinity)$/i.test(text);
 }
+
+/**
+ * The vertex parameters that, written first on a vertex line that names no shape, make Pajek 6.02 draw the line with
+ * none of its parameters (`s_size 2 ic Red`, `bw 3 ic Blue`: a vertex of the default size and colors); a line that
+ * starts with `ic`, `x_fact` or `y_fact` is read whole. Probed in Pajek 6.02's SVG export one key at a time
+ * (`pajek-specimen-node-sizes-opacity` `s-size-no-shape`; the probe files of the third fix round). ponytail: probed
+ * on lines with coordinates only; a line without them, or one that starts with a key Pajek does not know, is read
+ * as written.
+ */
+export const VOIDING_KEYS: ReadonlySet<string> = new Set([
+    "bc",
+    "bw",
+    "s_size",
+    "phi",
+    "r",
+    "q",
+    "lc",
+    "la",
+    "lr",
+    "lphi",
+    "fos",
+    "font",
+]);

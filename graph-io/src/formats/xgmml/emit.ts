@@ -449,7 +449,7 @@ export class XgmmlEmitter {
         }
         const containment = new Containment(this);
         containment.resolve(this.rowList, this.groupTest());
-        this.writeNodeExtras(graph);
+        this.writeNodeExtras(graph, (index) => containment.parentsOf(index));
         this.addEdges(members.edges, header);
         this.finishAliases();
         this.writeGraph(graph);
@@ -815,8 +815,9 @@ export class XgmmlEmitter {
      * Write the per-node values: label, attributes, XML attributes, graphics, positions, nested
      * network pointers and subgraph memberships.
      * @param graph - the subnetwork, or null
+     * @param parentsOf - each node's group nodes, by node index
      */
-    private writeNodeExtras(graph: GraphRec | null): void {
+    private writeNodeExtras(graph: GraphRec | null, parentsOf: (index: number) => readonly number[]): void {
         const labels: (string | undefined)[] = [];
         const positions = new Positions(this, this.dialect.cytoscape ? this.settings.zAs : "position");
         const graphics = new JsonColumn(this, "node", GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE, "graphics");
@@ -840,7 +841,7 @@ export class XgmmlEmitter {
             this.checkAbort();
         }
         this.writeLabels("node", labels, (row) => this.rowList[row].index);
-        positions.write();
+        positions.write(parentsOf);
         pointers.write();
         if (graph === null) {
             this.writeNetworks();
@@ -1440,6 +1441,9 @@ class JsonColumn {
 class Positions {
     private readonly values = new Map<number, [number, number, number]>();
 
+    /** Cytoscape's stored group locations by node index: per group network, a group's center or a member's offset. */
+    private readonly locations = new Map<number, Map<string, [number, number]>>();
+
     private readonly zValues = new Map<number, number>();
 
     private hasZ = false;
@@ -1460,6 +1464,12 @@ class Positions {
      * @param record - the record
      */
     add(row: NodeRow, record: NodeRec): void {
+        // a member stores its offset in its own atts, a group its center in its nested graph's
+        const locations =
+            row.index < 0 ? null : groupLocations([...record.atts, ...record.nested.flatMap((g) => g.atts)]);
+        if (locations !== null) {
+            this.locations.set(row.index, locations);
+        }
         if (row.index < 0 || (record.x === null && record.y === null && record.z === null)) {
             return;
         }
@@ -1501,8 +1511,34 @@ class Positions {
         return n;
     }
 
-    /** Declare and write the position and z columns. */
-    write(): void {
+    /**
+     * Places the members of a collapsed Cytoscape group, which the file stores with no coordinates of their own, where
+     * Cytoscape puts them when the group is expanded: the group's stored center in that group network plus the
+     * member's stored offset (`__xLocation`, `__yLocation`, per `__groupNetworks.SUID`).
+     * @param parentsOf - each node's group nodes, by node index
+     */
+    private followGroups(parentsOf: (index: number) => readonly number[]): void {
+        for (const [index, own] of this.locations) {
+            if (this.values.has(index)) {
+                continue;
+            }
+            const at = parentsOf(index)
+                .flatMap((p) =>
+                    [...own].map(([network, [dx, dy]]) => ({ center: this.locations.get(p)?.get(network), dx, dy })),
+                )
+                .find((c) => c.center !== undefined);
+            if (at?.center !== undefined) {
+                this.values.set(index, [at.center[0] + at.dx, flipY(at.center[1] + at.dy), 0]);
+            }
+        }
+    }
+
+    /**
+     * Declare and write the position and z columns.
+     * @param parentsOf - each node's group nodes, by node index
+     */
+    write(parentsOf: (index: number) => readonly number[]): void {
+        this.followGroups(parentsOf);
         const sink = this.emitter.target;
         if (this.values.size > 0) {
             const handle = this.emitter.declare("node", {
@@ -1540,6 +1576,29 @@ class Positions {
             }
         }
     }
+}
+
+/**
+ * A node's stored Cytoscape group locations: `__xLocation` and `__yLocation` lists, item by item, keyed by the group
+ * network `__groupNetworks.SUID` names at the same index.
+ * @param atts - the node's atts
+ * @returns network to location, or null when the node stores none
+ */
+function groupLocations(atts: readonly AttRec[]): Map<string, [number, number]> | null {
+    const list = (name: string): (string | null)[] =>
+        atts.find((a) => a.name === name)?.children.map((c) => c.value) ?? [];
+    const networks = list("__groupNetworks.SUID");
+    const xs = list("__xLocation");
+    const ys = list("__yLocation");
+    const out = new Map<string, [number, number]>();
+    networks.forEach((network, i) => {
+        const x = Number(xs[i] ?? Number.NaN);
+        const y = Number(ys[i] ?? Number.NaN);
+        if (network !== null && Number.isFinite(x) && Number.isFinite(y)) {
+            out.set(network, [x, y]);
+        }
+    });
+    return out.size > 0 ? out : null;
 }
 
 /**
@@ -1749,6 +1808,15 @@ class Containment {
             stack.push(...(this.parents.get(n) ?? []));
         }
         return false;
+    }
+
+    /**
+     * A node's group nodes.
+     * @param index - the node's index
+     * @returns the group nodes' indices
+     */
+    parentsOf(index: number): readonly number[] {
+        return this.parents.get(index) ?? [];
     }
 
     /** Declare and write the parent (or parents) and subgraph columns. */

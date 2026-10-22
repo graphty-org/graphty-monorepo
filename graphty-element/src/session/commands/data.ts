@@ -33,6 +33,8 @@ import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
+import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
@@ -185,6 +187,35 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+}
+
+/** The load choices a `data.import` command carries. */
+export type ImportChoices = Pick<
+    DataImportCommand,
+    "mode" | "layout" | "existing" | "styles" | "styleOptions" | "unmatched" | "duplicateIds"
+>;
+
+/**
+ * The one `data.import` command `session.data.import` and `LoadDraft.load` both send, so a file
+ * loads the same whichever of the two loads it.
+ * @param source - Where the rows come from.
+ * @param choices - The load choices; one left out is left out of the command.
+ * @param held - The rows a draft already read, loaded in place of reading the source again.
+ * @returns The command.
+ */
+export function importCommand(source: ImportSource, choices: ImportChoices, held?: HeldRows): DataImportCommand {
+    const optional = Object.fromEntries(
+        (["layout", "existing", "styles", "styleOptions", "unmatched", "duplicateIds"] as const)
+            .filter((key) => choices[key] !== undefined)
+            .map((key) => [key, choices[key]]),
+    );
+    return {
+        op: "data.import",
+        source,
+        mode: choices.mode ?? "replace",
+        ...optional,
+        ...(held === undefined ? {} : { held }),
+    };
 }
 
 /**
@@ -682,14 +713,45 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
             return;
         }
 
-        const scale = advice.id === "fixed" ? sceneScale() : null;
-        const options = scale === null ? advice.options : { ...advice.options, scale };
-        void dispatch({
+        const { unplaced, placed = [] } = advice;
+        const graphviz = GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === advice.id);
+        const scale = advice.id === "fixed" || graphviz || unplaced !== undefined ? sceneScale() : null;
+        // A file that placed only some nodes: every placed node goes back where the file put it,
+        // in the unit the fixed layout would draw it in (a layout may have moved it since), and
+        // the advised layout runs over the unplaced ones, holding the rest still.
+        const resize = scale ?? 1;
+        // A Graphviz engine lays the file out in inches, and the file's lengths (its node sizes)
+        // are points, 72 to the inch: drawn at the scale its styles were, so its nodes keep their
+        // size against the spaces Graphviz leaves between them.
+        // ponytail: no scale when lengths are kept as the file has them (`lengths: "file"`), where
+        // an inch should be 72 scene units; pass it when that option is used with a Graphviz file.
+        const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
+        const options =
+            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        const layout = dispatch({
             op: "layout.set",
             id: advice.id,
             engine: advice.engine,
+            ...(unplaced === undefined ? {} : { scope: { nodes: unplaced } }),
             ...(options === undefined ? {} : { options }),
-        }).catch((error: unknown) => {
+        });
+        // Once the new layout holds the placed nodes, put them back: the layout running before
+        // it may have moved them.
+        const applied =
+            unplaced === undefined
+                ? layout
+                : layout.then(() =>
+                      dispatch({
+                          op: "positions.set",
+                          entries: placed.map(({ id, x, y, z = 0 }) => ({
+                              id,
+                              x: x * resize,
+                              y: y * resize,
+                              z: z * resize,
+                          })),
+                      }),
+                  );
+        void applied.catch((error: unknown) => {
             // An undo that took the import away cancels this too; anything else is a
             // layout the import promised and did not apply.
             if ((error as { name?: unknown } | null)?.name !== "AbortError") {

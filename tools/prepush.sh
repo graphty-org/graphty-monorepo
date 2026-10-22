@@ -35,6 +35,10 @@ cd "$ROOT_DIR"
 # landed on the branch being pushed. No step needs them; each runs from this directory.
 unset $(git rev-parse --local-env-vars)
 
+# Nx 24 prints no task output at all ("summary") when it sees an AI agent in the environment, and the
+# gate usually runs under one. Every nx step here keeps the full output in the gate log, as before.
+export NX_DEFAULT_OUTPUT_STYLE="${NX_DEFAULT_OUTPUT_STYLE:-static}"
+
 # A push to a pull request in Mergify's merge queue dequeues it and throws away its batch run, so it
 # is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
 # checked-out branch, the one this gate tests.

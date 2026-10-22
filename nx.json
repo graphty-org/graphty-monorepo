@@ -45,14 +45,18 @@
             "plugin": "@nx/vite/plugin",
             "options": {
                 "buildTargetName": "vite:build",
-                "testTargetName": "vite:test",
                 "serveTargetName": "serve",
                 "devTargetName": "vite:dev",
                 "previewTargetName": "vite:preview",
                 "serveStaticTargetName": "serve-static",
-                "typecheckTargetName": "vite:typecheck",
                 "buildDepsTargetName": "build-deps",
                 "watchDepsTargetName": "watch-deps"
+            }
+        },
+        {
+            "plugin": "@nx/vitest",
+            "options": {
+                "testTargetName": "vite:test"
             }
         },
         {
@@ -86,10 +90,6 @@
         "lint": {
             "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"],
             "cache": true
-        },
-        "@nx/vitest:test": {
-            "cache": true,
-            "inputs": ["default", "^default"]
         }
     },
     "namedInputs": {
@@ -125,5 +125,8 @@
             "skipFormat": true,
             "strict": true
         }
+    },
+    "affected": {
+        "legacy": true
     }
 }

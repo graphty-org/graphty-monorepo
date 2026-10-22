@@ -1013,12 +1013,16 @@ that starts the same server from the owner's own shell, which is how the owner s
   (Face ID), as `visual-review-approvals/<tree>.json`, and the review record it commits under
   `visual-baselines/reviews/` is signed too. Once `visual-review/passkeys.json` on master holds a
   key, the gate passes a pull request only when every file of `visual-baselines/` that differs
-  from master is, in a signed statement's tree (made at a commit in its history) or a signed
-  record's accepted item that its own commits add, exactly that file, with no newer signed reject
-  of that path and image (composed approvals, `baselineCoverage` in `visual-review/trusted/gate.mjs`),
-  and its captures match those baselines. So branches approved separately stay approved when golden
-  merges them, with no new Face ID, and anything else that changes a baseline needs the owner again. A
-  Finish that rejects anything or leaves anything undecided signs no tree. Agents never
+  from master (the records under `visual-baselines/reviews/` aside) is, in a signed statement's
+  tree (made at a commit in its history) or a signed record's accepted item that its own commits
+  add, exactly that file, with no newer signed reject of that path and image (composed approvals,
+  `baselineCoverage` in `visual-review/trusted/gate.mjs`), and its captures match those baselines.
+  The rejects counted are those of the base and of every branch the config's `rejectBranches`
+  names (`master`, `golden`, `golden-cut`, `review/*`), landed or not. So branches approved
+  separately stay approved when golden merges them, with no new Face ID, and anything else that
+  changes a baseline needs the owner again. A Finish that rejects anything or leaves anything
+  undecided signs no tree; on a pull request, a Finish of rejects alone signs and commits its
+  record, so its rejects count. Agents never
   edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
   `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
   register a passkey; never merge a pull request past a failing gate; and never call the page's

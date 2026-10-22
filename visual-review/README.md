@@ -132,19 +132,20 @@ Every command has `--help`; `visual-review --help` lists them.
 }
 ```
 
-| Key             | Default                   | Meaning                                                                                                             |
-| --------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `defaultBranch` | `main`                    | The branch baselines are seeded from and pull requests merge into                                                   |
-| `workflow`      | `visual-review.yml`       | The workflow file whose runs hold the captures; the review page looks runs up by it                                 |
-| `baselines`     | `visual-baselines`        | Where baselines live: `<baselines>/<project>/<story id>[.<mode>].png`, and review records in `<baselines>/reviews/` |
-| `approvals`     | `visual-review-approvals` | Where Finish commits your approvals of the baselines tree, `<approvals>/<tree>.json`; outside `baselines`           |
-| `workDir`       | `.visual-review`          | Where `serve` downloads captures and keeps its decisions and session token; keep it out of git                      |
-| `commitPrefix`  | `test`                    | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
-| `issueLabels`   | `["bug"]`                 | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
-| `fontconfig`    | none (host fonts)         | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
-| `updateCheck`   | none                      | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
-| `usage`         | `false`                   | `true`: the review page records how you review, on this computer only (see "Usage events")                          |
-| `projects`      | (required)                | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
+| Key              | Default                   | Meaning                                                                                                             |
+| ---------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `defaultBranch`  | `main`                    | The branch baselines are seeded from and pull requests merge into                                                   |
+| `workflow`       | `visual-review.yml`       | The workflow file whose runs hold the captures; the review page looks runs up by it                                 |
+| `baselines`      | `visual-baselines`        | Where baselines live: `<baselines>/<project>/<story id>[.<mode>].png`, and review records in `<baselines>/reviews/` |
+| `approvals`      | `visual-review-approvals` | Where Finish commits your approvals of the baselines tree, `<approvals>/<tree>.json`; outside `baselines`           |
+| `workDir`        | `.visual-review`          | Where `serve` downloads captures and keeps its decisions and session token; keep it out of git                      |
+| `commitPrefix`   | `test`                    | The conventional-commit type and scope of the commits Finish makes, e.g. `test(ui)`                                 |
+| `issueLabels`    | `["bug"]`                 | Labels of the issue Finish opens for rejects on the default branch; each must exist                                 |
+| `fontconfig`     | none (host fonts)         | A `fonts.conf` in the repository that every capture draws with, locally and in CI (see "Pinned fonts")              |
+| `updateCheck`    | none                      | A shell command `update` runs on its merge before it pushes (see "Update from the default branch")                  |
+| `usage`          | `false`                   | `true`: the review page records how you review, on this computer only (see "Usage events")                          |
+| `rejectBranches` | `[]`                      | More branches whose signed rejects the gate counts, beside the base branch's: names or globs, such as `review/*`    |
+| `projects`       | (required)                | One entry per Storybook; the id names its baselines directory, CI job and artifact                                  |
 
 Per project:
 
@@ -786,7 +787,10 @@ the final button reads **Sign and finish #201**, and pressing it asks for your p
 Touch ID or a security key) before anything is pushed. Cancelling it says "Passkey cancelled:
 nothing was changed." and the sheet comes back with its final button focused, so Enter tries
 again. Before a passkey is registered the sheet says accepts are not yet protected, and a Finish
-with only rejects never waits for one.
+with only rejects never waits for one. Once one is registered, a pull request's Finish with only
+rejects signs and commits its review record too ("Commit the signed record of 2 rejects to
+feature."), because a signed reject is what withdraws an earlier approval of the same image (see
+"What the gate checks").
 
 Finish runs on the server, not in the page. A seed of several hundred images takes minutes,
 most of it uploading the images to Git LFS, which is longer than a browser (Safari on an iPad in
@@ -861,10 +865,11 @@ accepts are not yet protected.", and Finish commits accepts unapproved, as befor
 ### Finishing with Face ID
 
 Finish asks for your passkey when the server knows of a key for the page's host and the Finish
-commits anything. It runs in this order, so what you sign is what lands:
+commits anything: accepts or exclusions, or, on a pull request, rejects alone. It runs in this
+order, so what you sign is what lands:
 
-1. When the sheet opens, the server commits your accepts and the review record (the accept
-   commit), without pushing it. The SHA-256 of the record's canonical JSON is the first challenge
+1. When the sheet opens, the server commits your accepts (if any) and the review record (the
+   accept commit), without pushing it. The SHA-256 of the record's canonical JSON is the first challenge
    your device signs.
 2. When you approve, the server checks the signature with the gate's own code and writes it into
    the record, in the accept commit. A Finish that rejects anything or leaves anything undecided
@@ -887,19 +892,25 @@ With `node:crypto` and git alone:
 - When the pull request's baselines directory has the same git tree as the base branch's, there
   is nothing to approve.
 - Otherwise every file of the baselines directory that differs from the base branch's (an image,
-  a settings file, a review record, or a file's removal) must be approved by something you signed
-  that the pull request's own commits add:
+  a settings file, or a file's removal) must be approved by something you signed that the pull
+  request's own commits add. The review records under `<baselines>/reviews/` are the exception:
+  a record counts only through its own signature, wherever the gate reads one, so it needs no
+  approval of its own.
     - a tree statement `<approvals>/<tree>.json`, naming a commit that is an ancestor of the pull
       request's merge commit and holds that tree, whose tree has exactly that file at that path. A
       removal counts only when the tree leaves the file out and the point where the statement's
       branch left the base branch had exactly the base branch's file, so a tree signed before the
       base branch added a story never approves deleting it;
     - or a review record whose item takes that path to exactly that content (the image's SHA-256),
-      or, for a removal, from exactly the base branch's content to nothing. A signed record also
-      approves its own file under `<baselines>/reviews/`.
+      or, for a removal, from exactly the base branch's content to nothing.
 - An approval counts only while no reject you signed of the same path and the same image is
-  newer. The rejects read are those of the records the pull request adds and of the base branch's
-  records made since the oldest approval.
+  newer (the times inside the signed files decide; the same time counts as rejected). The rejects
+  read are those of the records the pull request adds, and of the records that the base branch and
+  every branch named by the config's `rejectBranches` hold, made since the oldest approval. So a
+  reject you made on another branch counts even when that branch never merges. The gate reads
+  those branches from the checkout's remote-tracking refs (`origin/<branch>`); a checkout with full
+  history (`actions/checkout` with `fetch-depth: 0`) has every branch. A branch named without a
+  glob that the checkout lacks fails the gate, because a reject there could not be read.
 - Once the base branch's `visual-review/passkeys.json` holds a key, every statement and record
   carries an approval by one of those keys over the SHA-256 of exactly its contents, made on an
   HTTPS page whose host is exactly the key's host, with user verification (Face ID, Touch ID or
@@ -912,8 +923,13 @@ record only: an approval is of images, not of a pull request. So when two branch
 separately are merged into one, their images stay approved in the merged tree, which nobody
 signed as a whole, and no new Face ID is needed; anything else that differs needs your review.
 
-When images are already approved this way, Finish's sheet says how many: "Already approved by
-your earlier signatures: 2 of 3 baseline files this branch changes from master."
+When images are already approved this way, Finish's sheet says how many, counted by the gate's
+own code: "Already approved by your earlier signatures: 2 of 3 baseline files this branch changes
+from master." This is not the same count as the sheet's "Approved before" line. That one counts
+the captures this Finish accepts on its own because they are byte for byte an image you accepted
+for the same story on another branch; you sign them again in this Finish, so the gate never has
+to trust that earlier approval. The "Already approved" line counts the baseline files the branch
+already holds that your earlier signatures cover, which need no new signature at all.
 
 The gate is run as the base branch has it, so a change to these rules takes effect on the pull
 request after the one that brings it.
@@ -1143,8 +1159,9 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
 - A story with no baseline always blocks. `new` and `no baseline yet` only tell the reviewer
   whether the pull request changed it, measured against the default branch's newest complete
   capture, which may be a few merges older than the pull request's base.
-- When the pull request's baselines directory differs from the base branch's in any way (a PNG,
-  a settings file, `renames.json`, a review record), each differing file must be approved by your
+- When the pull request's baselines directory differs from the base branch's (a PNG, a settings
+  file, `renames.json`; the review records aside, which count only through their own signatures),
+  each differing file must be approved by your
   signature over exactly that file: a signed tree holding it, made at a commit in the pull
   request's own history, or a signed review record that accepts exactly its content, with no newer
   signed reject of it. A baseline PNG is a Git LFS pointer in git, naming the image's SHA-256, so

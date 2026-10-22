@@ -492,7 +492,49 @@ function rawEntries(out) {
 }
 
 /**
- * Several blobs read with one git process.
+ * In a partial clone (CI checks out with `filter: blob:none`), fetches the blobs in one request:
+ * left to itself, `git cat-file --batch` fetches each missing blob with a `git fetch` of its own.
+ * A blob already here is not fetched again. A failed fetch is left to cat-file, which then fetches
+ * one by one or reports the blob missing.
+ * @param {string} cwd the repository
+ * @param {string[]} oids the blobs
+ */
+function prefetchBlobs(cwd, oids) {
+    let remote;
+    try {
+        // A partial clone marks the remote it fetches missing objects from as its promisor.
+        const lines = gitOut(cwd, ["config", "--get-regexp", String.raw`^remote\..*\.promisor$`]).toString("utf8");
+        remote = /^remote\.(.+)\.promisor true$/m.exec(lines)?.[1];
+    } catch {
+        // git exits 1 when nothing matches: not a partial clone
+    }
+    if (!remote) {
+        return; // every blob is here
+    }
+    try {
+        execFileSync(
+            "git", // NOSONAR(S4036): the gate runs the runner's own git, as gitOut does
+            [
+                "-c",
+                "fetch.negotiationAlgorithm=noop",
+                "fetch",
+                "--quiet",
+                remote,
+                "--no-tags",
+                "--no-write-fetch-head",
+                "--recurse-submodules=no",
+                "--filter=blob:none",
+                "--stdin",
+            ],
+            { cwd, input: `${oids.join("\n")}\n`, stdio: ["pipe", "ignore", "ignore"] },
+        );
+    } catch {
+        // cat-file below fetches what is still missing, or reports it missing.
+    }
+}
+
+/**
+ * Several blobs read with one git process (and, in a partial clone, fetched with one request).
  * @param {string} cwd the repository
  * @param {Iterable<string>} oids the blobs
  * @returns {Map<string, Buffer>} the bytes by blob; a missing one is left out
@@ -503,6 +545,7 @@ function readBlobs(cwd, oids) {
     if (unique.length === 0) {
         return out;
     }
+    prefetchBlobs(cwd, unique);
     const buf = execFileSync(
         "git", // NOSONAR(S4036): the gate runs the runner's own git, as gitOut does
         ["cat-file", "--batch"],
@@ -533,7 +576,8 @@ const timeOf = (s) => {
 /**
  * The owner's signed decisions that can approve the baselines at `head`: the tree statements and
  * review records added or changed by the commits from `base` to `head` that verify, and the
- * rejects of those records and of the base's records made since the oldest of them.
+ * rejects of those records and of the records the base and every ref of `rejectRefs` hold, made
+ * since the oldest of them.
  * @param {object} input as in baselineCoverage
  * @returns {{ statements: object[], records: object[], rejected: Map<string, { time: number, where: string }>,
  *     refused: { where: string, why: string }[] }} the valid statements and records, each with its
@@ -541,7 +585,7 @@ const timeOf = (s) => {
  *     verify, with why
  */
 function signedDecisions(input) {
-    const { base, head, cwd, baselines, approvals, keys } = input;
+    const { base, head, cwd, baselines, approvals, keys, rejectRefs = [] } = input;
     const reviews = `${baselines}/reviews/`;
     const logged = rawEntries(
         gitOut(cwd, [
@@ -584,7 +628,7 @@ function signedDecisions(input) {
     const approvalTimes = [...statements, ...records].map((x) => x.time).filter((t) => t !== null);
     const since = approvalTimes.length > 0 ? Math.min(...approvalTimes) : null;
     const rejected = new Map();
-    for (const r of [...records, ...baseRecordsSince(base, cwd, reviews, keys, since)]) {
+    for (const r of [...records, ...recordsSince([base, ...rejectRefs], cwd, reviews, keys, since)]) {
         for (const x of r.doc.rejects) {
             // A reject whose time cannot be read is newer than any approval: it fails closed.
             const time = r.time ?? Infinity;
@@ -598,58 +642,87 @@ function signedDecisions(input) {
 }
 
 /**
- * The base's valid review records named at or after a time: records are named by their UTC time
- * (`20261020T045718Z-pr3234.json`), and any other name is read too.
- * @param {string} base the base
+ * The valid review records several refs hold, named at or after a time: records are named by
+ * their UTC time (`20261020T045718Z-pr3234.json`), and any other name is read too. A record two
+ * refs hold is read once.
+ * @param {string[]} refs the refs
  * @param {string} cwd the repository
  * @param {string} reviews the records directory, with its slash
  * @param {object[] | null} keys as in recordProblem
  * @param {number | null} since the oldest approval; null reads none
  * @returns {{ where: string, doc: object, time: number | null }[]} the records
  */
-function baseRecordsSince(base, cwd, reviews, keys, since) {
+function recordsSince(refs, cwd, reviews, keys, since) {
     if (since === null) {
         return [];
     }
     const stamp = `${new Date(since).toISOString().replaceAll(/[-:]/g, "").slice(0, 15)}Z`;
-    const listed = gitOut(cwd, ["ls-tree", "-z", base, "--", reviews])
-        .toString("utf8")
-        .split("\0")
-        .filter(Boolean)
-        .map((line) => {
+    const listed = new Map();
+    for (const ref of refs) {
+        for (const line of gitOut(cwd, ["ls-tree", "-z", ref, "--", reviews]).toString("utf8").split("\0")) {
             const [meta, path] = line.split("\t");
-            return { blob: meta.split(" ")[2], path };
-        })
-        .filter(({ path }) => {
-            const name = path.slice(reviews.length);
-            return !/^\d{8}T\d{6}Z/.test(name) || name >= stamp;
-        });
-    const blobs = readBlobs(
-        cwd,
-        listed.map((e) => e.blob),
-    );
-    return listed
-        .map((e) => ({ where: e.path, doc: parseOr(blobs.get(e.blob) ?? Buffer.alloc(0)) }))
+            const name = path?.slice(reviews.length) ?? "";
+            if (path && (!/^\d{8}T\d{6}Z/.test(name) || name >= stamp)) {
+                const blob = meta.split(" ")[2];
+                if (!listed.has(blob)) {
+                    listed.set(blob, ref === refs[0] ? path : `${path} on ${ref.replace(/^refs\/remotes\//, "")}`);
+                }
+            }
+        }
+    }
+    const blobs = readBlobs(cwd, listed.keys());
+    return [...listed]
+        .map(([blob, where]) => ({ where, doc: parseOr(blobs.get(blob) ?? Buffer.alloc(0)) }))
         .filter((r) => recordProblem(r.doc, keys) === null)
         .map((r) => ({ ...r, time: timeOf(r.doc.reviewedAt) }));
 }
 
 /**
+ * The refs whose review records' rejects count besides the base's: the remote-tracking branches
+ * (`refs/remotes/<remote>/<pattern>`) that match the config's `rejectBranches`, each a branch name
+ * or a git glob such as `review/*`. A checkout with full history (actions/checkout with
+ * `fetch-depth: 0`) holds every branch of the remote. A name with no glob that matches nothing is
+ * `missing`: the gate cannot read its rejects, and fails closed.
+ * @param {string[]} patterns the config's rejectBranches
+ * @param {string} cwd the repository
+ * @param {string} [remote] the remote
+ * @returns {{ refs: string[], missing: string[] }} the refs, and the names not found
+ */
+export function rejectRefsOf(patterns, cwd, remote = "origin") {
+    const refs = [];
+    const missing = [];
+    for (const p of patterns) {
+        const found = gitOut(cwd, ["for-each-ref", "--format=%(refname)", `refs/remotes/${remote}/${p}`])
+            .toString("utf8")
+            .split("\n")
+            .filter(Boolean);
+        if (found.length === 0 && !/[*?[]/.test(p)) {
+            missing.push(`${remote}/${p}`);
+        }
+        refs.push(...found);
+    }
+    return { refs, missing };
+}
+
+/**
  * Composed approvals: whether the owner's signatures approve each baselines file that differs
- * between `base` and `head` (a baseline image, a story settings file, a review record, or its
- * removal).
+ * between `base` and `head` (a baseline image, a story settings file, or its removal). The review
+ * records under `<baselines>/reviews/` are left out: a record means something only through its own
+ * signature, which the gate checks wherever it reads one.
  *
  * A file is approved by a signed tree statement (treeApprovalProblem, any tree, made at an ancestor
  * of the head) whose tree holds exactly that file at that path, or that leaves it out where the
  * statement's fork point from the base held exactly the base's file (so a tree signed before the
  * base added a file never approves deleting it); or by an item of a signed review record that takes
  * that path to exactly that content (`to`, the image's SHA-256), or for a removal from exactly the
- * base's content (`from`) to nothing. A signed review record also approves its own file. An
+ * base's content (`from`) to nothing. An
  * approval counts only when no signed reject of the same path and content is newer: the newest
  * approval must be later than the newest reject.
  *
  * The statements and records read are those the commits from `base` to `head` add or change; the
- * rejects, those of the same records and of the base's records made since the oldest of them.
+ * rejects, those of the same records and of the records the base and every ref of `rejectRefs`
+ * hold (rejectRefsOf), made since the oldest of them. So a reject the owner made on another
+ * branch, landed or not, still counts.
  * Every signature verifies as one statement does, by a key of the base branch.
  * @param {object} input the work
  * @param {string} input.base the base branch tip, or a merge-queue batch's base
@@ -658,6 +731,7 @@ function baseRecordsSince(base, cwd, reviews, keys, since) {
  * @param {string} input.baselines the baselines directory
  * @param {string} input.approvals the approvals directory
  * @param {object[] | null} input.keys the base branch's keys, null while approvals are not enforced
+ * @param {string[]} [input.rejectRefs] more refs whose records' rejects count (rejectRefsOf)
  * @returns {{ files: { path: string, removed: boolean, covered: boolean, by?: string, revokedBy?: string }[],
  *     refused: { where: string, why: string }[] }} one entry per differing file, `by` the signed file
  *     that approves it, `revokedBy` the record whose newer reject undoes the newest approval; and the
@@ -667,7 +741,7 @@ export function baselineCoverage(input) {
     const { base, head, cwd, baselines } = input;
     const changed = rawEntries(
         gitOut(cwd, ["diff", "--raw", "-z", "--no-renames", "--no-abbrev", base, head, "--", `${baselines}/`]),
-    );
+    ).filter((c) => !c.path.startsWith(`${baselines}/reviews/`));
     if (changed.length === 0) {
         return { files: [], refused: [] };
     }
@@ -711,9 +785,7 @@ export function baselineCoverage(input) {
         needed.map(({ c }) => c.blob ?? c.oldBlob),
     );
     const hashOf = (blob) => (bytes.has(blob) ? contentHash(bytes.get(blob)) : null);
-    const files = firstPass.map(({ c, tree }) =>
-        decide(c, { tree, records, rejected, hashOf, bytes, baselines, keys: input.keys }),
-    );
+    const files = firstPass.map(({ c, tree }) => decide(c, { tree, records, rejected, hashOf }));
     return { files, refused };
 }
 
@@ -721,11 +793,11 @@ export function baselineCoverage(input) {
  * One file's verdict in baselineCoverage.
  * @param {{ path: string, blob: string | null, oldBlob: string | null }} c the file
  * @param {object} ctx the newest statement that approves it (or null), the records and rejects,
- *     the content hash of a read blob, the read blobs, the baselines directory and the keys
+ *     and the content hash of a read blob
  * @returns {{ path: string, removed: boolean, covered: boolean, by?: string, revokedBy?: string }} the verdict
  */
 function decide(c, ctx) {
-    const { tree, records, rejected, hashOf, bytes, baselines, keys } = ctx;
+    const { tree, records, rejected, hashOf } = ctx;
     const removed = c.blob === null;
     const hash = hashOf(c.blob ?? c.oldBlob);
     const takes = (i) =>
@@ -736,14 +808,6 @@ function decide(c, ctx) {
             .filter((r) => hash !== null && r.doc.items.some(takes))
             .map((r) => ({ time: r.time, where: r.where })),
     ];
-    const own =
-        !removed &&
-        c.path.startsWith(`${baselines}/reviews/`) &&
-        bytes.has(c.blob) &&
-        recordProblem(parseOr(bytes.get(c.blob)), keys) === null;
-    if (own) {
-        return { path: c.path, removed, covered: true, by: c.path };
-    }
     const newest = newestOf(approvals);
     if (!newest) {
         return { path: c.path, removed, covered: false };
@@ -781,7 +845,8 @@ const LISTED = 10;
  * What blocks the baselines at `head`: nothing when the baselines directory's tree is the base's;
  * otherwise every file that differs must be approved by the owner's signatures (baselineCoverage).
  * Once approvals are enforced, a change to passkeys.json fails too: an administrator merges it.
- * @param {object} input the work, as in baselineCoverage
+ * @param {object} input the work, as in baselineCoverage, with `rejectBranches` (the config's)
+ *     in place of `rejectRefs`
  * @returns {string[]} one line per problem; empty when the baselines are approved
  */
 export function treeApprovalProblems(input) {
@@ -799,7 +864,14 @@ export function treeApprovalProblems(input) {
     if (tree === null) {
         return [...problems, `${baselines}/ is gone at ${head}, and no approval can sign that`];
     }
-    const { files, refused } = baselineCoverage(input);
+    // A reject branch the checkout lacks may hold a reject that revokes an approval: fail closed.
+    const { refs, missing } = rejectRefsOf(input.rejectBranches ?? [], cwd);
+    for (const name of missing) {
+        problems.push(
+            `${name}: not in this checkout, so the owner's rejects there cannot be read; fetch it (a checkout with full history has every branch)`,
+        );
+    }
+    const { files, refused } = baselineCoverage({ ...input, rejectRefs: refs });
     const open = files.filter((c) => !c.covered);
     const how = "review the changes with `visual-review serve` and Finish, which signs them";
     const lines = open.slice(0, LISTED).map((c) => {
@@ -925,7 +997,7 @@ function queueBaseOf(file) {
  * @param {string} at.diffBase what baseline changes are measured from
  * @param {string} at.head the head
  * @param {string} at.root the repository
- * @param {{ baselines: string, approvals: string }} at.config the base branch's config
+ * @param {{ baselines: string, approvals: string, rejectBranches: string[] }} at.config the base branch's config
  * @param {{ approvals: string }} at.headConfig the head's config
  * @returns {string[]} the failing lines
  */
@@ -937,8 +1009,9 @@ function approvalLines({ base, diffBase, head, root, config, headConfig }) {
         );
     }
     const lines = problems.map((line) => `::error::passkey approval -- ${line}`);
-    const { baselines, approvals } = config;
-    for (const line of treeApprovalProblems({ base: diffBase, head, cwd: root, baselines, approvals, keys })) {
+    const { baselines, approvals, rejectBranches } = config;
+    const input = { base: diffBase, head, cwd: root, baselines, approvals, keys, rejectBranches };
+    for (const line of treeApprovalProblems(input)) {
         lines.push(`::error::baselines not approved -- ${line}`);
     }
     for (const line of lines) {

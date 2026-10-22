@@ -446,6 +446,10 @@ describe("signed tree approvals", () => {
             git(r.repo, "add", "-A");
             git(r.repo, "commit", "-q", "-m", "keys");
         }
+        // The config's reject branches, as a checkout with full history has them.
+        for (const b of CONFIG.rejectBranches.filter((x) => !/[*?[]/.test(x))) {
+            git(r.repo, "update-ref", `refs/remotes/origin/${b}`, "master");
+        }
         git(r.repo, "checkout", "-q", "-b", "pr");
         return r;
     }
@@ -512,8 +516,16 @@ describe("signed tree approvals", () => {
         reviewedAt,
     });
 
-    const check = (r, { head = "pr", keys = [KEY.entry] } = {}) =>
-        treeApprovalProblems({ base: "master", head, cwd: r.repo, baselines: BASELINES, approvals: APPROVALS, keys });
+    const check = (r, { head = "pr", keys = [KEY.entry], rejectBranches = [] } = {}) =>
+        treeApprovalProblems({
+            base: "master",
+            head,
+            cwd: r.repo,
+            baselines: BASELINES,
+            approvals: APPROVALS,
+            keys,
+            rejectBranches,
+        });
 
     it("passes a tree signed at an ancestor, and the approval commit leaves the signed tree alone", () => {
         const r = repoWith(passkeysJson(KEY));
@@ -600,7 +612,7 @@ describe("signed tree approvals", () => {
         expect(check(r)).toEqual([]);
     });
 
-    it("approves the content a signed review record accepts, and the record's own file", () => {
+    it("approves the content a signed review record accepts, and needs no approval of the records themselves", () => {
         const r = repoWith(passkeysJson(KEY));
         const record = recordOf({ items: [{ path: PATH, from: LEGACY, to: sha256("new image"), reason: null }] });
         commit(r, {
@@ -608,10 +620,8 @@ describe("signed tree approvals", () => {
             [`${BASELINES}/reviews/r.json`]: { ...record, approval: approve(record, KEY) },
         });
         expect(check(r)).toEqual([]);
-        // An unreadable file among the records is approved by nothing but a signed tree.
+        // A record means something only through its own signature: an unreadable one changes nothing.
         commit(r, { [`${BASELINES}/reviews/junk.json`]: "{" });
-        expect(check(r)[0]).toMatch(/^visual-baselines\/reviews\/junk\.json: no signature/);
-        approveTree(r);
         expect(check(r)).toEqual([]);
         commit(r, { [`${BASELINES}/reviews/junk.json`]: null });
         expect(check(r)).toEqual([]);
@@ -818,6 +828,84 @@ describe("signed tree approvals", () => {
             expect(check(r)[0]).toBe(
                 `${PATH}: approved, then rejected by the newer ${BASELINES}/reviews/20261019T140000Z-pr8.json; review the changes with \`visual-review serve\` and Finish, which signs them`,
             );
+        });
+
+        it("counts the rejects of the reject branches the checkout has, landed or not, and fails closed on one it lacks", () => {
+            const r = repoWith(passkeysJson(KEY));
+            // Branch a: the owner signs image a, and later, on the same branch, rejects it.
+            git(r.repo, "checkout", "-q", "-b", "a", "master");
+            commit(r, { [PATH]: "image a" });
+            approveTree(r, { statement: { ...statementOf(r, "HEAD"), approvedAt: "2026-10-19T12:00:00.000Z" } });
+            const approvedOnly = git(r.repo, "rev-parse", "HEAD");
+            const rejects = [{ path: PATH, capture: sha256("image a"), reason: "the label is cut off" }];
+            signRecord(r, "20261019T140000Z-pr8", recordOf({ rejects, reviewedAt: "2026-10-19T14:00:00.000Z" }));
+            // Branch a never lands; it is only on the remote, as review/a.
+            git(r.repo, "update-ref", "refs/remotes/origin/review/a", "HEAD");
+            // The pull request merges only the commit holding the approval.
+            git(r.repo, "checkout", "-q", "pr");
+            git(r.repo, "merge", "-q", "--no-ff", "-m", "merge the approval", approvedOnly);
+            expect(check(r)).toEqual([]);
+            expect(check(r, { rejectBranches: ["review/*"] })).toEqual([
+                `${PATH}: approved, then rejected by the newer ${BASELINES}/reviews/20261019T140000Z-pr8.json on origin/review/a; review the changes with \`visual-review serve\` and Finish, which signs them`,
+            ]);
+            // A named branch the checkout lacks may hold a reject: the gate cannot pass without it.
+            // A glob that matches nothing is only an empty set.
+            expect(check(r, { rejectBranches: ["release", "nothing/*"] })).toEqual([
+                "origin/release: not in this checkout, so the owner's rejects there cannot be read; fetch it (a checkout with full history has every branch)",
+            ]);
+        });
+
+        it("fetches the blobs it reads in a partial clone with one request each time, not one per blob", () => {
+            const r = repoWith(passkeysJson(KEY));
+            // Thirty signed records of rejects on master, all at or after the approval below.
+            git(r.repo, "checkout", "-q", "master");
+            mkdirSync(join(r.repo, BASELINES, "reviews"), { recursive: true });
+            for (let i = 0; i < 30; i += 1) {
+                const at = `2026-10-19T13:${String(i).padStart(2, "0")}:00.000Z`;
+                const reject = [{ path: OTHER, capture: sha256(`old ${i}`), reason: "no" }];
+                const name = `20261019T13${String(i).padStart(2, "0")}00Z-pr${i}`;
+                const record = recordOf({ rejects: reject, reviewedAt: at });
+                writeFileSync(
+                    join(r.repo, `${BASELINES}/reviews/${name}.json`),
+                    JSON.stringify({ ...record, approval: approve(record, KEY) }),
+                );
+            }
+            git(r.repo, "add", "-A");
+            git(r.repo, "commit", "-q", "-m", "records");
+            git(r.repo, "checkout", "-q", "pr");
+            signedBranch(r, "a", { [PATH]: "image a" });
+            git(r.repo, "config", "uploadpack.allowFilter", "true");
+            git(r.repo, "config", "uploadpack.allowAnySHA1InWant", "true");
+            const clone = tempDir("vr-partial-");
+            git(clone, "clone", "-q", "--no-checkout", "--filter=blob:none", `file://${r.repo}`, ".");
+            const trace = join(clone, "trace.txt");
+            const before = process.env.GIT_TRACE;
+            process.env.GIT_TRACE = trace;
+            let lines;
+            try {
+                lines = treeApprovalProblems({
+                    base: "origin/master",
+                    head: "origin/pr",
+                    cwd: clone,
+                    baselines: BASELINES,
+                    approvals: APPROVALS,
+                    keys: [KEY.entry],
+                });
+            } finally {
+                if (before === undefined) {
+                    delete process.env.GIT_TRACE;
+                } else {
+                    process.env.GIT_TRACE = before;
+                }
+            }
+            expect(lines).toEqual([]);
+            const fetches = readFileSync(trace, "utf8")
+                .split("\n")
+                .filter((l) => /built-in: git fetch\b/.test(l));
+            // One request per batch read (the branch's statements, the base's records, the
+            // images' pointers), never one per record.
+            expect(fetches.length).toBeGreaterThan(0);
+            expect(fetches.length).toBeLessThanOrEqual(3);
         });
 
         it("needs an approval of each removal: a signed record's removal of exactly the base's image, or a tree signed after the base held it", () => {

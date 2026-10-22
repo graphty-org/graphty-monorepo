@@ -68,6 +68,7 @@ describe("normalizeConfig", () => {
             fontconfig: null,
             updateCheck: null,
             usage: false,
+            rejectBranches: [],
             projects: {
                 web: {
                     storybook: "storybook-static",

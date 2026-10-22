@@ -35,7 +35,8 @@ const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {{ defaultBranch: string, workflow: string, baselines: string, approvals: string, workDir: string,
- *     commitPrefix: string, issueLabels: string[], fontconfig: string | null, updateCheck: string | null, usage: boolean, projects: Record<string, { storybook: string,
+ *     commitPrefix: string, issueLabels: string[], fontconfig: string | null, updateCheck: string | null, usage: boolean,
+ *     rejectBranches: string[], projects: Record<string, { storybook: string,
  *     build: string | null, workers: number, seedFromDefaultBranch: boolean, waitFor: { selector:
  *     string, method: string, failOnConsole: string | null } | null }> }} the settings
  */
@@ -62,8 +63,27 @@ export function normalizeConfig(input) {
         }
         out.issueLabels = raw.issueLabels;
     }
+    out.rejectBranches = rejectBranchesSetting(raw.rejectBranches, fail);
     out.projects = projectsSetting(raw.projects, fail);
     return out;
+}
+
+/**
+ * The branches whose review records' rejects the gate counts besides the base's (gate.mjs
+ * rejectRefsOf): names or git globs, read from the remote-tracking refs of the checkout.
+ * @param {unknown} value the config's value
+ * @param {(msg: string) => never} fail throws the config error
+ * @returns {string[]} the branches; none when unset
+ */
+function rejectBranchesSetting(value, fail) {
+    if (value === undefined) {
+        return [];
+    }
+    const ok = (b) => typeof b === "string" && /^[\w./*?[\]-]+$/.test(b) && !b.includes("..");
+    if (!Array.isArray(value) || !value.every(ok)) {
+        fail('rejectBranches must be an array of branch names or globs, e.g. ["golden", "review/*"]');
+    }
+    return /** @type {string[]} */ (value);
 }
 
 /**

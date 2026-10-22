@@ -1217,19 +1217,78 @@ describe("finish with a signed tree approval", () => {
         expect([out.accepts, out.excludes, out.rejects]).toEqual([3, 1, 1]);
     });
 
-    it("refuses to prepare nothing to accept", async () => {
+    it("refuses to prepare nothing to sign: no decision, or a seed's rejects alone", async () => {
         const s = setup();
-        const prepare = (decisions) =>
+        const prepare = (decisions, target = { pr: 123, branch: "feature" }) =>
             prepareApproval({
                 repo: s.repo,
-                target: { pr: 123, branch: "feature" },
+                target,
                 projects: s.projects,
                 decisions,
                 now: NOW,
                 config: CONFIG,
             });
-        await expect(prepare([])).rejects.toThrow("nothing to accept");
-        await expect(prepare([REJECT])).rejects.toThrow("nothing to accept");
+        await expect(prepare([])).rejects.toThrow("nothing to sign");
+        await expect(prepare([REJECT], { pr: null, branch: null })).rejects.toThrow("nothing to sign");
+    });
+
+    it("signs a pull request's Finish of rejects alone, and its signed reject revokes the earlier approval of that image", async () => {
+        const s = setup();
+        const slider = [accept("slider--sizes.png")];
+        await run(s, slider, await approved(s, slider));
+        expect(gate(s)).toEqual([]);
+        // Later, the owner rejects the same image in a Finish of that reject alone.
+        const later = new Date(NOW.getTime() + 60_000);
+        const target = { pr: 123, branch: "feature" };
+        const prepared = await prepareApproval({
+            repo: s.repo,
+            target,
+            projects: s.projects,
+            decisions: [REJECT],
+            now: later,
+            config: CONFIG,
+        });
+        expect([prepared.accepts, prepared.excludes, prepared.rejects]).toEqual([0, 0, 1]);
+        const { commit } = await signRecord({
+            repo: s.repo,
+            target,
+            prepared,
+            approval: approve(prepared.recordBody, KEY, { origin: ORIGIN }),
+            keys: [KEY.entry],
+            origin: ORIGIN,
+            config: CONFIG,
+            now: later,
+        });
+        const out = await finish({
+            repo: s.repo,
+            gh: s.gh,
+            target,
+            projects: s.projects,
+            decisions: [REJECT],
+            now: later,
+            config: CONFIG,
+            approval: {
+                commit,
+                branch: prepared.branch,
+                record: prepared.record,
+                resign: false,
+                pendingKeys: [KEY.entry],
+                origin: ORIGIN,
+            },
+        });
+        expect(out.commit).toBe(commit);
+        expect(remoteLog(s, "feature")[0]).toBe(commit);
+        const record = JSON.parse(show(s, "feature", prepared.record));
+        expect(record.items).toEqual([]);
+        expect(record.rejects).toEqual([
+            expect.objectContaining({ path: "visual-baselines/compact-mantine/slider--sizes.png" }),
+        ]);
+        expect(verifyRecord(record, [KEY.entry], { pr: 123 })).toBeNull();
+        expect(gate(s)).toEqual([
+            expect.stringContaining(
+                `visual-baselines/compact-mantine/slider--sizes.png: approved, then rejected by the newer ${prepared.record}`,
+            ),
+        ]);
     });
 });
 

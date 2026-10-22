@@ -475,7 +475,8 @@ async function postRejects(gh, decided, { commit, record }, pullRequest) {
     try {
         progress(isMaster ? "opening the issue for the rejects" : "posting the comment");
         // A committed record is named, not copied: a large one would pass GitHub's 65,536
-        // character limit. A session of rejects alone commits nothing, so its record goes here.
+        // character limit. A session of rejects alone commits nothing before a passkey is
+        // registered, so its record goes here.
         const body = rejectComment(
             target.pr,
             first,
@@ -614,8 +615,12 @@ export function commitStatus({ accepted, rejected, excluded, undecided, unloaded
 export async function prepareApproval({ repo, target, projects, decisions, now, config, retryDelays }) {
     const { accepts, rejects } = check(projects, decisions, target.pr);
     const first = (accepts[0] ?? rejects[0])?.capture.results;
-    if (!first || accepts.length === 0) {
-        throw new AcceptError("nothing to accept: a Finish signs the baselines only when it accepts something");
+    // On a pull request a Finish of rejects alone signs its record too: the gate counts a signed
+    // reject against an earlier approval of the same image. A seed's rejects only open an issue.
+    if (!first || (accepts.length === 0 && (rejects.length === 0 || target.pr === null))) {
+        throw new AcceptError(
+            "nothing to sign: a Finish signs its decisions only when it accepts or rejects something",
+        );
     }
     const base = target.pr === null ? first.commit : first.headSha;
     if (!(await gitOk(repo, ["cat-file", "-e", `${base}^{commit}`]))) {

@@ -4817,15 +4817,18 @@ function statusWhy(f) {
     return ` (${parts.filter(Boolean).join("; ")})`;
 }
 
-// What a Finish commits and posts, as the sheet's first lines.
-function commitAndPostLines(t, f) {
+// What a Finish commits and posts, as the sheet's first lines. Once a passkey is known, a pull
+// request's Finish of rejects alone commits its signed record (`signed`).
+function commitAndPostLines(t, f, signed) {
     const seed = t.pr === null;
     const lines = [];
     const kinds = [
         f.accepts > 0 ? plural(f.accepts, "accept") : null,
         f.excludes > 0 ? plural(f.excludes, "exclusion") : null,
     ].filter(Boolean);
-    if (kinds.length === 0) {
+    if (kinds.length === 0 && signed && !seed && f.rejects > 0) {
+        lines.push(`Commit the signed record of ${plural(f.rejects, "reject")} to ${t.branch}.`);
+    } else if (kinds.length === 0) {
         lines.push(f.rejects > 0 ? "Nothing is committed: only rejects." : "Nothing is committed.");
     } else if (seed) {
         const day = new Date().toISOString().slice(0, 10);
@@ -4850,7 +4853,7 @@ function commitAndPostLines(t, f) {
 
 function sheet(t, f, prepared, notice) {
     const label = labelOf(t);
-    const lines = commitAndPostLines(t, f);
+    const lines = commitAndPostLines(t, f, Boolean(prepared.required));
     const why = statusWhy(f);
     lines.push(`Then set the commit status 'Visual review' to ${f.status.state}${why}.`);
     if (f.notOpened > 0) {
@@ -5189,7 +5192,7 @@ async function startFinish(id, t, prepared, approval, signedRecord) {
     sayBusy("Starting Finish...");
     // A seed's accept notes go into its pull request's description: only rejects post anything.
     const posts = t.pr === null ? f.rejects > 0 : f.rejects + f.acceptNotes > 0;
-    const commits = f.accepts + f.excludes > 0;
+    const commits = f.accepts + f.excludes > 0 || signedRecord;
     state.plan = { seed: t.pr === null, commits, posts, signed: Boolean(approval) || signedRecord };
     try {
         state.job = (

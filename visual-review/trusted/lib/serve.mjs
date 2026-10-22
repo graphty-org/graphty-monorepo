@@ -91,7 +91,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { baselineCoverage, contentHash } from "../gate.mjs";
+import { baselineCoverage, contentHash, rejectRefsOf } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -2034,8 +2034,9 @@ export function createApp({
     /**
      * How many of the files a pull request's head changes in the baselines directory, compared with
      * the default branch, the owner's earlier signatures already approve, counted as the gate counts
-     * them (gate.mjs baselineCoverage): those need no new signature. Null for a seed, a head not
-     * fetched, unreadable keys, or a git failure.
+     * them (gate.mjs baselineCoverage, with the rejects of the config's rejectBranches): those need
+     * no new signature. Null for a seed, a head not fetched, unreadable keys, a reject branch not
+     * fetched here, or a git failure.
      * @param {object} t the target
      * @returns {Promise<{ covered: number, changed: number, branch: string } | null>} the counts
      */
@@ -2047,6 +2048,10 @@ export function createApp({
         try {
             // ponytail: synchronous git (the gate's own code) holds the server for the few git
             // processes it runs; make it async if a sheet ever opens slowly.
+            const { refs, missing } = rejectRefsOf(config.rejectBranches, repo);
+            if (missing.length > 0) {
+                return null;
+            }
             const { files } = baselineCoverage({
                 base,
                 head: t.head,
@@ -2054,6 +2059,7 @@ export function createApp({
                 baselines: config.baselines,
                 approvals: config.approvals,
                 keys: passkeyState.main.length > 0 ? passkeyState.main : null,
+                rejectRefs: refs,
             });
             return { covered: files.filter((f) => f.covered).length, changed: files.length, branch: defaultBranch };
         } catch {
@@ -2132,8 +2138,10 @@ export function createApp({
         finishList(t).list.length === 0 &&
         finishList(t, true).list.length > 0;
 
-    // Whether a Finish of this work commits anything (a Finish of rejects alone only comments).
-    const commitsOf = (work) => work.list.some((d) => d.decision !== "reject");
+    // Whether a signed Finish of this work commits anything: accepts or exclusions, or on a pull
+    // request rejects alone, whose signed record revokes earlier approvals of the same images. A
+    // seed's rejects only open an issue.
+    const commitsOf = (t, work) => work.list.some((d) => d.decision !== "reject" || t.pr !== null);
 
     /**
      * The owner's approval POST /api/finish carries, checked against what finish-prepare built and
@@ -2153,7 +2161,7 @@ export function createApp({
         }
         const { main, trusted } = await knownKeys();
         const here = trusted.some((k) => k.rpId === rpId);
-        if (trusted.length === 0 || (!sign && (!here || !commitsOf(work)))) {
+        if (trusted.length === 0 || (!sign && (!here || !commitsOf(t, work)))) {
             return { approval: null };
         }
         const p = approvals.get(t.id);
@@ -2935,7 +2943,7 @@ export function createApp({
             const { trusted: keys } = await knownKeys();
             const unsigned = signingProblem(t, work);
             const here = keys.filter((k) => k.rpId === rpId);
-            if (keys.length === 0 || !commitsOf(work) || (unsigned && here.length === 0)) {
+            if (keys.length === 0 || !commitsOf(t, work) || (unsigned && here.length === 0)) {
                 approvals.delete(t.id);
                 return [200, { required: false, ...(keys.length > 0 && unsigned && { unsigned }) }];
             }

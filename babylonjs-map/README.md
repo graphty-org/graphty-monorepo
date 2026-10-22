@@ -1,57 +1,180 @@
 # babylonjs-map
 
-Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes.
-
-**Early days.** Today the package holds the Web Mercator projection and a parser for decimal
-latitude and longitude. It is growing into a reusable map and globe library for Babylon.js:
-
-- map projections (Web Mercator, equirectangular, Equal Earth and more)
-- a tile pyramid that picks and loads the tiles a camera can see
-- a globe mesh, and level of detail that follows the zoom
-- map source definitions for free and keyed tile providers, with their attribution
-- `babylonjs-map/location`: parsers for location formats (decimal pairs, GeoJSON points, degrees
-  minutes seconds, ISO 6709, geohash and others), with no Babylon.js dependency
+Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: a flat map or a globe drawn
+from a bundled world picture or from web map tiles, sharper tiles loaded as the camera comes closer,
+and parsers for the common ways of writing a location.
 
 ```bash
-npm install babylonjs-map
+npm install babylonjs-map @babylonjs/core
 ```
 
-The map and globe code will take `@babylonjs/core` 8 as a peer dependency. `babylonjs-map/location`
-never loads Babylon.js, so it works in Node, a Web Worker or a page without a 3D scene.
+`@babylonjs/core` 8 is a peer dependency. `babylonjs-map/location` and `babylonjs-map/projection`
+never load Babylon.js, so they work in Node, a Web Worker or a page without a 3D scene.
 
-## Project a point
+## A globe
 
 ```ts
-import { webMercator } from "babylonjs-map";
+import { ArcRotateCamera, Engine, Scene, Vector3 } from "@babylonjs/core";
+import { Globe } from "babylonjs-map";
 
-const { x, y } = webMercator.forward({ lat: 40.6398, lon: -73.7789 });
-// x and y in [0, 1]: x from 180 W to 180 E, y from the map's north edge to its south edge.
-// Tile (z, tx, ty) of a web tile source covers x in [tx, tx + 1] / 2^z, y in [ty, ty + 1] / 2^z.
+const engine = new Engine(canvas);
+const scene = new Scene(engine);
+new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene).attachControl();
 
-webMercator.inverse({ x, y }); // { lat: 40.6398, lon: -73.7789 }
+const globe = new Globe(scene, { radius: 100 });
+const marker = globe.toScene({ lat: 40.64, lon: -73.78 }, 1); // 1 unit above the surface
+engine.runRenderLoop(() => scene.render());
 ```
 
-Web Mercator stops at about 85.05 degrees north and south (`WEB_MERCATOR_MAX_LATITUDE`); points
-beyond it are placed on the map's edge.
+The globe sits at the origin with the north pole up and longitude 0 facing a camera on the scene's
+default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both work.
+
+## A flat map
+
+```ts
+import { FlatMap, mapSources } from "babylonjs-map";
+
+const map = new FlatMap(scene, {
+    sources: [mapSources.openstreetmap],
+    frame: {
+        bounds: [
+            [-74.1, 40.55],
+            [-73.7, 40.9],
+        ],
+        size: 100,
+    }, // [[west, south], [east, north]]
+});
+map.toScene({ lat: 40.64, lon: -73.78 }); // a Vector3 on the map
+```
+
+The map lies in the x-y plane at z = 0, north up, the box centered on the origin and `size` scene
+units across its longer side, so a city map uses the same small numbers as a world map. It looks the
+same under a perspective camera and an orthographic 2D one. Leave `frame` out for the whole world.
+
+## Map sources
+
+| Source                        | What it shows                                       | Deepest zoom |
+| ----------------------------- | --------------------------------------------------- | ------------ |
+| `natural-earth` (the default) | A 2048 x 1024 world picture shipped in the package  | one picture  |
+| `openstreetmap`               | Streets                                             | 19           |
+| `opentopomap`                 | Topographic                                         | 17           |
+| `nasa-gibs-blue-marble`       | Satellite mosaic of the whole earth, poles included | 7            |
+| `usgs-topo`, `usgs-imagery`   | US topographic maps and imagery                     | 16           |
+| `eox-s2cloudless-2016`        | Cloudless satellite imagery                         | 15           |
+
+None needs a key. `natural-earth` contacts no one; the others are public services that ask for light
+use, and this package only ever requests the tiles in view. Sources are layered bottom first:
+
+```ts
+new Globe(scene, { sources: [mapSources["natural-earth"], mapSources.openstreetmap] });
+```
+
+Street tiles stop at 85 degrees north and south, so the picture underneath covers the poles.
+
+Your own tile server or picture:
+
+```ts
+map.setSources([{ tiles: "https://tiles.example.com/{z}/{x}/{y}.png", attribution: "(c) Example", maxZoom: 18 }]);
+map.setSources([
+    {
+        image: "/old-map.jpg",
+        bounds: [
+            [-10, 35],
+            [30, 60],
+        ],
+        attribution: "(c) Library",
+    },
+]);
+```
+
+A template may use `{z}`, `{x}`, `{y}`, `{-y}` (TMS rows), `{s}` (with `subdomains`) and `{r}`.
+`projection: "equirectangular"` reads EPSG:4326 tiles and pictures; `web-mercator` is the default
+for tiles and `equirectangular` for pictures. A picture in the other projection is reprojected.
+
+## Credits
+
+Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
+the credits of the sources drawn; show them over the canvas.
+
+```ts
+creditElement.textContent = map.attribution.join(" | ");
+```
+
+## Loading and level of detail
+
+- `map.status` counts tiles `loading`, `ready` and `failed` (a failed tile is a CORS, 403, 404 or
+  429 answer).
+- `map.onChangedObservable` fires when a tile arrives or fails. If your scene renders only on demand,
+  render a frame then.
+- Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
+  screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),
+  `renderingGroupId` (0) and `loadTexture` (your own loader).
+- `map.root` is the parent of every map mesh: move, rotate or scale it to place the map. Map meshes
+  are not pickable.
+- `map.dispose()` frees every mesh, material and texture.
+
+## Projections
+
+```ts
+import { boundsOf, createMapFrame, latLonToSphere, webMercator } from "babylonjs-map/projection";
+
+webMercator.forward({ lat: 40.64, lon: -73.78 }); // { x, y } on a map one unit wide
+const box = boundsOf(points, { margin: 0.1 }); // the box around some points, or null
+const frame = createMapFrame({ projection: "web-mercator", bounds: box, size: 100 });
+frame.toScene({ lat: 40.64, lon: -73.78 }); // { x, y } in scene units
+latLonToSphere({ lat: 40.64, lon: -73.78 }, 100, "left"); // { x, y, z } on a globe
+```
+
+`webMercator` (tiles z/x/y cover x in [x, x + 1] / 2^z) and `equirectangular` (a 2:1 map).
 
 ## Read a location
 
 ```ts
-import { isLocationError, parseLatLon } from "babylonjs-map/location";
+import { detectLocationFormat, isLocationError, parseLocation } from "babylonjs-map/location";
 
-parseLatLon("40.64, -73.78"); // { lat: 40.64, lon: -73.78 }
-parseLatLon([40.64, -73.78]); // { lat: 40.64, lon: -73.78 }
+parseLocation("40.64, -73.78"); // { lat: 40.64, lon: -73.78 }
+parseLocation("40 38 23 N, 73 46 44 W");
+parseLocation({ type: "Point", coordinates: [-73.78, 40.64] });
+parseLocation("POINT(-73.78 40.64)");
+parseLocation("+40.6398-073.7789/");
+parseLocation("87G8J6QC+WC");
+parseLocation("18TXK0325499489");
+parseLocation("dr5x1n7", "geohash");
 
-const result = parseLatLon("95, 10");
+const result = parseLocation("95, 10");
 if (isLocationError(result)) {
     result.code; // "range"
 }
 ```
 
-`parseLatLon` reads latitude first. It never throws: a value it cannot read returns
-`{ code, params: { value } }`, where `code` is `"empty"`, `"syntax"` or `"range"`, so your
-application decides how to word the message.
+| Format      | Example                                               |
+| ----------- | ----------------------------------------------------- |
+| `decimal`   | `"40.64, -73.78"`, `[40.64, -73.78]`, `{ lat, lon }`  |
+| `lon-lat`   | `"-73.78, 40.64"`                                     |
+| `geojson`   | a Point or a Feature holding one, object or JSON text |
+| `wkt`       | `"POINT(-73.78 40.64)"`, `"SRID=4326;POINT Z (...)"`  |
+| `iso6709`   | `"+40.6398-073.7789/"`, `"+403823-0734644/"`          |
+| `dms`       | `"40 38 23 N, 73 46 44 W"`, `"N40 38.383 W73 46.733"` |
+| `geohash`   | `"dr5x1n7"`                                           |
+| `plus-code` | `"87G8J6QC+WC"` (full codes)                          |
+| `mgrs`      | `"18TXK0325499489"`                                   |
+| `utm`       | `"18T 603254 4499489"`                                |
+
+`parseLocation` never throws. A value it cannot read returns `{ code, params: { value } }` with
+`code` one of `empty`, `syntax`, `range` or `short-code` (a short plus code needs a reference place),
+so your application words the message.
+
+Without a format, `parseLocation` tries them all except `lon-lat` and `geohash`, which only make
+sense for a whole column. For a column, pick one format first:
+
+```ts
+const { format, share, alternatives } = detectLocationFormat(column);
+const points = column.map((value) => parseLocation(value, format ?? "decimal"));
+```
+
+`latLonFromColumns(lat, lon)` reads separate latitude and longitude values.
 
 ## License
 
-MIT
+MIT. The bundled world picture is [Natural Earth](https://www.naturalearthdata.com/) (public
+domain).

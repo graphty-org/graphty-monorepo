@@ -2,7 +2,7 @@
     "name": "babylonjs-map",
     "version": "0.0.0",
     "private": false,
-    "description": "Maps and globes for Babylon.js scenes: map projections, tiles, a globe mesh and location parsing",
+    "description": "Maps and globes for Babylon.js scenes: projections, flat maps and globes with tile level of detail, map sources with attribution, and location parsing",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/index.js",
@@ -17,12 +17,20 @@
             "types": "./dist/location/index.d.ts",
             "import": "./dist/location/index.js",
             "default": "./dist/location/index.js"
+        },
+        "./projection": {
+            "types": "./dist/projection/index.d.ts",
+            "import": "./dist/projection/index.js",
+            "default": "./dist/projection/index.js"
         }
     },
     "typesVersions": {
         "*": {
             "location": [
                 "dist/location/index.d.ts"
+            ],
+            "projection": [
+                "dist/projection/index.d.ts"
             ]
         }
     },
@@ -31,6 +39,7 @@
         "dist/",
         "!dist/*.tsbuildinfo",
         "src/",
+        "assets/",
         "README.md",
         "LICENSE"
     ],
@@ -75,7 +84,18 @@
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/babylonjs-map#readme",
+    "dependencies": {
+        "coordinate-parser": "1.0.7",
+        "mgrs": "2.2.0",
+        "ngeohash": "0.6.4",
+        "utm": "1.1.1"
+    },
+    "peerDependencies": {
+        "@babylonjs/core": "^8.36.1"
+    },
     "devDependencies": {
+        "@babylonjs/core": "^8.36.1",
+        "@types/ngeohash": "^0.6.8",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
         "eslint": "^9.29.0",

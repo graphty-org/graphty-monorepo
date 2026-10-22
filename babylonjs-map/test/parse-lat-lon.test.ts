@@ -16,6 +16,14 @@ describe("parseLatLon", () => {
         expect(parseLatLon([40.64, -73.78])).toEqual({ lat: 40.64, lon: -73.78 });
     });
 
+    it.each([
+        { lat: 40.64, lon: -73.78 },
+        { latitude: "40.64", longitude: "-73.78" },
+        { lat: 40.64, lng: -73.78 },
+    ])("reads the object %j", (value) => {
+        expect(parseLatLon(value)).toEqual({ lat: 40.64, lon: -73.78 });
+    });
+
     it.each([null, undefined, "", "   "])("calls %j empty", (value) => {
         expect(parseLatLon(value)).toEqual({ code: "empty", params: { value } });
     });
@@ -29,7 +37,7 @@ describe("parseLatLon", () => {
         [40.64, "-73.78"],
         [Number.NaN, 0],
         [Infinity, 0],
-        { lat: 1, lon: 2 },
+        { x: 1, y: 2 },
         42,
     ])("calls %j a syntax error", (value) => {
         expect(parseLatLon(value)).toEqual({ code: "syntax", params: { value } });

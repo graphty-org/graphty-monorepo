@@ -620,6 +620,28 @@ modest amount of code; integrating two renderers is not.
 
 ## 14. Packaging and bundle size
 
+**Owner decision, 2026-10-22: the reusable map code is its own package, `babylonjs-map`**
+(unscoped on npm, directory `babylonjs-map/`). It knows nothing about graphs and works in any
+Babylon.js scene, left- or right-handed. graphty-element keeps everything graph-specific (the
+location field, the layout, edges, styling, attribution drawing, `basemapStatus`) and depends on
+`babylonjs-map` as a normal dependency, loaded lazily the first time the location map layout runs.
+`@babylonjs/core` is a peer dependency of `babylonjs-map`. Its entry points:
+
+- `babylonjs-map`: `FlatMap` and `Globe` (Babylon meshes showing a list of map sources, with the
+  tile pyramid, zoom level of detail, LRU texture cache and `attribution`), `mapSources` (the
+  bundled `natural-earth` image and the keyless tile sources of section 8.2), and everything below.
+- `babylonjs-map/projection` (no Babylon.js): Web Mercator, equirectangular, `createMapFrame`
+  (fit a box to `size` scene units), `boundsOf`, `latLonToSphere`. graphty-element's layout
+  projects through this entry so the `./session` entry stays free of Babylon.js.
+- `babylonjs-map/location` (no Babylon.js): `parseLocation`, `detectLocationFormat`,
+  `latLonFromColumns` for the formats of section 4.1 except place names and what3words.
+
+The bundled world image is `babylonjs-map/assets/natural-earth.jpg` (Natural Earth I with shaded
+relief and water, 1:50m, public domain, 2048 x 1024, 220 KB), loaded by URL, not inlined.
+
+The bullets below predate the decision: read "graphty-element chunk" as "graphty-element's lazy
+chunk plus `babylonjs-map`".
+
 - **No new package, no new entry point, no new peer dependency** for phases 1 to 4. The layout
   and the basemap code are internal lazily loaded chunks of graphty-element, reached by a dynamic
   `import()` the first time `location-map` runs or a basemap is set (the
@@ -661,6 +683,14 @@ These are public names or contracts that would be breaking to change once publis
    without the consumer choosing it). Recommended: bundled image, network sources opt-in.
 6. **Where the gazetteer is hosted**: graphty.app beside the graph-samples datasets (a URL that
    third-party consumers then depend on), with a `gazetteerUrl` option to self-host.
+
+Still open after the 2026-10-22 decisions (the package name `babylonjs-map` is decided): items 1
+to 6 above, which the prototype uses under the proposed names, and the public API of
+`babylonjs-map` itself -- the class names `FlatMap` and `Globe`, the source shapes
+(`{ tiles, attribution, ... }`, `{ image, bounds, ... }`), the source ids in `mapSources`, the
+location format ids (`decimal`, `lon-lat`, `geojson`, `wkt`, `iso6709`, `dms`, `geohash`,
+`plus-code`, `mgrs`, `utm`) and the error codes (`empty`, `syntax`, `range`, `short-code`). All are
+unpublished (version 0.0.0) until the first release.
 
 ### 15.2 Decisions made here, each with its reason
 

@@ -139,9 +139,9 @@ const config: KnipConfig = {
             project: ["src/**/*.ts!", "data/**/*.ts", "test/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
         },
 
-        // babylonjs-map package: the root and the Babylon-free "./location" subpath are entries
+        // babylonjs-map package: the root and the Babylon-free "./location" and "./projection" subpaths are entries
         "babylonjs-map": {
-            entry: ["src/index.ts!", "src/location/index.ts!", "test/**/*.test.ts"],
+            entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
         },
 

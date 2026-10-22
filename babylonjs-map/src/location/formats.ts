@@ -1,0 +1,288 @@
+import CoordinateParser from "coordinate-parser";
+import * as mgrsModule from "mgrs";
+import ngeohash from "ngeohash";
+import { toLatLon as utmToLatLon } from "utm";
+
+import {
+    checked,
+    isEmpty,
+    isLocationError,
+    type LatLon,
+    type LocationError,
+    locationError,
+    parseLatLon,
+    readPair,
+    toNumber,
+} from "./parse-lat-lon.js";
+import { decodePlusCode } from "./plus-code.js";
+
+// mgrs ships UMD for Node, whose ESM import puts the functions under `default`, and an ES module
+// for bundlers, which has no default export. Reflect.get reads either without a bundler warning.
+const mgrs = (Reflect.get(mgrsModule, "default") as typeof mgrsModule | undefined) ?? mgrsModule;
+
+/**
+ * The location spellings {@link parseLocation} reads:
+ * - `decimal`: "40.64, -73.78", [40.64, -73.78] or { lat, lon }, latitude first
+ * - `lon-lat`: a decimal pair with longitude first, "-73.78, 40.64"
+ * - `geojson`: a GeoJSON Point or a Feature holding one, as an object or JSON text
+ * - `wkt`: "POINT(-73.78 40.64)", with optional Z/M and an EWKT "SRID=4326;" prefix
+ * - `iso6709`: "+40.6398-073.7789/", also in degrees and minutes or degrees, minutes and seconds
+ * - `dms`: degrees, minutes, seconds with hemispheres, "40 38 23 N, 73 46 44 W", "40deg38'23"N ..."
+ * - `geohash`: "dr5x1n7", decoded to the cell's center
+ * - `plus-code`: a full Open Location Code, "87G8Q2PQ+6V"
+ * - `mgrs`: "18TWL8573807587", decoded to the square's center
+ * - `utm`: "18T 585738 4507587" (zone, latitude band, easting, northing in meters)
+ */
+export type LocationFormat =
+    "decimal" | "lon-lat" | "geojson" | "wkt" | "iso6709" | "dms" | "geohash" | "plus-code" | "mgrs" | "utm";
+
+/** Every format, in the order `auto` tries them. */
+export const LOCATION_FORMATS: readonly LocationFormat[] = [
+    "decimal",
+    "lon-lat",
+    "geojson",
+    "wkt",
+    "iso6709",
+    "plus-code",
+    "mgrs",
+    "utm",
+    "geohash",
+    "dms",
+];
+
+const NUM = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?`;
+const WKT = new RegExp(
+    String.raw`^\s*(?:SRID=\d+\s*;\s*)?POINT\s*(?:ZM|Z|M)?\s*\(\s*(${NUM})\s+(${NUM})(?:\s+${NUM}){0,2}\s*\)\s*$`,
+    "i",
+);
+const ISO =
+    /^([+-])(\d{2}(?:\d{2}){0,2})(\.\d+)?([+-])(\d{3}(?:\d{2}){0,2})(\.\d+)?(?:[+-]\d+(?:\.\d+)?)?(?:CRS[\w:.]+)?\/?$/;
+const GEOHASH = /^[0-9b-hjkmnp-z]{1,12}$/i;
+const MGRS = /^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}(?:\d\d){0,5}$/i;
+const UTM =
+    /^\s*(\d{1,2})\s*([C-HJ-NP-X])\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?E?\s*[,;]?\s+(\d+(?:\.\d+)?)\s*(?:m\s*)?N?\s*$/i;
+
+/**
+ * ISO 6709 degrees from a sign, integer digits (degrees, then minutes and seconds) and a fraction.
+ * @param sign - "+" or "-".
+ * @param digits - Degrees, then two digits each of minutes and seconds if given.
+ * @param fraction - The decimal fraction of the last unit, with its point.
+ * @param degreeDigits - 2 for latitude, 3 for longitude.
+ * @returns The angle in degrees, or NaN for minutes or seconds of 60 or more.
+ */
+function isoAngle(sign: string, digits: string, fraction: string | undefined, degreeDigits: number): number {
+    const parts = [
+        digits.slice(0, degreeDigits),
+        digits.slice(degreeDigits, degreeDigits + 2),
+        digits.slice(degreeDigits + 2),
+    ];
+    const filled = parts.filter((p) => p !== "");
+    filled[filled.length - 1] += fraction ?? "";
+    const [d, m = 0, s = 0] = filled.map(Number);
+    if (m >= 60 || s >= 60) {
+        return Number.NaN;
+    }
+    return (sign === "-" ? -1 : 1) * (d + m / 60 + s / 3600);
+}
+
+function geojson(value: unknown): LatLon | LocationError {
+    let object: unknown = value;
+    if (typeof value === "string") {
+        try {
+            object = JSON.parse(value);
+        } catch {
+            return locationError("syntax", value);
+        }
+    }
+    const record = object as { type?: unknown; coordinates?: unknown; geometry?: unknown } | null;
+    const point = record?.type === "Feature" ? (record.geometry as typeof record) : record;
+    const coordinates = point?.type === "Point" ? point.coordinates : undefined;
+    if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        return locationError("syntax", value);
+    }
+    return checked(toNumber(coordinates[1]), toNumber(coordinates[0]), value);
+}
+
+function fromString(value: unknown, read: (text: string) => LatLon | LocationError): LatLon | LocationError {
+    return typeof value === "string" ? read(value.trim()) : locationError("syntax", value);
+}
+
+const PARSERS: Record<LocationFormat, (value: unknown) => LatLon | LocationError> = {
+    decimal: parseLatLon,
+    "lon-lat": (value) => {
+        const pair = readPair(value);
+        return pair ? checked(pair[1], pair[0], value) : locationError("syntax", value);
+    },
+    geojson,
+    wkt: (value) =>
+        fromString(value, (text) => {
+            const match = WKT.exec(text);
+            return match ? checked(Number(match[2]), Number(match[1]), value) : locationError("syntax", value);
+        }),
+    iso6709: (value) =>
+        fromString(value, (text) => {
+            const m = ISO.exec(text);
+            return m
+                ? checked(isoAngle(m[1], m[2], m[3], 2), isoAngle(m[4], m[5], m[6], 3), value)
+                : locationError("syntax", value);
+        }),
+    dms: (value) =>
+        fromString(value, (text) => {
+            try {
+                const parsed = new CoordinateParser(text.replace(/deg/gi, "°"));
+                return checked(parsed.getLatitude(), parsed.getLongitude(), value);
+            } catch {
+                return locationError("syntax", value);
+            }
+        }),
+    geohash: (value) =>
+        fromString(value, (text) => {
+            if (!GEOHASH.test(text)) {
+                return locationError("syntax", value);
+            }
+            const { latitude, longitude } = ngeohash.decode(text.toLowerCase());
+            return checked(latitude, longitude, value);
+        }),
+    "plus-code": (value) =>
+        fromString(value, (text) => {
+            const point = decodePlusCode(text);
+            if (point === "short") {
+                return locationError("short-code", value);
+            }
+            return point ? checked(point.lat, point.lon, value) : locationError("syntax", value);
+        }),
+    mgrs: (value) =>
+        fromString(value, (text) => {
+            const compact = text.replace(/\s+/g, "");
+            if (!MGRS.test(compact)) {
+                return locationError("syntax", value);
+            }
+            try {
+                const [lon, lat] = mgrs.toPoint(compact.toUpperCase());
+                return checked(lat, lon, value);
+            } catch {
+                return locationError("syntax", value);
+            }
+        }),
+    utm: (value) =>
+        fromString(value, (text) => {
+            const m = UTM.exec(text);
+            if (!m || Number(m[1]) < 1 || Number(m[1]) > 60) {
+                return locationError("syntax", value);
+            }
+            try {
+                const { latitude, longitude } = utmToLatLon(
+                    Number(m[3]),
+                    Number(m[4]),
+                    Number(m[1]),
+                    m[2].toUpperCase(),
+                );
+                return checked(latitude, longitude, value);
+            } catch {
+                return locationError("range", value);
+            }
+        }),
+};
+
+/**
+ * Reads a location written in one of {@link LOCATION_FORMATS}. It never throws.
+ *
+ * With `auto` (the default) each value is tried in every format in {@link LOCATION_FORMATS}
+ * order except two that need a whole column to judge: `lon-lat` (a lone pair is read latitude
+ * first) and `geohash` (which also matches short words). To read a column consistently, those
+ * included, pick its format once with {@link detectLocationFormat}.
+ * @param value - The value: a string, a [lat, lon] array, a { lat, lon } object or a GeoJSON object.
+ * @param format - The format, or `auto`.
+ * @returns The point in degrees, or `{ code, params: { value } }`.
+ */
+export function parseLocation(value: unknown, format: LocationFormat | "auto" = "auto"): LatLon | LocationError {
+    if (isEmpty(value)) {
+        return locationError("empty", value);
+    }
+    if (format !== "auto") {
+        return PARSERS[format](value);
+    }
+    let best: LocationError = locationError("syntax", value);
+    for (const f of LOCATION_FORMATS) {
+        if (f === "geohash" || f === "lon-lat") {
+            continue;
+        }
+        const result = PARSERS[f](value);
+        if (!isLocationError(result)) {
+            return result;
+        }
+        if (result.code !== "syntax") {
+            best = result; // a value that was the right shape but out of range says so
+        }
+    }
+    return best;
+}
+
+/**
+ * Reads separate latitude and longitude values (numbers or decimal strings).
+ * @param lat - The latitude.
+ * @param lon - The longitude.
+ * @returns The point, or an error whose `value` is `[lat, lon]`.
+ */
+export function latLonFromColumns(lat: unknown, lon: unknown): LatLon | LocationError {
+    const value = [lat, lon];
+    if (isEmpty(lat) || isEmpty(lon)) {
+        return locationError("empty", value);
+    }
+    return checked(toNumber(lat), toNumber(lon), value);
+}
+
+/** What {@link detectLocationFormat} found. */
+export interface FormatDetection {
+    /** The format that read the most values, or null when none read any. */
+    format: LocationFormat | null;
+    /** Share of the non-empty sample the format read, 0 to 1. */
+    share: number;
+    /** Non-empty values sampled. */
+    sampled: number;
+    /** Other formats that read as many values (within 5%), most first. */
+    alternatives: LocationFormat[];
+}
+
+/**
+ * Picks one format for a column of values, so a column is read the same way throughout. It
+ * samples up to `limit` non-empty values and scores each format by the share it reads in range.
+ * Ties go to the earlier format in {@link LOCATION_FORMATS}, so a decimal pair reads latitude
+ * first unless only longitude first fits (then the result is `lon-lat`).
+ * @param values - The column's values.
+ * @param limit - The most values sampled. Default 200.
+ * @returns The format, its share and close alternatives.
+ */
+export function detectLocationFormat(values: Iterable<unknown>, limit = 200): FormatDetection {
+    const sample: unknown[] = [];
+    for (const v of values) {
+        if (!isEmpty(v)) {
+            sample.push(v);
+            if (sample.length >= limit) {
+                break;
+            }
+        }
+    }
+    const scores = LOCATION_FORMATS.map((format) => ({
+        format,
+        hits: sample.filter((v) => !isLocationError(PARSERS[format](v))).length,
+    })).sort((a, b) => b.hits - a.hits); // stable: ties keep LOCATION_FORMATS order
+    const [top] = scores;
+    if (sample.length === 0 || top.hits === 0) {
+        return { format: null, share: 0, sampled: sample.length, alternatives: [] };
+    }
+    const close = (s: { hits: number }): boolean => s.hits > 0 && top.hits - s.hits <= sample.length * 0.05;
+    // The DMS reader is lenient (it takes decimals and ISO 6709 too) and a decimal pair also reads
+    // the other way round: those are expected ties, not ambiguities.
+    const pair = top.format === "decimal" || top.format === "lon-lat";
+    const expected = (f: LocationFormat): boolean => f === "dms" || (pair && (f === "decimal" || f === "lon-lat"));
+    return {
+        format: top.format,
+        share: top.hits / sample.length,
+        sampled: sample.length,
+        alternatives: scores
+            .slice(1)
+            .filter((s) => close(s) && !expected(s.format))
+            .map((s) => s.format),
+    };
+}

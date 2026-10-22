@@ -197,7 +197,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
-| `babylonjs-map` (unscoped; and the `babylonjs-map/location` subpath), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -213,7 +213,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
 | `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
-| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped on npm): map projections, and later the tile pyramid, globe mesh, zoom level of detail, attribution and map sources; `babylonjs-map/location` parses location formats without Babylon.js. Early: Web Mercator and a decimal latitude/longitude parser so far |
+| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped on npm, knows nothing about graphs): `FlatMap` and `Globe` with a raster tile pyramid, zoom level of detail, a bundled public-domain world image, keyless tile sources and their attribution; `babylonjs-map/projection` (Web Mercator, equirectangular, map frames, globe positions) and `babylonjs-map/location` (decimal, GeoJSON, WKT, ISO 6709, DMS, geohash, plus codes, MGRS, UTM) never load Babylon.js |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -231,7 +231,7 @@ graphty-monorepo/
 |-- graph-io/             # @graphty/graph-io package (depends on graph-format)
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
-|-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus a Babylon-free location parser
+|-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)

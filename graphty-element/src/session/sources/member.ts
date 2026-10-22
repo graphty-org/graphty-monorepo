@@ -382,6 +382,7 @@ function entryOf(
         joinedOnto: load.joinedOnto,
         join: joinOf(load),
         added: { nodes: load.added.nodes, edges: load.added.edges },
+        leftOut: load.leftOut === undefined ? undefined : jsonOf(load.leftOut),
         total: record?.total === undefined ? undefined : { nodes: record.total },
     });
     return { entry, dropped: local?.dropped ?? [] };
@@ -689,6 +690,7 @@ const ENTRY: Shape = {
         joinedOnto: pattern(ID),
         join: JOIN,
         added: { ...COUNTS, required: ["nodes", "edges"] },
+        leftOut: openMap,
         total: COUNTS,
         file: PART_SHAPES.file,
         url: PART_SHAPES.url,
@@ -876,6 +878,7 @@ function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
         tableRows: Array.isArray(raw.tableRows) ? raw.tableRows : undefined,
         mapping: isObject(raw.mapping) ? raw.mapping : undefined,
         added: countsOf(raw.added),
+        leftOut: isObject(raw.leftOut) ? raw.leftOut : undefined,
     });
 }
 
@@ -1226,6 +1229,7 @@ function readVersion2(
         tables: _tables,
         tableRows: _rows,
         added: _added,
+        leftOut: _leftOut,
         ...source
     } = last?.loaded ?? {};
     return {
@@ -1359,6 +1363,7 @@ function entryFromItem(
         tableRows: item.tableRows,
         joinedOnto: item.joinedOnto,
         added: item.added,
+        leftOut: item.leftOut,
         total: joined?.total,
     });
 }

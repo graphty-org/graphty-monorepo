@@ -48,6 +48,7 @@ interface EntryCommon {
     joinedOnto?: string; // for a table joined onto an earlier load: that load's id
     join?: Join; // for a joined table: how it was joined ("Joins")
     added: { nodes: number; edges: number }; // how many it added when it ran
+    leftOut?: LeftOut; // the edge rows it left out because they named no node (LoadedSource.leftOut)
     total?: { nodes?: number; edges?: number }; // what the source holds for it, when known
     extensions?: Record<string, unknown>;
 }
@@ -461,7 +462,7 @@ its `key`, `kind`, `added` and the description's `type`, `name`, `size` and `con
 1. A writer writes the member's `kind`, `version`, `data` (only when `"steps"`), `loads` and
    `extensions` in that order; inside an entry `id`, `kind`, `name`, `graph`, `loadedAt`, `mode`,
    `format`, the kind part, `options`, `mapping`, `tables`, `tableRows`, `joinedOnto`, `join`,
-   `added`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
+   `added`, `leftOut`, `total`, `extensions`; inside a part and inside `join`, the order of the data model
    above. The same session gives the same
    bytes.
 2. A writer writes the member whenever the session holds a load, and only then.

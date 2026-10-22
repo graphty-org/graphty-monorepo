@@ -1897,7 +1897,8 @@ export interface SessionConfig extends ProjectConfig {
     };
     /**
      * Whether a graph setting changes the drawing in the view as it is now: lighting and same size
-     * at any depth do nothing in the 2D view, which is drawn flat and without depth. A settings
+     * at any depth do nothing in the 2D view, which is drawn flat and without depth, and the
+     * basemap is drawn only under a layout that draws a map (`location-map`). A settings
      * panel shows only the settings in effect, without knowing which view ignores what.
      *
      * ```ts
@@ -1918,6 +1919,8 @@ export interface SessionConfig extends ProjectConfig {
  */
 export type GraphSettingKey =
     | "background"
+    /** @since 3.31.0 */
+    | "basemap"
     | "lighting"
     | "node.depthIndependentSize"
     | "node.outlineWidth"
@@ -1929,11 +1932,12 @@ export type GraphSettingKey =
  *
  * - `"setting.inEffect"`: it changes the drawing in this view.
  * - `"setting.notIn2d"`: the 2D view ignores it.
+ * - `"setting.needsMapLayout"`: only a layout that draws a map (`location-map`) uses it (since 3.31.0).
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d" | "setting.needsMapLayout";
 
 /** What {@link SessionConfig.inEffect} answers. @since 3.26.0 */
 export interface SettingEffect extends CodedFact<SettingEffectCode> {

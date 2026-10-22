@@ -1404,7 +1404,7 @@ function configOf(
             await dispatcher.dispatch({ op: "config.set", values });
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
-            settingEffect(key, dispatcher.state.layout?.dimension ?? "3d"),
+            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
     });
 }
 
@@ -1414,6 +1414,7 @@ const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.d
 /** Every graph setting `config.inEffect` answers for. */
 const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
+    "basemap",
     "lighting",
     "node.depthIndependentSize",
     "node.outlineWidth",
@@ -1421,14 +1422,17 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "labels.avoidNodesAndEdges",
 ]);
 
+/** The layout engines that draw a map under the graph, so the basemap setting shows. */
+const MAP_ENGINES: ReadonlySet<string> = new Set(["location-map"]);
+
 /**
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
  * @param key - The setting.
- * @param dimension - The view's dimension.
+ * @param layout - The layout as chosen: its engine and the view's dimension.
  * @returns The answer, coded.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
  */
-function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEffect {
+function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffect {
     if (!GRAPH_SETTINGS.has(key)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -1438,7 +1442,11 @@ function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEff
         });
     }
 
-    const ignored = dimension === "2d" && IGNORED_IN_2D.has(key);
+    if (key === "basemap" && !MAP_ENGINES.has(layout.engine)) {
+        return Object.freeze({ inEffect: false, code: "setting.needsMapLayout", params: { setting: key } });
+    }
+
+    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);
     return Object.freeze({
         inEffect: !ignored,
         code: ignored ? "setting.notIn2d" : "setting.inEffect",

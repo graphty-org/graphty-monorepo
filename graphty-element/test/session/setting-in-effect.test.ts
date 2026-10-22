@@ -33,6 +33,21 @@ describe("whether a graph setting is in effect", () => {
         session.dispose();
     });
 
+    it("answers that the basemap is drawn only under the location map layout", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a", lat: 1, lon: 2 }]);
+        assert.deepStrictEqual(session.config.inEffect("basemap"), {
+            inEffect: false,
+            code: "setting.needsMapLayout",
+            params: { setting: "basemap" },
+        });
+        await session.layout.set("location-map");
+        assert.isTrue(session.config.inEffect("basemap").inEffect);
+        await session.layout.setDimension("2d");
+        assert.isTrue(session.config.inEffect("basemap").inEffect, "the 2D view draws the flat map");
+        session.dispose();
+    });
+
     it("refuses a key that names no graph setting", () => {
         const session = createGraphSession();
         try {

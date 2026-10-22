@@ -12,6 +12,7 @@ import { GeneratorDescriptor } from '@graphty/graph-samples';
 import { GeneratorParamDescriptor } from '@graphty/graph-samples';
 import { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GraphListing } from '@graphty/graph-io';
+import type { MapSourceId } from 'babylonjs-map';
 import { SourceInfo } from '@graphty/graph-io';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
@@ -190,6 +191,18 @@ export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
+
+// @public
+export const BASEMAP_SOURCE_DESCRIPTORS: readonly BasemapSourceDescriptor[];
+
+// @public
+export interface BasemapSourceDescriptor {
+    readonly coverage: "world" | "us";
+    readonly id: MapSourceId;
+    readonly kind: "plain" | "streets" | "satellite" | "terrain";
+    readonly network: boolean;
+    readonly plainName: string;
+}
 
 // @public
 export type Binding = {

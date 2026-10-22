@@ -1250,7 +1250,9 @@ export interface GraphSession {
 }
 
 // @public
-export type GraphSettingKey = "background" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
+export type GraphSettingKey = "background"
+/** @since 3.31.0 */
+| "basemap" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
 
 export { GraphSource }
 
@@ -4586,7 +4588,7 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 // @public
-export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d" | "setting.needsMapLayout";
 
 // @public
 export interface SetUser {

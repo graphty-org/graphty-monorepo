@@ -25,7 +25,7 @@ about it the next morning, with the name of the landing that did it.
 ### The `golden-good` tag
 
 The sync never merges golden's tip. It merges from a tag on GitHub called `golden-good`: the newest
-golden commit that passed the gate (every commit on golden did, since landing pushes through it) and
+golden commit that verification after landing passed (up to `golden-verified`) and
 whose screenshot preview came back clean, with no unstable or failed images. That is the same test
 `node tools/land.mjs cut` uses to choose what ships. The landing tool moves the tag forward after
 every landing and at the start of every sync, and never moves it back.

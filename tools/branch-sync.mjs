@@ -3,7 +3,7 @@
 //
 //   node tools/land.mjs sync [--branch <b>] [--dry-run] [--if-due] [--active-days N]
 //
-// It merges from the tag `golden-good` on origin: the newest golden commit that passed the gate and whose
+// It merges from the tag `golden-good` on origin: the newest golden commit that verification passed and whose
 // screenshot preview has no unstable or failed images (the test `land.mjs cut` uses). land.mjs moves the
 // tag forward after a landing and at the start of every sync, never back.
 //
@@ -41,8 +41,8 @@ const tagSha = (ctx) =>
 const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancestor", a, b], { ok: true }).status === 0;
 
 /**
- * Moves golden-good on origin forward to the newest golden commit with a stable screenshot preview (every
- * golden commit passed the gate on its way there). Never moves it back or sideways.
+ * Moves golden-good on origin forward to the newest verified golden commit with a stable screenshot preview (every
+ * one passed the full gate after landing). Never moves it back or sideways.
  * @param ctx the land.mjs context
  * @param [opts] `dryRun`: work it out, push nothing
  * @returns the commit golden-good is (or would be) at, or null when there is none yet
@@ -152,7 +152,7 @@ export async function syncBranch(ctx, b, good, opts = {}) {
         }
         const sha = commitMerge(ctx, b, list[i], m.tree, false);
         await waitForLandings(ctx);
-        const r = await ctx.check(ctx, { sha, base: list[i].sha, branch: b.name });
+        const r = await ctx.syncCheck(ctx, { sha, base: list[i].sha, branch: b.name });
         if (!r.ok) why.set(i, `a failing check ${r.what}`);
         return r.ok;
     });

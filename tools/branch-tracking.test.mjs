@@ -329,6 +329,16 @@ describe("tools/worktree-new.sh", () => {
         assert.match(r.stdout, new RegExp(`issue #${n}`));
     });
 
+    it("starts a new branch from golden-verified when GitHub has it, measured as a branch of golden", () => {
+        git(repo, "commit", "-q", "--allow-empty", "-m", "verified on golden");
+        git(repo, "push", "-q", "origin", "HEAD:golden-verified");
+        const verified = git(repo, "rev-parse", "HEAD");
+        const r = make("feat/513-on-verified");
+        assert.equal(r.status, 0, r.stderr);
+        assert.equal(git(join(repo, ".worktrees/feat-513-on-verified"), "rev-parse", "HEAD"), verified);
+        assert.equal(git(repo, "config", "branch.feat/513-on-verified.prBase"), "golden");
+    });
+
     it("makes golden's worktree with no issue and no push", () => {
         const r = make("golden", "origin/master", "golden-local");
         assert.equal(r.status, 0, r.stderr);

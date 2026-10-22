@@ -345,8 +345,9 @@ The `tools/` directory contains build scripts:
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `cut`, `cut-fix <branch>`, `ship`, `revert <branch>`, `status` (with the open work) and `prune-branches` (a list; `--yes`, by hand, deletes) do the rest, and `sync` is the nightly branch sync (`branch-sync.mjs`). See "Landing changes (golden-local)" |
-| `branch-sync.mjs` | The nightly branch sync, run as `node tools/land.mjs sync [--branch <b>] [--dry-run]`: merges golden, up to the tag `golden-good` (the newest golden commit with a clean screenshot preview), into every branch on GitHub with a commit in the last 7 days, choosing the newest landing that merges cleanly and passes the branch's checks (a binary search when the newest fails), pushes the signed merge, and writes the result into the branch's note. Design: `design/ci/branch-sync.md` |
+| `land.mjs` | How every change reaches master: `land <branch>` checks a committed branch merged with golden without the landing lock, then takes the lock only to fast-forward the local integration branch `golden` to the checked commit and push it, refreshes the standing golden pull request and its screenshot preview and starts verification; `cut`, `cut-fix <branch>`, `ship`, `revert <branch>`, `status` (with verification and the open work) and `prune-branches` (a list; `--yes`, by hand, deletes) do the rest, and `sync` is the nightly branch sync (`branch-sync.mjs`). See "Landing changes (golden-local)" |
+| `verify.mjs` | Verification after landing: the full gate with every shard, the local GPU tests, the screenshots and SonarQube on golden's newest commit, beside new landings; on a pass it moves `golden-verified` on GitHub, on a failure it bisects the landings and records the culprit. State in `tmp/golden/verify.json` (main checkout). `start`, `status`, `claim`, `handled`, `watch`; see "Verification after landing" |
+| `branch-sync.mjs` | The nightly branch sync, run as `node tools/land.mjs sync [--branch <b>] [--dry-run]`: merges golden, up to the tag `golden-good` (the newest verified golden commit with a clean screenshot preview), into every branch on GitHub with a commit in the last 7 days, choosing the newest landing that merges cleanly and passes the branch's checks (a binary search when the newest fails), pushes the signed merge, and writes the result into the branch's note. Design: `design/ci/branch-sync.md` |
 | `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait, and so does a push whose whole gate already passed on exactly these inputs (`prepush-inputs.mjs`, on any branch), which also skips the source-only checks. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when they already passed under the checkout's gate key (`prepush-inputs.mjs`) |
@@ -354,6 +355,10 @@ The `tools/` directory contains build scripts:
 | `prepush-inputs.mjs` | Content hashes for the gate, never of the branch or the commit: the checkout's gate key (every file git does not ignore, the installed lockfile `node_modules/.pnpm/lock.yaml`, the gate's own `tools/` and `.husky/`, the Node version, the `GRAPHTY_*`, `VK_*` and `PREPUSH_ALL` environment), and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the installed lockfile, the gate's version, the Node version). Passes are kept by key in the main checkout's `tmp/prepush-passes/` (source, gate, shard) and reused by every worktree, so golden's land commit of a branch that merged golden first reuses the branch's passes: the source-only checks and `prepush.sh` skip on a recorded pass, and `prepush-tests.mjs` skips a shard that passed with the same key and prints `[SKIP]` with when and where. `PREPUSH_RERUN_ALL=1` runs the whole gate and every shard |
 | `with-browser.sh` | `tools/with-browser.sh <command>`: runs a browser-driving command in one of the machine's four shared browser slots (lock files in the main checkout's `tmp/browser-slots/`, slots 1 to 4 of the design studio's gate too), waiting for one. The gate's browser shards and the screenshot previews take their browsers through it; `BROWSER_SLOT_PRIORITY=low` (the branch sync) waits for slot 4 only |
 | `wait-log.mjs` | The pipeline's wait log, the main checkout's `tmp/waits.jsonl`: one JSON line per wait that ended (`kind`, `start`, `end`, `ms`, `waiter`, `heldBy`) for the landing and cut locks (with every hold, as `land-lock-held`), gate slots, browser slots, test and GPU slots and the preview lock. `PIPELINE_WAIT_LOG` names another file, or `off` |
+| `test-select.mjs` | The test selector the gate runs by (design/ci/minimal-tests.md): for a change (`--base`, `--head`) it says per test shard whether to run all, none or which test files, and why -- package level from nx's graph and the relative-path closure, file level from Vite's import graph the way Vitest's `related` mode walks it (plus query-suffix imports, `new URL(..., import.meta.url)` and setup files), root files through the root import graph and the paths test-side string literals name, and the rules in `test-select-rules.json`; a package file nothing explains runs its whole package, and a root file nothing explains runs everything (unread code under `tools/` excepted). File lists are used only in the packages that file's `fileLevel` names and never for a shard with a browser project unless `fileLevelBrowser` names it; elsewhere they are logged as measured. The gate selects by default (`PREPUSH_SELECT`, default on): it asks about every shard, not only nx's affected packages, skips a shard selected none, runs a selected one as one run of its files without coverage (its pass recorded as `shard-selected`, never as a whole-shard pass), runs every doubtful one whole and builds what it runs. `PREPUSH_SELECT=0` runs every affected shard whole for one push; selection is always off under `PREPUSH_ALL=1` (verification) and for a push to golden-cut or master. Beside the shards it also logs what it selected to `tmp/test-select/advisory.jsonl` (`PREPUSH_SELECT_ADVISORY=0` turns that off) |
+| `test-changed.mjs` | `pnpm run test:changed [--dry-run] [--all] [--base <ref>]`: runs only the tests the change in this worktree can affect (since the merge base with origin/golden, staged, unstaged and untracked files included), as `test-select.mjs` decides with the gate's rules: per shard nothing, one `vitest run` of the selected files (the shard's config and projects, no coverage, no slice; `run-tests.sh --command`) or the whole shard. Prints each selected file and why, and each shard it runs whole and why. Builds what the runs need first. Design: `design/ci/minimal-tests.md` |
+| `test-select-mutate.mjs` | `<package> [--count N] [--seed S]`: checks the selector by breaking one source file at a time in its own scratch worktree (`.worktrees/select-mutate`) and running the package's plain vitest shards whole; every failing test file must have been selected (one that also fails unbroken is flaky). A package joins `fileLevel` in `test-select-rules.json` only after a clean run |
+| `test-select-replay.mjs` | Replays past gate runs (`tmp/push-log.jsonl`, `tmp/push-gate-logs/`) and CI failures (`--ci`, written by `--collect-ci` from one GraphQL query), preferring the gate's advisory records, through the selector and counts the failures it would have missed and the shard time it would have saved; results and the miss list in `design/ci/test-selection-replay.md` |
 | `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch`, `tail -f`, `inotifywait`, and a `timeout` of 30 s or more around `tail`, `grep`, a loop or `bash -c` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
 | `lfs-pre-push.sh` | Git LFS's pre-push upload, run first by `.husky/pre-push` (git-lfs cannot install its own hook beside husky's). Without git-lfs it refuses a push holding LFS files |
@@ -924,6 +929,9 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
+- `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why); the
+  gate runs the same selection for every landing. `PREPUSH_SELECT=0` makes one push run every affected shard
+  whole; verification after landing always runs everything, so a test the selection missed is caught there
 - Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots
   (`tools/test-slots.mjs`; `GRAPHTY_TEST_SLOTS`, default one per 8 cores) and prints one line naming
   the holders while it waits. A queued run is not hung: leave it. A run nested in one that holds a slot,
@@ -1148,23 +1156,33 @@ through the full pre-push gate, golden is pushed to `golden` on GitHub, and one 
 request takes golden to master. There are no per-change pull requests. The design, its history and
 its requirements are in `design/ci/golden-local.md`.
 
+The owner adopted a faster pipeline on 2026-10-21, `design/ci/fast-pipeline.md` (issue #3262). Built
+so far: the short landing lock and verification after landing, described below. Golden may hold a
+broken commit until verification finds it and the pipeline round reverts it; master stays strict,
+because only verified commits are cut. Screenshots signed on the branch and the beta site are not
+built yet.
+
 How to land a change:
 
-1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):
-   `./tools/worktree-new.sh <branch> origin/golden`. Every branch belongs to an issue: put its number in
+1. Work on a branch in your own worktree: `./tools/worktree-new.sh <branch>` starts it from
+   `origin/golden-verified`, the newest golden commit verification passed. Every branch belongs to an issue: put its number in
    the branch name (`fix/1234-topic`), or pass `--issue N`, or `--new-issue "<title>"` to open one. The
    script pushes the branch, labels the issue `in-progress` and writes the branch's progress note on it.
    Commit there; every commit pushes the branch to GitHub (`.husky/post-commit`). When you stop, say where
    the work stands: `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`. Before your final tests, bring the
-   branch up to date: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
-   --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
+   branch up to date: `git fetch origin`, `git merge origin/golden-verified` (never rebase; not golden's tip,
+   which may be broken until verification catches it), `pnpm install --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
    tool-version differences then show up early, from the session that knows the change, not at landing.
    A subagent commits and stops; the session that started it lands the branch.
 2. Run `node tools/land.mjs land <branch>` with `run_in_background`, then end your turn or do other
-   work; its exit notice wakes you. It takes one machine-wide lock (a second landing waits and is
-   told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch
-   with `--no-ff`, and pushes golden through `tools/push-queue.sh`, which runs the whole pre-push
-   gate. Never `--no-verify`. `--dry-run` merges locally, reports and undoes, with no push.
+   work; its exit notice wakes you. Without the landing lock it merges golden, `origin/golden` and
+   `origin/master` and then your branch (`--no-ff`, "land: <branch>") in a check worktree
+   (`.worktrees/land-check-<n>`) and runs the whole pre-push gate on that commit as a dry-run push
+   (passes are reused by input key, so only what changed runs). Then it takes the machine-wide lock for
+   seconds: when that commit still holds GitHub's golden, golden fast-forwards to it and is pushed, and
+   the push takes no gate slot because the identical files already passed. When golden moved meanwhile
+   it checks again on the new golden; after three tries it holds the lock through its check. Never
+   `--no-verify`. `--dry-run` merges under the lock, reports and undoes, with no push.
    `land <branch> <branch> ...` lands several branches in one gate run: each merged in order as its
    own `land: <branch>`, a conflicting one skipped, one push; when the gate fails it splits the
    branches in halves to find the culprit and keeps every half that passes. Its summary lists each
@@ -1173,9 +1191,8 @@ How to land a change:
 3. Exit 2 is a merge conflict: golden is unchanged. In your branch run `git fetch origin`,
    `git merge origin/golden`, then `git merge origin/master` (two separate merges), resolve,
    commit, and land again.
-4. Exit 3 is a gate failure: golden is reset to where it was before this landing, including the
-   sync merges (nothing was pushed) and the
-   output names the gate log. Fix the failure on your branch, commit, and land again.
+4. Exit 3 is a gate failure: golden is unchanged (nothing was pushed) and the output names the gate log.
+   Fix the failure on your branch, commit, and land again.
 5. Exit 4 is not your branch's problem; golden is unchanged. Either golden on GitHub moved during
    the gate (usually the owner's screenshot approvals) and the automatic merge-and-retry failed --
    land again -- or golden itself could not take `origin/golden` or `origin/master` (they conflict
@@ -1186,8 +1203,30 @@ How to land a change:
 6. Exit 1 is a refusal or a failure the output names: an unknown branch, uncommitted changes in
    the golden worktree, nothing to revert, no golden pull request to ship. Fix what it names.
 7. On success the change is on `golden` on GitHub. `land.mjs` keeps the standing golden pull request
-   (a draft) open, lists the landed branches and their issue references in its description, and
-   starts the screenshot preview for the review page.
+   (a draft) open, lists the landed branches and their issue references in its description, starts
+   the screenshot preview for the review page, and starts verification of the new tip.
+
+### Verification after landing
+
+`tools/verify.mjs` checks golden in full after each landing, beside later landings: the pre-push gate
+with every package and shard (`PREPUSH_ALL=1`, passes reused by input key), the local NVIDIA tests
+under the GPU slot, the screenshots of the affected projects and SonarQube on the lines changed since
+master, through the push queue ahead of ordinary pushes, as a dry-run push. There is no daemon: a
+landing records its tip as `wanted` in `tmp/golden/verify.json` (main checkout) and starts a run when
+none is live; a run goes on to anything newer before it ends.
+
+- **Pass:** the ref `golden-verified` on GitHub moves to the commit. Branches start from it and merge
+  it; `cut` takes only commits up to it.
+- **Failure:** the run bisects the landings since the last verified commit (first parent), re-running
+  only the failing test shard (the whole gate when another step failed), two points at a time, and
+  records the culprit landing. It re-runs the failing commit first: a failure that does not come back is
+  recorded as not reproduced, never called a flake. A failure that needs two landings names the later.
+  Verification never reverts; the pipeline round reverts the culprit at once with `land.mjs revert` and
+  comments on its issue and on the issues of open branches that contain it.
+- `node tools/verify.mjs status` (also in `land.mjs status`) shows the verified commit, the wanted one,
+  the live run and the last result; `start` restarts a dead run or resumes a stopped bisect; `claim
+  --session <id>` and `handled` mark who acts on a failure; `watch` returns once a failure is recorded.
+  `--branch golden-cut` does the same for the cut, whose fixes `cut-fix` verifies.
 
 Every night the branch sync (`node tools/land.mjs sync`, started by the pipeline round) merges golden, up to
 the tag `golden-good`, into every branch with a commit in the last 7 days, after the branch's checks pass on the
@@ -1212,6 +1251,8 @@ Rules:
 - **Never copy, always merge.** Never cherry-pick or rebase: a copy gets new commit ids, so the same
   change exists twice and lands twice. The hooks refuse both (`tools/no-copy.sh`), and `land` refuses a
   branch that holds copies of commits golden already has, naming them. `--no-verify` is the last resort only.
+  A copy made on purpose lands with `land <branch> --allow-copies <sha>[,<sha>...]`, which accepts only
+  the listed copies and names them in the land commit's message.
 - Every branch is on GitHub and belongs to an issue (see step 1). Merged branches stay, on GitHub and here,
   as history: nothing deletes them automatically. `node tools/land.mjs prune-branches` only lists the
   branches golden holds; deleting them from GitHub takes `--yes`, run by hand, and logs each name and tip
@@ -1232,20 +1273,20 @@ Rules:
   `node tools/land.mjs revert <branch>`: it reverts that branch's land commit on golden and pushes
   through the push queue. Fix the change on its branch and land it again.
 - What ships is a cut, not golden's tip: `node tools/land.mjs cut [<commit>]` points `golden-cut` at the
-  commit you name, or else the newest golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
+  commit you name, or else the newest verified golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
   are made on the cut pull request. A fix the cut needs starts from the cut,
   `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with `node tools/land.mjs cut-fix <branch>`:
   it merges the branch into `golden-cut`, pushes it through the gate and starts the cut's preview, then lands
-  the same branch on golden, so both hold the same commits. A landing that breaks golden gets one pipeline round to be fixed, then
-  is reverted from golden and landed again once fixed.
-- `node tools/land.mjs ship`, only after the owner says the cut review is finished: it marks the
-  cut pull request ready and turns on auto-merge. CI runs once on it; green merges it into
+  the same branch on golden, so both hold the same commits, and starts verification of `golden-cut`. A landing that
+  verification shows broke golden is reverted at once and landed again once fixed.
+- `node tools/land.mjs ship`, only after the owner says the cut review is finished: it refuses until the
+  cut's head is verified, then marks the cut pull request ready and turns on auto-merge. CI runs once on it; green merges it into
   master. A CI failure there is a difference between this machine and a clean one: find the change
   that caused it from the failure, revert it from golden or fix it, and the pull request goes back
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.
 - `node tools/land.mjs status` shows golden against `origin/golden` and master, the landed changes
-  not yet on master, the golden pull request's state, the lock holder, the newest preview log, and the
+  not yet on master, the golden pull request's state, verification, the lock holder, the newest preview log, and the
   open work: every branch on GitHub that golden does not have, with its issue, the owner its note names,
   its last commit, whether a `ready` marker names its tip, its worktree and the nightly sync's result. That table
   is the one place to see open work. Under it, the stale branches (no commit in 7 days, so the sync skips them)

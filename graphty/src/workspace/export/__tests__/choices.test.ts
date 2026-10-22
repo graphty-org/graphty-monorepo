@@ -1,14 +1,16 @@
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
 import {
     backgroundRefusal,
-    dataExportOptions,
     DEFAULT_IMAGE,
     fileName,
+    formatRows,
     IMAGE_PRESETS,
     presetOf,
     screenshotOptions,
     slug,
+    writerOptions,
 } from "../choices";
 
 describe("the Export dialog's choices", () => {
@@ -26,6 +28,7 @@ describe("the Export dialog's choices", () => {
             format: "png",
             multiplier: 2,
             transparentBackground: false,
+            showSelection: false,
             destination: { download: true },
             downloadFilename: "a_b.png",
         });
@@ -38,6 +41,10 @@ describe("the Export dialog's choices", () => {
         assert.equal(thumbnail.quality, 0.85);
         assert.isUndefined(thumbnail.multiplier);
         assert.deepEqual(thumbnail.camera, { preset: "topView" });
+        assert.deepEqual(screenshotOptions({ ...DEFAULT_IMAGE, view: "fitToGraph" }, { blob: true }).camera, {
+            preset: "fitToGraph",
+            params: { keepAngle: true },
+        });
         assert.isTrue(screenshotOptions({ ...DEFAULT_IMAGE, size: "4x" }, { blob: true }).enhanceQuality);
     });
 
@@ -53,15 +60,20 @@ describe("the Export dialog's choices", () => {
         assert.equal(slug("Current view!"), "current-view");
     });
 
-    it("asks every data export for the graph's styles", () => {
-        assert.deepEqual(dataExportOptions({ format: "csv", table: "edges" }), {
-            styles: true,
-            sanitizeIds: "mangle",
-            table: "edges",
-        });
-        assert.deepEqual(dataExportOptions({ format: "graphml", table: "nodes" }), {
-            styles: true,
-            sanitizeIds: "mangle",
-        });
+    it("writes a partition's group as its rank by size unless the reader turns it off", () => {
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        const [row] = formatRows(csv === undefined ? [] : [csv]);
+        assert.isTrue(writerOptions(row, {}).groupRanks);
+        assert.isFalse(writerOptions(row, { groupRanks: false }).groupRanks);
+    });
+
+    it("asks every data export for the graph's styles, with ids the format cannot hold rewritten", () => {
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        const [row] = formatRows(csv === undefined ? [] : [csv]);
+        const options = writerOptions(row, {});
+        assert.isTrue(options.styles);
+        assert.strictEqual(options.sanitizeIds, "mangle");
     });
 });

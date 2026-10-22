@@ -70,6 +70,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DUPLICATE_EDGE",
     "E_DUPLICATE_PLUGIN",
     "E_PROTECTED",
+    "E_LOCKED",
     "E_FETCH_FAILED",
     "E_PARSE_FAILED",
     "E_PROJECT_FILE_AS_DATA",
@@ -149,6 +150,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
+        case "E_LOCKED":
         case "E_UNSAVED_CHANGES":
         case "E_AUTOSAVE_ENTRY_TAKEN":
         case "E_AUTOSAVE_UNKNOWN_ENTRY":

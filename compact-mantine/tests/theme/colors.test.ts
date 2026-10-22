@@ -7,7 +7,7 @@ describe("compactDarkColors (spec 3.3)", () => {
         expect(compactDarkColors).toEqual([
             "#ffffff",
             "#b3b3b3",
-            "#8c8c8c",
+            "#a3a3a3",
             "#757575",
             "#444444",
             "#444444",

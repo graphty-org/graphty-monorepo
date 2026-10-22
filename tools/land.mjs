@@ -10,6 +10,8 @@
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
 //   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
+//   node tools/land.mjs sync [--branch <b>] [--dry-run] [--if-due] [--active-days N]
+//                                                   merge golden into every branch in progress (tools/branch-sync.mjs)
 //   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //
@@ -75,6 +77,8 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
+import { ACTIVE_DAYS, defaultCheck, moveGoldenGood, syncCommand } from "./branch-sync.mjs";
+import { logWait } from "./wait-log.mjs";
 
 export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
@@ -166,11 +170,18 @@ function stale(dir, owner) {
  * @param info what to record about this holder (the command and branch)
  * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
  * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes;
- * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder)
+ * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder); `waitLog` records
+ * the wait and the hold (tools/wait-log.mjs, by default)
  * @returns a function that releases it
  */
 export async function acquireLock(dir, info, opts = {}) {
     const pollMs = opts.pollMs ?? 15_000;
+    const waitLog = opts.waitLog ?? logWait;
+    // "lock" is the landing lock, "cut-lock" the cut's.
+    const kind = basename(dir) === "lock" ? "land-lock" : basename(dir);
+    const waiter = [info.command, info.branch].filter(Boolean).join(" ");
+    const heldBy = new Set();
+    const start = Date.now();
     const tell = waitReporter(opts);
     mkdirSync(dirname(dir), { recursive: true });
     const ticket = enqueue(dir, info, opts.priority);
@@ -178,12 +189,20 @@ export async function acquireLock(dir, info, opts = {}) {
         for (;;) {
             const position = queuePosition(ticket.file);
             const release = position === 1 ? tryLock(dir, info) : null;
-            if (release) return release;
+            if (release) {
+                const taken = Date.now();
+                waitLog({ kind, start, end: taken, waiter, heldBy: [...heldBy] });
+                return () => {
+                    release();
+                    waitLog({ kind: `${kind}-held`, start: taken, waiter });
+                };
+            }
             const owner = readLock(dir);
             if (owner && stale(dir, owner)) {
                 removeStaleLock(dir, owner);
                 continue;
             }
+            if (owner?.pid) heldBy.add(describeOwner(owner));
             tell(owner, position);
             await new Promise((r) => setTimeout(r, pollMs));
         }
@@ -273,7 +292,7 @@ function queuePosition(file) {
  * @param info what to record about this holder
  * @returns a function that releases it, or null when it is held
  */
-function tryLock(dir, info) {
+export function tryLock(dir, info) {
     try {
         mkdirSync(dir);
     } catch (e) {
@@ -813,6 +832,11 @@ function announce(ctx, sha) {
     }
     if (pr) ctx.preview(ctx, pr);
     else console.error("land: the golden pull request was not updated; the next land or revert updates it");
+    try {
+        moveGoldenGood(ctx);
+    } catch (e) {
+        console.error(`land: golden-good was not moved: ${e.message.split("\n")[0]}`);
+    }
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: golden is ${sha.slice(0, 10)} on GitHub${where}.`);
 }
@@ -1462,7 +1486,7 @@ export function openWork(ctx) {
         "for-each-ref",
         `--no-merged=origin/${GOLDEN}`,
         "--sort=-committerdate",
-        "--format=%(refname:lstrip=3)%00%(objectname)%00%(committerdate:short)",
+        "--format=%(refname:lstrip=3)%00%(objectname)%00%(committerdate:short)%00%(committerdate:unix)",
         "refs/remotes/origin",
     ]);
     const branches = refs
@@ -1495,14 +1519,35 @@ export function openWork(ctx) {
         const n = issueOf(b);
         const issue = issues.get(n);
         const note = findNote(issue, b);
+        const fields = note ? parseNote(note.body) : {};
         const ready = issue?.comments.some((c) => {
             const m = /^pipeline-round: ready (\S+) ([0-9a-f]{7,40})\b/.exec(c.body);
             return m?.[1] === b && sha.startsWith(m[2]);
         });
-        const owner = note ? (parseNote(note.body).owner ?? "-") : "-";
-        return [b, n ? `#${n}` : "-", owner, date, ready ? "yes" : "no", trees.get(b) ?? "-"];
+        const owner = fields.owner ?? "-";
+        return [b, n ? `#${n}` : "-", owner, date, ready ? "yes" : "no", trees.get(b) ?? "-", fields.sync ?? "-"];
     });
-    return `open work (branches on GitHub that golden does not have):\n${table([["branch", "issue", "owner", "last commit", "ready", "worktree"], ...rows])}${error}`;
+    const head = ["branch", "issue", "owner", "last commit", "ready", "worktree", "sync"];
+    return `open work (branches on GitHub that golden does not have):\n${table([head, ...rows])}${error}${staleList(branches)}`;
+}
+
+/**
+ * The open branches with no commit in the sync's active window: the nightly sync skips them, and each needs
+ * its owner to land it, close it or park it. A report only; nothing is deleted.
+ * @param branches openWork's rows: name, tip, date, unix time
+ * @param [now] the time
+ * @returns the list, or "" when there are none
+ */
+export function staleList(branches, now = Date.now()) {
+    const stale = branches.filter(
+        ([b, , , unix]) => !NOT_WORK.test(b) && now - Number(unix) * 1000 >= ACTIVE_DAYS * 864e5,
+    );
+    if (!stale.length) return "";
+    const lines = stale.map(([b, , date]) => `  ${b} (last commit ${date})`);
+    return (
+        `\nstale (no commit in ${ACTIVE_DAYS}+ days, so the nightly sync skips them): land, close or park each\n` +
+        lines.join("\n")
+    );
 }
 
 const table = (rows) => {
@@ -1525,8 +1570,9 @@ function worktrees(ctx) {
     return map;
 }
 
-// Branches never pruned: the integration and release branches, revert pull requests, Dependabot.
-const KEEP = /^(HEAD|master|golden|golden-cut|gh-pages)$|^(release|revert)\b|^dependabot\//;
+// Branches that are not work in progress, never pruned and never synced: the integration and release
+// branches, revert pull requests, Dependabot.
+export const NOT_WORK = /^(HEAD|master|golden|golden-cut|gh-pages)$|^(release|revert)\b|^dependabot\//;
 
 /**
  * The branches on GitHub that golden already holds, and with `yes`, deletes them there. Run by hand only:
@@ -1547,7 +1593,7 @@ export function pruneBranches(ctx, opts = {}) {
     );
     const merged = git(ctx, ctx.main, ["branch", "-r", "--format=%(refname:lstrip=3)", "--merged", `origin/${GOLDEN}`])
         .split("\n")
-        .filter((b) => b && !KEEP.test(b) && !live.has(trees.get(b)));
+        .filter((b) => b && !NOT_WORK.test(b) && !live.has(trees.get(b)));
     const lines = new Set();
     for (const base of [GOLDEN, CUT, "master"]) {
         const r = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/${base}`], { ok: true });
@@ -1632,13 +1678,15 @@ export function context(cwd, overrides = {}) {
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
+        check: defaultCheck,
         ...base,
     };
 }
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> | ship | status | prune-branches [--yes] (land, revert, cut and cut-fix also take --priority)";
+    " cut-fix <branch> | ship | status | prune-branches [--yes] |" +
+    " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
 
 /**
  * Runs one command under the lock.
@@ -1648,6 +1696,7 @@ const USAGE =
  */
 export async function main(argv, ctx = context(process.cwd())) {
     const [command, ...branches] = argv.filter((a) => !a.startsWith("--"));
+    if (command === "sync") return syncCommand(ctx, argv);
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).

@@ -138,6 +138,7 @@ function createMinimalStyles(): Styles {
                 repeatedEdges: "keep",
                 edgeWeightPath: null,
                 edgeTimePath: null,
+                edgeWeightMeaning: null,
                 positionScale: 1,
                 idCoercion: "canonical",
             },

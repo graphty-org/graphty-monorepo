@@ -268,7 +268,21 @@ If `live-tools.json` gains a tool, add its worktree to the `case` line.
 Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
 `git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.
 
-### 8. Nothing to do
+### 8. Nightly branch sync
+
+Every round, from the main checkout, start the nightly branch sync detached; it does nothing unless it is due
+(none started today, local time 01:00 or later), so the round never waits on it:
+
+```bash
+mkdir -p tmp/branch-sync && setsid nohup node tools/land.mjs sync --if-due >>tmp/branch-sync/sync.log 2>&1 </dev/null &
+```
+
+It merges golden (up to the `golden-good` tag) into every branch with a commit in the last 7 days, runs each
+branch's checks at the lowest priority, and writes the result into the branch's note (the `sync` column of the
+open-work table). A branch it reports blocked is its owner's to fix (the sync comments on the issue); a stranded
+blocked branch is step 6 material. Never run it without `--if-due` from a round. Design: `design/ci/branch-sync.md`.
+
+### 9. Nothing to do
 
 End with one line, for example `pipeline-round: nothing due (golden 3 landings, review pending since <sha7>).` No
 ACTION NEEDED line unless something in "Escalation" is newly due. The review request is about the cut pull request

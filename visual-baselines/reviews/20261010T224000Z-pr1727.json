@@ -1,0 +1,678 @@
+{
+  "version": 2,
+  "pr": 1727,
+  "subject": {
+    "builtMerge": "3fe55cd8be12b8adec9f5de3525572718d68ac23",
+    "head": "ca2f2009749747441f72b876d5aecc5bb91c82fc",
+    "runId": 37975442323,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "3fe55cd8be12b8adec9f5de3525572718d68ac23"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/components-actions-splitbutton--keyboard.dark.png",
+      "from": "30c30f4b8b391c5f64e83b95422e7361ebe0717a67cb830797b33b2e6e88c048",
+      "to": "af81ca77c7e85cb17156601e6bf061141a4db784e49326a7826bc99f8d824588",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-actions-splitbutton--keyboard.light.png",
+      "from": "a67396eba1496e2f14f2db54fd4331885cf0120ba80caf9009a394d51c08e4ae",
+      "to": "e87ba7bdb862564b2cd0404361ed1dd68fa30aaf437f22f623ea39e2090b7396",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-compactcolorinput--controlled.dark.png",
+      "from": "4f3ba4d369172234cb34a5d70232c14af0d99a016981d3417e5b81dd173b1f82",
+      "to": "7845681b003c795a3cdb345558b31f7eb0c9bbae7e2572a4187ffdb796388204",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-compactcolorinput--controlled.light.png",
+      "from": "c14ffa1de91fab9be968f311b835e8eab7d294f301407fd1313878d5b5084d99",
+      "to": "4a9c93d8dcd5bc84e6174d6adfb74a0d5d7c0db0f83092bd4917e782babd85d5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-compactcolorinput--swatches-and-change-end.dark.png",
+      "from": null,
+      "to": "2aedb72ce9f738042d4303040fc7251fde38573bc1fa0ae7079e1fabd49b26f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-compactcolorinput--swatches-and-change-end.light.png",
+      "from": null,
+      "to": "fd99fd1328397f0d8b0aaef8ad997191b679375d06ed558bc881d4bdad742f6f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-gradienteditor--coalesced-into-one-undo-entry.dark.png",
+      "from": "e13bace1760ba312d2adc9a483a9269e00ec7a9d135dcf921ea4af5fa07d6d9a",
+      "to": "72cc5cae8c94c1e97d2f2da8c35f5e5bc7a9e0cb69a1f56f1e6e2de125b641a2",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-color-gradienteditor--coalesced-into-one-undo-entry.light.png",
+      "from": "dac0a676702b980ad7ffe2f0389fb96dedea2b01dfd1cf9e9da861a8f2fe1236",
+      "to": "f90b32852ae0d1bc27be1247a7635d222163bc824505cbde88345c3a9d0d9bba",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datarow--long-value.dark.png",
+      "from": null,
+      "to": "3ca5c36d56005124ba6c62377e39c7bbba8808088de09c66ed22d451141d5156",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datarow--long-value.light.png",
+      "from": null,
+      "to": "435a645c8f98315b4a9ec40a8d0c9588747ff7d91ed4d4f6a0909c9cf3ea7b27",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datarow--opens-what-it-names.dark.png",
+      "from": "35485e352d33639d764a6462f968d933078b42b252e8d39a0fa25f1f54bdb94c",
+      "to": "0448643f1ff2203515df18b054f455e1c4d33c0255931fda6145ff1e1bbe57d1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-data-display-datarow--opens-what-it-names.light.png",
+      "from": "b0079ec6ebe86e0a1ba14c31f150b00a420cd4236585381f14b2db95d67e35ae",
+      "to": "3bcbaf0ba732a896139777895d1a6f33443c5c6a0bc56a4526b3cdeb4c4e22fa",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-comboinput--states.dark.png",
+      "from": "80ef383331642f43518cfb6b36113f69acc6b5de664436f43c5d371052a9757c",
+      "to": "96b5743e5f432e94d712c5860ac487d6aaae4ed898ccfcd64053e30f3ae9d647",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-comboinput--states.light.png",
+      "from": "a68433d068d615db61ca24b2c312c0aa8126ea9edec531cdbfa76d623634d88d",
+      "to": "538d791146210354318a2fbf568a3f24f906e727dfb3b97829792b1f5a3be65f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-panelfield--states.dark.png",
+      "from": "3ca1a7cc6337a4c194e6d23d05424a2e5ed55da2b36dc65789df2ae620248ed9",
+      "to": "9946ecfd624c59c4aa8c9f95a3cab39c8142e76baf703eec4b6b4177c97aba94",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-panelfield--states.light.png",
+      "from": "ef16bf2c8221584ebce21f10244155ae3e301b6d0e357b595d836f3e25e06581",
+      "to": "e53b97f0341526e14d65b36e27b2a4b27795e465516cdcaeea9b3666196b42d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-searchinput--controlled.dark.png",
+      "from": "4b756a2f26631700a7ca42259548d54b8c3b46b2bf65b898f914dbdb54749c8d",
+      "to": "f2742938dc3d69c7153a1593d6a5449b3b0727b22113e5167b3ac4a32bd9c280",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-searchinput--controlled.light.png",
+      "from": "f6e8c01ce8ba48abfec952eb720edae1d30f77e657b61b9769b3b87ffe73ee7b",
+      "to": "681ff0948bc597665ea4d147ea61b714de674f11622c2c5d47a4d9f46316ae92",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-searchinput--states.dark.png",
+      "from": "5bfb091908b5106d33c0ff9feed0a371efd16dd7df317cfacdd50bfd09245bf8",
+      "to": "3c3615f9feea70903c35131c7a232c3485d8af069c88a2345f47bb0ba21dd3b6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-searchinput--states.light.png",
+      "from": "bb6972e3192528e7f5c6393e323101e10ce5840bc0de36bf3777856f4264c3b8",
+      "to": "77d0d5995c8a415d609f2dd314a4a1b28f536680966066e670ed9ed6ff35458c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-select--groups-and-long-lists.dark.png",
+      "from": "88ab77910fdd724fe2d4b522caaf8a4634d01723b08b363f65860371b4c38935",
+      "to": "fb85afd31a0a98545ee24ec070aa050572cd719c3ecf1715afed696c68adc5cc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-select--groups-and-long-lists.light.png",
+      "from": "b7caa680b62b54511d12c7b47bca979d5b71435f3ad2d0969ff53edbcc9db58f",
+      "to": "d39e8162b26dafcf703b54c3e61985d192008c1147b121c7caf3b1b61a19583e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-select--states.dark.png",
+      "from": "ceef4e5a8e3e04a1cd80e5d5426ed6ea771bbaba84d4bdf6691defe82958c2c6",
+      "to": "d64080122dc5d7fa10f131b1252cc9978fb0e28608699c94411c5eced594fdad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-select--states.light.png",
+      "from": "5eb4865e7d71114bb357e73c192485d06f8c3234e3360e2dd63244f96f09c49e",
+      "to": "f18ec167bb869020eaa3f39da44b5c34bbe3db43a14f88e42cc1e7148f867ded",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-stylenumberinput--controlled.dark.png",
+      "from": "b76f5cf1340c10956a39c02f738db76e0e535419eeea6f40a347e060e391381b",
+      "to": "715786298a23f9e8042b503a6512c9d4407d5273dfc3579aaaff5d5d12fe6951",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-inputs-variablepill--pill-from-the-keyboard.dark.png",
+      "from": null,
+      "to": "724f1ddc97549889444169f1af68bed2e9befe18d51862907488327170279d18",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--name-before-count.dark.png",
+      "from": null,
+      "to": "a9cc46744535cfd27d83a359cc3b17f3ebf05668d3e8b2d8a94d751e771e2b76",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--name-before-count.light.png",
+      "from": null,
+      "to": "cd4297902ab5d92b72ef2db4f3f112f1323f323cbfefe59bbaa64a3d545dc749",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--playground.light.png",
+      "from": "e083ba2ba11f1ce4df32c6708a1ed37b89450fe1501474acf0fc0002ceacf3dc",
+      "to": "f89521d82693729104ef6135cd523b394657a71d12e7b35f1d8b0b1ef33be800",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--states.dark.png",
+      "from": "7f5a3d024caff8cfc9378dd069761499d7639a8ea03e3e6b6cc8f4cafaf6d075",
+      "to": "8f8773164aed8623f2cf9cf7019aac85a70fa1f3020f78abc92a2d5b6f1e572b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--states.light.png",
+      "from": "69adf99dc88b8241963cff9d3adef0b76a7462d5c96b00bea4436150e7b35ab1",
+      "to": "33878b857a85d72f600a9af2c342638ff0bd04a0e987b5de06cc573345b099ad",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--touch-and-row-menu.dark.png",
+      "from": null,
+      "to": "2a5a965b8a7e60446e833690b1a59379cad9c6b385a06dc370c5b83c4855d2a9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-lists-and-trees-tree--touch-and-row-menu.light.png",
+      "from": null,
+      "to": "d933c17e4f71c50ca64d764efe0b76edb0ca86156ab34f3326423cae2ea93ca0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-menu--states.dark.png",
+      "from": "d0365108804af62d66f5fd153d0a57dce6c23ff77144a45eb2d0bbffdc272444",
+      "to": "40cecb5b1358fdf8403c63b37dbcdc0ee56e2966c7fb711992fb07000e3a77e1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-menu--states.light.png",
+      "from": "db582b2e6cd677cc9d046478d398a63f061bbaa090f1453b82432306d1ed0527",
+      "to": "1b8b49618ad85c011a25bc51352127c635844db34ef985b94a915589d8a54f25",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-modal--default.dark.png",
+      "from": "d2bd6d9782809355a51f578ec6b8fe17b72f93f0bd4e2d6750326049b32a2f5e",
+      "to": "305a36aaf326cfe936d6b124dfb5b380ead5e3bdf7058e687ff6f3cc221b4075",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-modal--default.light.png",
+      "from": "03c9dfd361d92680e72e8560d17f7b4855373b02336f5b9c3ab8c8d19ba7d827",
+      "to": "e48cfc18109246b5b6d4a4bc74b5061a7ab12d7cf7758ba10690b7f3813594dc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-modal--states.dark.png",
+      "from": "d0c8c8d877e6db586e4dbf1e57f2d326f294ceb6a0f112b1aa567cdf91251055",
+      "to": "571b614b840894cabe16779f00638ba57c719c63f70a0d98797d762db27e809e",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-modal--states.light.png",
+      "from": "76fe1c040f689ab52354d8e4fca43ac7cb36247ac2cba6cf1b7a2cec1f5aaea1",
+      "to": "40b42fcbace7ccf60acf4322fdaa9932017d92aec67722d9d982ca017f6ce0b7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-axes-interactions.dark.png",
+      "from": "a0f1c216fc9dfc11972a457d862c95e7247c645ed49097bb5b00d189031e82bf",
+      "to": "ebe61da8e70ad5a2591c9d94ae3ab10cbb7b114ba64d40858b2a053890400732",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-axes-interactions.light.png",
+      "from": "6aeb5a4a52c744778826181796d0d9fe15f675307164bf1389bec0543327d80c",
+      "to": "4ec6397eb7155b0b45082fdf22762ff3486f70b732e1a94cc7c0647cff9a5ecb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-axes.dark.png",
+      "from": "7512ec10d1fc7b301abb44db46dc91b3b7c0b731284b9d82f6c719ff91201e2c",
+      "to": "accb3c20c1ebf5da726aa8f12eeae9b907df1ff3c98f790160b52fd8d24de254",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-axes.light.png",
+      "from": "d55418699d181335d625503157f925f6b41862b43590e691b58a06c55cb0b797",
+      "to": "41c58a7c95286a8a201d4b5c534d64aaffc2bd9ec1ddaa7bcb7295f14859a59f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-to-button.dark.png",
+      "from": "bedd5ea7e939d3de94883fca2558a3e9610cbca4029fe6028c3cb76b15fe7068",
+      "to": "846ca238edb08b6d5e7faadd10ab3fbbb779e43bd0ddbe19e1553e574e982b25",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-to-button.light.png",
+      "from": "98d82f197e7b8b40f68e2f58b0b3fea5d6487ed35b6f39366676195b0c11861c",
+      "to": "b5bf421792914de8553b5e616f60acebc4bf1383b345719c06f142ed41d05847",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-to-panel.dark.png",
+      "from": "27367e6816d975a34d1e5b9ac9dd49821226010132728475220bfc5335d52d75",
+      "to": "cabb54fffd0138a122e1b689840782d54a2cb5ea66f946ef09464e856c00d69a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--anchor-to-panel.light.png",
+      "from": "4bff7649230e6e8758ac7724d8985ca3f788c2e9200f0eeae0b34b2684a189d0",
+      "to": "25c7e398944d577a2a84055770f1310c58ec8f19f62318c234c9c7993172ed49",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--component-compatibility.dark.png",
+      "from": "8fdc43bbfe71514b93b0b589317d50bce15ecfe4adb2599861c4303f73736b16",
+      "to": "d033a2628f8bda286df26eedcdb9d83bbb9e3e01561f6e883aceb5d1a12fafdc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--component-compatibility.light.png",
+      "from": "fcb94175496041d1aa92be3f2ce926e6d678e3187cc2b64f82ffa763d3093efe",
+      "to": "298a4a62135b5486e899038db10af6a6ac2c03aae1a9e06abc698269b510664d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--controlled.dark.png",
+      "from": "da2ed3665dc03b848448f1bfc0bcb0e569cac916836b324402478e7b252f62c8",
+      "to": "4d97b47f943affeef5c5ad82dc6e0dbc1012affd1e5c7175ca6e04881737c74f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--controlled.light.png",
+      "from": "1de0bd143afcbd6400f15fd3a9e2e021b40f673f77d44f0505dc8f2c3429b67d",
+      "to": "e2e141acb0110fb0bd2493749b9a0549de21dee9bff2e8d453d1efd73ee9d9d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--default-interactions.dark.png",
+      "from": "0bebf58ba8903de4f4948b488069c9e4a21ba5c333ecc18addf045d66d045a8f",
+      "to": "07ef9fc7a7de8ba935d6f3758b010d7b46629dc2601f6ff7145edb2f8cf717ee",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--default-interactions.light.png",
+      "from": "3b8803bb927f79758a71218d9221eef59b30d31f82b8389e90f693b3c9fe8ab5",
+      "to": "53e01fca9da5ea4bed6ee40f30c3c7bf6345875683a5bab68329387eab1c6653",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--default.dark.png",
+      "from": "5dcbbc6224f7d9481d32c6ffc3094bb7434847ba9f794ff1ecd03b139e33802d",
+      "to": "d3ce6fbc137464fec0400ade376162a08024a3f30b71ff324fb42ebaadd53358",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--default.light.png",
+      "from": "470a0192facf26414e0a85e2ee379ac2b2f07b58fcc6c889a27c89447e3ae882",
+      "to": "37e09be7c3e19040317599916256c0e63c7ae6cbafe691240e749eb86d916bfb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--multiple-popouts-interactions.dark.png",
+      "from": "49edd8f87e53d7ff96e0aed03ec0275e8e7ccfe5ddfaf56a40c9f1e94d25c281",
+      "to": "b43cbb0515149ad36a36061097ec87fe4b022a17c19ed9d6745be8b64efe3682",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--multiple-popouts-interactions.light.png",
+      "from": "fe2cb78620cb96dd06762d8f3dec89197b7b97e5f0f7e54479f38f035ad1af8c",
+      "to": "f369af6803da5d7f990f32748c8bcc951ff7b5d9293fc6a44d220b8a44d5d066",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--multiple-popouts.dark.png",
+      "from": "1138c675d039d286a80c4a1e1b9d5aa86ffc45968126e2d89f1e56fe5e5ce11f",
+      "to": "444d1b7e935901d460947437807580e69250d43d1bb50f2dab1869d8a404a5a3",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--multiple-popouts.light.png",
+      "from": "c2b4eea31a95afb3d1ec83642f45836a92f73dcb0eaf818a420d1b2724b34bfb",
+      "to": "967fb99c5533f9f4bedfe6128d53946c9cdb7d107b5d4d69d94a861416cbcb64",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--tabbed-interactions.dark.png",
+      "from": "f2a4ed4e2a35fd807400c66c3bd6e10512ff4594c6cd29f0c0a3847fbdb5e289",
+      "to": "af2b152444d1639ac84cff20e43cb6e9762caf5f74b971911bc9c8336c85583c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--tabbed-interactions.light.png",
+      "from": "11d20655018a342305c47707629f77e35814e31a2bb2530d5b27f432dc25b770",
+      "to": "81402e0bb67ef78d22b91b3889a85e63bc47de54c5afba47651845eb00fc4241",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--tabbed.dark.png",
+      "from": "a31b1be37c9b4b3b7e0a84016082002782b99a6311160cc5cbd142c98f7575ed",
+      "to": "fd2ecd2aba8de8964a55558893f0bbc48959521bbf9526e8d9153209861380c4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--tabbed.light.png",
+      "from": "96c700f0ca2b728f2a58f005448c52ebe313ff61afdd88d085558680696d7ef2",
+      "to": "8de3eba8a0163116b3e6c7ed9f4f1b4189993991be455643100557e03384c55f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--worked-example-interactions.dark.png",
+      "from": "3ce1b18b759d3dd8c8a1f8e7a9f6238775cb90c81a3ef14ede6bd51d1d76b7aa",
+      "to": "19aed7192a6cbe1775702f54667344ec75b5bf5976aae3fded7192c68ad1ad6f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--worked-example-interactions.light.png",
+      "from": "c21f6767bbf9baf6b1d9341bfc33d96397881b1cd49ab35eaaab9b6b9f052847",
+      "to": "b6b2a9a957c2e7d87e26c6baa7c79c44eb070606a317df09b90d4eb08e8b88c8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--worked-example.dark.png",
+      "from": "4837a42ce5c8d8fdfc1f715f81e26aa1e6f4861693c7555673f27d9fa9242d5a",
+      "to": "01d0bc3c16370cc37506ca0dc0b7428a381dc4a07c6b22ad47a4152c5f6071bf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popout--worked-example.light.png",
+      "from": "f8fdafc31a08c26ed17a39781b2aa43fa99019a0d6f7c5f7580db02d5eb96267",
+      "to": "1850620d7c67eda885e36269a7bb49d819d21a0205c80ac0235aacc102609acc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--in-control-group.dark.png",
+      "from": "8d7c4c77b3bf5a1d47296cd8131eb1aabfb2c8297f57df44930c1c7ad236e200",
+      "to": "be76500ac441b8641bc1e335890ecb043663d90229a4a8b5c80ba0b57f4c07b8",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--in-control-group.light.png",
+      "from": "f86291d385737ef66c42b0ffb385e22648699bac1517b555fb7667d41d002bd6",
+      "to": "5414c7404b8272b9e477eb4ac2e2cf46dda7083db41c828eac32d83c09aef20c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--multiple-buttons-interactions.dark.png",
+      "from": "cb3f840391ab12c1afe7ed033c21fd12d64043f41f34be9d66e42e9d793e3a98",
+      "to": "744f09aed266dca5cb5518893b52405af9ed32fc238622d052628479fef7c194",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--multiple-buttons-interactions.light.png",
+      "from": "cc9e834c9394a3a78065167c168527812dacde4a5f4fc68c588f1aebbbdf21e2",
+      "to": "351f3b478e8bb259829abaf942bc2641dbd27c6aea8e6198c4222b1f7d94183d",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--multiple-buttons.dark.png",
+      "from": "25e47caf64f0add5122bc6ef6bacf9f01eb6f62dae25c2fe083b1f6f70d9d5df",
+      "to": "0c264c9894e371b085f81a96677508768cba39797869a99c2105c94e22e0ce6c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--multiple-buttons.light.png",
+      "from": "2b1a9720cf9b5cf44ca1dea2f7879de308947d1d68ef7994af85d9b05b63e1c3",
+      "to": "1a8d5d6688b25c672d2918ae67d5fb2b9c7a468fd8bc15f9e388ddb7f2379861",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--states.dark.png",
+      "from": "63b19970c1233759211452463b47e9c99b6b82bb1c6b180adf5340b7f4fe461a",
+      "to": "be344879e5b86435ad16d0add22c75298abb1765a757cd78a74a881a57c63991",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-popoutbutton--states.light.png",
+      "from": "69231d4b52058f5478a6a2733e19dff34eaeb8667a890f2cf591c9aa93e889f0",
+      "to": "07a8e86558f7d7af76b5f8662c12fd47cb2fb1bbc082b6704afc3a9fb15be480",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-toast--states.light.png",
+      "from": "0b640baa7303e61c582528ee2ffd50aaef0fa871af1e1757d7223bd8097c7505",
+      "to": "10ce734b41102f7d5c0bcbfaa06aadb929cc7ae71ab5a75b5f45d85eca7eaf64",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-tooltip--states.dark.png",
+      "from": "c3778085c4d468f272fe5d5d5b4809cbd3749df296a4c5fa0ee18affd1c756ab",
+      "to": "326a415d4bad65021403bfff77d170001c7d6d7bc18e8f8179aae032d36f249c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/components-overlays-tooltip--states.light.png",
+      "from": "66cc7256ba74f9f13a0a928c77bb5510aebb740c61f35e773bd1598c2c4626a3",
+      "to": "2d296c18ec7c3da81bfcca10308643a208f5fbcf5968cb009a87bb2fe7159c55",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.dark.png",
+      "from": "f87a1e1e573d443ef9682f6187121fca8290c158b29ba2566de53289d5290c69",
+      "to": "de97b19382b07ac7b4e04b29f1d24f4af630d119ff806136c7ed24635f8f37f7",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.light.png",
+      "from": "a1f87c33d79451ce33b242b0e9c1b56eb802f65b95fe8c525441ed58a2f42dc4",
+      "to": "0a0477dd46a9b6bb6a0296f902b5b83a701b1ef234394fa544dc85b69ceb283c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-focus-and-motion--focus-ring.dark.png",
+      "from": "d27693c9394293574448fb455cf38ce5f518248abf7c0c2ae89b39291c064160",
+      "to": "035b922153d760e49550722f53dbcdbe182a6b52a2bcb7fe612584535544866c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-focus-and-motion--focus-ring.light.png",
+      "from": "ac4d172c3bc3e1074ce43405e3e9c39752edeb1a95c5f57ad259ff7cb2c9d1ac",
+      "to": "9fb970478977bf04dd33fa48c227b4a25f8ab7fd57ce676e247ae0158671682b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-feedback-loader--states.dark.png",
+      "from": "1b42f7c878e033d6f10fff9fbab988e787239ed0610264553af6921ea9a25791",
+      "to": "e07d1d434a85d5b86875559aba3bc856e24c390bddd413dc4375f27f58240f8c",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-feedback-loader--states.light.png",
+      "from": "28d0f9db54da98e7646f0c90d95c017761090b28eb5c85bc6dfc84c8a459129e",
+      "to": "e363181e58ffb5aaf676e886bd8e8c79a38d4912e32bc0ec0c5d5d687cd957b4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-feedback-progress--states.dark.png",
+      "from": "551642aa82f355bdb07a633578c97fb7a0f7739722f959b3dc73cda5c2771c12",
+      "to": "8a3999ac50229451a9043b27afb94e3fd5ebaafd3cffcc0efb16ea9ef14f07c6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-feedback-progress--states.light.png",
+      "from": "8926971b49675ff487db75d1ecee7a8ca4a23802e9c66b583043ad41348c6038",
+      "to": "23ef5e8675d122b1e6240a167989e7659c366f6a3bb7495dbf9ec91edd2759d4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-autocomplete--states.dark.png",
+      "from": "3802baf0a3d5d5edfad8ccc13a4f3ec597e35daddcef560f163823fbbd748de7",
+      "to": "96d3f4c2b1be4ca52606e75ba34bab9e549b8bee10e5d42de9219d0629ac6df9",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-autocomplete--states.light.png",
+      "from": "6881fdcc885d94242b3cc8d54b95835ea66e795399ed3674162f2c0def4f463a",
+      "to": "0e0b68b025ebb601cd7d9a6629fcf7a2be940f3b05d298b8ee059015408c7b3a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-fileinput--states.dark.png",
+      "from": "6f79a4d6b15931d05bbfeafe1a2bec3d1daeef5012f6b953bdddc7111c0b7a35",
+      "to": "b793b1a38f9fb185fe73a8b8807da36eebe82c922b709de3f76a23130e4b94df",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-fileinput--states.light.png",
+      "from": "ec74ef15c896c75a9a9727ae79faa87f332c34276248326514929361f5f265e9",
+      "to": "23037ace20ea2bfc40077ee2f8a8eb7cf2027845d9bef672edf720d1d1786f9b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-jsoninput--states.dark.png",
+      "from": "1d3e7eead1afc254f8f3fec116af3a3f3c278493cbc6ba481508bf3ed9fec1f1",
+      "to": "079236afc7b0eb5dd0e4011a81ff9d62372b2678a871fed736335a7427ff41cc",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-jsoninput--states.light.png",
+      "from": "0ab245e8dfdf614407445aa85e3f37d33da1c90fb5179263ad3fb664cee0b06b",
+      "to": "274d71eeea198a202cbf5bf885b80f814e40fe0b971f3b9c604b092289a84bc1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-multiselect--states.dark.png",
+      "from": "5360516d2477ff600ad413fdb1cca3ac302880c873b812817c5e174068e62136",
+      "to": "54d4382b4620c2a3f8e96155df90ac67820ed1f6fb3415ea1024f22f049ab09f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-multiselect--states.light.png",
+      "from": "229c0a7eeb8e8325b0be2553ef4cc5da4df38d4b37012cb63d1e63accfa804a3",
+      "to": "2b5bbd3e0dc9126aac2dea6310512b1c8ce27445ecbac83a24ecda4513c7a848",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-numberinput--states.dark.png",
+      "from": "2d94cd0590d46fa4a256983158766a1094d6cb13860a03b0a89f85e40ae6ed47",
+      "to": "888dfd813e44fb828a14fc47151b6f1121071dd512c445aeae0ae671c11f5136",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-numberinput--states.light.png",
+      "from": "5a917bd5783b0c279945c64624e64254aefabe6dd8e040f0d04d5041907bb1c1",
+      "to": "78812a849ead3be83f73888dee348c8f07d4ad5c5d71795373b2137124531575",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-passwordinput--states.dark.png",
+      "from": "21f81fb47058046f81cdfe8f5a118611e6e39834df6a41a88fcd06e8315b31a7",
+      "to": "81379cfc0cd7094b7399e05ce0e91df49c20c04eae52359dd1fa2561888caa60",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-passwordinput--states.light.png",
+      "from": "efccd283455e074389629348d025dfc0b8985ff6a115bb55e2d84920efce4fa0",
+      "to": "1d9377ef4903ffefdaa98ff753eddcc27afb22d5c32c70bbb65be34a87b5f35a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-pillsinput--states.dark.png",
+      "from": "16c437fd41b5a58ab7efe7fd3acedbadf749786544e1b64173b79484fe1135c1",
+      "to": "f8c92fc8f460ec316caa54f7edf3a6a18c52f53bb58f2a0ca36b28cc78b88ec5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-pillsinput--states.light.png",
+      "from": "901f0768dfbb7d76f88447bd7cc052eba44e7b7234aebb5f42c4076ee0d2caac",
+      "to": "70a2ea670b2dad21b4fe140b60fc51306490b0123fdfd27f91f511736a329cb5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-tagsinput--states.dark.png",
+      "from": "f71f637fde8d2e9821ea3c37482d0727701c6dae617be2ad77682d0521d50a9a",
+      "to": "fe1589fddba725e948e24a1d7273516b1b320c715541798566c4443c74a95b3b",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-tagsinput--states.light.png",
+      "from": "d527b6038961b183a5803fb4307d474b54114dcdde22c40872d58ac8464c7963",
+      "to": "6dc904511da06e81d94d7bcc4186999cd696e59a73fec2bcf6a98b45ac307121",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-textarea--states.dark.png",
+      "from": "a60b2bb659ebdc036ed35d2ef19cc410becb700df1f5d64722571e785d6154a8",
+      "to": "e3192cede418abddf9604f071902924f95b997a9997581a29f41f1724843e0b4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-textarea--states.light.png",
+      "from": "61b5b036d7a226538838147e184568eb96285a571d3da1bde26993f934fd2049",
+      "to": "66fcd2111a290e01d4c52b3bf17ff40ff0de1a74dfaf296db67f3ad9381b6c29",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-textinput--states.dark.png",
+      "from": "90d368a9911b83ec31f1231023413f3e50a19d5cb1e5cb42dd15bc7dcd38dc8d",
+      "to": "a5d6affdf2d97ab44e3e6ef1bf648e08d00d2b89d286056b9c31e937cd32eda0",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/themed-mantine-inputs-textinput--states.light.png",
+      "from": "e83c64e25260b9cac92c1dc6fd632da8e9290ddae265d1da0ed23545dc6d58a9",
+      "to": "d15eb582f283c4ebd922ea9acae955ac223b86162ef120338f9431556ebac1bf",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/layout/layout2d--spectral.png",
+      "from": "ac6b28f1bc1b95b63bc7473aa9f54422b0822ed238068498125d2ee3b78652ab",
+      "to": "435b6ab554d1f0152c5f7d57db26a4f3b0755a1dc203afd9a8d5283e553e8dc4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 1747,
+        "commit": "7180dee203b9e30fbf9e6cec6e1e426fa0f086cb",
+        "record": "visual-baselines/reviews/20261010T205047Z-pr1747.json",
+        "reviewedAt": "2026-10-10T20:50:47.440Z"
+      }
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-10T22:40:00.230Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiVjRUOVNBdWlfa1d1YzhJSlYxTUQzTGhzR0UwbkFULXhSWWg4VHl1VDRkcyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQClH6kQcPrBPelzhoxIu6MDwn7RiF-RkfuZXRRdK7CdXAIhAI3sy9EcLV0Zo7QB48CLOt3E-2hYbEq2seYFI_6czDKZ"
+  }
+}

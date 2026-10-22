@@ -1079,6 +1079,10 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
                     ),
         ),
     "whole drawing mirrored": (base) => base.transform !== null && !base.transform.unrelatedLayout,
+    // a bend is judged only where the layouts are related or the file places its nodes (compare-oracle.ts)
+    "curved edges straightened": (base) => base.properties["edge.curve"].passRate !== null,
+    "straight edges bowed": (base) => base.properties["edge.curve"].passRate !== null,
+    "curved edges drawn as sine waves (arc->sine)": (base) => base.properties["edge.curve"].passRate !== null,
     // a bend a twenty-fifth of the chord off is over the route's allowance only where that is more than its end
     // nodes' smaller side, and routes are judged only between related layouts
     "longest straight edge bent off its chord by a twenty-fifth of its length": (base, oracle) => {
@@ -1093,7 +1097,14 @@ const APPLIES: Partial<Record<keyof typeof DEFECTS, (base: OracleReport, oracle:
                     a !== undefined &&
                     b !== undefined &&
                     ends.every(
-                        (n) => n !== undefined && 0.04 * Math.hypot(b[0] - a[0], b[1] - a[1]) > 2 * Math.min(n.w, n.h),
+                        (n) =>
+                            n !== undefined &&
+                            0.04 * Math.hypot(b[0] - a[0], b[1] - a[1]) >
+                                2 *
+                                    Math.max(
+                                        Math.min(n.w, n.h),
+                                        10 * ORACLE_TOLERANCES.pixel * (base.transform?.lengthScale ?? 1),
+                                    ),
                     )
                 );
             })

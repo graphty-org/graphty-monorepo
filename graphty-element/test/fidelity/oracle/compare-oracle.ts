@@ -607,6 +607,9 @@ function sizeMiss(o: number, g: number, range: readonly number[]): number {
     return o < UNDRAWN_SIZE && g < UNDRAWN_SIZE ? 0 : ratioMiss(g / Math.max(o, 1e-9), range);
 }
 
+/** The least a route's allowance is capped at (`edge.route`), in render pixels. */
+const ROUTE_CAP_PIXELS = 10;
+
 /**
  * How far an arrowhead's size is from the oracle's: by their ratio (`arrowRatio`), but alike within a pixel, which a
  * rounding on a head a few pixels long moves by more than the ratio allows.
@@ -644,6 +647,34 @@ function headParts(heads: readonly PArrow[]): number {
         }
     }
     return placed.length;
+}
+
+/**
+ * Whether the program draws most of a text's words near it: half its words or more among the program's texts whose
+ * middles lie within the text's box, give or take its height, or anywhere where no place relates the two drawings. A
+ * text graphty draws on several lines the program draws one line a text (xgmml-wp4271-cy3-export's "Absorption and
+ * transport"), and wraps where it wraps.
+ * @param words - the text's words, normalized
+ * @param box - its box in the oracle's frame, or null to look anywhere
+ * @param texts - the program's texts, words normalized
+ * @returns whether they are drawn
+ */
+function wordsDrawnNear(words: string, box: PBox | null, texts: readonly { words: string; box: PBox }[]): boolean {
+    const near = (b: PBox): boolean => {
+        if (box === null) {
+            return true;
+        }
+        const slack = box.y1 - box.y0;
+        const [x, y] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+        return x >= box.x0 - slack && x <= box.x1 + slack && y >= box.y0 - slack && y <= box.y1 + slack;
+    };
+    // a zero-width space or joiner draws nothing (json-cyjs-sbgn-sciluna's "EEF1A1:\u200bGTP")
+    const bare = (w: string): string => w.replace(/[\u200b-\u200d\ufeff]/g, "");
+    const theirs = new Set(texts.filter((t) => near(t.box)).flatMap((t) => bare(t.words).split(" ")));
+    const mine = bare(words)
+        .split(" ")
+        .filter((w) => w !== "");
+    return mine.length > 0 && mine.filter((w) => theirs.has(w)).length >= mine.length / 2;
 }
 
 /**
@@ -1127,7 +1158,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "label.backgroundBorder": `a border round the box behind the words on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's and its width in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
     "edge.present": "every oracle edge is drawn by graphty",
     "edge.extra": "every edge graphty draws is one the oracle draws (no extra, hidden or duplicate edge)",
-    "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): its ends where they sit on their own nodes: Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop), but no more than its end nodes' smaller side, and at least ${String(ORACLE_TOLERANCES.pixel)} render px`,
+    "edge.route": `each route between its own nodes' outlines, in its own chord's frame (${String(ORACLE_TOLERANCES.pathSamples)} samples): its ends where they sit on their own nodes: Frechet distance within ${String(ORACLE_TOLERANCES.edgePathOfLength)} of the chord (of the length, for a loop), but no more than its end nodes' smaller side (or ten render px), and at least ${String(ORACLE_TOLERANCES.pixel)} render px`,
     "edge.curve": `farthest point from the chord over the chord, within ${String(ORACLE_TOLERANCES.curvature)} or ${String(ORACLE_TOLERANCES.curveShare)} of the oracle's, or a pixel deep over the shorter chord`,
     "edge.color": `deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "edge.width": `ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}]`,
@@ -1888,7 +1919,9 @@ export function compareOracle(
         const ends = [oById.get(o.source), oById.get(o.target)].flatMap((n) =>
             n === undefined ? [] : [Math.min(n.w, n.h)],
         );
-        const cap = ends.length === 2 ? Math.min(...ends) / unit : Infinity;
+        // and no less than ten render pixels: an anchor drawn as a point (xgmml-wp4271-cy3-export) or a node a few
+        // pixels across in a large drawing leaves no allowance a reader would grant
+        const cap = ends.length === 2 ? Math.max(Math.min(...ends), ROUTE_CAP_PIXELS * pixel) / unit : Infinity;
         return { gap, near: Math.max(Math.min(T.edgePathOfLength, cap), pixel / unit) };
     };
     const curved = (pts: readonly Pt[]): boolean => curvatureOf(pts) > T.curvature;
@@ -2148,7 +2181,11 @@ export function compareOracle(
                 : Math.hypot((pts.at(-1) ?? pts[0])[0] - pts[0][0], (pts.at(-1) ?? pts[0])[1] - pts[0][1]);
         const seen = Math.min(chord(vo), chord(vg));
         const bend = Math.max(T.curvature, T.curveShare * oc, pixel / Math.max(seen, 1e-9));
-        if (routed) {
+        // how far a line bends between two programs' own unrelated layouts of a file with no positions is each
+        // layout's (vis-network's dynamic curve bends with its physics), not a setting of the file: not judged there,
+        // as node.position is not (json-vis-lesmiserables: graphty's bends of 0.3 against vis-network's 0.01, and
+        // json-vis-siblings the other way round, edge by edge)
+        if (routed && layoutJudged) {
             j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
         }
         if (o.stroke !== null && g.stroke !== null) {
@@ -2604,8 +2641,7 @@ export function compareOracle(
     const anywhere = transform?.unrelatedLayout === true;
     const gFree = oracle.nodesOnly === true ? [] : graphty.texts.filter((t) => norm(t.content) !== "");
     for (const [i, t] of [...gFree].sort((a, b) => cmp(a.content, b.content) || a.x - b.x || a.y - b.y).entries()) {
-        const words = norm(t.content);
-        const drawn = anywhere ? oTexts.some((o) => o.words.includes(words)) : textDrawn(t.content, toO(t.box), oTexts);
+        const drawn = wordsDrawnNear(norm(t.content), anywhere ? null : toO(t.box), oTexts);
         j.add("stray.extra", "stray", `graphty:text#${String(i)}`, drawn ? 0 : 1, null, t.content);
     }
 

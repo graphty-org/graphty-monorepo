@@ -3769,6 +3769,13 @@ What the arrow fix moved the other way, each a lowered floor in `oracle-floors.j
   graphty-element's vee is pressed in 0.6 of its length, yEd's standard about a quarter, so fewer pixels overlap than
   graphty's plain triangle did. graphty-element has one notch depth; a shallow vee (or a notch-depth setting) would
   draw yEd's standard, draw.io's classic and Pajek's arrow closer. Open.
+- Unverified, and open: no drawing by yEd itself backs the vee's notch depth. Every yEd and yEd Live oracle is a
+  stand-in (the programs behind the oracles are Cytoscape desktop, Gephi, Graphviz, draw.io, Pajek, sigma.js,
+  Cytoscape.js, vis-network and OGDF), and the yFiles documentation quoted above says "impressed", not how deep.
+  graphty-element's vee is notched 0.6 of its length; if yEd's standard is shallower, every yEd and yFiles default
+  arrow is drawn wrong, and the lowered stand-in floors above would hide it. Measure the notch once from a real yEd
+  export of `yed-graphml-specimen-arrows` (see "yEd sheets to export by hand") and set graphty-element's depth, or a
+  depth setting, from it.
 - `yed-live-graphml-specimen-mappings-bypass` `edge-key-default` (arrow shape 1 -> 0.8): its key's `<default>` style
   ends in a TRIANGLE, which graphty draws; draw.io ignores a key's `<default>` and draws its own classic, which the
   comparator used to read as a triangle by chance.
@@ -4045,3 +4052,45 @@ in `lowered` with the reason:
   unit defect: graphty's Graphviz run spaces the nodes about 1.25 times wider than Graphviz's own drawing, in units of
   the line width, because the nodes graphty hands it are not the nodes Graphviz sized to their labels (node.width
   20/41). `dot-real-depcruise`'s edge.width passes (652/652).
+
+## Round 4 verification: comparator readings fixed and new properties judged (2026-10-22)
+
+A check of round 4's comparator found readings that hid or invented defects. Fixed, each with a unit test that fails
+on the old comparator:
+
+- A Cytoscape desktop double line (PARALLEL_LINES), exported as short pieces on two rows, was read as a zigzag from
+  one row to the other, and the double edges' arrowheads off the zigzag's end. It is read midway between the rows
+  (cx-, cx2-, cys- and xgmml-specimen-edges-lines, the mappings-bypass-p10 sheets and the syn-mappings samples pass
+  their curve and arrow floors again).
+- A Graphviz stub wholly under its arrowhead was capped at the wrong end (Pajek's rule); the head now caps the end it
+  points to where the nodes are drawn apart (dot-real-softmaint, dot-real-depcruise).
+- A line between two nodes drawn on one another is named the way graphty runs the edge (cx-radiation-bibliography
+  30 -> 44, cx2-signor-aml 57 -> 67), so its arrowheads are judged at their own ends.
+- Cytoscape desktop's labels drawn as glyph outlines (cx-polygenic-sle) are one label each, drawn where graphty draws
+  text over them (stray.present 0 -> 0.984), not two strays.
+- Graphviz's inv on a spline that kinks at its end is read along its own axis (it read "other" against itself).
+- A compound member's label grows its group by Cytoscape.js's 2 px in font pixels, not layout units
+  (json-cyjs-synth-edges and -saved: group.box 0 -> 1, group.present 0.75 -> 1).
+
+Newly judged, so defects that passed now fail (each a planted defect in mutations.ts):
+
+- edge.arrowLength and edge.arrowWidth within [0.85, 1.18] (was [0.67, 1.5]) or a render pixel. Real misses now
+  shown: Cytoscape desktop's source heads drawn about 23% small (cx/cx2/cys/xgmml-specimen-arrows and
+  mappings-bypass-p11), Graphviz's box heads 25% large (dot-specimen-arrows), vis-network's crow and inv_triangle
+  34% wide.
+- edge.arrowPlace: graphty's head on its line's end (no gap, not back along the line, not aside).
+- edge.arrowParts: stacked heads (Graphviz's normalnormal, boxdotnormal, crowtee), which graphty draws as one.
+- edge.dashPeriod: a dash pattern's period and drawn share (Graphviz's dotted is drawn nearly solid, Cytoscape's
+  dashes about 1.8 times too long).
+- stray.extra on free text graphty draws, a body-less node's label among them.
+- edge.route judges each end where it sits on its own node (node.position judges where the node is), and its
+  allowance is capped at the end nodes' smaller side (at least ten render pixels), so a long line sent through
+  another node fails. dot-real-depcruise falls furthest (graphty's own Graphviz run lays out nodes without their
+  label text, so its splines differ; see the section above).
+- edge.curve is not judged between two programs' own unrelated layouts of a file with no positions (vis-network's
+  dynamic curve bends with its physics), as node.position is not.
+
+Left open: a dashed or patterned line is always drawn straight (PatternedLineMesh), so a curved dashed edge fails
+edge.curve (cx2-signor-aml 27 -> 68); graphty's vee is notched 0.6 of its length and reads as thin barbs where
+vis-network, Graphviz and Cytoscape.js draw a broad head; the drawing defects the new properties expose. Each failing
+element is in oracle-known-failures.json, and each lowered floor in oracle-floors.json's lowered with its reason.

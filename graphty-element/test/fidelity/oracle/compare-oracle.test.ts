@@ -1723,6 +1723,18 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         const g = sceneOf("graphty", 600, 400, grid());
         g.texts = [text("kept words", 302, 201)];
         assert.deepEqual(failing(compareOracle("t", o, g)), []);
+        // the program draws a text on two lines graphty draws on one: its words, one line a text
+        const lines = sceneOf("oracle", 600, 400, grid());
+        lines.texts = [text("Absorption", 300, 195), text("and transport", 300, 207)];
+        const one = sceneOf("graphty", 600, 400, grid());
+        one.texts = [
+            text("Absorption \nand \ntransport", 300, 201, 12, { box: { x0: 270, y0: 190, x1: 330, y1: 212 } }),
+        ];
+        assert.notInclude(failing(compareOracle("t", lines, one)), "stray.extra");
+        // a zero-width space draws nothing
+        lines.texts = [text("EEF1A1:GTP", 300, 201)];
+        one.texts = [text("EEF1A1:\u200bGTP", 300, 201)];
+        assert.notInclude(failing(compareOracle("t", lines, one)), "stray.extra");
         g.texts = [text("kept words", 302, 201), text("planted words", 450, 380)];
         const r = compareOracle("t", o, g);
         assert.deepEqual(r.failures["stray.extra"], ["graphty:text#1"]);
@@ -2007,12 +2019,14 @@ describe("what the fit, the averages and the stray match must not hide", () => {
                 return [55 + 140 * t, 50 + depth * 140 * 4 * t * (1 - t)];
             });
         g.edges = [edge("e1", bowed(1 / 6))];
-        const r = compareOracle("t", o, g, null, { ownLayouts: true });
+        const r = compareOracle("t", o, g);
         assert.isTrue(r.transform?.unrelatedLayout);
         assert.isBelow(r.transform?.scale ?? 1, (r.transform?.lengthScale ?? 0) / 3);
         assert.strictEqual(r.properties["edge.curve"].passRate, 0, "a bent line against a straight one");
         g.edges = [edge("e1", bowed(0))];
-        assert.strictEqual(compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"].passRate, 1);
+        assert.strictEqual(compareOracle("t", o, g).properties["edge.curve"].passRate, 1);
+        // a file with no positions, each side's own layout: how a line bends is the layout's, not judged
+        assert.isNull(compareOracle("t", o, g, null, { ownLayouts: true }).properties["edge.curve"].passRate);
     });
 
     it("reports a turned frame and a zoomed one instead of fitting them away", () => {

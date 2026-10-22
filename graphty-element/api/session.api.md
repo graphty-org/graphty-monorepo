@@ -1242,6 +1242,7 @@ export interface GraphSession {
     snapshot(): GraphSnapshot;
     readonly status: SessionStatus;
     readonly styles: StylesApi;
+    readonly time: TimeApi;
     transaction<T>(label: string, fn: (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>, options?: TransactionOptions): Promise<T>;
     undo(): Promise<HistoryOutcome>;
     readonly views: SessionViews;
@@ -1370,6 +1371,12 @@ export type GraphtyErrorCode =
 * and `column`. The caller corrects the name, or loads the data that would define it.
 */
 | "E_UNKNOWN_ATTRIBUTE"
+/**
+* A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+* `stepBy` or `seek` with no attribute given. The caller designates one with
+* `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+*/
+| "E_NO_TIME_FIELD"
 /**
 * An algorithm key is not registered. `details.available` lists the registered keys. The
 * caller picks a key from the catalogue or registers a plugin that provides it.
@@ -4269,6 +4276,22 @@ export interface SessionEventMap {
     "source:expanded": SourceExpanded;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
+    "time:end": {
+        readonly window: TimeWindow | null;
+    };
+    "time:field": {
+        readonly field: TimeField | null;
+    };
+    "time:pause": {
+        readonly window: TimeWindow | null;
+    };
+    "time:play": {
+        readonly window: TimeWindow | null;
+    };
+    "time:ready": {
+        readonly field: TimeField | null;
+    };
+    "time:step": TimeStepEvent;
     "visibility:changed": VisibilityChange;
 }
 
@@ -5037,15 +5060,172 @@ export const TERMINAL_RUN_STATUSES: readonly RunStatus[];
 export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
 // @public
+export interface TimeApi {
+    bins(options?: TimeBinsOptions): readonly TimeBin[] | null;
+    changes(): TimeChanges;
+    readonly current: TimeWindow | null;
+    extent(): TimeExtent | null;
+    readonly field: TimeField | null;
+    readonly interval: number;
+    readonly mode: TimePlayMode;
+    pause(): void;
+    play(options?: TimePlayOptions): void;
+    readonly playing: boolean;
+    readonly ready: Promise<void>;
+    seek(instant: number): Promise<TimeStepEvent>;
+    setField(field: TimeField | null): Promise<TimeFieldResult>;
+    stepBy(count: number): Promise<TimeStepEvent>;
+    window(window: TimeWindowInput | null): Run<FilterResult>;
+}
+
+// @public
+export interface TimeBin {
+    // (undocumented)
+    readonly edges: number;
+    // (undocumented)
+    readonly end: number;
+    // (undocumented)
+    readonly nodes: number;
+    // (undocumented)
+    readonly start: number;
+}
+
+// @public
+export interface TimeBinsOptions {
+    readonly count?: number;
+    readonly from?: number;
+    readonly of?: {
+        readonly nodes?: readonly NodeId[];
+        readonly edges?: readonly EdgeId[];
+    };
+    readonly scope?: "all" | "visible";
+    readonly step?: TimeStep;
+    readonly to?: number;
+}
+
+// @public
+export interface TimeChanges {
+    // (undocumented)
+    readonly entered: TimeIds;
+    // (undocumented)
+    readonly left: TimeIds;
+}
+
+// @public
+export interface TimeCountPair {
+    // (undocumented)
+    readonly edges: number;
+    // (undocumented)
+    readonly nodes: number;
+}
+
+// @public
+export interface TimeCounts {
+    readonly timed: number;
+    readonly unparsed: number;
+    readonly untimed: number;
+}
+
+// @public
+export interface TimeExtent {
+    // (undocumented)
+    readonly edges: TimeCounts;
+    // (undocumented)
+    readonly from: number;
+    // (undocumented)
+    readonly nodes: TimeCounts;
+    // (undocumented)
+    readonly to: number;
+}
+
+// @public
+export interface TimeField {
+    // (undocumented)
+    readonly edges?: TimeSource;
+    // (undocumented)
+    readonly nodes?: TimeSource;
+}
+
+// @public
+export interface TimeFieldResult {
+    // (undocumented)
+    readonly edges?: TimeCounts;
+    // (undocumented)
+    readonly field: TimeField | null;
+    // (undocumented)
+    readonly nodes?: TimeCounts;
+    readonly notices: readonly CodedFact<TimeNoticeCode>[];
+}
+
+// @public
+export interface TimeIds {
+    // (undocumented)
+    readonly edges: readonly EdgeId[];
+    // (undocumented)
+    readonly nodes: readonly NodeId[];
+}
+
+// @public
+export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.unit-suspect";
+
+// @public
+export type TimePlayMode = "sliding" | "cumulative";
+
+// @public
+export interface TimePlayOptions {
+    readonly interval?: number;
+    readonly loop?: boolean;
+    readonly mode?: TimePlayMode;
+    readonly step?: TimeStep;
+}
+
+// @public
+export type TimeResultsPolicy = "keep" | "stale" | "rerun";
+
+// @public
+export interface TimeSource {
+    readonly start: Path;
+    readonly unit?: TimeUnit;
+}
+
+// @public
 export type TimeStep = number | "hour" | "day" | "week" | "month" | "quarter" | "year";
+
+// @public
+export interface TimeStepEvent {
+    readonly cause: "play" | "step" | "seek" | "window";
+    // (undocumented)
+    readonly entered: TimeCountPair;
+    // (undocumented)
+    readonly from: number;
+    readonly index: number;
+    // (undocumented)
+    readonly left: TimeCountPair;
+    // (undocumented)
+    readonly to: number;
+    // (undocumented)
+    readonly visible: TimeCountPair;
+}
+
+// @public
+export type TimeUnit = "ms" | "s" | "ordinal";
 
 // @public
 export interface TimeWindow {
     readonly attribute: Path;
     readonly from: number | string;
+    readonly missing?: "inside" | "outside";
+    readonly mode?: "sliding" | "cumulative";
+    readonly nodes?: "all" | "ends";
+    readonly results?: TimeResultsPolicy;
     readonly step?: TimeStep;
     readonly to: number | string;
 }
+
+// @public
+export type TimeWindowInput = Omit<TimeWindow, "attribute"> & {
+    readonly attribute?: Path;
+};
 
 // @public
 export interface TooLargeDetails {

@@ -1747,6 +1747,10 @@ export class SessionData implements SessionDataApi {
                                               measurement: declared.measurement,
                                               measurementSource: "declared" as const,
                                           }),
+                                    // Designating a column as the time field makes it time.
+                                    ...(declared === undefined && played?.includes("time") === true
+                                        ? { measurement: "time", measurementSource: "declared" as const }
+                                        : {}),
                                     ...(played === undefined ? {} : { roles: Object.freeze(played) }),
                                     ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
                                 });

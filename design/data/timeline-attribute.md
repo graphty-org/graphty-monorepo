@@ -988,7 +988,50 @@ Each is argued where it appears; listed here so the choices can be found in one 
   for long-lived intervals is not (section 5.3); instants first keeps the first release's
   performance claims honest, and interval data reads by its start until phase 4.
 
-### 8.2 For the owner
+### 8.2 Owner decisions (2026-10-22)
+
+- **What a window move does to finished runs is an option on the window**,
+  `TimeWindow.results: "keep" | "stale" | "rerun"`. `"stale"` (the default) marks runs over the
+  visible graph out of date, which is what moving a window did before this option existed, so
+  the default changes nothing. `"keep"` leaves them current as they are; `"rerun"` runs them again
+  over the new window, and playback waits for those runs before its next step. It lives on the
+  window so it is saved with the project and undone with the window. It replaces the
+  `play({ rerun })` option of section 2.3 and settles item 1 of the list below.
+- **Designating a column makes it a time column.** The column's measurement reads `"time"`
+  (source `"declared"`) while it is the designated field, unless the reader declared it
+  something else, which `setField` refuses (`reason: "declared-not-time"`). This settles item 2
+  below.
+
+### 8.3 What the prototype built (branch feat/timeline-prototype)
+
+The element half of phases 1 and 2, kept small. Shipped: `session.time` with `field`, `setField`,
+`ready`, `extent`, `bins` (count or step, `scope: "visible"`, `of`), `changes`, `current`,
+`window`, `play`, `pause`, `stepBy`, `seek`, `playing`, `mode`, `interval`; the events
+`time:step`, `time:play`, `time:pause`, `time:end`, `time:field`, `time:ready`; `E_NO_TIME_FIELD`;
+the attributes `node-time-path`, `edge-time-path`, `node-time-unit`, `edge-time-unit`; the
+`TimeWindow` options `nodes`, `missing`, `mode`, `results`.
+
+Where it differs from sections 2 to 7:
+
+- The unit is stored in `data.knownFields` (`nodeTimeUnit`, `edgeTimeUnit`) beside the path, not
+  on the measurement declaration: designation then works before the data has loaded (an element
+  attribute), and the measurement is derived from the designation instead of being written.
+- `mode` lives on the window, so it is saved and undone with it; `interval` and `loop` are
+  playback options and are not saved.
+- No cursor slot: every move is a `visibility.window` command. A play's steps merge into one
+  history step (a transaction continuing the play's first step), so one undo returns to the
+  window before the play; `stepBy` and `seek` are one step each. `seek` always commits.
+- Nodes and edges must name the same column (`reason: "time-paths-differ"`), because a window
+  reads one attribute.
+- `nodes: "ends"` counts edges inside the window only, not edges that also pass the filter.
+
+Left out, each marked `ponytail:` in the code where it applies: the parse zone (date-times with
+no offset read as UTC) and the `timeZone` option (calendar steps and bins align in UTC); the
+radix sort and the time-sliced index build; the incremental mask pipeline (a step diffs both
+masks in full); `spanOf`, `series`, `transition`, `commit`, the cursor; intervals (phase 4);
+the import-screen suggestion and `time.found`; the in-element benchmark.
+
+### 8.4 For the owner
 
 Under the repository rule, additive API changes need no owner approval, and everything in
 section 2 is additive. These are listed because they become contracts once published, or because

@@ -1,0 +1,1 @@
+No counted-work test yet: playback runs on a timer, each step a TimeApi.stepBy-sized move, which is counted; a counted test of a whole play is a later piece.

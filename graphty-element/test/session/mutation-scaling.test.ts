@@ -692,6 +692,37 @@ const CASES: readonly Case[] = [
             Promise.resolve(() => session.visibility.setWindow({ attribute: "data.weight", from: 0, to: size / 2 })),
     },
     {
+        method: "TimeApi.setField",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.time.setField({ edges: { start: "w" } })),
+    },
+    {
+        method: "TimeApi.window",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            return () => session.time.window({ from: 0, to: size / 2 });
+        },
+    },
+    {
+        method: "TimeApi.stepBy",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.stepBy(1);
+        },
+    },
+    {
+        method: "TimeApi.seek",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.seek(size / 2);
+        },
+    },
+    {
         method: "ScopeApi.save",
         growth: "linear",
         prepare: (session, size) => Promise.resolve(() => session.scope.save("Half", { nodes: ids(size / 2) })),

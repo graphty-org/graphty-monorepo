@@ -25,6 +25,8 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
+    type TimeInstants,
+    type TimeResultsPolicy,
     type TimeStep,
     type TimeWindow,
     type VisibilityPass,

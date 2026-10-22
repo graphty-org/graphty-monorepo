@@ -90,7 +90,8 @@ import type {
 } from "./sources/types";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
-import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
+import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
+import type { SessionVisibilityApi, TimeWindow, VisibilityApi, VisibilityChange } from "./visibility";
 
 /**
  * The element's data configuration, parsed: the id and weight paths, the position scale, the
@@ -1989,6 +1990,18 @@ export interface SessionEventMap {
     "canvas:element-click": { readonly node: NodeId } | { readonly edge: EdgeId };
     /** A filter, the time window or the context flag changed what is showing. */
     "visibility:changed": VisibilityChange;
+    /** The time window moved through `session.time`: where it is now and what entered and left. */
+    "time:step": TimeStepEvent;
+    /** Playback started, from this window (null when it opens one). */
+    "time:play": { readonly window: TimeWindow | null };
+    /** Playback stopped at this window. */
+    "time:pause": { readonly window: TimeWindow | null };
+    /** Playback reached the end of the data; `time:pause` follows. */
+    "time:end": { readonly window: TimeWindow | null };
+    /** The designated time field changed through `session.time.setField`. */
+    "time:field": { readonly field: TimeField | null };
+    /** The designated time field was indexed, so `time.extent()` and `time.bins()` answer. */
+    "time:ready": { readonly field: TimeField | null };
     /**
      * A layer was added, changed, removed or moved, and how much of the picture it repainted.
      *
@@ -2699,6 +2712,11 @@ export interface GraphSession {
      * happened to be drawn.
      */
     readonly visibility: VisibilityApi;
+    /**
+     * The timeline: designate a time field, read its extent and histogram, and move the time
+     * window along it -- set it, step it, seek it, or play it.
+     */
+    readonly time: TimeApi;
     /**
      * The style layers: what paints what, in what order, and why one element looks as it does.
      *

@@ -424,12 +424,37 @@ export type {
     FilterResult,
     FilterStep,
     RuleTree,
+    TimeResultsPolicy,
     TimeStep,
     TimeWindow,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,
 } from "./src/session/visibility";
+
+// ---------------------------------------------------------------------------------------------
+// The timeline: a designated time field and a window that moves along it
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    TimeApi,
+    TimeBin,
+    TimeBinsOptions,
+    TimeChanges,
+    TimeCountPair,
+    TimeCounts,
+    TimeExtent,
+    TimeField,
+    TimeFieldResult,
+    TimeIds,
+    TimeNoticeCode,
+    TimePlayMode,
+    TimePlayOptions,
+    TimeSource,
+    TimeStepEvent,
+    TimeUnit,
+    TimeWindowInput,
+} from "./src/session/time/TimeApi";
 
 // ---------------------------------------------------------------------------------------------
 // Asking what something would do and cost, before doing it

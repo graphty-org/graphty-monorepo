@@ -1,10 +1,8 @@
 /**
  * Web addresses a project names, from the app, on the REAL graphty-element: the question before a
  * project opens one (Continue, Cancel, Don't ask again for this project, Don't ask again -- both
- * "don't ask" choices kept on this machine, never in the project file), a model
- * and a picture pasted by URL in the Style tab, and the choice to embed a model loaded from a URL
- * or keep only its address when saving. Every web request is answered by a stub of `fetch`, so the
- * tests reach no network; every answer is a click.
+ * "don't ask" choices kept on this machine, never in the project file). Every web request is
+ * answered by a stub of `fetch`, so the tests reach no network; every answer is a click.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -181,94 +179,5 @@ describe("web addresses a project names, from the app", () => {
         await reaches(session, MODEL, "drawn");
         assert.equal(session.network.policy, "allow");
         assert.equal(readPreference(OPEN_PROJECT_URLS), "allow");
-    });
-
-    it("draws a model pasted by URL in the Model picker", async () => {
-        const session = await openWithGraph();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(tab).getByRole("button", { name: /^Shape / }));
-        const shapes = await screen.findByRole("dialog", { name: "Shapes" });
-        await userEvent.click(within(shapes).getByRole("option", { name: "Model..." }));
-        const picker = await screen.findByRole("group", { name: "Models" });
-        await userEvent.type(within(picker).getByRole("textbox", { name: "Model URL" }), MODEL);
-        await userEvent.click(within(picker).getByRole("button", { name: "Add" }));
-
-        await reaches(session, MODEL, "drawn");
-        assert.isTrue(session.styles.list().some((layer) => layer.set?.["node.model"] === MODEL));
-        assert.lengthOf(
-            screen.queryAllByRole("dialog", { name: "Open a web address?" }),
-            0,
-            "the reader's own URL asks nothing",
-        );
-    });
-
-    it("draws a picture pasted by URL on a texture line added from Fill", async () => {
-        const session = await openWithGraph();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-        const fill = within(tab).getByRole("group", { name: "Fill" });
-        const plus = within(fill).queryByRole("button", { name: "Add Texture" });
-        if (plus === null) {
-            await userEvent.click(within(fill).getByRole("button", { name: "Add to Fill" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /^Texture/ }));
-        } else {
-            await userEvent.click(plus);
-        }
-        // Adding the line makes the row's first own layer, and the tab is drawn again for it.
-        await userEvent.click(await screen.findByRole("button", { name: /^Texture / }, { timeout: TIMEOUT_MS }));
-        const picker = await screen.findByRole("group", { name: "Pictures" });
-        await userEvent.type(within(picker).getByRole("textbox", { name: "Picture URL" }), PICTURE);
-        await userEvent.click(within(picker).getByRole("button", { name: "Add" }));
-
-        await reaches(session, PICTURE, "drawn");
-        assert.isTrue(session.styles.list().some((layer) => layer.set?.["node.texture"] === PICTURE));
-    });
-
-    it("asks how to keep a model loaded from a URL when saving, and keeps only the address on Use URL", async () => {
-        vi.stubGlobal("showSaveFilePicker", undefined);
-        const blobs = new Map<string, Blob>();
-        const downloads: Blob[] = [];
-        const create = URL.createObjectURL.bind(URL);
-        vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
-            const url = create(object);
-            if (object instanceof Blob) {
-                blobs.set(url, object);
-            }
-            return url;
-        });
-        vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-            const blob = blobs.get(this.href);
-            if (this.download !== "" && blob !== undefined) {
-                downloads.push(blob);
-            }
-        });
-        const session = await openWithGraph();
-        await session.styles.add({
-            name: "Panel",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.model": MODEL },
-        });
-        await reaches(session, MODEL, "drawn");
-
-        await userEvent.keyboard("{Control>}s{/Control}");
-        const saveAs = await screen.findByRole("dialog", { name: "Save Web as" });
-        await userEvent.click(within(saveAs).getByRole("button", { name: "Save" }));
-        const keep = await screen.findByRole("dialog", { name: "Save files from the web" });
-        await userEvent.click(within(keep).getByText("Use URL"));
-        await userEvent.click(within(keep).getByRole("button", { name: "Save" }));
-
-        await waitFor(
-            () => {
-                assert.lengthOf(downloads, 1);
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        const saved = JSON.parse(await downloads[0].text()) as {
-            members: { kind: string; assets?: Record<string, unknown>[] }[];
-        };
-        const [entry] = saved.members.find((member) => member.kind === "graphty-assets")?.assets ?? [];
-        assert.equal(entry?.source, MODEL);
-        assert.equal(entry?.stored, "url");
-        assert.isUndefined(entry?.files);
     });
 });

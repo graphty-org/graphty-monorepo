@@ -87,13 +87,36 @@ export class CustomLineRenderer {
      */
     private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
         const engine = scene.getEngine();
-        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`.
+        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`, and over
+        // the capture's pixel scale, so a capture drawn larger than the canvas keeps it too.
         const css = engine.getHardwareScalingLevel();
-        const resolution = new Vector2(engine.getRenderWidth() * css, engine.getRenderHeight() * css);
+        const scale = CustomLineRenderer.pixelScales.get(scene) ?? 1;
+        const resolution = new Vector2(
+            (engine.getRenderWidth() * css) / scale,
+            (engine.getRenderHeight() * css) / scale,
+        );
         for (const material of materials) {
             material.setVector2("resolution", resolution);
         }
     });
+
+    /** Output pixels per canvas pixel, for a scene drawn larger than its canvas (a capture). */
+    private static readonly pixelScales = new WeakMap<Scene, number>();
+
+    /**
+     * Draw a scene's lines as wide, relative to the picture, as on its canvas while it is drawn
+     * at another size: a line width is in pixels, so a 4x capture would otherwise draw every line
+     * a quarter as thick.
+     * @param scene - The scene being drawn larger.
+     * @param scale - Output pixels per canvas pixel; 1 puts it back.
+     */
+    static setPixelScale(scene: Scene, scale: number): void {
+        if (scale === 1) {
+            this.pixelScales.delete(scene);
+        } else {
+            this.pixelScales.set(scene, scale);
+        }
+    }
 
     /**
      * Number of line materials receiving per-frame resolution updates.

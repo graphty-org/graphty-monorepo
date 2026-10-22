@@ -786,7 +786,7 @@ export class AccelerationController {
             this.#reason =
                 'no accelerator is registered. Import "@graphty/graphty-element/webgpu" to use WebGPU, ' +
                 "or register your own accelerator factory.";
-            this.#code = undefined;
+            this.#code = "E_NO_ACCELERATOR_REGISTERED";
             return false;
         }
 
@@ -818,7 +818,9 @@ export class AccelerationController {
                     source: "acceleration",
                     details: { accelerator: registration.name },
                 });
-                code = accelerationCodeOf(failure) ?? code;
+                // A throw with no acceleration code of its own (a backend module that failed to load,
+                // a defect) still gets one, so a consumer can switch on every unavailable state.
+                code = accelerationCodeOf(failure) ?? code ?? "E_ACCELERATOR_FAILED";
                 declined.push(`${registration.name}: ${failure.message}`);
             }
         }

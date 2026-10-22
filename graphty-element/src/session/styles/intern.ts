@@ -289,7 +289,11 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.gradientStops": "mesh",
     "edge.gradientKind": "mesh",
 
-    // Drawn beside the mesh, and per element by nature.
+    // Drawn beside the mesh, and per element by nature: the halo is an overlay instance, the band
+    // its own line batch, each rebuilt by the paint that carries it.
+    "edge.bandColor": "content",
+    "edge.bandWidth": "content",
+    "edge.bandOpacity": "content",
     "node.label": "content",
     "node.labelStyle": "content",
     "node.tooltip": "content",
@@ -408,6 +412,19 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailTextRotation": "content",
     "edge.arrowTailTextOffsetX": "content",
     "edge.arrowTailTextOffsetY": "content",
+
+    // A text's size, colour and background are fields of the same rich-text block its style
+    // writes, rebuilt by the same content sync.
+    "node.tooltipSize": "content",
+    "node.tooltipColor": "content",
+    "node.tooltipBackground": "content",
+    "edge.arrowHeadTextBackground": "content",
+    "edge.arrowTailTextBackground": "content",
+
+    // Whether the element is drawn at all: switched on the meshes it already has, never a
+    // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
+    "node.visible": "instance",
+    "edge.visible": "instance",
 });
 
 /**

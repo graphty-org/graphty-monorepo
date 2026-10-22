@@ -1,12 +1,12 @@
 import type React from "react";
 
-import { openFile } from "../start/open";
+import { openProjectFile } from "../project/actions";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { holdsModel, putModelOnNodes, readDrop } from "./models";
 
 /**
  * The canvas as a drop target: a model goes on the selected nodes, or on every node, as one
- * undoable layer; any other file is added to the project as graph data.
+ * undoable layer; any other file opens as the Open project or file... command opens it.
  * @returns the canvas's drag handlers.
  */
 export function useCanvasDrop(): {
@@ -30,7 +30,7 @@ export function useCanvasDrop(): {
                 if (await holdsModel(dropped.files)) {
                     await putModelOnNodes(session, store, dropped.source);
                 } else if (dropped.files[0] !== undefined) {
-                    openFile(workspace, dropped.files[0]);
+                    await openProjectFile(workspace, dropped.files[0]);
                 }
             });
         },

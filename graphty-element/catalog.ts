@@ -115,7 +115,12 @@ export type { GeneratorParams } from "@graphty/graph-samples/generators";
 // instead of copying the facts into the application where they drift the first time a channel's
 // bounds or values change. `CHANNEL_DESCRIPTORS` is defined beside the channel value types in
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
-export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
+export type {
+    ChannelCaveatCode,
+    ChannelDescriptor,
+    ChannelGroup,
+    ChannelValueKind,
+} from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
 // The one color reader a channel uses: a hex string, any CSS color the element understands, or
 // Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
@@ -134,6 +139,7 @@ export { toColorValue } from "./src/session/styles/channels";
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeLeafNodes,
     EdgeMember,
     EdgeReading,
     EdgeRef,
@@ -152,6 +158,8 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    TextMatchMode,
+    TopTies,
 } from "./src/catalog/types";
 
 /**

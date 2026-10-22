@@ -1,0 +1,35 @@
+ok   an unknown step is refused with exit 2
+ok   start opens the empty app and saves 01.png with the commit
+ok   a click by a control's name
+ok   a session without --sr prints no screen-reader lines
+ok   an upload answers the file chooser and the file opens
+ok   a hover prints the tooltip
+ok   a node with no label drawn is a miss, said plainly
+ok   labels are turned on as a participant would
+ok   a click by a node's drawn label lands on that node
+ok   a click-at reports the node under the point
+ok   a click-at off the canvas names what is there
+ok   a type goes into the focused box
+ok   a download is saved into the session folder and printed
+ok   a name resolves inside the open dialog first
+ok   a control behind an open dialog is a miss, said plainly
+ok   a first save names the project and keeps it in this browser
+ok   a reopened tab keeps the browser storage: Recent projects reopens the saved file
+ok   a turning drawing is reported
+ok   a still drawing is not
+ok   a miss says nothing on screen is called that
+ok   end closes the session and frees its slot
+ok   a setup start runs its steps before 01.png
+ok   the setup's sample is open when the participant arrives
+ok   a setup step that misses fails the start loudly
+ok   an --sr start prints what has focus and no screenshot path
+ok   a planted pointer step is refused in screen-reader mode, before anything runs
+ok   every step prints a focus line, and no screenshot path
+ok   the focus line gives the role and the accessible name
+ok   a live region's new text is printed
+ok   a focused combobox reports its highlighted option (aria-activedescendant)
+ok   a live region inserted already filled is marked unconfirmed, a changed one is not
+ok   --read reads the open dialog: its name first, then its text and controls
+ok   a session nobody steps or ends closes itself
+every check passed
+exit 0

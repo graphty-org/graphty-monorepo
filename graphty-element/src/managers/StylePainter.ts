@@ -3,7 +3,7 @@ import defaultsDeep from "lodash/defaultsDeep.js";
 import get from "lodash/get.js";
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
-import type { LabelBadge } from "../catalog/label-style";
+import { type LabelBadge, RICH_TEXT_KEYS } from "../catalog/label-style";
 import type { Channel, LabelStyle, Rgba } from "../catalog/types";
 import {
     defaultEdgeStyle,
@@ -18,7 +18,9 @@ import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
     CHANNEL_DESCRIPTORS,
+    type ChannelDescriptor,
     type ColorValue,
+    EFFECT_OFF,
     labelFieldOf,
     labelPatchOf,
     toColorValue,
@@ -69,6 +71,12 @@ const NODE_BASE: NodeStyleConfig = NodeStyle.parse(defaultNodeStyle);
 
 /** The edge style every painted edge is filled out from, parsed once. */
 const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
+
+/**
+ * The same, with the head a directed graph draws when no layer chose one. NO COLOUR in the head:
+ * unset, a cap follows the line it caps.
+ */
+const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyle, arrowHead: { type: "normal" } });
 
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
@@ -122,93 +130,6 @@ function setAtPath(bag: Record<string, unknown>, path: string, value: unknown): 
 function blockOf(path: string): string {
     return path.split(".").slice(0, -1).join(".");
 }
-
-/**
- * Which rich-text key each label field is written to, where the only difference is the name.
- *
- * A TABLE RATHER THAN A LADDER OF IFS, because the ladder is what rotted. Each `if` had to be
- * written by hand, so the seven that existed when channels were introduced stayed seven while
- * `RichTextLabel` went on drawing margins, pointers, badges, shadows and depth fade that no
- * layer could ask for -- and seventeen stories were deleted rather than migrated because of it.
- * The fields that are NOT a plain rename are handled beneath this, and every one of them is
- * covered by a case in `test/session/styles/label-style.test.ts`.
- */
-const RICH_TEXT_KEYS = {
-    enabled: "enabled",
-    font: "font",
-    sizePx: "fontSize",
-    sizeMode: "sizeMode",
-    size: "size",
-    letterSize: "letterSize",
-    wrapWidth: "wrapWidth",
-    wrapTrailingSpace: "wrapTrailingSpace",
-    wrapEllipsis: "wrapEllipsis",
-    wrapAnywhere: "wrapAnywhere",
-    wrapSpaceCount: "wrapSpaceCount",
-    runAlign: "runAlign",
-    rotation: "rotation",
-    color: "textColor",
-    lineHeight: "lineHeight",
-    minScreenSize: "minScreenSize",
-    minNodeScreenSize: "minNodeScreenSize",
-    declutter: "declutter",
-    onTop: "onTop",
-    textAlign: "textAlign",
-    opacity: "textOpacity",
-    background: "backgroundColor",
-    backgroundOpacity: "backgroundOpacity",
-    padding: "backgroundPadding",
-    boxPadding: "boxPadding",
-    cornerRadius: "cornerRadius",
-    borderWidth: "borderWidth",
-    borderColor: "borderColor",
-    borderOpacity: "borderOpacity",
-    gradient: "backgroundGradient",
-    gradientType: "backgroundGradientType",
-    gradientDirection: "backgroundGradientDirection",
-    location: "location",
-    attachOffset: "attachOffset",
-    offsetX: "offsetX",
-    offsetY: "offsetY",
-    shiftX: "shiftX",
-    shiftY: "shiftY",
-    keepInView: "keepInView",
-    marginTop: "marginTop",
-    marginBottom: "marginBottom",
-    marginLeft: "marginLeft",
-    marginRight: "marginRight",
-    pointer: "pointer",
-    pointerDirection: "pointerDirection",
-    pointerWidth: "pointerWidth",
-    pointerHeight: "pointerHeight",
-    pointerOffset: "pointerOffset",
-    pointerCurve: "pointerCurve",
-    outlineWidth: "textOutlineWidth",
-    outlineOpacity: "textOutlineOpacity",
-    shadow: "textShadow",
-    shadowColor: "textShadowColor",
-    shadowBlur: "textShadowBlur",
-    shadowOffsetX: "textShadowOffsetX",
-    shadowOffsetY: "textShadowOffsetY",
-    panelShadow: "panelShadow",
-    panelShadowColor: "panelShadowColor",
-    panelShadowBlur: "panelShadowBlur",
-    panelShadowOffsetX: "panelShadowOffsetX",
-    panelShadowOffsetY: "panelShadowOffsetY",
-    animation: "animation",
-    animationSpeed: "animationSpeed",
-    depthFade: "depthFadeEnabled",
-    depthFadeNear: "depthFadeNear",
-    depthFadeFar: "depthFadeFar",
-    badge: "badge",
-    icon: "icon",
-    iconPosition: "iconPosition",
-    progress: "progress",
-    smartOverflow: "smartOverflow",
-    maxNumber: "maxNumber",
-    overflowSuffix: "overflowSuffix",
-    closeButton: "closeButton",
-} as const satisfies Partial<Record<keyof LabelStyle, string>>;
 
 /** Every key the renderer's own label schema holds, which is what may be written into it. */
 const RICH_TEXT_FIELDS: ReadonlySet<string> = new Set(Object.keys(RichTextStyle.shape));
@@ -346,6 +267,13 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
     }
 
     const color = asColorValue(value);
+
+    // An effect written off draws nothing: its colour is left unwritten, so the renderer has
+    // nothing to switch it on with, whatever a layer beneath wrote.
+    if (color?.hex === EFFECT_OFF) {
+        return;
+    }
+
     setAtPath(bag, descriptor.stylePath, color === null ? value : color.hex);
 
     // An edge's bends are text with no block to switch on: only words (`*.text`) are.
@@ -387,9 +315,33 @@ function writeChannel(bag: Record<string, unknown>, channel: Channel, value: unk
  * @returns The same entries, with the label styles last.
  */
 function inWriteOrder(resolved: ResolvedStyle): [string, unknown][] {
-    const last = (name: string): number => (CHANNEL_DESCRIPTORS[name as Channel]?.accepts === "labelStyle" ? 1 : 0);
+    return Object.entries(resolved).sort(([left], [right]) => writeRank(left) - writeRank(right));
+}
 
-    return Object.entries(resolved).sort(([left], [right]) => last(left) - last(right));
+/** Where each label style's block sits, such as `label` and `arrowHead.text`. */
+const LABEL_STYLE_BLOCKS = Object.values(CHANNEL_DESCRIPTORS)
+    .filter((descriptor) => descriptor.accepts === "labelStyle")
+    .map((descriptor) => `${descriptor.stylePath}.`);
+
+/**
+ * When one channel is written among the others: words first, then the label styles, then the
+ * single looks inside a label block (`node.labelSize`, `node.labelColor`, ...). A bound size is
+ * the more specific statement, so it wins over a size a label style names in the same stack.
+ * @param name - The channel.
+ * @returns 0, 1 or 2.
+ */
+function writeRank(name: string): number {
+    const descriptor = CHANNEL_DESCRIPTORS[name as Channel] as ChannelDescriptor | undefined;
+
+    if (descriptor === undefined || descriptor.accepts === "text") {
+        return 0;
+    }
+
+    if (descriptor.accepts === "labelStyle") {
+        return 1;
+    }
+
+    return LABEL_STYLE_BLOCKS.some((block) => descriptor.stylePath.startsWith(block)) ? 2 : 0;
 }
 
 /** A node's `texture.color`. */
@@ -496,7 +448,12 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     }
 
     const painted = fill.color ?? null;
-    const color: Rgba | null = painted === null ? null : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
+    // NO LAYER PAINTS A COLOR: THE ELEMENT'S OWN DEFAULT, never "leave the instance as it was".
+    // The color lives in the instance buffer, and a null here used to skip the write, so a node
+    // whose color layer was removed kept the removed color on screen while every read of its
+    // style said nothing painted one.
+    const color: Rgba | null =
+        painted === null ? bootstrapNodePaint().color : { r: painted.r, g: painted.g, b: painted.b, a: painted.a };
     const hex = painted === null ? NEUTRAL_HEX : painted.hex.slice(0, 7).toUpperCase();
 
     // AN ALPHA IN THE COLOR IS OPACITY, multiplied with `node.opacity` (issue #2071). The instance
@@ -541,9 +498,15 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
  * @param resolved - Everything the stack painted this edge.
  * @param meshKey - The key the interner gave this edge's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
+ * @param directed - Whether the graph is directed, which is what gives an edge a head no layer chose.
  * @returns The paint.
  */
-function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): EdgePaint {
+function edgePaintOf(
+    resolved: ResolvedStyle,
+    meshKey: number,
+    plainText: (channel: Channel) => boolean,
+    directed: boolean,
+): EdgePaint {
     const bag: Record<string, unknown> = {};
 
     for (const [name, value] of inWriteOrder(resolved)) {
@@ -556,11 +519,15 @@ function edgePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     // whenever their columns were filled in a different order.
     const color = asColorValue(resolved["edge.color"]);
     const opacity = resolved["edge.opacity"];
-    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}`;
+    // A reader's own head type wins in either direction. The default head is in the key, so a
+    // graph whose direction changed rebuilds its caps rather than adopting the old key.
+    const headed = directed && resolved["edge.arrowHead"] === undefined;
+    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}`;
+    const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
 
     return {
         meshKey: identity,
-        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(EDGE_BASE)) as EdgeStyleConfig)),
+        style: foldEdgeAlpha(spellEdgeColours(defaultsDeep(bag, cloneDeep(base)) as EdgeStyleConfig)),
     };
 }
 
@@ -669,7 +636,7 @@ const BOOTSTRAP_MESH_KEY = "graphty-bootstrap";
 let bootstrapNode: NodePaint | null = null;
 
 /** The one edge paint every unpainted edge is drawn from, built on first use. */
-let bootstrapEdge: EdgePaint | null = null;
+let bootstrapEdge: { readonly directed: EdgePaint; readonly undirected: EdgePaint } | null = null;
 
 /**
  * What a node looks like between its construction and the first repaint.
@@ -701,16 +668,21 @@ export function bootstrapNodePaint(): NodePaint {
  *
  * The colour stays IN the style here, because the edge renderer has no per-instance state to
  * carry one. See {@link EdgePaint}.
+ * @param directed - Whether the graph is directed; the first pass draws a head only then, and the
+ *     placeholder must match it or every edge is rebuilt once.
  * @returns The element's own default edge paint. The same object every call.
  */
-export function bootstrapEdgePaint(): EdgePaint {
+export function bootstrapEdgePaint(directed = true): EdgePaint {
     if (bootstrapEdge === null) {
         // Spelled as a resolved paint is (see spellEdgeColours), so the first pass finds the
         // placeholder deep-equal to what it hands an untouched edge and rebuilds nothing.
-        bootstrapEdge = { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE)) };
+        bootstrapEdge = {
+            directed: { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE_DIRECTED)) },
+            undirected: { meshKey: BOOTSTRAP_MESH_KEY, style: spellEdgeColours(cloneDeep(EDGE_BASE)) },
+        };
     }
 
-    return bootstrapEdge;
+    return directed ? bootstrapEdge.directed : bootstrapEdge.undirected;
 }
 
 /**
@@ -728,6 +700,13 @@ export function bootstrapEdgePaint(): EdgePaint {
  * rather than rebuilding a graph.
  */
 export class StylePainter {
+    /**
+     * Make a painter.
+     * @param directed - Whether the graph is directed now. Asked once per edge painted, so it
+     *     must be cheap; a painter with no graph behind it draws edges as directed.
+     */
+    constructor(private readonly directed: () => boolean = () => true) {}
+
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
 
@@ -919,8 +898,11 @@ export class StylePainter {
             return null;
         }
 
-        return edgePaintOf(paint.styleOf("edge", index), paint.meshKeyOf("edge", index), (channel) =>
-            paint.plainText("edge", index, channel),
+        return edgePaintOf(
+            paint.styleOf("edge", index),
+            paint.meshKeyOf("edge", index),
+            (channel) => paint.plainText("edge", index, channel),
+            this.directed(),
         );
     }
 

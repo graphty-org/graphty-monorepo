@@ -1,0 +1,7 @@
+focus: button "Main menu"
+focus: button "Local only"
+focus: button "Settings..."
+focus: button "Open project or file..."
+focus: button "New from data..."
+focus: button "Open the Les Miserables sample"
+focus: button "Open the Zachary's karate club sample"

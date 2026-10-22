@@ -131,6 +131,10 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "runId",
     "field",
     "column",
+    // the column a load read (the weight's attribute, the columns an edge's ends came from)
+    "attribute",
+    "source",
+    "target",
     // a registered file format's id ("gexf", "graphml")
     "format",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
@@ -140,6 +144,7 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     // machine values: versions, hashes, timestamps, paths, media types, colors
     "revision",
     "digest",
+    "dataDigest",
     "fingerprint",
     "version",
     "at",
@@ -162,6 +167,12 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "host",
     "fileName",
     "webkitRelativePath",
+    // the consumer's own words handed back: a style folder's name (StyleDocumentRow.folder) and the
+    // text a reader typed into a find (FindContainsRow.text)
+    "folder",
+    "text",
+    // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
+    "locale",
 ]);
 
 const DECLARATION =

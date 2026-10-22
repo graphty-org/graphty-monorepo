@@ -27,6 +27,7 @@ import type { ModelTemplate } from "../models/ModelCache";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 import {
     bodilessSlab,
     fitNodeMesh,
@@ -340,6 +341,9 @@ export class NodeMesh {
 
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
+            if (isNodeMaterial(material)) {
+                outlineNodeMesh(mesh, sceneLighting(scene));
+            }
 
             if (
                 createOptions.texture?.color &&
@@ -1033,7 +1037,7 @@ export class NodeMesh {
             return;
         }
 
-        this.setUpColorMaterial(mat, gradientTexture, color3, unlit);
+        this.setUpColorMaterial(mat, gradientTexture, color3, unlit, scene);
 
         mat.wireframe = createOptions.effect?.wireframe ?? false;
 
@@ -1083,12 +1087,14 @@ export class NodeMesh {
      * @param gradientTexture - The gradient ramp, when the style has one that could be allocated
      * @param color3 - The flat colour, when the style has one
      * @param unlit - Whether the node draws its own colour with no light
+     * @param scene - Babylon.js scene, whose lighting a lit node material follows
      */
     private static setUpColorMaterial(
         mat: StandardMaterial,
         gradientTexture: DynamicTexture | undefined,
         color3: Color3 | undefined,
         unlit: boolean,
+        scene: Scene | undefined,
     ): void {
         if (gradientTexture) {
             if (unlit) {
@@ -1099,6 +1105,7 @@ export class NodeMesh {
                 mat.emissiveTexture = gradientTexture;
             } else {
                 mat.diffuseTexture = gradientTexture;
+                lightNodeMaterial(mat, sceneLighting(scene));
             }
         } else if (color3) {
             if (unlit) {
@@ -1106,8 +1113,9 @@ export class NodeMesh {
                 mat.emissiveColor = color3;
             } else {
                 mat.diffuseColor = color3;
-                // Add emissive for minimum brightness on shadowed surfaces
-                mat.emissiveColor = color3.scale(0.2);
+                // The emissive floor (minimum brightness on shadowed surfaces), the studio rim, or
+                // flat: whatever the scene's lighting asks of a node material.
+                lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
                 // colour share this material and carry their own colour in a per-instance buffer

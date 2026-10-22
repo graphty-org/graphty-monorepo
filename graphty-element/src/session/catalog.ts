@@ -159,7 +159,9 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  *   `optionsFor` resolves a scope.
  * @returns The catalogue.
  */
-export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSource, "resolve">): SessionCatalogApi {
+export function createSessionCatalog(
+    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results">,
+): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
         /**
@@ -182,6 +184,8 @@ export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSour
                         algorithms: SESSION_CATALOG_TABLES.algorithms,
                         layouts: SESSION_CATALOG_TABLES.layouts,
                         resolve: source.resolve,
+                        attributes: source.attributes,
+                        results: source.results,
                     },
                     key,
                     scope,

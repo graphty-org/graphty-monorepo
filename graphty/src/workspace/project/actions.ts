@@ -1,100 +1,57 @@
 /**
- * Save, Save as, Close and Open for a project (tier1-design.md section T14).
+ * Save, Save as, Save local copy, Close and Open for a project (tier1-design.md section T14).
  *
- * graphty-element writes and reads the project file (`session.project.save` and `.open`,
- * `element.downloadProject`) and decides what is unsaved (`project.dirty`, the
- * `E_UNSAVED_CHANGES` refusal). This file only decides where the file goes, asks the reader, and
- * writes the words: the notices and the problem sentences.
+ * graphty-element keeps the project in this browser (`browserProjects`), writes and reads the
+ * project file (`session.project.open`, `element.downloadGraph`) and decides what is unsaved
+ * (`project.dirty`, the `E_UNSAVED_CHANGES` refusal). This file only asks the reader and writes
+ * the words: the notices and the problem sentences.
  */
 
-import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
+import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
 
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
+import { openDataPage } from "../data-page/request";
+import { focusOpenedGraph } from "../frame/focus";
 import { newProjectId, type WorkspaceStore } from "../state/store";
-import { chooseSaveFile, isCancel, keepsFileHandles, locateFile, readHandle, writeFile } from "./files";
-import { entryForHandle, forgetRecent, recentEntry, type RecentProject, rememberRecent } from "./recent";
+import { locateFile, readHandle } from "./files";
+import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
 export const DISCARD_DIALOG = "discard";
-export const KEEP_ASSETS_DIALOG = "keep-assets";
-
-/** How the reader chose to keep each model or picture loaded from a web address, by that address. */
-export type AssetChoices = Record<string, "embed" | "url">;
-
-/** A save waiting for the reader's choices: the addresses to ask about, and what to do with the answer. */
-interface AssetQuestion {
-    readonly assets: readonly { readonly url: string; readonly name: string; readonly kind: "model" | "image" }[];
-    readonly answer: (choices: AssetChoices | null) => void;
-}
-
-const assetQuestions = new WeakMap<WorkspaceStore, AssetQuestion>();
-
-/**
- * The save waiting for the reader's choices, for the dialog that asks.
- * @param store - the workspace store.
- * @returns the question, or undefined.
- */
-export function assetQuestion(store: WorkspaceStore): AssetQuestion | undefined {
-    return assetQuestions.get(store);
-}
-
-/**
- * Asks how to keep each model or picture the layers name by web address (Embed, the default, or
- * Use URL), when there is any; graphty-element's save takes the answer (`project.save({ assets })`).
- * @param store - the workspace store.
- * @param session - the project's session.
- * @returns the choices, or null when the reader cancelled.
- */
-function askAssetChoices(store: WorkspaceStore, session: GraphSession): Promise<AssetChoices | null> {
-    const named = new Set(
-        session.styles
-            .list()
-            .flatMap((layer) => [layer.set?.["node.model"], layer.set?.["node.texture"]])
-            .filter((value): value is string => typeof value === "string"),
-    );
-    const assets = session.assets
-        .list()
-        .filter((record) => record.state === "accepted" && record.url !== undefined && named.has(record.url))
-        .map((record) => ({
-            url: record.url as string,
-            name: (record.path ?? record.url ?? "").split("/").pop() ?? "",
-            kind: record.kind,
-        }));
-    if (assets.length === 0) {
-        return Promise.resolve({});
-    }
-    return new Promise((resolve) => {
-        assetQuestions.set(store, {
-            assets,
-            answer: (choices) => {
-                assetQuestions.delete(store);
-                resolve(choices);
-            },
-        });
-        store.set({ dialog: KEEP_ASSETS_DIALOG });
-    });
-}
 
 /** Where the open project's Save goes, and what is waiting on the reader. Per workspace store. */
 interface ProjectFileState {
     /** The project these belong to (`state.project.id`); anything else is a fresh project. */
     projectId: number;
-    /** The file Save writes again, where the browser keeps handles; "download" once saved elsewhere. */
-    target: FileSystemFileHandle | "download" | null;
-    /** The project's Recent projects entry. */
+    /** The `browserProjects` id Save writes again; null until the project is kept in this browser. */
+    target: string | null;
+    /** The project's Recent projects entry, for a file the browser keeps a handle to. */
     recentId: string | null;
     /** What Discard does in the unsaved-changes dialog. */
     onDiscard: (() => Promise<void>) | null;
-    /**
-     * The last Save failed to write the file. Temporary: `session.project.save()` clears `dirty`
-     * before the file is written, so after a failed write the element reports nothing unsaved
-     * (#918). Delete this once the element clears `dirty` only after the write.
-     */
-    writeFailed: boolean;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
-    pending: { file: File; handle?: FileSystemFileHandle; recentId?: string } | null;
+    pending: PendingFile | null;
+    /** Whether that file is being read now, so the workspace leaves focus to the read. */
+    reading: boolean;
+}
+
+/** Where a file being opened came from. */
+interface FileSource {
+    /** Its handle, where the browser keeps them. */
+    handle?: FileSystemFileHandle;
+    /** Its Recent projects entry, for a remembered file. */
+    recentId?: string;
+    /** Its `browserProjects` id, for a project kept in this browser. */
+    storedId?: string;
+}
+
+/** A file waiting to open, where it came from, and whether its project is new. */
+interface PendingFile extends FileSource {
+    file: File;
+    /** Opened from the start screen: a data file loads as the new project, not into one. */
+    fresh?: boolean;
 }
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
@@ -113,8 +70,8 @@ function fileState(store: WorkspaceStore): ProjectFileState {
             target: null,
             recentId: null,
             onDiscard: null,
-            writeFailed: false,
             pending: state?.pending ?? null,
+            reading: false,
         };
         states.set(store, state);
     }
@@ -131,8 +88,8 @@ function fileState(store: WorkspaceStore): ProjectFileState {
 export function problemSentence(fileName: string, error: unknown): string {
     const code = isGraphtyError(error) ? error.code : undefined;
     switch (code) {
-        case "E_PARSE_FAILED":
         case "E_UNKNOWN_FORMAT":
+            return `${fileName} is not a file graphty can open.`;
         case "E_BAD_DOCUMENT":
             return `${fileName} is not a graphty project file.`;
         case "E_UNSUPPORTED_VERSION":
@@ -147,6 +104,24 @@ export function problemSentence(fileName: string, error: unknown): string {
 }
 
 /**
+ * Why a file did not open or add, in the app's words. graphty-element refuses a file it could not
+ * read whole with `E_PARSE_FAILED` and the line it broke at; nothing of it is kept.
+ * @param fileName - the file's name.
+ * @param error - what the element threw.
+ * @param verb - "opened" or "added".
+ * @returns the notice's sentence.
+ */
+export function notReadSentence(fileName: string, error: unknown, verb: "opened" | "added"): string {
+    if (isGraphtyError(error) && error.code === "E_PARSE_FAILED") {
+        const line = error.details?.line;
+        const where = typeof line === "number" ? ` near line ${String(line)}` : "";
+        return `${fileName} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    return `${fileName} could not be ${verb}. ${reason}`;
+}
+
+/**
  * The project's name as the header shows it.
  * @param store - the workspace store.
  * @returns the name.
@@ -156,53 +131,29 @@ function headerName(store: WorkspaceStore): string {
 }
 
 /**
- * Remembers the open project in Recent projects, with the node count the element reports.
+ * Remembers the open project's file in Recent projects, with the node count the element reports.
+ * A file the browser keeps no handle to is not remembered: nothing could reopen it.
  * @param store - the workspace store.
  * @param session - the project's session.
  * @param handle - its file, where the browser keeps handles.
- * @param thumbnail - a picture of the graph as saved; absent, the entry keeps the one it had.
  */
-async function remember(
-    store: WorkspaceStore,
-    session: GraphSession,
-    handle?: FileSystemFileHandle,
-    thumbnail?: Blob,
-): Promise<void> {
+async function remember(store: WorkspaceStore, session: GraphSession, handle?: FileSystemFileHandle): Promise<void> {
+    if (handle === undefined) {
+        return;
+    }
     const state = fileState(store);
-    const known = handle === undefined ? undefined : await entryForHandle(handle);
+    const known = await entryForHandle(handle);
     const id = known?.id ?? state.recentId ?? crypto.randomUUID();
     state.recentId = id;
-    const picture = thumbnail ?? (known ?? recentEntry(id))?.thumbnail;
+    const picture = (known ?? recentEntry(id))?.thumbnail;
     await rememberRecent({
         id,
         name: headerName(store),
         nodes: session.status.counts.nodes,
         at: Date.now(),
-        ...(handle === undefined ? {} : { handle }),
+        handle,
         ...(picture === undefined ? {} : { thumbnail: picture }),
     });
-}
-
-/**
- * A small picture of the graph for Recent projects, taken by the element. A project saves
- * without one when the capture fails.
- * @param element - the project's element.
- * @returns the picture, or undefined.
- */
-async function thumbnailOf(element: NonNullable<CommandContext["element"]>): Promise<Blob | undefined> {
-    try {
-        const shot = await element.captureScreenshot({
-            format: "jpeg",
-            quality: 0.8,
-            width: 320,
-            height: 180,
-            destination: { blob: true },
-            timing: { waitForSettle: false },
-        });
-        return shot.blob;
-    } catch {
-        return undefined;
-    }
 }
 
 /**
@@ -219,51 +170,45 @@ async function nameTheProject(store: WorkspaceStore, session: GraphSession): Pro
 }
 
 /**
- * Writes the project where Save goes now: the same file where the browser keeps it, else a new
- * download. The notice says which.
- * @param ctx - the command context.
- * @param ctx.workspace - the workspace store.
- * @param ctx.session - the project's session.
- * @param ctx.element - the element, which downloads.
- * @param target - the file, or "download".
- * @param verb - "Saved" or "Saved as", for a file the browser keeps.
- * @returns false when the reader cancelled the question about files from the web.
+ * Why a project did not save into this browser, in the app's words.
+ * @param name - the project's name.
+ * @param error - what the element threw.
+ * @returns the notice's sentence.
  */
-async function writeProject(
-    { workspace, session, element }: CommandContext,
-    target: FileSystemFileHandle | "download",
-    verb: "Saved" | "Saved as",
-): Promise<boolean> {
-    if (session === null || element === null) {
-        return false;
+export function saveProblemSentence(name: string, error: unknown): string {
+    const code = isGraphtyError(error) ? error.code : undefined;
+    switch (code) {
+        case "E_TOO_LARGE":
+            return `${name} could not be saved: this browser's storage for graphty is full.`;
+        case "E_UNSUPPORTED":
+            return `${name} could not be saved: this browser does not let graphty keep projects. Save a local copy instead.`;
+        default:
+            return `${name} could not be saved.`;
     }
-    const choices = await askAssetChoices(workspace, session);
-    if (choices === null) {
-        return false;
-    }
-    await nameTheProject(workspace, session);
-    const name = headerName(workspace);
-    const state = fileState(workspace);
-    try {
-        if (target === "download") {
-            await element.downloadProject({ assets: choices });
-        } else {
-            await writeFile(target, (await session.project.save({ assets: choices })).text);
-        }
-    } catch (error) {
-        state.writeFailed = true;
-        throw error;
-    }
-    state.writeFailed = false;
-    state.target = target;
-    await remember(workspace, session, target === "download" ? undefined : target, await thumbnailOf(element));
-    workspace.set({ notice: { message: `${target === "download" ? "Downloaded" : verb} ${name}` } });
-    return true;
 }
 
 /**
- * Save (Mod+S): writes the file this project came from or was last saved to; the first Save of a
- * project with no file opens Save as.
+ * Keeps the project in this browser: the record `target` names again, else a new one.
+ * @param ctx - the command context.
+ * @param ctx.workspace - the workspace store.
+ * @param ctx.session - the project's session.
+ * @param target - the `browserProjects` id to write again, or null for a new record.
+ */
+async function writeProject({ workspace, session }: CommandContext, target: string | null): Promise<void> {
+    if (session === null) {
+        return;
+    }
+    await nameTheProject(workspace, session);
+    const name = headerName(workspace);
+    const saved = await browserProjects.save(session, target === null ? {} : { id: target });
+    fileState(workspace).target = saved.id;
+    await refreshStored();
+    workspace.set({ notice: { message: `Saved ${name} in this browser.` } });
+}
+
+/**
+ * Save (Mod+S): writes the browser-kept project again; the first Save of a project not yet kept
+ * in this browser opens Save as.
  * @param ctx - the command context.
  */
 export async function saveProject(ctx: CommandContext): Promise<void> {
@@ -273,56 +218,52 @@ export async function saveProject(ctx: CommandContext): Promise<void> {
         return;
     }
     try {
-        await writeProject(ctx, target, "Saved");
-    } catch {
-        ctx.workspace.set({ notice: { message: `${headerName(ctx.workspace)} could not be saved.` } });
+        await writeProject(ctx, target);
+    } catch (error) {
+        ctx.workspace.set({ notice: { message: saveProblemSentence(headerName(ctx.workspace), error), error: true } });
     }
 }
 
 /**
- * Save as...: names the project, then asks where to save where the browser keeps file handles,
- * else downloads it.
+ * Save as...: names the project and keeps it in this browser as a new project.
  * @param ctx - the command context.
  * @param name - the name the reader gave.
- * @returns false when the reader cancelled the browser's save picker, so the dialog stays.
  */
-export async function saveProjectAs(ctx: CommandContext, name: string): Promise<boolean> {
+export async function saveProjectAs(ctx: CommandContext, name: string): Promise<void> {
     const { workspace, session } = ctx;
-    let target: FileSystemFileHandle | "download" = "download";
-    if (keepsFileHandles()) {
-        try {
-            target = await chooseSaveFile(name);
-        } catch (error) {
-            if (isCancel(error)) {
-                return false;
-            }
-            workspace.set({ notice: { message: `${name} could not be saved.` } });
-            return true;
-        }
-    }
     const before = { header: headerName(workspace), element: session?.project.name ?? null };
-    const state = fileState(workspace);
-    const { recentId } = state;
     workspace.set((now) => ({ project: now.project && { ...now.project, name } }));
-    state.recentId = null;
     try {
-        if (!(await writeProject(ctx, target, "Saved as"))) {
-            // The reader cancelled: nothing was saved, so the project keeps the name it had.
-            state.recentId = recentId;
-            workspace.set((now) => ({ project: now.project && { ...now.project, name: before.header } }));
-        }
-    } catch {
+        await writeProject(ctx, null);
+    } catch (error) {
         // Nothing was saved, so the project keeps the name it had.
-        state.recentId = recentId;
         workspace.set((now) => ({
             project: now.project && { ...now.project, name: before.header },
-            notice: { message: `${name} could not be saved.` },
+            notice: { message: saveProblemSentence(name, error), error: true },
         }));
         if (session !== null && session.project.name !== before.element) {
             await session.project.rename(before.element).catch(() => undefined);
         }
     }
-    return true;
+}
+
+/**
+ * Save local copy...: downloads the project file. A copy: where Save goes and what is unsaved do
+ * not change.
+ * @param ctx - the command context.
+ * @param ctx.workspace - the workspace store.
+ * @param ctx.element - the element, which downloads.
+ */
+export async function saveLocalCopy({ workspace, element }: CommandContext): Promise<void> {
+    if (element === null) {
+        return;
+    }
+    const name = headerName(workspace);
+    try {
+        await element.downloadGraph("graphty", { fileName: projectFileName(name) });
+    } catch {
+        workspace.set({ notice: { message: `A copy of ${name} could not be saved.`, error: true } });
+    }
 }
 
 /**
@@ -357,19 +298,18 @@ function closeNow(store: WorkspaceStore): void {
 }
 
 /**
- * Whether the open project has changes that are not in a file: what the element reports, or a
- * Save whose write failed (#918).
+ * Whether the open project has changes that are not saved, as the element reports.
  * @param ctx - the command context.
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the project's session, or null.
  * @returns true when replacing the project would lose changes.
  */
 function hasUnsaved({ workspace, session }: CommandContext): boolean {
-    return workspace.get().project !== null && (session?.project.dirty === true || fileState(workspace).writeFailed);
+    return workspace.get().project !== null && session?.project.dirty === true;
 }
 
 /**
- * Runs something that replaces or closes the open project (New project, Close project), asking
+ * Runs something that replaces or closes the open project (New project, Back to start), asking
  * first when that would throw away unsaved changes.
  * @param ctx - the command context.
  * @param proceed - what replaces the project.
@@ -392,7 +332,7 @@ export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
 }
 
 /**
- * Close project: back to the start screen, asking first when the element reports unsaved changes.
+ * Back to start: closes the project and shows the start screen, asking first when the element reports unsaved changes.
  * @param ctx - the command context.
  */
 export function closeProject(ctx: CommandContext): void {
@@ -402,85 +342,178 @@ export function closeProject(ctx: CommandContext): void {
 }
 
 /**
- * Opens a project file in the session: refused over unsaved changes until the reader says
- * Discard. The header takes the project's name, and Save writes the same file again where the
- * browser keeps its handle.
- * @param ctx - the command context, with the project's session.
- * @param session - the session.
- * @param pending - the file, its handle and its Recent projects entry.
- * @param discard - open over unsaved changes.
+ * A file's name without its extension: the name of a project opened from a data file, which the
+ * file itself does not name.
+ * @param fileName - the file's name.
+ * @returns the name.
  */
-async function openInSession(
-    ctx: CommandContext,
+function withoutExtension(fileName: string): string {
+    return fileName.replace(/\.[^.]*$/, "") || fileName;
+}
+
+/** What the element said of a file it opened. */
+type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
+
+/**
+ * A data file the element opened: it goes through the Data page, or, read into the graph, starts
+ * a new graph's history or says it was added.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param report - what the element said of the file.
+ * @param file - the file.
+ * @param fresh - whether it opens as a new graph, from the start screen.
+ */
+function openedData(
+    workspace: CommandContext["workspace"],
     session: GraphSession,
-    pending: NonNullable<ProjectFileState["pending"]>,
-    discard: boolean,
-): Promise<void> {
-    const { workspace } = ctx;
-    const { file, handle, recentId } = pending;
-    if (!discard && fileState(workspace).writeFailed) {
-        askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
+    report: OpenReport,
+    file: File,
+    fresh: boolean,
+): void {
+    if (report.opened === "graph") {
+        // A data file goes through the Data page, where its roles and weight are chosen like
+        // any other load; the page reads the file itself. From the start screen it opens as a
+        // new graph, as New from data... does, so Cancel goes back to the start screen.
+        report.draft?.dispose();
+        if (fresh) {
+            workspace.set({ project: null });
+        }
+        openDataPage(workspace, { intent: fresh ? "new" : "add", files: [file] });
         return;
     }
-    try {
-        const report = await session.project.open(file, { discard, fileName: file.name });
-        if (report.opened !== "project") {
-            workspace.set({ notice: { message: `Added ${file.name} to this project` } });
-            return;
-        }
-        const name = report.name ?? headerName(workspace);
-        workspace.set((state) => ({ project: state.project && { ...state.project, name } }));
-        const state = fileState(workspace);
-        state.target = handle ?? "download";
-        state.recentId = recentId ?? null;
-        await remember(workspace, session, handle);
-        const lost = report.problems.length;
-        const parts = lost === 1 ? "part" : "parts";
-        workspace.set({
-            notice: {
-                message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
-            },
-        });
-    } catch (error) {
-        if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
-            askToDiscard(workspace, () => openInSession(ctx, session, pending, true));
-            return;
-        }
-        workspace.set({ notice: { message: problemSentence(file.name, error) } });
+    if (fresh) {
+        // Opened as a new graph, so it starts its history (a project file does so itself).
+        session.history.clear();
+        focusOpenedGraph();
+    } else {
+        workspace.set({ notice: { message: `Added ${file.name} to this project` } });
     }
 }
 
 /**
- * Opens a project file: inside an open project it opens in its place (asking first over unsaved
- * changes); from the start screen it opens a project whose element reads the file once it is up.
+ * A project file the element opened: the header takes the project's name, focus goes to its
+ * heading, and Save writes the browser-kept project it came from again.
+ * @param workspace - the workspace store.
+ * @param session - the session.
+ * @param report - what the element said of the file.
+ * @param pending - the file and where it came from.
+ */
+async function openedProject(
+    workspace: CommandContext["workspace"],
+    session: GraphSession,
+    report: OpenReport,
+    pending: PendingFile,
+): Promise<void> {
+    const name = report.name ?? headerName(workspace);
+    // The inspector shows the project that opened, and focus goes to its heading: whatever
+    // row or control held focus belonged to the graph it replaced.
+    workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
+    requestAnimationFrame(focusOpenedGraph);
+    const state = fileState(workspace);
+    state.target = pending.storedId ?? null;
+    state.recentId = pending.recentId ?? null;
+    await remember(workspace, session, pending.handle);
+    const lost = report.problems.length;
+    const parts = lost === 1 ? "part" : "parts";
+    workspace.set({
+        notice: {
+            message: lost === 0 ? `Opened ${name}` : `Opened ${name}. ${String(lost)} ${parts} did not come back.`,
+        },
+    });
+}
+
+/**
+ * A file the element refused: over unsaved changes it asks to discard them and opens again;
+ * else it says why.
+ * @param ctx - the command context.
+ * @param session - the session.
+ * @param pending - the file and where it came from.
+ * @param error - what the element threw.
+ * @returns false when the element refused the file.
+ */
+function openFailed(ctx: CommandContext, session: GraphSession, pending: PendingFile, error: unknown): boolean {
+    const { workspace } = ctx;
+    const { file, fresh = false } = pending;
+    if (isGraphtyError(error) && error.code === "E_UNSAVED_CHANGES") {
+        askToDiscard(workspace, async () => {
+            await openInSession(ctx, session, pending, true);
+        });
+        return true;
+    }
+    const verb = fresh ? "opened" : "added";
+    const message =
+        isGraphtyError(error) && error.code === "E_PARSE_FAILED"
+            ? notReadSentence(withoutExtension(file.name), error, verb)
+            : problemSentence(file.name, error);
+    workspace.set({ notice: { message, error: true } });
+    return false;
+}
+
+/**
+ * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
+ * project file replaces the project (refused over unsaved changes until the reader says Discard);
+ * the header takes the project's name, and Save writes the browser-kept project it came from
+ * again. A data file opens the Data page: as a new graph from the start screen, or to be added to
+ * an open project.
+ * @param ctx - the command context, with the project's session.
+ * @param session - the session.
+ * @param pending - the file and where it came from.
+ * @param discard - open over unsaved changes.
+ * @returns false when the element refused the file.
+ */
+async function openInSession(
+    ctx: CommandContext,
+    session: GraphSession,
+    pending: PendingFile,
+    discard: boolean,
+): Promise<boolean> {
+    const { file, fresh = false } = pending;
+    try {
+        const report = await session.project.open(file, { discard, fileName: file.name });
+        if (report.opened !== "project") {
+            openedData(ctx.workspace, session, report, file, fresh);
+            return true;
+        }
+        await openedProject(ctx.workspace, session, report, pending);
+    } catch (error) {
+        return openFailed(ctx, session, pending, error);
+    }
+    return true;
+}
+
+/**
+ * Opens a project or data file (Open project or file..., a dropped file, Recent projects): inside
+ * an open project a project file opens in its place (asking first over unsaved changes) and a
+ * data file opens the Data page to be added; from the start screen it opens a project whose element
+ * reads the file once it is up, and a data file then opens the Data page as a new graph.
  * @param ctx - the command context.
  * @param file - the file.
- * @param handle - its handle, where the browser keeps them.
- * @param recentId - its Recent projects entry, when opened from there.
+ * @param source - where it came from: its handle, Recent projects entry or browser-kept project.
  */
-async function openProjectFile(
-    ctx: CommandContext,
-    file: File,
-    handle?: FileSystemFileHandle,
-    recentId?: string,
-): Promise<void> {
-    const pending = {
-        file,
-        ...(handle === undefined ? {} : { handle }),
-        ...(recentId === undefined ? {} : { recentId }),
-    };
+export async function openProjectFile(ctx: CommandContext, file: File, source: FileSource = {}): Promise<void> {
+    const pending: PendingFile = { file, ...source };
     if (ctx.workspace.get().project !== null && ctx.session !== null) {
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = pending;
+    fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: file.name, id: newProjectId(state) },
+        project: { name: withoutExtension(file.name), id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,
         dialog: null,
     }));
+}
+
+/**
+ * Whether the project's element is reading the file it was opened with, or will once it is up.
+ * @param store - the workspace store.
+ * @returns true while that file is not yet read.
+ */
+export function openingFile(store: WorkspaceStore): boolean {
+    const state = fileState(store);
+    return state.pending !== null || state.reading;
 }
 
 /**
@@ -494,7 +527,16 @@ export async function openPending(ctx: CommandContext): Promise<void> {
         return;
     }
     state.pending = null;
-    await openInSession(ctx, ctx.session, pending, true);
+    state.reading = true;
+    const opened = await openInSession(ctx, ctx.session, pending, true).finally(() => {
+        state.reading = false;
+    });
+    if (!opened) {
+        // Refused: the project was never opened, so back to the start screen, keeping the reason.
+        const { notice } = ctx.workspace.get();
+        closeNow(ctx.workspace);
+        ctx.workspace.set({ notice });
+    }
 }
 
 /** What happened when the reader clicked a Recent projects entry. */
@@ -522,13 +564,25 @@ async function noticeFailure(
 }
 
 /**
- * Opens a Recent projects entry: its file where the browser keeps the handle; otherwise, or when
- * that file can no longer be read, the caller offers Locate....
+ * Opens a Recent projects entry: a project kept in this browser, or its file where the browser
+ * keeps the handle; otherwise, or when that file can no longer be read, the caller offers
+ * Locate....
  * @param ctx - the command context.
  * @param entry - the entry.
- * @returns "missing" when the browser could not read the file.
+ * @returns "missing" when the browser could not read the file or no longer keeps the project.
  */
 export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<RecentOutcome> {
+    if (entry.stored === true) {
+        return noticeFailure(ctx, entry, async () => {
+            const file = await browserProjects.get(entry.id);
+            if (file === undefined) {
+                await refreshStored();
+                return "missing";
+            }
+            await openProjectFile(ctx, file, { storedId: entry.id });
+            return "opened";
+        });
+    }
     const { handle } = entry;
     if (handle === undefined) {
         return locateRecent(ctx, entry);
@@ -538,7 +592,7 @@ export function openRecent(ctx: CommandContext, entry: RecentProject): Promise<R
         if (file === null) {
             return "missing";
         }
-        await openProjectFile(ctx, file, handle, entry.id);
+        await openProjectFile(ctx, file, { handle, recentId: entry.id });
         return "opened";
     });
 }
@@ -556,16 +610,24 @@ export function locateRecent(ctx: CommandContext, entry: RecentProject): Promise
         if (located === undefined) {
             return "cancelled";
         }
-        await openProjectFile(ctx, located.file, located.handle, entry.id);
+        await openProjectFile(ctx, located.file, {
+            ...(located.handle === undefined ? {} : { handle: located.handle }),
+            recentId: entry.id,
+        });
         return "opened";
     });
 }
 
 /**
- * Remove from list.
+ * Remove from list, or, for a project kept in this browser, Remove from this browser: deletes it.
  * @param entry - the entry.
  * @returns settles once removed.
  */
-export function removeRecent(entry: RecentProject): Promise<void> {
-    return forgetRecent(entry.id);
+export async function removeRecent(entry: RecentProject): Promise<void> {
+    if (entry.stored !== true) {
+        await forgetRecent(entry.id);
+        return;
+    }
+    await browserProjects.remove(entry.id);
+    await refreshStored();
 }

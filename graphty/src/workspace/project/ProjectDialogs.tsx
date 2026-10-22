@@ -1,24 +1,14 @@
 import { ModalFooter } from "@graphty/compact-mantine";
-import { Button, Group, Modal, SegmentedControl, Stack, Text, TextInput } from "@mantine/core";
+import { Button, Modal, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import {
-    type AssetChoices,
-    assetQuestion,
-    DISCARD_DIALOG,
-    discardAndContinue,
-    KEEP_ASSETS_DIALOG,
-    openPending,
-    SAVE_AS_DIALOG,
-    saveProjectAs,
-} from "./actions";
-import { keepsFileHandles } from "./files";
+import { DISCARD_DIALOG, discardAndContinue, openPending, SAVE_AS_DIALOG, saveProjectAs } from "./actions";
 import { NetworkPrompt } from "./NetworkPrompt";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
- * its text selected; Enter saves.
+ * its text selected; Enter keeps the project in this browser under that name.
  * @returns The dialog
  */
 function SaveAsDialog(): React.JSX.Element {
@@ -44,9 +34,8 @@ function SaveAsDialog(): React.JSX.Element {
         }
         setSaving(true);
         try {
-            if (await saveProjectAs(workspace, trimmed)) {
-                close();
-            }
+            await saveProjectAs(workspace, trimmed);
+            close();
         } finally {
             setSaving(false);
         }
@@ -71,11 +60,6 @@ function SaveAsDialog(): React.JSX.Element {
                         event.currentTarget.select();
                     }}
                 />
-                <Text size="xs" c="dimmed" mt="xs">
-                    {keepsFileHandles()
-                        ? "Choose where the file goes next. Later saves write the same file."
-                        : "The file is downloaded. Each later Save downloads a new copy."}
-                </Text>
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel
@@ -90,7 +74,7 @@ function SaveAsDialog(): React.JSX.Element {
 }
 
 /**
- * The unsaved-changes question, asked when Close project or opening another project would throw
+ * The unsaved-changes question, asked when Back to start or opening another project would throw
  * away changes graphty-element reports as unsaved (`project.dirty`, `E_UNSAVED_CHANGES`).
  * @returns The dialog
  */
@@ -118,83 +102,6 @@ function DiscardDialog(): React.JSX.Element {
                     Discard
                 </Button>
             </ModalFooter>
-        </Modal>
-    );
-}
-
-/**
- * How to keep each model or picture loaded from a web address, asked before a save that holds any:
- * Embed (the default) puts the file in the project, so it opens offline; Use URL keeps only the
- * address, and the file is fetched again when the project opens.
- * @returns The dialog
- */
-function KeepAssetsDialog(): React.JSX.Element {
-    const { store } = useWorkspace();
-    const opened = useWorkspaceState((state) => state.dialog === KEEP_ASSETS_DIALOG);
-    const question = opened ? assetQuestion(store) : undefined;
-    const [choices, setChoices] = useState<AssetChoices>({});
-
-    useEffect(() => {
-        if (opened) {
-            setChoices({});
-        }
-    }, [opened]);
-
-    const finish = (answer: AssetChoices | null): void => {
-        store.set({ dialog: null });
-        question?.answer(answer);
-    };
-
-    return (
-        <Modal
-            opened={opened}
-            onClose={() => {
-                finish(null);
-            }}
-            title="Save files from the web"
-        >
-            <Stack gap="xs">
-                <Text size="sm">
-                    These come from web addresses. Put a copy in the project, or keep only the address?
-                </Text>
-                {(question?.assets ?? []).map((asset) => (
-                    <Group key={asset.url} justify="space-between" wrap="nowrap" gap="xs">
-                        <Text size="sm" truncate title={asset.url}>
-                            {asset.name}
-                        </Text>
-                        <SegmentedControl
-                            size="xs"
-                            aria-label={`Keep ${asset.name}`}
-                            value={choices[asset.url] ?? "embed"}
-                            data={[
-                                { value: "embed", label: asset.kind === "image" ? "Embed picture" : "Embed model" },
-                                { value: "url", label: "Use URL" },
-                            ]}
-                            onChange={(value) => {
-                                setChoices((now) => ({ ...now, [asset.url]: value === "url" ? "url" : "embed" }));
-                            }}
-                        />
-                    </Group>
-                ))}
-                <ModalFooter mt="md">
-                    <Button
-                        variant="default"
-                        onClick={() => {
-                            finish(null);
-                        }}
-                    >
-                        Cancel
-                    </Button>
-                    <Button
-                        data-autofocus
-                        onClick={() => {
-                            finish(choices);
-                        }}
-                    >
-                        Save
-                    </Button>
-                </ModalFooter>
-            </Stack>
         </Modal>
     );
 }
@@ -230,7 +137,6 @@ export function ProjectDialogs(): React.JSX.Element {
         <>
             <SaveAsDialog />
             <DiscardDialog />
-            <KeepAssetsDialog />
             <NetworkPrompt />
         </>
     );

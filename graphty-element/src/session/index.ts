@@ -26,6 +26,8 @@ export type {
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
+export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
@@ -77,6 +79,7 @@ export type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -84,14 +87,19 @@ export type {
     Endpoint,
     FileStyleSummary,
     FileStyleTool,
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
     GraphSession,
+    GraphSettingKey,
     GraphStatistics,
     HistoryCause,
     HistoryCode,
@@ -99,8 +107,11 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
+    LoadedWeight,
     LoadMapping,
     LoadMappingRead,
     ModelChange,
@@ -127,6 +138,7 @@ export type {
     ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
+    RunPlacement,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -140,10 +152,13 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SettingEffect,
+    SettingEffectCode,
     StyleProblem,
     TableMapping,
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    ValueCounts,
 } from "./types";
 export { COMPONENT_SIZE_CAP } from "./types";

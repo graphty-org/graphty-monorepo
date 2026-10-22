@@ -475,6 +475,9 @@ export interface ChannelValues {
     "edge.width": number;
     "edge.minScreenWidth": number;
     "edge.opacity": number;
+    "edge.bandColor": ColorValue;
+    "edge.bandWidth": number;
+    "edge.bandOpacity": number;
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
     "edge.outlineOpacity": number;
@@ -562,8 +565,16 @@ export interface ChannelValues {
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
-    "edge.labelColor": ColorValue;
+    "node.visible": boolean;
+    "node.tooltipSize": number;
+    "node.tooltipColor": ColorValue;
+    "node.tooltipBackground": ColorValue;
+    "edge.visible": boolean;
     "edge.labelSize": number;
+    "edge.labelColor": ColorValue;
+    "edge.labelBackground": ColorValue;
+    "edge.arrowHeadTextBackground": ColorValue;
+    "edge.arrowTailTextBackground": ColorValue;
     "edge.labelLetterSize": number;
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
@@ -579,7 +590,6 @@ export interface ChannelValues {
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
     "edge.labelRotation": number;
-    "edge.labelBackground": ColorValue;
     "edge.labelOutline": ColorValue;
     "edge.labelOutlineWidth": number;
     "edge.labelBorder": ColorValue;
@@ -610,28 +620,33 @@ export type ColorChannel =
     | "node.glow"
     | "node.haloColor"
     | "node.labelColor"
+    | "node.labelBackground"
     | "node.borderColor"
+    | "node.tooltipColor"
+    | "node.tooltipBackground"
     | "node.gradientColor"
     | "node.outerBorderColor"
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
     | "node.chartBorderColor"
-    | "node.labelBackground"
     | "node.labelOutline"
     | "node.labelBorder"
     | "edge.color"
+    | "edge.bandColor"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
+    | "edge.labelColor"
+    | "edge.labelBackground"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowHeadTextBackground"
+    | "edge.arrowTailTextColor"
+    | "edge.arrowTailTextBackground"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
-    | "edge.arrowHeadTextColor"
-    | "edge.arrowTailTextColor"
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
-    | "edge.labelColor"
-    | "edge.labelBackground"
     | "edge.labelOutline"
     | "edge.labelBorder";
 
@@ -669,7 +684,9 @@ export interface ChannelDescriptor {
      * The value the element draws when no layer sets the channel: the element's own default
      * style where it states one, and otherwise what the renderer draws for an unset value. A
      * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
-     * outline, no glow -- or when the renderer decides per element, as the pattern count does.
+     * tooltip -- or when the renderer decides per element, as the pattern count does. An effect
+     * that is off until a layer switches it on (the outline, the glow) states what it is drawn
+     * with once on and its own value is unset: the renderer's built-in colour and strength.
      * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
      * line's colour, so its default is the line's default and a layer that sets `edge.color`
      * moves it too.
@@ -681,8 +698,23 @@ export interface ChannelDescriptor {
     readonly values?: readonly string[];
     /** The smallest value the renderer draws, when `accepts` is "number". */
     readonly min?: number;
+    /**
+     * Whether `min` itself is refused, so a value must be above it: a node of size 0 draws nothing,
+     * so a control that offers 0 lets a reader hide every node by accident. Absent when `min` is
+     * a value the renderer draws.
+     * @since 3.26.0
+     */
+    readonly exclusiveMin?: boolean;
     /** The largest value the renderer draws, when `accepts` is "number" and it is bounded. */
     readonly max?: number;
+    /**
+     * How many of this channel's numbers make one world unit, on a channel that is a length in the
+     * scene rather than on screen: 48 for a label size, so a label of size 48 draws one line,
+     * margins included, one world unit tall -- the diameter of a sphere node of size 1 -- and its
+     * height on screen follows the zoom. Absent on a channel that is not such a length.
+     * @since 3.26.0
+     */
+    readonly perWorldUnit?: number;
     /** Where the value lands in a parsed node or edge style, as a dotted path. */
     readonly stylePath: string;
     /** Whether the element draws this channel at all today. */
@@ -698,13 +730,89 @@ export interface ChannelDescriptor {
      * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
      */
     readonly unsupportedReason?: string;
+    /**
+     * The value that draws nothing, on an effect that is off until a layer switches it on: the
+     * outline's and the glow's `"none"`, the animation's 0, and a text background's `"none"` where
+     * the text has no background color of its own. Written by a layer, it covers what the
+     * layers beneath write for that channel, as `LabelStyle.enabled: false` does for a label.
+     * Absent on a channel with no such value.
+     * @since 3.26.0
+     */
+    readonly off?: string | number;
+    /**
+     * The channel whose value this one takes while no layer sets it: an arrowhead's colour is its
+     * edge's colour until a layer gives it one of its own. Absent on a channel that takes only its
+     * own `default`.
+     * @since 3.26.0
+     */
+    readonly follows?: Channel;
+    /**
+     * How far one keyboard or scrub step moves the value, on a channel that carries a number: a
+     * hundredth on a channel bounded by 1 (an opacity), 1 on a count or a label size, a tenth on
+     * every other length. Absent on a channel that carries no number.
+     * @since 3.26.0
+     */
+    readonly step?: number;
+    /**
+     * What {@link ChannelDescriptor.caveat} says, as a code an application words: see
+     * {@link ChannelCaveatCode}. Absent on a channel whose caveat has no code yet.
+     * @since 3.26.0
+     */
+    readonly caveatCode?: ChannelCaveatCode;
+    /**
+     * The channel whose drawn part this one adjusts, on a channel that is a sub-setting of
+     * another: a band's width and opacity modify `edge.bandColor`, an arrowhead's size, colour and
+     * opacity modify `edge.arrowHead`, a label's size, colour, background and style modify its
+     * words (`node.label`). A style editor offers one item per drawn part -- the channels with no
+     * `modifies` -- and the channels that modify it as that part's settings. Absent on a channel
+     * that is a part of its own.
+     * @since 3.26.0
+     */
+    readonly modifies?: Channel;
 }
+
+/**
+ * A caveat a channel carries, as a code.
+ *
+ * - `"outline.sharedWidth"`: every outline is drawn at one width, the graph's
+ *   `layoutBehavior.node.outlineWidth`; a layer sets an outline's colour and not its width.
+ *
+ * More codes may be added in a minor release.
+ * @since 3.26.0
+ */
+export type ChannelCaveatCode = "outline.sharedWidth";
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/** What an effect colour channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
+export const EFFECT_OFF = "none";
+
+/**
+ * The value a repaint carries for an effect written off: a colour whose hex is "none", known by
+ * identity, so the painter writes nothing for it and no real colour (not even a transparent
+ * black) is ever mistaken for it.
+ */
+export const OFF_COLOR: ColorValue = Object.freeze({ r: 0, g: 0, b: 0, a: 0, hex: EFFECT_OFF });
+
+/** What an edge band is, read by `edge.bandColor`. */
+const BAND_CAVEAT =
+    "A wider line drawn behind the edge's own, so the line keeps its paint down the middle and " +
+    "the band shows on both sides as a casing.";
+
+/** The colour an outline is drawn in when a style switches one on without naming a colour. */
+export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
+
+/**
+ * The glow color to start from when switching a glow on: the `node.glow` channel's default. A glow
+ * is drawn only when a style names a color (a strength alone draws nothing), so a consumer that
+ * turns glow on writes this color. Cyan rather than white: the glow is drawn around the node over the element's light (#F5F5F5)
+ * canvas, where a white glow would not be seen. A saturated cyan leaves a visible halo there.
+ */
+export const DEFAULT_GLOW_COLOR = "#00B4FF";
 
 /**
  * What the four halo channels draw, written once and read by each of them.
@@ -894,7 +1002,7 @@ type ArrowEndChannel<End extends "Head" | "Tail"> =
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
- * their names, their style paths and the tail's type default (an edge draws a head and no tail),
+ * their names, their style paths and the tail's type default (an edge of a directed graph draws a head and no tail),
  * so they are written once here and a change to one end cannot miss the other.
  * @param end - Which end of the edge.
  * @returns The end's channels: type, size, position, colour, opacity, caption and caption style.
@@ -910,7 +1018,9 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             plainName: `Arrow ${end}`,
             shortName: end,
             group: "arrows",
-            ...(end === "Tail" ? { default: "none" } : {}),
+            // The head's default is what a DIRECTED graph draws; an undirected graph draws no
+            // head until a layer sets one (see `EDGE_BASE_DIRECTED` in StylePainter).
+            default: end === "Tail" ? "none" : "normal",
             accepts: "enum",
             values: ARROW_VALUES,
             stylePath: `arrow${end}.type`,
@@ -984,6 +1094,8 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             group: "arrows",
             default: EDGE_LINE_DEFAULT_COLOR,
             accepts: "color",
+            // Edge.ts draws an arrow in `arrow<End>.color ?? line.color`.
+            follows: "edge.color",
             stylePath: `arrow${end}.color`,
             renderable: true,
         },
@@ -1676,6 +1788,136 @@ function extentChannel(name: "width" | "height" | "depth", axis: "x" | "y" | "z"
 }
 
 /**
+ * What hiding an element by style does and does not do, read by both `visible` channels.
+ *
+ * A style can take an element off the picture and nothing more. The element stays in the graph:
+ * it is counted, laid out, kept in the selection and measured by every run, unlike an element a
+ * visibility filter removes. Only its drawing (and so its picking) stops.
+ */
+const VISIBLE_CAVEAT =
+    "Hiding by style stops the drawing only: the element is still counted, laid out, selectable " +
+    "and measured, and a hidden element cannot be clicked because nothing is drawn to click. A " +
+    "visibility filter is what takes an element out of the graph on screen.";
+
+/**
+ * A label's size per world unit: the label plane is `size / 48` world units tall per line
+ * (`RichTextLabel`), so the default 48 draws a line as tall as a size-1 sphere node.
+ */
+const LABEL_SIZE_PER_WORLD_UNIT = 48;
+
+/**
+ * The three looks of one block of words that vary per element: size, text colour and background.
+ *
+ * The same three fields sit in the block's label style; these channels exist so a layer can bind
+ * them to a value (label size by degree), which a label style -- one shared bag of fields -- cannot.
+ * Written after the block's label style, so a bound size wins over a size the style names.
+ * @param base - The block's channel, such as `node.label` or `edge.arrowHeadText`.
+ * @param target - What the block belongs to.
+ * @param block - Where the block's style sits, such as `label` or `arrowHead.text`.
+ * @param plainName - The block's name a person reads, such as "Node Label".
+ * @param shortName - The same, once the target is said, in sentence case, such as "Label".
+ * @param caveat - The block's own caveat, when it has one.
+ * @param background - The panel the block is drawn on by default, when it has one (a tooltip's white).
+ * @returns The three descriptors.
+ */
+function textLookChannels<Base extends string>(
+    base: Base,
+    target: "node" | "edge",
+    block: string,
+    plainName: string,
+    shortName: string,
+    caveat?: string,
+    background?: string,
+): Record<`${Base}${"Size" | "Color" | "Background"}`, ChannelDescriptor> {
+    const shared = { target, group: "text" as const, renderable: true, ...(caveat === undefined ? {} : { caveat }) };
+    const rows: ChannelDescriptor[] = [
+        {
+            ...shared,
+            channel: `${base}Size` as Channel,
+            plainName: `${plainName} Size`,
+            shortName: `${shortName} size`,
+            default: LABEL_SIZE_PER_WORLD_UNIT,
+            accepts: "number",
+            // No min: the channel takes every number its style schema takes. A size under 1 draws
+            // no text (MIN_DRAWN_FONT_SIZE), and a layer that writes one is told W_TEXT_TOO_SMALL.
+            perWorldUnit: LABEL_SIZE_PER_WORLD_UNIT,
+            stylePath: `${block}.fontSize`,
+        },
+        {
+            ...shared,
+            channel: `${base}Color` as Channel,
+            plainName: `${plainName} Text Color`,
+            shortName: `${shortName} text color`,
+            default: "#000000",
+            accepts: "color",
+            stylePath: `${block}.textColor`,
+        },
+        {
+            ...shared,
+            channel: `${base}Background` as Channel,
+            plainName: `${plainName} Background`,
+            shortName: `${shortName} background`,
+            // With no background color of its own, the text is drawn on nothing: "none" says so.
+            ...(background === undefined ? { off: EFFECT_OFF } : { default: background }),
+            accepts: "color",
+            stylePath: `${block}.backgroundColor`,
+        },
+    ];
+
+    return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<
+        `${Base}${"Size" | "Color" | "Background"}`,
+        ChannelDescriptor
+    >;
+}
+
+/** The two `visible` channels and the bindable text looks, keyed by channel. */
+const LOOK_AND_VISIBILITY = {
+    "node.visible": {
+        channel: "node.visible",
+        target: "node",
+        plainName: "Node Visible",
+        shortName: "Shown",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "visible",
+        renderable: true,
+        caveat: VISIBLE_CAVEAT,
+    } satisfies ChannelDescriptor,
+    ...textLookChannels("node.label", "node", "label", "Node Label", "Label"),
+    ...textLookChannels("node.tooltip", "node", "tooltip", "Node Tooltip", "Tooltip", NODE_TOOLTIP_CAVEAT, "#FFFFFF"),
+    "edge.visible": {
+        channel: "edge.visible",
+        target: "edge",
+        plainName: "Edge Visible",
+        shortName: "Shown",
+        group: "line",
+        default: true,
+        accepts: "boolean",
+        stylePath: "visible",
+        renderable: true,
+        caveat: VISIBLE_CAVEAT,
+    } satisfies ChannelDescriptor,
+    ...textLookChannels("edge.label", "edge", "label", "Edge Label", "Label"),
+    ...textLookChannels(
+        "edge.arrowHeadText",
+        "edge",
+        "arrowHead.text",
+        "Arrow Head Caption",
+        "Head caption",
+        ARROW_CAPTION_CAVEAT,
+    ),
+    ...textLookChannels(
+        "edge.arrowTailText",
+        "edge",
+        "arrowTail.text",
+        "Arrow Tail Caption",
+        "Tail caption",
+        ARROW_CAPTION_CAVEAT,
+    ),
+};
+
+/**
  * A label padding channel of a node that grows to hold its label.
  * @param axis - Which padding: "X" or "Y".
  * @param sides - The sides it is added on, in words.
@@ -1795,6 +2037,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "shape",
         accepts: "number",
         min: 0,
+        exclusiveMin: true,
         stylePath: "shape.size",
         renderable: true,
     },
@@ -1887,10 +2130,14 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Outline",
         shortName: "Outline",
         group: "effects",
+        // The colour an outline is drawn in when a style switches one on without naming one.
+        default: DEFAULT_OUTLINE_COLOR,
         accepts: "color",
         stylePath: "effect.outline.color",
+        off: EFFECT_OFF,
         renderable: true,
         caveat: NODE_OUTLINE_CAVEAT,
+        caveatCode: "outline.sharedWidth",
     },
     "node.glow": {
         channel: "node.glow",
@@ -1898,8 +2145,11 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow",
         shortName: "Glow",
         group: "effects",
+        // The color to start a glow with. A glow is drawn only once a style names a color.
+        default: DEFAULT_GLOW_COLOR,
         accepts: "color",
         stylePath: "effect.glow.color",
+        off: EFFECT_OFF,
         renderable: true,
     },
     "node.glowStrength": {
@@ -1908,6 +2158,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow Strength",
         shortName: "Glow strength",
         group: "effects",
+        // What a glow with no strength is drawn at (NodeEffects). A strength of 0 draws no glow.
+        default: 1,
         accepts: "number",
         min: 0,
         stylePath: "effect.glow.strength",
@@ -3191,6 +3443,46 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "line.opacity",
         renderable: true,
     },
+    "edge.bandColor": {
+        channel: "edge.bandColor",
+        target: "edge",
+        plainName: "Edge Band Color",
+        shortName: "Band",
+        group: "line",
+        // The selection look's blue: a band is drawn only once a layer names a colour.
+        default: "#0077BB",
+        accepts: "color",
+        stylePath: "band.color",
+        off: EFFECT_OFF,
+        renderable: true,
+        caveat: BAND_CAVEAT,
+    },
+    "edge.bandWidth": {
+        channel: "edge.bandWidth",
+        target: "edge",
+        plainName: "Edge Band Width",
+        shortName: "Band width",
+        group: "line",
+        // A multiple of twice the line's own width, as the selection look's edgeScale.
+        default: 2.5,
+        accepts: "number",
+        min: 0,
+        stylePath: "band.scale",
+        renderable: true,
+    },
+    "edge.bandOpacity": {
+        channel: "edge.bandOpacity",
+        target: "edge",
+        plainName: "Edge Band Opacity",
+        shortName: "Band opacity",
+        group: "line",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "band.opacity",
+        renderable: true,
+    },
     "edge.outlineColor": {
         channel: "edge.outlineColor",
         target: "edge",
@@ -3485,6 +3777,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         accepts: "number",
         min: 0,
         stylePath: "line.animationSpeed",
+        off: 0,
         renderable: true,
         caveat: EDGE_ANIMATION_CAVEAT,
     },
@@ -3510,7 +3803,26 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     },
     "edge.labelTextAlign": labelTextAlignChannel("edge"),
     "edge.labelLocation": labelLocationChannel("edge"),
+    ...LOOK_AND_VISIBILITY,
+    ...labelFieldChannels("node"),
     ...labelFieldChannels("edge"),
+    // A label's size, color and background are declared twice: as label field channels (which
+    // land in the label style field by field) and as text look channels. The look rows win, because
+    // they state the size and color an unset label is drawn with, the size's unit and the
+    // background's "none"; the field routing (`labelFieldOf`) goes by the channel's name and holds
+    // either way. The background keeps the field row's caveat.
+    "node.labelSize": LOOK_AND_VISIBILITY["node.labelSize"],
+    "node.labelColor": LOOK_AND_VISIBILITY["node.labelColor"],
+    "node.labelBackground": {
+        ...labelFieldChannels("node")["node.labelBackground"],
+        ...LOOK_AND_VISIBILITY["node.labelBackground"],
+    },
+    "edge.labelSize": LOOK_AND_VISIBILITY["edge.labelSize"],
+    "edge.labelColor": LOOK_AND_VISIBILITY["edge.labelColor"],
+    "edge.labelBackground": {
+        ...labelFieldChannels("edge")["edge.labelBackground"],
+        ...LOOK_AND_VISIBILITY["edge.labelBackground"],
+    },
 };
 
 /**
@@ -3557,6 +3869,46 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
     return typeof value === "string" || typeof value === "number" || typeof value === "boolean" ? value : undefined;
 }
 
+/** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
+const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
+    ["node.glowStrength", "node.glow"],
+    ["node.haloScale", "node.haloColor"],
+    ["node.haloOpacity", "node.haloColor"],
+    ["edge.bandWidth", "edge.bandColor"],
+    ["edge.bandOpacity", "edge.bandColor"],
+    ["edge.patternCount", "edge.style"],
+    ...(["Head", "Tail"] as const).flatMap((end) => [
+        ...["Size", "Color", "Opacity"].map((suffix): [string, Channel] => [
+            `edge.arrow${end}${suffix}`,
+            `edge.arrow${end}` as Channel,
+        ]),
+        ...["TextStyle", "TextSize", "TextColor", "TextBackground"].map((suffix): [string, Channel] => [
+            `edge.arrow${end}${suffix}`,
+            `edge.arrow${end}Text` as Channel,
+        ]),
+    ]),
+    ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
+        ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
+    ),
+]);
+
+/**
+ * How far one step moves a number channel: see {@link ChannelDescriptor.step}.
+ * @param descriptor - The declared descriptor.
+ * @returns The step, or undefined for a channel that carries no number.
+ */
+function stepOf(descriptor: ChannelDescriptor): number | undefined {
+    if (descriptor.accepts !== "number") {
+        return undefined;
+    }
+
+    if (descriptor.max === 1) {
+        return 0.01;
+    }
+
+    return descriptor.perWorldUnit !== undefined || descriptor.channel === "edge.patternCount" ? 1 : 0.1;
+}
+
 /**
  * Every channel, with what the element actually does with it and what a style editor needs to
  * draw a row for it: a short name, a group, the default it opens on, and why it cannot be set.
@@ -3566,8 +3918,18 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> = Object.fromEntries(
     Object.values(DECLARED).map((descriptor): [Channel, ChannelDescriptor] => {
         const value = shippedDefault(descriptor) ?? descriptor.default;
+        const step = descriptor.step ?? stepOf(descriptor);
+        const modifies = MODIFIES.get(descriptor.channel);
 
-        return [descriptor.channel, value === undefined ? descriptor : { ...descriptor, default: value }];
+        return [
+            descriptor.channel,
+            {
+                ...descriptor,
+                ...(value === undefined ? {} : { default: value }),
+                ...(step === undefined ? {} : { step }),
+                ...(modifies === undefined ? {} : { modifies }),
+            },
+        ];
     }),
 ) as Record<Channel, ChannelDescriptor>;
 
@@ -3652,4 +4014,44 @@ export function modelBindingProblem(
                   "Add the file with session.assets.add and map the category to the id it returns.",
               path: `${path}${bad[0]}`,
           };
+}
+
+/**
+ * Channels an earlier build saved under another name, by old name. Only a document being read
+ * consults this: the channel set, `channelDescriptor` and every document the element writes use
+ * the new name.
+ */
+const RENAMED_CHANNELS: Readonly<Record<string, Channel>> = {
+    // Same drawn part and units (`effect.halo.scale`, times the node's radius): only the name moved.
+    "node.haloSize": "node.haloScale",
+};
+
+/**
+ * A saved layer with any renamed channel read under its current name, so a document an earlier
+ * build wrote opens with the look it was saved with. Where a layer names both, the current name wins.
+ * @param spec - A layer as a document holds it.
+ * @returns The same layer when it names no old channel, otherwise a copy that names the new ones.
+ */
+export function readRenamedChannels<T extends { readonly set?: object; readonly encode?: object }>(spec: T): T {
+    const rename = (entries: object | undefined): object | undefined => {
+        if (entries === undefined || !Object.keys(entries).some((key) => key in RENAMED_CHANNELS)) {
+            return entries;
+        }
+
+        const out: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(entries)) {
+            const current = RENAMED_CHANNELS[key] ?? key;
+            if (current === key || !(current in entries)) {
+                out[current] = value;
+            }
+        }
+
+        return out;
+    };
+    const set = rename(spec.set);
+    const encode = rename(spec.encode);
+
+    return set === spec.set && encode === spec.encode
+        ? spec
+        : { ...spec, ...(set === undefined ? {} : { set }), ...(encode === undefined ? {} : { encode }) };
 }

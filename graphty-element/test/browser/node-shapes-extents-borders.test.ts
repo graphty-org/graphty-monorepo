@@ -403,6 +403,34 @@ describe("a border in screen pixels", () => {
             assert.approximately(screenReach(element), 3, 0.15);
         });
     });
+
+    it("frames the graph the same at every zoom, so one load always draws one picture", async () => {
+        const nodes: Placed[] = [
+            { id: "n", position: { x: 0, y: 0, z: 0 } },
+            { id: "left", position: { x: -30, y: 0, z: 0 } },
+            { id: "right", position: { x: 30, y: 0, z: 0 } },
+        ];
+        const plain = await mounted("2d", nodes, [], [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10 })]);
+        const element = await mounted(
+            "2d",
+            nodes,
+            [],
+            [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        const half = (el: Graphty): number => el.graph.getDataManager().nodes.get("n")?.framingHalf("x") ?? NaN;
+        const unbordered = half(plain);
+        const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+        assert.isAbove(before, 0, "the border is drawn");
+        assert.approximately(half(element), unbordered, 1e-9);
+
+        await element.graph.zoomStep("in");
+        await element.graph.zoomStep("in");
+        await vi.waitFor(() => {
+            const reach = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+            assert.isBelow(reach, before * 0.8, "the ring was rebuilt for the new zoom");
+        });
+        assert.approximately(half(element), unbordered, 1e-9, "the framed extent did not move with the zoom");
+    });
 });
 
 describe("node width and height (#2317)", () => {

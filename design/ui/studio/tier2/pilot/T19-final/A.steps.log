@@ -1,0 +1,45 @@
+== T19A start setup:/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/friends.txt
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/01.png
+exit 0
+== T19A step: --key / --type Farah --key Enter
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/02.png
+exit 0
+== T19A step: --key n
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/03.png
+exit 0
+== T19A step: --type "Moving away in May; ask who takes over the Tuesday run"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/04.png
+exit 0
+== T19A step: --key Control+Enter
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/05.png
+exit 0
+== T19A step: --key Escape --key Escape
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/06.png
+exit 0
+== T19A step: --key n
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/07.png
+exit 0
+== T19A step: --type "Spring list, checked against the sign-up sheet"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/08.png
+exit 0
+== T19A step: --key Control+Enter
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/09.png
+exit 0
+== T19A step: --key Control+s
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/10.png
+exit 0
+== T19A step: --click Save
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/11.png
+exit 0
+== T19A step: --reopen
+closed the tab and opened the app again in a new tab (the same browser storage)
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/12.png
+exit 0
+== T19A step: --click friends
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/13.png
+exit 0
+== T19A step: --click "Notes"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A/14.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T19-final/A

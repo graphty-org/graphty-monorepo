@@ -1,0 +1,628 @@
+#!/usr/bin/env node
+// Verification after landing (design/ci/fast-pipeline.md, section 4.3): the full gate on golden's newest
+// commit, run beside new landings instead of in front of them. Golden may be broken for one run; the
+// pipeline round reverts the culprit this finds. Master stays strict: only verified commits are cut.
+//
+//   node tools/verify.mjs start [--branch golden-cut] [--again]   start a run unless one is live
+//   node tools/verify.mjs status [--branch golden-cut]            what is verified, wanted, running, found
+//   node tools/verify.mjs claim --session <id> [--branch ...]     the pipeline round takes a failure to act on
+//   node tools/verify.mjs handled [--branch ...]                  ... and says it reverted and commented
+//   node tools/verify.mjs watch [--branch ...]                    returns once a failure is recorded (run it in
+//                                                                 the background: its exit wakes the session)
+//   node tools/verify.mjs run [--branch ...]                      the run itself (start runs it, detached)
+//
+// No daemon and no timer. A landing records its new tip as `wanted` and starts a run when none is live; a
+// run verifies the newest of `wanted` and the branch's tip, then, under the verify lock, looks again and
+// goes on while something newer is wanted. So a landing either sees a live run, which will look again
+// before it ends, or starts one: no landing is left unverified.
+//
+// State: <main checkout>/tmp/golden/verify.json (golden) or verify-golden-cut.json, written under the
+// verify lock (a lock directory beside it, held for milliseconds, separate from the landing lock) with a
+// temporary file renamed over the old one:
+//   verified   the newest commit that passed (golden's is also the ref golden-verified on GitHub)
+//   wanted     the newest commit a landing asked for
+//   run        the live run: { pid, pidStart, commit, from, step, startedAt }; a pid alone can be reused,
+//              so a run is live only while that pid has the same start time (/proc/<pid>/stat)
+//   last       the newest result: { commit, from, status, at, log, failing, bisect, culprit, reproduced,
+//              handling }; status is passed, bisecting, failed, handling (a session claimed it) or handled
+//
+// A failure is bisected over the first-parent commits since the last verified one (the landing merges),
+// re-running only the failing test shards when the gate names them (else the whole gate) at `width`
+// points at once. The target itself is re-run first: a failure that does not come back is recorded as
+// not reproduced, never called a flake. A failure that needs two landings fails first at the later one,
+// which is the one named. Verification never reverts; the pipeline round does.
+
+import { spawn } from "node:child_process";
+import {
+    closeSync,
+    existsSync,
+    mkdirSync,
+    openSync,
+    readdirSync,
+    readFileSync,
+    renameSync,
+    watch as watchDir,
+    writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { acquireLock, CUT, git, GOLDEN, handOff, mainCheckout, prepareScratch } from "./land.mjs";
+
+export const VERIFIED_REF = "golden-verified";
+const QUIET = { pollMs: 20, waitLog: () => {}, onWait: () => {}, onQueue: () => {} };
+const LAND_SUBJECT = /^land: (\S+)$/;
+
+// ---------------------------------------------------------------- the context
+
+/**
+ * What a command works on; tests replace `gate`, `check`, `spawnRun`, `publishRef` and `sessionAlive`.
+ * @param cwd any directory of the repository
+ * @param [overrides] `branch` (golden or golden-cut) and replacements
+ * @returns the context
+ */
+export function verifyContext(cwd, overrides = {}) {
+    const env = overrides.env ?? process.env;
+    const main = mainCheckout({ env }, cwd);
+    const branch = overrides.branch ?? GOLDEN;
+    const name = branch === GOLDEN ? "verify" : `verify-${branch}`;
+    return {
+        env,
+        main,
+        branch,
+        stateFile: join(main, `tmp/golden/${name}.json`),
+        lock: join(main, `tmp/golden/${name}.lock`),
+        width: 2,
+        gate: defaultGate,
+        check: defaultCheck,
+        spawnRun: defaultSpawnRun,
+        publishRef: defaultPublishRef,
+        sessionAlive: defaultSessionAlive,
+        ...overrides,
+    };
+}
+
+// ---------------------------------------------------------------- the state file
+
+/**
+ * The state as the file holds it now (no lock: a reader never sees half a file).
+ * @param ctx the context
+ * @returns the state, `{}` when there is none
+ */
+export function readState(ctx) {
+    try {
+        return JSON.parse(readFileSync(ctx.stateFile, "utf8"));
+    } catch {
+        return {};
+    }
+}
+
+function writeState(ctx, state) {
+    mkdirSync(dirname(ctx.stateFile), { recursive: true });
+    const tmp = `${ctx.stateFile}.${process.pid}`;
+    writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+    renameSync(tmp, ctx.stateFile);
+}
+
+/**
+ * Reads, changes and writes the state under the verify lock.
+ * @param ctx the context
+ * @param change a function that changes the state in place and returns what withState returns
+ * @returns what `change` returned
+ */
+export async function withState(ctx, change) {
+    const release = await acquireLock(ctx.lock, { command: "verify", branch: ctx.branch }, QUIET);
+    try {
+        const state = readState(ctx);
+        const out = change(state);
+        writeState(ctx, state);
+        return out;
+    } finally {
+        release();
+    }
+}
+
+/**
+ * A process's start time, in clock ticks since boot (field 22 of /proc/<pid>/stat).
+ * @param pid the process
+ * @returns its start time, or null when there is no such process
+ */
+export function procStart(pid) {
+    try {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+    } catch {
+        return null;
+    }
+}
+
+const alive = (p) => Boolean(p?.pid) && procStart(p.pid) === p.pidStart;
+const me = () => ({ pid: process.pid, pidStart: procStart(process.pid) });
+const now = () => new Date().toISOString();
+const short = (sha) => (sha ? sha.slice(0, 10) : "-");
+const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancestor", a, b], { ok: true }).status === 0;
+const sha = (ctx, ref) => git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${ref}^{commit}`], { ok: true }).stdout;
+
+// ---------------------------------------------------------------- asking for a run
+
+/**
+ * Records a commit a landing pushed as wanted and starts a run when none is live (under the verify lock,
+ * so a run that is ending either sees this commit or is no longer recorded as live).
+ * @param ctx the context
+ * @param commit the branch's new tip
+ * @returns one line saying what happened
+ */
+export function requestVerification(ctx, commit) {
+    return withState(ctx, (s) => {
+        if (!s.wanted || isAncestor(ctx, s.wanted, commit)) s.wanted = commit;
+        if (alive(s.run))
+            return `verification of ${ctx.branch} is running (pid ${s.run.pid}); it goes on to ${short(commit)}`;
+        return startLocked(ctx, s);
+    });
+}
+
+/**
+ * Starts a run unless one is live: a dead run's state is picked up where it stopped, a stopped bisect
+ * from the points it recorded.
+ * @param ctx the context; `again: true` verifies a commit whose last result was a failure once more
+ * @returns one line saying what happened
+ */
+export function start(ctx) {
+    return withState(ctx, (s) =>
+        alive(s.run) ? `verification of ${ctx.branch} is running (pid ${s.run.pid})` : startLocked(ctx, s),
+    );
+}
+
+function startLocked(ctx, s) {
+    const pid = ctx.spawnRun(ctx);
+    s.run = { pid, pidStart: procStart(pid), commit: null, step: "starting", startedAt: now() };
+    return `verification of ${ctx.branch} started (pid ${pid}; node tools/verify.mjs status${ctx.branch === GOLDEN ? "" : ` --branch ${ctx.branch}`})`;
+}
+
+function defaultSpawnRun(ctx) {
+    const log = join(ctx.main, `tmp/golden/${basename(ctx.stateFile, ".json")}-run.log`);
+    mkdirSync(dirname(log), { recursive: true });
+    const fd = openSync(log, "a");
+    const args = [fileURLToPath(import.meta.url), "run", "--branch", ctx.branch, ...(ctx.again ? ["--again"] : [])];
+    const child = spawn(process.execPath, args, {
+        cwd: ctx.main,
+        env: ctx.env,
+        detached: true,
+        stdio: ["ignore", fd, fd],
+    });
+    child.unref();
+    closeSync(fd);
+    return child.pid;
+}
+
+// ---------------------------------------------------------------- the run
+
+/**
+ * The run: verifies the newest wanted commit, then anything newer, until nothing newer is wanted; a
+ * failure is bisected and recorded, and the run ends.
+ * @param ctx the context
+ * @returns 0
+ */
+export async function run(ctx) {
+    for (;;) {
+        git(ctx, ctx.main, ["fetch", "-q", "origin"], { ok: true });
+        const job = await withState(ctx, (s) => nextJob(ctx, s));
+        if (!job) return 0;
+        if (job.bisect) await bisect(ctx);
+        else if (job.target) await verifyCommit(ctx, job);
+    }
+}
+
+/**
+ * What the run does next, decided under the lock: nothing (another run is live, or nothing newer than
+ * the last result is wanted: the run is marked ended), resume a bisect, or verify a commit.
+ * @param ctx the context
+ * @param s the state, changed in place
+ * @returns `{ bisect }`, `{ target, from }`, `{}` (look again) or null (end)
+ */
+export function nextJob(ctx, s) {
+    const self = me();
+    if (alive(s.run) && s.run.pid !== self.pid) return null;
+    if (s.last?.status === "bisecting") {
+        s.run = { ...self, commit: s.last.commit, from: s.last.from, step: "bisect", startedAt: now() };
+        return { bisect: true };
+    }
+    const target = newer(ctx, s.wanted, sha(ctx, `origin/${ctx.branch}`));
+    const done = !target || (s.verified && isAncestor(ctx, target, s.verified));
+    const failed = s.last?.commit === target && s.last.status !== "passed" && !ctx.again;
+    if (done || failed) {
+        s.run = null;
+        return null;
+    }
+    ctx.again = false;
+    if (ctx.branch !== GOLDEN && isAncestor(ctx, target, `origin/${VERIFIED_REF}`)) {
+        // A cut of a commit golden's verification passed: nothing new to run.
+        s.verified = target;
+        s.last = { commit: target, status: "passed", at: now(), on: VERIFIED_REF };
+        return {};
+    }
+    const from = s.verified ?? base(ctx, target);
+    s.run = { ...self, commit: target, from, step: "gate", startedAt: now() };
+    return { target, from };
+}
+
+function newer(ctx, a, b) {
+    if (!a || !b) return a || b || null;
+    return isAncestor(ctx, a, b) ? b : a;
+}
+
+// Where a first run's range starts: golden-cut from golden-verified, golden from master.
+function base(ctx, target) {
+    const ref = ctx.branch === GOLDEN ? "origin/master" : `origin/${VERIFIED_REF}`;
+    return git(ctx, ctx.main, ["merge-base", target, ref], { ok: true }).stdout || null;
+}
+
+async function verifyCommit(ctx, { target, from }) {
+    const r = await ctx.gate(ctx, target);
+    if (r.code === 0) {
+        if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
+        await withState(ctx, (s) => {
+            s.verified = target;
+            s.last = { commit: target, from, status: "passed", at: now(), log: r.log };
+            if (s.run) s.run.step = "passed";
+        });
+        return;
+    }
+    const failing = failingShards(r.output, await shardNames(ctx));
+    const candidates = git(ctx, ctx.main, [
+        "rev-list",
+        "--first-parent",
+        "--reverse",
+        from ? `${from}..${target}` : target,
+    ]).split("\n");
+    await withState(ctx, (s) => {
+        // ponytail: a newer failure replaces the record, keeping a live claim on it; a list of failures if
+        // two unrelated ones overlap often.
+        const handling = s.last?.status === "handling" ? s.last.handling : undefined;
+        s.last = {
+            commit: target,
+            from,
+            status: "bisecting",
+            at: now(),
+            log: r.log,
+            failing,
+            bisect: { candidates, points: {} },
+            handling,
+        };
+        if (s.run) s.run.step = "bisect";
+    });
+    await bisect(ctx);
+}
+
+// ---------------------------------------------------------------- bisect
+
+/**
+ * The bisect's bounds from the points tested: `bad`, the first candidate that failed (null until one
+ * did), and `good`, the last candidate before it that passed (-1: the last verified commit).
+ * @param b the bisect record (`candidates`, `points`: sha -> "good" | "bad")
+ * @returns `{ good, bad }`, indices into the candidates
+ */
+export function bounds(b) {
+    const bad = b.candidates.findIndex((c) => b.points[c] === "bad");
+    const upTo = bad === -1 ? b.candidates.length : bad;
+    let good = -1;
+    for (let i = 0; i < upTo; i++) if (b.points[b.candidates[i]] === "good") good = i;
+    return { good, bad: bad === -1 ? null : bad };
+}
+
+/**
+ * The next points to test, at most `width`: the target first, until it has been re-run, then points
+ * spread evenly between the bounds.
+ * @param b the bisect record
+ * @param width how many at once
+ * @returns candidate indices
+ */
+export function nextPoints(b, width) {
+    const last = b.candidates.length - 1;
+    const { good, bad } = bounds(b);
+    const hi = bad ?? last;
+    const picks = b.points[b.candidates[last]] ? [] : [last];
+    const room = width - picks.length;
+    for (let k = 1; k <= room; k++) {
+        const i = good + Math.round((k * (hi - good)) / (room + 1));
+        if (i > good && i < hi && !b.points[b.candidates[i]] && !picks.includes(i)) picks.push(i);
+    }
+    return picks;
+}
+
+async function bisect(ctx) {
+    for (;;) {
+        const b = readState(ctx).last.bisect;
+        const { good, bad } = bounds(b);
+        const targetPassed = b.points[b.candidates.at(-1)] === "good";
+        if (targetPassed || (bad !== null && bad - good === 1)) return finishBisect(ctx, targetPassed ? null : bad);
+        const picks = nextPoints(b, ctx.width);
+        const failing = readState(ctx).last.failing;
+        const results = await Promise.all(picks.map((i, slot) => ctx.check(ctx, b.candidates[i], failing, slot + 1)));
+        await withState(ctx, (s) => {
+            picks.forEach((i, k) => (s.last.bisect.points[b.candidates[i]] = results[k] ? "good" : "bad"));
+        });
+    }
+}
+
+function finishBisect(ctx, bad) {
+    return withState(ctx, (s) => {
+        const sha = bad === null ? null : s.last.bisect.candidates[bad];
+        const subject = sha ? git(ctx, ctx.main, ["log", "-1", "--format=%s", sha]) : null;
+        s.last.culprit = sha ? { sha, subject, branch: LAND_SUBJECT.exec(subject)?.[1] ?? null } : null;
+        s.last.reproduced = sha !== null;
+        s.last.status = s.last.handling ? "handling" : "failed";
+        if (s.run) s.run.step = "failed";
+    });
+}
+
+/**
+ * The test shards a gate log says failed, when nothing else did.
+ * @param output what the gate printed
+ * @param names every shard's name
+ * @returns the shard names, or null when another step failed (or none is named): re-run the whole gate
+ */
+export function failingShards(output, names) {
+    const shards = new Set();
+    for (const [, name] of (output ?? "").matchAll(/\[FAIL\] (\S+)/g)) {
+        const n = name.replace(/:$/, "");
+        if (names.has(n)) shards.add(n);
+        else if (n !== "Tests") return null;
+    }
+    return shards.size ? [...shards] : null;
+}
+
+async function shardNames(ctx) {
+    if (ctx.shards) return new Set(ctx.shards);
+    try {
+        const { SHARDS } = await import(pathToFileURL(join(ctx.main, "tools/ci-test-matrix.mjs")).href);
+        return new Set(SHARDS.map((s) => s.shard));
+    } catch {
+        return new Set();
+    }
+}
+
+// ---------------------------------------------------------------- the gate and the narrow checks
+
+/**
+ * Runs a command and copies its output to a log file.
+ * @param cmd the command
+ * @param args its arguments
+ * @param opts `cwd`, `env`, `log` (the file)
+ * @returns `{ code, output }`
+ */
+function runLogged(cmd, args, opts) {
+    const { cwd, env, log } = opts;
+    mkdirSync(dirname(log), { recursive: true });
+    const child = spawn(cmd, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    const keep = (d) => {
+        output += d;
+        writeFileSync(log, d, { flag: "a" });
+    };
+    child.stdout.on("data", keep);
+    child.stderr.on("data", keep);
+    return new Promise((resolve) => child.on("close", (code) => resolve({ code: code ?? 1, output })));
+}
+
+/**
+ * The full gate on a commit: tools/prepush.sh with every package and every shard (PREPUSH_ALL=1; passes
+ * are reused by input key), the local GPU tests under the GPU slot, the screenshots of the affected
+ * projects and SonarQube on the lines changed since master, through the push queue ahead of ordinary
+ * pushes. Nothing is sent: it is a dry-run push.
+ * ponytail: PREPUSH_ALL builds and lints every package; an "every shard of the affected packages" mode
+ * would be cheaper if verification runs fall behind landings.
+ * @param ctx the context
+ * @param commit what to verify
+ * @param [name] the worktree it runs in
+ * @returns `{ code, output, log }`
+ */
+async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GOLDEN ? "" : "-cut"}`) {
+    const dir = join(ctx.main, ".worktrees", name);
+    prepareScratch(ctx, dir, commit);
+    const log = join(ctx.main, `tmp/golden/verify-logs/${commit.slice(0, 10)}-${Date.now()}.log`);
+    // PUSH_QUEUE_RETRY: a commit verification is asked to run again is run, not refused for its last failure.
+    const env = {
+        ...ctx.env,
+        PREPUSH_ALL: "1",
+        PUSH_BASE_REF: "origin/master",
+        PUSH_QUEUE_PRIORITY: "critical",
+        PUSH_QUEUE_RETRY: "1",
+    };
+    const push = ["git", "push", "--dry-run", "origin", `HEAD:refs/heads/${ctx.branch}-verified`];
+    console.log(`verify: the full gate on ${short(commit)} in ${dir} (log: ${log})`);
+    return { ...(await runLogged(join(dir, "tools/push-queue.sh"), push, { cwd: dir, env, log })), log };
+}
+
+/**
+ * One bisect point: the failing shards again (after a build, which nx's cache makes cheap), each through
+ * tools/run-tests.sh as CI runs it; with no shards named, the whole gate.
+ * @param ctx the context
+ * @param commit the point
+ * @param failing the failing shards, or null
+ * @param slot which bisect worktree (1..width)
+ * @returns true when it passed
+ */
+async function defaultCheck(ctx, commit, failing, slot) {
+    const name = `golden-bisect-${slot}`;
+    if (!failing) return (await ctx.gate(ctx, commit, name)).code === 0;
+    const dir = join(ctx.main, ".worktrees", name);
+    prepareScratch(ctx, dir, commit);
+    const log = join(ctx.main, `tmp/golden/verify-logs/bisect-${commit.slice(0, 10)}.log`);
+    const opts = { cwd: dir, env: ctx.env, log };
+    if ((await runLogged("pnpm", ["exec", "nx", "run-many", "-t", "build"], opts)).code !== 0) return false;
+    for (const shard of failing) {
+        if ((await runLogged(join(dir, "tools/run-tests.sh"), [shard], opts)).code !== 0) return false;
+    }
+    return true;
+}
+
+// golden-verified on GitHub, which branches merge. No gate: the commit is on golden, gated and its LFS
+// objects uploaded, so the hook would only run the gate over again.
+function defaultPublishRef(ctx, commit) {
+    const r = git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", `${commit}:refs/heads/${VERIFIED_REF}`], {
+        ok: true,
+    });
+    if (r.status !== 0) console.error(`verify: could not move ${VERIFIED_REF} to ${short(commit)}: ${r.stderr}`);
+}
+
+// ---------------------------------------------------------------- acting on a result
+
+/**
+ * Whether a Claude Code session is running: its session file names a pid whose start time matches.
+ * @param session the session id
+ * @returns true when it is
+ */
+function defaultSessionAlive(session) {
+    const dir = join(homedir(), ".claude/sessions");
+    for (const f of existsSync(dir) ? readdirSync(dir) : []) {
+        try {
+            const s = JSON.parse(readFileSync(join(dir, f), "utf8"));
+            if (s.sessionId === session && procStart(s.pid) === String(s.procStart)) return true;
+        } catch {
+            // not a session file
+        }
+    }
+    return false;
+}
+
+/**
+ * Claims the newest failure for a session to act on (revert, comment). A claim of a live session is
+ * left alone; one whose session is gone is taken over, and the line says so: check what it already did.
+ * @param ctx the context
+ * @param session the claiming session's id
+ * @returns `{ ok, message }`
+ */
+export function claim(ctx, session) {
+    return withState(ctx, (s) => {
+        const last = s.last;
+        if (!["failed", "handling"].includes(last?.status)) return { ok: false, message: "no failure to claim" };
+        const held = last.handling;
+        if (held && held.session !== session && ctx.sessionAlive(held.session)) {
+            return { ok: false, message: `claimed by session ${held.session}, which is running` };
+        }
+        last.handling = { session, at: now(), ...(held && held.session !== session ? { tookOverFrom: held } : {}) };
+        last.status = "handling";
+        const took = held && held.session !== session;
+        const note = took
+            ? `; took it over from ${held.session}, which is gone: check for its revert on golden and its comments first`
+            : "";
+        return { ok: true, message: `claimed the failure of ${short(last.commit)}${note}` };
+    });
+}
+
+/**
+ * Marks the claimed failure handled (the culprit reverted, the issues told).
+ * @param ctx the context
+ * @returns one line
+ */
+export function handled(ctx) {
+    return withState(ctx, (s) => {
+        if (s.last?.status !== "handling") return `nothing claimed to mark handled (last: ${s.last?.status ?? "none"})`;
+        s.last.status = "handled";
+        s.last.handledAt = now();
+        return `the failure of ${short(s.last.commit)} is handled`;
+    });
+}
+
+/**
+ * Resolves once the state records a failure nobody claimed (at once when it already does).
+ * @param ctx the context
+ * @returns the state
+ */
+export function watch(ctx) {
+    mkdirSync(dirname(ctx.stateFile), { recursive: true });
+    return new Promise((resolve) => {
+        const look = () => {
+            const s = readState(ctx);
+            if (s.last?.status !== "failed") return false;
+            watcher.close();
+            resolve(s);
+            return true;
+        };
+        const watcher = watchDir(dirname(ctx.stateFile), (_e, f) => (!f || f === basename(ctx.stateFile)) && look());
+        look();
+    });
+}
+
+/**
+ * The state in a few lines, for `status` here and in tools/land.mjs.
+ * @param ctx the context
+ * @returns the lines
+ */
+export function describe(ctx) {
+    const s = readState(ctx);
+    const lines = [`verification of ${ctx.branch}: verified ${short(s.verified)}, wanted ${short(s.wanted)}`];
+    if (alive(s.run))
+        lines.push(`  running: pid ${s.run.pid} since ${s.run.startedAt}, ${s.run.step} ${short(s.run.commit)}`);
+    else if (s.run)
+        lines.push(
+            `  run DEAD: pid ${s.run.pid} stopped at ${s.run.step} ${short(s.run.commit)}; node tools/verify.mjs start`,
+        );
+    else lines.push("  running: none");
+    if (s.last) lines.push(`  last: ${lastLine(s.last)}`);
+    return lines.join("\n");
+}
+
+function lastLine(l) {
+    const head = `${l.status} ${short(l.commit)} at ${l.at}`;
+    if (l.status === "passed") return head;
+    if (l.status === "bisecting") {
+        return `${head}, ${Object.keys(l.bisect.points).length} of ${l.bisect.candidates.length} points tested (${l.failing?.join(", ") ?? "whole gate"}); log ${l.log}`;
+    }
+    const culprit = l.culprit
+        ? `culprit ${short(l.culprit.sha)} ${l.culprit.subject}`
+        : "NOT REPRODUCED when re-run: find the mechanism, never call it a flake";
+    const claim = l.handling ? `; claimed by ${l.handling.session}` : "";
+    return `${head}: ${culprit}; failing ${l.failing?.join(", ") ?? "(not a test shard)"}; log ${l.log}${claim}`;
+}
+
+// ---------------------------------------------------------------- the command line
+
+const USAGE =
+    "usage: node tools/verify.mjs start [--again] | status | claim --session <id> | handled | watch | run  [--branch golden|golden-cut]";
+
+/**
+ * Runs one command.
+ * @param argv the arguments after the script
+ * @param [overrides] context overrides (tests)
+ * @returns the exit code
+ */
+export async function cli(argv, overrides = {}) {
+    const opt = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
+    const branch = opt("--branch") ?? GOLDEN;
+    if (![GOLDEN, CUT].includes(branch)) return usage();
+    const ctx = verifyContext(process.cwd(), { branch, again: argv.includes("--again"), ...overrides });
+    const commands = {
+        start: async () => console.log(await start(ctx)),
+        status: () => console.log(describe(ctx)),
+        run: () => run(ctx),
+        handled: async () => console.log(await handled(ctx)),
+        watch: async () => {
+            await watch(ctx);
+            console.log(describe(ctx));
+        },
+        claim: async () => {
+            if (!opt("--session")) return usage();
+            const r = await claim(ctx, opt("--session"));
+            console.log(r.message);
+            return r.ok ? 0 : 1;
+        },
+    };
+    const command = commands[argv[0]];
+    return command ? ((await command()) ?? 0) : usage();
+}
+
+function usage() {
+    console.error(USAGE);
+    return 2;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    const argv = process.argv.slice(2);
+    // Every session runs the live copy's verify.mjs, as with land.mjs; a run is started by a live copy
+    // already, and its pid is the one the state records, so it never hands off.
+    const self = fileURLToPath(import.meta.url);
+    process.exitCode = (argv[0] === "run" ? null : await handOff(argv, process.env, self)) ?? (await cli(argv));
+}

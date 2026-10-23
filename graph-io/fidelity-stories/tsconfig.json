@@ -1,0 +1,11 @@
+{
+    // The stories load graphty-element from source (the scene extractor reads its renderer's own
+    // classes), so they compile with graphty-element's settings (Lit's decorators among them).
+    "extends": "../../graphty-element/tsconfig.json",
+    "compilerOptions": {
+        "types": ["vite/client"],
+        "paths": {}
+    },
+    "include": ["stories/**/*.ts", ".storybook/**/*.ts", "../../graphty-element/src/types/modules.d.ts"],
+    "exclude": ["node_modules", "storybook-static"]
+}

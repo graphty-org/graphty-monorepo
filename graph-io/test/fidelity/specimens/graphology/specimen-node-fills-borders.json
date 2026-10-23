@@ -1,0 +1,449 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-node-fills-borders"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default",
+            "attributes": {
+                "x": 152,
+                "y": 792
+            }
+        },
+        {
+            "key": "color-name-red",
+            "attributes": {
+                "x": 376,
+                "y": 792,
+                "size": 18,
+                "color": "red"
+            }
+        },
+        {
+            "key": "color-name-mixed-case",
+            "attributes": {
+                "x": 600,
+                "y": 792,
+                "size": 18,
+                "color": "CornflowerBlue"
+            }
+        },
+        {
+            "key": "color-transparent",
+            "attributes": {
+                "x": 824,
+                "y": 792,
+                "size": 18,
+                "color": "transparent"
+            }
+        },
+        {
+            "key": "color-hex3",
+            "attributes": {
+                "x": 1048,
+                "y": 792,
+                "size": 18,
+                "color": "#f80"
+            }
+        },
+        {
+            "key": "color-hex6",
+            "attributes": {
+                "x": 152,
+                "y": 628,
+                "size": 18,
+                "color": "#2a9d8f"
+            }
+        },
+        {
+            "key": "color-hex6-upper",
+            "attributes": {
+                "x": 376,
+                "y": 628,
+                "size": 18,
+                "color": "#E76F51"
+            }
+        },
+        {
+            "key": "color-hex8-alpha-80",
+            "attributes": {
+                "x": 600,
+                "y": 628,
+                "size": 18,
+                "color": "#1d3557cc"
+            }
+        },
+        {
+            "key": "color-hex8-alpha-33",
+            "attributes": {
+                "x": 824,
+                "y": 628,
+                "size": 18,
+                "color": "#e6394655"
+            }
+        },
+        {
+            "key": "color-rgb",
+            "attributes": {
+                "x": 1048,
+                "y": 628,
+                "size": 18,
+                "color": "rgb(106,76,147)"
+            }
+        },
+        {
+            "key": "color-rgb-spaces",
+            "attributes": {
+                "x": 152,
+                "y": 464,
+                "size": 18,
+                "color": "rgb( 25 , 130 , 196 )"
+            }
+        },
+        {
+            "key": "color-rgba-half",
+            "attributes": {
+                "x": 376,
+                "y": 464,
+                "size": 18,
+                "color": "rgba(255,0,0,0.5)"
+            }
+        },
+        {
+            "key": "color-rgba-zero",
+            "attributes": {
+                "x": 600,
+                "y": 464,
+                "size": 18,
+                "color": "rgba(0,128,0,0)"
+            }
+        },
+        {
+            "key": "color-hex4",
+            "attributes": {
+                "x": 824,
+                "y": 464,
+                "size": 18,
+                "color": "#f80c"
+            }
+        },
+        {
+            "key": "color-rgb-percent",
+            "attributes": {
+                "x": 1048,
+                "y": 464,
+                "size": 18,
+                "color": "rgb(100%,50%,0%)"
+            }
+        },
+        {
+            "key": "color-rgb-decimal",
+            "attributes": {
+                "x": 152,
+                "y": 300,
+                "size": 18,
+                "color": "rgb(10.5,200.5,90.5)"
+            }
+        },
+        {
+            "key": "color-hsl",
+            "attributes": {
+                "x": 376,
+                "y": 300,
+                "size": 18,
+                "color": "hsl(120,100%,25%)"
+            }
+        },
+        {
+            "key": "color-unknown-name",
+            "attributes": {
+                "x": 600,
+                "y": 300,
+                "size": 18,
+                "color": "notacolor"
+            }
+        },
+        {
+            "key": "color-empty",
+            "attributes": {
+                "x": 824,
+                "y": 300,
+                "size": 18,
+                "color": ""
+            }
+        },
+        {
+            "key": "border-color-red",
+            "attributes": {
+                "x": 1048,
+                "y": 300,
+                "size": 18,
+                "color": "#c8c8c8",
+                "borderColor": "red"
+            }
+        },
+        {
+            "key": "border-size-4",
+            "attributes": {
+                "x": 152,
+                "y": 136,
+                "size": 18,
+                "color": "#c8c8c8",
+                "borderSize": 4,
+                "borderColor": "#000000"
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 77.6,
+                "y": 752,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-color-name-red",
+            "attributes": {
+                "x": 278.4,
+                "y": 752,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=red"
+            }
+        },
+        {
+            "key": "cap-color-name-mixed-case",
+            "attributes": {
+                "x": 525,
+                "y": 752,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=CornflowerBlue"
+            }
+        },
+        {
+            "key": "cap-color-transparent",
+            "attributes": {
+                "x": 759.2,
+                "y": 752,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=transparent"
+            }
+        },
+        {
+            "key": "cap-color-hex3",
+            "attributes": {
+                "x": 1007,
+                "y": 752,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#f80"
+            }
+        },
+        {
+            "key": "cap-color-hex6",
+            "attributes": {
+                "x": 100.80000000000001,
+                "y": 588,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#2a9d8f"
+            }
+        },
+        {
+            "key": "cap-color-hex6-upper",
+            "attributes": {
+                "x": 324.8,
+                "y": 588,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#E76F51"
+            }
+        },
+        {
+            "key": "cap-color-hex8-alpha-80",
+            "attributes": {
+                "x": 542,
+                "y": 588,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#1d3557cc"
+            }
+        },
+        {
+            "key": "cap-color-hex8-alpha-33",
+            "attributes": {
+                "x": 766,
+                "y": 588,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#e6394655"
+            }
+        },
+        {
+            "key": "cap-color-rgb",
+            "attributes": {
+                "x": 969.6,
+                "y": 588,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb(106,76,147)"
+            }
+        },
+        {
+            "key": "cap-color-rgb-spaces",
+            "attributes": {
+                "x": 53.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb( 25 , 130 , 196 )"
+            }
+        },
+        {
+            "key": "cap-color-rgba-half",
+            "attributes": {
+                "x": 260.8,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgba(255,0,0,0.5)"
+            }
+        },
+        {
+            "key": "cap-color-rgba-zero",
+            "attributes": {
+                "x": 521.6,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgba(0,128,0,0)"
+            }
+        },
+        {
+            "key": "cap-color-hex4",
+            "attributes": {
+                "x": 779.6,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#f80c"
+            }
+        },
+        {
+            "key": "cap-color-rgb-percent",
+            "attributes": {
+                "x": 966.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb(100%,50%,0%)"
+            }
+        },
+        {
+            "key": "cap-color-rgb-decimal",
+            "attributes": {
+                "x": 56.60000000000001,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb(10.5,200.5,90.5)"
+            }
+        },
+        {
+            "key": "cap-color-hsl",
+            "attributes": {
+                "x": 290.8,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=hsl(120,100%,25%)"
+            }
+        },
+        {
+            "key": "cap-color-unknown-name",
+            "attributes": {
+                "x": 542,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=notacolor"
+            }
+        },
+        {
+            "key": "cap-color-empty",
+            "attributes": {
+                "x": 796.6,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "color="
+            }
+        },
+        {
+            "key": "cap-border-color-red",
+            "attributes": {
+                "x": 990,
+                "y": 260,
+                "size": 7,
+                "color": "transparent",
+                "label": "borderColor=red"
+            }
+        },
+        {
+            "key": "cap-border-size-4",
+            "attributes": {
+                "x": 74.2,
+                "y": 96,
+                "size": 7,
+                "color": "transparent",
+                "label": "borderSize=4"
+            }
+        }
+    ],
+    "edges": []
+}

@@ -28,7 +28,7 @@ Status of each question, in one place:
   today: it is the earlier round's proposed dark default (`design/ui/object-first-ux/visual-language.md`
   4.6) and is also Figma's menu and tooltip surface (`--color-bg-menu`, `--color-bg-tooltip`,
   `design/ui/figma/right-sidebar-selection/README.md`; compact-mantine's `design/figma-spec.md`
-  on the Figma branch, `--cm-bg-menu`, same in both themes).
+  `--cm-bg-menu`; the page-themed menu uses it in dark mode only).
 - **Palette colours.** Every categorical and binary palette the element ships
   (`graphty-element/src/config/palettes/categorical.ts` and `binary.ts`: okabe-ito, tol-vibrant,
   tol-muted, pastel, carbon, and the blue, green and orange highlight pairs) plus the overflow
@@ -204,8 +204,9 @@ The overflow grey `#505050` is 2.07:1 on the dark canvas: over a 2:1 floor, but 
 
 ## 5. The dark canvas against the menu surface
 
-Figma's menus are `#1E1E1E` in both themes, the same colour as the proposed dark canvas, so a menu
-open over the canvas has no background step at all. What separates it is the dark theme's elevation
+In dark mode the menu surface is `#1E1E1E` (menus follow the page theme, so in light mode they are
+white), the same colour as the proposed dark canvas, so a dark menu open over the canvas has no
+background step at all. What separates it is the dark theme's elevation
 (`--cm-elevation-400`, dark column: two black drop shadows, which do not show on a near-black
 canvas, and an inset 1 px white hairline at 35% opacity with a 1 px blur).
 

@@ -1,0 +1,31 @@
+== T17A start setup:/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/friends.txt
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/01.png
+exit 0
+== T17A step: --click "Data"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/02.png
+exit 0
+== T17A step: --click "weight"
+ambiguous: "weight" matches 2 controls (treeitem "weight, edge attribute", span "weight"); took the first
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/03.png
+exit 0
+== T17A step: --click "Attribute actions"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/04.png
+exit 0
+== T17A step: --click "Filter to..."
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/05.png
+exit 0
+== T17A step: --click "Value" --type 4
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/06.png
+exit 0
+== T17A step: --click "Add step"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/07.png
+exit 0
+== T17A step: --hover "weight is at least 4"
+tooltip: "weight is at least 4"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/08.png
+exit 0
+== T17A step: --click "Apply step: weight is at least 4"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A/09.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T17-final/A

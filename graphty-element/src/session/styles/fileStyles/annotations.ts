@@ -4,7 +4,10 @@
  * rest of the graph. The renderer draws whatever the value holds.
  */
 
-import type { GraphAnnotation } from "@graphty/graph-io/styles";
+import type { GraphAnnotation, ImageAnnotation } from "@graphty/graph-io/styles";
+
+/** One annotation the element draws: a shape, a text, an arrow or a picture. */
+export type DrawnAnnotation = GraphAnnotation | ImageAnnotation;
 
 /** The graph value a load's annotations are kept under. */
 export const ANNOTATIONS_VALUE = "annotations";
@@ -14,7 +17,7 @@ export interface DrawnAnnotations {
     /** Scene units per file unit: the scale the file's stored node positions are drawn at. */
     readonly scale: number;
     /** The annotations, in the file's convention: y up, file units. */
-    readonly annotations: readonly GraphAnnotation[];
+    readonly annotations: readonly DrawnAnnotation[];
 }
 
 /**

@@ -1,5 +1,8 @@
 # githerd: design
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> githerd is retired: its daemon is not run and its MCP tools are gone, so none of this describes live behavior.
+
 githerd keeps the graphty-org/graphty-monorepo pipeline moving. It notices a red master and gets
 it fixed, keeps releases flowing, tells Mergify which pull requests are safe to merge, keeps the issue
 backlog triaged and current, and hands every piece of work that needs judgment to an interactive

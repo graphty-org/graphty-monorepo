@@ -1,5 +1,7 @@
 # Loading graphs from network sources
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 Status: design, 2026-10-17. Nothing here is implemented. Tracking issue: #2907. Browser and Node
 behavior was measured on 2026-10-17 (section 7 says how), the Cypher path was run against a live
 Memgraph 2.22.1 (section 12.3), OpenAlex was checked live (section 13.3) and every sample source in

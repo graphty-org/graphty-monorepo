@@ -21,7 +21,7 @@
  * distinction the whole channel table now rests on.
  */
 
-import { DynamicTexture, type StandardMaterial } from "@babylonjs/core";
+import { DynamicTexture, type StandardMaterial, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { LabelStyle, LayerSpec, StaticStyle } from "../../src/catalog/types";
@@ -82,9 +82,8 @@ describe("a caption at the end of an arrow", () => {
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
 
-        // THE PREREQUISITE, and it is the subject of one of the tests below as well: a caption
-        // hangs from the cap at its end, so both ends need a cap before either can carry one.
-        // The caps are drawn large for the same reason the other pixel files draw them large --
+        // A caption hangs from the cap at its end when there is one (an end with no arrow is one of
+        // the tests below). The caps are drawn large for the same reason the other pixel files draw them large --
         // at the default size a cap is a few dozen pixels.
         await session.styles.add({
             name: "caps at both ends",
@@ -364,23 +363,29 @@ describe("a caption at the end of an arrow", () => {
         );
     });
 
-    it("draws nothing at an end that has no cap to hang a caption from", async () => {
+    it("draws a caption at an end with no arrow, where the line leaves its node", async () => {
         const edge = edgeObject();
-        const before = await frame();
 
-        const { after } = await addLayer("caption a tail with no arrow on it", {
+        await addLayer("caption a tail with no arrow on it", {
             "edge.arrowTail": "none",
             "edge.arrowTailText": "ORIGIN",
         });
 
-        assert.isNull(
-            edge.arrowTailText,
-            "an end drawn with no arrow has no cap for a caption to hang from, so none is built",
-        );
+        assert.isNull(edge.arrowTailCap, "the tail is drawn with no arrow");
         assert.isAbove(
-            moved(before, after),
-            PIXEL_CHANGE,
-            "and the change on screen is the tail cap going away, which is what the layer also asked for",
+            drawnOn(edge.arrowTailText).ink,
+            ENOUGH,
+            "and still carries its caption, as Graphviz draws a taillabel",
+        );
+
+        const at = edge.arrowTailText?.labelMesh?.position;
+        assert.isDefined(at, "the caption is placed in the scene");
+        const src = edge.srcNode.mesh.position;
+        const dst = edge.dstNode.mesh.position;
+        assert.isBelow(
+            Vector3.Distance(at, src),
+            Vector3.Distance(at, dst),
+            "beside the source node it hangs from, not at the middle of the scene",
         );
     });
 

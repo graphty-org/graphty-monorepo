@@ -129,6 +129,7 @@ describe("the AA option (spec 2.9)", () => {
                 "bg-brand-pressed",
                 "text-brand",
                 "icon-brand",
+                "text-danger",
                 "bg-danger",
                 "bg-success",
             ].sort(),

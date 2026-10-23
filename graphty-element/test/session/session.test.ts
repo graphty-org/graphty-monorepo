@@ -277,10 +277,27 @@ describe("what a session publishes without being asked to compute", () => {
         const controller = new AccelerationController({ policy: "off" });
         const session = createGraphSession({ acceleration: controller });
 
-        assert.strictEqual(session.capabilities, controller.capabilities, "one document, not a copy of one");
+        assert.strictEqual(
+            session.capabilities.acceleration,
+            controller.capabilities.acceleration,
+            "one status, not a copy of one",
+        );
+        assert.strictEqual(session.capabilities, session.capabilities, "the same document until it changes");
 
         session.dispose();
         controller.dispose();
+    });
+
+    it("reports VR and AR as unsupported on a session that draws nothing", () => {
+        const session = createGraphSession({ acceleration: new AccelerationController({ policy: "off" }) });
+
+        assert.deepEqual(session.capabilities.xr, {
+            vr: false,
+            ar: false,
+            reasons: { vr: "unsupported", ar: "unsupported" },
+            active: null,
+        });
+        session.dispose();
     });
 
     it("carries the document capabilities returns in the event payload", () => {

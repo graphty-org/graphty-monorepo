@@ -1,0 +1,846 @@
+{
+    "about": "The GEXF specimen pages: each sheet file drawn by Gephi under one Preview setting (preview: every property gephi.mjs sets; Gephi's default for the rest). Written by graph-io/test/fidelity/generators/specimens/gexf-gephi.mjs.",
+    "pages": [
+        {
+            "id": "specimen-node-shapes",
+            "file": "specimen-node-shapes.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-node-shapes-p2",
+            "file": "specimen-node-shapes.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.per.node.opacity": "true"
+            },
+            "varies": "node.per.node.opacity=true"
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-node-fills-borders-p2",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.fixed": "true",
+                "node.border.width": "0.0"
+            },
+            "varies": "node.border.fixed=true node.border.width=0.0"
+        },
+        {
+            "id": "specimen-node-fills-borders-p3",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.fixed": "true",
+                "node.border.width": "4.0"
+            },
+            "varies": "node.border.fixed=true node.border.width=4.0"
+        },
+        {
+            "id": "specimen-node-fills-borders-p4",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.color": "#ff0000"
+            },
+            "varies": "node.border.color=#ff0000"
+        },
+        {
+            "id": "specimen-node-fills-borders-p5",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.color": "parent"
+            },
+            "varies": "node.border.color=parent"
+        },
+        {
+            "id": "specimen-node-fills-borders-p6",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.color": "lighter"
+            },
+            "varies": "node.border.color=lighter"
+        },
+        {
+            "id": "specimen-node-fills-borders-p7",
+            "file": "specimen-node-fills-borders.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.border.fixed": "true"
+            },
+            "varies": "node.border.fixed=true"
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "file": "specimen-node-sizes-opacity.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p2",
+            "file": "specimen-node-sizes-opacity.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.per.node.opacity": "true"
+            },
+            "varies": "node.per.node.opacity=true"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p3",
+            "file": "specimen-node-sizes-opacity.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.opacity": "40.0"
+            },
+            "varies": "node.opacity=40.0"
+        },
+        {
+            "id": "specimen-labels",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-labels-p2",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "false",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "node.label.show=false"
+        },
+        {
+            "id": "specimen-labels-p3",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.proportinalSize": "false"
+            },
+            "varies": "node.label.proportinalSize=false"
+        },
+        {
+            "id": "specimen-labels-p4",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.color": "parent"
+            },
+            "varies": "node.label.color=parent"
+        },
+        {
+            "id": "specimen-labels-p5",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.color": "original"
+            },
+            "varies": "node.label.color=original"
+        },
+        {
+            "id": "specimen-labels-p6",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.color": "#ff0000"
+            },
+            "varies": "node.label.color=#ff0000"
+        },
+        {
+            "id": "specimen-labels-p7",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.shorten": "true"
+            },
+            "varies": "node.label.shorten=true"
+        },
+        {
+            "id": "specimen-labels-p8",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.shorten": "true",
+                "node.label.max-char": "8"
+            },
+            "varies": "node.label.shorten=true node.label.max-char=8"
+        },
+        {
+            "id": "specimen-labels-p9",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "#ff8000"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=#ff8000"
+        },
+        {
+            "id": "specimen-labels-p10",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "#ff8000",
+                "node.label.outline.opacity": "30.0"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=#ff8000 node.label.outline.opacity=30.0"
+        },
+        {
+            "id": "specimen-labels-p11",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true"
+            },
+            "varies": "node.label.box=true"
+        },
+        {
+            "id": "specimen-labels-p12",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.color": "#ffff00"
+            },
+            "varies": "node.label.box=true node.label.box.color=#ffff00"
+        },
+        {
+            "id": "specimen-labels-p13",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.opacity": "40.0"
+            },
+            "varies": "node.label.box=true node.label.box.opacity=40.0"
+        },
+        {
+            "id": "specimen-labels-p14",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,bold,12"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,bold,12"
+        },
+        {
+            "id": "specimen-labels-p15",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "true"
+            },
+            "varies": "node.label.avoidOverlap=true"
+        },
+        {
+            "id": "specimen-labels-p16",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "true",
+                "node.label.overlapGridSize": "40"
+            },
+            "varies": "node.label.avoidOverlap=true node.label.overlapGridSize=40"
+        },
+        {
+            "id": "specimen-labels-p17",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "parent"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=parent"
+        },
+        {
+            "id": "specimen-labels-p18",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "darker"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=darker"
+        },
+        {
+            "id": "specimen-labels-p19",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.outline.size": "4.0",
+                "node.label.outline.color": "lighter"
+            },
+            "varies": "node.label.outline.size=4.0 node.label.outline.color=lighter"
+        },
+        {
+            "id": "specimen-labels-p20",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.color": "darker"
+            },
+            "varies": "node.label.box=true node.label.box.color=darker"
+        },
+        {
+            "id": "specimen-labels-p21",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.box": "true",
+                "node.label.box.color": "lighter"
+            },
+            "varies": "node.label.box=true node.label.box.color=lighter"
+        },
+        {
+            "id": "specimen-labels-p22",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,italic,12"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,italic,12"
+        },
+        {
+            "id": "specimen-labels-p23",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,bolditalic,12"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,bolditalic,12"
+        },
+        {
+            "id": "specimen-labels-p24",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,plain,24"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,plain,24"
+        },
+        {
+            "id": "specimen-edges-lines",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.curved": "false"
+            },
+            "varies": "edge.curved=false"
+        },
+        {
+            "id": "specimen-edges-lines-p3",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.color": "source"
+            },
+            "varies": "edge.color=source"
+        },
+        {
+            "id": "specimen-edges-lines-p4",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.color": "target"
+            },
+            "varies": "edge.color=target"
+        },
+        {
+            "id": "specimen-edges-lines-p5",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.color": "original"
+            },
+            "varies": "edge.color=original"
+        },
+        {
+            "id": "specimen-edges-lines-p6",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.color": "#ff0000"
+            },
+            "varies": "edge.color=#ff0000"
+        },
+        {
+            "id": "specimen-edges-lines-p7",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.opacity": "40.0"
+            },
+            "varies": "edge.opacity=40.0"
+        },
+        {
+            "id": "specimen-edges-lines-p8",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.use-weight": "false"
+            },
+            "varies": "edge.use-weight=false"
+        },
+        {
+            "id": "specimen-edges-lines-p9",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.thickness": "3.0"
+            },
+            "varies": "edge.thickness=3.0"
+        },
+        {
+            "id": "specimen-edges-lines-p10",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.rescale-weight": "true"
+            },
+            "varies": "edge.rescale-weight=true"
+        },
+        {
+            "id": "specimen-edges-lines-p11",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.rescale-weight": "true",
+                "edge.rescale-weight.min": "2.0",
+                "edge.rescale-weight.max": "4.0"
+            },
+            "varies": "edge.rescale-weight=true edge.rescale-weight.min=2.0 edge.rescale-weight.max=4.0"
+        },
+        {
+            "id": "specimen-edges-lines-p12",
+            "file": "specimen-edges-lines.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.show": "false"
+            },
+            "varies": "edge.show=false"
+        },
+        {
+            "id": "specimen-edges-lines-p13",
+            "file": "specimen-edges-lines-nonpositive.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "weights 0 and -2 on one sheet"
+        },
+        {
+            "id": "specimen-arrows",
+            "file": "specimen-arrows.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-arrows-p2",
+            "file": "specimen-arrows.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "arrow.size": "8.0"
+            },
+            "varies": "arrow.size=8.0"
+        },
+        {
+            "id": "specimen-arrows-p3",
+            "file": "specimen-arrows.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "arrow.size": "0.0"
+            },
+            "varies": "arrow.size=0.0"
+        },
+        {
+            "id": "specimen-arrows-p4",
+            "file": "specimen-arrows.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.radius": "10.0"
+            },
+            "varies": "edge.radius=10.0"
+        },
+        {
+            "id": "specimen-arrows-p5",
+            "file": "specimen-arrows.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.curved": "false"
+            },
+            "varies": "edge.curved=false"
+        },
+        {
+            "id": "specimen-arrows-p6",
+            "file": "specimen-arrows-undirected.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "defaultedgetype=undirected"
+        },
+        {
+            "id": "specimen-arrows-p7",
+            "file": "specimen-arrows-mutual.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "defaultedgetype=mutual"
+        },
+        {
+            "id": "specimen-edge-labels",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true"
+            },
+            "varies": "edge.label.show=true"
+        },
+        {
+            "id": "specimen-edge-labels-p3",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.color": "#ff0000"
+            },
+            "varies": "edge.label.show=true edge.label.color=#ff0000"
+        },
+        {
+            "id": "specimen-edge-labels-p4",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.color": "parent"
+            },
+            "varies": "edge.label.show=true edge.label.color=parent"
+        },
+        {
+            "id": "specimen-edge-labels-p5",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "#ff8000"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=#ff8000"
+        },
+        {
+            "id": "specimen-edge-labels-p6",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "#ff8000",
+                "edge.label.outline.opacity": "30.0"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=#ff8000 edge.label.outline.opacity=30.0"
+        },
+        {
+            "id": "specimen-edge-labels-p7",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.shorten": "true",
+                "edge.label.max-char": "8"
+            },
+            "varies": "edge.label.show=true edge.label.shorten=true edge.label.max-char=8"
+        },
+        {
+            "id": "specimen-edge-labels-p8",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,italic,14"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,italic,14"
+        },
+        {
+            "id": "specimen-edge-labels-p9",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "parent"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=parent"
+        },
+        {
+            "id": "specimen-edge-labels-p10",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "darker"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=darker"
+        },
+        {
+            "id": "specimen-edge-labels-p11",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.outline.size": "3.0",
+                "edge.label.outline.color": "lighter"
+            },
+            "varies": "edge.label.show=true edge.label.outline.size=3.0 edge.label.outline.color=lighter"
+        },
+        {
+            "id": "specimen-edge-labels-p12",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.curved": "false"
+            },
+            "varies": "edge.label.show=true edge.curved=false"
+        },
+        {
+            "id": "specimen-edge-labels-p13",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,bold,14"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bold,14"
+        },
+        {
+            "id": "specimen-edge-labels-p14",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,bolditalic,14"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bolditalic,14"
+        },
+        {
+            "id": "specimen-edge-labels-p15",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,plain,20"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,plain,20"
+        },
+        {
+            "id": "specimen-groups",
+            "file": "specimen-groups.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-images-charts",
+            "file": "specimen-images-charts.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "Gephi's defaults"
+        },
+        {
+            "id": "specimen-images-charts-p2",
+            "file": "specimen-images-charts.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.per.node.opacity": "true"
+            },
+            "varies": "node.per.node.opacity=true"
+        },
+        {
+            "id": "specimen-node-fills-borders-p8",
+            "file": "specimen-node-fills-borders-gexf12.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft namespaces"
+        },
+        {
+            "id": "specimen-node-fills-borders-p9",
+            "file": "specimen-node-fills-borders-gexf11.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.1draft namespaces"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p4",
+            "file": "specimen-node-sizes-opacity-dynamic.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "mode=dynamic: time intervals and timed viz values"
+        },
+        {
+            "id": "specimen-edges-lines-p14",
+            "file": "specimen-edges-lines-gexf12.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft namespaces"
+        },
+        {
+            "id": "specimen-edges-lines-p15",
+            "file": "specimen-edges-lines-dynamic-weight.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "dynamic edge weight (timed attvalues)"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p5",
+            "file": "specimen-node-sizes-opacity-timestamps.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "timerepresentation=timestamp: timestamps and timestamped viz values"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p6",
+            "file": "specimen-node-sizes-opacity-gexf12-open.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft open interval bounds (startopen, endopen)"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p7",
+            "file": "specimen-node-sizes-opacity-slice.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "mode=slice (graph timestamp 3)"
+        }
+    ]
+}

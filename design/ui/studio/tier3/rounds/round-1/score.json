@@ -1,0 +1,1295 @@
+{
+ "problems": [
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s01/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s03/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s06b/grade.md lacks the three grade lines",
+  "r1-s06: no valid grade (r1-s06, r1-s06b)",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s07/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s09/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s11/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s13/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s19/grade.md lacks the three grade lines",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/sessions/r1-s29/grade.md lacks the three grade lines"
+ ],
+ "bars": [
+  {
+   "bar": 1,
+   "what": "T38 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T38A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T38B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T38 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T39 success",
+   "value": "5 of 5",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T39A success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T39B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T39 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T40 success",
+   "value": "6 of 6",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T40A success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T40B success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T40 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T41 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T41A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T41B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T41 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T43 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T43A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T43B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T43 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T45 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T45A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T45B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T45 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T46 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T46A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T46B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T46 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T47 success",
+   "value": "6 of 6",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T47 successes on the bulk route (folder or several; at least half, the stall rule's count)",
+   "value": "4 of 6 (folder 4, around 2)",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T47A success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T47B success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T47 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T48 success",
+   "value": "6 of 6",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T48 successes on the bulk route (folder or several; at least half, the stall rule's count)",
+   "value": "6 of 6 (folder 6)",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T48A success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T48B success",
+   "value": "3 of 3",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T48 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T49 success",
+   "value": "3 of 4",
+   "holds": false
+  },
+  {
+   "bar": 1,
+   "what": "T49A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T49B success",
+   "value": "1 of 2",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T49 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T50 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T50A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T50B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T50 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T51 success",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T51A success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T51B success",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T51 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 2,
+   "what": "false done",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 4,
+   "what": "T39: steps to every node in one new color (4 of 4 sessions got there; limit 10)",
+   "value": "median 3; minutes median 0.6499999999999999 (trend only)",
+   "holds": true
+  }
+ ],
+ "reported": {
+  "otherTasksFirstStyled": {
+   "sessions": 50,
+   "steps": 1,
+   "minutes": 0.2
+  },
+  "keyboardFirstStyled": [
+   {
+    "id": "r1-s05b",
+    "grade": "SD",
+    "steps": 20
+   }
+  ],
+  "newcomersOnly": {
+   "T38": "3 of 3",
+   "T39": "5 of 5",
+   "T40": "5 of 5",
+   "T41": "3 of 3",
+   "T43": "3 of 3",
+   "T45": "3 of 3",
+   "T46": "3 of 3",
+   "T47": "5 of 5",
+   "T48": "6 of 6",
+   "T49": "3 of 3",
+   "T50": "4 of 4",
+   "T51": "3 of 3"
+  },
+  "scriptedExits": []
+ },
+ "sessions": [
+  {
+   "id": "r1-s01b",
+   "task": "T39",
+   "half": "A",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s02",
+   "task": "T39",
+   "half": "B",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s03b",
+   "task": "T39",
+   "half": "A",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "05.png",
+    "steps": 4,
+    "minutes": 0.8
+   }
+  },
+  {
+   "id": "r1-s04",
+   "task": "T39",
+   "half": "B",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.7
+   }
+  },
+  {
+   "id": "r1-s05b",
+   "task": "T39",
+   "half": "A",
+   "persona": "Sam",
+   "start": "empty --keys",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 3,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "21.png",
+    "steps": 20,
+    "minutes": 3.8
+   }
+  },
+  {
+   "id": "r1-s07b",
+   "task": "T40",
+   "half": "A",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s08",
+   "task": "T40",
+   "half": "B",
+   "persona": "Maren",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s09b",
+   "task": "T40",
+   "half": "A",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s10",
+   "task": "T40",
+   "half": "B",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 2,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s11b",
+   "task": "T40",
+   "half": "A",
+   "persona": "Sam",
+   "start": "empty --keys",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 2,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "20.png",
+    "steps": 19,
+    "minutes": 3.7
+   }
+  },
+  {
+   "id": "r1-s12",
+   "task": "T40",
+   "half": "B",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s13b",
+   "task": "T47",
+   "half": "A",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.7
+   }
+  },
+  {
+   "id": "r1-s14",
+   "task": "T47",
+   "half": "B",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "03.png",
+    "steps": 2,
+    "minutes": 0.4
+   }
+  },
+  {
+   "id": "r1-s15",
+   "task": "T47",
+   "half": "A",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": "around",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s16",
+   "task": "T47",
+   "half": "B",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s17",
+   "task": "T47",
+   "half": "A",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "around",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s18",
+   "task": "T47",
+   "half": "B",
+   "persona": "Sam",
+   "start": "empty --keys",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 3,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "19.png",
+    "steps": 18,
+    "minutes": 3.3
+   }
+  },
+  {
+   "id": "r1-s19b",
+   "task": "T48",
+   "half": "A",
+   "persona": "Sam",
+   "start": "empty --keys",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.7
+   }
+  },
+  {
+   "id": "r1-s20",
+   "task": "T48",
+   "half": "B",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s21",
+   "task": "T48",
+   "half": "A",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s22",
+   "task": "T48",
+   "half": "B",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.3
+   }
+  },
+  {
+   "id": "r1-s23",
+   "task": "T48",
+   "half": "A",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s24",
+   "task": "T48",
+   "half": "B",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": "folder",
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s25",
+   "task": "T38",
+   "half": "A",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s26",
+   "task": "T38",
+   "half": "B",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s27",
+   "task": "T38",
+   "half": "A",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s28",
+   "task": "T38",
+   "half": "B",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s29b",
+   "task": "T41",
+   "half": "A",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s30",
+   "task": "T41",
+   "half": "B",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s31",
+   "task": "T41",
+   "half": "A",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s32",
+   "task": "T41",
+   "half": "B",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s33",
+   "task": "T43",
+   "half": "A",
+   "persona": "Maren",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s34",
+   "task": "T43",
+   "half": "B",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s35",
+   "task": "T43",
+   "half": "A",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s36",
+   "task": "T43",
+   "half": "B",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s37",
+   "task": "T45",
+   "half": "A",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s38",
+   "task": "T45",
+   "half": "B",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s39",
+   "task": "T45",
+   "half": "A",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s40b",
+   "task": "T45",
+   "half": "B",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s41",
+   "task": "T46",
+   "half": "A",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 3,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s42",
+   "task": "T46",
+   "half": "B",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.7
+   }
+  },
+  {
+   "id": "r1-s43",
+   "task": "T46",
+   "half": "A",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s44",
+   "task": "T46",
+   "half": "B",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "03.png",
+    "steps": 2,
+    "minutes": 0.4
+   }
+  },
+  {
+   "id": "r1-s45",
+   "task": "T49",
+   "half": "A",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s46",
+   "task": "T49",
+   "half": "B",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "F",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s47b",
+   "task": "T49",
+   "half": "A",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.6
+   }
+  },
+  {
+   "id": "r1-s48",
+   "task": "T49",
+   "half": "B",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "04.png",
+    "steps": 3,
+    "minutes": 0.5
+   }
+  },
+  {
+   "id": "r1-s49",
+   "task": "T50",
+   "half": "A",
+   "persona": "Tom",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s50",
+   "task": "T50",
+   "half": "B",
+   "persona": "Ruth",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s51",
+   "task": "T50",
+   "half": "A",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s52",
+   "task": "T50",
+   "half": "B",
+   "persona": "Dev",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s53",
+   "task": "T51",
+   "half": "A",
+   "persona": "Elena",
+   "start": "empty",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  },
+  {
+   "id": "r1-s54",
+   "task": "T51",
+   "half": "B",
+   "persona": "Grace",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s55",
+   "task": "T51",
+   "half": "A",
+   "persona": "Nadia",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.1
+   }
+  },
+  {
+   "id": "r1-s56",
+   "task": "T51",
+   "half": "B",
+   "persona": "Alex",
+   "start": "empty",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "firstStyled": {
+    "shot": "02.png",
+    "steps": 1,
+    "minutes": 0.2
+   }
+  }
+ ],
+ "holds": false
+}

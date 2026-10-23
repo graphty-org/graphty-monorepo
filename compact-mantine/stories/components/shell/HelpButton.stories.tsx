@@ -49,7 +49,7 @@ import { storyWaitOptions } from "../../helpers/settled";
  * |---|---|
  * | Button | 32 x 32 circle, `--cm-bg`, elevation 200, no hover change |
  * | Focus ring | 1px at -2px, fading in over 200ms |
- * | Menu | the dark menu, 4px above, end-aligned |
+ * | Menu | the menu, 4px above, end-aligned |
  */
 const meta: Meta<typeof HelpButton> = {
     title: "Components/App shell/HelpButton",

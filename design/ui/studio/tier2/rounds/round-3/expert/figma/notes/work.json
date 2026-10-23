@@ -1,0 +1,40 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [
+   "note_01M4MBA9KK4BHY95VZNT3032XS Rerun after the new weights",
+   "note_01M4MB834PY36KFD96PHXSN1R0 Hana ranks second"
+  ],
+  "steps": [],
+  "sources": [
+   "friends-v2.csv"
+  ]
+ },
+ "gone": {
+  "sources": [
+   "friends.csv"
+  ]
+ }
+}

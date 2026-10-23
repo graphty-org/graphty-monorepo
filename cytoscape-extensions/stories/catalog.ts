@@ -88,6 +88,12 @@ export const ALGORITHM_GROUPS = {
             "connectedComponents",
         ],
     },
+    // each search on its own example (stories/examples.ts): the search beside the other kind, on the same graph
+    Traversal: {
+        network: "barabasi-albert",
+        directed: false,
+        algorithms: ["breadthFirstSearch", "directionOptimizedBfs", "depthFirstSearch"],
+    },
     PathsAndTrees: {
         network: "barabasi-albert",
         directed: false,
@@ -97,9 +103,6 @@ export const ALGORITHM_GROUPS = {
             "bidirectionalDijkstra",
             "aStar",
             "allPairsShortestPath",
-            "breadthFirstSearch",
-            "directionOptimizedBfs",
-            "depthFirstSearch",
             "kruskalMST",
             "primMST",
         ],

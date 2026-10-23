@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -160,23 +160,92 @@ describe("the Data place on the real element", () => {
             const row = within(tree("Attributes")).getByRole("treeitem", { name: "group, node attribute" });
             assert.equal(row.getAttribute("aria-selected"), "true", "the open attribute's row stays selected");
         });
-        // A click on the quiet fill text is a click on the row.
-        await userEvent.click(within(tree("Attributes")).getByText("25%"));
+        // A click on the fill's second line is a click on the row.
+        await userEvent.click(within(tree("Attributes")).getByText(/25% have a value$/));
         assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
         const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-        // Rename waits for the element (#894).
+        // Rename waits for the element (#894). One load of one file can be replaced.
         assert.deepEqual(
             within(menu)
                 .getAllByRole("menuitem")
                 .map((item) => item.textContent),
-            ["Edit source..."],
+            ["Edit source...", "Replace with file..."],
         );
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
         assert.equal(store.get().page, "data-page");
     });
 
-    it("Add label line binds a new layer's node label to the attribute and selects it, as one undoable step", async () => {
+    it("gives the source's inspector a \"...\" holding the row menu's verbs, and none on two loads", async () => {
+        const { session, store } = await openDataPlace();
+        await importGraphFile(session);
+
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
+        assert.equal(store.get().inspected?.kind, "source");
+        await userEvent.click(await screen.findByRole("button", { name: "Source actions" }));
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Edit source...", "Replace with file..."],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
+        assert.equal(store.get().page, "data-page");
+
+        // A second load: neither verb can replace one source among two, so neither menu holds any.
+        store.set({ page: "panels", place: "data" });
+        await session.data.import(
+            { type: "gml", name: "second.gml", config: { data: GRAPH_FILE_GML } },
+            { mode: "merge" },
+        );
+        await waitFor(() => {
+            assert.equal(within(tree("Sources")).getAllByRole("treeitem", { name: /\.gml$/ }).length, 2);
+        });
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "second.gml" }));
+        assert.equal(store.get().inspected?.kind, "source");
+        assert.isNull(screen.queryByRole("button", { name: "Source actions" }));
+    });
+
+    it("shows a clicked source table in the table dock on its tab, never the Data page", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
+
+        await userEvent.click(await screen.findByRole("treeitem", { name: "Edge table" }));
+        assert.equal(store.get().page, "panels");
+        assert.isTrue(store.get().dockOpen);
+        await waitFor(() => {
+            const edges = screen.getByRole("tab", { name: "Edges" });
+            assert.equal(edges.getAttribute("aria-selected"), "true");
+        });
+
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Node table" }));
+        await waitFor(() => {
+            const nodes = screen.getByRole("tab", { name: "Nodes" });
+            assert.equal(nodes.getAttribute("aria-selected"), "true");
+        });
+        assert.equal(store.get().page, "panels");
+    });
+
+    it("opens the edge table when the source row of an edge list, which has no children, is clicked", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        // A dropped edge list, opened as the start page opens it.
+        const csv = "source,target,weight\nAva,Ben,3\nBen,Cy,5\nCy,Ava,1\n";
+        const opened = await session.project.open(new File([csv], "friends.csv"), { fileName: "friends.csv" });
+        await opened.draft?.load({ mode: "replace" });
+        assert.isFalse(store.get().dockOpen);
+
+        const row = await screen.findByRole("treeitem", { name: "friends.csv" });
+        assert.isNull(row.getAttribute("aria-expanded"), "a single-table source has nothing to expand");
+        await userEvent.click(row);
+        assert.isTrue(store.get().dockOpen);
+        assert.equal(store.get().dockTab, "edges");
+        await waitFor(() => {
+            assert.equal(screen.getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+        });
+    });
+
+    it("Add label line binds Everything's node label to the attribute and shows Everything, as one undoable step", async () => {
         const { session, store } = await openDataPlace();
         await importGraphFile(session);
         const before = session.styles.list().length;
@@ -184,15 +253,19 @@ describe("the Data place on the real element", () => {
         const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
 
+        // The Text "+" label line on Everything (its first line adds its layer), shown.
+        const labeled = (): Layer | undefined =>
+            session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
         await waitFor(() => {
             assert.equal(session.styles.list().length, before + 1);
+            assert.isDefined(labeled());
         });
-        // A new row on top, its node label bound to the column, selected.
-        const layer = session.styles.list().at(-1);
-        assert.equal(layer?.name, "label");
+        const layer = labeled();
+        assert.equal(layer?.name, "Everything");
         assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+        assert.isUndefined(layer?.set?.["node.labelStyle"], "no look");
         await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
         });
 
         await session.undo();
@@ -214,7 +287,72 @@ describe("the Data place on the real element", () => {
         await waitFor(() => {
             assert.isTrue(store.get().dockOpen);
         });
-        assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
+        const dock = await screen.findByRole("region", { name: "Table" });
+        // On the table that holds the attribute, and the ask is spent once it is shown.
+        assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+        await waitFor(() => {
+            assert.isNull(store.get().dockColumn);
+        });
+    });
+
+    it("Show in table brings a column off the right edge into view", async () => {
+        const { session } = await openDataPlace(TABLE_BUILT);
+        await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
+
+        const menu = await menuOf(await screen.findByRole("treeitem", { name: "m16, node attribute" }));
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
+
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await waitFor(() => {
+            const viewport = within(dock).getByTestId("data-table-viewport");
+            assert.isAbove(viewport.scrollLeft, 0, "the table scrolled toward the column");
+            const header = within(dock)
+                .getAllByTestId("data-table-header")
+                .find((cell) => cell.textContent === "m16");
+            const shown = header?.getBoundingClientRect();
+            const box = viewport.getBoundingClientRect();
+            assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
+        });
+    });
+
+    it("the attribute inspector's ... holds the same Add label line, Filter to... and Show in table", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
+        const before = session.styles.list().length;
+
+        await userEvent.click(await screen.findByRole("treeitem", { name: "label, node attribute" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+        const menu = await screen.findByRole("menu");
+        assert.deepEqual(
+            within(menu)
+                .getAllByRole("menuitem")
+                .map((item) => item.textContent),
+            ["Add label line", "Filter to...", "Show in table"],
+        );
+        await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+        await waitFor(() => {
+            assert.equal(session.styles.list().length, before + 1);
+        });
+        const layer = session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
+        assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
+        });
+    });
+
+    it("opens the table dock on the nodes tab from Node table and on the edges tab from Edge table", async () => {
+        const { session, store } = await openDataPlace(TABLE_BUILT);
+        await importGraphFile(session);
+
+        await userEvent.click(await within(tree("Sources")).findByRole("treeitem", { name: "Node table" }));
+        const dock = await screen.findByRole("region", { name: "Table" });
+        assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
+        assert.equal(store.get().page, "panels");
+
+        await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
+        await waitFor(() => {
+            assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+        });
     });
 
     it("shows Find past 15 attributes, and Find narrows the list by name", async () => {

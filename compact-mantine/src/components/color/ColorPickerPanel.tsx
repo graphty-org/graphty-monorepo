@@ -7,15 +7,18 @@ import {
     parseColor,
     SegmentedControl,
     Select,
+    Tooltip,
 } from "@mantine/core";
 import { clampUseMovePosition, useMove } from "@mantine/hooks";
-import React, { type ReactNode, useEffect, useRef, useState } from "react";
+import React, { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
-import { normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
+import { useOptionalPopoutContext } from "../popout/PopoutContext";
 import { Chit } from "./Chit";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
+import { revertOnEscape } from "./escape";
 import { OpacityInput } from "./OpacityInput";
+import { typedColor } from "./typed-color";
 
 /** Mantine's color model: hue 0-360, saturation and value 0-100, alpha 0-1. */
 interface Hsva {
@@ -53,7 +56,32 @@ export interface ColorPickerPanelLabels {
     gradient: string;
     /** Name of the swatch list. */
     swatches: string;
+    /** A color as a reader says it ("dark green"), for the swatches' names and tooltips. */
+    colorWord: (color: string) => string;
+    /**
+     * A swatch's name and tooltip: its color word and hex, and whether it is the color the field
+     * held when the picker opened (the color before this edit).
+     */
+    swatch: (word: string, hex: string, start: boolean) => string;
+    /**
+     * Drawn under the value row, and spoken, after Enter on text that reads as no color in the
+     * format: what the box takes instead. The text stays in the box, marked, to be corrected.
+     */
+    refused: (typed: string, format: ColorPickerFormat) => string;
+    /**
+     * Drawn and spoken when the reader leaves the value box holding text that reads as no color:
+     * the box went back to `kept`, the value it shows for the color in force.
+     */
+    refusedKept: (typed: string, kept: string, format: ColorPickerFormat) => string;
 }
+
+/** What the value box takes, in each format, as the refusal says it. */
+const TAKES: Record<ColorPickerFormat, string> = {
+    hex: "Type a color name or a hex code such as 2E8B57.",
+    rgb: "Type three numbers such as 46, 139, 87.",
+    hsl: "Type three numbers such as 146, 50, 36.",
+    hsb: "Type three numbers such as 146, 67, 55.",
+};
 
 const DEFAULT_LABELS: ColorPickerPanelLabels = {
     saturation: "Saturation and brightness",
@@ -66,6 +94,11 @@ const DEFAULT_LABELS: ColorPickerPanelLabels = {
     solid: "Solid",
     gradient: "Gradient",
     swatches: "Swatches",
+    colorWord,
+    swatch: (word, hex, start) =>
+        `${[word, hex].filter(Boolean).join(" ")}${start ? ", the color before this edit" : ""}`,
+    refused: (typed, format) => `"${typed}" is not a color. ${TAKES[format]}`,
+    refusedKept: (typed, kept, format) => `"${typed}" is not a color, so this stays ${kept}. ${TAKES[format]}`,
 };
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
@@ -94,8 +127,20 @@ export interface ColorPickerPanelProps {
      * @default true
      */
     withAlpha?: boolean;
-    /** The swatch set under the divider, as hex or hexa strings. Each is named by its string. */
+    /**
+     * The swatch set under the divider, as hex or hexa strings. Each is named by its color word
+     * and hex. The color the picker opened on is always one of them (first, when the set lacks
+     * it), marked as the color before this edit, so going back to it is one click. While the
+     * picker is open, a swatch the set drops keeps its place and one it gains joins the end, so a
+     * picked swatch never moves away from under the pointer.
+     */
     swatches?: readonly string[];
+    /**
+     * Enter in the value box applies the color and closes the pop-out the picker sits in, which
+     * gives focus back to what opened it.
+     * @default false
+     */
+    closeOnEnter?: boolean;
     /**
      * The format the value row starts in.
      * @default "hex"
@@ -164,12 +209,9 @@ function formatValue(hsva: Hsva, format: ColorPickerFormat): string {
  */
 function parseValue(text: string, format: ColorPickerFormat, alpha: number): Hsva | undefined {
     if (format === "hex") {
-        const digits = text.trim().replace("#", "");
-        if (digits.length !== 3 && digits.length !== 6) {
-            return undefined;
-        }
-        const hexa = normalizeHexa(digits);
-        return hexa === undefined ? undefined : { ...parseColor(hexa.slice(0, 7)), a: alpha };
+        // The same entries as the paint field's hex box: hex digits or a color's name.
+        const color = typedColor(text);
+        return color === undefined ? undefined : { ...parseColor(color), a: alpha };
     }
     const n = text
         .split(/[\s,]+/)
@@ -259,6 +301,7 @@ function GradientGlyph(): React.JSX.Element {
  * @param props.onChangeEnd - called once per finished edit: a settled drag, a step, a commit or a pick
  * @param props.withAlpha - offer opacity
  * @param props.swatches - the swatch set
+ * @param props.closeOnEnter - Enter in the value box closes the enclosing pop-out
  * @param props.defaultFormat - the value row's first format
  * @param props.gradient - gradient content for the paint-type bar
  * @param props.paintType - the selected paint type
@@ -278,6 +321,7 @@ export function ColorPickerPanel({
     onChangeEnd,
     withAlpha = true,
     swatches = [],
+    closeOnEnter = false,
     defaultFormat = "hex",
     gradient,
     paintType = "solid",
@@ -290,6 +334,25 @@ export function ColorPickerPanel({
     hsvaRef.current = hsva;
     const [format, setFormat] = useState<ColorPickerFormat>(defaultFormat);
     const [draft, setDraft] = useState(formatValue(hsva, format));
+    // Why the last entry in the value box was refused, until the next edit. `held` while the box
+    // still holds the refused text (after Enter), false once it went back (it was left).
+    const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
+    const refusalId = useId();
+    // The color the picker opened on, and the swatches it has shown since, in their first order.
+    const [start] = useState(() => normalizeHexa(value));
+    const [shown, setShown] = useState<readonly string[]>(() => {
+        const length = withAlpha ? 9 : 7;
+        const held = swatches.some((swatch) => normalizeHexa(swatch)?.slice(0, length) === start?.slice(0, length));
+        return held || start === undefined ? swatches : [start, ...swatches];
+    });
+    const popout = useOptionalPopoutContext();
+    useEffect(() => {
+        setShown((before) => {
+            const known = new Set(before.map((swatch) => normalizeHexa(swatch)));
+            const gained = swatches.filter((swatch) => !known.has(normalizeHexa(swatch)));
+            return gained.length === 0 ? before : [...before, ...gained];
+        });
+    }, [swatches]);
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
     // describes the same color.
@@ -302,6 +365,8 @@ export function ColorPickerPanel({
 
     useEffect(() => {
         setDraft(formatValue(hsva, format));
+        // A new color or format answers an earlier refusal.
+        setRefusal(undefined);
     }, [hsva, format]);
 
     /**
@@ -366,16 +431,40 @@ export function ColorPickerPanel({
         settle();
     };
 
-    const commitDraft = (): void => {
+    /**
+     * Apply what was typed in the value box. Text that reads as no color is refused with a line
+     * saying what the box takes: Enter keeps it, marked, to be corrected; leaving the box redraws
+     * the color in force.
+     * @param byEnter - Enter ended the edit
+     * @returns whether the text was refused
+     */
+    const commitDraft = (byEnter = false): boolean => {
         const parsed = parseValue(draft, format, hsvaRef.current.a);
         if (parsed === undefined) {
-            setDraft(formatValue(hsvaRef.current, format));
-            return;
+            const typed = draft.trim();
+            const shownValue = formatValue(hsvaRef.current, format);
+            const refused = typed !== "" && draft !== shownValue;
+            setRefusal(
+                refused
+                    ? {
+                          message: byEnter
+                              ? labels.refused(typed, format)
+                              : labels.refusedKept(typed, shownValue, format),
+                          held: byEnter,
+                      }
+                    : undefined,
+            );
+            if (!refused || !byEnter) {
+                setDraft(shownValue);
+            }
+            return refused;
         }
+        setRefusal(undefined);
         if (toHexa(parsed) !== toHexa(hsvaRef.current)) {
             emit(parsed);
             settle();
         }
+        return false;
     };
 
     const eyeDropper = typeof window === "undefined" ? undefined : (window as EyeDropperWindow).EyeDropper;
@@ -394,6 +483,15 @@ export function ColorPickerPanel({
     };
 
     const opaque = toHexa(hsva).slice(0, 7);
+    /**
+     * Whether a swatch is the color in force (its opacity too, when the picker offers one).
+     * @param swatch - a hex or hexa color
+     * @returns true for the swatch equal to the value
+     */
+    const isCurrent = (swatch: string): boolean => {
+        const length = withAlpha ? 9 : 7;
+        return normalizeHexa(swatch)?.slice(0, length).toUpperCase() === toHexa(hsva).slice(0, length);
+    };
     const percent = Math.round(hsva.a * 100);
     const showGradient = gradient !== undefined && paintType === "gradient";
 
@@ -528,26 +626,43 @@ export function ColorPickerPanel({
                                     autoComplete="off"
                                     spellCheck={false}
                                     aria-label={labels.value}
+                                    aria-describedby={refusal === undefined ? undefined : refusalId}
+                                    aria-invalid={refusal?.held === true || undefined}
                                     data-testid="color-picker-value"
+                                    // A pop-out opened on the picker starts in its value box, so typing a hex sets it.
+                                    data-autofocus
                                     value={draft}
                                     onChange={(event) => {
+                                        setRefusal(undefined);
                                         setDraft(event.currentTarget.value);
                                     }}
                                     onFocus={(event) => {
                                         event.currentTarget.select();
                                     }}
-                                    onBlur={(event) => {
-                                        if (!isLeavingWithoutCommit(event)) {
-                                            commitDraft();
-                                        }
+                                    onBlur={() => {
+                                        commitDraft();
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
-                                            commitDraft();
+                                            // Refused text keeps the picker open, to be corrected.
+                                            if (commitDraft(true)) {
+                                                event.preventDefault();
+                                            } else if (closeOnEnter && popout !== null) {
+                                                // Without this the Enter would go on to press the
+                                                // trigger that close() focuses, opening it again.
+                                                event.preventDefault();
+                                                popout.close(event);
+                                            }
                                         } else if (event.key === "Escape") {
-                                            leaveWithoutCommit(event, () => {
-                                                setDraft(formatValue(hsvaRef.current, format));
-                                            });
+                                            const shownValue = formatValue(hsvaRef.current, format);
+                                            setRefusal(undefined);
+                                            revertOnEscape(
+                                                event,
+                                                () => {
+                                                    setDraft(shownValue);
+                                                },
+                                                draft !== shownValue,
+                                            );
                                         }
                                     }}
                                 />
@@ -564,23 +679,48 @@ export function ColorPickerPanel({
                                 )}
                             </div>
                         </div>
+                        {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
+                        {refusal !== undefined && (
+                            <div
+                                id={refusalId}
+                                role="alert"
+                                className="cm-field-error cm-color-picker-message"
+                                data-testid="color-picker-message"
+                            >
+                                {refusal.message}
+                            </div>
+                        )}
                     </div>
 
-                    {swatches.length > 0 && (
+                    {shown.length > 0 && (
                         <fieldset className="cm-fieldset cm-color-swatches" aria-label={labels.swatches}>
-                            {swatches.map((swatch, index) => (
-                                <button
-                                    key={`${String(index)}-${swatch}`}
-                                    type="button"
-                                    className="cm-color-swatch-button cm-focus-double"
-                                    aria-label={swatch}
-                                    onClick={() => {
-                                        emitExact(swatch);
-                                    }}
-                                >
-                                    <Chit color={swatch} />
-                                </button>
-                            ))}
+                            {shown.map((swatch, index) => {
+                                const hexa = normalizeHexa(swatch);
+                                const isStart =
+                                    hexa !== undefined &&
+                                    hexa.slice(0, withAlpha ? 9 : 7) === start?.slice(0, withAlpha ? 9 : 7);
+                                const name = labels.swatch(
+                                    labels.colorWord(swatch),
+                                    (hexa ?? swatch).replace("#", "").replace(/(.{6})FF$/, "$1"),
+                                    isStart,
+                                );
+                                return (
+                                    <Tooltip key={`${String(index)}-${swatch}`} label={name}>
+                                        <button
+                                            type="button"
+                                            className="cm-color-swatch-button cm-focus-double"
+                                            aria-label={name}
+                                            aria-pressed={isCurrent(swatch)}
+                                            data-start={isStart || undefined}
+                                            onClick={() => {
+                                                emitExact(swatch);
+                                            }}
+                                        >
+                                            <Chit color={swatch} />
+                                        </button>
+                                    </Tooltip>
+                                );
+                            })}
                         </fieldset>
                     )}
                 </>

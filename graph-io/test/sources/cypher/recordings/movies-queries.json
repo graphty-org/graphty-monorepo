@@ -1,0 +1,1245 @@
+[
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"MATCH p = (:Person {name: $name})-[:ACTED_IN]->() RETURN p\",\"parameters\":{\"name\":\"Tom Hanks\"},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "data": {
+                "fields": ["p"],
+                "values": [
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:202",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:144",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Jim Lovell" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:144",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Houston, we have a problem." },
+                                            "votes": { "$type": "Integer", "_value": "214" },
+                                            "title": { "$type": "String", "_value": "Apollo 13" },
+                                            "released": { "$type": "Integer", "_value": "1995" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:84",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:67",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Joe Fox" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:67",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "At odds in life... in love on-line."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "95" },
+                                            "title": { "$type": "String", "_value": "You've Got Mail" },
+                                            "released": { "$type": "Integer", "_value": "1998" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:234",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:162",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Jimmy Dugan" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:162",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "Once in a lifetime you get a chance to do something different."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "72" },
+                                            "title": { "$type": "String", "_value": "A League of Their Own" },
+                                            "released": { "$type": "Integer", "_value": "1992" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:98",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:78",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Joe Banks" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:78",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "A story of love, lava and burning desire."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "112" },
+                                            "title": { "$type": "String", "_value": "Joe Versus the Volcano" },
+                                            "released": { "$type": "Integer", "_value": "1990" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:110",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:85",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Mr. White" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:85",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "In every life there comes a time when that thing you dream becomes that thing you do"
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "29" },
+                                            "title": { "$type": "String", "_value": "That Thing You Do" },
+                                            "released": { "$type": "Integer", "_value": "1996" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:146",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:111",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Dr. Robert Langdon" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:111",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Break The Codes" },
+                                            "votes": { "$type": "Integer", "_value": "308" },
+                                            "title": { "$type": "String", "_value": "The Da Vinci Code" },
+                                            "released": { "$type": "Integer", "_value": "2006" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:137",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:105",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [
+                                                    { "$type": "String", "_value": "Zachry" },
+                                                    { "$type": "String", "_value": "Dr. Henry Goose" },
+                                                    { "$type": "String", "_value": "Isaac Sachs" },
+                                                    { "$type": "String", "_value": "Dermot Hoggins" }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:105",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Everything is connected" },
+                                            "votes": { "$type": "Integer", "_value": "127" },
+                                            "title": { "$type": "String", "_value": "Cloud Atlas" },
+                                            "released": { "$type": "Integer", "_value": "2012" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:213",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:150",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Chuck Noland" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:150",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "At the edge of the world, his journey begins."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "108" },
+                                            "title": { "$type": "String", "_value": "Cast Away" },
+                                            "released": { "$type": "Integer", "_value": "2000" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:182",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:130",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Paul Edgecomb" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:130",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "Walk a mile you'll never forget."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "74" },
+                                            "title": { "$type": "String", "_value": "The Green Mile" },
+                                            "released": { "$type": "Integer", "_value": "1999" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:91",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:73",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Sam Baldwin" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:73",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "What if someone you never met, someone you never saw, someone you never knew was the only someone for you?"
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "47" },
+                                            "title": { "$type": "String", "_value": "Sleepless in Seattle" },
+                                            "released": { "$type": "Integer", "_value": "1993" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:232",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:161",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [
+                                                    { "$type": "String", "_value": "Hero Boy" },
+                                                    { "$type": "String", "_value": "Father" },
+                                                    { "$type": "String", "_value": "Conductor" },
+                                                    { "$type": "String", "_value": "Hobo" },
+                                                    { "$type": "String", "_value": "Scrooge" },
+                                                    { "$type": "String", "_value": "Santa Claus" }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:161",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "This Holiday Season… Believe" },
+                                            "votes": { "$type": "Integer", "_value": "188" },
+                                            "title": { "$type": "String", "_value": "The Polar Express" },
+                                            "released": { "$type": "Integer", "_value": "2004" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Tom Hanks" },
+                                            "born": { "$type": "Integer", "_value": "1956" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:228",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:71",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:159",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Rep. Charlie Wilson" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:159",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire."
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "25" },
+                                            "title": { "$type": "String", "_value": "Charlie Wilson's War" },
+                                            "released": { "$type": "Integer", "_value": "2007" }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                ]
+            },
+            "bookmarks": ["FB:kcwQe/mHqqPYR1mXooTeJAcEbck0PpA="]
+        }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"MATCH (k:Person {name: $name}) RETURN k\",\"parameters\":{\"name\":\"Keanu Reeves\"},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "data": {
+                "fields": ["k"],
+                "values": [
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        }
+                    ]
+                ]
+            },
+            "bookmarks": ["FB:kcwQe/mHqqPYR1mXooTeJAcEbck0PpA="]
+        }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"MATCH (s) WHERE elementId(s) IN $ids OPTIONAL MATCH p = (s)-[*1..1]-(x) WITH s, p RETURN s, p, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [elementId(m), size([(m)--() | 1])]] AS degrees\",\"parameters\":{\"ids\":[\"4:7bf987aa-a3d8-4759-97a2-84de2407046d:1\"]},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "data": {
+                "fields": ["s", "p", "degrees"],
+                "values": [
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:221",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:154",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Julian Mercer" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:154",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "title": { "$type": "String", "_value": "Something's Gotta Give" },
+                                            "votes": { "$type": "Integer", "_value": "57" },
+                                            "released": { "$type": "Integer", "_value": "2003" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:154" },
+                                        { "$type": "Integer", "_value": "6" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:114",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:87",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Shane Falco" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:87",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "Pain heals, Chicks dig scars... Glory lasts forever"
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "25" },
+                                            "title": { "$type": "String", "_value": "The Replacements" },
+                                            "released": { "$type": "Integer", "_value": "2000" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:87" },
+                                        { "$type": "Integer", "_value": "8" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:132",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:100",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Johnny Mnemonic" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:100",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "The hottest data on earth. In the coolest head in town"
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "41" },
+                                            "title": { "$type": "String", "_value": "Johnny Mnemonic" },
+                                            "released": { "$type": "Integer", "_value": "1995" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:100" },
+                                        { "$type": "Integer", "_value": "5" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:22",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:11",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Kevin Lomax" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:11",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Evil has its winning ways" },
+                                            "votes": { "$type": "Integer", "_value": "250" },
+                                            "title": { "$type": "String", "_value": "The Devil's Advocate" },
+                                            "released": { "$type": "Integer", "_value": "1997" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:11" },
+                                        { "$type": "Integer", "_value": "4" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:15",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:10",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Neo" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:10",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": {
+                                                "$type": "String",
+                                                "_value": "Everything that has a beginning has an end"
+                                            },
+                                            "votes": { "$type": "Integer", "_value": "1605" },
+                                            "title": { "$type": "String", "_value": "The Matrix Revolutions" },
+                                            "released": { "$type": "Integer", "_value": "2003" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:10" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:8",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:9",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Neo" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:9",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Free your mind" },
+                                            "votes": { "$type": "Integer", "_value": "1951" },
+                                            "title": { "$type": "String", "_value": "The Matrix Reloaded" },
+                                            "released": { "$type": "Integer", "_value": "2003" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:9" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    [
+                        {
+                            "$type": "Node",
+                            "_value": {
+                                "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                "_labels": ["Person"],
+                                "_properties": {
+                                    "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                    "born": { "$type": "Integer", "_value": "1964" }
+                                }
+                            }
+                        },
+                        {
+                            "$type": "Path",
+                            "_value": [
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_labels": ["Person"],
+                                        "_properties": {
+                                            "name": { "$type": "String", "_value": "Keanu Reeves" },
+                                            "born": { "$type": "Integer", "_value": "1964" }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Relationship",
+                                    "_value": {
+                                        "_element_id": "5:7bf987aa-a3d8-4759-97a2-84de2407046d:0",
+                                        "_start_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1",
+                                        "_end_node_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:0",
+                                        "_type": "ACTED_IN",
+                                        "_properties": {
+                                            "roles": {
+                                                "$type": "List",
+                                                "_value": [{ "$type": "String", "_value": "Neo" }]
+                                            }
+                                        }
+                                    }
+                                },
+                                {
+                                    "$type": "Node",
+                                    "_value": {
+                                        "_element_id": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:0",
+                                        "_labels": ["Movie"],
+                                        "_properties": {
+                                            "tagline": { "$type": "String", "_value": "Welcome to the Real World" },
+                                            "votes": { "$type": "Integer", "_value": "307" },
+                                            "title": { "$type": "String", "_value": "The Matrix" },
+                                            "released": { "$type": "Integer", "_value": "1999" }
+                                        }
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:1" },
+                                        { "$type": "Integer", "_value": "7" }
+                                    ]
+                                },
+                                {
+                                    "$type": "List",
+                                    "_value": [
+                                        { "$type": "String", "_value": "4:7bf987aa-a3d8-4759-97a2-84de2407046d:0" },
+                                        { "$type": "Integer", "_value": "8" }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                ]
+            },
+            "bookmarks": ["FB:kcwQe/mHqqPYR1mXooTeJAcEbck0PpA="]
+        }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"MATCH (n RETURN n\",\"parameters\":{},\"accessMode\":\"Read\"}",
+        "status": 400,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "errors": [
+                {
+                    "code": "Neo.ClientError.Statement.SyntaxError",
+                    "message": "Invalid input 'RETURN': expected a graph pattern, a parameter, ')', ':', 'IS', 'WHERE' or '{' (line 1, column 10 (offset: 9))\n\"MATCH (n RETURN n\"\n          ^"
+                }
+            ]
+        }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"RETURN 1 AS one\",\"parameters\":{},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "data": { "fields": ["one"], "values": [[{ "$type": "Integer", "_value": "1" }]] },
+            "bookmarks": ["FB:kcwQe/mHqqPYR1mXooTeJAcEbck0PpA="]
+        }
+    },
+    {
+        "method": "POST",
+        "url": "https://demo.neo4jlabs.com:7473/db/movies/query/v2",
+        "requestBody": "{\"statement\":\"CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition\",\"parameters\":{},\"accessMode\":\"Read\"}",
+        "status": 202,
+        "headers": { "content-type": "application/vnd.neo4j.query.v1.1" },
+        "body": {
+            "data": {
+                "fields": ["name", "versions", "edition"],
+                "values": [
+                    [
+                        { "$type": "String", "_value": "Neo4j Kernel" },
+                        { "$type": "List", "_value": [{ "$type": "String", "_value": "2026.05.0" }] },
+                        { "$type": "String", "_value": "enterprise" }
+                    ],
+                    [
+                        { "$type": "String", "_value": "Cypher" },
+                        {
+                            "$type": "List",
+                            "_value": [
+                                { "$type": "String", "_value": "5" },
+                                { "$type": "String", "_value": "25" }
+                            ]
+                        },
+                        { "$type": "String", "_value": "" }
+                    ]
+                ]
+            },
+            "bookmarks": ["FB:kcwQe/mHqqPYR1mXooTeJAcEbck0PpA="]
+        }
+    }
+]

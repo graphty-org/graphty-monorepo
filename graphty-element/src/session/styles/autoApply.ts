@@ -55,6 +55,7 @@ import type { Channel, RunId } from "../../catalog/types";
 import type { StyleCommand } from "../commands/style";
 import type { RunRef } from "../results/types";
 import type { RunPainting, RunStatus, RunStyle, SuggestionOutcome } from "../runs/types";
+import type { RunPlacement } from "../types";
 import { type StyleSuggestion, suggestStyles } from "./derive";
 import type { EncodingRun } from "./EncodingSpec";
 import type { Layer } from "./Layer";
@@ -95,6 +96,12 @@ export interface AutoApplySources {
      * @returns The stack, or undefined when this session has none.
      */
     readonly styles: () => AutoApplyStyles | undefined;
+    /**
+     * Where a run's layer lands, read at each decision: `"top"` suppresses nothing, and the styles
+     * API then puts the layer on top of the unpinned rows. Absent reads as `"beneath"`.
+     * @returns The project setting `runPlacement`.
+     */
+    readonly placement?: () => RunPlacement;
     /**
      * Called when applying a suggestion was refused.
      *
@@ -232,13 +239,36 @@ export function authoredDriving(layer: Layer, channels: readonly Channel[]): boo
 
 /**
  * The authored layer that already drives one of these channels on every element, so a
- * suggestion beneath it could never show.
+ * suggestion beneath it could never show. A layer whose row is hidden paints nothing, so it
+ * holds nothing back.
  * @param layers - The stack.
  * @param channels - The channels the suggestion would paint.
  * @returns That layer, or undefined when the suggestion may paint.
  */
 function authoredCovering(layers: readonly Layer[], channels: readonly Channel[]): Layer | undefined {
-    return layers.find((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+    return layers.find(
+        (layer) => layer.hidden !== true && layer.selector.match === "everything" && authoredDriving(layer, channels),
+    );
+}
+
+/**
+ * The stack as run placement reads it: while the Everything starting row holds the element's base
+ * look (`editableBase`), its values are the floor, not a decision somebody made, so they neither
+ * hold a run back nor put it beneath them. Read as disabled, in place, so indices still match.
+ * @param layers - The stack, bottom first.
+ * @param editableBase - Whether the Everything row holds the base look.
+ * @returns The layers to place against.
+ */
+export function placementLayers(layers: readonly Layer[], editableBase: boolean): readonly Layer[] {
+    if (!editableBase) {
+        return layers;
+    }
+
+    return layers.map((layer) =>
+        layer.source.by === "template" && layer.source.templateId === "graphty:starting-everything"
+            ? { ...layer, enabled: false }
+            : layer,
+    );
 }
 
 /**
@@ -331,6 +361,11 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
 
         if (suggestions.length === 0 || styles === undefined) {
             return { paint: NOTHING, suppressed: [] };
+        }
+
+        // On top, a run's picture is never held back: it lands above the reader's rows.
+        if (sources.placement?.() === "top") {
+            return { paint: Object.freeze([...suggestions]), suppressed: [] };
         }
 
         const stack = styles.list();

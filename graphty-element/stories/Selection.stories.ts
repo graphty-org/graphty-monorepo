@@ -15,6 +15,7 @@ import {
     assertDrawnColour,
     assertGraphLoaded,
     assertLabelsDrawn,
+    assertLabelsReadable,
     assertSelectionDrawn,
     drawn,
     holds,
@@ -60,7 +61,8 @@ const setUpSelectionDemo = (element: Graphty, viewMode: ViewMode): void => {
             "node.shape": "sphere",
             "node.size": 1.5,
             "node.color": "#4A90D9",
-            "node.labelStyle": { sizePx: 14, color: "#FFFFFF" },
+            // Dark letters, large enough to read: the label sits above the node, on the light canvas.
+            "node.labelStyle": { sizePx: 32, color: "#222222" },
         },
         encode: { "node.label": { by: "data.label", scale: "passthrough" } },
     });
@@ -155,6 +157,7 @@ const selects = async (canvasElement: HTMLElement, story: string): Promise<void>
     await assertGraphLoaded(scene, { nodes: 5, edges: 5 });
     await assertDrawnColour(scene, "#4a90d9");
     await assertLabelsDrawn(scene);
+    await assertLabelsReadable(scene);
     await assertSelectionDrawn(scene, "alpha");
 
     // The status bar is the story's own chrome, and it is driven by the element's

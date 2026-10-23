@@ -1,0 +1,383 @@
+{
+    "sample": "graphology-specimen-arrows-p2",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-arrows-p2.json",
+    "fileSha256": "9b6f903365167913130d37f57289fdc828fb186cd597805c95e2327c5ca962b5",
+    "svgSha256": "f0c0c8b5f947f9a5c7837d926e6ae2746ee8baadc3ec6d9bb13970c4478aa84a",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 28,
+        "edges": 8,
+        "labelsShown": 8
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default-s",
+                "x": 130.7586186918719,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default-t",
+                "x": 204.1379293491101,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-plain-s",
+                "x": 347.0344816816264,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-plain-t",
+                "x": 420.4137923388646,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-line-s",
+                "x": 563.3103446713809,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-line-t",
+                "x": 636.689655328619,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-arrow-s",
+                "x": 779.5862076611355,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-arrow-t",
+                "x": 852.9655183183737,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-curvedarrow-s",
+                "x": 995.8620706508899,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-curvedarrow-t",
+                "x": 1069.2413813081282,
+                "y": 238.55171648592793,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-curve-s",
+                "x": 130.7586186918719,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-type-curve-t",
+                "x": 204.1379293491101,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-size-6-s",
+                "x": 347.0344816816264,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-size-6-t",
+                "x": 420.4137923388646,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-head-arrow-s",
+                "x": 563.3103446713809,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "edge-head-arrow-t",
+                "x": 636.689655328619,
+                "y": 634.4137997771132,
+                "r": 4.827586304525191,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 91.75172197407694,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "graph type=undirected",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-plain",
+                "x": 308.0275849638315,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "graph type=undirected",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-type-line",
+                "x": 563.696551569577,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=line",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-type-arrow",
+                "x": 776.6896559246655,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=arrow",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-type-curvedarrow",
+                "x": 973.2689671064245,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=curvedArrow",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-type-curve",
+                "x": 127.86206695540201,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "type=curve",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-size-6",
+                "x": 357.26896448382024,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "size=6",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-edge-head-arrow",
+                "x": 560.413792934911,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "head=arrow",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": [
+            {
+                "id": "default",
+                "source": "default-s",
+                "target": "default-t",
+                "color": "#ccc",
+                "fill": "#cccccc",
+                "alpha": 1,
+                "type": null,
+                "size": 1,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-plain",
+                "source": "edge-plain-s",
+                "target": "edge-plain-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-type-line",
+                "source": "edge-type-line-s",
+                "target": "edge-type-line-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-type-arrow",
+                "source": "edge-type-arrow-s",
+                "target": "edge-type-arrow-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-type-curvedarrow",
+                "source": "edge-type-curvedarrow-s",
+                "target": "edge-type-curvedarrow-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-type-curve",
+                "source": "edge-type-curve-s",
+                "target": "edge-type-curve-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            },
+            {
+                "id": "edge-size-6",
+                "source": "edge-size-6-s",
+                "target": "edge-size-6-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 6,
+                "width": 2.896551782715114,
+                "label": null
+            },
+            {
+                "id": "edge-head-arrow",
+                "source": "edge-head-arrow-s",
+                "target": "edge-head-arrow-t",
+                "color": "#505050",
+                "fill": "#505050",
+                "alpha": 1,
+                "type": null,
+                "size": 1.5,
+                "width": 0.8499999999999999,
+                "label": null
+            }
+        ]
+    },
+    "pageErrors": []
+}

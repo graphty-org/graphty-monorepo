@@ -72,6 +72,7 @@ uniform mat4 viewProjection;
 uniform mat4 projection;
 uniform vec2 resolution;
 uniform float width;
+uniform float minWidth;
 uniform float miterLimit;
 
 varying vec4 vScreen;
@@ -97,15 +98,17 @@ vec2 perpOf(vec2 v) {
     return vec2(-v.y, v.x);
 }
 
-// Half the line's width in pixels at a point, before a sub-pixel line is widened.
+// Half the line's width in pixels at a point, before a sub-pixel line is widened: never under
+// half of minWidth, the fewest pixels wide the line is drawn (line.minScreenWidth).
 float halfWidthAt(vec4 c) {
 #ifdef WORLD_WIDTH
-    return width * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
+    float hw = width * length(world[1].xyz) * projection[1][1] * resolution.y * 0.25 / c.w;
 #else
     // The 3D line's own scale: an offset of width / 2 over the resolution in clip space, which the
     // perspective divide tapers with distance.
-    return width * 0.25 / c.w;
+    float hw = width * 0.25 / c.w;
 #endif
+    return max(hw, minWidth * 0.5);
 }
 
 // A line thinner than one pixel is drawn one pixel wide and fainter, as a canvas draws a hairline.

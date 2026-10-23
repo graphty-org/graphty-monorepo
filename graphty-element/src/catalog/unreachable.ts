@@ -24,8 +24,8 @@
  *
  * WHAT "UNREACHABLE" MEANS HERE, precisely: no style channel can make this field take a value the
  * author chose. A field the painter writes to a fixed value of its own is unreachable --
- * `texture.color.colorType` is pinned to "solid" on every node so that the per-instance colour
- * can show, which is exactly why a gradient node fill cannot survive the paint path.
+ * `texture.color.value` is pinned to a neutral white on every node so that the per-instance colour
+ * can show.
  *
  * WHAT IT IS NOT. It is not a list of bugs and not a roadmap. Some entries are deliberate and
  * permanent: a label's world position is computed by the renderer and a layer has no business
@@ -113,19 +113,6 @@ export const WAIVER_EXPIRY_UNSET = "2026-12-21";
  */
 export const WAIVER_HORIZON_DAYS = 400;
 
-/**
- * A defect waiver nobody has taken yet.
- *
- * Every defect in this file is written through this helper today, which is exactly the state the
- * owner is being asked to correct: read the reason, decide who owns it, and give it a date that
- * reflects a real plan instead of a placeholder.
- * @param reason - What is broken, and what a consumer meets because of it.
- * @returns The waiver, carrying the placeholder owner and the placeholder expiry.
- */
-function unownedDefect(reason: string): DefectWaiver {
-    return { kind: "defect", reason, owner: WAIVER_OWNER_UNASSIGNED, expires: WAIVER_EXPIRY_UNSET };
-}
-
 /** One style field a consumer cannot reach, why, and whether that is a decision or a defect. */
 export type UnreachableStyleField = Waiver & {
     /** Whether the field belongs to a node style or an edge style. */
@@ -205,6 +192,11 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.stops":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -255,47 +247,13 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
             "label. This is the one case the package already handled honestly.",
     },
     {
-        ...unownedDefect(
-            "The source mesh's material is painted a neutral solid so that each node's own " +
-                "instance colour can show -- one material per colour would be one source mesh " +
-                "per colour, fifty thousand of them for a continuous ramp. So the paint path " +
-                'pins this to "solid" on every node and no channel can choose otherwise, ' +
-                "which is why a gradient node fill cannot survive a repaint even though " +
-                "`NodeMesh` still builds one. Register row 24, which is open: a channel " +
-                "carrying an advanced colour, or the renderer branch deleted.",
-        ),
-        target: "node",
-        path: "texture.color.colorType",
-    },
-    {
-        ...unownedDefect(
-            "Pinned to a neutral white by the paint path, for the same reason as " +
-                "`texture.color.colorType`: the colour a reader sees is written into the node's " +
-                "own instance, beside the style, through the `node.color` channel. Register " +
-                "row 24.",
-        ),
+        reason:
+            "Pinned to a neutral white by the paint path: one material per colour would be one " +
+            "source mesh per colour, so the colour a reader sees is written into the node's own " +
+            "instance, beside the style, through the `node.color` channel.",
+        kind: "by-design",
         target: "node",
         path: "texture.color.value",
-    },
-    {
-        ...unownedDefect(
-            "The colour stops of a gradient node fill. `NodeMesh.createMaterial` builds linear " +
-                "and radial gradients and tests cover them, and no channel reaches any of it " +
-                "because the paint path overwrites the whole colour with a neutral solid. " +
-                "Register row 24: publish a channel carrying an advanced colour, or delete the " +
-                "renderer branch.",
-        ),
-        target: "node",
-        path: "texture.color.colors",
-    },
-    {
-        ...unownedDefect(
-            "Which way a gradient node fill runs. Unreachable for the same reason as " +
-                "`texture.color.colors`: the paint path replaces the colour with a neutral " +
-                "solid before the material is built. Register row 24.",
-        ),
-        target: "node",
-        path: "texture.color.direction",
     },
     ...namedBlockOf("node", "label", LABEL_RESIDUE),
 
@@ -378,6 +336,18 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
+        (channel): UnpaintedChannel => ({
+            kind: "by-design",
+            channel,
+            reason:
+                "A NODE TOOLTIP IS DRAWN and this look reaches it, so this waiver is about the " +
+                "reading, as for `node.tooltipStyle` above: the tooltip is hover-only and this " +
+                "gate paints into a RESTING scene. `test/browser/node-tooltip-style-draws.test.ts` " +
+                "hovers a node with a real pointer and requires the size and the panel colour " +
+                "these channels write to be the ones drawn.",
+        }),
+    ),
 ];
 
 /**

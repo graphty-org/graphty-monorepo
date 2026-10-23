@@ -58,6 +58,12 @@ const BASELINE_HEIGHT = 1;
 const AXIS_ROW_HEIGHT = 16;
 
 /**
+ * How far above a histogram row's bottom its drawing ends: the axis line and the gap over it. A
+ * control laid over the bars (the ramp editor) stops this far from the bottom.
+ */
+export const HISTOGRAM_AXIS_INSET = AXIS_ROW_HEIGHT + CHART_GAP;
+
+/**
  * The gap between two bars of a histogram.
  */
 const BAR_GAP = 2;
@@ -146,6 +152,11 @@ export interface HistogramBin {
     count: number;
     /** Draws this bar in the accent color, for the bin the reader has selected or the one being explained. */
     highlighted?: boolean;
+    /**
+     * A CSS color to paint this bar, such as what a color mapping gives the values in it, so the
+     * chart is also a picture of the mapping. `highlighted` wins over it.
+     */
+    paint?: string;
 }
 
 /**
@@ -320,7 +331,7 @@ export interface MetricRowProps {
     onClick?: ActivationHandlerWithMeta;
     /** Called on a double click, for opening the metric rather than selecting it. */
     onDoubleClick?: React.MouseEventHandler<HTMLDivElement>;
-    /** Called on a right click or a long press, for a context menu of your own. */
+    /** Called on a right click (a `contextmenu` event), for a context menu of your own. Wrap the row in ContextMenu to open one on a touch-and-hold too. */
     onContextMenu?: React.MouseEventHandler<HTMLDivElement>;
     /** Called when the row takes focus. Forwarded untouched. */
     onFocus?: React.FocusEventHandler<HTMLDivElement>;
@@ -651,7 +662,9 @@ export function HistogramRow({
                                 <Box
                                     key={`${bin.label}-${String(index)}`}
                                     data-testid="histogram-bar"
+                                    className="cm-histogram-bar"
                                     data-highlighted={highlighted ? "true" : "false"}
+                                    data-painted={bin.paint !== undefined && !highlighted ? "true" : undefined}
                                     // One mark of a drawing, not a picture of its
                                     // own. The title stays: it is the tooltip a
                                     // sighted reader hovers for.
@@ -662,7 +675,7 @@ export function HistogramRow({
                                         minWidth: 0,
                                         height: `${String(share)}%`,
                                         minHeight: count > 0 ? MIN_BAR_HEIGHT : 0,
-                                        background: highlighted ? PANEL_INK.ACCENT_GRAPHIC : MARK_INK,
+                                        background: highlighted ? PANEL_INK.ACCENT_GRAPHIC : (bin.paint ?? MARK_INK),
                                         borderRadius: BAR_RADIUS,
                                     }}
                                 />
@@ -860,7 +873,7 @@ export function SparklineRow({
  * @param props.live - How urgently a screen reader announces the row when it changes on its own
  * @param props.onClick - Called when the row is activated, with the event and whether it came from a pointer or the keyboard
  * @param props.onDoubleClick - Called on a double click
- * @param props.onContextMenu - Called on a right click or a long press
+ * @param props.onContextMenu - Called on a right click (a `contextmenu` event)
  * @param props.onFocus - Called when the row takes focus
  * @param props.onBlur - Called when the row loses focus
  * @returns The metric row

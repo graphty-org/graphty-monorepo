@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Turns autosave on (a key, `""` or `true`) or off (`null`, `false`).
+     */
+    autosave?: Graphty["autosave"];
+    /**
+     * Sets the restore mode; anything but `"manual"` is `"auto"`.
+     */
+    autosaveRestore?: Graphty["autosaveRestore"];
+    /**
+     * Sets the options.
+     */
+    autosaveOptions?: Graphty["autosaveOptions"];
+    /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row, its position and its edges and takes its new record, and one it no longer
      * names goes, with its edges.
@@ -112,6 +124,18 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    autoRotate?: Graphty["autoRotate"];
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    pixelRatio?: Graphty["pixelRatio"];
+    /**
+     * Sets the room framing keeps clear. A value the schema refuses is reported and dropped.
+     */
+    fitInsets?: Graphty["fitInsets"];
+    /**
      * Switches drawing on demand on or off.
      */
     renderOnDemand?: Graphty["renderOnDemand"];
@@ -149,6 +173,18 @@ export interface GraphtyElementJSXProps {
      * Switches the camera's own framing on or off.
      */
     autoFrame?: Graphty["autoFrame"];
+    /**
+     * Switches zooming toward the pointer on or off.
+     */
+    zoomToPointer?: Graphty["zoomToPointer"];
+    /**
+     * Sets how the 3D nodes are lit.
+     */
+    lighting?: Graphty["lighting"];
+    /**
+     * Sets the view insets.
+     */
+    viewInsets?: Graphty["viewInsets"];
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
@@ -195,6 +231,11 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    "aria-label"?: string;
+    /**
+     * Sets the restore mode; anything but `"manual"` is `"auto"`.
+     */
+    "autosave-restore"?: string;
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row, its position and its edges and takes its new record, and one it no longer
@@ -262,6 +303,14 @@ export interface GraphtyElementJSXProps {
      */
     "label-declutter"?: boolean;
     /**
+     * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
+     */
+    "auto-rotate"?: string;
+    /**
+     * Sets how many pixels the canvas is drawn with per CSS pixel.
+     */
+    "pixel-ratio"?: string;
+    /**
      * Switches drawing on demand on or off.
      */
     "render-on-demand"?: boolean;
@@ -282,6 +331,10 @@ export interface GraphtyElementJSXProps {
      * Switches the camera's own framing on or off.
      */
     "auto-frame"?: boolean;
+    /**
+     * Switches zooming toward the pointer on or off.
+     */
+    "zoom-to-pointer"?: boolean;
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
@@ -370,6 +423,10 @@ export interface GraphtyElementJSXProps {
      * Emitted once the render loop has started, after the element finished initializing.
      */
     "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
+    "ongraphty-autosave-at-risk"?: (event: GraphtyElementEventMap["graphty-autosave-at-risk"]) => void;
+    "ongraphty-autosave-available"?: (event: GraphtyElementEventMap["graphty-autosave-available"]) => void;
+    "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
+    "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
@@ -382,6 +439,9 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
+    "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
+    "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.

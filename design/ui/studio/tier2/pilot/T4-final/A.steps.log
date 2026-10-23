@@ -1,0 +1,40 @@
+== T4A start empty
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/01.png
+exit 0
+== T4A step: --click "No thanks"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/02.png
+exit 0
+== T4A step: --click "New from data..."
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/03.png
+exit 0
+== T4A step: --click "choose a file..." --upload people.csv
+a file chooser is open (answer it with --upload <file>)
+chose the file people.csv
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/04.png
+exit 0
+== T4A step: --click "Add a table"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/05.png
+exit 0
+== T4A step: --click "File..." --upload messages.csv
+a file chooser is open (answer it with --upload <file>)
+chose the file messages.csv
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/06.png
+exit 0
+== T4A step: --click "Show the 1 unmatched row"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/07.png
+exit 0
+== T4A step: --click "Load"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/08.png
+exit 0
+== T4A step: --click "Data"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/09.png
+exit 0
+== T4A step: --hover "people.csv and messages.csv"
+tooltip: "people.csv and messages.csv"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/10.png
+exit 0
+== T4A step: --click "people.csv and messages.csv"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A/11.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T4-final/A

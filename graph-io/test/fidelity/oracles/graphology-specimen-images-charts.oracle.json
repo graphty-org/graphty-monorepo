@@ -1,0 +1,142 @@
+{
+    "sample": "graphology-specimen-images-charts",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-images-charts.json",
+    "fileSha256": "f3abe4dcced8c9999538ac25834c270629bed61b5f8b8217ef884bf99f45c9ac",
+    "svgSha256": "22277e62e665b5e8a65caa8e9dcd7b6a0cc2cfee2cdfb00dcb06400dd02ba119",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 12,
+        "edges": 0,
+        "labelsShown": 4
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 194.4827568942103,
+                "y": 436.48275813152054,
+                "r": 9.655172609050382,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "type-image-with-image",
+                "x": 464.8275856314034,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "image-without-type",
+                "x": 735.1724143685966,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-image-without-image",
+                "x": 1005.5172431057897,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 93.68275646505688,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-image-with-image",
+                "x": 392.41379221965525,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "type,image=image,svg",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-image-without-type",
+                "x": 698.8689659381736,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "image=svg",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-image-without-image",
+                "x": 965.9310360407007,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "type=image",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

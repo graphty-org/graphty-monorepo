@@ -14,6 +14,7 @@
  */
 import { commands } from "vitest/browser";
 
+import { CM_COLORS } from "../../src/theme/tokens";
 import type { MeasureSpec } from "./measure";
 
 /** One captured element, as the study's capture script wrote it. */
@@ -123,8 +124,14 @@ export async function figmaElement(path: string, selector: FigmaSelector): Promi
 }
 
 /**
+ * Where the theme's default departs from Figma on purpose: Figma's light secondary text (50% black)
+ * reads at 4.0:1 on white, under WCAG 1.4.3's 4.5:1, so the theme draws it darker.
+ */
+const RAISED_TEXT: Record<string, string> = { "rgba(0, 0, 0, 0.5)": CM_COLORS["text-secondary"].light };
+
+/**
  * Build a MeasureSpec from a captured element: `width` / `height` come from its box, anything
- * else from its computed style.
+ * else from its computed style (a text color the theme raised for contrast reads as the raised one).
  * @param el - the captured element
  * @param properties - `width`, `height` and camelCase CSS properties
  * @returns the spec
@@ -141,7 +148,7 @@ export function figmaSpec(el: FigmaElement, properties: readonly string[]): Meas
             if (v === undefined) {
                 throw new Error(`the capture has no computed ${p} (element #${el.index})`);
             }
-            spec[p] = v;
+            spec[p] = p === "color" ? (RAISED_TEXT[v] ?? v) : v;
         }
     }
     return spec;

@@ -1,0 +1,39 @@
+{
+    "sample": "gexf-specimen-node-fills-borders-p3",
+    "file": "graph-io/test/fidelity/specimens/gexf/specimen-node-fills-borders.gexf",
+    "sha256": "c647fd7f8b5f5170ddc8a4ef1ee17245ba5e57e2497d221bbbdfb2cf27140bc8",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale \"set:node.label.show=true\" \"set:node.label.avoidOverlap=false\" \"set:node.border.fixed=true\" \"set:node.border.width=4.0\"",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default, unless previewProperties sets it)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored file as is",
+    "previewProperties": {
+        "node.label.show": "true",
+        "node.label.avoidOverlap": "false",
+        "node.border.fixed": "true",
+        "node.border.width": "4.0"
+    },
+    "varies": "node.border.fixed=true node.border.width=4.0",
+    "previewItems": {
+        "nodes": 44,
+        "edges": 0
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 1166,
+        "height": 866,
+        "viewBox": "17.000000 -883.000000 1166.000000 866.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
+    "date": "2026-10-19",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-specimen-node-fills-borders-p3 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-specimen-node-fills-borders-p3.svg"
+}

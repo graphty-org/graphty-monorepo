@@ -1,0 +1,22 @@
+{
+    "sample": "dot-real-linux-kernel",
+    "file": "graph-io/test/corpus/styles/dot/fidelity/real-linux-kernel.gv",
+    "sha256": "652086437129d0254bc7ada5c4c17be4b32a166bc6b3605626ec10465c464383",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "dot",
+    "command": "dot -Kdot -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "engineSource": "the file names no layout, so dot (Graphviz's default)",
+    "standIn": false,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 491,
+        "widthPx": 1200,
+        "heightPx": 655
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-real-linux-kernel && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-real-linux-kernel.svg"
+}

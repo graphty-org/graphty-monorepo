@@ -9,7 +9,7 @@ import { StyleNotes } from "../notes.js";
 import { canonicalFor } from "../plan/resolve.js";
 import type { ColumnRef, Mapping, StyleColumn, StyleRule, StyleTarget, StyleValue, StyleWorkBudget } from "../types.js";
 import { type CytoscapeValueParser, NODE_SIZE_VP, sizeParser } from "./lexicon.js";
-import type { CytoscapeMapping, CytoscapeStyle } from "./mappings.js";
+import type { CytoscapeStyle } from "./mappings.js";
 import {
     bendParser,
     chooseVps,
@@ -86,8 +86,12 @@ export function cytoscapeRules(
     const columns = new Map<string, StyleColumn>();
     const byColumn = new Map<string, MappingRule>();
     const reading: MappingRead = { target, refOf, elements, columns, notes, budget: options.budget };
-    const add = (props: readonly string[], raw: CytoscapeMapping, parse: CytoscapeValueParser): void => {
-        const parsed = parseMapping(raw, parse, site(props[0]));
+    const add = (props: readonly string[], vp: string, parse: CytoscapeValueParser): void => {
+        const raw = s.mappings.get(vp);
+        if (raw === undefined) {
+            return;
+        }
+        const parsed = parseMapping(raw, parse, site(props[0]), vp);
         const mapping = neutralMapping(parsed, props[0], parse, reading);
         const key = `${raw.kind}\u0000${raw.column}`;
         let rule = byColumn.get(key);
@@ -100,14 +104,10 @@ export function cytoscapeRules(
         }
     };
     for (const [prop, [vp, parse]] of chosen) {
-        const raw = s.mappings.get(vp);
-        if (raw !== undefined) {
-            add(matched && prop === "color" ? ["color", "sourceArrowColor", "targetArrowColor"] : [prop], raw, parse);
-        }
+        add(matched && prop === "color" ? ["color", "sourceArrowColor", "targetArrowColor"] : [prop], vp, parse);
     }
-    const size = locked ? s.mappings.get(NODE_SIZE_VP) : undefined;
-    if (size !== undefined) {
-        add(["width", "height"], size, sizeParser);
+    if (locked) {
+        add(["width", "height"], NODE_SIZE_VP, sizeParser);
     }
 
     const rules: StyleRule[] = [];
@@ -201,7 +201,7 @@ function neutralMapping(
         return { kind: "discrete", by, table: m.table };
     }
     if (m.kind === "continuous") {
-        return { kind: "continuous", by, points: m.points };
+        return { kind: "continuous", by, points: m.points, ...(m.step === undefined ? {} : { step: m.step }) };
     }
     const plain = "style" in by ? styleCell : canonicalFor(target, property);
     const n = elements.count;

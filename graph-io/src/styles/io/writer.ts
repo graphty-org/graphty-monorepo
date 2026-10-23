@@ -9,6 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { agree, plural } from "../../common/plural.js";
 import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
+import { toolDefaults } from "../defaults.js";
 import { styleFingerprint } from "../plan/features.js";
 import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
 import type {
@@ -516,7 +517,8 @@ function lossNotes(
 }
 
 /**
- * W_STYLE_NOT_WRITTEN for every graph property the format does not write.
+ * W_STYLE_NOT_WRITTEN for every graph property the format does not write, except one whose value is what the program
+ * the format is written for draws anyway (a white background for yEd): nothing is lost there.
  * @param extracted - the styles
  * @param exporter - the exporter
  * @param caps - its style capabilities, or null
@@ -528,8 +530,11 @@ function graphLossNotes(
     caps: StyleWriteCapabilities | null,
 ): LossNote[] {
     const graphWritten = new Set<string>(caps?.graph ?? []);
-    return Object.keys(extracted.styles.graph)
-        .filter((property) => !graphWritten.has(property))
+    const drawn: Readonly<Record<string, { readonly value: unknown } | undefined>> =
+        (caps?.tool === undefined ? null : toolDefaults(caps.tool))?.graph ?? {};
+    return Object.entries(extracted.styles.graph)
+        .filter(([property, value]) => !graphWritten.has(property) && drawn[property]?.value !== value)
+        .map(([property]) => property)
         .map((property) =>
             Object.freeze({
                 code: STYLE_ISSUE.NOT_WRITTEN,

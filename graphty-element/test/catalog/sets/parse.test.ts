@@ -209,12 +209,22 @@ describe("parseSetDefinition, the door-mode validator", () => {
             { kind: "threshold", path: "runs.pr.value", above: 1 },
             { kind: "range", attribute: "graph.degree", min: 1 },
             { kind: "categories", attribute: "colour", values: ["red"] },
+            { kind: "range", attribute: "graphty.source.graph.degree", min: 1 },
         ]) {
             const error = refusal({ kind: "rule", where, reading: "induced" });
 
             assert.strictEqual(error.code, "E_BAD_COMMAND", JSON.stringify(where));
             assert.strictEqual(error.details.reason, "reserved-root", JSON.stringify(where));
         }
+
+        // A node's value read at an edge's end is a field path.
+        assert.doesNotThrow(() =>
+            parseSetDefinition({
+                kind: "rule",
+                where: { kind: "range", attribute: "graphty.source.results.degree.value", min: 1 },
+                reading: "induced",
+            }),
+        );
 
         // An imported column called "graph" lives under data., so nothing is renamed.
         assert.doesNotThrow(() =>

@@ -7,18 +7,23 @@
  * convergence threshold that moved -- each is invisible in the number itself and obvious beside a
  * version.
  *
- * The versions are stated here rather than read from the package manifests because a manifest is
- * not reachable from a module that has to resolve in a browser, in Node and inside a bundle with
- * no file system. Keep them in step with `graphty-element/package.json`,
- * `algorithms/package.json` and `layout/package.json`; a session built by a host that knows
- * better passes its own through `createGraphSession`.
+ * A manifest is not reachable from a module that has to resolve in a browser, in Node and inside a
+ * bundle with no file system, so graphty-element's own version is written in at build time: Vite's
+ * `define` replaces `__GRAPHTY_ELEMENT_VERSION__` with `package.json`'s version (`vite.config.ts`,
+ * `vite.bundle.config.ts`, `vitest.config.ts`). Source compiled without that define reports
+ * `0.0.0`. The other two are stated here; keep them in step with `algorithms/package.json` and
+ * `layout/package.json`. A session built by a host that knows better passes its own through
+ * `createGraphSession`.
  */
 
 import type { EngineVersions } from "./types";
 
+/** graphty-element's version, from `package.json`, written in by the build's `define`. */
+declare const __GRAPHTY_ELEMENT_VERSION__: string | undefined;
+
 /** The versions a run reports when nothing told the session otherwise. */
 export const ENGINE_VERSIONS: EngineVersions = Object.freeze({
-    element: "1.10.0",
+    element: typeof __GRAPHTY_ELEMENT_VERSION__ === "string" ? __GRAPHTY_ELEMENT_VERSION__ : "0.0.0",
     algorithms: "1.4.0",
     layout: "1.3.0",
 });

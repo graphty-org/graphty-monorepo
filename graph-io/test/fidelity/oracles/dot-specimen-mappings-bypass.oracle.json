@@ -1,0 +1,23 @@
+{
+    "sample": "dot-specimen-mappings-bypass",
+    "file": "graph-io/test/fidelity/specimens/dot/specimen-mappings-bypass.gv",
+    "sha256": "7e43e369238e94c8a0522e8a3f3c2656ef43c17dc89ae500245865afa8870778",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file> (run in the sheet's directory)",
+    "engineSource": "specimen sheet: every node pinned with pos, so neato -n2 draws it where the file says",
+    "standIn": false,
+    "expectedWarnings": [],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 675,
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-mappings-bypass && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-mappings-bypass.svg"
+}

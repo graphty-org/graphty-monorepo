@@ -1,0 +1,3543 @@
+{
+    "elements": {
+        "nodes": [
+            {
+                "data": {
+                    "id": "anchor-nw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-ne"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-sw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-se"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "cap-default",
+                    "label": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "default-a",
+                    "parent": "default"
+                },
+                "position": {
+                    "x": 82,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "default-b",
+                    "parent": "default"
+                },
+                "position": {
+                    "x": 110,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-label-group",
+                    "label": "label=Group"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-group"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "label-group-a",
+                    "parent": "label-group"
+                },
+                "position": {
+                    "x": 194,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "label-group-b",
+                    "parent": "label-group"
+                },
+                "position": {
+                    "x": 222,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-valign-top",
+                    "label": "text-valign=top"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-top"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-top-a",
+                    "parent": "group-text-valign-top"
+                },
+                "position": {
+                    "x": 306,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-top-b",
+                    "parent": "group-text-valign-top"
+                },
+                "position": {
+                    "x": 334,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-valign-center",
+                    "label": "text-valign=center"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-center"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-center-a",
+                    "parent": "group-text-valign-center"
+                },
+                "position": {
+                    "x": 418,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-center-b",
+                    "parent": "group-text-valign-center"
+                },
+                "position": {
+                    "x": 446,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-valign-bottom",
+                    "label": "text-valign=bottom"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-bottom"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-bottom-a",
+                    "parent": "group-text-valign-bottom"
+                },
+                "position": {
+                    "x": 530,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-valign-bottom-b",
+                    "parent": "group-text-valign-bottom"
+                },
+                "position": {
+                    "x": 558,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-round-rectangle",
+                    "label": "shape=round-rectangle"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-round-rectangle"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-round-rectangle-a",
+                    "parent": "group-shape-round-rectangle"
+                },
+                "position": {
+                    "x": 642,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-round-rectangle-b",
+                    "parent": "group-shape-round-rectangle"
+                },
+                "position": {
+                    "x": 670,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-ellipse",
+                    "label": "shape=ellipse"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-ellipse"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-ellipse-a",
+                    "parent": "group-shape-ellipse"
+                },
+                "position": {
+                    "x": 754,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-ellipse-b",
+                    "parent": "group-shape-ellipse"
+                },
+                "position": {
+                    "x": 782,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-cut-rectangle",
+                    "label": "shape=cut-rectangle"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-cut-rectangle"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-cut-rectangle-a",
+                    "parent": "group-shape-cut-rectangle"
+                },
+                "position": {
+                    "x": 866,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-cut-rectangle-b",
+                    "parent": "group-shape-cut-rectangle"
+                },
+                "position": {
+                    "x": 894,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-barrel",
+                    "label": "shape=barrel"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-barrel"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-barrel-a",
+                    "parent": "group-shape-barrel"
+                },
+                "position": {
+                    "x": 978,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-barrel-b",
+                    "parent": "group-shape-barrel"
+                },
+                "position": {
+                    "x": 1006,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-bottom-round-rectangle",
+                    "label": "shape=bottom-round-rectangle"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-bottom-round-rectangle"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 110
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-bottom-round-rectangle-a",
+                    "parent": "group-shape-bottom-round-rectangle"
+                },
+                "position": {
+                    "x": 1090,
+                    "y": 104
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-bottom-round-rectangle-b",
+                    "parent": "group-shape-bottom-round-rectangle"
+                },
+                "position": {
+                    "x": 1118,
+                    "y": 116
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-shape-diamond",
+                    "label": "shape=diamond"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-shape-diamond"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-shape-diamond-a",
+                    "parent": "group-shape-diamond"
+                },
+                "position": {
+                    "x": 82,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-shape-diamond-b",
+                    "parent": "group-shape-diamond"
+                },
+                "position": {
+                    "x": 110,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-background-color",
+                    "label": "background-color=#c6dbef"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-background-color"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-background-color-a",
+                    "parent": "group-background-color"
+                },
+                "position": {
+                    "x": 194,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-background-color-b",
+                    "parent": "group-background-color"
+                },
+                "position": {
+                    "x": 222,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-background-opacity-0",
+                    "label": "background-opacity=0"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-background-opacity-0"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-background-opacity-0-a",
+                    "parent": "group-background-opacity-0"
+                },
+                "position": {
+                    "x": 306,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-background-opacity-0-b",
+                    "parent": "group-background-opacity-0"
+                },
+                "position": {
+                    "x": 334,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-border-style-dashed",
+                    "label": "border-style=dashed"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-border-style-dashed"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-border-style-dashed-a",
+                    "parent": "group-border-style-dashed"
+                },
+                "position": {
+                    "x": 418,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-border-style-dashed-b",
+                    "parent": "group-border-style-dashed"
+                },
+                "position": {
+                    "x": 446,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-0",
+                    "label": "padding=0"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-0"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-0-a",
+                    "parent": "padding-0"
+                },
+                "position": {
+                    "x": 530,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-0-b",
+                    "parent": "padding-0"
+                },
+                "position": {
+                    "x": 558,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-20",
+                    "label": "padding=20"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-20"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 274
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-20-a",
+                    "parent": "padding-20"
+                },
+                "position": {
+                    "x": 642,
+                    "y": 268
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-20-b",
+                    "parent": "padding-20"
+                },
+                "position": {
+                    "x": 670,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-relative-to-width",
+                    "label": "padding-relative-to=width"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-width"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-width-a",
+                    "parent": "padding-relative-to-width"
+                },
+                "position": {
+                    "x": 748,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-width-b",
+                    "parent": "padding-relative-to-width"
+                },
+                "position": {
+                    "x": 788,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-relative-to-height",
+                    "label": "padding-relative-to=height"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-height"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-height-a",
+                    "parent": "padding-relative-to-height"
+                },
+                "position": {
+                    "x": 860,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-height-b",
+                    "parent": "padding-relative-to-height"
+                },
+                "position": {
+                    "x": 900,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-relative-to-average",
+                    "label": "padding-relative-to=average"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-average"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-average-a",
+                    "parent": "padding-relative-to-average"
+                },
+                "position": {
+                    "x": 972,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-average-b",
+                    "parent": "padding-relative-to-average"
+                },
+                "position": {
+                    "x": 1012,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-relative-to-min",
+                    "label": "padding-relative-to=min"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-min"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-min-a",
+                    "parent": "padding-relative-to-min"
+                },
+                "position": {
+                    "x": 1084,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-min-b",
+                    "parent": "padding-relative-to-min"
+                },
+                "position": {
+                    "x": 1124,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-padding-relative-to-max",
+                    "label": "padding-relative-to=max"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-max"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-max-a",
+                    "parent": "padding-relative-to-max"
+                },
+                "position": {
+                    "x": 76,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "padding-relative-to-max-b",
+                    "parent": "padding-relative-to-max"
+                },
+                "position": {
+                    "x": 116,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-width-80",
+                    "label": "min-width=80"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-width-80"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-width-80-a",
+                    "parent": "min-width-80"
+                },
+                "position": {
+                    "x": 202,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-width-80-b",
+                    "parent": "min-width-80"
+                },
+                "position": {
+                    "x": 214,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-width-bias-left",
+                    "label": "min-width-bias-left=80%"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-left"
+                },
+                "position": {
+                    "x": 294.5,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-left-a",
+                    "parent": "min-width-bias-left"
+                },
+                "position": {
+                    "x": 314,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-left-b",
+                    "parent": "min-width-bias-left"
+                },
+                "position": {
+                    "x": 326,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-width-bias-right",
+                    "label": "min-width-bias-right=80%"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-right"
+                },
+                "position": {
+                    "x": 457.5,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-right-a",
+                    "parent": "min-width-bias-right"
+                },
+                "position": {
+                    "x": 426,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-width-bias-right-b",
+                    "parent": "min-width-bias-right"
+                },
+                "position": {
+                    "x": 438,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-height-64",
+                    "label": "min-height=64"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-height-64"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 430
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-height-64-a",
+                    "parent": "min-height-64"
+                },
+                "position": {
+                    "x": 530,
+                    "y": 426
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-height-64-b",
+                    "parent": "min-height-64"
+                },
+                "position": {
+                    "x": 558,
+                    "y": 434
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-height-bias-top",
+                    "label": "min-height-bias-top=80%"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-top"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 410.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-top-a",
+                    "parent": "min-height-bias-top"
+                },
+                "position": {
+                    "x": 642,
+                    "y": 426
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-top-b",
+                    "parent": "min-height-bias-top"
+                },
+                "position": {
+                    "x": 670,
+                    "y": 434
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-min-height-bias-bottom",
+                    "label": "min-height-bias-bottom=80%"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-bottom"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 449.5
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-bottom-a",
+                    "parent": "min-height-bias-bottom"
+                },
+                "position": {
+                    "x": 754,
+                    "y": 426
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "min-height-bias-bottom-b",
+                    "parent": "min-height-bias-bottom"
+                },
+                "position": {
+                    "x": 782,
+                    "y": 434
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-compound-sizing-wrt-labels-include",
+                    "label": "compound-sizing-wrt-labels=include"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-include"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-include-a",
+                    "parent": "compound-sizing-wrt-labels-include"
+                },
+                "position": {
+                    "x": 866,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-include-b",
+                    "parent": "compound-sizing-wrt-labels-include"
+                },
+                "position": {
+                    "x": 894,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-compound-sizing-wrt-labels-exclude",
+                    "label": "compound-sizing-wrt-labels=exclude"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-exclude"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-exclude-a",
+                    "parent": "compound-sizing-wrt-labels-exclude"
+                },
+                "position": {
+                    "x": 978,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "compound-sizing-wrt-labels-exclude-b",
+                    "parent": "compound-sizing-wrt-labels-exclude"
+                },
+                "position": {
+                    "x": 1006,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-nested",
+                    "label": "nested compound"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "nested"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "nested-in",
+                    "parent": "nested"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 438
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "nested-a",
+                    "parent": "nested-in"
+                },
+                "position": {
+                    "x": 1090,
+                    "y": 432
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "nested-b",
+                    "parent": "nested-in"
+                },
+                "position": {
+                    "x": 1118,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-one-child",
+                    "label": "one child"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "one-child"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "one-child-a",
+                    "parent": "one-child"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-z-compound-depth-bottom",
+                    "label": "z-compound-depth=bottom"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-bottom"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-bottom-a",
+                    "parent": "z-compound-depth-bottom"
+                },
+                "position": {
+                    "x": 194,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-bottom-b",
+                    "parent": "z-compound-depth-bottom"
+                },
+                "position": {
+                    "x": 222,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-bottom-o1"
+                },
+                "position": {
+                    "x": 226,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-z-compound-depth-orphan",
+                    "label": "z-compound-depth=orphan"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-orphan"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-orphan-a",
+                    "parent": "z-compound-depth-orphan"
+                },
+                "position": {
+                    "x": 306,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-orphan-b",
+                    "parent": "z-compound-depth-orphan"
+                },
+                "position": {
+                    "x": 334,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-orphan-o1"
+                },
+                "position": {
+                    "x": 338,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-z-compound-depth-auto",
+                    "label": "z-compound-depth=auto"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-auto"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-auto-a",
+                    "parent": "z-compound-depth-auto"
+                },
+                "position": {
+                    "x": 418,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-auto-b",
+                    "parent": "z-compound-depth-auto"
+                },
+                "position": {
+                    "x": 446,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-auto-o1"
+                },
+                "position": {
+                    "x": 450,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-z-compound-depth-top",
+                    "label": "z-compound-depth=top"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-top"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-top-a",
+                    "parent": "z-compound-depth-top"
+                },
+                "position": {
+                    "x": 530,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-top-b",
+                    "parent": "z-compound-depth-top"
+                },
+                "position": {
+                    "x": 558,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "z-compound-depth-top-o1"
+                },
+                "position": {
+                    "x": 562,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-edge-inside-group",
+                    "label": "edge between children"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-inside-group"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-inside-group-a",
+                    "parent": "edge-inside-group"
+                },
+                "position": {
+                    "x": 642,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "edge-inside-group-b",
+                    "parent": "edge-inside-group"
+                },
+                "position": {
+                    "x": 670,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-halign-left",
+                    "label": "text-halign=left"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left-a",
+                    "parent": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 754,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-left-b",
+                    "parent": "group-text-halign-left"
+                },
+                "position": {
+                    "x": 782,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-text-halign-right",
+                    "label": "text-halign=right"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right-a",
+                    "parent": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 866,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-text-halign-right-b",
+                    "parent": "group-text-halign-right"
+                },
+                "position": {
+                    "x": 894,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-border-color-red",
+                    "label": "border-color=red"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red-a",
+                    "parent": "group-border-color-red"
+                },
+                "position": {
+                    "x": 978,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-border-color-red-b",
+                    "parent": "group-border-color-red"
+                },
+                "position": {
+                    "x": 1006,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-border-width-4",
+                    "label": "border-width=4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 602
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4-a",
+                    "parent": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1090,
+                    "y": 596
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-border-width-4-b",
+                    "parent": "group-border-width-4"
+                },
+                "position": {
+                    "x": 1118,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-group-font-size-14",
+                    "label": "font-size=14"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 766
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14-a",
+                    "parent": "group-font-size-14"
+                },
+                "position": {
+                    "x": 82,
+                    "y": 760
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "group-font-size-14-b",
+                    "parent": "group-font-size-14"
+                },
+                "position": {
+                    "x": 110,
+                    "y": 772
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-to-group",
+                    "label": "edge from a compound to a node"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 766
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-a",
+                    "parent": "edge-to-group"
+                },
+                "position": {
+                    "x": 194,
+                    "y": 760
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-b",
+                    "parent": "edge-to-group"
+                },
+                "position": {
+                    "x": 222,
+                    "y": 772
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-o1"
+                },
+                "position": {
+                    "x": 254,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "child"
+            }
+        ],
+        "edges": [
+            {
+                "data": {
+                    "id": "edge-inside-group-e",
+                    "source": "edge-inside-group-a",
+                    "target": "edge-inside-group-b"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-to-group-e",
+                    "source": "edge-to-group",
+                    "target": "edge-to-group-o1"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            }
+        ]
+    },
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "shape": "ellipse",
+                "width": "36px",
+                "height": "36px",
+                "background-color": "rgb(200,200,200)",
+                "background-opacity": "1",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "border-style": "solid",
+                "border-opacity": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "font-style": "normal",
+                "font-weight": "normal",
+                "text-valign": "center",
+                "text-halign": "center",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node:parent",
+            "style": {
+                "shape": "rectangle",
+                "padding": "10px",
+                "background-color": "rgb(238,238,238)",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "text-valign": "top",
+                "text-halign": "center"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "width": "1.5px",
+                "line-color": "rgb(80,80,80)",
+                "line-style": "solid",
+                "line-opacity": "1",
+                "curve-style": "straight",
+                "source-arrow-shape": "none",
+                "target-arrow-shape": "none",
+                "mid-source-arrow-shape": "none",
+                "mid-target-arrow-shape": "none",
+                "source-arrow-color": "rgb(80,80,80)",
+                "target-arrow-color": "rgb(80,80,80)",
+                "mid-source-arrow-color": "rgb(80,80,80)",
+                "mid-target-arrow-color": "rgb(80,80,80)",
+                "arrow-scale": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node.end",
+            "style": {
+                "width": "8px",
+                "height": "8px"
+            }
+        },
+        {
+            "selector": "node.child",
+            "style": {
+                "width": "14px",
+                "height": "14px"
+            }
+        },
+        {
+            "selector": "node.anchor",
+            "style": {
+                "width": "6px",
+                "height": "6px"
+            }
+        },
+        {
+            "selector": "node.cap",
+            "style": {
+                "width": "1px",
+                "height": "1px",
+                "background-opacity": "0",
+                "border-width": "0px",
+                "label": "data(label)",
+                "font-size": "9px",
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-wrap": "wrap",
+                "text-max-width": "104px",
+                "text-overflow-wrap": "anywhere"
+            }
+        },
+        {
+            "selector": "#label-group",
+            "style": {
+                "label": "Group"
+            }
+        },
+        {
+            "selector": "#group-text-valign-top",
+            "style": {
+                "label": "Group",
+                "text-valign": "top"
+            }
+        },
+        {
+            "selector": "#group-text-valign-center",
+            "style": {
+                "label": "Group",
+                "text-valign": "center"
+            }
+        },
+        {
+            "selector": "#group-text-valign-bottom",
+            "style": {
+                "label": "Group",
+                "text-valign": "bottom"
+            }
+        },
+        {
+            "selector": "#group-shape-round-rectangle",
+            "style": {
+                "shape": "round-rectangle"
+            }
+        },
+        {
+            "selector": "#group-shape-ellipse",
+            "style": {
+                "shape": "ellipse"
+            }
+        },
+        {
+            "selector": "#group-shape-cut-rectangle",
+            "style": {
+                "shape": "cut-rectangle"
+            }
+        },
+        {
+            "selector": "#group-shape-barrel",
+            "style": {
+                "shape": "barrel"
+            }
+        },
+        {
+            "selector": "#group-shape-bottom-round-rectangle",
+            "style": {
+                "shape": "bottom-round-rectangle"
+            }
+        },
+        {
+            "selector": "#group-shape-diamond",
+            "style": {
+                "shape": "diamond"
+            }
+        },
+        {
+            "selector": "#group-background-color",
+            "style": {
+                "background-color": "rgb(198,219,239)"
+            }
+        },
+        {
+            "selector": "#group-background-opacity-0",
+            "style": {
+                "background-opacity": "0"
+            }
+        },
+        {
+            "selector": "#group-border-style-dashed",
+            "style": {
+                "border-style": "dashed",
+                "border-width": "2px"
+            }
+        },
+        {
+            "selector": "#padding-0",
+            "style": {
+                "padding": "0px"
+            }
+        },
+        {
+            "selector": "#padding-20",
+            "style": {
+                "padding": "20px"
+            }
+        },
+        {
+            "selector": "#padding-relative-to-width",
+            "style": {
+                "padding-relative-to": "width",
+                "padding": "20%"
+            }
+        },
+        {
+            "selector": "#padding-relative-to-height",
+            "style": {
+                "padding-relative-to": "height",
+                "padding": "20%"
+            }
+        },
+        {
+            "selector": "#padding-relative-to-average",
+            "style": {
+                "padding-relative-to": "average",
+                "padding": "20%"
+            }
+        },
+        {
+            "selector": "#padding-relative-to-min",
+            "style": {
+                "padding-relative-to": "min",
+                "padding": "20%"
+            }
+        },
+        {
+            "selector": "#padding-relative-to-max",
+            "style": {
+                "padding-relative-to": "max",
+                "padding": "20%"
+            }
+        },
+        {
+            "selector": "#min-width-80",
+            "style": {
+                "min-width": "80px"
+            }
+        },
+        {
+            "selector": "#min-width-bias-left",
+            "style": {
+                "min-width-bias-left": "80%",
+                "min-width": "80px"
+            }
+        },
+        {
+            "selector": "#min-width-bias-right",
+            "style": {
+                "min-width-bias-right": "80%",
+                "min-width": "80px"
+            }
+        },
+        {
+            "selector": "#min-height-64",
+            "style": {
+                "min-height": "64px"
+            }
+        },
+        {
+            "selector": "#min-height-bias-top",
+            "style": {
+                "min-height-bias-top": "80%",
+                "min-height": "64px"
+            }
+        },
+        {
+            "selector": "#min-height-bias-bottom",
+            "style": {
+                "min-height-bias-bottom": "80%",
+                "min-height": "64px"
+            }
+        },
+        {
+            "selector": "#compound-sizing-wrt-labels-include",
+            "style": {
+                "compound-sizing-wrt-labels": "include"
+            }
+        },
+        {
+            "selector": "#compound-sizing-wrt-labels-include-b",
+            "style": {
+                "label": "child",
+                "text-valign": "bottom"
+            }
+        },
+        {
+            "selector": "#compound-sizing-wrt-labels-exclude",
+            "style": {
+                "compound-sizing-wrt-labels": "exclude"
+            }
+        },
+        {
+            "selector": "#compound-sizing-wrt-labels-exclude-b",
+            "style": {
+                "label": "child",
+                "text-valign": "bottom"
+            }
+        },
+        {
+            "selector": "#z-compound-depth-bottom",
+            "style": {
+                "z-compound-depth": "bottom"
+            }
+        },
+        {
+            "selector": "#z-compound-depth-orphan",
+            "style": {
+                "z-compound-depth": "orphan"
+            }
+        },
+        {
+            "selector": "#z-compound-depth-auto",
+            "style": {
+                "z-compound-depth": "auto"
+            }
+        },
+        {
+            "selector": "#z-compound-depth-top",
+            "style": {
+                "z-compound-depth": "top"
+            }
+        },
+        {
+            "selector": "#group-text-halign-left",
+            "style": {
+                "text-halign": "left",
+                "text-valign": "center",
+                "label": "Group"
+            }
+        },
+        {
+            "selector": "#group-text-halign-right",
+            "style": {
+                "text-halign": "right",
+                "text-valign": "center",
+                "label": "Group"
+            }
+        },
+        {
+            "selector": "#group-border-color-red",
+            "style": {
+                "border-color": "rgb(255,0,0)",
+                "border-width": "2px"
+            }
+        },
+        {
+            "selector": "#group-border-width-4",
+            "style": {
+                "border-width": "4px"
+            }
+        },
+        {
+            "selector": "#group-font-size-14",
+            "style": {
+                "label": "Group",
+                "font-size": "14px"
+            }
+        }
+    ],
+    "zoom": 1e-50,
+    "pan": {
+        "x": 0.5,
+        "y": 0.5
+    },
+    "data": {
+        "sheet": "specimen-groups",
+        "about": "Cytoscape.js style specimen sheet specimen-groups: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js 3.34.3"
+    }
+}

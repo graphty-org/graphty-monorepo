@@ -4,7 +4,7 @@
 # review (and Finish) them before CI's capture lands. Design: design/visual-testing/local-previews.md.
 #
 # Usage:
-#   ./tools/visual-preview.sh <pull request number>
+#   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
 #   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
 #   ./tools/visual-preview.sh --promote <commit>   (tools/prepush.sh, once every check passed)
 #   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when the push was refused)
@@ -26,9 +26,16 @@
 # of the pull request's current head as "local preview, CI pending"; CI's own capture replaces it
 # project by project, and the gate still checks CI's capture against whatever was approved.
 #
+# --expect <commit> (tools/land.mjs, right after its push) waits until GitHub lists that commit as the
+# pull request's head: just after a push GitHub can still report the old head for a while, and a
+# preview of the old head is useless. It asks every VISUAL_PREVIEW_POLL seconds (default 15) for at
+# most VISUAL_PREVIEW_HEAD_WAIT seconds (default 600), then fails.
+#
 # Refuses a pull request from a fork: its code would run on this machine. One preview runs at a
-# time (a lock), and each capture goes through tmp/with-browser.sh when this machine has it (the
-# shared cap on browsers).
+# time (a lock), and each capture goes through tools/with-browser.sh (the shared cap on browsers;
+# WITH_BROWSER names another wrapper, for tests). A wait for the lock is recorded in the wait log
+# with the preview that held it (tools/wait-log.mjs, <main checkout>/tmp/waits.jsonl), as the
+# browser cap records a wait for a browser slot.
 #
 # VISUAL_PREVIEW_TIMEOUT (default 45m; a whole number with s, m, h or d) bounds the work, not the
 # waits: it starts once this preview holds the lock, and each capture's share of it starts once that
@@ -96,7 +103,12 @@ if [[ "$MODE" != "pr" ]]; then
     esac
 else
     PR="${1:-}"
-    [[ "$PR" =~ ^[1-9][0-9]*$ ]] || die "usage: visual-preview.sh <pull request number> | --head <commit>"
+    [[ "$PR" =~ ^[1-9][0-9]*$ ]] || die "usage: visual-preview.sh <pull request number> [--expect <commit>] | --head <commit>"
+    EXPECT=""
+    if [[ "${2:-}" == "--expect" ]]; then
+        [[ "${3:-}" =~ ^[0-9a-f]{40}$ ]] || die "--expect takes a full commit sha"
+        EXPECT="$3"
+    fi
     KEY="$PR"
 fi
 OUT="${STAGED:-$ROOT/$KEY}"
@@ -105,8 +117,20 @@ LOG="$OUT/log.txt"
 
 # The pull request: same repository, open, and its head.
 if [[ "$MODE" == "pr" ]]; then
-    read -r STATE HEAD_REPO BASE_REPO HEAD < <(gh api "repos/{owner}/{repo}/pulls/$PR" \
-        --jq '[.state, (.head.repo.full_name // "deleted"), .base.repo.full_name, .head.sha] | @tsv')
+    pull() {
+        read -r STATE HEAD_REPO BASE_REPO HEAD < <(gh api "repos/{owner}/{repo}/pulls/$PR" \
+            --jq '[.state, (.head.repo.full_name // "deleted"), .base.repo.full_name, .head.sha] | @tsv')
+    }
+    pull
+    if [[ -n "$EXPECT" && "$HEAD" != "$EXPECT" ]]; then
+        say "waiting for GitHub to list ${EXPECT:0:10} as the head of #$PR (it says ${HEAD:0:10})"
+        WAIT_END=$(($(date +%s) + ${VISUAL_PREVIEW_HEAD_WAIT:-600}))
+        while [[ "$HEAD" != "$EXPECT" ]]; do
+            (($(date +%s) < WAIT_END)) || die "GitHub still lists ${HEAD:0:10}, not ${EXPECT:0:10}, as the head of #$PR"
+            sleep "${VISUAL_PREVIEW_POLL:-15}"
+            pull
+        done
+    fi
     [[ "$STATE" == "open" ]] || die "#$PR is $STATE, not open"
     [[ "$HEAD_REPO" == "$BASE_REPO" ]] || die "#$PR comes from $HEAD_REPO, a fork: its code is never built here"
 fi
@@ -155,7 +179,14 @@ fetch_main() { # <refspec>...
 
 status running
 exec 9> "$ROOT/.lock"
-flock -n 9 || { say "waiting for another preview to finish (the lock; not counted against $LIMIT)"; flock 9; }
+if ! flock -n 9; then
+    WAIT_START=$(date +%s%3N)
+    HELD_BY="$(cat "$ROOT/.lock.holder" 2>/dev/null || echo unknown)"
+    say "waiting for another preview to finish (the lock; not counted against $LIMIT)"
+    flock 9
+    node "$HERE/tools/wait-log.mjs" preview-lock "$WAIT_START" "$KEY at ${HEAD:0:10}" "$HELD_BY" 2>/dev/null || true
+fi
+echo "$KEY at ${HEAD:0:10} (pid $$, since $(date -u +%Y-%m-%dT%H:%M:%SZ))" > "$ROOT/.lock.holder"
 DEADLINE=$(($(date +%s) + LIMIT_S))
 : > "$LOG"
 say "working (limit $LIMIT, from now; the waits for browser slots are not counted)"
@@ -230,7 +261,7 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
 fi
 
 WRAP=()
-[[ -x "$MAIN/tmp/with-browser.sh" ]] && WRAP=("$MAIN/tmp/with-browser.sh")
+[[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.
 PREVIEW_ENV=()
 [[ -n "$PR" ]] && PREVIEW_ENV=(VISUAL_REVIEW_PREVIEW_PR="$PR" VISUAL_REVIEW_PREVIEW_HEAD="$HEAD")

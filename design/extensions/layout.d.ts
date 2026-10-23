@@ -17,6 +17,8 @@ import type { GraphSnapshot, NodeMask } from "./extend-snapshot";
  * The built-in arrangement ids. Reserved, as are the names of the element's own engines.
  * AS BUILT in 2.6.1 this list omits "spiral" and "planar", which the catalogue publishes as
  * built-in arrangements (README section 5 item 4); adding them is an additive fix.
+ * "force-2d" is deprecated (see DEPRECATED_LAYOUT_IDS): it is no longer in `catalog.layouts()` and
+ * is read as "force" drawn by its `arf` engine, until the next major release removes it.
  */
 export declare const KNOWN_LAYOUT_IDS: readonly [
     "force",
@@ -32,6 +34,9 @@ export declare const KNOWN_LAYOUT_IDS: readonly [
     "fixed",
     "random",
 ];
+
+/** The built-in layout ids kept only as aliases, removed at the next major release. */
+export declare const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
 
 /** A layout id: a built-in name or a registered one. OPEN UNION. */
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});

@@ -1,25 +1,16 @@
-/* The Export dialog (tier1-design.md section T13): the output list left, the chosen output right,
-   the footer across both. About 760 x 660 so the canvas stays visible. */
-.ws-export-body {
-    display: grid;
-    grid-template-columns: 164px minmax(0, 1fr);
+/* The Export dialog (tier1-design.md section T13) on the shared two-column dialog layout
+   (.ws-dialog-columns, set on the modal body): the output list left, the chosen output right, the
+   footer across both. A fixed height in dvh, since iPad Safari's 100vh is taller than the visible
+   viewport and would push the footer past the window's foot. */
+.ws-dialog-columns.ws-export-body {
     grid-template-rows: minmax(0, 1fr) auto;
-    height: min(600px, calc(100vh - 120px));
-}
-
-.ws-export-list {
-    grid-row: 1;
-    grid-column: 1;
-    overflow: auto;
-    border-inline-end: 1px solid var(--mantine-color-default-border);
-    padding-inline-end: 8px;
+    row-gap: 0;
+    height: min(600px, calc(100dvh - 120px));
 }
 
 .ws-export-main {
-    grid-row: 1;
-    grid-column: 2;
-    overflow: auto;
-    padding-inline-start: 16px;
+    min-height: 0;
+    overflow: hidden auto;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -27,6 +18,12 @@
 
 .ws-export-main > * {
     flex: none;
+}
+
+@media (max-width: 720px) {
+    .ws-dialog-columns.ws-export-body {
+        grid-template-rows: auto minmax(0, 1fr) auto;
+    }
 }
 
 /* Two columns, so the preview stays above the fold; a wide control spans both. */
@@ -41,7 +38,6 @@
 }
 
 .ws-export-footer {
-    grid-row: 2;
     grid-column: 1 / -1;
 }
 
@@ -58,7 +54,7 @@
     justify-content: center;
     padding: 8px;
     border-radius: 6px;
-    background: var(--mantine-color-default-hover);
+    background: var(--cm-bg-secondary);
 }
 
 /* A checkerboard behind a transparent image, so its transparency shows. */
@@ -78,11 +74,19 @@
     border-radius: 5px;
     background: var(--mantine-color-default-hover);
     font: 11px/16px var(--mantine-font-family-monospace);
-    white-space: pre;
+    /* Wrapped, so a one-line JSON file reads without scrolling sideways; six lines tall. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: calc(6 * 16px + 16px);
     overflow: auto;
 }
 
 .ws-export-notes {
     margin: 0;
     padding-inline-start: 16px;
+}
+
+/* The Advanced fold takes its own full row under the key options. */
+.ws-export-fields > [data-testid="control-sub-group"] {
+    grid-column: 1 / -1;
 }

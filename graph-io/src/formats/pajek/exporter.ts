@@ -37,6 +37,7 @@ import {
     RELATION_COLUMN,
     SHAPE_COLUMN,
     SHAPES,
+    VOIDING_KEYS,
 } from "./syntax.js";
 
 /** What the writer takes: the format's options, the common ones and the styles. */
@@ -832,69 +833,20 @@ function* writeVertices(
     nodePlan: readonly PlannedColumn[],
     mangle: boolean,
 ): Generator<string, void, undefined> {
-    let labels: Column | null = null;
-    let position: Column | null = null;
-    let shape: Column | null = null;
-    let nodeSpells: Column | null = null;
-    const nodeParams: Column[] = [];
-    for (const { column, slot } of nodePlan) {
-        switch (slot) {
-            case "label":
-                labels = column;
-                break;
-            case "position":
-                position = column;
-                break;
-            case "shape":
-                shape = column;
-                break;
-            case "spells":
-                nodeSpells = column;
-                break;
-            case "param":
-                nodeParams.push(column);
-                break;
-            case "relation":
-            case "skip":
-                break;
-            default: {
-                const name: string = slot;
-                throw new Error(`unknown slot ${name}`);
-            }
-        }
-    }
-    const writeZ = position !== null && needsZ(position);
+    const slots = vertexSlots(nodePlan);
+    const writeZ = slots.position !== null && needsZ(slots.position);
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const parts: string[] = [];
-        if (position !== null) {
-            const coordinates = coordinatesText(position, i, writeZ);
-            if (coordinates !== null) {
-                parts.push(coordinates);
-            }
-        }
-        if (shape?.isSet(i)) {
-            const keyword = cellText(shape, i);
-            if (SHAPES.has(keyword)) {
-                parts.push(keyword);
-            } else {
-                parts.push(`${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
-            }
-        }
-        for (const column of nodeParams) {
-            if (column.isSet(i)) {
-                parts.push(`${column.meta.name} ${quotePajekLabel(cellText(column, i))}`);
-            }
-        }
+        const parts = vertexParts(slots, i, writeZ);
         if (mangle && ids.isChanged(i)) {
             parts.push(`${ORIGINAL_ID_KEY} ${quotePajekLabel(idText(ids.originalAt(i)))}`);
         }
-        if (nodeSpells !== null) {
-            const spells = spellsText(nodeSpells, i);
+        if (slots.spells !== null) {
+            const spells = spellsText(slots.spells, i);
             if (spells !== null) {
                 parts.push(spells);
             }
         }
-        const label = labelOf(labels, ids, i, parts.length > 0);
+        const label = labelOf(slots.labels, ids, i, parts.length > 0);
         let line = String(i + 1);
         if (label !== null) {
             // the importer decodes `&#dddd;` in labels, so a literal one is written with `&#38;`
@@ -905,6 +857,86 @@ function* writeVertices(
         }
         yield `${line}\n`;
     }
+}
+
+/** The node columns a vertex line writes, by the slot each fills. */
+interface VertexSlots {
+    labels: Column | null;
+    position: Column | null;
+    shape: Column | null;
+    spells: Column | null;
+    params: Column[];
+}
+
+/**
+ * Sorts the node column plan into the slots of a vertex line.
+ * @param nodePlan - the node column plan
+ * @returns the columns by slot
+ */
+function vertexSlots(nodePlan: readonly PlannedColumn[]): VertexSlots {
+    const slots: VertexSlots = { labels: null, position: null, shape: null, spells: null, params: [] };
+    for (const { column, slot } of nodePlan) {
+        switch (slot) {
+            case "label":
+                slots.labels = column;
+                break;
+            case "position":
+                slots.position = column;
+                break;
+            case "shape":
+                slots.shape = column;
+                break;
+            case "spells":
+                slots.spells = column;
+                break;
+            case "param":
+                slots.params.push(column);
+                break;
+            case "relation":
+            case "skip":
+                break;
+            default: {
+                const name: string = slot;
+                throw new Error(`unknown slot ${name}`);
+            }
+        }
+    }
+    return slots;
+}
+
+/**
+ * A vertex line's coordinates, shape and parameters.
+ * @param slots - the node columns by slot
+ * @param i - the vertex's index
+ * @param writeZ - whether coordinates carry a z
+ * @returns the parts, in order
+ */
+function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
+    const { position, shape } = slots;
+    const parts: string[] = [];
+    const coordinates = position === null ? null : coordinatesText(position, i, writeZ);
+    if (coordinates !== null) {
+        parts.push(coordinates);
+    }
+    const placed = parts.length > 0;
+    const shaped = shape?.isSet(i) === true;
+    if (shaped) {
+        const keyword = cellText(shape, i);
+        parts.push(SHAPES.has(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
+    }
+    const named = parts.length;
+    for (const column of slots.params) {
+        if (!column.isSet(i)) {
+            continue;
+        }
+        // a placed line that names no shape and starts with such a key is drawn by Pajek with none of its
+        // parameters (`VOIDING_KEYS`): the default shape is named first, so it is drawn as written
+        if (placed && !shaped && parts.length === named && VOIDING_KEYS.has(column.meta.name)) {
+            parts.push("ellipse");
+        }
+        parts.push(`${column.meta.name} ${quotePajekLabel(cellText(column, i))}`);
+    }
+    return parts;
 }
 
 /**

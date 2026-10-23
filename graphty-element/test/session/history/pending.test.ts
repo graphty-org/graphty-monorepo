@@ -1,5 +1,6 @@
 import { assert, describe, it } from "vitest";
 
+import type { HistoryStepId } from "../../../src/session/types";
 import { executions, gates, setup, stackName } from "./fake-commands";
 
 /**
@@ -326,6 +327,35 @@ describe("deferred members", () => {
         await dispatcher.undo();
         assert.isNull(stackName(dispatcher));
         assert.isFalse(dispatcher.state.runs.has("degree"));
+    });
+
+    it("joins a run that is all a transaction did to the step the transaction continues", async () => {
+        const { dispatcher, queue } = setup();
+        await dispatcher.transaction("Message", (tx) => tx.dispatch({ op: "fake.styles", name: "a" }));
+        const [message] = dispatcher.history.steps;
+
+        await dispatcher.transaction(
+            "Message",
+            (tx) => {
+                void tx.dispatch({ op: "fake.run", id: "degree" });
+            },
+            { after: message.id as HistoryStepId },
+        );
+        await queue.next();
+
+        assert.deepEqual(labels(dispatcher.history.steps), ["Message"]);
+        assert.deepEqual(dispatcher.history.steps[0].ops, ["fake.styles", "fake.run"]);
+    });
+
+    it("records a run that is all a transaction did under the transaction's label", async () => {
+        const { dispatcher, queue } = setup();
+
+        await dispatcher.transaction("Message", (tx) => {
+            void tx.dispatch({ op: "fake.run", id: "degree" });
+        });
+        await queue.next();
+
+        assert.deepEqual(labels(dispatcher.history.steps), ["Message"]);
     });
 
     it("cancels a deferred member with the first press, and undoes its step with the second", async () => {

@@ -199,6 +199,8 @@ export class Arrangement {
     private written = false;
     private readonly ops: ArrangementOp[] = [];
     private readonly strict = strictStateEnabled();
+    /** Told each time a seal recorded where the lane came to rest: a layout at rest, a drag's end. */
+    readonly sealed = new Set<() => void>();
 
     /**
      * The arrangement over a dispatcher's state, lane and history.
@@ -288,6 +290,9 @@ export class Arrangement {
             const capture = this.capture();
             if (capture !== null) {
                 this.history.seal(capture);
+                for (const listener of this.sealed) {
+                    listener();
+                }
             }
         }
     }

@@ -56,8 +56,9 @@ describe("the styles example of the graphs-in-and-out guide", () => {
                 .split("\n");
             // the first line is what the page says it prints
             expect(out[0]).toBe("rgb(228,26,28)");
-            // the file keeps a's color from the GEXF, b's gold from the core's own rule, and Gephi's edge color
-            expect(JSON.parse(out.at(-1) ?? "")).toEqual(["rgb(228,26,28)", "rgb(255,215,0)", "rgb(228,26,28)"]);
+            // the file keeps a's color from the GEXF, b's gold from the core's own rule, and Gephi's edge color:
+            // the mean of a's and b's GEXF colors, each channel rounded down
+            expect(JSON.parse(out.at(-1) ?? "")).toEqual(["rgb(228,26,28)", "rgb(255,215,0)", "rgb(141,76,106)"]);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

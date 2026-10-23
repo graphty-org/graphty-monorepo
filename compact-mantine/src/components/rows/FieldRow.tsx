@@ -398,7 +398,9 @@ export const FieldRow = forwardRef<HTMLDivElement, FieldRowProps>(function Field
                         flexDirection: captions ? "column" : undefined,
                         alignItems: captions ? "stretch" : "center",
                         gap: captions ? CAPTION_PAD : undefined,
-                        flex: `0 0 ${String(fieldWidth)}px`,
+                        // The grid's width, given way in a row narrower than the panel grid (an
+                        // inspector that keeps room for its scrollbar) so the trailing slot stays inside.
+                        flex: `0 1 ${String(fieldWidth)}px`,
                         minWidth: 0,
                         // Logical, not marginLeft/marginRight. See the note at
                         // the top of this file: a physical gutter escapes the

@@ -5,6 +5,9 @@
  * A static descriptor cannot know the graph. A bound written as a reference -- `{ from:
  * "graph.nodeCount" }` -- becomes the number measured over the scope, and a "node-id" or
  * "node-set" option gets `values`: one choice per node in the scope, so a picker lists real ids.
+ * A "partition" option on nodes gets `values` too: one choice per categorical node column that
+ * can group the nodes -- a node attribute or a finished run's field -- leaving out the key and
+ * label columns and any column with a value per node, which would make a group of each node.
  * Everything else comes back exactly as the descriptor declares it.
  */
 
@@ -14,6 +17,7 @@ import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
 import {
     type AlgorithmDescriptor,
     type AlgorithmKey,
+    type AttributeDescriptor,
     isOptionBound,
     type LayoutDescriptor,
     type LayoutId,
@@ -22,6 +26,8 @@ import {
     type Scope,
 } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
+import { englishRunLabel } from "./english";
+import { fieldMeasurement, type ResultsApi } from "./results/types";
 import type { Resolution } from "./sets/resolve";
 
 /** One of the measurements a bound may name. */
@@ -37,6 +43,10 @@ export interface OptionsForSource {
      * @returns The resolution and the snapshot it covers.
      */
     resolve(scope: Scope | undefined): { readonly resolution: Resolution; readonly graph: GraphSnapshot };
+    /** The graph's attributes, for a partition's choices; none when absent. */
+    attributes?(): readonly AttributeDescriptor[];
+    /** The session's results, for a partition's choices; none when absent. */
+    results?(): ResultsApi;
 }
 
 /**
@@ -86,13 +96,63 @@ function boundSource(bound: OptionDescriptor["min"]): BoundSource | undefined {
 }
 
 /**
+ * The columns that can group the graph's nodes: categorical node attributes that are neither
+ * the key nor the label, then each finished run's categorical node fields, leaving out any column
+ * with a value per node.
+ * @param source - Where the attributes and the results are read.
+ * @param graph - The snapshot, whose node count a grouping must stay under.
+ * @returns One choice per column: an attribute's name, or a run field's path.
+ */
+function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescriptor["values"] {
+    const { nodeCount } = graph;
+    const attributes = (source.attributes?.() ?? [])
+        .filter(
+            (a) =>
+                a.kind === "node" &&
+                a.measurement === "categorical" &&
+                (a.uniqueCount ?? 0) < nodeCount &&
+                !(a.roles ?? []).some((role) => role === "key" || role === "label"),
+        )
+        .map((a) => ({ value: a.name, label: a.plainName }));
+    const results = source.results?.();
+    const fields = (results?.roots ?? []).flatMap((root) => {
+        const result = results?.get(root.runId);
+        const grouping = root.fields.filter((field) => {
+            if (
+                field.kind !== "node" ||
+                result === undefined ||
+                fieldMeasurement(field, result.shape) !== "categorical"
+            ) {
+                return false;
+            }
+
+            const distinct = new Set<unknown>();
+            for (let index = 0; index < nodeCount; index++) {
+                const value = result.node(graph.ids.idOf(index))?.[field.name];
+                if (value !== undefined && value !== null) {
+                    distinct.add(value);
+                }
+            }
+
+            return distinct.size > 0 && distinct.size < nodeCount;
+        });
+        return grouping.map((field) => ({
+            value: field.path,
+            label: grouping.length === 1 ? englishRunLabel(root) : `${englishRunLabel(root)}: ${field.plainName}`,
+        }));
+    });
+    return [...attributes, ...fields];
+}
+
+/**
  * One algorithm's or layout's options, resolved for a scope.
  * @param source - The descriptor tables and the scope resolver.
  * @param key - An algorithm key or a layout id. An algorithm is looked for first.
  * @param scope - The scope to measure; the session's default scope when absent.
  * @returns The options, each a fresh object: bound references replaced by numbers, and every
  *   "node-id" and "node-set" option given one choice per node in the scope. A numeric node id
- *   is listed as its decimal string, which is what `OptionChoice.value` holds.
+ *   is listed as its decimal string, which is what `OptionChoice.value` holds. A "partition"
+ *   option on nodes is given one choice per column that can group the nodes.
  * @throws A `GraphtyError` with `E_UNKNOWN_ALGORITHM` when neither table holds the key.
  */
 export function optionsFor(
@@ -120,6 +180,7 @@ export function optionsFor(
     const { resolution, graph } = source.resolve(scope);
     const measure = measurer(resolution, graph);
     let choices: OptionDescriptor["values"];
+    let groups: OptionDescriptor["values"];
 
     return declared.map((option) => {
         const resolved: OptionDescriptor = { ...option };
@@ -139,6 +200,12 @@ export function optionsFor(
                 return { value: id, label: id };
             });
             resolved.values = choices;
+        }
+
+        // ponytail: node partitions only; an edge partition keeps no choices until one exists.
+        if (option.type === "partition" && (option.on ?? "node") === "node") {
+            groups ??= groupings(source, graph);
+            resolved.values = groups;
         }
 
         return resolved;

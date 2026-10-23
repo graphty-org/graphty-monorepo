@@ -58,7 +58,7 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
-import { hover } from "../test/helpers/real-input";
+import { click, hover } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
 
@@ -78,9 +78,9 @@ afterEach(() => {
 Logger.LogLevels = Logger.ErrorLogLevel;
 
 // Suppress Lit dev mode warnings
-if (typeof window !== "undefined") {
+if (globalThis.window !== undefined) {
     // @ts-expect-error - Global window modification for test environment
-    window.litIssuedWarnings = new Set(); // Prevent duplicate warnings
+    globalThis.litIssuedWarnings = new Set(); // Prevent duplicate warnings
     // Suppress console warnings from Lit during tests
     const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -163,13 +163,14 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
         return null;
     }
 
-    assert.isTrue(
-        typeof declared.exempt === "string" && declared.exempt.trim() !== "",
-        `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
-            "no reason is a silent skip.",
-    );
+    if (typeof declared.exempt !== "string" || declared.exempt.trim() === "") {
+        assert.fail(
+            `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
+                "no reason is a silent skip.",
+        );
+    }
 
-    return String(declared.exempt);
+    return declared.exempt;
 }
 
 /**
@@ -282,8 +283,8 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
 // The hook below is a PROJECT-LEVEL afterEach, which `prepareStory` merges with the meta's and the
 // story's own.
 // Real input for the play functions (stories/helpers.ts, realInput): the browser's own pointer, so a
-// hover is a trusted event with hit testing, as a reader's is.
+// hover or a click is a trusted event with hit testing, as a reader's is.
 setProjectAnnotations([
     projectAnnotations,
-    { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { hover } } },
+    { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { click, hover } } },
 ]);

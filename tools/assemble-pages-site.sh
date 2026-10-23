@@ -17,6 +17,7 @@
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
 #   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
+#   graph-io/fidelity-stories/storybook-static -> /storybook/graph-io-fidelity/  (style fidelity side by side)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
@@ -59,6 +60,7 @@ copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
 copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
+copy graph-io/fidelity-stories/storybook-static storybook/graph-io-fidelity
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then

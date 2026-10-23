@@ -527,15 +527,41 @@ describe("Popout focus (browser)", () => {
         const panel = screen.getByRole("dialog");
         expect(panel).toHaveAttribute("aria-modal", "false");
 
-        // Non-modal means we can interact with content outside the panel
-        // Tab multiple times to eventually reach external elements
-        // First tab through all panel elements
-        for (let i = 0; i < 10; i++) {
-            await user.tab();
-        }
+        // Non-modal: Tab past the panel's last control leaves it. The panel closes and focus moves
+        // on from what opened it, as if the panel sat beside its trigger.
+        screen.getByRole("button", { name: "Panel Button" }).focus();
+        await user.tab();
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "External Button After" })).toHaveFocus();
+    });
 
-        // The panel should still be open (we didn't trap focus, just tabbed through)
-        expect(screen.getByRole("dialog")).toBeInTheDocument();
+    it("Shift+Tab before the panel's first control closes it and goes back to the trigger", async () => {
+        const user = userEvent.setup();
+        renderPopout(
+            <div>
+                <button>External Button Before</button>
+                <Popout>
+                    <Popout.Trigger>
+                        <button>Open</button>
+                    </Popout.Trigger>
+                    <Popout.Panel width={280} label="Focus Test">
+                        <Popout.Content>
+                            <button>Panel Button</button>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
+                <button>External Button After</button>
+            </div>,
+        );
+        await user.click(screen.getByRole("button", { name: "Open" }));
+        screen.getByRole("button", { name: "Panel Button" }).focus();
+        await user.tab({ shift: true });
+        await waitFor(() => {
+            expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        });
+        expect(screen.getByRole("button", { name: "Open" })).toHaveFocus();
     });
 });
 

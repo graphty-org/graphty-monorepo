@@ -58,8 +58,11 @@ exports[`sniffJsonDialect golden table > classifies every case as before 1`] = `
   "undirectedNetworkx": "node-link",
   "undirectedWithFrom": "vis",
   "vis": "vis",
+  "visEdgelessNetworkx": "node-link",
+  "visEdgelessOptions": "vis",
   "visFromOnly": "node-link",
   "visNetworkx": "node-link",
+  "visNoEdgesKeyOptions": "vis",
   "visViaLinks": "d3",
   "visWithSource": "node-link",
 }

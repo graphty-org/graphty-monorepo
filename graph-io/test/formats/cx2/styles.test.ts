@@ -84,6 +84,126 @@ describe("reading CX2 styles", () => {
         expect(report.issues.map((i) => i.code)).not.toContain("W_STYLES_NOT_IMPORTED");
     });
 
+    it("reads EDGE_CONTROL_POINTS bypasses as the bends Cytoscape draws, `sin` holding EDGE_BEND's first number", async () => {
+        // Cytoscape 3.10's CX2 writer names EDGE_BEND's `cos,sin,ratio` sin, cos, ratio; reading the file back, it bends
+        // { sin: 0, cos: 1 } across the line, as XGMML's "0.0,1.0,0.5" (specimen-edges-lines bend-one-handle)
+        const file = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            {
+                edges: [
+                    { id: 0, s: 1, t: 2 },
+                    { id: 1, s: 1, t: 2 },
+                    { id: 2, s: 2, t: 1 },
+                ],
+            },
+            {
+                edgeBypasses: [
+                    { id: 0, v: { EDGE_CONTROL_POINTS: [{ sin: 0.0, cos: 1.0, ratio: 0.5 }] } },
+                    {
+                        id: 1,
+                        v: {
+                            EDGE_CONTROL_POINTS: [
+                                { sin: 0.7071, cos: -0.7071, ratio: 0.3 },
+                                { sin: 0.7071, cos: 0.7071, ratio: 0.7 },
+                            ],
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(file);
+        const ex = styles as ExtractedStyles;
+        expect(resolveStyles(ex, "edge", "bends", snapshot)).toEqual(["0,-0.5", "0.2121,0.2121 0.495,-0.495", null]);
+        expect(resolveStyles(ex, "edge", "curved", snapshot).slice(0, 2)).toEqual([true, true]);
+    });
+
+    it("reads an edge label position's EDGE_ANCHOR and LABEL_ANCHOR letters, as Cytoscape writes them in CX2", async () => {
+        const bytes = readFileSync(
+            resolve(import.meta.dirname, "../../fidelity/specimens/cx2/specimen-edge-labels.cx2"),
+        );
+        const { snapshot, styles } = await load(new Uint8Array(bytes));
+        const ex = styles as ExtractedStyles;
+        const id = snapshot.edges.get("id");
+        const cols = (["labelShiftX", "labelShiftY", "labelTextAlign"] as const).map((p) =>
+            resolveStyles(ex, "edge", p, snapshot),
+        );
+        const of = (edge: string): unknown[] => {
+            const e = Array.from({ length: snapshot.edgeCount }, (_, i) => i).find((i) => id?.value(i) === edge);
+            return cols.map((c) => (e === undefined ? undefined : c[e]));
+        };
+        // { EDGE_ANCHOR: "E", LABEL_ANCHOR: "W", JUSTIFICATION: "left" }: the label's left end at the line's target end
+        expect(of("label-position-e-w-l-0-0")).toEqual([0.5, 0, "left"]);
+        expect(of("label-position-w-e-r-0-0")).toEqual([-0.5, 0, "right"]);
+        // { EDGE_ANCHOR: "N", LABEL_ANCHOR: "S" }: the label's bottom on the line
+        expect(of("label-position-n-s-c-0-0")).toEqual([0, -0.5, "center"]);
+    });
+
+    it("turns an EDGE_LABEL_AUTOROTATE label along its line, as Cytoscape 3.10.5's SVG draws it", async () => {
+        const bytes = readFileSync(
+            resolve(import.meta.dirname, "../../fidelity/specimens/cx2/specimen-edge-labels.cx2"),
+        );
+        const { snapshot, styles } = await load(new Uint8Array(bytes));
+        const rotation = resolveStyles(styles as ExtractedStyles, "edge", "labelRotation", snapshot);
+        const id = snapshot.edges.get("id");
+        const of = (edge: string): unknown =>
+            rotation[Array.from({ length: snapshot.edgeCount }, (_, i) => i).find((i) => id?.value(i) === edge) ?? -1];
+        // the oracle's label is turned -27.759 degrees, along the line from the source's center to the target's
+        expect(of("label-autorotate-true")).toBe(332.241);
+        expect(of("label-autorotate-false")).toBe(0);
+        expect(of("label-rotation-45")).toBe(45);
+    });
+
+    it("maps the edge weight a file's mapping reads, when the import keeps it only as the graph's weights", async () => {
+        const file = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { attributeDeclarations: [{ edges: { weight: { d: "integer" } } }] },
+            { nodes: [{ id: 1 }, { id: 2 }, { id: 3 }] },
+            {
+                edges: [
+                    { id: 0, s: 1, t: 2, v: { weight: 1 } },
+                    { id: 1, s: 2, t: 3, v: { weight: 2 } },
+                    { id: 2, s: 3, t: 1, v: { weight: 3 } },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: { edge: { EDGE_WIDTH: 1 } },
+                        edgeMapping: {
+                            EDGE_WIDTH: {
+                                type: "CONTINUOUS",
+                                definition: {
+                                    attribute: "weight",
+                                    type: "integer",
+                                    map: [
+                                        { max: 1, maxVPValue: 1, includeMin: false, includeMax: false },
+                                        {
+                                            min: 1,
+                                            max: 2,
+                                            minVPValue: 0.5,
+                                            maxVPValue: 2,
+                                            includeMin: true,
+                                            includeMax: true,
+                                        },
+                                        { min: 2, minVPValue: 1, includeMin: false, includeMax: false },
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(file);
+        expect(snapshot.edges.has("weight")).toBe(false);
+        const ex = styles as ExtractedStyles;
+        expect(resolveStyles(ex, "edge", "width", snapshot)).toEqual([0.5, 2, 1]);
+        expect(ex.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_MAPPING_COLUMN_MISSING");
+    });
+
     it("gives a file with no style Cytoscape desktop's default style, and none under toolDefaults: false", async () => {
         const { snapshot, styles } = await load(doc([]));
         expect(byId(styles as ExtractedStyles, snapshot, "fill")).toEqual({ 1: "#89d0f5", 2: "#89d0f5", 3: "#89d0f5" });
@@ -196,5 +316,107 @@ describe("CX2 files graphty wrote", () => {
         const other = await load(corpus("generated/graphty-written-block-other-graph.cx2"));
         expect(ignored(other.styles)).toBe("FINGERPRINT");
         expect(other.styles?.styles.source.tool).toBe("cytoscape");
+    });
+});
+
+describe("CX2 edge colors under arrowColorMatchesEdge", () => {
+    const edgeDoc = (bypass: Record<string, unknown>): string =>
+        JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            { edges: [{ id: 0, s: 1, t: 2 }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            edge: {
+                                EDGE_LINE_COLOR: "#505050",
+                                EDGE_SOURCE_ARROW_COLOR: "#505050",
+                                EDGE_TARGET_ARROW_COLOR: "#505050",
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                            },
+                        },
+                        nodeMapping: {},
+                        edgeMapping: {},
+                    },
+                ],
+            },
+            { visualEditorProperties: [{ properties: { arrowColorMatchesEdge: true } }] },
+            { edgeBypasses: [{ id: 0, v: bypass }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+    const edgeColors = async (bypass: Record<string, unknown>): Promise<unknown[]> => {
+        const { snapshot, styles } = await load(edgeDoc(bypass));
+        const ex = styles as ExtractedStyles;
+        return (["color", "targetArrowColor"] as const).map((p) => resolveStyles(ex, "edge", p, snapshot)[0]);
+    };
+
+    it("paints only the line from an EDGE_LINE_COLOR bypass, as Cytoscape draws it", async () => {
+        // Cytoscape 3.10.5 on the CX2 specimen-mappings-bypass sheet (bypass-over-edge-passthrough): line #9467bd,
+        // arrow the style's #505050
+        expect(await edgeColors({ EDGE_LINE_COLOR: "#9467BD" })).toEqual(["#9467bd", "#505050"]);
+    });
+
+    it("still paints an arrow its own EDGE_TARGET_ARROW_COLOR bypass names", async () => {
+        expect(await edgeColors({ EDGE_LINE_COLOR: "#9467BD", EDGE_TARGET_ARROW_COLOR: "#D62728" })).toEqual([
+            "#9467bd",
+            "#d62728",
+        ]);
+    });
+});
+
+describe("CX2 arrows Cytoscape draws off their node", () => {
+    it("stand T 4, the half circles 1, HALF_TOP 0.26 and the square 0.25 of their own lengths off it", async () => {
+        const shapes = ["tee", "half_circle", "open_half_circle", "half_top", "square", "triangle"];
+        const text = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            { edges: shapes.map((_, i) => ({ id: i, s: 1, t: 2 })) },
+            {
+                visualProperties: [
+                    { default: { edge: { EDGE_STACKING: "HAYSTACK" } }, nodeMapping: {}, edgeMapping: {} },
+                ],
+            },
+            {
+                edgeBypasses: shapes.map((shape, i) => ({
+                    id: i,
+                    v: { EDGE_TARGET_ARROW_SHAPE: shape, EDGE_SOURCE_ARROW_SHAPE: shape },
+                })),
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(text);
+        const ex = styles as ExtractedStyles;
+        const round = (v: unknown): unknown => (typeof v === "number" ? Math.round(v * 100) / 100 : v);
+        const expected = [4, 1, 1, 0.26, 0.25, null];
+        expect(resolveStyles(ex, "edge", "targetArrowGap", snapshot).map(round)).toEqual(expected);
+        expect(resolveStyles(ex, "edge", "sourceArrowGap", snapshot).map(round)).toEqual(expected);
+    });
+});
+
+describe("CX2 label background shapes", () => {
+    it("rounds the corners of a round-rectangle box, CX2's spelling of ROUND_RECTANGLE", async () => {
+        const text = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, v: { name: "a" } },
+                    { id: 2, v: { name: "b" } },
+                ],
+            },
+            {
+                visualProperties: [
+                    {
+                        default: { node: { NODE_LABEL_FONT_SIZE: 10, NODE_LABEL_BACKGROUND_SHAPE: "rectangle" } },
+                        nodeMapping: {},
+                        edgeMapping: {},
+                    },
+                ],
+            },
+            { nodeBypasses: [{ id: 2, v: { NODE_LABEL_BACKGROUND_SHAPE: "round-rectangle" } }] },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(text);
+        expect(resolveStyles(styles as ExtractedStyles, "node", "labelCornerRadius", snapshot)).toEqual([null, 1.455]);
     });
 });

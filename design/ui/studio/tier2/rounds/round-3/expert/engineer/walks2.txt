@@ -1,0 +1,4 @@
+chip2|setup:SET/friends-ranked.txt|--click "Data"|--click "Add filter step"|--click "Attribute"|--click "role=option:weight"|--click "Value" --type 4|--click "Add step"|--hover "19 of 20 nodes"|--click "19 of 20 nodes"
+twosrc|empty|--click "No thanks"|--click "New from data..."|--click "choose a file..." --upload people.csv|--click "Add a table"|--click "File..." --upload messages.csv|--click "Load"|--click "Data"|--rclick "people.csv and messages.csv#1"|--key Escape|--click "people.csv and messages.csv#1"|--hover-icon 1
+addrepeat|setup:SET/team-ranked.txt|--key Control+o --upload team.csv|--wait 500|--key Escape
+nbrtip|setup:SET/friends-ranked.txt|--click "Find nodes, edges, values" --type Ava|--key Enter|--click "Degree"|--click "Filter to neighbors"|--hover "Filter to neighbors" --wait 1200|--hover "Back to Ava"|--hover "Filter to neighbors"

@@ -95,6 +95,11 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
      */
     palette?: PaletteId;
     /**
+     * The binding's own colours, lowest first, in place of a named palette. See
+     * {@link inlinePalette} for the kind they are read as.
+     */
+    stops?: readonly string[];
+    /**
      * What to paint for a value with no place on the scale. "skip" -- the default -- paints
      * nothing at all, so the element keeps the colour the layers below it gave it.
      */
@@ -120,6 +125,50 @@ export interface RampSpec extends Omit<ScaleContext, "palette" | "range"> {
  */
 export function overflowCapacity(named: PaletteId | undefined): number | null {
     return paletteDescriptor(named ?? DEFAULT_CATEGORICAL_PALETTE)?.capacity ?? null;
+}
+
+/** The id a binding's own stops are reported under, in a legend and a prepared binding. */
+export const INLINE_PALETTE_ID: PaletteId = "custom";
+
+/**
+ * A binding's own stops as a palette: categorical under a scale that names groups (one colour per
+ * group), diverging with a midpoint, and sequential otherwise.
+ * @param stops - The colours, lowest first.
+ * @param categorical - Whether the scale names groups.
+ * @param diverging - Whether the binding has a midpoint.
+ * @returns The palette.
+ */
+export function inlinePalette(stops: readonly string[], categorical: boolean, diverging: boolean): PaletteDescriptor {
+    let kind: PaletteDescriptor["kind"] = diverging ? "diverging" : "sequential";
+    if (categorical) {
+        kind = "categorical";
+    }
+
+    return {
+        id: INLINE_PALETTE_ID,
+        plainName: "Custom",
+        kind,
+        colors: [...stops],
+        capacity: categorical ? stops.length : null,
+        colorblindSafe: [],
+    };
+}
+
+/**
+ * What is wrong with a binding's own stops, or null when nothing is.
+ * @param stops - The stops as authored.
+ * @returns A sentence for the refusal, or null.
+ */
+export function colorsProblem(stops: unknown): string | null {
+    if (!Array.isArray(stops) || stops.length < 2) {
+        return 'A binding\'s own colors are two or more colors, lowest first, such as ["#fff7bc", "#993404"].';
+    }
+
+    const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
+
+    return bad === undefined
+        ? null
+        : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
 /** A colour binding with everything knowable worked out, ready to be asked once per element. */
@@ -199,6 +248,14 @@ function requirePalette(id: PaletteId): PaletteDescriptor {
 }
 
 /**
+ * Built-in palettes the element offers and never picks on its own. Kelly's nineteen colors would
+ * fit 10 to 19 groups, and picking them for a binding that names no palette would change what
+ * every such binding draws today (the first eight groups in their palette and the rest in the
+ * "other" gray). A consumer names it, or lists it in a run's `groupPalettes`.
+ */
+const OFFERED_NOT_CHOSEN: ReadonlySet<PaletteId> = new Set<PaletteId>(["kelly"]);
+
+/**
  * The palette a binding that names none is painted through.
  *
  * DERIVED FROM THE CATALOGUE'S DECLARED CAPACITIES, not from a list of names written here. A
@@ -241,7 +298,7 @@ function defaultPaletteFor(registry: ScaleRegistry, scale: string, groups: numbe
     }
 
     const tightestFit = [...palettesOfKind("categorical")]
-        .filter((candidate) => paletteCapacity(candidate, groups).fits)
+        .filter((candidate) => !OFFERED_NOT_CHOSEN.has(candidate.id) && paletteCapacity(candidate, groups).fits)
         .sort(
             (left, right) => (left.capacity ?? Number.POSITIVE_INFINITY) - (right.capacity ?? Number.POSITIVE_INFINITY),
         );
@@ -357,7 +414,7 @@ function parsedSwatches(palette: PaletteDescriptor): readonly ColorValue[] {
  *   element chose for itself always fits, because it is chosen from the group count below.
  */
 export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRamp {
-    const { scale = DEFAULT_SCALE, palette: named, missing, overflow, ...options } = spec;
+    const { scale = DEFAULT_SCALE, palette: named, stops, missing, overflow, ...options } = spec;
     const map = registry.require(scale);
 
     // Counted before the palette is looked up, because the count is what decides which palette a
@@ -368,13 +425,21 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
     const declared = groupCount(scale, counting);
     // A binding that says what to do with too many groups is painted through the preferred palette
     // and handles the rest itself -- except "extend", whose whole point is the larger palette.
-    const folds = overflow === "other" || overflow === "shape";
-    const palette = requirePalette(named ?? defaultPaletteFor(registry, scale, folds ? 0 : declared));
+    const folds = overflow === "other" || overflow === "shape" || overflow === "pattern";
+    const wanted = folds ? 0 : declared;
+    const palette =
+        stops === undefined
+            ? requirePalette(named ?? defaultPaletteFor(registry, scale, wanted))
+            : inlinePalette(
+                  stops,
+                  registry.describe(scale)?.domainKind === "categorical",
+                  options.midpoint !== undefined,
+              );
     const context: ScaleContext = { ...counting, palette };
     const categorical = palette.kind === "categorical";
     const slots = categorical && declared === 0 ? palette.colors.length : declared;
 
-    // "shape" wraps and "extend" continues, so only "other" -- already folded -- and no policy at
+    // "shape" and "pattern" wrap and "extend" continues, so only "other" -- already folded -- and no policy at
     // all are held to the palette's capacity.
     if (declared > 0 && (overflow === undefined || overflow === "other")) {
         const fit = paletteCapacity(palette, declared);
@@ -425,7 +490,7 @@ export function prepareRamp(spec: RampSpec, registry: ScaleRegistry): PreparedRa
             if (categorical) {
                 const index = Math.max(0, slots > 1 ? Math.round(placed * (slots - 1)) : 0);
 
-                if (index > last && overflow === "shape") {
+                if (index > last && (overflow === "shape" || overflow === "pattern")) {
                     return swatches[index % swatches.length];
                 }
 

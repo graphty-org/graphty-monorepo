@@ -19,6 +19,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
+import { toColorValue } from "./styles/channels";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
 /** What one attribute looked like as the walk accumulated it. */
@@ -35,6 +36,10 @@ interface Accumulator {
     max: number;
     /** The first few values, for a form that shows what it is about to filter on. */
     readonly samples: unknown[];
+    /** Whether every value seen so far is text the element reads as a color. */
+    colors: boolean;
+    /** Whether every value seen so far spells the node id of its record (nodes only). */
+    ids: boolean;
 }
 
 /**
@@ -68,12 +73,15 @@ function classify(value: unknown): AttributeType | null {
  * Fold one value into its attribute's accumulator.
  * @param accumulator - the accumulator for this attribute
  * @param value - the value one record carried
+ * @param id - the record's node id, for a node record
  */
-function accumulate(accumulator: Accumulator, value: unknown): void {
+function accumulate(accumulator: Accumulator, value: unknown, id?: string | number): void {
     const type = classify(value);
     if (type === null) {
         return;
     }
+
+    accumulator.ids &&= id !== undefined && String(value) === String(id);
 
     accumulator.present++;
     accumulator.types.add(type);
@@ -85,6 +93,11 @@ function accumulate(accumulator: Accumulator, value: unknown): void {
 
     if (accumulator.samples.length < ATTRIBUTE_SAMPLE_CAP) {
         accumulator.samples.push(value);
+    }
+
+    // Each distinct value is read as a color once, while the set still holds them all.
+    if (accumulator.colors && !accumulator.unique?.has(value)) {
+        accumulator.colors = typeof value === "string" && toColorValue(value) !== null;
     }
 
     if (accumulator.unique !== null) {
@@ -186,6 +199,10 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
+        ...(accumulator.colors && accumulator.present > 0 ? { valuesAreColors: true as const } : {}),
+        ...(kind === "node" && accumulator.ids && total > 0 && accumulator.present === total
+            ? { holdsNodeIds: true as const }
+            : {}),
     } satisfies AttributeDescriptor);
 }
 
@@ -201,6 +218,8 @@ function newAccumulator(): Accumulator {
         min: Number.POSITIVE_INFINITY,
         max: Number.NEGATIVE_INFINITY,
         samples: [],
+        colors: true,
+        ids: true,
     };
 }
 
@@ -226,11 +245,13 @@ export function describeRows(
  * Walk one kind of element and accumulate every attribute its records carry.
  * @param total - how many rows there are
  * @param read - the attribute bag of one row, by index
+ * @param idOf - the node id of one row, by index, when the rows are nodes
  * @returns the accumulators, in the order the keys were first seen
  */
 function walk(
     total: number,
     read: (index: number) => Readonly<Record<string, unknown>> | undefined,
+    idOf?: (index: number) => string | number,
 ): Map<string, Accumulator> {
     const found = new Map<string, Accumulator>();
 
@@ -247,7 +268,7 @@ function walk(
                 found.set(key, accumulator);
             }
 
-            accumulate(accumulator, record[key]);
+            accumulate(accumulator, record[key], idOf?.(index));
         }
     }
 
@@ -273,7 +294,11 @@ export function describeAttributes(
         return Object.freeze([]);
     }
 
-    const nodes = walk(snapshot.nodeCount, (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)));
+    const nodes = walk(
+        snapshot.nodeCount,
+        (index) => records.nodeAttributes(index, snapshot.ids.idOf(index)),
+        (index) => snapshot.ids.idOf(index),
+    );
     const edges = walk(snapshot.edgeCount, (index) => records.edgeAttributes(index));
 
     const described: AttributeDescriptor[] = [];

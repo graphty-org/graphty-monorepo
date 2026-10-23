@@ -15,13 +15,18 @@ interface RovingFocus<T extends HTMLElement> {
 
 /**
  * One Tab stop for a whole toolbar (WAI-ARIA toolbar pattern, spec 11.1 / 11.4): the item that
- * last had focus -- at first the selected tool (`aria-pressed`, `data-active` or a checked radio)
- * -- is the only one with `tabIndex=0`; the arrows of `orientation` and Home / End move between
- * the enabled items. Arrow keys are consumed, so a mode radio is focused, not changed, by them.
+ * last had focus -- at first the selected tool (`aria-pressed`, `data-active` or a checked radio),
+ * or the first item when `startAt` is "first" -- is the only one with `tabIndex=0`; the arrows of
+ * `orientation` and Home / End move between the enabled items. Arrow keys are consumed, so a mode
+ * radio is focused, not changed, by them.
  * @param orientation - which arrows move
+ * @param startAt - where focus first lands: the selected item ("pressed") or the first ("first")
  * @returns the ref and handlers for the container
  */
-export function useRovingFocus<T extends HTMLElement>(orientation: "horizontal" | "vertical"): RovingFocus<T> {
+export function useRovingFocus<T extends HTMLElement>(
+    orientation: "horizontal" | "vertical",
+    startAt: "pressed" | "first" = "pressed",
+): RovingFocus<T> {
     const ref = useRef<T>(null);
     const current = useRef<HTMLElement | null>(null);
 
@@ -45,12 +50,15 @@ export function useRovingFocus<T extends HTMLElement>(orientation: "horizontal" 
             return;
         }
         const kept = current.current && all.includes(current.current) ? current.current : null;
-        const selected = all.find(
-            (el) =>
-                el.getAttribute("aria-pressed") === "true" ||
-                el.dataset.active !== undefined ||
-                (el as HTMLInputElement).checked,
-        );
+        const selected =
+            startAt === "first"
+                ? undefined
+                : all.find(
+                      (el) =>
+                          el.getAttribute("aria-pressed") === "true" ||
+                          el.dataset.active !== undefined ||
+                          (el as HTMLInputElement).checked,
+                  );
         setCurrent(all, kept ?? selected ?? all[0]);
     });
 

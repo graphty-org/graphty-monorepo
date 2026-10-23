@@ -15,6 +15,7 @@ export default {
         "ScopeApi.save",
         "SelectionApi.apply",
         "SelectionApi.clear",
+        "SelectionApi.hover",
         "SelectionApi.promote",
         "SessionConfig.set",
         "SessionDataApi.declare",

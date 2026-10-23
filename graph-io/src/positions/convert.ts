@@ -17,6 +17,15 @@ export function flipY(y: number): number {
 }
 
 /**
+ * How much longer a unit of y is than a unit of x, for a program that stretches its axes apart.
+ * @param extra - how the file spells its coordinates
+ * @returns `pxPerUnitY / pxPerUnit`, 1 when either is absent
+ */
+function yStretch(extra: PositionColumnExtra): number {
+    return extra.pxPerUnit === undefined || extra.pxPerUnitY === undefined ? 1 : extra.pxPerUnitY / extra.pxPerUnit;
+}
+
+/**
  * One coordinate from a file's spelling into the neutral convention, in place.
  * @param p - x, y, z as the file wrote them; becomes the node's center, y up
  * @param extra - how the file spells it
@@ -29,6 +38,7 @@ export function toNeutral(
     size: readonly [number, number] | null,
     realZ: boolean,
 ): void {
+    p[1] *= yStretch(extra);
     if (extra.anchor === "top-left" && size !== null) {
         p[0] += size[0] / 2;
         p[1] += extra.yAxis === "down" ? size[1] / 2 : -size[1] / 2;
@@ -60,8 +70,9 @@ export function toFilePositions(
 ): Float64Array {
     const out = new Float64Array(coords.length);
     const down = extra.yAxis === "down";
+    const stretch = yStretch(extra);
     for (let i = 0; i < coords.length; i += 3) {
-        let y = coords[i + 1];
+        let y = coords[i + 1] / stretch;
         let z = coords[i + 2];
         if (down) {
             y = flipY(y);

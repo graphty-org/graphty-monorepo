@@ -1,5 +1,7 @@
 # githerd: what the owner has decided
 
+> Historical record; the pipeline it describes (githerd and the Mergify merge queue) was replaced on 2026-10-18 by design/ci/golden-local.md. Its facts were true when gathered, and that design cites them.
+
 This lists every requirement, preference, constraint, decision and rejected idea that the owner
 of graphty-org/graphty-monorepo has stated and that bears on githerd or on how the pipeline runs.
 Each entry quotes the owner's own words, gives the date (UTC), and says what the words rule in

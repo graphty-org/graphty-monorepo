@@ -1,0 +1,21 @@
+{
+    "commit": "6eba30d4e19ea6f8e1ab54dd4c2f567d0ddc52da",
+    "uncommittedChanges": true,
+    "buildStamp": "ca8b3b916c22 graphty@0.8.55",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-08T00:21:03.755Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open project or file...",
+        "--upload friends.csv",
+        "--key Shift+A",
+        "--type PageRank",
+        "--click PageRank",
+        "--click Run"
+    ]
+}

@@ -19,7 +19,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
-import { nextFrame } from "../helpers/real-input";
+import { nextFrame, wheel } from "../helpers/real-input";
 
 const WIDTH = 640;
 const HEIGHT = 480;
@@ -172,6 +172,24 @@ describe("node labels do not overlap", () => {
         );
     });
 
+    it("keeps the first-added label among labels of one size that ask to be decluttered by size", async () => {
+        // left is added first; the hub has more edges, which decides only the degree order
+        const g = await draw([PILED[1], PILED[0], PILED[2]], false, PILED_VIEW);
+        await g.getSession().styles.add({
+            name: "declutter by size",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.labelDeclutter": "size" },
+        });
+        await operationQueueOf(g).waitForCompletion();
+        for (let at = 0; at < FRAMES; at++) {
+            g.scene.render();
+            await nextFrame();
+        }
+
+        assert.deepEqual([...drawnLabels(g).keys()], ["left"]);
+    });
+
     it("keeps a selected node's label over a better-connected one", async () => {
         const g = await draw(PILED, true, PILED_VIEW);
 
@@ -290,6 +308,54 @@ describe("node labels do not overlap", () => {
         hub.mesh.position.x += 5;
         g.scene.render();
         assert.isAbove(pass.passes, afterSelect, "a node that moved places the labels again");
+    });
+
+    it("hides a label whose words touch a kept one, and shows it again when a zoom opens the gap", async () => {
+        // Two labels side by side, then the second node moved so its words end 1.5 pixels from
+        // the first's: closer than the words of two names can be and still read as two names.
+        // The labels scale with the view, so the gap in pixels is the camera's to decide.
+        const g = await draw(
+            [
+                { id: "hub", position: { x: 0, y: 0, z: 0 } },
+                { id: "left", position: { x: 40, y: 0, z: 0 } },
+                { id: "right", position: { x: 0, y: -30, z: 0 } },
+            ],
+            true,
+            { position: { x: 20, y: 0, z: -70 }, target: { x: 20, y: 0, z: 0 } },
+        );
+        const left = g.getNode("left");
+        assert.isOk(left);
+        const apart = drawnLabels(g, ["hub", "left"], true);
+        const hubWords = apart.get("hub");
+        const leftWords = apart.get("left");
+        assert.isOk(hubWords);
+        assert.isOk(leftWords);
+        const worldPerPixel = 40 / (leftWords.left - hubWords.left);
+        left.mesh.position.x = (hubWords.right - hubWords.left + 1.5) * worldPerPixel;
+        g.scene.render();
+        g.scene.render();
+
+        const gapOf = (): number => {
+            const both = drawnLabels(g, ["hub", "left"], true);
+            const a = both.get("hub");
+            const b = both.get("left");
+            return a && b ? b.left - a.right : Number.NaN;
+        };
+        assert.deepEqual([...drawnLabels(g, ["hub", "left"]).keys()], ["hub"], "the touching label is hidden");
+        assert.strictEqual(g.nodeLabelCounts.hiddenByOverlap, 1, "and counted");
+
+        // The reader zooms in over the gap until the words are clearly apart.
+        const canvas = g.scene.getEngine().getRenderingCanvas();
+        assert.isOk(canvas);
+        const gapAt = { x: (hubWords.right + hubWords.right + 1.5) / 2, y: (hubWords.top + hubWords.bottom) / 2 };
+        for (let turn = 0; turn < 40 && g.nodeLabelCounts.hiddenByOverlap > 0; turn++) {
+            await wheel(canvas, gapAt, -100);
+            g.scene.render();
+            await nextFrame();
+        }
+
+        assert.strictEqual(g.nodeLabelCounts.hiddenByOverlap, 0, "zoomed in, nothing is hidden");
+        assert.isAbove(gapOf(), 3, "both are drawn, apart");
     });
 
     it("never draws two labels whose words overlap, and keeps the selected one", async () => {

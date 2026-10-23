@@ -1,0 +1,192 @@
+digraph synth_edges {
+  graph [compound=true, splines=polyline, fontname="Helvetica", label="Synthetic edge and cluster coverage",
+         labelloc=b, labeljust=r, fontsize=20, newrank=true];
+  node [shape=box, style="filled,rounded", fillcolor="#eef2ff", fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+  subgraph cluster_plain { label="plain cluster";
+    c0_0;
+    c0_1;
+    c0_2;
+    c0_3;
+    c0_4;
+  }
+  subgraph cluster_filled { style=filled; fillcolor="#ffeecc"; color="#cc8800"; label="filled";
+    c1_0;
+    c1_1;
+    c1_2;
+    c1_3;
+    c1_4;
+  }
+  subgraph cluster_rounded { style="rounded,filled"; fillcolor=lightcyan; pencolor=teal; penwidth=3; label="rounded; pen 3"; labeljust=l;
+    c2_0;
+    c2_1;
+    c2_2;
+    c2_3;
+    c2_4;
+    subgraph cluster_inner { style=filled; fillcolor=white; color=blue; label="nested";
+      inner_0 [fillcolor=lightblue];
+      inner_1 [fillcolor=lightblue];
+      inner_2 [fillcolor=lightblue];
+      subgraph cluster_inner2 { style="dotted"; label="nested twice"; inner2_0; inner2_1; }
+    }
+  }
+  subgraph cluster_dashed { style=dashed; color=red; label="dashed"; labeljust=r; fontcolor=red;
+    c3_0;
+    c3_1;
+    c3_2;
+    c3_3;
+    c3_4;
+  }
+  subgraph cluster_grad { style=filled; fillcolor="yellow:skyblue"; gradientangle=90; label="gradient"; labelloc=b;
+    c4_0;
+    c4_1;
+    c4_2;
+    c4_3;
+    c4_4;
+  }
+  subgraph cluster_radial { style=radial; fillcolor="white:lightpink"; label="radial";
+    c5_0;
+    c5_1;
+    c5_2;
+    c5_3;
+    c5_4;
+  }
+  subgraph cluster_striped { style=striped; fillcolor="#ffdddd:#ddffdd:#ddddff"; label="striped";
+    c6_0;
+    c6_1;
+    c6_2;
+    c6_3;
+    c6_4;
+  }
+  subgraph cluster_bg { bgcolor="#e8e8e8"; pencolor=none; label="bgcolor; no pen";
+    c7_0;
+    c7_1;
+    c7_2;
+    c7_3;
+    c7_4;
+  }
+  subgraph cluster_periph0 { peripheries=0; style=filled; fillcolor="#f0fff0"; label="peripheries 0";
+    c8_0;
+    c8_1;
+    c8_2;
+    c8_3;
+    c8_4;
+  }
+  subgraph cluster_alpha { style=filled; fillcolor="#0000ff22"; color="#0000ff88"; label="alpha fill"; fontsize=18; fontname="Times-Italic";
+    c9_0;
+    c9_1;
+    c9_2;
+    c9_3;
+    c9_4;
+  }
+  f0 [fillcolor="#377eb8"];
+  f1 [fillcolor="salmon"];
+  f2 [fillcolor="#377eb8"];
+  f3 [fillcolor="#f781bf"];
+  f4 [fillcolor="#377eb8"];
+  f5 [fillcolor="#ff7f00"];
+  f6 [fillcolor="lightblue"];
+  f7 [fillcolor="orchid"];
+  f8 [fillcolor="#ff7f00"];
+  f9 [fillcolor="#984ea3"];
+  f10 [fillcolor="lightblue"];
+  f11 [fillcolor="#ffff33"];
+  rec [shape=record, style=filled, fillcolor=white, label="<a> port a|<b> port b|<c> port c"];
+  { rank=same; f0; f1; f2; }
+  { rank=min; f3; }
+  { rank=max; f4; }
+  { rank=source; f5; }
+  { rank=sink; f6; }
+  c1_1 -> c7_2 [arrowhead=normal, label="normal", color="#e41a1c"];
+  c7_1 -> c8_0 [arrowhead=inv, label="inv", color="#377eb8"];
+  c2_2 -> c4_3 [arrowhead=dot, label="dot", color="#4daf4a"];
+  c1_1 -> c7_0 [arrowhead=invdot, label="invdot", color="#984ea3"];
+  c9_0 -> c0_4 [arrowhead=odot, label="odot", color="#ff7f00"];
+  c7_1 -> c0_3 [arrowhead=invodot, label="invodot", color="#ffff33"];
+  c7_4 -> c2_3 [arrowhead=none, label="none", color="#a65628"];
+  c6_1 -> c8_3 [arrowhead=tee, label="tee", color="#f781bf"];
+  c6_4 -> c5_2 [arrowhead=empty, label="empty", color="#999999"];
+  c9_4 -> c4_0 [arrowhead=invempty, label="invempty", color="#e41a1c"];
+  c5_4 -> c7_2 [arrowhead=diamond, label="diamond", color="#377eb8"];
+  f9 -> c5_4 [arrowhead=odiamond, label="odiamond", color="#4daf4a"];
+  c4_3 -> c3_4 [arrowhead=ediamond, label="ediamond", color="#984ea3"];
+  c3_0 -> f0 [arrowhead=crow, label="crow", color="#ff7f00"];
+  c2_1 -> c8_4 [arrowhead=box, label="box", color="#ffff33"];
+  c9_4 -> c3_0 [arrowhead=obox, label="obox", color="#a65628"];
+  c1_0 -> c7_1 [arrowhead=open, label="open", color="#f781bf"];
+  c3_4 -> c6_3 [arrowhead=halfopen, label="halfopen", color="#999999"];
+  c6_1 -> f6 [arrowhead=vee, label="vee", color="#e41a1c"];
+  c4_1 -> c9_1 [arrowhead=curve, label="curve", color="#377eb8"];
+  c5_3 -> c3_3 [arrowhead=icurve, label="icurve", color="#4daf4a"];
+  c7_3 -> c0_4 [arrowhead=lnormal, label="lnormal", color="#984ea3"];
+  c1_2 -> c6_2 [arrowhead=rnormal, label="rnormal", color="#ff7f00"];
+  c5_1 -> c2_0 [arrowhead=onormal, label="onormal", color="#ffff33"];
+  c9_3 -> c4_1 [arrowhead=olnormal, label="olnormal", color="#a65628"];
+  c1_4 -> f9 [arrowhead=ornormal, label="ornormal", color="#f781bf"];
+  c6_1 -> c5_1 [arrowhead=lteeoldiamond, label="lteeoldiamond", color="#999999"];
+  c0_2 -> f11 [arrowhead=normalnormal, label="normalnormal", color="#e41a1c"];
+  c8_2 -> c0_4 [arrowhead=dotodot, label="dotodot", color="#377eb8"];
+  c9_3 -> c7_0 [arrowhead=invnormal, label="invnormal", color="#4daf4a"];
+  c7_1 -> f0 [arrowhead=lbox, label="lbox", color="#984ea3"];
+  f6 -> f2 [arrowhead=rcrow, label="rcrow", color="#ff7f00"];
+  c4_0 -> c4_1 [arrowhead=ltee, label="ltee", color="#ffff33"];
+  c8_4 -> c4_2 [arrowhead=oinv, label="oinv", color="#a65628"];
+  c7_3 -> c6_1 [dir=both, arrowtail=dot, arrowhead=normal, taillabel="dot", labelfontcolor=blue];
+  c7_2 -> f1 [dir=both, arrowtail=odiamond, arrowhead=normal, taillabel="odiamond", labelfontcolor=blue];
+  c5_4 -> c0_4 [dir=both, arrowtail=crow, arrowhead=normal, taillabel="crow", labelfontcolor=blue];
+  f3 -> c1_0 [dir=both, arrowtail=inv, arrowhead=normal, taillabel="inv", labelfontcolor=blue];
+  f10 -> c3_2 [dir=both, arrowtail=tee, arrowhead=normal, taillabel="tee", labelfontcolor=blue];
+  c6_0 -> c8_4 [dir=both, arrowtail=box, arrowhead=normal, taillabel="box", labelfontcolor=blue];
+  c8_2 -> c0_4 [dir=back];
+  c0_3 -> c9_1 [dir=back];
+  c8_4 -> c3_4 [dir=none, color=gray40];
+  c8_1 -> c7_1 [dir=none, color=gray40];
+  c8_3 -> f2 [arrowsize=0.4, xlabel="arrowsize 0.4"];
+  c5_3 -> c3_3 [arrowsize=1.0, xlabel="arrowsize 1.0"];
+  c9_0 -> c4_4 [arrowsize=1.6, xlabel="arrowsize 1.6"];
+  f6 -> c8_2 [arrowsize=2.5, xlabel="arrowsize 2.5"];
+  c4_2 -> c0_1 [penwidth=0.5];
+  f10 -> c5_4 [penwidth=1];
+  c4_2 -> c2_0 [penwidth=2];
+  c7_4 -> c1_2 [penwidth=4];
+  c6_1 -> c0_3 [penwidth=7];
+  c2_3 -> c9_4 [style=dashed, label="dashed"];
+  c3_3 -> c1_3 [style=dotted, label="dotted"];
+  c9_2 -> c3_0 [style=bold, label="bold"];
+  c5_0 -> f8 [style=solid, label="solid"];
+  f5 -> c6_1 [style=invis, label="invis"];
+  c1_0 -> c2_0 [style=tapered, penwidth=7, arrowhead=none, color=darkorange];
+  c5_3 -> c5_0 [color="#ff000080", penwidth=2];
+  c7_0 -> c3_2 [color="red:green:blue", penwidth=2];
+  f6 -> c1_3 [color="red;0.3:blue", penwidth=2];
+  f2 -> c5_2 [color="/dark28/4", penwidth=2];
+  f5 -> c7_0 [color=steelblue, penwidth=2];
+  c3_2 -> c9_0 [color="0.3 0.9 0.7", penwidth=2];
+  c5_1 -> c4_2 [label="decorated", decorate=true, fontcolor=purple, fontsize=14];
+  c8_3 -> f6 [headlabel="head", taillabel="tail", labelangle=45, labeldistance=2, labelfontsize=12, labelfontcolor=darkgreen];
+  c4_4 -> f11 [label=<<B>html</B> <FONT COLOR="red">edge</FONT>>];
+  rec:a -> f7 [tailport=e];
+  f8 -> rec:c:w;
+  f9:n -> f10:s [color=brown];
+  f11 -> c1_0 [lhead=cluster_filled, color=blue, label=lhead];
+  c3_1 -> f11 [ltail=cluster_dashed, color=red, label=ltail];
+  c2_0 -> inner_1 [lhead=cluster_inner];
+  f0 -> f1 [color="#555555"];
+  f0 -> f1 [color="#555555"];
+  f0 -> f1 [color="#555555"];
+  f2 -> f2 [label="self loop"];
+  f3 -> f3 [color=red];
+  f4 -> f5 [constraint=false, style=dashed];
+  f6 -> f7 [minlen=3, weight=5];
+  inner2_0 -> inner2_1 [arrowhead=diamond];
+  c0_0 -> c0_1; c0_1 -> c0_2;
+  c1_0 -> c1_1; c1_1 -> c1_2;
+  c2_0 -> c2_1; c2_1 -> c2_2;
+  c3_0 -> c3_1; c3_1 -> c3_2;
+  c4_0 -> c4_1; c4_1 -> c4_2;
+  c5_0 -> c5_1; c5_1 -> c5_2;
+  c6_0 -> c6_1; c6_1 -> c6_2;
+  c7_0 -> c7_1; c7_1 -> c7_2;
+  c8_0 -> c8_1; c8_1 -> c8_2;
+  c9_0 -> c9_1; c9_1 -> c9_2;
+}

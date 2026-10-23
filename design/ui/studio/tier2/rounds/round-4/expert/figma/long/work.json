@@ -1,0 +1,35 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "everything_1 Everything",
+   "edge-defaults_1 Edge defaults"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "bus-stops.csv"
+  ]
+ },
+ "end": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "long-names.csv"
+  ]
+ },
+ "gone": {
+  "layers": [
+   "everything_1 Everything"
+  ],
+  "sources": [
+   "bus-stops.csv"
+  ]
+ }
+}

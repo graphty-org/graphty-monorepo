@@ -27,6 +27,7 @@ const PHRASES: ReadonlyMap<StyleNoteCode, string> = new Map<StyleNoteCode, strin
     ["W_STYLE_EXTRA_LABELS", "elements have more than one label; the first was kept"],
     ["W_STYLE_INHERIT_COLOR", "inherited colors cannot be expressed"],
     ["W_STYLE_NOT_CARRIED", "style properties have no counterpart and were not carried"],
+    ["W_STYLE_ANNOTATION_SKIPPED", "annotations of a kind graph-io does not read were skipped"],
     ["W_STYLE_BAD_MAPPING", "mappings cannot be read"],
     ["W_STYLE_MAPPING_COLUMN_MISSING", "mappings read a column the file does not have"],
     ["W_STYLE_REFERENCE_CYCLE", "style references are circular or too deep"],

@@ -167,8 +167,7 @@ A1, A2 and A10. Each card's States field says whether it draws data paint.
   `information-architecture.md` 11.
 - **Figma source:** 46 Layer row in the Layers slot (`left-sidebar/README.md` 3, 4); the fill list
   (`right-sidebar-selection/README.md` 391) for a row's paint.
-- **Departures:** `figma-crosswalk.md` 4.2, "A style row names a reusable style"; "Local styles never overlap"; "A layers panel is
-  grouped by hand"; "Hovering a style in Selection colors marks what uses it"; "Overrides are listed
+- **Departures:** `figma-crosswalk.md` 4.2, "A style row names a reusable style"; "Local styles never overlap"; "Hovering a style in Selection colors marks what uses it"; "Overrides are listed
   per instance"; "A frame's default look is its own fill". Blocked (`interface-specification.md` 7.4): the Overrides and Base
   style rows (the Overrides row), the painted count and Select painted (the painted row).
 - **Regions and rows:** section header with "+" and a `Menu` holding Export style...
@@ -477,7 +476,7 @@ a pick or filters attributes itself.
 - **Instantiates:** chevron menu, zoom and view menu, context menu, header menus.
 - **Figma source:** 32 Dark menu; 33 Context menu.
 - **Departures:** none.
-- **Regions and rows:** Mantine `Menu`, dark in both themes; `ContextMenu` at the pointer;
+- **Regions and rows:** Mantine `Menu`, following the page theme; `ContextMenu` at the pointer;
   `MenuCheckItem` for toggles, in two groups split by a divider: those a saved view captures
   (Labels on canvas, Show arrows, Legend) and the reader's (Note markers, Minimap, Additional
   labels, Follow selection; Minimap and Note markers blocked, `interface-specification.md` 7.4); the split's reason is

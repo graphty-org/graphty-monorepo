@@ -12,9 +12,9 @@
  * offered in 2D. With the modes declared, a picker offers only what will work and the element
  * refuses the rest with `E_UNSUPPORTED` before calling anything.
  *
- * None of the five takes options. That is a fact about the built-ins rather than a limit on the
- * point: a registered view declares `OptionDescriptor[]` like every other extension, and gets
- * them resolved against its defaults before `compute` is called.
+ * Only `fitToGraph` takes an option (`keepAngle`, off by default so no saved picture moves). A
+ * registered view declares `OptionDescriptor[]` like every other extension, and gets them
+ * resolved against its defaults before `compute` is called.
  *
  * THIS TABLE MEANS "WHAT THE ELEMENT SHIPS" and never grows. Registrations live in
  * `./cameraRegistry`, the lookups below consult it after the table, and `session.catalog`
@@ -31,7 +31,18 @@ export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[] = Object.freeze([
         plainName: "Fit to graph",
         description: "Frames every element, from an angle in 3D and straight on in 2D.",
         modes: ["2d", "3d"],
-        options: [],
+        options: [
+            {
+                name: "keepAngle",
+                plainName: "Keep the Current Angle",
+                technicalName: "keepAngle",
+                type: "boolean",
+                default: false,
+                description:
+                    "In 3D, frame every element from the direction the camera looks from now, " +
+                    "rather than from the fixed diagonal. Has no effect in 2D.",
+            },
+        ],
     },
     {
         id: "topView",

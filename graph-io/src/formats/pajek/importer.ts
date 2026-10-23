@@ -22,6 +22,7 @@ import {
     GraphFormatError,
     type GraphMetaPatch,
     type GraphSink,
+    type GraphSnapshot,
     INVALID_INDEX,
     type NodeId,
     type U32,
@@ -61,6 +62,7 @@ import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
+import type { ImporterPositions } from "../../positions/types.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -68,7 +70,8 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { pajekStyles } from "./styles.js";
+import { type DrawWindow, type PajekDrawOptions, resolvePajekDraw } from "./draw.js";
+import { PAJEK_POINTS_PER_UNIT, pajekStyles } from "./styles.js";
 import {
     decodeCharacterReferences,
     isCommentOrBlank,
@@ -93,6 +96,7 @@ import {
     VALUE_COLUMN,
     VALUE_FIELD,
     VECTOR_COLUMN,
+    VOIDING_KEYS,
 } from "./syntax.js";
 
 /**
@@ -106,6 +110,14 @@ export interface PajekImportOptions extends GraphChoiceOptions, CommonImportOpti
      * @defaultValue "auto"
      */
     firstVertex?: 0 | 1 | "auto" | undefined;
+    /**
+     * How the network is drawn, which Pajek keeps in its ini file and Draw menu rather than in the file: the Draw
+     * window's size (Pajek stretches the 0..1 coordinates across it, one axis at a time), the partition and vectors of
+     * Draw > Network + Partition (+ Vector), and the Draw window's options by their ini names. Read for the
+     * coordinates' scale and the file's styles; without it a file is drawn as Pajek's defaults draw it in a 500 x 500
+     * window.
+     */
+    pajekDraw?: PajekDrawOptions | undefined;
 }
 
 /**
@@ -302,9 +314,10 @@ function spellsDecl(): ColumnDecl {
  * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
  * its spelling for `extractPositions()`.
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
+ * @param window - the Draw window the coordinates are stretched to
  * @returns a fresh declaration
  */
-function positionDecl(sourceDims: number): ColumnDecl {
+function positionDecl(sourceDims: number, window: DrawWindow): ColumnDecl {
     return {
         name: POSITION_COLUMN,
         dtype: "f64",
@@ -313,10 +326,23 @@ function positionDecl(sourceDims: number): ColumnDecl {
         role: "position",
         origin: { format: "pajek", id: "coordinates" },
         // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
-        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position
-        extra: { sourceDims, units: "file", yAxis: "down", zOrigin: 0.5, zeroUnplaced: true },
+        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position; one unit
+        // is the Draw window's width in points across and its height down (500 each by default,
+        // PAJEK_POINTS_PER_UNIT): Pajek stretches 0..1 to the window one axis at a time
+        extra: {
+            sourceDims,
+            units: "file",
+            pxPerUnit: window.width,
+            ...(window.height === window.width ? {} : { pxPerUnitY: window.height }),
+            yAxis: "down",
+            zOrigin: 0.5,
+            zeroUnplaced: true,
+        },
     };
 }
+
+/** The Draw window a file is drawn in without `pajekDraw`: the square Pajek's EPS export maps 0..1 to. */
+const DEFAULT_WINDOW: DrawWindow = { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
 
 /** A problem with one line, recorded as an issue by the per-line catch. */
 class LineError extends Error {
@@ -400,6 +426,17 @@ class PajekParser {
     private readonly coercer: IdCoercer;
 
     private readonly firstVertex: NonNullable<PajekImportOptions["firstVertex"]>;
+
+    /** The Draw window the coordinates are stretched to. */
+    private readonly window: DrawWindow;
+
+    /** The `% graphty.styles` block kept for the styles, or null. */
+    keptBlock: string | null = null;
+
+    /**
+     * The vertices whose line Pajek 6.02 draws with none of its parameters (`VOIDING_KEYS`), by index, for the styles.
+     */
+    readonly voided: number[] = [];
 
     private section: Section = "none";
 
@@ -505,13 +542,16 @@ class PajekParser {
      * @param report - the report
      * @param options - the resolved common options
      * @param firstVertex - the firstVertex format option
+     * @param window - the Draw window the coordinates are stretched to
      */
     constructor(
         sink: GraphSink,
         report: ImportReportBuilder,
         options: ResolvedImportOptions,
         firstVertex: 0 | 1 | "auto",
+        window: DrawWindow = DEFAULT_WINDOW,
     ) {
+        this.window = window;
         this.sink = sink;
         this.report = report;
         this.options = options;
@@ -532,7 +572,8 @@ class PajekParser {
         const trimmed = text.trimStart();
         if (trimmed.startsWith(PAJEK_STYLE_COMMENT)) {
             this.styleBlockKept = true;
-            this.report.keepForStyles(trimmed.slice(PAJEK_STYLE_COMMENT.length));
+            this.keptBlock = trimmed.slice(PAJEK_STYLE_COMMENT.length);
+            this.report.keepForStyles(this.keptBlock);
         }
     }
 
@@ -1025,6 +1066,58 @@ class PajekParser {
      */
     private vertexLine(text: string, line: number): void {
         const tokens = this.tokens(text, "node", line);
+        const { k, pos } = this.vertexNumber(tokens, line);
+        // parse everything before writing anything
+        let i = 1;
+        let label: string | null = null;
+        if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
+            label = this.labelOf(tokens[1], k, line);
+            i = 2;
+        }
+        const { xyz, dims, next } = this.vertexCoordinates(tokens, i, k);
+        i = next;
+        this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
+        let shape: string | null = null;
+        if (i < tokens.length && isShapeKeyword(tokens[i])) {
+            shape = tokens[i].toLowerCase();
+            i++;
+        }
+        const extras = this.extras(tokens, i, "node", line);
+        shape = extras.shape ?? shape;
+        const restored = this.restoredId(extras);
+        this.createNodes();
+        // write
+        const repeated = this.markVertexSeen(pos, k, line);
+        const index = this.vertexIndex(pos, k, label, restored, repeated, line);
+        if (shape === null && dims > 0 && extras.keys.length > 0 && VOIDING_KEYS.has(extras.keys[0])) {
+            this.voided.push(index);
+        }
+        if (label !== null) {
+            this.labelHandle = this.nodeHandle(this.labelHandle, LABEL_DECL, line);
+            this.sink.setNodeValue(this.labelHandle, index, label);
+        }
+        if (dims > 0) {
+            this.writePosition(index, dims, xyz, k, line);
+        }
+        if (shape !== null) {
+            this.writeShape(index, shape, line);
+        }
+        for (let p = 0; p < extras.keys.length; p++) {
+            this.writeParameter("node", extras.keys[p], index, extras.values[p]);
+        }
+        if (extras.spells !== null) {
+            this.nodeSpellsHandle = this.nodeHandle(this.nodeSpellsHandle, spellsDecl(), line);
+            this.sink.setNodeValue(this.nodeSpellsHandle, index, extras.spells);
+        }
+    }
+
+    /**
+     * A vertex line's number, checked: it starts the line and is in the declared range.
+     * @param tokens - the line's tokens
+     * @param line - the line number
+     * @returns the vertex number and its position
+     */
+    private vertexNumber(tokens: readonly string[], line: number): { k: number; pos: number } {
         if (!isVertexNumber(tokens[0])) {
             this.report.counts.skippedNodes++;
             throw new LineError(
@@ -1047,28 +1140,30 @@ class PajekParser {
                 `vertex ${k} is outside ${this.base}..${this.base + this.vertexCount - 1}`,
             );
         }
-        // parse everything before writing anything
-        let i = 1;
-        let label: string | null = null;
-        if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
-            label = this.labelOf(tokens[1], k, line);
-            i = 2;
-        }
-        let x = 0;
-        let y = 0;
-        let z = 0;
-        let dims = 0;
+        return { k, pos };
+    }
+
+    /**
+     * A vertex line's coordinates: two or three numbers, or none; a single one is an error.
+     * @param tokens - the line's tokens
+     * @param i - where the coordinates would start
+     * @param k - the vertex number
+     * @returns x, y and z (0 when absent), how many were read, and the index after them
+     */
+    private vertexCoordinates(
+        tokens: readonly string[],
+        i: number,
+        k: number,
+    ): { xyz: [number, number, number]; dims: number; next: number } {
         if (i + 1 < tokens.length && isNumericText(tokens[i]) && isNumericText(tokens[i + 1])) {
-            x = Number(tokens[i]);
-            y = Number(tokens[i + 1]);
-            i += 2;
-            dims = 2;
-            if (i < tokens.length && isNumericText(tokens[i])) {
-                z = Number(tokens[i]);
-                i++;
-                dims = 3;
+            const x = Number(tokens[i]);
+            const y = Number(tokens[i + 1]);
+            if (i + 2 < tokens.length && isNumericText(tokens[i + 2])) {
+                return { xyz: [x, y, Number(tokens[i + 2])], dims: 3, next: i + 3 };
             }
-        } else if (i < tokens.length && isNumericText(tokens[i])) {
+            return { xyz: [x, y, 0], dims: 2, next: i + 2 };
+        }
+        if (i < tokens.length && isNumericText(tokens[i])) {
             this.report.counts.skippedNodes++;
             throw new LineError(
                 "parse-error",
@@ -1076,39 +1171,60 @@ class PajekParser {
                 `vertex ${k}: a single coordinate "${tokens[i]}"; coordinates are x y [z]`,
             );
         }
-        this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
-        let shape: string | null = null;
-        if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
-            i++;
-        }
-        const extras = this.extras(tokens, i, "node", line);
-        shape = extras.shape ?? shape;
-        const restored = this.restoredId(extras);
-        this.createNodes();
-        // write
-        const repeated = this.seen[pos] !== 0;
-        if (repeated) {
+        return { xyz: [0, 0, 0], dims: 0, next: i };
+    }
+
+    /**
+     * Marks a vertex's position as having a line, warning when it already had one.
+     * @param pos - the vertex's position
+     * @param k - the vertex number
+     * @param line - the line number
+     * @returns whether the vertex already had a line
+     */
+    private markVertexSeen(pos: number, k: number, line: number): boolean {
+        if (this.seen[pos] !== 0) {
             this.report.warning(
                 "merged",
                 PAJEK_ISSUE.DUPLICATE_NODE,
                 `vertex ${k} has more than one line; the later values overwrite`,
                 { line, element: String(k) },
             );
-        } else {
-            this.seen[pos] = 1;
-            this.seenCount++;
+            return true;
         }
-        let index: number;
-        if (this.idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
-            index = this.deferredNode(this.idOfPos, pos, k, label, line, "label");
-        } else if (this.idOfPos !== null && this.idOfPos[pos] === undefined) {
+        this.seen[pos] = 1;
+        this.seenCount++;
+        return false;
+    }
+
+    /**
+     * The node index a vertex line writes to, creating the node when its id is deferred to its line.
+     * @param pos - the vertex's position
+     * @param k - the vertex number
+     * @param label - the line's label, or null
+     * @param restored - the original id the line carries, or null
+     * @param repeated - whether the vertex already had a line
+     * @param line - the line number
+     * @returns the node index
+     */
+    private vertexIndex(
+        pos: number,
+        k: number,
+        label: string | null,
+        restored: string | null,
+        repeated: boolean,
+        line: number,
+    ): number {
+        const { idOfPos } = this;
+        if (idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
+            return this.deferredNode(idOfPos, pos, k, label, line, "label");
+        }
+        if (idOfPos !== null && idOfPos[pos] === undefined) {
             // restore mode: the earlier positions without a line yet get their numbers first, so the
             // index order is the vertex number order whatever the line order (the identity id map
             // of an ordered file); then this vertex with its original id, or its number
             for (let p = this.filledBelow; p < pos; p++) {
-                if (this.idOfPos[p] === undefined) {
-                    this.numberedNode(this.idOfPos, p);
+                if (idOfPos[p] === undefined) {
+                    this.numberedNode(idOfPos, p);
                 }
             }
             // after the loop on purpose: a throw part-way leaves the mark at its smaller, still
@@ -1116,49 +1232,47 @@ class PajekParser {
             if (pos > this.filledBelow) {
                 this.filledBelow = pos;
             }
-            index = this.deferredNode(this.idOfPos, pos, k, restored, line, "originalId");
-        } else {
-            index = this.indexOfPos[pos];
-            if (restored !== null && !repeated) {
-                // an out-of-order line: the vertex already exists under its number
-                this.report.warning(
-                    "coercion",
-                    PAJEK_ISSUE.ORIGINAL_ID_UNRESTORED,
-                    `vertex ${k} carries ${ORIGINAL_ID_KEY} ${JSON.stringify(restored)} but a later vertex's line came first and created it under its number; the original id is not restored`,
-                    { line, element: String(k) },
-                );
-            }
+            return this.deferredNode(idOfPos, pos, k, restored, line, "originalId");
         }
-        const { sink } = this;
-        if (label !== null) {
-            if (this.labelHandle === INVALID_INDEX) {
-                this.labelHandle = declareResolved(sink, "node", LABEL_DECL, this.report, { line }).handle;
-            }
-            sink.setNodeValue(this.labelHandle, index, label);
+        if (restored !== null && !repeated) {
+            // an out-of-order line: the vertex already exists under its number
+            this.report.warning(
+                "coercion",
+                PAJEK_ISSUE.ORIGINAL_ID_UNRESTORED,
+                `vertex ${k} carries ${ORIGINAL_ID_KEY} ${JSON.stringify(restored)} but a later vertex's line came first and created it under its number; the original id is not restored`,
+                { line, element: String(k) },
+            );
         }
-        if (dims > 0) {
-            this.writePosition(index, dims, [x, y, z], k, line);
+        return this.indexOfPos[pos];
+    }
+
+    /**
+     * A node column's handle, declared on first use.
+     * @param handle - the handle so far, or INVALID_INDEX
+     * @param decl - the column's declaration
+     * @param line - the line number
+     * @returns the handle
+     */
+    private nodeHandle(handle: ColumnHandle, decl: Parameters<typeof declareResolved>[2], line: number): ColumnHandle {
+        return handle === INVALID_INDEX
+            ? declareResolved(this.sink, "node", decl, this.report, { line }).handle
+            : handle;
+    }
+
+    /**
+     * Writes a vertex's shape keyword: to the shape column, or to an earlier `shape "<text>"` parameter's column.
+     * @param index - the node index
+     * @param shape - the keyword
+     * @param line - the line number
+     */
+    private writeShape(index: number, shape: string, line: number): void {
+        if (this.shapeHandle === INVALID_INDEX && this.nodeParams.has(SHAPE_COLUMN)) {
+            // an earlier `shape "<text>"` parameter owns the column: the keyword is written there
+            this.writeParameter("node", SHAPE_COLUMN, index, shape);
+            return;
         }
-        if (shape !== null) {
-            if (this.shapeHandle === INVALID_INDEX && this.nodeParams.has(SHAPE_COLUMN)) {
-                // an earlier `shape "<text>"` parameter owns the column: the keyword is written there
-                this.writeParameter("node", SHAPE_COLUMN, index, shape);
-            } else {
-                if (this.shapeHandle === INVALID_INDEX) {
-                    this.shapeHandle = declareResolved(sink, "node", SHAPE_DECL, this.report, { line }).handle;
-                }
-                sink.setNodeValue(this.shapeHandle, index, shape);
-            }
-        }
-        for (let p = 0; p < extras.keys.length; p++) {
-            this.writeParameter("node", extras.keys[p], index, extras.values[p]);
-        }
-        if (extras.spells !== null) {
-            if (this.nodeSpellsHandle === INVALID_INDEX) {
-                this.nodeSpellsHandle = declareResolved(sink, "node", spellsDecl(), this.report, { line }).handle;
-            }
-            sink.setNodeValue(this.nodeSpellsHandle, index, extras.spells);
-        }
+        this.shapeHandle = this.nodeHandle(this.shapeHandle, SHAPE_DECL, line);
+        this.sink.setNodeValue(this.shapeHandle, index, shape);
     }
 
     /**
@@ -1238,7 +1352,9 @@ class PajekParser {
     private writePosition(index: number, dims: number, point: readonly number[], k: number, line: number): void {
         if (this.positionHandle === INVALID_INDEX) {
             this.coordDims = dims;
-            this.positionHandle = declareResolved(this.sink, "node", positionDecl(dims), this.report, { line }).handle;
+            this.positionHandle = declareResolved(this.sink, "node", positionDecl(dims, this.window), this.report, {
+                line,
+            }).handle;
         } else if (dims !== this.coordDims) {
             this.report.warnOnce(
                 "validation-error",
@@ -1654,7 +1770,7 @@ class PajekParser {
         for (let i = start; i < tokens.length;) {
             const token = tokens[i];
             if (token.startsWith("[")) {
-                extras.spells = this.intervals(token, domain);
+                extras.spells = this.intervals(token, domain, line);
                 i++;
                 continue;
             }
@@ -1677,8 +1793,12 @@ class PajekParser {
             }
             seen.add(token);
             extras.keys.push(token);
-            extras.values.push(tokens[i + 1]);
-            i += 2;
+            // a color written as three fractions, `c 0.700 0.700 0.700` (Pajek's course data, 1CRN.NET), is one
+            // value, kept as written; a key is never a number, so the reading is unambiguous. Pajek 6.02 reads no
+            // color from it (the style reader leaves the line its carried or default color)
+            const triple = COLOR_KEYS.has(token) ? colorTriple(tokens, i + 1) : null;
+            extras.values.push(triple ?? tokens[i + 1]);
+            i += triple === null ? 2 : 4;
         }
         return extras;
     }
@@ -1709,12 +1829,15 @@ class PajekParser {
     }
 
     /**
-     * The spells of a row's interval token; a malformed one skips the row.
+     * The spells of a row's interval token. A token not closed by "]" skips the row; a closed one
+     * whose times cannot be read (`[287-?]`, lin-rel4.net) is reported and dropped, and the rest of
+     * the row (its label, coordinates and parameters) is kept.
      * @param token - the token, starting with "["
-     * @param domain - what is skipped when the token is malformed
-     * @returns the spells, or null for an empty `[]`, which is no spell at all
+     * @param domain - what is skipped when the token is not closed
+     * @param line - the line number
+     * @returns the spells, or null for an empty `[]`, which is no spell at all, and for a dropped one
      */
-    private intervals(token: string, domain: "node" | "edge"): [number, number][] | null {
+    private intervals(token: string, domain: "node" | "edge", line: number): [number, number][] | null {
         if (!isIntervalToken(token)) {
             this.skip(domain);
             throw new LineError(
@@ -1727,12 +1850,13 @@ class PajekParser {
             const spells = parseIntervals(token);
             return spells.length === 0 ? null : spells;
         } catch (err) {
-            this.skip(domain);
-            throw new LineError(
+            this.report.error(
                 "validation-error",
                 PAJEK_ISSUE.INTERVAL,
-                err instanceof Error ? err.message : String(err),
+                `${err instanceof Error ? err.message : String(err)}; the interval is dropped and the rest of the line kept`,
+                { line },
             );
+            return null;
         }
     }
 
@@ -1771,6 +1895,21 @@ class PajekParser {
         }
         writer.write(row, text);
     }
+}
+
+/** The parameters that hold a color, which a file may also write as three fractions `r g b`. */
+const COLOR_KEYS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
+
+/**
+ * A color written as three numbers from 0 to 1 at a row's tokens, as one value `r g b`.
+ * @param tokens - the row's tokens
+ * @param at - the first of the three
+ * @returns the color text, or null when the three tokens are not such numbers
+ */
+function colorTriple(tokens: readonly string[], at: number): string | null {
+    const parts = tokens.slice(at, at + 3);
+    const fraction = (t: string): boolean => /^[01]?(?:\.\d+)?$/.test(t) && t !== "" && Number(t) <= 1;
+    return parts.length === 3 && parts.every(fraction) ? parts.join(" ") : null;
 }
 
 /**
@@ -1845,10 +1984,30 @@ function headSection(text: string): string | null {
  */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     format: "pajek",
-    options: Object.freeze(["firstVertex"]),
+    options: Object.freeze(["firstVertex", "pajekDraw"]),
     extensions: Object.freeze([".net", ".paj"]),
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
     styles: pajekStyles,
+
+    /**
+     * Where Pajek 6.02 draws a network whose vertices have no coordinates: round a circle in vertex order, the first
+     * on the left, the rest going clockwise on screen (y down), at radius 0.4 about the middle of the Draw window
+     * (pajek-iliad: 311 vertices 200 points from the middle of its 500-point window). A file with coordinates is read
+     * from its position column.
+     * @param snapshot - the imported graph
+     * @returns the circle for a file with no coordinates, else null
+     */
+    positions(snapshot: GraphSnapshot): ImporterPositions | null {
+        if (snapshot.nodes.byRole("position") !== null) {
+            return null;
+        }
+        return {
+            units: "file",
+            pxPerUnit: PAJEK_POINTS_PER_UNIT,
+            yAxis: "down",
+            unplacedCircle: { center: [0.5, 0.5], radius: 0.4, startDegrees: 180, direction: 1 },
+        };
+    },
 
     /**
      * Confidence that the input is a Pajek network: it starts with `*Vertices` (or `*Network`),
@@ -1883,10 +2042,11 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         }
         const resolved = resolveImportOptions(options, DEFAULTS);
         const firstVertex = firstVertexOption(options?.firstVertex);
+        const draw = resolvePajekDraw(options?.pajekDraw);
         const report = new ImportReportBuilder("pajek", resolved.errorLimit);
         reportSinkOptions(sink, options, report);
         reportUnusedOptions(options, report, USED_OPTIONS);
-        const parser = new PajekParser(sink, report, resolved, firstVertex);
+        const parser = new PajekParser(sink, report, resolved, firstVertex, draw ?? DEFAULT_WINDOW);
         const reader = new LineReader(input, report, resolved);
         // after the first network: only its successors' headers are counted
         let rest: NetworkCounter | null = null;
@@ -1907,6 +2067,9 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             }
         }
         parser.finish();
+        if (draw !== null || parser.voided.length > 0) {
+            report.keepForStyles({ block: parser.keptBlock, pajekDraw: draw ?? undefined, voided: parser.voided });
+        }
         if (rest !== null) {
             const objects =
                 rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : "";
@@ -1937,13 +2100,25 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     ): Promise<ImportReport[]> {
         const resolved = resolveImportOptions(options, DEFAULTS);
         const firstVertex = firstVertexOption(options?.firstVertex);
+        const draw = resolvePajekDraw(options?.pajekDraw);
         const reports = [new ImportReportBuilder("pajek", resolved.errorLimit)];
         reportUnusedOptions(options, reports[0], USED_OPTIONS);
         const open = (): PajekParser => {
             const report = reports[reports.length - 1];
             const sink = sinkFor(reports.length - 1);
             reportSinkOptions(sink, options, report);
-            return new PajekParser(sink, report, resolved, firstVertex);
+            return new PajekParser(sink, report, resolved, firstVertex, draw ?? DEFAULT_WINDOW);
+        };
+        const close = (p: PajekParser): void => {
+            p.finish();
+            const last = reports.at(-1);
+            if (last !== undefined && (draw !== null || p.voided.length > 0)) {
+                last.keepForStyles({
+                    block: p.keptBlock,
+                    pajekDraw: draw ?? undefined,
+                    voided: p.voided,
+                });
+            }
         };
         let parser = open();
         // decoding issues belong to the file, so they go to the first network's report
@@ -1952,7 +2127,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         for await (const raw of reader) {
             const text = withoutStrayBom(raw);
             if (parser.line(text, reader.line)) {
-                parser.finish();
+                close(parser);
                 reports.push(new ImportReportBuilder("pajek", resolved.errorLimit));
                 parser = open();
                 parser.line(text, reader.line);
@@ -1962,7 +2137,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
                 throwIfAborted(resolved.signal);
             }
         }
-        parser.finish();
+        close(parser);
         throwIfAborted(resolved.signal);
         return reports.map((r) => r.finish());
     },

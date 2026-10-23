@@ -28,9 +28,10 @@ describe("JsonDataSource streaming", () => {
         assert.strictEqual(chunks[1].nodes.length, 1000);
         assert.strictEqual(chunks[2].nodes.length, 500);
 
-        // Edges only in first chunk
-        assert.strictEqual(chunks[0].edges.length, 1);
+        // Edges only in the last chunk, after every node
+        assert.strictEqual(chunks[0].edges.length, 0);
         assert.strictEqual(chunks[1].edges.length, 0);
+        assert.strictEqual(chunks[2].edges.length, 1);
     });
 
     test("handles single chunk for small datasets", async () => {

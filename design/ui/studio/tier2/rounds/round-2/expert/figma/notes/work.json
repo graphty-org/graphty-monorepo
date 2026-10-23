@@ -1,0 +1,40 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [
+   "note_01M4J0TCBCRSFV2HAX73F2DBYS Ask Ava about the club split",
+   "note_01M4J0T50VJFMFKVBTP7JWNM0D Check the two big ones at the bottom"
+  ],
+  "steps": [],
+  "sources": [
+   "friends-v2.csv"
+  ]
+ },
+ "gone": {
+  "sources": [
+   "friends.csv"
+  ]
+ }
+}

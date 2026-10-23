@@ -1,6 +1,43 @@
-import { INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import type { AcceleratedAlgorithms } from "@graphty/algorithms";
+import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import type { ScopedInput, scopeEdges } from "../input/ScopedInput";
+import type { AccelerationPrecision } from "../../acceleration/types";
+import type { AcceleratedAlgorithmRun } from "../Algorithm";
+import { releaseOnAccelerator, type ScopedInput, type scopeEdges } from "../input/ScopedInput";
+
+/**
+ * Runs a shortest-path search over the searched snapshot, or over its transpose when the route
+ * follows edges against their direction (`direction: "in"`). The transpose keeps the node and
+ * edge spaces, so the result reads the same either way. It is built per run and uncached, so it
+ * is released here.
+ * @param owner - The graph, whose accelerator may have uploaded the transpose.
+ * @param reverse - True to search the transpose.
+ * @param run - The run from `accelerated()`.
+ * @param fn - The search.
+ * @returns What the search produced, and its precision.
+ */
+export async function searchFollowing<T>(
+    owner: Parameters<typeof releaseOnAccelerator>[0],
+    reverse: boolean,
+    run: AcceleratedAlgorithmRun["run"],
+    fn: (dispatch: AcceleratedAlgorithms, snapshot: GraphSnapshot) => Promise<T>,
+): Promise<{ value: T; precision: AccelerationPrecision }> {
+    if (!reverse) {
+        return run(fn);
+    }
+
+    let transposed: GraphSnapshot | null = null;
+    try {
+        return await run((dispatch, s) => {
+            transposed = s.transpose().snapshot;
+            return fn(dispatch, transposed);
+        });
+    } finally {
+        if (transposed !== null) {
+            releaseOnAccelerator(owner, transposed);
+        }
+    }
+}
 
 /**
  * Which of the element's own edges a route took, by row.

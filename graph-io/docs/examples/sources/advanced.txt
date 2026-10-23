@@ -1,0 +1,2 @@
+first: 1 edge, W_SOURCE_LIMIT
+rest: 1 edge, next null

@@ -1,0 +1,32 @@
+{
+    "sample": "gml-specimen-node-sizes-opacity-p5",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p5.gml",
+    "sha256": "a8cf4ecf14201b1fef3bcd0a88e97679004e42ec06cf4b1f591fef5966f0ffc0",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale \"set:node.label.show=true\" \"set:node.label.avoidOverlap=false\"",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default, unless previewProperties sets it)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored file as is",
+    "previewItems": {
+        "nodes": 20,
+        "edges": 0
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 1166,
+        "height": 866,
+        "viewBox": "17.000000 -883.000000 1166.000000 866.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
+    "date": "2026-10-18",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gml-specimen-node-sizes-opacity-p5 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p5.svg"
+}

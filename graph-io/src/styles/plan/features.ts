@@ -5,6 +5,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { pairFolding } from "../../common/direction.js";
 import type { ColumnRef, Scalar, StyleFeature, StyleFingerprint, StyleTarget } from "../types.js";
 import { dataCell, degreeValues } from "./resolve.js";
 
@@ -18,10 +19,28 @@ const PARENT_COLUMN = "graphty.parent";
 const MIN_INDEX = 8;
 
 /**
+ * Whether the snapshot stores some undirected edge as a pair of directed rows.
+ * @param snapshot - the graph
+ * @returns true when an edge row folds into its mate
+ */
+function hasFoldedPairs(snapshot: GraphSnapshot): boolean {
+    const folding = pairFolding(snapshot);
+    if (!folding.expanded) {
+        return false;
+    }
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (folding.folded(e)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * The candidate explaining columns of one target: every scalar attribute (the reserved `graphty.*` columns,
  * coordinates and Cytoscape's selection state excepted), the group a node sits in as the style column `group`, and
  * for nodes the degree (and the in- and out-degree of a directed graph) as `{ computed }` references, which follow
- * later edits of the graph.
+ * later edits of the graph; no degree where an undirected edge is stored as a directed pair.
  * @param snapshot - the graph
  * @param target - nodes or edges
  * @returns the features, in column order with the degrees last
@@ -46,7 +65,9 @@ export function featuresOf(snapshot: GraphSnapshot, target: StyleTarget): StyleF
             out.push({ ref: { style: "group" }, values: group });
         }
     }
-    if (target === "node" && n > 0) {
+    // An undirected edge stored as two directed rows (a mixed file's `*Edges`, a GEXF undirected edge in a directed
+    // graph) counts at both ends here and once in a reader that folds the pair, which no explanation may depend on.
+    if (target === "node" && n > 0 && !hasFoldedPairs(snapshot)) {
         const kinds: ("degree" | "indegree" | "outdegree")[] = snapshot.directed
             ? ["degree", "indegree", "outdegree"]
             : ["degree"];

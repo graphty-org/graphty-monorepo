@@ -1,0 +1,965 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="86832" label="86948" directed="0" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <att name="networkMetadata">
+    <rdf:RDF>
+      <rdf:Description rdf:about="http://www.cytoscape.org/">
+        <dc:type>Protein-Protein Interaction</dc:type>
+        <dc:description>N/A</dc:description>
+        <dc:identifier>N/A</dc:identifier>
+        <dc:date>2026-10-18 09:13:55</dc:date>
+        <dc:title>86948</dc:title>
+        <dc:source>http://www.cytoscape.org/</dc:source>
+        <dc:format>Cytoscape-XGMML</dc:format>
+      </rdf:Description>
+    </rdf:RDF>
+  </att>
+  <att name="shared name" value="specimen-mappings-bypass-p5" type="string" cy:type="String"/>
+  <att name="name" value="specimen-mappings-bypass-p5" type="string" cy:type="String"/>
+  <att name="selected" value="1" type="boolean" cy:type="Boolean"/>
+  <att name="__Annotations" type="list" cy:type="List" cy:elementType="String">
+  </att>
+  <graphics>
+    <att name="NETWORK_CENTER_X_LOCATION" value="0.0" type="string" cy:type="String"/>
+    <att name="NETWORK_ANNOTATION_SELECTION" value="false" type="string" cy:type="String"/>
+    <att name="NETWORK_SCALE_FACTOR" value="1.0" type="string" cy:type="String"/>
+    <att name="NETWORK_FORCE_HIGH_DETAIL" value="false" type="string" cy:type="String"/>
+    <att name="NETWORK_EDGE_SELECTION" value="true" type="string" cy:type="String"/>
+    <att name="NETWORK_WIDTH" value="1200.0" type="string" cy:type="String"/>
+    <att name="NETWORK_TITLE" value="" type="string" cy:type="String"/>
+    <att name="NETWORK_NODE_LABEL_SELECTION" value="false" type="string" cy:type="String"/>
+    <att name="NETWORK_CENTER_Z_LOCATION" value="0.0" type="string" cy:type="String"/>
+    <att name="NETWORK_NODE_SELECTION" value="true" type="string" cy:type="String"/>
+    <att name="NETWORK_HEIGHT" value="900.0" type="string" cy:type="String"/>
+    <att name="NETWORK_BACKGROUND_PAINT" value="#FFFFFF" type="string" cy:type="String"/>
+    <att name="NETWORK_CENTER_Y_LOCATION" value="0.0" type="string" cy:type="String"/>
+    <att name="NETWORK_DEPTH" value="0.0" type="string" cy:type="String"/>
+  </graphics>
+  <node id="86908" label="cap-height-80-locked">
+    <att name="shared name" value="cap-height-80-locked" type="string" cy:type="String"/>
+    <att name="name" value="cap-height-80-locked" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-height-80-locked" type="string" cy:type="String"/>
+    <att name="label" value="height=80" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="1066.6666666666665" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="height=80" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86905" label="height-80-locked">
+    <att name="shared name" value="height-80-locked" type="string" cy:type="String"/>
+    <att name="name" value="height-80-locked" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="height-80-locked" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="1066.6666666666665" fill="#C8C8C8" w="36.0" h="36.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="36.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="36.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86902" label="cap-width-80-locked">
+    <att name="shared name" value="cap-width-80-locked" type="string" cy:type="String"/>
+    <att name="name" value="cap-width-80-locked" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-width-80-locked" type="string" cy:type="String"/>
+    <att name="label" value="width=80" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="880.0" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="width=80" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86899" label="width-80-locked">
+    <att name="shared name" value="width-80-locked" type="string" cy:type="String"/>
+    <att name="name" value="width-80-locked" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="width-80-locked" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="880.0" fill="#C8C8C8" w="36.0" h="36.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="36.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="36.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86896" label="cap-size-80">
+    <att name="shared name" value="cap-size-80" type="string" cy:type="String"/>
+    <att name="name" value="cap-size-80" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-size-80" type="string" cy:type="String"/>
+    <att name="label" value="size=80" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="693.3333333333333" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="size=80" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86893" label="size-80">
+    <att name="shared name" value="size-80" type="string" cy:type="String"/>
+    <att name="name" value="size-80" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="size-80" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="693.3333333333333" fill="#C8C8C8" w="80.0" h="80.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="80.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="80.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="80.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86890" label="cap-size-60">
+    <att name="shared name" value="cap-size-60" type="string" cy:type="String"/>
+    <att name="name" value="cap-size-60" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-size-60" type="string" cy:type="String"/>
+    <att name="label" value="size=60" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="506.66666666666663" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="size=60" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86887" label="size-60">
+    <att name="shared name" value="size-60" type="string" cy:type="String"/>
+    <att name="name" value="size-60" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="size-60" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="506.66666666666663" fill="#C8C8C8" w="60.0" h="60.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="60.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="60.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="60.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86884" label="cap-size-18">
+    <att name="shared name" value="cap-size-18" type="string" cy:type="String"/>
+    <att name="name" value="cap-size-18" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-size-18" type="string" cy:type="String"/>
+    <att name="label" value="size=18" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="320.0" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="size=18" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86881" label="size-18">
+    <att name="shared name" value="size-18" type="string" cy:type="String"/>
+    <att name="name" value="size-18" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="size-18" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="320.0" fill="#C8C8C8" w="18.0" h="18.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="18.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="18.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="18.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86878" label="cap-default">
+    <att name="shared name" value="cap-default" type="string" cy:type="String"/>
+    <att name="name" value="cap-default" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="cap-default" type="string" cy:type="String"/>
+    <att name="label" value="default" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="476.0" x="133.33333333333331" fill="#C8C8C8" w="1.0" h="1.0" width="0.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="108.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="9" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="1.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="default" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="1.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="1.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86875" label="default">
+    <att name="shared name" value="default" type="string" cy:type="String"/>
+    <att name="name" value="default" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="default" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="436.0" x="133.33333333333331" fill="#C8C8C8" w="36.0" h="36.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="36.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="36.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="36.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86872" label="anchor-se">
+    <att name="shared name" value="anchor-se" type="string" cy:type="String"/>
+    <att name="name" value="anchor-se" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="anchor-se" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="880.0" x="1180.0" fill="#C8C8C8" w="6.0" h="6.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="6.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="6.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86869" label="anchor-sw">
+    <att name="shared name" value="anchor-sw" type="string" cy:type="String"/>
+    <att name="name" value="anchor-sw" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="anchor-sw" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="880.0" x="20.0" fill="#C8C8C8" w="6.0" h="6.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="6.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="6.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86866" label="anchor-ne">
+    <att name="shared name" value="anchor-ne" type="string" cy:type="String"/>
+    <att name="name" value="anchor-ne" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="anchor-ne" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="20.0" x="1180.0" fill="#C8C8C8" w="6.0" h="6.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="6.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="6.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+  <node id="86860" label="anchor-nw">
+    <att name="shared name" value="anchor-nw" type="string" cy:type="String"/>
+    <att name="name" value="anchor-nw" type="string" cy:type="String"/>
+    <att name="selected" value="0" type="boolean" cy:type="Boolean"/>
+    <att name="id" value="anchor-nw" type="string" cy:type="String"/>
+    <att name="label" type="string" cy:type="String"/>
+    <graphics z="0.0" type="ELLIPSE" outline="#505050" y="20.0" x="20.0" fill="#C8C8C8" w="6.0" h="6.0" width="1.0">
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_8" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_ROTATION" value="0.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_1" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_8" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_POSITION" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_COLOR" value="#B6B6B6" type="string" cy:type="String"/>
+      <att name="NODE_DEPTH" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_3" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_SHAPE" value="NONE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_4" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_WIDTH" value="200.0" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_FACE" value="DejaVu Sans,plain,10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_9" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_BACKGROUND_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_LABEL_COLOR" value="#000000" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_SHAPE" value="ROUND_RECTANGLE" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_3" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_9" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_4" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_6" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_7" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_2" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_SELECTED" value="false" type="string" cy:type="String"/>
+      <att name="NODE_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_1" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_TOOLTIP" value="" type="string" cy:type="String"/>
+      <att name="NODE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_6" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_2" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_2" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_7" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_SELECTED_PAINT" value="#FFFF00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_8" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_LABEL_FONT_SIZE" value="10" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_1" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_9" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_7" value="6.0" type="string" cy:type="String"/>
+      <att name="COMPOUND_NODE_PADDING" value="10.0" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_STROKE" value="SOLID" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_3" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_NESTED_NETWORK_IMAGE_VISIBLE" value="true" type="string" cy:type="String"/>
+      <att name="NODE_LABEL" value="" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_5" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_POSITION_5" value="C,C,c,0.00,0.00" type="string" cy:type="String"/>
+      <att name="NODE_BORDER_TRANSPARENCY" value="255" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_6" value="org.cytoscape.cg.model.NullCustomGraphics,0,[ Remove Graphics ]," type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_4" value="6.0" type="string" cy:type="String"/>
+      <att name="NODE_CUSTOMGRAPHICS_SIZE_5" value="6.0" type="string" cy:type="String"/>
+    </graphics>
+  </node>
+</graph>

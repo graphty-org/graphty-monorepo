@@ -1,5 +1,8 @@
 # githerd
 
+> SUPERSEDED 2026-10-18 by design/ci/golden-local.md. Kept for history; do not follow it.
+> githerd is retired: the daemon is not run and its MCP server is not configured. The code is kept in this package for now; nothing in this README describes live behavior.
+
 githerd keeps a GitHub repository's pipeline moving when most of the work is done by Claude Code
 sessions and GitHub Actions. One daemon per repository watches the default branch, the open pull
 requests and the issue backlog, turns what needs doing into jobs, and hands each job to an

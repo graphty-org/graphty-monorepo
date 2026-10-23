@@ -135,7 +135,7 @@ describe("deep XML nesting", () => {
         expect(extractCounted(loaded)).toMatchInlineSnapshot(`
           {
             "edge": 0,
-            "node": 17,
+            "node": 21,
             "notes": [],
             "rules": 3,
           }

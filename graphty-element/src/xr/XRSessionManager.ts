@@ -58,6 +58,9 @@ interface XRSessionConfig {
  *   the one WebXRNearInteraction loads by default, saved as JSON.
  */
 const OFFLINE_XR_OPTIONS = {
+    // The element draws its own XR controls (opt-in, `xr.ui.enabled`); Babylon's enter/exit
+    // button would otherwise stay on the canvas after the first session request.
+    disableDefaultUI: true,
     inputOptions: { disableOnlineControllerRepository: true, doNotLoadControllerMeshes: true },
     handSupportOptions: {
         jointMeshes: { enablePhysics: false },
@@ -342,13 +345,18 @@ export class XRSessionManager {
      * @returns Promise that resolves when session is exited
      */
     public async exitXR(): Promise<void> {
-        if (!this.activeMode || !this.xrHelper) {
+        if (!this.xrHelper) {
             return; // No active session to exit
         }
 
         this.exiting = true;
         try {
-            await this.xrHelper.baseExperience.exitXRAsync();
+            // A session the headset already ended has nothing left to exit, only to release.
+            if (this.activeMode !== null) {
+                this.activeMode = null;
+                await this.xrHelper.baseExperience.exitXRAsync();
+            }
+
             this.xrHelper.dispose();
             this.xrHelper = null;
             this.activeMode = null;

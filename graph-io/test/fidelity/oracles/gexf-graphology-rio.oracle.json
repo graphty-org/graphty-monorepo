@@ -1,0 +1,32 @@
+{
+    "sample": "gexf-graphology-rio",
+    "file": "graph-io/test/corpus/styles/gexf/fidelity/graphology-rio.gexf.gz",
+    "sha256": "ffa2df95935b9e1647264c58b5ab5b434300cca99a9a6569c2c29d32bcf5b8bf",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored .gz unpacked with zlib, then handed to Gephi as .gexf",
+    "previewItems": {
+        "nodes": 366,
+        "edges": 1107
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 1773.5359,
+        "height": 1364,
+        "viewBox": "-934.391541 -573.000000 1773.535889 1364.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
+    "date": "2026-10-18",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-graphology-rio && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-graphology-rio.svg"
+}

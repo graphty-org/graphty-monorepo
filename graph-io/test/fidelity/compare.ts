@@ -191,11 +191,14 @@ export function deltaE(a: Color, b: Color): number {
  * the same over the mirrored points, and the one with the smaller residual wins.
  * @param from - subject points
  * @param to - reference points, same length and order
+ * @param options - what the fit may do
+ * @param options.reflect - whether a mirror may be fitted (default true); false fits rotation, scale and shift only
  * @returns the transform (rms in reference units), or null when either side has no spread
  */
 export function fitSimilarity(
     from: readonly Pt[],
     to: readonly Pt[],
+    options: { reflect?: boolean } = {},
 ): (Omit<Transform, "rms"> & { sse: number }) | null {
     const n = from.length;
     if (n < 2) {
@@ -209,7 +212,7 @@ export function fitSimilarity(
     const centeredTo = to.map(([x, y]): Pt => [x - tx0, y - ty0]);
     const spreadTo = centeredTo.reduce((s, [x, y]) => s + x * x + y * y, 0);
     let best: (Omit<Transform, "rms"> & { sse: number }) | null = null;
-    for (const reflect of [false, true]) {
+    for (const reflect of options.reflect === false ? [false] : [false, true]) {
         const pts = from.map(([x, y]): Pt => [x, reflect ? -y : y]);
         const [fx0, fy0] = mean(pts);
         const a = pts.map(([x, y]): Pt => [x - fx0, y - fy0]);
@@ -399,9 +402,15 @@ export function matchScenes(ref: Scene, subject: Scene, idMap?: ReadonlyMap<stri
     const nodes: [SceneNode, SceneNode][] = [];
     const seen = new Set<string>();
     const unmatchedSubjectNodes: string[] = [];
+    // a key several subject nodes share (many unnamed nodes, all named "") says which node it is for
+    // none of them, so none is paired by it
+    const keyCount = new Map<string, number>();
+    for (const s of subject.nodes) {
+        keyCount.set(mapId(s.id), (keyCount.get(mapId(s.id)) ?? 0) + 1);
+    }
     for (const s of subject.nodes) {
         const r = refNodes.get(mapId(s.id));
-        if (r === undefined || seen.has(r.id)) {
+        if (r === undefined || seen.has(r.id) || (keyCount.get(r.id) ?? 0) > 1) {
             unmatchedSubjectNodes.push(s.id);
         } else {
             seen.add(r.id);
@@ -586,6 +595,21 @@ interface Ctx {
     diag: number;
     /** Each scene's node centers by id, which an edge path is judged from and to. */
     centers?: { ref: ReadonlyMap<string, Pt>; subject: ReadonlyMap<string, Pt> };
+    /** The subject's nodes by id, which a self-loop's extent is judged against. */
+    subjectNodes?: ReadonlyMap<string, SceneNode>;
+}
+
+/**
+ * The extent of a drawn path: the diagonal of its points' bounding box.
+ * @param points - the path
+ * @returns the extent, 0 for a path with no points
+ */
+function extent(points: readonly Pt[]): number {
+    if (points.length === 0) {
+        return 0;
+    }
+    const b = boxOf(points);
+    return Math.hypot(b.w, b.h);
 }
 
 /**
@@ -638,7 +662,11 @@ const NODE_JUDGES: Partial<Record<Property, NodeJudge>> = {
         return { value: worse, bad: logBad(worse), pass, ref: [r.w, r.h], got: [s.w * t.scale, s.h * t.scale] };
     },
     shape: (r, s) => equal(r.shape, s.shape),
-    fill: (r, s) => color(r.fill, s.fill),
+    // a fill of opacity 0 draws nothing, so it is no fill on either side (yEd's hasColor="false", an
+    // unfilled DOT node), whichever color the scene still carries
+    // a node the reference does not draw shows no fill to judge; whether it is drawn is `visible`'s
+    fill: (r, s) =>
+        r.visible ? color(r.fillOpacity === 0 ? null : r.fill, s.fillOpacity === 0 ? null : s.fill) : null,
     // with no reference fill there is nothing for an opacity to apply to; `fill` judges the missing fill
     fillOpacity: (r, s) => {
         if (r.fill === null) {
@@ -705,6 +733,26 @@ const EDGE_JUDGES: Partial<Record<Property, EdgeJudge>> = {
             pass: sameKind && d <= THRESHOLDS.edgePath,
             ref: kind(r),
             got: kind(s),
+        };
+    },
+    // A self-loop must be drawn as a visible loop, whatever the reference recorded as its path
+    // (CyREST and most extractors record a loop as a zero-length line, so edgePath cannot see a
+    // loop drawn as nothing). Judged on the subject alone, against its own node, so it needs no
+    // alignment: the loop's extent must reach a quarter of the node's smaller side.
+    selfLoops: (r, s, _rev, { subjectNodes }) => {
+        if (r.source !== r.target) {
+            return null;
+        }
+        const n = subjectNodes?.get(s.source);
+        const side = n ? Math.min(n.w, n.h) : 0;
+        const reach = extent(s.points);
+        const need = side > 0 ? side / 4 : 1e-9;
+        return {
+            value: side > 0 ? reach / side : reach,
+            bad: reach >= need ? 0 : 1 - reach / need,
+            pass: reach >= need,
+            ref: "a loop",
+            got: `${String(s.points.length)} points spanning ${String(round(reach))}`,
         };
     },
     edgeLabel: (r, s) => equal(normText(r.label), normText(s.label)),
@@ -792,7 +840,12 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
                   rms: Math.sqrt(fit.sse / m.nodes.length) / diag,
               };
     const centersOf = (scene: Scene): Map<string, Pt> => new Map(scene.nodes.map((n) => [n.id, [n.x, n.y] as Pt]));
-    const ctx = { t: transform, diag, centers: { ref: centersOf(ref), subject: centersOf(subject) } };
+    const ctx = {
+        t: transform,
+        diag,
+        centers: { ref: centersOf(ref), subject: centersOf(subject) },
+        subjectNodes: new Map(subject.nodes.map((n) => [n.id, n])),
+    };
 
     const properties = {} as Record<Property, PropertyResult>;
     for (const p of PROPERTIES) {
@@ -831,6 +884,10 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
             properties[p] = { status: "gap", n, passRate: 0, worst: [], note: `unmeasurable (API gap): ${subReason}` };
             continue;
         }
+        if (SCALE_ONLY.has(p) && (transform === null ? !positionsUsable : transform.rms > THRESHOLDS.unrelatedLayout)) {
+            properties[p] = judgedBySizes(p, ref, subject, m, ctx, options.idMap);
+            continue;
+        }
         if (NEEDS_TRANSFORM.has(p) && ctx.t === null) {
             properties[p] = positionsUsable
                 ? {
@@ -857,6 +914,49 @@ export function compareScenes(ref: Scene, subject: Scene, options: CompareOption
     return { transform, counts: m.counts, properties };
 }
 
+/** The properties judged by the fitted scale alone, never by the rotation or the offset. */
+const SCALE_ONLY = new Set<Property>(["size", "borderWidth", "fontSize", "edgeWidth"]);
+
+/**
+ * A property judged by the scale alone when the two sides' positions say nothing about each other
+ * (one side has none, or laid the graph out itself so the position fit is far from them): the
+ * scale is fitted from the node sizes instead, as the median over the matched nodes of the ratio of
+ * their areas' roots, so each element is judged by its size relative to the others.
+ * @param p - the property, one of SCALE_ONLY
+ * @param ref - the reference scene
+ * @param subject - the subject scene
+ * @param m - the matching
+ * @param ctx - the diagonal and centers
+ * @param idMap - subject id to reference id
+ * @returns the result, unjudged when no matched node has a size on both sides
+ */
+function judgedBySizes(
+    p: Property,
+    ref: Scene,
+    subject: Scene,
+    m: Matching,
+    ctx: Ctx,
+    idMap?: ReadonlyMap<string, string>,
+): PropertyResult {
+    const ratios = m.nodes
+        .filter(([r, s]) => r.w > 0 && r.h > 0 && s.w > 0 && s.h > 0)
+        .map(([r, s]) => Math.sqrt((r.w * r.h) / (s.w * s.h)))
+        .sort((a, b) => a - b);
+    if (ratios.length === 0) {
+        return { status: "unjudged", n: 0, passRate: null, worst: [], note: "no node has a size on both sides" };
+    }
+    const scale = ratios[Math.floor(ratios.length / 2)];
+    const result = judge(
+        p,
+        ref,
+        subject,
+        m,
+        { ...ctx, t: { scale, rotation: 0, reflect: false, tx: 0, ty: 0 } },
+        idMap,
+    );
+    return { ...result, note: "scale fitted from the median node size: positions are not comparable" };
+}
+
 /**
  * One property's result.
  * @param p - the property
@@ -876,7 +976,7 @@ function judge(
     idMap?: ReadonlyMap<string, string>,
 ): PropertyResult {
     const t = ctx.t ?? { scale: 1, rotation: 0, reflect: false, tx: 0, ty: 0 };
-    const full = { t, diag: ctx.diag, centers: ctx.centers };
+    const full = { t, diag: ctx.diag, centers: ctx.centers, subjectNodes: ctx.subjectNodes };
     const nodeJudge = NODE_JUDGES[p];
     if (nodeJudge) {
         return summarize(
@@ -918,8 +1018,18 @@ function judge(
         case "groups": {
             const mapId = (id: string): string => idMap?.get(id) ?? id;
             const subGroups = new Map(subject.groups.map((g) => [mapId(g.id), g]));
-            return summarize(
-                ref.groups.map((r) => {
+            const refIds = new Set(ref.groups.map((g) => g.id));
+            // A box the subject draws that the reference does not have is a fail too: a group the
+            // source program never drew (an expanded Cytoscape group's own node) drawn as a box.
+            const extra = [...subGroups]
+                .filter(([id]) => !refIds.has(id))
+                .map(([id, g]) => ({
+                    id: `extra ${id}`,
+                    v: { value: "not in the reference", bad: 1e3, pass: false, ref: null, got: g.members.length },
+                }));
+            return summarize([
+                ...extra,
+                ...ref.groups.map((r) => {
                     const s = subGroups.get(r.id);
                     if (s === undefined) {
                         return {
@@ -941,12 +1051,27 @@ function judge(
                         },
                     };
                 }),
-            );
+            ]);
         }
         case "annotations": {
             const subs = subject.annotations ?? [];
-            return summarize(
-                (ref.annotations ?? []).map((r, i) => {
+            const refs = ref.annotations ?? [];
+            // An annotation the subject draws where the reference has none of its kind is a fail.
+            const extra = subs
+                .map((s, i) => ({ s, i }))
+                .filter(
+                    ({ s }) =>
+                        !refs.some(
+                            (r) => r.kind === s.kind && iou(r.bbox, transformBox(t, s.bbox)) >= THRESHOLDS.groupIoU,
+                        ),
+                )
+                .map(({ s, i }) => ({
+                    id: `extra ${s.kind}#${String(i)}`,
+                    v: { value: "not in the reference", bad: 1e3, pass: false, ref: null, got: s.text ?? s.kind },
+                }));
+            return summarize([
+                ...extra,
+                ...refs.map((r, i) => {
                     const best = Math.max(
                         0,
                         ...subs.filter((s) => s.kind === r.kind).map((s) => iou(r.bbox, transformBox(t, s.bbox))),
@@ -962,7 +1087,7 @@ function judge(
                         },
                     };
                 }),
-            );
+            ]);
         }
         case "background":
             return ref.background === undefined
@@ -1049,9 +1174,15 @@ export function compareSample(
     graphtyKeys: Partial<Record<"name" | "label", ReadonlyMap<string, string>>> = {},
 ): SampleResult {
     const byReference: SampleResult["byReference"] = {};
+    // Cytoscape names a node with no `name` by its label (a Cytoscape 2.x XGMML file often carries only `label=`).
+    const names =
+        graphtyKeys.label === undefined
+            ? graphtyKeys.name
+            : new Map([...graphtyKeys.label, ...(graphtyKeys.name ?? new Map<string, string>())]);
+    const keyed = { name: names, label: graphtyKeys.label };
     for (const ref of refs) {
         const key = ROUTE_NODE_KEY[ref.provenance.route];
-        byReference[ref.provenance.route] = compareScenes(ref, graphty, { idMap: key ? graphtyKeys[key] : undefined });
+        byReference[ref.provenance.route] = compareScenes(ref, graphty, { idMap: key ? keyed[key] : undefined });
     }
     const properties = {} as SampleResult["properties"];
     for (const p of PROPERTIES) {

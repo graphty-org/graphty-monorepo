@@ -43,6 +43,7 @@
                 "lineStyle",
                 "arrows",
                 "edgePath",
+                "selfLoops",
                 "edgeLabel",
                 "groups",
                 "annotations",
@@ -71,6 +72,8 @@
                         "cytoscape-desktop",
                         "cyjs-hop",
                         "cyjs-computed",
+                        "gexf-file",
+                        "vis-network",
                         "graphty"
                     ]
                 },

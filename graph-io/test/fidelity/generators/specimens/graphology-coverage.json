@@ -1,0 +1,445 @@
+{
+    "program": "sigma.js 4.0.1, graphology 0.26.0",
+    "about": "Which specimen draws each entry of graphology-vocabulary.json and graphology.mjs's fixed lists (at most six named each), or why none does; written by graphology.mjs.",
+    "entries": 225,
+    "covered": 216,
+    "sheets": [
+        {
+            "id": "specimen-node-shapes",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "specimens": 21
+        },
+        {
+            "id": "specimen-node-fills-borders-p2",
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p3",
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p4",
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p5",
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-fills-borders-p6",
+            "specimens": 28
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "specimens": 19
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p2",
+            "specimens": 3
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p3",
+            "specimens": 7
+        },
+        {
+            "id": "specimen-labels",
+            "specimens": 15
+        },
+        {
+            "id": "specimen-edges-lines",
+            "specimens": 25
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "specimens": 15
+        },
+        {
+            "id": "specimen-arrows",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-arrows-p2",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edge-labels-p3",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-images-charts",
+            "specimens": 4
+        }
+    ],
+    "coverage": {
+        "node.color": [
+            "specimen-node-fills-borders#default",
+            "specimen-node-fills-borders#color-empty",
+            "specimen-node-fills-borders-p2#color-aliceblue",
+            "specimen-node-fills-borders-p2#color-antiquewhite",
+            "specimen-node-fills-borders-p2#color-aqua",
+            "specimen-node-fills-borders-p2#color-aquamarine"
+        ],
+        "node.label": [
+            "specimen-labels#default",
+            "specimen-labels#label-text",
+            "specimen-labels#label-long",
+            "specimen-labels#label-multiline",
+            "specimen-labels#label-spaces",
+            "specimen-labels#label-empty"
+        ],
+        "node.size": [
+            "specimen-node-sizes-opacity#default",
+            "specimen-node-sizes-opacity#size-1",
+            "specimen-node-sizes-opacity#size-3",
+            "specimen-node-sizes-opacity#size-6",
+            "specimen-node-sizes-opacity#size-10",
+            "specimen-node-sizes-opacity#size-18"
+        ],
+        "node.x": ["specimen-node-shapes#shape-circle"],
+        "node.y": ["specimen-node-shapes#shape-circle"],
+        "edge.color": [
+            "specimen-edges-lines#default",
+            "specimen-edges-lines#edge-color-red",
+            "specimen-edges-lines#edge-color-hex6",
+            "specimen-edges-lines#edge-color-rgba",
+            "specimen-edges-lines#edge-color-hex8",
+            "specimen-edges-lines#edge-color-transparent"
+        ],
+        "edge.label": [
+            "specimen-edge-labels#default",
+            "specimen-edge-labels#edge-label-text",
+            "specimen-edge-labels#edge-label-long",
+            "specimen-edge-labels#edge-label-empty",
+            "specimen-edge-labels#edge-label-colored",
+            "specimen-edge-labels-p2#default"
+        ],
+        "edge.size": [
+            "specimen-edges-lines#default",
+            "specimen-edges-lines#edge-size-0",
+            "specimen-edges-lines#edge-size-0-5",
+            "specimen-edges-lines#edge-size-1",
+            "specimen-edges-lines#edge-size-3",
+            "specimen-edges-lines#edge-size-6"
+        ],
+        "node.shape:circle": ["specimen-node-shapes#default", "specimen-node-shapes#shape-circle"],
+        "edge.path:straight": ["specimen-edges-lines#default"],
+        "edge.path:loop": ["specimen-edges-lines#self-loop"],
+        "color.name:aliceblue": ["specimen-node-fills-borders-p2#color-aliceblue"],
+        "color.name:antiquewhite": ["specimen-node-fills-borders-p2#color-antiquewhite"],
+        "color.name:aqua": ["specimen-node-fills-borders-p2#color-aqua"],
+        "color.name:aquamarine": ["specimen-node-fills-borders-p2#color-aquamarine"],
+        "color.name:azure": ["specimen-node-fills-borders-p2#color-azure"],
+        "color.name:beige": ["specimen-node-fills-borders-p2#color-beige"],
+        "color.name:bisque": ["specimen-node-fills-borders-p2#color-bisque"],
+        "color.name:black": ["specimen-node-fills-borders-p2#color-black"],
+        "color.name:blanchedalmond": ["specimen-node-fills-borders-p2#color-blanchedalmond"],
+        "color.name:blue": ["specimen-node-fills-borders-p2#color-blue"],
+        "color.name:blueviolet": ["specimen-node-fills-borders-p2#color-blueviolet"],
+        "color.name:brown": ["specimen-node-fills-borders-p2#color-brown"],
+        "color.name:burlywood": ["specimen-node-fills-borders-p2#color-burlywood"],
+        "color.name:cadetblue": ["specimen-node-fills-borders-p2#color-cadetblue"],
+        "color.name:chartreuse": ["specimen-node-fills-borders-p2#color-chartreuse"],
+        "color.name:chocolate": ["specimen-node-fills-borders-p2#color-chocolate"],
+        "color.name:coral": ["specimen-node-fills-borders-p2#color-coral"],
+        "color.name:cornflowerblue": ["specimen-node-fills-borders-p2#color-cornflowerblue"],
+        "color.name:cornsilk": ["specimen-node-fills-borders-p2#color-cornsilk"],
+        "color.name:crimson": ["specimen-node-fills-borders-p2#color-crimson"],
+        "color.name:cyan": ["specimen-node-fills-borders-p2#color-cyan"],
+        "color.name:darkblue": ["specimen-node-fills-borders-p2#color-darkblue"],
+        "color.name:darkcyan": ["specimen-node-fills-borders-p2#color-darkcyan"],
+        "color.name:darkgoldenrod": ["specimen-node-fills-borders-p2#color-darkgoldenrod"],
+        "color.name:darkgray": ["specimen-node-fills-borders-p2#color-darkgray"],
+        "color.name:darkgreen": ["specimen-node-fills-borders-p2#color-darkgreen"],
+        "color.name:darkgrey": ["specimen-node-fills-borders-p2#color-darkgrey"],
+        "color.name:darkkhaki": ["specimen-node-fills-borders-p2#color-darkkhaki"],
+        "color.name:darkmagenta": ["specimen-node-fills-borders-p2#color-darkmagenta"],
+        "color.name:darkolivegreen": ["specimen-node-fills-borders-p2#color-darkolivegreen"],
+        "color.name:darkorange": ["specimen-node-fills-borders-p3#color-darkorange"],
+        "color.name:darkorchid": ["specimen-node-fills-borders-p3#color-darkorchid"],
+        "color.name:darkred": ["specimen-node-fills-borders-p3#color-darkred"],
+        "color.name:darksalmon": ["specimen-node-fills-borders-p3#color-darksalmon"],
+        "color.name:darkseagreen": ["specimen-node-fills-borders-p3#color-darkseagreen"],
+        "color.name:darkslateblue": ["specimen-node-fills-borders-p3#color-darkslateblue"],
+        "color.name:darkslategray": ["specimen-node-fills-borders-p3#color-darkslategray"],
+        "color.name:darkslategrey": ["specimen-node-fills-borders-p3#color-darkslategrey"],
+        "color.name:darkturquoise": ["specimen-node-fills-borders-p3#color-darkturquoise"],
+        "color.name:darkviolet": ["specimen-node-fills-borders-p3#color-darkviolet"],
+        "color.name:deeppink": ["specimen-node-fills-borders-p3#color-deeppink"],
+        "color.name:deepskyblue": ["specimen-node-fills-borders-p3#color-deepskyblue"],
+        "color.name:dimgray": ["specimen-node-fills-borders-p3#color-dimgray"],
+        "color.name:dimgrey": ["specimen-node-fills-borders-p3#color-dimgrey"],
+        "color.name:dodgerblue": ["specimen-node-fills-borders-p3#color-dodgerblue"],
+        "color.name:firebrick": ["specimen-node-fills-borders-p3#color-firebrick"],
+        "color.name:floralwhite": ["specimen-node-fills-borders-p3#color-floralwhite"],
+        "color.name:forestgreen": ["specimen-node-fills-borders-p3#color-forestgreen"],
+        "color.name:fuchsia": ["specimen-node-fills-borders-p3#color-fuchsia"],
+        "color.name:gainsboro": ["specimen-node-fills-borders-p3#color-gainsboro"],
+        "color.name:ghostwhite": ["specimen-node-fills-borders-p3#color-ghostwhite"],
+        "color.name:gold": ["specimen-node-fills-borders-p3#color-gold"],
+        "color.name:goldenrod": ["specimen-node-fills-borders-p3#color-goldenrod"],
+        "color.name:gray": ["specimen-node-fills-borders-p3#color-gray"],
+        "color.name:green": ["specimen-node-fills-borders-p3#color-green"],
+        "color.name:greenyellow": ["specimen-node-fills-borders-p3#color-greenyellow"],
+        "color.name:grey": ["specimen-node-fills-borders-p3#color-grey"],
+        "color.name:honeydew": ["specimen-node-fills-borders-p3#color-honeydew"],
+        "color.name:hotpink": ["specimen-node-fills-borders-p3#color-hotpink"],
+        "color.name:indianred": ["specimen-node-fills-borders-p3#color-indianred"],
+        "color.name:indigo": ["specimen-node-fills-borders-p4#color-indigo"],
+        "color.name:ivory": ["specimen-node-fills-borders-p4#color-ivory"],
+        "color.name:khaki": ["specimen-node-fills-borders-p4#color-khaki"],
+        "color.name:lavender": ["specimen-node-fills-borders-p4#color-lavender"],
+        "color.name:lavenderblush": ["specimen-node-fills-borders-p4#color-lavenderblush"],
+        "color.name:lawngreen": ["specimen-node-fills-borders-p4#color-lawngreen"],
+        "color.name:lemonchiffon": ["specimen-node-fills-borders-p4#color-lemonchiffon"],
+        "color.name:lightblue": ["specimen-node-fills-borders-p4#color-lightblue"],
+        "color.name:lightcoral": ["specimen-node-fills-borders-p4#color-lightcoral"],
+        "color.name:lightcyan": ["specimen-node-fills-borders-p4#color-lightcyan"],
+        "color.name:lightgoldenrodyellow": ["specimen-node-fills-borders-p4#color-lightgoldenrodyellow"],
+        "color.name:lightgray": ["specimen-node-fills-borders-p4#color-lightgray"],
+        "color.name:lightgreen": ["specimen-node-fills-borders-p4#color-lightgreen"],
+        "color.name:lightgrey": ["specimen-node-fills-borders-p4#color-lightgrey"],
+        "color.name:lightpink": ["specimen-node-fills-borders-p4#color-lightpink"],
+        "color.name:lightsalmon": ["specimen-node-fills-borders-p4#color-lightsalmon"],
+        "color.name:lightseagreen": ["specimen-node-fills-borders-p4#color-lightseagreen"],
+        "color.name:lightskyblue": ["specimen-node-fills-borders-p4#color-lightskyblue"],
+        "color.name:lightslategray": ["specimen-node-fills-borders-p4#color-lightslategray"],
+        "color.name:lightslategrey": ["specimen-node-fills-borders-p4#color-lightslategrey"],
+        "color.name:lightsteelblue": ["specimen-node-fills-borders-p4#color-lightsteelblue"],
+        "color.name:lightyellow": ["specimen-node-fills-borders-p4#color-lightyellow"],
+        "color.name:lime": ["specimen-node-fills-borders-p4#color-lime"],
+        "color.name:limegreen": ["specimen-node-fills-borders-p4#color-limegreen"],
+        "color.name:linen": ["specimen-node-fills-borders-p4#color-linen"],
+        "color.name:magenta": ["specimen-node-fills-borders-p4#color-magenta"],
+        "color.name:maroon": ["specimen-node-fills-borders-p4#color-maroon"],
+        "color.name:mediumaquamarine": ["specimen-node-fills-borders-p4#color-mediumaquamarine"],
+        "color.name:mediumblue": ["specimen-node-fills-borders-p4#color-mediumblue"],
+        "color.name:mediumorchid": ["specimen-node-fills-borders-p4#color-mediumorchid"],
+        "color.name:mediumpurple": ["specimen-node-fills-borders-p5#color-mediumpurple"],
+        "color.name:mediumseagreen": ["specimen-node-fills-borders-p5#color-mediumseagreen"],
+        "color.name:mediumslateblue": ["specimen-node-fills-borders-p5#color-mediumslateblue"],
+        "color.name:mediumspringgreen": ["specimen-node-fills-borders-p5#color-mediumspringgreen"],
+        "color.name:mediumturquoise": ["specimen-node-fills-borders-p5#color-mediumturquoise"],
+        "color.name:mediumvioletred": ["specimen-node-fills-borders-p5#color-mediumvioletred"],
+        "color.name:midnightblue": ["specimen-node-fills-borders-p5#color-midnightblue"],
+        "color.name:mintcream": ["specimen-node-fills-borders-p5#color-mintcream"],
+        "color.name:mistyrose": ["specimen-node-fills-borders-p5#color-mistyrose"],
+        "color.name:moccasin": ["specimen-node-fills-borders-p5#color-moccasin"],
+        "color.name:navajowhite": ["specimen-node-fills-borders-p5#color-navajowhite"],
+        "color.name:navy": ["specimen-node-fills-borders-p5#color-navy"],
+        "color.name:oldlace": ["specimen-node-fills-borders-p5#color-oldlace"],
+        "color.name:olive": ["specimen-node-fills-borders-p5#color-olive"],
+        "color.name:olivedrab": ["specimen-node-fills-borders-p5#color-olivedrab"],
+        "color.name:orange": ["specimen-node-fills-borders-p5#color-orange"],
+        "color.name:orangered": ["specimen-node-fills-borders-p5#color-orangered"],
+        "color.name:orchid": ["specimen-node-fills-borders-p5#color-orchid"],
+        "color.name:palegoldenrod": ["specimen-node-fills-borders-p5#color-palegoldenrod"],
+        "color.name:palegreen": ["specimen-node-fills-borders-p5#color-palegreen"],
+        "color.name:paleturquoise": ["specimen-node-fills-borders-p5#color-paleturquoise"],
+        "color.name:palevioletred": ["specimen-node-fills-borders-p5#color-palevioletred"],
+        "color.name:papayawhip": ["specimen-node-fills-borders-p5#color-papayawhip"],
+        "color.name:peachpuff": ["specimen-node-fills-borders-p5#color-peachpuff"],
+        "color.name:peru": ["specimen-node-fills-borders-p5#color-peru"],
+        "color.name:pink": ["specimen-node-fills-borders-p5#color-pink"],
+        "color.name:plum": ["specimen-node-fills-borders-p5#color-plum"],
+        "color.name:powderblue": ["specimen-node-fills-borders-p5#color-powderblue"],
+        "color.name:purple": ["specimen-node-fills-borders-p5#color-purple"],
+        "color.name:rebeccapurple": ["specimen-node-fills-borders-p5#color-rebeccapurple"],
+        "color.name:red": ["specimen-node-fills-borders-p6#color-red"],
+        "color.name:rosybrown": ["specimen-node-fills-borders-p6#color-rosybrown"],
+        "color.name:royalblue": ["specimen-node-fills-borders-p6#color-royalblue"],
+        "color.name:saddlebrown": ["specimen-node-fills-borders-p6#color-saddlebrown"],
+        "color.name:salmon": ["specimen-node-fills-borders-p6#color-salmon"],
+        "color.name:sandybrown": ["specimen-node-fills-borders-p6#color-sandybrown"],
+        "color.name:seagreen": ["specimen-node-fills-borders-p6#color-seagreen"],
+        "color.name:seashell": ["specimen-node-fills-borders-p6#color-seashell"],
+        "color.name:sienna": ["specimen-node-fills-borders-p6#color-sienna"],
+        "color.name:silver": ["specimen-node-fills-borders-p6#color-silver"],
+        "color.name:skyblue": ["specimen-node-fills-borders-p6#color-skyblue"],
+        "color.name:slateblue": ["specimen-node-fills-borders-p6#color-slateblue"],
+        "color.name:slategray": ["specimen-node-fills-borders-p6#color-slategray"],
+        "color.name:slategrey": ["specimen-node-fills-borders-p6#color-slategrey"],
+        "color.name:snow": ["specimen-node-fills-borders-p6#color-snow"],
+        "color.name:springgreen": ["specimen-node-fills-borders-p6#color-springgreen"],
+        "color.name:steelblue": ["specimen-node-fills-borders-p6#color-steelblue"],
+        "color.name:tan": ["specimen-node-fills-borders-p6#color-tan"],
+        "color.name:teal": ["specimen-node-fills-borders-p6#color-teal"],
+        "color.name:thistle": ["specimen-node-fills-borders-p6#color-thistle"],
+        "color.name:tomato": ["specimen-node-fills-borders-p6#color-tomato"],
+        "color.name:turquoise": ["specimen-node-fills-borders-p6#color-turquoise"],
+        "color.name:violet": ["specimen-node-fills-borders-p6#color-violet"],
+        "color.name:wheat": ["specimen-node-fills-borders-p6#color-wheat"],
+        "color.name:white": ["specimen-node-fills-borders-p6#color-white"],
+        "color.name:whitesmoke": ["specimen-node-fills-borders-p6#color-whitesmoke"],
+        "color.name:yellow": ["specimen-node-fills-borders-p6#color-yellow"],
+        "color.name:yellowgreen": ["specimen-node-fills-borders-p6#color-yellowgreen"],
+        "color.syntax:name": [
+            "specimen-node-fills-borders#color-name-red",
+            "specimen-node-fills-borders#color-unknown-name",
+            "specimen-edges-lines-p2#edge-color-unknown-name"
+        ],
+        "color.syntax:name-mixed-case": [
+            "specimen-node-fills-borders#color-name-mixed-case",
+            "specimen-edges-lines-p2#edge-color-name-mixed-case"
+        ],
+        "color.syntax:transparent": ["specimen-node-fills-borders#color-transparent"],
+        "color.syntax:hex3": [
+            "specimen-node-fills-borders#color-hex3",
+            "specimen-node-fills-borders#color-hex4",
+            "specimen-edges-lines-p2#edge-color-hex3",
+            "specimen-edges-lines-p2#edge-color-hex4"
+        ],
+        "color.syntax:hex6": ["specimen-node-fills-borders#color-hex6"],
+        "color.syntax:hex6-upper": [
+            "specimen-node-fills-borders#color-hex6-upper",
+            "specimen-edges-lines-p2#edge-color-hex6-upper"
+        ],
+        "color.syntax:hex8": [
+            "specimen-node-fills-borders#color-hex8-alpha-80",
+            "specimen-node-fills-borders#color-hex8-alpha-33"
+        ],
+        "color.syntax:rgb": [
+            "specimen-node-fills-borders#color-rgb",
+            "specimen-node-fills-borders#color-rgb-spaces",
+            "specimen-node-fills-borders#color-rgb-percent",
+            "specimen-node-fills-borders#color-rgb-decimal",
+            "specimen-node-fills-borders#color-hsl",
+            "specimen-edges-lines-p2#edge-color-rgb"
+        ],
+        "color.syntax:rgba": [
+            "specimen-node-fills-borders#color-rgba-half",
+            "specimen-node-fills-borders#color-rgba-zero",
+            "specimen-node-sizes-opacity#color-alpha-half",
+            "specimen-edges-lines-p2#edge-color-rgba-zero"
+        ],
+        "position.syntax:number": ["specimen-node-shapes#shape-circle"],
+        "position.syntax:numeric-string": {
+            "notDrawn": "sigma throws on a node whose x or y is a string (\"could not find a valid position\"), numeric or not"
+        },
+        "setting.renderLabels": {
+            "notDrawn": "a sigma setting, not part of the file; off it hides every label, captions included, so no sheet is drawn under it"
+        },
+        "setting.renderEdgeLabels": [
+            "specimen-edge-labels#edge-label-text",
+            "specimen-edge-labels-p2#edge-label-text",
+            "specimen-edge-labels-p3#edge-label-text"
+        ],
+        "setting.edgeLabelAnchors": [
+            "specimen-edge-labels#edge-label-unlabeled-ends",
+            "specimen-edge-labels-p2#edge-label-unlabeled-ends",
+            "specimen-edge-labels-p3#edge-label-unlabeled-ends"
+        ],
+        "setting.stagePadding": {
+            "notDrawn": "frames the sheet (30 px) on every sheet; the anchors fix where"
+        },
+        "setting.minEdgeThickness": {
+            "notDrawn": "applies on every sheet; edge-size-0-5 and edge-size-1 are drawn at it"
+        },
+        "setting.itemSizesReference": {
+            "notDrawn": "on every sheet: sizes are in position units, scaled with the sheet"
+        },
+        "setting.autoRescale": {
+            "notDrawn": "on every sheet: the anchors' box is fitted to the canvas"
+        },
+        "setting.autoRescaleContent": {
+            "notDrawn": "on every sheet"
+        },
+        "setting.labelDensity": ["specimen-labels#label-grid"],
+        "setting.labelGridCellSize": ["specimen-labels#label-grid"],
+        "setting.labelRenderedSizeThreshold": ["specimen-labels#label-size-below-threshold"],
+        "graph.type:mixed": ["specimen-edges-lines#edge-undirected"],
+        "graph.type:directed": ["specimen-arrows#default", "specimen-arrows#edge-plain"],
+        "graph.type:undirected": ["specimen-arrows-p2#default", "specimen-arrows-p2#edge-plain"],
+        "graph.multi:true": ["specimen-edges-lines#parallel", "specimen-edges-lines#reciprocal"],
+        "graph.multi:false": {
+            "notDrawn": "every sheet is multi so parallel edges can be drawn; a non-multi graph draws the same"
+        },
+        "graph.allowSelfLoops:true": ["specimen-edges-lines#self-loop"],
+        "graph.allowSelfLoops:false": {
+            "notDrawn": "every sheet allows self loops; disallowing them only rejects the file"
+        },
+        "edge.key:undirected": ["specimen-edges-lines#edge-undirected"],
+        "edge.key:absent": ["specimen-edges-lines-p2#edge-no-key"],
+        "legacy.node.type:circle": ["specimen-node-shapes#type-circle"],
+        "legacy.node.type:point": ["specimen-node-shapes#type-point"],
+        "legacy.node.type:image": [
+            "specimen-node-shapes#type-image",
+            "specimen-images-charts#type-image-with-image",
+            "specimen-images-charts#type-image-without-image"
+        ],
+        "legacy.node.type:border": ["specimen-node-shapes#type-border"],
+        "legacy.node.type:square": ["specimen-node-shapes#type-square"],
+        "legacy.node.hidden:true": [
+            "specimen-node-sizes-opacity#hidden-true",
+            "specimen-node-sizes-opacity#hidden-false",
+            "specimen-labels#label-hidden-node"
+        ],
+        "legacy.node.forceLabel:true": ["specimen-labels#force-label-small"],
+        "legacy.node.zIndex:number": ["specimen-node-sizes-opacity#zindex"],
+        "legacy.node.highlighted:true": ["specimen-node-sizes-opacity#highlighted-true"],
+        "legacy.node.image:url": [
+            "specimen-images-charts#type-image-with-image",
+            "specimen-images-charts#image-without-type"
+        ],
+        "legacy.node.borderColor:color": ["specimen-node-fills-borders#border-color-red"],
+        "legacy.node.borderSize:number": ["specimen-node-fills-borders#border-size-4"],
+        "legacy.edge.type:line": [
+            "specimen-edges-lines#edge-type-line",
+            "specimen-arrows#edge-type-line",
+            "specimen-arrows-p2#edge-type-line"
+        ],
+        "legacy.edge.type:arrow": [
+            "specimen-edges-lines#edge-type-arrow",
+            "specimen-arrows#edge-type-arrow",
+            "specimen-arrows-p2#edge-type-arrow"
+        ],
+        "legacy.edge.type:curvedArrow": [
+            "specimen-edges-lines#edge-type-curvedarrow",
+            "specimen-arrows#edge-type-curvedarrow",
+            "specimen-arrows-p2#edge-type-curvedarrow"
+        ],
+        "legacy.edge.type:curve": [
+            "specimen-edges-lines#edge-type-curve",
+            "specimen-arrows#edge-type-curve",
+            "specimen-arrows-p2#edge-type-curve"
+        ],
+        "legacy.edge.hidden:true": [
+            "specimen-edges-lines#edge-hidden",
+            "specimen-edge-labels#edge-label-hidden",
+            "specimen-edge-labels-p2#edge-label-hidden",
+            "specimen-edge-labels-p3#edge-label-hidden"
+        ],
+        "legacy.edge.forceLabel:true": [
+            "specimen-edge-labels#edge-force-label",
+            "specimen-edge-labels-p2#edge-force-label",
+            "specimen-edge-labels-p3#edge-force-label"
+        ],
+        "legacy.edge.zIndex:number": ["specimen-edges-lines#edge-zindex"],
+        "display.node.visibility:hidden": ["specimen-node-sizes-opacity#visibility-hidden"],
+        "display.node.shape:square": ["specimen-node-shapes#shape-square"],
+        "display.node.opacity:number": ["specimen-node-sizes-opacity#opacity-0-3"],
+        "display.node.labelColor:color": ["specimen-labels#label-color-blue"],
+        "display.node.labelSize:number": ["specimen-labels#label-size-24"],
+        "display.edge.visibility:hidden": ["specimen-edges-lines#edge-visibility-hidden"],
+        "display.edge.opacity:number": ["specimen-edges-lines#edge-opacity-0-3"],
+        "display.edge.path:curved": ["specimen-edges-lines#edge-path-curved"],
+        "display.edge.head:arrow": ["specimen-arrows#edge-head-arrow", "specimen-arrows-p2#edge-head-arrow"],
+        "foreign.node.z:number": ["specimen-node-sizes-opacity-p2#z-200", "specimen-node-sizes-opacity-p2#z-negative"],
+        "foreign.node.index:number": ["specimen-node-sizes-opacity-p3#index-3"],
+        "foreign.node.vx:number": ["specimen-node-sizes-opacity-p3#vx-1"],
+        "foreign.node.vy:number": ["specimen-node-sizes-opacity-p3#vy-1"],
+        "foreign.node.fx:number": ["specimen-node-sizes-opacity-p3#fx-100"],
+        "foreign.node.fy:number": ["specimen-node-sizes-opacity-p3#fy-100"],
+        "foreign.node.physics:boolean": ["specimen-node-sizes-opacity-p3#physics-false"]
+    }
+}

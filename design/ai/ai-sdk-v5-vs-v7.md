@@ -8,44 +8,47 @@ marked "ran" were executed in a scratch project, whose script and output are quo
 
 ## 1. Summary
 
-**Recommendation: stay on `ai` 5 for now, and do three small things on 5 that make a later move
-to 7 cheap. Upgrade, keeping graphty's own loop, when one of the triggers in section 9 fires.
-Do not replace graphty's controller with the SDK's `ToolLoopAgent`.**
+**Recommendation: upgrade `ai` from 5 to 7, and the `@ai-sdk/*` providers from 2.x to 4.x,
+inside the graphty-element 4.0 major release now being assembled (issues #1677 and #851). Keep
+graphty's own control loop (`AiController`) on top of the SDK; do not replace it with the SDK's
+`ToolLoopAgent`. Before relying on small in-browser models, verify that they follow the
+prompt-based tool-call format.**
+
+This is pending the owner's OK to add the upgrade to the 4.0 major (#1677).
 
 The evidence:
 
-- **Version 5 already has the loop features graphty would use.** `ai` 5.0.273 exports
-  `stepCountIs`, `hasToolCall`, `prepareStep`, `activeTools`, `pruneMessages`,
-  `experimental_repairToolCall` and `Experimental_Agent` (ran, section 5). The things only 6 or 7
-  have are tool approvals (6), signed approvals (7), tool search (7) and per-call approval
-  policies (7). graphty needs none of these yet. Every assistant message is already one undo
-  step, which covers most of what an approval prompt would protect against.
-- **Version 7 costs 48 to 102 kB more in the browser.** Measured with esbuild, minified and
-  gzipped, against zod 3.25.76: the loop alone is the same size on both (107 kB versus 106 kB).
-  With the Anthropic provider it is 171 kB on 7 versus 123 kB on 5. With all three providers
-  graphty ships (OpenAI, Anthropic, Google) it is 255 kB versus 152 kB. The version 7 provider
-  packages are about twice the size of the version 5 ones.
-- **The upgrade itself is small, and it is not the risky part.** Kept as graphty's own loop,
-  version 7 needs two code changes in `VercelAiProvider` (the system prompt moves out of the
-  message list, and `fullStream` is renamed) plus new provider versions. The message shapes
-  graphty builds today pass through version 7 unchanged (ran). zod stays at 3: version 7 accepts
-  graphty's zod 3 schemas, including `.transform` and `.default` (ran).
-- **The cost that matters is the release, not the code.** `ai` and `@ai-sdk/*` are optional peer
-  dependencies of graphty-element. Moving their ranges from `^5` / `^2` to `^7` / `^4` breaks
-  every consumer who installed the old ones, so the upgrade is a graphty-element major release
-  and should ride with the next planned major, not get one of its own.
-- **The in-page model and the test mock do not need graphty's loop as their seam.** A fake
-  in-page engine wrapped as a version 7 model ran a full tool loop in about 60 lines, and the
-  SDK's mock model drove multi-step loops, streaming and approvals (all ran). Better still, a
-  model written to version 5's specification still runs under version 7 (ran), so that work can
-  start now and survive the upgrade.
-- **The in-page model is the one place where version 7 could pay for itself.** None of the five
-  WebLLM models graphty offers can call tools today, because WebLLM accepts native tools only for
-  its Hermes models (section 7). The community provider `@browser-ai/web-llm` gets around that by
-  describing the tools in the prompt and parsing the model's fenced JSON itself, for any WebLLM
-  model. Its maintained line needs `ai` 7; the one release for `ai` 5 does the same thing but has
-  not been updated since 2026-01-23. If graphty revives the in-page model by adopting that
-  package, upgrade first.
+- **The breaking part is free now and costly later.** `ai` and `@ai-sdk/*` are optional peer
+  dependencies of graphty-element, so moving their ranges from `^5` / `^2` to `^7` / `^4` breaks
+  consumers who installed the old ones. Inside 4.0 that costs no extra major; done later, it
+  would force a 5.0 by itself.
+- **Version 7 unlocks the in-page model.** None of the five WebLLM models graphty offers can call
+  tools today, because WebLLM accepts native tools only for its Hermes models (issue #1681). The
+  community provider `@browser-ai/web-llm` fixes that by describing the tools in the prompt and
+  parsing the model's fenced JSON itself, for any WebLLM model (section 7). Its maintained line
+  (3.x) needs `ai` 7; the one release for `ai` 5 has had no update since 2026-01-23.
+- **Version 7 adds what graphty is likely to need next**: tool approvals (a per-call
+  `toolApproval` policy, ran) for tools one undo step does not cover, and tool search for a tool
+  list that grows past a few dozen. Version 5 is two majors behind, and the community has moved
+  on (`@browser-ai/web-llm` has one release for 5 and twenty for 6 and 7).
+- **The code change is small.** Kept as graphty's own loop, version 7 needs two changes in
+  `VercelAiProvider` (the system prompt moves out of the message list into `instructions`, and
+  `fullStream` becomes `stream`) plus the new provider versions. The message shapes graphty
+  builds today pass through unchanged (ran). zod stays at 3: version 7 accepts graphty's zod 3
+  schemas, including `.transform` and `.default` (ran).
+- **The cost is 48 to 102 kB gzipped**, and only for pages that load the `./ai` entry. The loop
+  alone is the same size on both versions (107 kB versus 106 kB); the version 7 provider packages
+  are about twice the size of the version 5 ones (171 kB versus 123 kB with Anthropic, 255 kB
+  versus 152 kB with the three providers graphty ships). A page that only draws a graph pays
+  nothing.
+- **Version 5 already has the loop features**, which is why the loop stays graphty's: `ai`
+  5.0.273 exports `stepCountIs`, `hasToolCall`, `prepareStep`, `activeTools`, `pruneMessages`,
+  `experimental_repairToolCall` and `Experimental_Agent` (ran). Moving graphty's specific rules
+  (the forced answer, stop on the first failure, one undo step per message) into `ToolLoopAgent`
+  hooks would relocate code, not remove it, and would touch public API.
+- **Testing and custom models work on version 7.** The SDK's `MockLanguageModelV4` drove
+  multi-step loops, streaming and approvals, and a fake in-page engine wrapped as a version 7
+  model ran a full tool loop in about 60 lines (all ran, section 5).
 
 ## 2. What graphty uses today
 
@@ -329,8 +332,9 @@ There are three ways to get it:
    either inside `WebLlmProvider` or as an SDK model. Works on either SDK version.
 
 So the in-browser path does not by itself force version 7, but it is the strongest reason to
-take it: if the in-page model is revived by adopting the maintained community provider, the
-upgrade comes first. Either way graphty-element, not the app, owns the choice and the wiring.
+take it: only on version 7 is the maintained community provider an option. Whichever way is
+chosen, the small models' compliance with the fenced format has to be measured first (section
+9), and graphty-element, not the app, owns the choice and the wiring.
 
 ## 8. Effort and risk
 
@@ -357,57 +361,58 @@ everything rule), and the SDK expresses each through a hook rather than removing
 
 **Staying on 5:** no work now. The risks are that v5 gets fewer fixes over time (no
 end-of-support date is published, but the community has moved: `@browser-ai/web-llm` has one
-release for v5 and twenty for v6 and v7), and that a feature graphty wants later exists only on 7.
+release for v5 and twenty for v6 and v7), that the in-page model stays without tool calls, and
+that the upgrade later forces a graphty-element major of its own.
 
 ## 9. Recommendation and path
 
-**Now, on version 5 (no dependency change, each step useful on its own):**
+**Upgrade to `ai` 7 inside the graphty-element 4.0 major (#1677, #851), keeping graphty's
+loop.** Pending the owner's OK to add it to #1677. The steps, all on the 4.0 branch:
 
-1. Send the system prompt through the `system` option instead of as the first message. Version
-   5 accepts both; version 7 accepts only the option. This removes the one breaking difference
-   the spike found.
-2. Let `VercelAiProvider` accept a ready-made SDK model as well as a provider name and key, and
-   test it with the SDK's mock model instead of `vi.mock("ai")`. The same tests then run
-   unchanged on 7.
-3. Decide how the in-page model gets tool calls (section 7). If graphty writes the prompt-based
-   tool path itself, write it as an SDK model (`LanguageModelV2`) behind `WebLlmProvider`: it
-   runs under version 7 without changes (ran) and gets JSON Schema tools from the SDK. If
-   graphty adopts `@browser-ai/web-llm` instead, that is the first trigger below.
+1. Raise `ai` to `^7` and `@ai-sdk/anthropic`, `@ai-sdk/google` and `@ai-sdk/openai` to `^4`, in
+   both the development and the optional peer dependency ranges. List it among the 4.0 breaking
+   changes: a consumer who installed the old peers must upgrade them.
+2. In `VercelAiProvider`, pass the system prompt as `instructions` instead of the first message,
+   and read `stream` instead of `fullStream`. Keep graphty's `LlmProvider`, `Message` and
+   `MockLlmProvider` types unchanged, so the public AI API changes only in its peer ranges.
+3. Let `VercelAiProvider` accept a ready-made SDK model as well as a provider name and key, and
+   test it with `MockLanguageModelV4` instead of `vi.mock("ai")` (an additive API change).
+4. Add a build test that the `./ai` entry still bundles for a browser with no Node built-ins,
+   since version 7's browser safety rests on a `browser` export condition two packages down.
+5. Run the paid LLM regression suite once (about 190 Google calls) to confirm the 4.x Google
+   provider sends the same requests.
 
-**Upgrade to version 7, keeping graphty's loop and its public interface, when any of these
-happens:**
+**Then, for the in-page model (issue #1681), outside the major:**
 
-- graphty decides to revive the in-page model by adopting the maintained
-  `@browser-ai/web-llm` 3.x, which needs `ai` 7 (section 7). This is the most likely trigger,
-  because the five offered WebLLM models cannot call tools at all today (issue #1681);
-- a graphty-element major release is being assembled anyway (the planned removal of English
-  sentences from the assistant's results is one), so the peer-range change costs no extra major;
-- the assistant gains tools that change data in ways one undo step does not cover, and the
-  reader should confirm before they run. Approvals are v6 and later; graphty would use the
-  per-call `toolApproval` policy, not the signed form, which protects servers;
-- the tool list grows past about 30 to 40 (for example by exposing the 36 session commands next
-  to the 15 current tools) and a per-step `activeTools` filter, which v5 already has, is not
-  enough. Then `toolSearch` is the v7 reason;
-- a model or provider feature graphty needs lands only in the 4.x provider packages, or a v5 fix
-  stops coming.
+6. Before relying on it, verify in a real browser that the offered small models (Llama 3.2 1B
+   and 3B, Phi 3.5 Mini, Qwen 2.5 1.5B, SmolLM2 360M) follow the prompt-based fenced tool-call
+   format reliably enough for graphty's tools: run a subset of the LLM regression cases against
+   each and record the pass rate. Drop the models that fail from the offered list.
+7. Then put `@browser-ai/web-llm` 3.x behind `WebLlmProvider` as an optional peer, or, if it
+   proves unreliable or unmaintained, write the same prompt-based path as graphty's own SDK
+   model. graphty-element owns the choice and the wiring, not the app.
 
-**Adopt `ToolLoopAgent` behind the existing controller only if** graphty's loop has to grow
-features the SDK already has, such as streaming several steps to the reader, approvals inside
-the loop, or durable runs. Then build it behind `AiController`'s current interface so the app
-and embedders see no change.
+**Later, as needs arise:** use the per-call `toolApproval` policy when the assistant gains tools
+that one undo step does not cover (the signed form protects servers and is not needed in a
+page); use `toolSearch` when the tool list grows past what a per-step `activeTools` filter
+handles.
+
+**Do not adopt `ToolLoopAgent`** unless graphty's loop has to grow features the SDK already has,
+such as streaming several steps to the reader or durable runs. Then build it behind
+`AiController`'s current interface so the app and embedders see no change.
 
 ## 10. Where this agrees and disagrees with the two earlier reports
 
 **`design/element-api/agent-harness-options.md` (2026-09-21)** recommended upgrading to 7 and
 replacing the controller and provider layer (about 1,850 lines) with the SDK's agent loop.
 
-- Agreed: version 7 works in a browser build and does not force zod 4. Its Anthropic figure (172
-  kB) matches the spike's 171 kB.
+- Agreed with upgrading to 7, and that version 7 works in a browser build and does not force zod 4. Its Anthropic figure (172 kB) matches the spike's 171 kB.
 - Disagreed on cost: it never compared against version 5. The same build on 5 is 123 kB, so the
   upgrade adds 48 kB with one provider and 102 kB with the three graphty ships.
 - Disagreed on gains: most of the features it credited to 7 (stop conditions, the per-step hook,
   pruning, tool-call repair) are already in the installed 5. Only approvals, signed approvals and
-  tool search are new, and graphty needs none of them yet.
+  tool search are new. The reasons to upgrade are different ones: the in-page provider and a
+  free slot in the 4.0 major.
 - Disagreed on deletion: the controller's rules (forced answer, stop on first failure,
   transactions, abort on undo) move into SDK hooks rather than disappear, and `LlmProvider` and
   `MockLlmProvider` are public API, so removing them is a breaking change on its own.
@@ -417,16 +422,18 @@ replacing the controller and provider layer (about 1,850 lines) with the SDK's a
 
 **`design/ai/agent-harness-options.md` (2026-10-08)** recommended staying on 5.
 
-- Agreed with the recommendation and with its main reason: version 5 already exports the stop
-  conditions, `prepareStep` and `pruneMessages` (checked on 5.0.273).
+- Disagreed with the recommendation. Its main reason holds -- version 5 already exports the stop
+  conditions, `prepareStep` and `pruneMessages` (checked on 5.0.273) -- but it argues only that
+  graphty's loop does not need 7. It does not weigh the in-page provider that needs 7, or that
+  the peer-range change is free inside the 4.0 major and forces a major of its own later.
+- Agreed that graphty should keep its own loop rather than adopt the SDK's agent class.
 - Disagreed that tool-call repair is new in 7. Version 5 has it as `experimental_repairToolCall`;
   7 only drops the prefix.
 - Disagreed that graphty's own loop is the seam the in-page model and the mock need. The spike
   ran both as SDK models under version 7, and a version 5 model runs under 7 as well. Keep the
   loop for its graph-specific rules and its public interface, not as the only way to plug in
   models.
-- Added: the bundle cost, the major release forced by the peer ranges, and the triggers in
-  section 9.
+- Added: the bundle cost and the major release forced by the peer ranges.
 - Both reports quote `ai` 5.0.116. The lockfile installs 5.0.271.
 
 ## 11. Sources

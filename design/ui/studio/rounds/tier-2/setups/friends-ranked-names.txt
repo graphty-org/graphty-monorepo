@@ -1,0 +1,24 @@
+# friends-ranked.txt, then every name drawn (a label line on Everything bound to id)
+--click No thanks
+--click New from data...
+--click choose a file...
+--upload friends.csv
+--click Load
+--key Shift+A
+--type PageRank
+--click PageRank
+--click Run
+--click PageRank
+--click role=tab:Style
+--click Add to node shape
+--click role=menuitem:Size
+--click Size by attribute
+--click role=option:PageRank
+--key Escape
+--click Everything
+--click role=tab:Style
+--click Add to node text
+--click role=menuitem:Label
+--click role=option:id
+--click Show all labels
+--key Escape

@@ -125,7 +125,14 @@ async function corpusSamples(): Promise<readonly (readonly [string, LoadedGraph,
     for (const format of registered.filter((f) => f.corpus !== false)) {
         const files = new Set(corpusFiles(`${STYLE_CORPUS}/${format.name}`).map((r) => `${format.name}/${r}`));
         const inputs = formatInputs(format)
-            .filter((i) => files.has(i.name) && !i.name.includes("/generated/") && i.bytes !== undefined)
+            .filter(
+                (i) =>
+                    files.has(i.name) &&
+                    !i.name.includes("/generated/") &&
+                    // the style fidelity fixtures are scored against their source programs, not sampled here
+                    !i.name.includes("/fidelity/") &&
+                    i.bytes !== undefined,
+            )
             .sort((a, b) => (a.bytes?.length ?? 0) - (b.bytes?.length ?? 0));
         for (const input of inputs) {
             const loaded = await input.load().catch(() => null);
@@ -233,6 +240,42 @@ describe.each(styled.map((f) => [f] as const))("hand-made styles written as %s",
         const writer = writerFor(format, loaded.snapshot);
         expect(writer).not.toBeNull();
         expect(writer === null ? [] : await writtenFailures(writer, loaded, ex)).toEqual([]);
+    });
+});
+
+describe("a graph background the format has no place for", () => {
+    /**
+     * The W_STYLE_NOT_WRITTEN notes about the graph's background when the hand-made styles, with this background,
+     * are written as a format.
+     * @param format - the format
+     * @param background - the background
+     * @returns the notes' properties
+     */
+    function backgroundLosses(format: string, background: `#${string}`): string[] {
+        const { loaded, ex } = handMade();
+        const styles = { ...ex, styles: { ...ex.styles, graph: { background } } };
+        const writer = writerFor(format, loaded.snapshot);
+        return createRegistry()
+            .checkExport(loaded.snapshot, format, { ...writer?.options, styles })
+            .filter((n) => n.code === "W_STYLE_NOT_WRITTEN" && n.style?.target === "graph")
+            .map((n) => `${format} ${n.style?.property ?? ""}`);
+    }
+
+    // the program each format is written for paints white where the file gives no background
+    it.each(["graphml", "gml", "gexf", "pajek"])(
+        "is not reported lost as %s when it is the white that program draws",
+        (f) => {
+            expect(backgroundLosses(f, "#ffffff")).toEqual([]);
+        },
+    );
+
+    it.each(["graphml", "gml", "gexf"])("is reported lost as %s when it is any other color", (f) => {
+        expect(backgroundLosses(f, "#102030")).toEqual([`${f} background`]);
+    });
+
+    // JSON is drawn by several programs
+    it.each(["json"])("is reported lost as %s even when it is white", (f) => {
+        expect(backgroundLosses(f, "#ffffff")).toEqual([`${f} background`]);
     });
 });
 

@@ -44,7 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export { Edge } from "./src/Edge";
+export { Edge, type EdgeCapEnd } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -75,9 +75,13 @@ export { Node } from "./src/Node";
 export type {
     AdHocData,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How the 3D nodes are lit, as `element.lighting` takes it
+    Lighting,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -99,6 +103,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 // Style configuration values and helpers
 export {
     colorToHex,
+    DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
@@ -106,7 +111,9 @@ export {
     defaultXRConfig,
     EdgeStyle,
     GraphBackground,
+    isLighting,
     isViewMode,
+    LIGHTING_VALUES,
     NodeShapes,
     NodeStyle,
     RichTextStyle,
@@ -123,14 +130,18 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
-export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
+export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
@@ -179,6 +190,17 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What autosave reports: its status, its codes, its entries and what a restore found.
+export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
+export type {
+    AutosaveApi,
+    AutosaveAvailable,
+    AutosaveCode,
+    AutosaveEntry,
+    AutosaveOptions,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./src/autosave/types";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
@@ -186,6 +208,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
@@ -326,15 +352,20 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { ViewInsets } from "./src/camera/types";
 export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
+
+// One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
 export type { CapabilityCheck } from "./src/screenshot/capability-check";
@@ -382,7 +413,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration
@@ -403,6 +434,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export {
     ACCELERATION_MIN_NODES_DEFAULT,
@@ -412,3 +444,10 @@ export {
     CPU_PRECISION,
     isAccelerationPolicy,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export type { CredentialStore, SourceCredentialTarget, StoredCredentialInfo } from "./src/credentials/CredentialStore";
+export * from "./src/session/sources/public";

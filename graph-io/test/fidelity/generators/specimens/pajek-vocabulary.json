@@ -1,0 +1,441 @@
+{
+    "about": "The Pajek style vocabulary the Pajek specimen sheets sweep, from Pajek 6.02's manual (section 5.3, pages 89-92: the vertex and line keys of a .net file; Figure 19, page 105: the colors; section 5.2, pages 84-88, and section 4.10, pages 74-77: the Draw window and export options) and the option names Pajek 6.02 writes to its ini file (SAVEINI; the strings in Pajek.exe). pajek.py fails when a value here is on no sheet and not in its NOT_SWEPT list. A value is a literal the file or the ini holds; 'number' and 'text' stand for any number or text, swept at several values.",
+    "sources": {
+        "manual": "https://mrvar.fdv.uni-lj.si/pajek/pajekman.pdf",
+        "ini": "Pajek 6.02 (Pajek64.zip of 2025-12-31): SAVEINI output and the Form8 / Form10 option names in Pajek.exe"
+    },
+    "vertex": {
+        "shape": {
+            "source": "manual 5.3 p89: 'ellipse, box, diamond, triangle, cross, empty, house, man, or woman'",
+            "values": ["ellipse", "box", "diamond", "triangle", "cross", "empty", "house", "man", "woman"]
+        },
+        "z": {
+            "source": "manual 5.3 p89: 'x, y, z - coordinates of vertex (between 0 and 1)'; the z is optional",
+            "values": ["number", "none"]
+        },
+        "s_size": {
+            "source": "manual 5.3 p89: default size",
+            "values": ["number"]
+        },
+        "x_fact": {
+            "source": "manual 5.3 p89: magnification in x direction",
+            "values": ["number"]
+        },
+        "y_fact": {
+            "source": "manual 5.3 p89: magnification in y direction",
+            "values": ["number"]
+        },
+        "phi": {
+            "source": "manual 5.3 p89: rotation in degrees (0..360)",
+            "values": ["number"]
+        },
+        "r": {
+            "source": "manual 5.3 p89: radius of corners of rectangle and diamond",
+            "values": ["number"]
+        },
+        "q": {
+            "source": "manual 5.3 p89: ratio between top and middle side of diamond",
+            "values": ["number"]
+        },
+        "ic": {
+            "source": "manual 5.3 p89: interior color",
+            "values": ["color"]
+        },
+        "bc": {
+            "source": "manual 5.3 p89: boundary color",
+            "values": ["color"]
+        },
+        "bw": {
+            "source": "manual 5.3 p89: boundary width",
+            "values": ["number"]
+        },
+        "lc": {
+            "source": "manual 5.3 p90: label color",
+            "values": ["color"]
+        },
+        "la": {
+            "source": "manual 5.3 p90 and 5.2 p85: label angle (< 360 horizontal-relative, >= 360 concentric)",
+            "values": ["number", "360"]
+        },
+        "lr": {
+            "source": "manual 5.3 p90: distance of the label's beginning from the vertex center (0: centered)",
+            "values": ["0", "number"]
+        },
+        "lphi": {
+            "source": "manual 5.3 p90: label position angle (0..360)",
+            "values": ["number"]
+        },
+        "fos": {
+            "source": "manual 5.3 p90: font size",
+            "values": ["number"]
+        },
+        "font": {
+            "source": "manual 5.3 p90: PostScript font (Helvetica, Courier, ...)",
+            "values": ["Helvetica", "Courier", "Times-Roman", "Arial"]
+        },
+        "label": {
+            "source": "manual 5.3 p89: a word, or several words in quotes; 5.4 p94: &#dddd; character references",
+            "values": ["word", "quoted", "empty", "ncr"]
+        },
+        "HOOKS": {
+            "source": "manual 5.3 p90: CART / POLAR / CIRC hook positions, defined per shape in SHAPES.CFG (Pajek's shipped SHAPES.CFG defines them for every shape but empty)",
+            "values": ["CART", "POLAR", "CIRC"]
+        }
+    },
+    "line": {
+        "section": {
+            "source": "manual 5.3 p90-92, 2 p7 (matrix format) and 3.x: *Arcs, *Edges, *Arcslist, *Edgeslist, *Matrix, relation number and name (*Arcs :2 \"name\")",
+            "values": ["*Arcs", "*Edges", "*Arcslist", "*Edgeslist", "*Matrix", "relation"]
+        },
+        "value": {
+            "source": "manual 5.3 p90: a negative value draws a dotted line",
+            "values": ["positive", "negative"]
+        },
+        "loop": {
+            "source": "manual 5.3 p90: a loop is drawn as a Bezier loop",
+            "values": ["loop"]
+        },
+        "bidirected": {
+            "source": "manual 5.3 p90: a bidirected arc is drawn as two curved Bezier arcs",
+            "values": ["pair"]
+        },
+        "w": {
+            "source": "manual 5.3 p91: width of line",
+            "values": ["number"]
+        },
+        "c": {
+            "source": "manual 5.3 p91: color of line",
+            "values": ["color"]
+        },
+        "p": {
+            "source": "manual 5.3 p91: pattern (Solid, Dots)",
+            "values": ["Solid", "Dots"]
+        },
+        "s": {
+            "source": "manual 5.3 p91: size of arrow",
+            "values": ["number"]
+        },
+        "a": {
+            "source": "manual 5.3 p91: type (shape) of arrow (A or B)",
+            "values": ["A", "B"]
+        },
+        "ap": {
+            "source": "manual 5.3 p91: 0 at the terminal vertex, 0..1 proportional, > 1 absolute",
+            "values": ["0", "fraction", "absolute"]
+        },
+        "l": {
+            "source": "manual 5.3 p91: line label",
+            "values": ["text"]
+        },
+        "lp": {
+            "source": "manual 5.3 p91: label position (as ap)",
+            "values": ["fraction", "absolute"]
+        },
+        "lr": {
+            "source": "manual 5.3 p91: label radius",
+            "values": ["number"]
+        },
+        "lphi": {
+            "source": "manual 5.3 p91: label angle around its point",
+            "values": ["number"]
+        },
+        "lc": {
+            "source": "manual 5.3 p91: label color",
+            "values": ["color"]
+        },
+        "la": {
+            "source": "manual 5.3 p91: label angle (< 360 relative to the line, >= 360 absolute)",
+            "values": ["number", "360"]
+        },
+        "fos": {
+            "source": "manual 5.3 p91: font size of label",
+            "values": ["number"]
+        },
+        "font": {
+            "source": "manual 5.3 p91: PostScript font",
+            "values": ["Helvetica", "Courier", "Times-Roman", "Arial"]
+        },
+        "h1": {
+            "source": "manual 5.3 p91: hook at initial vertex (0 center, -1 closest, 1.. user defined: the HOOKS of the vertex's shape in SHAPES.CFG)",
+            "values": ["0", "-1", "user"]
+        },
+        "h2": {
+            "source": "manual 5.3 p91: hook at terminal vertex",
+            "values": ["0", "-1", "user"]
+        },
+        "route": {
+            "source": "manual 5.3 p92: combinations of a1 k1 a2 k2",
+            "values": [
+                "straight",
+                "oval+",
+                "oval-",
+                "arc2+",
+                "arc2-",
+                "arc3+",
+                "arc3-",
+                "double",
+                "bezier-opposite",
+                "bezier-same"
+            ]
+        }
+    },
+    "project": {
+        "partition": {
+            "source": "manual 4.10 p76 and Figure 20 p106 (Partition colors, clusters 0-39): a project file's (.paj) *Partition colors its vertices under Draw > Network + First Partition",
+            "values": ["number"]
+        },
+        "vector": {
+            "source": "manual 4.10 p76 (Size: 'determined by one vector'): a project file's *Vector sizes its vertices under Draw > Network + First Vector",
+            "values": ["number"]
+        },
+        "vector2": {
+            "source": "manual 4.1 p69 (Draw > Network + First Vector + Second Vector, 'first for width second for height'): a project file's second *Vector sizes its vertices' height, the first their width",
+            "values": ["number"]
+        },
+        "partitionOverIc": {
+            "source": "manual 5.2 p84: 'If drawing using Partition is used, partition colors will overwrite the specified interior color'",
+            "values": ["on"]
+        }
+    },
+    "colors": {
+        "names": {
+            "source": "manual Figure 19 p105",
+            "values": [
+                "GreenYellow",
+                "Yellow",
+                "Goldenrod",
+                "Dandelion",
+                "Apricot",
+                "Peach",
+                "Melon",
+                "YellowOrange",
+                "Orange",
+                "BurntOrange",
+                "Bittersweet",
+                "RedOrange",
+                "Mahogany",
+                "Maroon",
+                "BrickRed",
+                "Red",
+                "OrangeRed",
+                "RubineRed",
+                "WildStrawberry",
+                "Salmon",
+                "CarnationPink",
+                "Magenta",
+                "VioletRed",
+                "Rhodamine",
+                "Mulberry",
+                "RedViolet",
+                "Fuchsia",
+                "Lavender",
+                "Thistle",
+                "Orchid",
+                "DarkOrchid",
+                "Purple",
+                "Plum",
+                "Violet",
+                "RoyalPurple",
+                "BlueViolet",
+                "Periwinkle",
+                "CadetBlue",
+                "CornflowerBlue",
+                "MidnightBlue",
+                "NavyBlue",
+                "RoyalBlue",
+                "Blue",
+                "Cerulean",
+                "Cyan",
+                "ProcessBlue",
+                "SkyBlue",
+                "Turquoise",
+                "TealBlue",
+                "Aquamarine",
+                "BlueGreen",
+                "Emerald",
+                "JungleGreen",
+                "SeaGreen",
+                "Green",
+                "ForestGreen",
+                "PineGreen",
+                "LimeGreen",
+                "YellowGreen",
+                "SpringGreen",
+                "OliveGreen",
+                "RawSienna",
+                "Sepia",
+                "Brown",
+                "Tan",
+                "Gray",
+                "Black",
+                "White",
+                "LightYellow",
+                "LightCyan",
+                "LightMagenta",
+                "LightPurple",
+                "LightGreen",
+                "LightOrange",
+                "Canary",
+                "LFadedGreen",
+                "Pink",
+                "LSkyBlue",
+                "Gray05",
+                "Gray10",
+                "Gray15",
+                "Gray20",
+                "Gray25",
+                "Gray30",
+                "Gray35",
+                "Gray40",
+                "Gray45",
+                "Gray55",
+                "Gray60",
+                "Gray65",
+                "Gray70",
+                "Gray75",
+                "Gray80",
+                "Gray85",
+                "Gray90",
+                "Gray95"
+            ]
+        },
+        "forms": {
+            "source": "manual 4.10 p76: 'RGBFF0000, or RGB(1,0,0)' and 'CMYK00FF0000, or CMYK(0,1,0,0)'; no spaces",
+            "values": ["RGBhex", "RGB()", "CMYKhex", "CMYK()"]
+        }
+    },
+    "ini": {
+        "Form8.MarkVerticesUsing": {
+            "source": "manual 4.10 p75: Labels, Numbers, No Labels, No Labels no Arrows",
+            "values": ["1", "2", "3", "4"]
+        },
+        "CenterLabels": {
+            "source": "manual 4.10 p75: Labels Centered",
+            "values": ["on"]
+        },
+        "LabelswithTransparentBackGround1": {
+            "source": "manual 4.10 p77: Labels with Transparent Background",
+            "values": ["on"]
+        },
+        "Form8.withLabels1": {
+            "source": "manual 4.10 p75: Mark Lines with Labels",
+            "values": ["on"]
+        },
+        "Form8.withValues1": {
+            "source": "manual 4.10 p75: Mark Lines with Values",
+            "values": ["on"]
+        },
+        "Arrowsinthemiddle1": {
+            "source": "manual 4.10 p77: Arrows in the Middle",
+            "values": ["on"]
+        },
+        "Form8.SizeofVertices": {
+            "source": "manual 4.10 p76: Size of vertices",
+            "values": ["number"]
+        },
+        "Form8.SizeofVertexBorder": {
+            "source": "manual 4.10 p76: width of vertices border",
+            "values": ["number"]
+        },
+        "Form8.SizeofLines": {
+            "source": "manual 4.10 p76: width of lines",
+            "values": ["number"]
+        },
+        "Form8.SizeofArrows": {
+            "source": "manual 4.10 p76: size of arrows",
+            "values": ["number"]
+        },
+        "Form8.SizeofFont": {
+            "source": "manual 4.10 p76: size of font",
+            "values": ["number"]
+        },
+        "TransparencyofVertices": {
+            "source": "manual 5.2 p87: SVG Opacity of Vertices",
+            "values": ["number"]
+        },
+        "TransparencyofLines": {
+            "source": "manual 5.2 p87: SVG Opacity of Lines",
+            "values": ["number"]
+        },
+        "Form10.effect3d": {
+            "source": "manual 5.2 p87: SVG Vertices 3D Effect",
+            "values": ["on"]
+        },
+        "Form10.ColorGradientLines": {
+            "source": "manual 5.2 p87: SVG Lines Color as Gradient of EndVertices",
+            "values": ["on"]
+        },
+        "Form10.LinesFinishedatBorder": {
+            "source": "manual 5.2 p87: Lines finished at Vertex Border",
+            "values": ["on"]
+        },
+        "Form10.StraightLinesOnly1": {
+            "source": "manual 5.2 p86: Straight Lines",
+            "values": ["on"]
+        }
+    },
+    "preferences": {
+        "about": "Pajek preferences kept in its ini file, never in a .net or .paj file, so no importer can read them; listed so the vocabulary is complete. Each is Pajek's default on every sheet.",
+        "source": "manual 5.2 pp84-88 (EPS/SVG defaults window) and 4.10 pp74-78 (Draw window options); the names SAVEINI writes",
+        "values": [
+            "Form10.ic",
+            "Form10.bc",
+            "Form10.bw",
+            "Form10.ShapeAngle",
+            "Form10.SymbolSize",
+            "Form10.xy",
+            "Form10.shape.ItemIndex",
+            "Form10.Edit1 (shapes file)",
+            "Form10.lc",
+            "Form10.fos",
+            "Form10.la",
+            "Form10.lr",
+            "Form10.lphi",
+            "Form10.linc",
+            "Form10.linw",
+            "Form10.arcc",
+            "Form10.arcw",
+            "Form10.Pattern.ItemIndex",
+            "Form10.ars",
+            "Form10.ap",
+            "Form10.a1",
+            "Form10.k1",
+            "Form10.a2",
+            "Form10.k2",
+            "Form10.lp",
+            "Form10.llc",
+            "Form10.lla",
+            "Form10.llr",
+            "Form10.llphi",
+            "Form10.lfos",
+            "Form10.bck_col1",
+            "Form10.bck_col2",
+            "Form10.Edit7 (third background color)",
+            "Form10.Gradients.ItemIndex",
+            "TransparencyofBackGround",
+            "Form10.Edit6 (layout border color)",
+            "Form10.BorderRadius",
+            "Form10.BorderWidth",
+            "SVG Tooltips",
+            "Form8.BackGroundColor",
+            "Form8.VertexColor",
+            "Form8.VertexBorder",
+            "Form8.ArcColor",
+            "Form8.EdgeColor",
+            "Form8.FontColor",
+            "Form8.FontLinesColor",
+            "Form8.SizeofSymbol",
+            "PartitionColors",
+            "PartitionColors2",
+            "RelationColors",
+            "PartitionSymbols",
+            "Lines / Different Widths",
+            "Lines / GreyScale",
+            "Lines / Draw Lines (Edges, Arcs, Relations)",
+            "Mark Vertices Using 5-9",
+            "Real xy proportions",
+            "Size of vertex 0 (Hide vertex, Hide attached lines)",
+            "Transform / Fit area"
+        ]
+    }
+}

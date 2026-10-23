@@ -17,6 +17,8 @@ import { LAYOUT_DEFINITIONS } from "./layout";
 import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
 import { SET_DEFINITIONS } from "./sets";
+import { SOURCE_EXPAND_DEFINITIONS } from "./source-expand";
+import { SOURCE_LOAD_DEFINITIONS } from "./source-load";
 import { STYLE_DEFINITIONS } from "./style";
 import { VIEW_DEFINITIONS } from "./view";
 import { VISIBILITY_DEFINITIONS } from "./visibility";
@@ -90,6 +92,8 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ALGO_DEFINITIONS,
     batch,
     ...DATA_DEFINITIONS,
+    ...SOURCE_LOAD_DEFINITIONS,
+    ...SOURCE_EXPAND_DEFINITIONS,
     ...STYLE_DEFINITIONS,
     ...VISIBILITY_DEFINITIONS,
     ...SET_DEFINITIONS,

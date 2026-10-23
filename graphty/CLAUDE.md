@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (?demo gallery, ?legacy old shell, else the workspace)
+│   ├── App.tsx               # Main application component (?demo gallery, else the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
@@ -43,8 +43,7 @@ graphty/
 `src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
 `Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
 `keys/`, and one directory per later package. Each package registers its commands in its own
-`commands.ts`, which `registrations.ts` collects. The superseded app shell in `src/components/shell/`
-stays reachable at `?legacy` (`?next` also opens the workspace, for old links) until issue #3056 deletes it.
+`commands.ts`, which `registrations.ts` collects. `?next` also opens the workspace, for old links.
 
 ## Essential Commands
 
@@ -115,9 +114,8 @@ The element records each change and owns the history; the app never keeps its ow
   The `graphty/no-element-mutation` lint rule (`eslint-rules/no-element-mutation.js`) reports
   them. It reads `graphty-element/build/doors.json`, which the element's build writes, so build
   graphty-element before linting the app.
-- Undo, Redo and the History list read the element's history through
-  `src/components/shell/topbar/useSessionHistory.ts` and call `session.undo()`, `session.redo()`
-  and `session.history.restoreTo()`.
+- Undo and Redo read the element's history (`session.history`) and call `session.undo()` and
+  `session.redo()`.
 
 ## Testing
 

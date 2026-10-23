@@ -14,11 +14,41 @@
     flex: 0 0 auto;
 }
 
+/* Many group tabs scroll sideways rather than stack. */
+.ws-table-tabs {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.ws-table-tabs [role="tablist"] {
+    flex-wrap: nowrap;
+}
+
 .ws-table-spacer {
     flex: 1;
 }
 
+/* In a narrow dock the count gives way first, then the Columns label, and the tabs last. */
 .ws-table-count {
+    flex: 0 100 auto;
+    min-width: 0;
+}
+
+.ws-table-columns {
+    flex: 0 20 auto;
+    min-width: 40px;
+}
+
+.ws-table-columns .mantine-Button-inner,
+.ws-table-columns .mantine-Button-label {
+    min-width: 0;
+}
+
+.ws-table-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 

@@ -17,7 +17,7 @@ export const compactMenuVars = {
     "--menu-item-fz": "11px",
 } as const;
 
-/** The Menu parts, pointed at the foundation's dark menu primitives and this package's rules. */
+/** The Menu parts, pointed at the foundation's menu primitives and this package's rules. */
 export const compactMenuClassNames = {
     dropdown: "cm-menu-surface cm-menu",
     item: "cm-menu-row cm-menu-item",

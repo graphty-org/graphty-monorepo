@@ -584,6 +584,23 @@ const skip = (reason, why) =>
 const serverFault = (why) => skip("server-fault", `The SonarQube server or the network failed: ${why}`);
 
 const git = (args) => execFileSync("git", args, { encoding: "utf8", env: envWithoutToken(), maxBuffer: 256 << 20 });
+// A diff of many paths in batches: one git call with thousands of paths fails with E2BIG. Each
+// group keeps a renamed file's new and old path together, so -M still pairs them.
+const diffU0 = (from, groups) => {
+    const out = [];
+    for (let i = 0; i < groups.length; i += 200) {
+        const batch = [
+            ...new Set(
+                groups
+                    .slice(i, i + 200)
+                    .flat()
+                    .filter(Boolean),
+            ),
+        ];
+        out.push(git(["diff", "-M", "-U0", from, "HEAD", "--", ...batch]));
+    }
+    return out.join("");
+};
 // git for a question whose "no" is an error (a path missing at a revision): no stderr.
 const gitQuiet = (args) =>
     execFileSync("git", args, {
@@ -913,7 +930,12 @@ function previousVersion(run, files) {
             c.oldPath,
         ]),
     );
-    const hunks = parseHunks(git(["diff", "-M", "-U0", prior, "HEAD", "--", ...files.keys(), ...renames.values()]));
+    const hunks = parseHunks(
+        diffU0(
+            prior,
+            [...files.keys()].map((path) => [path, renames.get(path)]),
+        ),
+    );
     for (const [path, f] of files) {
         f.priorPath = renames.get(path) ?? path;
         f.priorHunks = hunks.get(path) ?? [];
@@ -970,8 +992,12 @@ async function check(run) {
     run.bypass = git(["log", "-1", "--format=%(trailers:key=Sonar-Bypass,valueonly,separator=%x20)", "HEAD"]).trim();
     const setup = await checkSetup(run);
 
-    const paths = scanList.flatMap((c) => [c.path, c.oldPath]);
-    const hunks = parseHunks(git(["diff", "-M", "-U0", run.base, "HEAD", "--", ...new Set(paths)]));
+    const hunks = parseHunks(
+        diffU0(
+            run.base,
+            scanList.map((c) => [c.path, c.oldPath]),
+        ),
+    );
     const files = new Map(
         scanList.map((c) => [
             c.path,

@@ -107,7 +107,9 @@ export function describeMetrics(source: MetricsSource): readonly MetricAvailabil
                 available: estimate.available,
                 // Present only when the metric is unavailable, which is what the descriptor's own
                 // contract says. A reason beside an available metric would read as a caveat on a
-                // number that has none.
+                // number that has none. MetricAvailability has no coded refusal yet, so it still
+                // passes the estimate's sentence on.
+                // eslint-disable-next-line @typescript-eslint/no-deprecated -- MetricAvailability.reason is still English
                 ...(estimate.available || estimate.reason === undefined ? {} : { reason: estimate.reason }),
                 costClass: estimate.costClass,
                 estimateSeconds: estimate.seconds,

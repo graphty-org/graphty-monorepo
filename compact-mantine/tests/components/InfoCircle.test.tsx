@@ -26,6 +26,21 @@ describe("InfoCircle", () => {
         expect(screen.getByRole("button", { name: "About Betweenness" })).toBeInTheDocument();
     });
 
+    it("shows its name as a tooltip on hover, as every icon button does", async () => {
+        const user = userEvent.setup();
+        renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
+
+        await user.hover(screen.getByRole("button", { name: "About Betweenness" }));
+
+        // The theme opens tooltips after a delay and mounts them hidden first.
+        await waitFor(
+            () => {
+                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
+            },
+            { timeout: 3000 },
+        );
+    });
+
     it("keeps the explanation closed until it is asked for", () => {
         renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
 
@@ -43,16 +58,23 @@ describe("InfoCircle", () => {
         });
     });
 
-    it("opens from the keyboard", async () => {
+    it("opens from the keyboard on Enter, not when Tab reaches it", async () => {
         const user = userEvent.setup();
         renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
 
         await user.tab();
 
-        expect(screen.getByRole("button", { name: "About Betweenness" })).toHaveFocus();
+        const trigger = screen.getByRole("button", { name: "About Betweenness" });
+        expect(trigger).toHaveFocus();
+        // Tabbing through a panel never drops a bubble over the rows below, nor says "expanded".
+        expect(screen.queryByText(EXPLANATION)).not.toBeInTheDocument();
+        expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+        await user.keyboard("{Enter}");
         await waitFor(() => {
             expect(screen.getByText(EXPLANATION)).toBeInTheDocument();
         });
+        expect(trigger).toHaveAttribute("aria-expanded", "true");
     });
 
     it("closes on Escape", async () => {
@@ -60,6 +82,7 @@ describe("InfoCircle", () => {
         renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
 
         await user.tab();
+        await user.keyboard("{Enter}");
         await waitFor(() => {
             expect(screen.getByText(EXPLANATION)).toBeInTheDocument();
         });

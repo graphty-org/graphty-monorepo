@@ -12,6 +12,9 @@ import { createElementSession, createGraphSession, dispatcherOf } from "../../..
 import { stateDigest } from "../../../src/session/project/digest";
 import type { GraphSession, ProjectConfigPatch } from "../../../src/session/types";
 
+/** A selected edge's band, at its defaults: the three settings a test about the node halo leaves alone. */
+const EDGE_BAND = { edgeColor: "#0077BB", edgeScale: 2.5, edgeOpacity: 1 };
+
 /**
  * The code a promise rejects with, or null when it resolves.
  * @param promise - The promise.
@@ -50,7 +53,7 @@ describe("session.config", () => {
         assert.deepEqual(config.data, DataConfig.parse({}));
         assert.isFalse(config.runAlgorithmsOnLoad);
         assert.deepEqual(config.background, { backgroundType: "color", color: "#F5F5F5" });
-        assert.deepEqual(config.selectionStyle, { color: "#FFD700", scale: 1.45, opacity: 0.4 });
+        assert.deepEqual(config.selectionStyle, { ...EDGE_BAND, color: "#FFD700", scale: 1.45, opacity: 0.4 });
         assert.deepEqual(config.layoutBehavior, { preSteps: 0, stepMultiplier: 1, minDelta: 0 });
         session.dispose();
     });
@@ -95,7 +98,7 @@ describe("session.config", () => {
         await session.config.set({ selectionStyle: { color: "#00ff00" } });
         await session.config.set({ selectionStyle: { scale: 2 } });
 
-        assert.deepEqual(session.config.selectionStyle, { color: "#FFD700", scale: 2, opacity: 0.4 });
+        assert.deepEqual(session.config.selectionStyle, { ...EDGE_BAND, color: "#FFD700", scale: 2, opacity: 0.4 });
         session.dispose();
     });
 

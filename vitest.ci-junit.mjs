@@ -2,7 +2,7 @@
 // detection) and the time-budget check (tools/vitest-time-budget.mjs).
 //
 // Each package's vitest config spreads ciReporters() into its `reporters`. In CI (CI set) every
-// vitest run then writes test-results/junit-<package>-<pid>.xml at the repository root -- one file
+// vitest run then writes test-results/junit-<package>-[<TEST_LEDGER_RUN>-]<pid>.xml at the repository root -- one file
 // per run, because one CI shard can run vitest several times -- and ci.yml's test job uploads
 // test-results/junit-*.xml to Mergify. With VITEST_BUDGET_CHECK=1 (ci.yml's test job sets it; set
 // it locally to check before pushing) the run also warns about any passing test that used more than a
@@ -30,7 +30,9 @@ import { fileURLToPath, URL } from "node:url";
 export function ciReporters(options = {}) {
     const reporters = [];
     if (process.env.CI) {
-        const name = `test-results/junit-${basename(process.cwd())}-${process.pid}.xml`;
+        // TEST_LEDGER_RUN (set per shard by the gate) lets tools/test-ledger.mjs find exactly this run's files.
+        const run = process.env.TEST_LEDGER_RUN ? `${process.env.TEST_LEDGER_RUN}-` : "";
+        const name = `test-results/junit-${basename(process.cwd())}-${run}${process.pid}.xml`;
         reporters.push(["junit", { outputFile: fileURLToPath(new URL(name, import.meta.url)), ...options }]);
     }
     if (process.env.VITEST_BUDGET_CHECK === "1") {

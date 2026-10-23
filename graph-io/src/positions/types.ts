@@ -41,6 +41,19 @@ export interface PositionColumnExtra {
      * the same unit as the file's px style lengths; the coordinates themselves stay as written.
      */
     readonly pxPerUnit?: number;
+    /**
+     * How many px one unit of y is, when the program that draws the file stretches its axes apart
+     * (Pajek fits the file's 0..1 square to its Draw window, x across the width and y down the
+     * height); absent when y is `pxPerUnit` like x. `extractPositions()` returns y in x's unit.
+     */
+    readonly pxPerUnitY?: number;
+    /**
+     * Set when the coordinates have no fixed length: the program that draws the file fits their
+     * bounding box into its canvas, `padding` px in from each side, and draws label sizes in the
+     * canvas's px rather than in the coordinates' unit (sigma.js). Absent when the coordinates
+     * keep their own length.
+     */
+    readonly viewerFit?: ViewerFit;
     /** How many coordinates the file wrote per node: 2, or 3 when it stored a z. */
     readonly sourceDims?: 2 | 3;
     /** Which way y grows; "down" is flipped to y up. */
@@ -58,6 +71,30 @@ export interface PositionColumnExtra {
      * rows are placed, a (0, 0) shared by two or more rows counts as unplaced.
      */
     readonly zeroUnplaced?: boolean;
+    /**
+     * The program that draws the file puts a node the file gives no position at the origin, (0, 0, 0) as written,
+     * when other nodes are placed (Gephi), rather than leaving it for a layout to place.
+     */
+    readonly originUnplaced?: boolean;
+    /**
+     * The program that draws the file draws a container node (one other nodes name as their
+     * parent) around its children, wherever the container's own stored coordinate says: Cytoscape.js
+     * computes a compound node's position and size from its children's. A container's stored
+     * coordinate is then not read, and it has no position here unless the file stores its box.
+     */
+    readonly containersFollowChildren?: boolean;
+}
+
+/**
+ * How the program that draws a file fits coordinates that have no fixed length into its canvas.
+ * @category Positions
+ */
+export interface ViewerFit {
+    /**
+     * The px the fitted bounding box keeps from each end of the canvas's smaller side; along the
+     * longer side the room is that side's share of the same fraction (sigma.js's `stagePadding`).
+     */
+    readonly padding: number;
 }
 
 /**
@@ -104,6 +141,22 @@ export interface ImporterPositions extends PositionColumnExtra {
     readonly medianNodeSize?: number | null;
     /** The tool that wrote the file, when the importer knows it better than `meta.creator`. */
     readonly tool?: GraphTool | null;
+    /**
+     * Where the program that draws the file puts its nodes when the file places none: evenly round a circle in node
+     * order, the first at `startDegrees`, each next one further round in `direction` (1: the angle grows, -1: it
+     * shrinks), in the file's own coordinates as the rest of this answer spells them (Pajek: center 0.5, 0.5, radius
+     * 0.4, the first vertex on the left). Absent, such a file has no positions.
+     */
+    readonly unplacedCircle?: {
+        /** The circle's center, x and y. */
+        readonly center: readonly [number, number];
+        /** Its radius. */
+        readonly radius: number;
+        /** The angle of the first node, in degrees. */
+        readonly startDegrees: number;
+        /** Which way round the next nodes go: 1 the angle grows, -1 it shrinks. */
+        readonly direction: 1 | -1;
+    };
 }
 
 /**
@@ -186,6 +239,13 @@ export interface FilePositions {
      * it with the file's px style lengths.
      */
     readonly pxPerUnit?: number;
+    /**
+     * Set when the coordinates have no fixed length: the program that draws the file fits their
+     * bounding box into its canvas, `padding` px in from each side, and draws label sizes in the
+     * canvas's px (sigma.js). A label of `s` px is then `s / k` units, where k is the px per unit of
+     * that fit on the canvas it is drawn on. Absent otherwise.
+     */
+    readonly viewerFit?: ViewerFit;
     /** The median node diameter, in `units`, when the file stores node sizes; else null. */
     readonly medianNodeSize: number | null;
     /** 3 when the nodes differ in z, else 2 (z is then 0). */

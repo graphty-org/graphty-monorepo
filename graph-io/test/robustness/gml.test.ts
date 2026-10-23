@@ -358,14 +358,17 @@ describe("GML robustness: structure kept but not read as structure", () => {
         expect(column(snapshot, "nodes", "edge")).toEqual([undefined, { source: 1, target: 3 }]);
     });
 
-    it("keeps yEd's isGroup / gid as plain columns and warns that the hierarchy is not containment", async () => {
+    it("reads yEd's gid into the parent column and keeps isGroup / gid as plain columns", async () => {
         const { snapshot, report } = await gml(
-            "graph [ node [ id 1 isGroup 1 ] node [ id 2 gid 1 ] node [ id 3 gid 1 ] ]",
+            "graph [ node [ id 1 isGroup 1 ] node [ id 2 gid 1 ] node [ id 3 gid 1 ] node [ id 4 gid 9 ] ]",
         );
+        // gid 9 names no node: warned, and node 4 sits in no group
         expect(codes(report)).toEqual(["W_GML_GROUPS"]);
-        expect(column(snapshot, "nodes", "isGroup")).toEqual([1, undefined, undefined]);
-        expect(column(snapshot, "nodes", "gid")).toEqual([undefined, 1, 1]);
-        expect(snapshot.nodes.byRole("parent")).toBeNull();
+        expect(column(snapshot, "nodes", "isGroup")).toEqual([1, undefined, undefined, undefined]);
+        expect(column(snapshot, "nodes", "gid")).toEqual([undefined, 1, 1, 9]);
+        const parent = snapshot.nodes.byRole("parent");
+        expect(parent?.meta.name).toBe("graphty.parent");
+        expect(column(snapshot, "nodes", "graphty.parent")).toEqual([undefined, 0, 0, undefined]);
     });
 });
 

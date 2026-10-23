@@ -1,0 +1,754 @@
+strict digraph "dependency-cruiser output"{
+    rankdir="LR" splines="true" overlap="false" nodesep="0.16" ranksep="0.18" fontname="Helvetica-bold" fontsize="9" style="rounded,bold,filled" fillcolor="#ffffff" compound="true"
+    node [shape="box" style="rounded, filled" height="0.2" color="black" fillcolor="#ffffcc" fontcolor="black" fontname="Helvetica" fontsize="9"]
+    edge [arrowhead="normal" arrowsize="0.6" penwidth="2.0" color="#00000033" fontname="Helvetica" fontsize="9"]
+
+    subgraph "cluster_.." {label=".." subgraph "cluster_../graph-format" {label="graph-format" subgraph "cluster_../graph-format/dist" {label="dist" "../graph-format/dist/graph-format.js" [label=<graph-format.js> tooltip="graph-format.js" URL="../graph-format/dist/graph-format.js" ] } } }
+    subgraph "cluster_src" {label="src" "src/children.ts" [label=<children.ts> tooltip="children.ts" URL="src/children.ts" fillcolor="#ddfeff"] }
+    "src/children.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/attributes.ts" [label=<attributes.ts> tooltip="attributes.ts" URL="src/common/attributes.ts" fillcolor="#ddfeff"] } }
+    "src/common/attributes.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/attributes.ts" -> "src/common/codes.ts"
+    "src/common/attributes.ts" -> "src/common/declared-types.ts"
+    "src/common/attributes.ts" -> "src/common/lists.ts"
+    "src/common/attributes.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/attributes.ts" -> "src/common/temporal.ts"
+    "src/common/attributes.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/cell-budget.ts" [label=<cell-budget.ts> tooltip="cell-budget.ts" URL="src/common/cell-budget.ts" fillcolor="#ddfeff"] } }
+    "src/common/cell-budget.ts" -> "src/common/options.ts"
+    "src/common/cell-budget.ts" -> "src/common/plural.ts"
+    "src/common/cell-budget.ts" -> "src/common/report.ts"
+    "src/common/cell-budget.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/choose.ts" [label=<choose.ts> tooltip="choose.ts" URL="src/common/choose.ts" fillcolor="#ddfeff"] } }
+    "src/common/choose.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/choose.ts" -> "src/common/options.ts"
+    "src/common/choose.ts" -> "src/common/report.ts"
+    "src/common/choose.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/codes.ts" [label=<codes.ts> tooltip="codes.ts" URL="src/common/codes.ts" fillcolor="#ddfeff"] } }
+    "src/common/codes.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/compare.ts" [label=<compare.ts> tooltip="compare.ts" URL="src/common/compare.ts" fillcolor="#ddfeff"] } }
+    "src/common/compare.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/cx-export.ts" [label=<cx-export.ts> tooltip="cx-export.ts" URL="src/common/cx-export.ts" fillcolor="#ddfeff"] } }
+    "src/common/cx-export.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/cx-export.ts" -> "src/common/direction.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/cx-export.ts" -> "src/common/export.ts"
+    "src/common/cx-export.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/cx-export.ts" -> "src/common/plural.ts"
+    "src/common/cx-export.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/declared-types.ts" [label=<declared-types.ts> tooltip="declared-types.ts" URL="src/common/declared-types.ts" fillcolor="#ddfeff"] } }
+    "src/common/declared-types.ts" -> "src/common/plural.ts"
+    "src/common/declared-types.ts" -> "src/common/temporal.ts"
+    "src/common/declared-types.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/direction.ts" [label=<direction.ts> tooltip="direction.ts" URL="src/common/direction.ts" fillcolor="#ddfeff"] } }
+    "src/common/direction.ts" -> "src/common/codes.ts"
+    "src/common/direction.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/direction.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/escape.ts" [label=<escape.ts> tooltip="escape.ts" URL="src/common/escape.ts" fillcolor="#ddfeff"] } }
+    "src/common/escape.ts" -> "src/common/xml.ts"
+    "src/common/escape.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/export.ts" [label=<export.ts> tooltip="export.ts" URL="src/common/export.ts" fillcolor="#ddfeff"] } }
+    "src/common/export.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/export.ts" -> "src/common/codes.ts"
+    "src/common/export.ts" -> "src/common/ids.ts"
+    "src/common/export.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/export.ts" -> "src/common/plural.ts"
+    "src/common/export.ts" -> "src/common/weights.ts"
+    "src/common/export.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/format.ts" [label=<format.ts> tooltip="format.ts" URL="src/common/format.ts" fillcolor="#ddfeff"] } }
+    "src/common/format.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/ids.ts" [label=<ids.ts> tooltip="ids.ts" URL="src/common/ids.ts" fillcolor="#ddfeff"] } }
+    "src/common/ids.ts" -> "src/common/codes.ts" [arrowhead="inv"]
+    "src/common/ids.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/input.ts" [label=<input.ts> tooltip="input.ts" URL="src/common/input.ts" fillcolor="#ddfeff"] } }
+    "src/common/input.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/input.ts" -> "src/common/codes.ts"
+    "src/common/input.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/input.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/json-elements.ts" [label=<json-elements.ts> tooltip="json-elements.ts" URL="src/common/json-elements.ts" fillcolor="#ddfeff"] } }
+    "src/common/json-elements.ts" -> "src/common/attributes.ts"
+    "src/common/json-elements.ts" -> "src/common/codes.ts"
+    "src/common/json-elements.ts" -> "src/common/plural.ts"
+    "src/common/json-elements.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/json-elements.ts" -> "src/common/text.ts"
+    "src/common/json-elements.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/line-format.ts" [label=<line-format.ts> tooltip="line-format.ts" URL="src/common/line-format.ts" fillcolor="#ddfeff"] } }
+    "src/common/line-format.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/line-format.ts" -> "src/common/codes.ts"
+    "src/common/line-format.ts" -> "src/common/direction.ts"
+    "src/common/line-format.ts" -> "src/common/ids.ts"
+    "src/common/line-format.ts" -> "src/common/input.ts"
+    "src/common/line-format.ts" -> "src/common/options.ts"
+    "src/common/line-format.ts" -> "src/common/report.ts"
+    "src/common/line-format.ts" -> "src/common/text.ts"
+    "src/common/line-format.ts" -> "src/common/weights.ts"
+    "src/common/line-format.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/lists.ts" [label=<lists.ts> tooltip="lists.ts" URL="src/common/lists.ts" fillcolor="#ddfeff"] } }
+    "src/common/lists.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/ontology-export.ts" [label=<ontology-export.ts> tooltip="ontology-export.ts" URL="src/common/ontology-export.ts" fillcolor="#ddfeff"] } }
+    "src/common/ontology-export.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/ontology-export.ts" -> "src/common/codes.ts"
+    "src/common/ontology-export.ts" -> "src/common/export.ts"
+    "src/common/ontology-export.ts" -> "src/common/format.ts"
+    "src/common/ontology-export.ts" -> "src/common/ontology.ts"
+    "src/common/ontology-export.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/ontology-export.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/ontology.ts" [label=<ontology.ts> tooltip="ontology.ts" URL="src/common/ontology.ts" fillcolor="#ddfeff"] } }
+    "src/common/ontology.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/options.ts" [label=<options.ts> tooltip="options.ts" URL="src/common/options.ts" fillcolor="#ddfeff"] } }
+    "src/common/options.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/options.ts" -> "src/common/codes.ts"
+    "src/common/options.ts" -> "src/common/input.ts"
+    "src/common/options.ts" -> "src/common/plural.ts"
+    "src/common/options.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/options.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/plural.ts" [label=<plural.ts> tooltip="plural.ts" URL="src/common/plural.ts" fillcolor="#ddfeff"] } }
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/report.ts" [label=<report.ts> tooltip="report.ts" URL="src/common/report.ts" fillcolor="#ddfeff"] } }
+    "src/common/report.ts" -> "src/types.ts"
+    "src/common/report.ts" -> "src/common/codes.ts"
+    "src/common/report.ts" -> "src/common/plural.ts"
+    "src/common/report.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/temporal.ts" [label=<temporal.ts> tooltip="temporal.ts" URL="src/common/temporal.ts" fillcolor="#ddfeff"] } }
+    "src/common/temporal.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/text.ts" [label=<text.ts> tooltip="text.ts" URL="src/common/text.ts" fillcolor="#ddfeff"] } }
+    "src/common/text.ts" -> "src/common/codes.ts"
+    "src/common/text.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/text.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/weights.ts" [label=<weights.ts> tooltip="weights.ts" URL="src/common/weights.ts" fillcolor="#ddfeff"] } }
+    "src/common/weights.ts" -> "src/common/codes.ts"
+    "src/common/weights.ts" -> "src/common/declared-types.ts"
+    "src/common/weights.ts" -> "src/common/format.ts"
+    "src/common/weights.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/weights.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/writer.ts" [label=<writer.ts> tooltip="writer.ts" URL="src/common/writer.ts" fillcolor="#ddfeff"] } }
+    "src/common/writer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/xml.ts" [label=<xml.ts> tooltip="xml.ts" URL="src/common/xml.ts" fillcolor="#ddfeff"] } }
+    "src/common/xml.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/common/xml.ts" -> "src/common/codes.ts"
+    "src/common/xml.ts" -> "src/common/export.ts"
+    "src/common/xml.ts" -> "src/common/plural.ts"
+    "src/common/xml.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/common" {label="common" "src/common/zip.ts" [label=<zip.ts> tooltip="zip.ts" URL="src/common/zip.ts" fillcolor="#ddfeff"] } }
+    "src/common/zip.ts" -> "src/common/input.ts"
+    "src/common/zip.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/csv/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/exporter.ts" -> "src/common/attributes.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/export.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/format.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/lists.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/options.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/text.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/csv/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/csv/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/exporter.ts" -> "src/formats/csv/header.ts"
+    "src/formats/csv/exporter.ts" -> "src/formats/csv/records.ts"
+    "src/formats/csv/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/header.ts" [label=<header.ts> tooltip="header.ts" URL="src/formats/csv/header.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/header.ts" -> "src/common/plural.ts"
+    "src/formats/csv/header.ts" -> "src/common/text.ts"
+    "src/formats/csv/header.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/csv/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/csv/importer.ts" -> "src/common/codes.ts"
+    "src/formats/csv/importer.ts" -> "src/common/direction.ts"
+    "src/formats/csv/importer.ts" -> "src/common/ids.ts"
+    "src/formats/csv/importer.ts" -> "src/common/input.ts"
+    "src/formats/csv/importer.ts" -> "src/common/options.ts"
+    "src/formats/csv/importer.ts" -> "src/common/plural.ts"
+    "src/formats/csv/importer.ts" -> "src/common/report.ts"
+    "src/formats/csv/importer.ts" -> "src/common/weights.ts"
+    "src/formats/csv/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/importer.ts" -> "src/formats/csv/header.ts"
+    "src/formats/csv/importer.ts" -> "src/formats/csv/records.ts"
+    "src/formats/csv/importer.ts" -> "src/formats/csv/values.ts"
+    "src/formats/csv/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/csv/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/index.ts" -> "src/common/codes.ts"
+    "src/formats/csv/index.ts" -> "src/common/text.ts"
+    "src/formats/csv/index.ts" -> "src/formats/csv/exporter.ts" [arrowhead="inv"]
+    "src/formats/csv/index.ts" -> "src/formats/csv/header.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/index.ts" -> "src/formats/csv/importer.ts"
+    "src/formats/csv/index.ts" -> "src/formats/csv/records.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/records.ts" [label=<records.ts> tooltip="records.ts" URL="src/formats/csv/records.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/records.ts" -> "src/common/input.ts"
+    "src/formats/csv/records.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/records.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/records.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/csv" {label="csv" "src/formats/csv/values.ts" [label=<values.ts> tooltip="values.ts" URL="src/formats/csv/values.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/csv/values.ts" -> "src/common/attributes.ts"
+    "src/formats/csv/values.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/csv/values.ts" -> "src/common/text.ts"
+    "src/formats/csv/values.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx" {label="cx" "src/formats/cx/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/cx/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx/exporter.ts" -> "src/children.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/cx-export.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/export.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/json-elements.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/options.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/cx/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/cx/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cx/exporter.ts" -> "src/formats/cx2/importer.ts"
+    "src/formats/cx/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx" {label="cx" "src/formats/cx/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/cx/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/cx/importer.ts" -> "src/common/codes.ts"
+    "src/formats/cx/importer.ts" -> "src/common/direction.ts"
+    "src/formats/cx/importer.ts" -> "src/common/ids.ts"
+    "src/formats/cx/importer.ts" -> "src/common/input.ts"
+    "src/formats/cx/importer.ts" -> "src/common/json-elements.ts"
+    "src/formats/cx/importer.ts" -> "src/common/options.ts"
+    "src/formats/cx/importer.ts" -> "src/common/plural.ts"
+    "src/formats/cx/importer.ts" -> "src/common/report.ts"
+    "src/formats/cx/importer.ts" -> "src/common/weights.ts"
+    "src/formats/cx/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cx/importer.ts" -> "src/formats/cx2/importer.ts"
+    "src/formats/cx/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx" {label="cx" "src/formats/cx/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/cx/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx/index.ts" -> "src/formats/cx/exporter.ts" [arrowhead="inv"]
+    "src/formats/cx/index.ts" -> "src/formats/cx/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx2" {label="cx2" "src/formats/cx2/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/cx2/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx2/exporter.ts" -> "src/common/cx-export.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/export.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/json-elements.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/options.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/cx2/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/cx2/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cx2/exporter.ts" -> "src/formats/cx2/importer.ts"
+    "src/formats/cx2/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx2" {label="cx2" "src/formats/cx2/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/cx2/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx2/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/codes.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/direction.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/ids.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/input.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/json-elements.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/options.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/plural.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/report.ts"
+    "src/formats/cx2/importer.ts" -> "src/common/weights.ts"
+    "src/formats/cx2/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cx2/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cx2" {label="cx2" "src/formats/cx2/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/cx2/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cx2/index.ts" -> "src/formats/cx2/exporter.ts" [arrowhead="inv"]
+    "src/formats/cx2/index.ts" -> "src/formats/cx2/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/constants.ts" [label=<constants.ts> tooltip="constants.ts" URL="src/formats/cys/constants.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/constants.ts" -> "src/common/codes.ts"
+    "src/formats/cys/constants.ts" -> "src/formats/xgmml/constants.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/cys/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/exporter.ts" -> "src/common/attributes.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/export.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/format.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/options.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/xml.ts"
+    "src/formats/cys/exporter.ts" -> "src/common/zip.ts"
+    "src/formats/cys/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cys/exporter.ts" -> "src/formats/graphml/constants.ts"
+    "src/formats/cys/exporter.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/cys/exporter.ts" -> "src/formats/cys/constants.ts"
+    "src/formats/cys/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/cys/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/cys/importer.ts" -> "src/common/ids.ts"
+    "src/formats/cys/importer.ts" -> "src/common/input.ts"
+    "src/formats/cys/importer.ts" -> "src/common/options.ts"
+    "src/formats/cys/importer.ts" -> "src/common/plural.ts"
+    "src/formats/cys/importer.ts" -> "src/common/report.ts"
+    "src/formats/cys/importer.ts" -> "src/common/zip.ts"
+    "src/formats/cys/importer.ts" -> "src/types.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/graphml/constants.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/xgmml/document.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/xgmml/emit.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/xgmml/importer.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/cys/constants.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/cys/session.ts"
+    "src/formats/cys/importer.ts" -> "src/formats/cys/tables.ts"
+    "src/formats/cys/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/cys/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/index.ts" -> "src/formats/cys/constants.ts" [arrowhead="inv"]
+    "src/formats/cys/index.ts" -> "src/formats/cys/exporter.ts" [arrowhead="inv"]
+    "src/formats/cys/index.ts" -> "src/formats/cys/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/session.ts" [label=<session.ts> tooltip="session.ts" URL="src/formats/cys/session.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/session.ts" -> "src/common/input.ts"
+    "src/formats/cys/session.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cys/session.ts" -> "src/common/plural.ts"
+    "src/formats/cys/session.ts" -> "src/common/report.ts"
+    "src/formats/cys/session.ts" -> "src/common/xml.ts"
+    "src/formats/cys/session.ts" -> "src/common/zip.ts"
+    "src/formats/cys/session.ts" -> "src/types.ts"
+    "src/formats/cys/session.ts" -> "src/formats/cys/constants.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/cys" {label="cys" "src/formats/cys/tables.ts" [label=<tables.ts> tooltip="tables.ts" URL="src/formats/cys/tables.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/cys/tables.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cys/tables.ts" -> "src/common/plural.ts"
+    "src/formats/cys/tables.ts" -> "src/common/report.ts"
+    "src/formats/cys/tables.ts" -> "src/types.ts"
+    "src/formats/cys/tables.ts" -> "src/formats/csv/records.ts"
+    "src/formats/cys/tables.ts" -> "src/formats/xgmml/document.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/cys/tables.ts" -> "src/formats/cys/constants.ts"
+    "src/formats/cys/tables.ts" -> "src/formats/cys/session.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/dot" {label="dot" "src/formats/dot/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/dot/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/dot/exporter.ts" -> "src/children.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/export.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/format.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/options.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/text.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/dot/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/dot/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/dot/exporter.ts" -> "src/formats/dot/names.ts"
+    "src/formats/dot/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/dot" {label="dot" "src/formats/dot/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/dot/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/dot/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/dot/importer.ts" -> "src/common/choose.ts"
+    "src/formats/dot/importer.ts" -> "src/common/codes.ts"
+    "src/formats/dot/importer.ts" -> "src/common/direction.ts"
+    "src/formats/dot/importer.ts" -> "src/common/ids.ts"
+    "src/formats/dot/importer.ts" -> "src/common/input.ts"
+    "src/formats/dot/importer.ts" -> "src/common/options.ts"
+    "src/formats/dot/importer.ts" -> "src/common/plural.ts"
+    "src/formats/dot/importer.ts" -> "src/common/report.ts"
+    "src/formats/dot/importer.ts" -> "src/common/text.ts"
+    "src/formats/dot/importer.ts" -> "src/common/weights.ts"
+    "src/formats/dot/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/dot/importer.ts" -> "src/formats/dot/names.ts"
+    "src/formats/dot/importer.ts" -> "src/formats/dot/tokenizer.ts"
+    "src/formats/dot/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/dot" {label="dot" "src/formats/dot/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/dot/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/dot/index.ts" -> "src/formats/dot/exporter.ts" [arrowhead="inv"]
+    "src/formats/dot/index.ts" -> "src/formats/dot/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/dot" {label="dot" "src/formats/dot/names.ts" [label=<names.ts> tooltip="names.ts" URL="src/formats/dot/names.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/dot/names.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/dot" {label="dot" "src/formats/dot/tokenizer.ts" [label=<tokenizer.ts> tooltip="tokenizer.ts" URL="src/formats/dot/tokenizer.ts" fillcolor="#ddfeff"] } } }
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gexf" {label="gexf" "src/formats/gexf/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/gexf/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gexf/exporter.ts" -> "src/common/declared-types.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/export.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/format.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/lists.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/options.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/temporal.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/gexf/exporter.ts" -> "src/common/xml.ts"
+    "src/formats/gexf/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/gexf/exporter.ts" -> "src/formats/gexf/schema.ts"
+    "src/formats/gexf/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gexf" {label="gexf" "src/formats/gexf/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/gexf/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gexf/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/codes.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/declared-types.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/direction.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/ids.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/input.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/lists.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/options.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/report.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/temporal.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/weights.ts"
+    "src/formats/gexf/importer.ts" -> "src/common/xml.ts"
+    "src/formats/gexf/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/gexf/importer.ts" -> "src/formats/gexf/schema.ts"
+    "src/formats/gexf/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gexf" {label="gexf" "src/formats/gexf/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/gexf/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gexf/index.ts" -> "src/common/codes.ts"
+    "src/formats/gexf/index.ts" -> "src/formats/gexf/exporter.ts" [arrowhead="inv"]
+    "src/formats/gexf/index.ts" -> "src/formats/gexf/importer.ts"
+    "src/formats/gexf/index.ts" -> "src/formats/gexf/schema.ts" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gexf" {label="gexf" "src/formats/gexf/schema.ts" [label=<schema.ts> tooltip="schema.ts" URL="src/formats/gexf/schema.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gexf/schema.ts" -> "src/common/temporal.ts"
+    "src/formats/gexf/schema.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gml" {label="gml" "src/formats/gml/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/gml/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gml/exporter.ts" -> "src/common/attributes.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/export.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/format.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/options.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/gml/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/gml/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/gml/exporter.ts" -> "src/formats/gml/syntax.ts"
+    "src/formats/gml/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gml" {label="gml" "src/formats/gml/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/gml/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gml/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/gml/importer.ts" -> "src/common/choose.ts"
+    "src/formats/gml/importer.ts" -> "src/common/codes.ts"
+    "src/formats/gml/importer.ts" -> "src/common/direction.ts"
+    "src/formats/gml/importer.ts" -> "src/common/ids.ts"
+    "src/formats/gml/importer.ts" -> "src/common/input.ts"
+    "src/formats/gml/importer.ts" -> "src/common/options.ts"
+    "src/formats/gml/importer.ts" -> "src/common/plural.ts"
+    "src/formats/gml/importer.ts" -> "src/common/report.ts"
+    "src/formats/gml/importer.ts" -> "src/common/weights.ts"
+    "src/formats/gml/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/gml/importer.ts" -> "src/formats/gml/syntax.ts"
+    "src/formats/gml/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gml" {label="gml" "src/formats/gml/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/gml/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gml/index.ts" -> "src/common/codes.ts"
+    "src/formats/gml/index.ts" -> "src/formats/gml/exporter.ts"
+    "src/formats/gml/index.ts" -> "src/formats/gml/importer.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/gml" {label="gml" "src/formats/gml/syntax.ts" [label=<syntax.ts> tooltip="syntax.ts" URL="src/formats/gml/syntax.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/gml/syntax.ts" -> "src/common/codes.ts"
+    "src/formats/gml/syntax.ts" -> "src/common/escape.ts"
+    "src/formats/gml/syntax.ts" -> "src/common/plural.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/constants.ts" [label=<constants.ts> tooltip="constants.ts" URL="src/formats/graphml/constants.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/constants.ts" -> "src/common/codes.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/graphml/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/exporter.ts" -> "src/children.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/export.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/format.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/options.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/graphml/exporter.ts" -> "src/common/xml.ts"
+    "src/formats/graphml/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/graphml/exporter.ts" -> "src/formats/graphml/constants.ts"
+    "src/formats/graphml/exporter.ts" -> "src/formats/graphml/tree.ts"
+    "src/formats/graphml/exporter.ts" -> "src/formats/graphml/yfiles.ts"
+    "src/formats/graphml/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/graphml/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/declared-types.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/direction.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/ids.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/input.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/lists.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/graphml/importer.ts" -> "src/common/options.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/plural.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/report.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/weights.ts"
+    "src/formats/graphml/importer.ts" -> "src/common/xml.ts"
+    "src/formats/graphml/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/graphml/importer.ts" -> "src/formats/graphml/constants.ts"
+    "src/formats/graphml/importer.ts" -> "src/formats/graphml/tree.ts"
+    "src/formats/graphml/importer.ts" -> "src/formats/graphml/yfiles.ts"
+    "src/formats/graphml/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/graphml/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/index.ts" -> "src/formats/graphml/constants.ts" [arrowhead="inv"]
+    "src/formats/graphml/index.ts" -> "src/formats/graphml/exporter.ts" [arrowhead="inv"]
+    "src/formats/graphml/index.ts" -> "src/formats/graphml/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/tree.ts" [label=<tree.ts> tooltip="tree.ts" URL="src/formats/graphml/tree.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/tree.ts" -> "src/common/escape.ts"
+    "src/formats/graphml/tree.ts" -> "src/common/xml.ts"
+    "src/formats/graphml/tree.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/graphml" {label="graphml" "src/formats/graphml/yfiles.ts" [label=<yfiles.ts> tooltip="yfiles.ts" URL="src/formats/graphml/yfiles.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/graphml/yfiles.ts" -> "src/common/xml.ts"
+    "src/formats/graphml/yfiles.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/dialect.ts" [label=<dialect.ts> tooltip="dialect.ts" URL="src/formats/json/dialect.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/dialect.ts" -> "src/common/export.ts"
+    "src/formats/json/dialect.ts" -> "src/common/text.ts"
+    "src/formats/json/dialect.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/json/dialect.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/json/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/exporter.ts" -> "src/common/codes.ts"
+    "src/formats/json/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/json/exporter.ts" -> "src/common/export.ts"
+    "src/formats/json/exporter.ts" -> "src/common/format.ts"
+    "src/formats/json/exporter.ts" -> "src/common/json-elements.ts"
+    "src/formats/json/exporter.ts" -> "src/common/options.ts"
+    "src/formats/json/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/json/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/json/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/json/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/json/exporter.ts" -> "src/formats/json/dialect.ts"
+    "src/formats/json/exporter.ts" -> "src/formats/json/obographs-export.ts"
+    "src/formats/json/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/json/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/json/importer.ts" -> "src/common/codes.ts"
+    "src/formats/json/importer.ts" -> "src/common/direction.ts"
+    "src/formats/json/importer.ts" -> "src/common/ids.ts"
+    "src/formats/json/importer.ts" -> "src/common/input.ts"
+    "src/formats/json/importer.ts" -> "src/common/json-elements.ts"
+    "src/formats/json/importer.ts" -> "src/common/options.ts"
+    "src/formats/json/importer.ts" -> "src/common/plural.ts"
+    "src/formats/json/importer.ts" -> "src/common/report.ts"
+    "src/formats/json/importer.ts" -> "src/common/weights.ts"
+    "src/formats/json/importer.ts" -> "src/sniff.ts"
+    "src/formats/json/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/json/importer.ts" -> "src/formats/json/dialect.ts"
+    "src/formats/json/importer.ts" -> "src/formats/json/obographs.ts" [arrowhead="normalnoneodot"]
+    "src/formats/json/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/json/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/index.ts" -> "src/formats/json/dialect.ts" [arrowhead="inv"]
+    "src/formats/json/index.ts" -> "src/formats/json/exporter.ts" [arrowhead="inv"]
+    "src/formats/json/index.ts" -> "src/formats/json/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/obographs-export.ts" [label=<obographs-export.ts> tooltip="obographs-export.ts" URL="src/formats/json/obographs-export.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/obographs-export.ts" -> "src/common/codes.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/direction.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/export.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/ontology-export.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/ontology.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/json/obographs-export.ts" -> "src/common/plural.ts"
+    "src/formats/json/obographs-export.ts" -> "src/common/weights.ts"
+    "src/formats/json/obographs-export.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/json/obographs-export.ts" -> "src/formats/json/dialect.ts"
+    "src/formats/json/obographs-export.ts" -> "src/formats/json/obographs.ts"
+    "src/formats/json/obographs-export.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/json" {label="json" "src/formats/json/obographs.ts" [label=<obographs.ts> tooltip="obographs.ts" URL="src/formats/json/obographs.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/json/obographs.ts" -> "src/common/attributes.ts"
+    "src/formats/json/obographs.ts" -> "src/common/ontology.ts"
+    "src/formats/json/obographs.ts" -> "src/common/plural.ts"
+    "src/formats/json/obographs.ts" -> "src/formats/json/dialect.ts"
+    "src/formats/json/obographs.ts" -> "src/formats/json/importer.ts" [arrowhead="normalnoneodot"]
+    "src/formats/json/obographs.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/neo4j" {label="neo4j" "src/formats/neo4j/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/neo4j/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/neo4j/exporter.ts" -> "src/common/codes.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/declared-types.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/export.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/format.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/options.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/temporal.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/neo4j/exporter.ts" -> "src/formats/csv/records.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/formats/neo4j/header.ts"
+    "src/formats/neo4j/exporter.ts" -> "src/formats/neo4j/importer.ts"
+    "src/formats/neo4j/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/neo4j" {label="neo4j" "src/formats/neo4j/header.ts" [label=<header.ts> tooltip="header.ts" URL="src/formats/neo4j/header.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/neo4j/header.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/neo4j" {label="neo4j" "src/formats/neo4j/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/neo4j/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/neo4j/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/codes.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/declared-types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/neo4j/importer.ts" -> "src/common/direction.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/ids.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/input.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/lists.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/options.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/plural.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/report.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/temporal.ts"
+    "src/formats/neo4j/importer.ts" -> "src/common/weights.ts"
+    "src/formats/neo4j/importer.ts" -> "src/types.ts"
+    "src/formats/neo4j/importer.ts" -> "src/formats/csv/records.ts"
+    "src/formats/neo4j/importer.ts" -> "src/formats/neo4j/header.ts"
+    "src/formats/neo4j/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/neo4j" {label="neo4j" "src/formats/neo4j/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/neo4j/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/neo4j/index.ts" -> "src/common/codes.ts"
+    "src/formats/neo4j/index.ts" -> "src/formats/csv/records.ts"
+    "src/formats/neo4j/index.ts" -> "src/formats/neo4j/exporter.ts"
+    "src/formats/neo4j/index.ts" -> "src/formats/neo4j/importer.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/obo" {label="obo" "src/formats/obo/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/obo/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/obo/exporter.ts" -> "src/common/codes.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/export.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/format.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/ontology-export.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/ontology.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/options.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/obo/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/obo/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/obo/exporter.ts" -> "src/formats/obo/importer.ts"
+    "src/formats/obo/exporter.ts" -> "src/formats/obo/syntax.ts"
+    "src/formats/obo/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/obo" {label="obo" "src/formats/obo/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/obo/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/obo/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/obo/importer.ts" -> "src/common/codes.ts"
+    "src/formats/obo/importer.ts" -> "src/common/direction.ts"
+    "src/formats/obo/importer.ts" -> "src/common/ids.ts"
+    "src/formats/obo/importer.ts" -> "src/common/input.ts"
+    "src/formats/obo/importer.ts" -> "src/common/ontology.ts"
+    "src/formats/obo/importer.ts" -> "src/common/options.ts"
+    "src/formats/obo/importer.ts" -> "src/common/plural.ts"
+    "src/formats/obo/importer.ts" -> "src/common/report.ts"
+    "src/formats/obo/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/obo/importer.ts" -> "src/formats/obo/syntax.ts"
+    "src/formats/obo/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/obo" {label="obo" "src/formats/obo/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/obo/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/obo/index.ts" -> "src/formats/obo/exporter.ts" [arrowhead="inv"]
+    "src/formats/obo/index.ts" -> "src/formats/obo/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/obo" {label="obo" "src/formats/obo/syntax.ts" [label=<syntax.ts> tooltip="syntax.ts" URL="src/formats/obo/syntax.ts" fillcolor="#ddfeff"] } } }
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/pajek" {label="pajek" "src/formats/pajek/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/pajek/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/pajek/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/export.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/format.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/ids.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/options.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/text.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/pajek/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/pajek/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/pajek/exporter.ts" -> "src/formats/pajek/syntax.ts"
+    "src/formats/pajek/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/pajek" {label="pajek" "src/formats/pajek/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/pajek/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/pajek/importer.ts" -> "src/common/attributes.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/choose.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/codes.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/direction.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/ids.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/input.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/options.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/plural.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/report.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/text.ts"
+    "src/formats/pajek/importer.ts" -> "src/common/weights.ts"
+    "src/formats/pajek/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/pajek/importer.ts" -> "src/formats/pajek/syntax.ts"
+    "src/formats/pajek/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/pajek" {label="pajek" "src/formats/pajek/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/pajek/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/pajek/index.ts" -> "src/formats/pajek/exporter.ts" [arrowhead="inv"]
+    "src/formats/pajek/index.ts" -> "src/formats/pajek/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/pajek" {label="pajek" "src/formats/pajek/syntax.ts" [label=<syntax.ts> tooltip="syntax.ts" URL="src/formats/pajek/syntax.ts" fillcolor="#ddfeff"] } } }
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/columns.ts" [label=<columns.ts> tooltip="columns.ts" URL="src/formats/xgmml/columns.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/columns.ts" -> "src/common/attributes.ts"
+    "src/formats/xgmml/columns.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/columns.ts" -> "src/common/text.ts"
+    "src/formats/xgmml/columns.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/xgmml/columns.ts" -> "src/formats/xgmml/document.ts"
+    "src/formats/xgmml/columns.ts" -> "src/formats/xgmml/values.ts"
+    "src/formats/xgmml/columns.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/constants.ts" [label=<constants.ts> tooltip="constants.ts" URL="src/formats/xgmml/constants.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/constants.ts" -> "src/common/codes.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/document.ts" [label=<document.ts> tooltip="document.ts" URL="src/formats/xgmml/document.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/document.ts" -> "src/common/escape.ts"
+    "src/formats/xgmml/document.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/document.ts" -> "src/common/xml.ts"
+    "src/formats/xgmml/document.ts" -> "src/formats/xgmml/constants.ts"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/emit.ts" [label=<emit.ts> tooltip="emit.ts" URL="src/formats/xgmml/emit.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/emit.ts" -> "src/common/attributes.ts"
+    "src/formats/xgmml/emit.ts" -> "src/common/direction.ts"
+    "src/formats/xgmml/emit.ts" -> "src/common/ids.ts"
+    "src/formats/xgmml/emit.ts" -> "src/common/input.ts"
+    "src/formats/xgmml/emit.ts" -> "src/common/options.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/emit.ts" -> "src/common/plural.ts"
+    "src/formats/xgmml/emit.ts" -> "src/common/report.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/emit.ts" -> "src/common/weights.ts"
+    "src/formats/xgmml/emit.ts" -> "src/formats/xgmml/columns.ts"
+    "src/formats/xgmml/emit.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/xgmml/emit.ts" -> "src/formats/xgmml/document.ts"
+    "src/formats/xgmml/emit.ts" -> "src/formats/xgmml/values.ts"
+    "src/formats/xgmml/emit.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/exporter.ts" [label=<exporter.ts> tooltip="exporter.ts" URL="src/formats/xgmml/exporter.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/exporter.ts" -> "src/children.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/attributes.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/direction.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/escape.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/export.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/format.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/options.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/plural.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/weights.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/writer.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/common/xml.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/exporter.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/xgmml/exporter.ts" -> "src/formats/xgmml/emit.ts"
+    "src/formats/xgmml/exporter.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/importer.ts" [label=<importer.ts> tooltip="importer.ts" URL="src/formats/xgmml/importer.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/importer.ts" -> "src/common/input.ts"
+    "src/formats/xgmml/importer.ts" -> "src/common/options.ts"
+    "src/formats/xgmml/importer.ts" -> "src/common/plural.ts"
+    "src/formats/xgmml/importer.ts" -> "src/common/report.ts"
+    "src/formats/xgmml/importer.ts" -> "src/common/xml.ts"
+    "src/formats/xgmml/importer.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    "src/formats/xgmml/importer.ts" -> "src/formats/xgmml/constants.ts"
+    "src/formats/xgmml/importer.ts" -> "src/formats/xgmml/document.ts"
+    "src/formats/xgmml/importer.ts" -> "src/formats/xgmml/emit.ts"
+    "src/formats/xgmml/importer.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/formats/xgmml/index.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/index.ts" -> "src/formats/xgmml/constants.ts" [arrowhead="inv"]
+    "src/formats/xgmml/index.ts" -> "src/formats/xgmml/exporter.ts" [arrowhead="inv"]
+    "src/formats/xgmml/index.ts" -> "src/formats/xgmml/importer.ts" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" subgraph "cluster_src/formats" {label="formats" subgraph "cluster_src/formats/xgmml" {label="xgmml" "src/formats/xgmml/values.ts" [label=<values.ts> tooltip="values.ts" URL="src/formats/xgmml/values.ts" fillcolor="#ddfeff"] } } }
+    "src/formats/xgmml/values.ts" -> "src/formats/xgmml/document.ts" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" "src/index.ts" [label=<index.ts> tooltip="index.ts" URL="src/index.ts" fillcolor="#ddfeff"] }
+    "src/index.ts" -> "src/children.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/attributes.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/codes.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/compare.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/direction.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/export.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/format.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/ids.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/input.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/line-format.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/options.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/report.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/text.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/weights.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/writer.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/common/xml.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/csv/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/cx/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/cx2/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/cys/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/dot/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/gexf/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/gml/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/graphml/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/json/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/neo4j/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/obo/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/pajek/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/formats/xgmml/index.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/registry.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/sniff.ts" [arrowhead="inv"]
+    "src/index.ts" -> "src/types.ts" [arrowhead="inv"]
+    "src/index.ts" -> "../graph-format/dist/graph-format.js" [arrowhead="inv"]
+    subgraph "cluster_src" {label="src" "src/registry.ts" [label=<registry.ts> tooltip="registry.ts" URL="src/registry.ts" fillcolor="#ddfeff"] }
+    "src/registry.ts" -> "src/common/cell-budget.ts"
+    "src/registry.ts" -> "src/common/codes.ts"
+    "src/registry.ts" -> "src/common/input.ts"
+    "src/registry.ts" -> "src/common/options.ts"
+    "src/registry.ts" -> "src/common/plural.ts"
+    "src/registry.ts" -> "src/common/report.ts"
+    "src/registry.ts" -> "src/common/writer.ts"
+    "src/registry.ts" -> "src/formats/csv/index.ts"
+    "src/registry.ts" -> "src/formats/cx/index.ts"
+    "src/registry.ts" -> "src/formats/cx2/index.ts"
+    "src/registry.ts" -> "src/formats/cys/index.ts"
+    "src/registry.ts" -> "src/formats/dot/index.ts"
+    "src/registry.ts" -> "src/formats/gexf/index.ts"
+    "src/registry.ts" -> "src/formats/gml/index.ts"
+    "src/registry.ts" -> "src/formats/graphml/index.ts"
+    "src/registry.ts" -> "src/formats/json/index.ts"
+    "src/registry.ts" -> "src/formats/neo4j/index.ts"
+    "src/registry.ts" -> "src/formats/obo/index.ts"
+    "src/registry.ts" -> "src/formats/pajek/index.ts"
+    "src/registry.ts" -> "src/formats/xgmml/index.ts"
+    "src/registry.ts" -> "src/sniff.ts"
+    "src/registry.ts" -> "src/types.ts"
+    "src/registry.ts" -> "../graph-format/dist/graph-format.js"
+    subgraph "cluster_src" {label="src" "src/sniff.ts" [label=<sniff.ts> tooltip="sniff.ts" URL="src/sniff.ts" fillcolor="#ddfeff"] }
+    "src/sniff.ts" -> "src/formats/json/dialect.ts"
+    "src/sniff.ts" -> "src/types.ts" [arrowhead="onormal" penwidth="1.0"]
+    subgraph "cluster_src" {label="src" "src/types.ts" [label=<types.ts> tooltip="types.ts" URL="src/types.ts" fillcolor="#ddfeff"] }
+    "src/types.ts" -> "../graph-format/dist/graph-format.js"
+}

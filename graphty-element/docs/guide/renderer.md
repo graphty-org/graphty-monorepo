@@ -42,6 +42,10 @@ WebGL draws instead of WebGPU when:
 All three are found before the first frame. The element never switches renderer while it is
 drawing.
 
+`rendererStatus.drawing` is false when the browser gave the page no working WebGL context at
+all: nothing is drawn, but the data, the session and [autosave](./autosave) still work, so the
+reader can still save a file.
+
 ## What differs under WebGPU
 
 | Feature                               | Under WebGPU                                           |

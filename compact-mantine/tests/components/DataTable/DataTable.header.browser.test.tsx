@@ -185,6 +185,16 @@ describe("DataTable header features", () => {
         });
     });
 
+    it("opens the header menu on a right-click and never sorts on one", async () => {
+        renderTable();
+        const header = screen.getAllByTestId("data-table-header")[1];
+        const button = within(header).getByTestId("data-table-sort-button");
+        await userEvent.click(button, { button: "right" });
+        expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument();
+        expect(header).toHaveAttribute("aria-sort", "none");
+        expect(within(header).queryByTestId("data-table-sort-glyph")).toBeNull();
+    });
+
     it("leaves the caret out of the tab order", () => {
         renderTable();
         expect(screen.getByRole("button", { name: "Options for Degree" })).toHaveAttribute("tabindex", "-1");

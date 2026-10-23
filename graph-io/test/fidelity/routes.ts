@@ -14,6 +14,8 @@ export type RouteId =
     | "graphviz-n2"
     | "gephi-noscale"
     | "sigma"
+    | "gexf-file"
+    | "vis-network"
     | "yed-file"
     | "drawio"
     | "cytoscape-gml"
@@ -83,6 +85,16 @@ const ROUTES: Record<RouteId, RouteLedger> = {
             fillOpacity: no("graphology-gexf keeps alpha in the color string; sigma ignores it"),
             edgeWidth: no("viz:thickness is not drawn as a pixel width"),
         },
+    },
+    "gexf-file": {
+        kind: "direct",
+        tool: "the file's own viz values (position, size, color, shape, thickness), read independently of graph-io",
+        deficits: {},
+    },
+    "vis-network": {
+        kind: "direct",
+        tool: "vis-network 9.1.9 in Chromium (the network's resolved node and edge options)",
+        deficits: {},
     },
     "yed-file": {
         kind: "direct",

@@ -1,0 +1,30 @@
+{
+    "sample": "cx-specimen-mappings-bypass-p19",
+    "file": "graph-io/test/fidelity/specimens/cx/specimen-mappings-bypass-p19.cx",
+    "sha256": "ac6975b62dcd589bddbe4e5526365485d37f50a72dab2125267e2c18ae272d4c",
+    "program": "Cytoscape desktop",
+    "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
+    "route": "cytoscape-desktop",
+    "command": "session new; network load file file=<file>; view set current (the largest view); hide the WEST, SOUTH and EAST panels; resize the main window until the view is 1200 x 900; view fit content; GET /v1/networks/{net}/views/{view}.svg",
+    "standIn": false,
+    "network": {
+        "title": "specimen-mappings-bypass-p19",
+        "nodes": 38,
+        "views": 1,
+        "chosen": "the view with the most nodes",
+        "style": "specimen-mappings-bypass-p19-Style"
+    },
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900,
+        "zoom": 1.0085763293310464,
+        "center": [600, 450],
+        "background": "#FFFFFF"
+    },
+    "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
+    "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
+    "exportsAgreed": 3,
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
+    "date": "2026-10-19",
+    "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs cx-specimen-mappings-bypass-p19 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/cx-specimen-mappings-bypass-p19.svg"
+}

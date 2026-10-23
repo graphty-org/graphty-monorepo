@@ -1,0 +1,349 @@
+{
+    "sample": "graphology-specimen-labels",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-labels.json",
+    "fileSha256": "4079afd6c5b2ee07057bf7340b0b7e6c707800c9c0717ed510e794f1445ba09f",
+    "svgSha256": "1f96ba87049e164b9b15f6564862d0243ed9e7e0da8e43424160d107d5337760",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 35,
+        "edges": 0,
+        "labelsShown": 25
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 172.5747026040635,
+                "r": 9.655172609050382,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "label-text",
+                "x": 383.7241370102455,
+                "y": 172.5747026040635,
+                "r": 17.379310696290688,
+                "label": "Text",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-long",
+                "x": 600,
+                "y": 172.5747026040635,
+                "r": 17.379310696290688,
+                "label": "A longer label text",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-multiline",
+                "x": 816.2758629897545,
+                "y": 172.5747026040635,
+                "r": 17.379310696290688,
+                "label": "Line one\nLine two",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-spaces",
+                "x": 1032.551725979509,
+                "y": 172.5747026040635,
+                "r": 17.379310696290688,
+                "label": "  padded  ",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-empty",
+                "x": 167.44827402049097,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-null",
+                "x": 383.7241370102455,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-on-colored",
+                "x": 600,
+                "y": 436.48275813152054,
+                "r": 17.379310696290688,
+                "label": "On red",
+                "fill": "#d62728",
+                "alpha": 1
+            },
+            {
+                "id": "label-size-below-threshold",
+                "x": 816.2758629897545,
+                "y": 436.48275813152054,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-size-at-threshold",
+                "x": 1032.551725979509,
+                "y": 436.48275813152054,
+                "r": 6.758620826335267,
+                "label": "Seven",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "force-label-small",
+                "x": 167.44827402049097,
+                "y": 700.3908136589772,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-hidden-node",
+                "x": 383.7241370102455,
+                "y": 700.3908136589772,
+                "r": 17.379310696290688,
+                "label": "Hidden",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-color-blue",
+                "x": 600,
+                "y": 700.3908136589772,
+                "r": 17.379310696290688,
+                "label": "Blue",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-size-24",
+                "x": 816.2758629897545,
+                "y": 700.3908136589772,
+                "r": 17.379310696290688,
+                "label": "Large",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-grid-larger",
+                "x": 1013.2413810697094,
+                "y": 700.3908136589772,
+                "r": 11.586207130860458,
+                "label": "Big",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-grid-smaller",
+                "x": 1051.8620708893086,
+                "y": 700.3908136589772,
+                "r": 7.724138087240306,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 124.57930832073608,
+                "y": 211.1953936568622,
+                "r": 6.758620826335267,
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-text",
+                "x": 344.13792994515654,
+                "y": 211.1953936568622,
+                "r": 6.758620826335267,
+                "label": "label=Text",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-long",
+                "x": 560.413792934911,
+                "y": 211.1953936568622,
+                "r": 6.758620826335267,
+                "label": "label=long",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-multiline",
+                "x": 760.275862751336,
+                "y": 211.1953936568622,
+                "r": 6.758620826335267,
+                "label": "label=two lines",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-spaces",
+                "x": 986.4000016450882,
+                "y": 211.1953936568622,
+                "r": 6.758620826335267,
+                "label": "label=padded",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-empty",
+                "x": 76.49654949533524,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "label=\"\"",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-null",
+                "x": 286.20689521575804,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "label=null",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-on-colored",
+                "x": 553.8482756655792,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "label=on red",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-size-below-threshold",
+                "x": 770.1241386553337,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "label=size 3",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-size-at-threshold",
+                "x": 986.4000016450882,
+                "y": 475.103449184319,
+                "r": 6.758620826335267,
+                "label": "label=size 7",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-force-label-small",
+                "x": 82.48275641737312,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "forceLabel=true",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-hidden-node",
+                "x": 282.92413658109206,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "hidden=true",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-color-blue",
+                "x": 534.1517238575836,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "labelColor=#1f77b4",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-size-24",
+                "x": 770.1241386553337,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "labelSize=24",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-label-grid",
+                "x": 950.289656663763,
+                "y": 739.0115047117758,
+                "r": 6.758620826335267,
+                "label": "label grid=one per cell",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

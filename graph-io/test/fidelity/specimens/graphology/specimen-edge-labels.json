@@ -1,0 +1,365 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-edge-labels"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default-s",
+            "attributes": {
+                "x": 92,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "default-t",
+            "attributes": {
+                "x": 212,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-text-s",
+            "attributes": {
+                "x": 316,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-label-text-t",
+            "attributes": {
+                "x": 436,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-long-s",
+            "attributes": {
+                "x": 540,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-label-long-t",
+            "attributes": {
+                "x": 660,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-empty-s",
+            "attributes": {
+                "x": 764,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-label-empty-t",
+            "attributes": {
+                "x": 884,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-colored-s",
+            "attributes": {
+                "x": 988,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-label-colored-t",
+            "attributes": {
+                "x": 1108,
+                "y": 669,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-force-label-s",
+            "attributes": {
+                "x": 92,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-force-label-t",
+            "attributes": {
+                "x": 212,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-hidden-s",
+            "attributes": {
+                "x": 316,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "s"
+            }
+        },
+        {
+            "key": "edge-label-hidden-t",
+            "attributes": {
+                "x": 436,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8",
+                "label": "t"
+            }
+        },
+        {
+            "key": "edge-label-unlabeled-ends-s",
+            "attributes": {
+                "x": 540,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-label-unlabeled-ends-t",
+            "attributes": {
+                "x": 660,
+                "y": 259,
+                "size": 7,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 77.6,
+                "y": 629,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-edge-label-text",
+            "attributes": {
+                "x": 335,
+                "y": 597,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=Text"
+            }
+        },
+        {
+            "key": "cap-edge-label-long",
+            "attributes": {
+                "x": 559,
+                "y": 597,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=long"
+            }
+        },
+        {
+            "key": "cap-edge-label-empty",
+            "attributes": {
+                "x": 789.8,
+                "y": 597,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=\"\""
+            }
+        },
+        {
+            "key": "cap-edge-label-colored",
+            "attributes": {
+                "x": 1000.2,
+                "y": 597,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=on red"
+            }
+        },
+        {
+            "key": "cap-edge-force-label",
+            "attributes": {
+                "x": 64,
+                "y": 219,
+                "size": 7,
+                "color": "transparent",
+                "label": "forceLabel=true"
+            }
+        },
+        {
+            "key": "cap-edge-label-hidden",
+            "attributes": {
+                "x": 331.6,
+                "y": 187,
+                "size": 7,
+                "color": "transparent",
+                "label": "hidden=true"
+            }
+        },
+        {
+            "key": "cap-edge-label-unlabeled-ends",
+            "attributes": {
+                "x": 542,
+                "y": 187,
+                "size": 7,
+                "color": "transparent",
+                "label": "label=bare ends"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "key": "default",
+            "source": "default-s",
+            "target": "default-t"
+        },
+        {
+            "key": "edge-label-text",
+            "source": "edge-label-text-s",
+            "target": "edge-label-text-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": "Text"
+            }
+        },
+        {
+            "key": "edge-label-long",
+            "source": "edge-label-long-s",
+            "target": "edge-label-long-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": "A longer edge label"
+            }
+        },
+        {
+            "key": "edge-label-empty",
+            "source": "edge-label-empty-s",
+            "target": "edge-label-empty-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": ""
+            }
+        },
+        {
+            "key": "edge-label-colored",
+            "source": "edge-label-colored-s",
+            "target": "edge-label-colored-t",
+            "attributes": {
+                "size": 3,
+                "color": "red",
+                "label": "Red edge"
+            }
+        },
+        {
+            "key": "edge-force-label",
+            "source": "edge-force-label-s",
+            "target": "edge-force-label-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": "Forced",
+                "forceLabel": true
+            }
+        },
+        {
+            "key": "edge-label-hidden",
+            "source": "edge-label-hidden-s",
+            "target": "edge-label-hidden-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": "Hidden",
+                "hidden": true
+            }
+        },
+        {
+            "key": "edge-label-unlabeled-ends",
+            "source": "edge-label-unlabeled-ends-s",
+            "target": "edge-label-unlabeled-ends-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050",
+                "label": "Bare ends"
+            }
+        }
+    ]
+}

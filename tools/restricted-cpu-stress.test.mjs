@@ -110,15 +110,13 @@ describe("the workflow", () => {
         assert.doesNotMatch(on, /pull_request|push:|merge_group|workflow_call|workflow_run/);
     });
 
-    it("is awaited by nothing: no other workflow and no Mergify rule names it", () => {
+    it("is awaited by nothing: no other workflow names it", () => {
         const name = /^name: (.+)$/m.exec(text)[1];
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const f of readdirSync(dir).filter((x) => x.endsWith(".yml") && x !== "restricted-cpu-stress.yml")) {
             const other = readFileSync(new URL(f, dir), "utf8");
             assert.ok(!other.includes("restricted-cpu-stress") && !other.includes(name), f);
         }
-        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.ok(!mergify.includes(name) && !mergify.includes("Restricted CPU"));
         // githerd's flaky-test tracker reads "Test (...)" jobs as occurrences; these are not
         assert.doesNotMatch(code, /name: Test \(/);
     });

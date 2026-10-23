@@ -12,6 +12,13 @@
  *   scheme knows no names at all.
  * - `transparent`, `none` and `invis` are `#fffffe` with alpha 0, whatever the scheme.
  * - An unknown color is drawn BLACK.
+ * - A bare name SVG knows (`gray`, `purple`, `green`, `maroon`, `crimson` ...), not in a `/scheme/` and with no
+ *   leading blanks, is drawn as the SVG color, whatever the scheme: Graphviz's SVG output writes such a name as it is
+ *   (`fill="gray"`, gvrender_resolve_color) and every SVG reader draws it as CSS does, so `gray` is #808080 there,
+ *   not X11's #c0c0c0. The SVG drawing is the one we read Graphviz by.
+ * - An outline or font color list whose first entry is such a name is written whole (`stroke="red:blue"`: Graphviz
+ *   resolves the first entry in place and puts the `:` back), which no SVG reader can draw: an outline is not drawn
+ *   and a text is black, SVG's own default.
  * - A color list (`red:blue`, `red;0.3:blue`): an outline or a font color draws the text before the first `:` as one
  *   color, so `red:blue` is red and `red;0.3:blue` is black (`red;0.3` is not a color). A fill draws a gradient and
  *   an edge draws one line per color; both start with the first entry's color, its `;fraction` dropped. A value
@@ -24,7 +31,7 @@ import { BREWER_SCHEMES, CSS_COLORS, X11_COLORS } from "./color-tables.js";
  * How Graphviz draws a color value, which decides how a color list is read.
  * @category Styles
  */
-export type GraphvizColorUse = "line" | "fill" | "edge";
+export type GraphvizColorUse = "line" | "text" | "fill" | "edge";
 
 /**
  * A resolved Graphviz color, with how it was read.
@@ -160,29 +167,83 @@ function schemeColor(name: string, scheme: string): string | undefined {
 }
 
 /**
+ * A color list whose first color is a bare SVG name, as Graphviz's SVG output draws it for a pen: no outline, black
+ * text.
+ * @param use - `line` or `text`
+ * @returns the color
+ */
+function svgPenList(use: GraphvizColorUse): GraphvizColor {
+    return use === "line"
+        ? { hex: "#fffffe", alpha: 0, unknown: false, list: null }
+        : { hex: "#000000", alpha: 1, unknown: false, list: null };
+}
+
+/**
+ * A color list entry without its `;fraction`.
+ * @param text - the entry
+ * @returns the color part
+ */
+function beforeSemicolon(text: string): string {
+    const semi = text.indexOf(";");
+    return semi >= 0 ? text.slice(0, semi) : text;
+}
+
+/**
+ * One Graphviz color, read from its scheme (X11 when none), a bare SVG name first when `svgNames` says so.
+ * @param raw - the whole value
+ * @param text - the color, without the list after it
+ * @param scheme - the object's `colorscheme`, or null
+ * @param svgNames - whether a bare SVG name is drawn as SVG's color
+ * @returns the color, or null when it is unknown
+ */
+function resolveColorText(
+    raw: string,
+    text: string,
+    scheme: string | null,
+    svgNames: boolean,
+): { hex: string; alpha: number } | null {
+    const svgName = svgNames && raw.startsWith(text) ? CSS_COLORS.get(text.toLowerCase()) : undefined;
+    if (svgName !== undefined) {
+        return { hex: svgName, alpha: 1 };
+    }
+    if (text === "") {
+        return null;
+    }
+    const sc = scheme === null || scheme.trim() === "" ? "x11" : scheme.toLowerCase();
+    return resolveOne(text, sc);
+}
+
+/**
  * Resolves a Graphviz color value the way Graphviz draws it for a use; an unknown color is black.
  * @param raw - the value, at most 256 characters
  * @param scheme - the object's `colorscheme`, or null
- * @param use - an outline or font color (`line`), a fill, or an edge's line color
+ * @param use - an outline color (`line`), a font color (`text`), a fill, or an edge's line color
+ * @param svgNames - whether a bare SVG name is drawn as SVG's color, as Graphviz's SVG output draws it (false: as
+ * every other Graphviz output draws it)
  * @returns the color and how it was read
  * @category Styles
  */
-export function graphvizColor(raw: string, scheme: string | null, use: GraphvizColorUse): GraphvizColor {
+export function graphvizColor(
+    raw: string,
+    scheme: string | null,
+    use: GraphvizColorUse,
+    svgNames = true,
+): GraphvizColor {
     let text = raw.replace(/^[ \t\r\n]+/, "");
     let list: GraphvizColor["list"] = null;
     const colon = text.indexOf(":");
+    const pen = use === "line" || use === "text";
     if (colon >= 0) {
         text = text.slice(0, colon);
-        if (use !== "line") {
-            const semi = text.indexOf(";");
-            if (semi >= 0) {
-                text = text.slice(0, semi);
-            }
+        if (svgNames && pen && raw.startsWith(text) && CSS_COLORS.has(text.toLowerCase())) {
+            return svgPenList(use);
+        }
+        if (!pen) {
+            text = beforeSemicolon(text);
             list = use === "fill" ? "gradient" : "lines";
         }
     }
-    const sc = scheme === null || scheme.trim() === "" ? "x11" : scheme.toLowerCase();
-    const resolved = text === "" ? null : resolveOne(text, sc);
+    const resolved = resolveColorText(raw, text, scheme, svgNames);
     return resolved === null
         ? { hex: "#000000", alpha: 1, unknown: true, list }
         : { hex: resolved.hex, alpha: resolved.alpha, unknown: false, list };

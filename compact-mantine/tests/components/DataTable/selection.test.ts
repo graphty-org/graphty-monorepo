@@ -37,6 +37,20 @@ describe("applySelectionGesture", () => {
         expect(result.selected).toEqual(["b", "c", "d"]);
     });
 
+    it("extends from the one selected row when it has no anchor yet", () => {
+        const result = applySelectionGesture({
+            ids: IDS,
+            index: 3,
+            selected: ["b"],
+            anchor: undefined,
+            modifiers: EXTEND,
+            mode: "multiple",
+        });
+
+        expect(result.selected).toEqual(["b", "c", "d"]);
+        expect(result.anchor).toBe("b");
+    });
+
     it("extends backwards as well as forwards", () => {
         const result = applySelectionGesture({
             ids: IDS,

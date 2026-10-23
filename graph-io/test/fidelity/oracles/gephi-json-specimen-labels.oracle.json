@@ -1,0 +1,340 @@
+{
+    "sample": "gephi-json-specimen-labels",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file moved into graphology's { key, attributes } shape); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/gephi-json/specimen-labels.json",
+    "fileSha256": "2e47be1e1943342fa95f92b7d6bddd2215fe5ba4e57733001f4e823f5c86c8f7",
+    "svgSha256": "fc0ac153f007bd748b90a936a1d6e38af4823042c0708d07f831be0cfe77f7e6",
+    "date": "2026-10-19",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 34,
+        "edges": 0,
+        "labelsShown": 25
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness), as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "cap-default",
+                "x": 167.44827402049097,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "default=nothing set",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-plain",
+                "x": 383.7241370102455,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=Label",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-one-char",
+                "x": 600,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=A",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-long",
+                "x": 816.2758629897545,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=A much longer label",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-digits",
+                "x": 1032.551725979509,
+                "y": 128.724126304532,
+                "r": 6.758620826334783,
+                "label": "label=12345",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-spaces",
+                "x": 167.44827402049097,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=two  words",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-unicode",
+                "x": 383.7241370102455,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=Zürich",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-html-chars",
+                "x": 600,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=a<b & c>d",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-empty",
+                "x": 816.2758629897545,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=\"\"",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-newline",
+                "x": 1032.551725979509,
+                "y": 326.6551679501246,
+                "r": 6.758620826334783,
+                "label": "label=two\\nlines",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-quotes",
+                "x": 167.44827402049097,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "label=say \"hi\"",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-apostrophe",
+                "x": 383.7241370102455,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "label=it's",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-label",
+                "x": 600,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.label=Column",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-label-small-node",
+                "x": 816.2758629897545,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "label=Small (size=4)",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "cap-attr-forcelabel",
+                "x": 1032.551725979509,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.forceLabel=true",
+                "fill": "#ffffff",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.896551782714907,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 90.10343525173342,
+                "r": 9.655172609049691,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "label-plain",
+                "x": 383.7241370102455,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "Label",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-one-char",
+                "x": 600,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "A",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-long",
+                "x": 816.2758629897545,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "A much longer label",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-digits",
+                "x": 1032.551725979509,
+                "y": 90.10343525173342,
+                "r": 17.379310696289444,
+                "label": "12345",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-spaces",
+                "x": 167.44827402049097,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "two  words",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-unicode",
+                "x": 383.7241370102455,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "Zürich",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-html-chars",
+                "x": 600,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "a<b & c>d",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-empty",
+                "x": 816.2758629897545,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-newline",
+                "x": 1032.551725979509,
+                "y": 288.034476897326,
+                "r": 17.379310696289444,
+                "label": "two\nlines",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-quotes",
+                "x": 167.44827402049097,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": "say \"hi\"",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-apostrophe",
+                "x": 383.7241370102455,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": "it's",
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-label",
+                "x": 600,
+                "y": 485.96551854291863,
+                "r": 17.379310696289444,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "label-small-node",
+                "x": 816.2758629897545,
+                "y": 485.96551854291863,
+                "r": 3.862069043619876,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "attr-forcelabel",
+                "x": 1032.551725979509,
+                "y": 485.96551854291863,
+                "r": 3.862069043619876,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

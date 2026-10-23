@@ -27,10 +27,14 @@ export class Simple2DLineRenderer {
      * @param color - Hex color string (e.g., "#ff0000")
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
+     * @param minScreenWidth - The fewest screen pixels wide the line is drawn (`line.minScreenWidth`)
      * @returns The template mesh, with its material
      */
-    static createBatchMesh(width: number, color: string, opacity: number, scene: Scene): Mesh {
-        const mesh = CustomLineRenderer.createJoinedLineMesh({ width, color, opacity, worldWidth: true }, scene);
+    static createBatchMesh(width: number, color: string, opacity: number, scene: Scene, minScreenWidth = 0): Mesh {
+        const mesh = CustomLineRenderer.createJoinedLineMesh(
+            { width, color, opacity, worldWidth: true, minScreenWidth },
+            scene,
+        );
         mesh.name = "line-2d";
 
         // The width and opacity the style asked for, which the drawn scene is read back against.

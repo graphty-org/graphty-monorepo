@@ -1,0 +1,11 @@
+[
+    {
+        "method": "GET",
+        "url": "https://www.ndexbio.org/v3/networks/00000000-0000-0000-0000-000000000000/summary",
+        "status": 404,
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": "{\"errorCode\":\"NDEx_Object_Not_Found_Exception\",\"message\":\"Network 00000000-0000-0000-0000-000000000000 not found in NDEx.\",\"threadId\":\"6718115\",\"timeStamp\":\"2026-10-17 11:56:20,382\"}"
+    }
+]

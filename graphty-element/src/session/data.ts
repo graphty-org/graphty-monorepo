@@ -12,6 +12,15 @@
 import "../data/index";
 
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import type { SourceListing, SourceListQuery, SourceProbe } from "@graphty/graph-io";
+import {
+    DATASET_NAMES,
+    fetchDataset,
+    GENERATOR_CATALOG,
+    type SampleGraph,
+    toElementData,
+} from "@graphty/graph-samples";
+import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type {
@@ -20,11 +29,14 @@ import type {
     AttributeUse,
     EdgeId,
     MeasurementDeclaration,
+    Path,
+    ReadableValue,
     RunId,
     ScopeInput,
+    StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
-import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
+import { edgeCounterOf, edgeIdOf, pairKey } from "../data/edgeIdentity";
 import type { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
@@ -40,15 +52,20 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    importCommand,
+    importFact,
     type ImportSource,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
+import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
+import { readableValues } from "./readable";
 import {
     primaryResultColumn,
     type ResolvedResult,
@@ -65,10 +82,25 @@ import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
+import * as sourceExpand from "./sources/expand";
+import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
+import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
+import { SourceLedger } from "./sources/ledger";
+import * as sourceLoad from "./sources/load";
+import type {
+    CollapseResult,
+    ExpandOptions,
+    PendingSourceLoad,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+} from "./sources/types";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
+import { STRUCTURE_VALUES } from "./styles/sources";
 import type {
     ColumnHistogram,
+    DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
     EdgePageOptions,
@@ -78,7 +110,10 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    ImportOptions,
     LoadChoices,
+    LoadedSource,
+    LoadedWeight,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -94,9 +129,15 @@ import type {
     SessionAttributes,
     SessionDataApi,
     SessionDataConfig,
+    SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    ValueCounts,
 } from "./types";
+import { valueLabelsAt } from "./valueLabels";
+
+/** A value a column holds that can be given a name (`data.label`) or counted. */
+type ColumnScalar = string | number | boolean;
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -114,11 +155,19 @@ interface DataWrites {
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
-    setSource(source: DataSourceDescriptor): Promise<unknown>;
+    setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
+    /** Dispatch `data.label`. */
+    label(path: Path, value: ColumnScalar, label: string | null): Promise<unknown>;
+    /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
+    valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
+    /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
+    send?(command: SessionCommand): Promise<unknown>;
+    /** Publish a session event: the network-source expansions publish theirs. */
+    emit?<K extends keyof SessionEventMap>(event: K, detail: SessionEventMap[K]): void;
     /** The style stack and the finished runs now: what reads a column. */
     readers(): {
         readonly styles: readonly CompiledLayer[];
@@ -162,6 +211,14 @@ interface PageSources {
      * @returns the ids
      */
     runIds(): readonly RunId[];
+    /**
+     * What one element carries for a value path, through the source rules and bindings read.
+     * @param kind - Nodes or edges.
+     * @param index - The element's dense index.
+     * @param path - The value path.
+     * @returns The value, or undefined for none.
+     */
+    valueAt(kind: "node" | "edge", index: number, path: Path): unknown;
 }
 
 /** One neighbor while its list is built: its row, and its name once a name sort read it. */
@@ -405,6 +462,12 @@ export class SessionData implements SessionDataApi {
         readonly result: readonly AttributeDescriptor[];
     } | null = null;
     private disposed = false;
+    /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
+    readonly ledger = new SourceLedger();
+    /** The keys of the loads an opened project holds that have not run since it opened. */
+    private readonly pendingLoads = new Set<string>();
+    /** What click-to-expand keeps beside the graph. */
+    private readonly expansions = new ExpansionState();
 
     /**
      * Build the data surface.
@@ -501,20 +564,131 @@ export class SessionData implements SessionDataApi {
     async clear(): Promise<void> {
         this.requireLive("clear");
         await this.writes.dispatch({ kind: "clear" });
+        // Nothing a source load brought is left, so `loads()` lists none of them and a saved
+        // project does not offer to fetch them again; undo brings the rows and the records back.
+        this.pendingLoads.clear();
     }
 
     /**
      * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * The first import into a new session (no history, never saved or opened) leaves
+     * `project.dirty` false: it is where the project starts. Every other import sets it.
      * @param source - The data source's name and its options.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the
      *     load fails.
      */
-    async import(source: DataSourceInput, options: LoadChoices = {}): Promise<void> {
+    async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
+        if (source.source !== undefined) {
+            await sourceLoad.importSource(this.sourceHost(), { ...source, source: source.source }, options);
+            return;
+        }
+
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
+        await this.importVia(this.writes.importer(), source, options);
+    }
+
+    /**
+     * Load a generated graph from the catalogue, as one undoable step.
+     * @param name - The generator's name.
+     * @param params - Its parameters; each one left out takes its catalogue default.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the graph is loaded.
+     */
+    async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
+        this.requireLive("generate");
         const send = this.writes.importer();
+        const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
+        if (descriptor === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_GENERATOR",
+                message: `There is no generator named "${name}".`,
+                source: "data",
+                details: { name, available: GENERATOR_CATALOG.map((each) => each.name) },
+            });
+        }
+        const available = descriptor.params.map((each) => each.name);
+        const unknown = Object.keys(params).find((key) => !available.includes(key));
+        if (unknown !== undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_OPTION",
+                message: `The ${name} generator takes no parameter "${unknown}".`,
+                source: "data",
+                details: { option: unknown, available },
+            });
+        }
+        let graph: SampleGraph;
+        try {
+            graph = generateGraph(name, params);
+        } catch (error) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: error instanceof Error ? error.message : String(error),
+                source: "data",
+                details: { generator: name, params },
+                cause: error,
+            });
+        }
+        await this.importVia(send, recordsSource(graph, name), options, false);
+    }
+
+    /**
+     * Download a sample dataset from the catalogue and load it, as one undoable step.
+     * @param name - The dataset's name.
+     * @param options - The import mode, a mirror to download from, and a signal.
+     * @returns Settles once the graph is loaded.
+     */
+    async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
+        this.requireLive("loadDataset");
+        const send = this.writes.importer();
+        const { baseUrl, signal, ...load } = options;
+        // A mirror may serve any name; only graphty.app's own list is checked.
+        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_DATASET",
+                message: `There is no dataset named "${name}".`,
+                source: "data",
+                details: { name, available: DATASET_NAMES },
+            });
+        }
+        let snapshot: GraphSnapshot;
+        try {
+            snapshot = await fetchDataset(name, { baseUrl, signal });
+        } catch (error) {
+            throw new GraphtyError({
+                code: "E_FETCH_FAILED",
+                message: `The dataset "${name}" could not be downloaded.`,
+                source: "data",
+                recoverable: true,
+                details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                cause: error,
+            });
+        }
+        await this.importVia(send, recordsSource(snapshot, name), load, false);
+    }
+
+    /**
+     * The body of `import`, dispatching through an importer taken before any await.
+     * @param send - The importer, taken when the verb was called.
+     * @param source - What `import` takes.
+     * @param options - What `import` takes.
+     * @param fromFile - Whether the source is a graph file the caller opened (not a generated
+     *   graph or a downloaded dataset), whose label column then names the nodes.
+     * @returns Settles once the last chunk is in the graph.
+     */
+    private async importVia(
+        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        source: DataSourceInput,
+        options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        fromFile = true,
+    ): Promise<void> {
+        if ((options.mode ?? "replace") === "replace") {
+            // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
+            // records stay in the ledger, unlisted, so undoing the replacement lists them again.
+            this.pendingLoads.clear();
+        }
         this.draft?.dispose();
         if (
             options.mapping !== undefined ||
@@ -532,18 +706,242 @@ export class SessionData implements SessionDataApi {
             return;
         }
 
-        const command = (resolved: ImportSource): DataImportCommand => ({
-            op: "data.import",
-            source: resolved,
-            mode: options.mode ?? "replace",
-            ...(options.layout === undefined ? {} : { layout: options.layout }),
-            ...(options.styles === undefined ? {} : { styles: options.styles }),
-            ...(options.styleOptions === undefined ? {} : { styleOptions: options.styleOptions }),
-        });
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        await send(command(resolved instanceof Promise ? await resolved : resolved));
+        const step = importCommand(resolved instanceof Promise ? await resolved : resolved, options);
+        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+        const { knownFields } = this.readConfig();
+        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+        // A new graph from a graph file names its nodes by the file's label column, as a draft's
+        // load of it does, unless a label path is configured already. A node without one is still
+        // named by its id. A merge keeps how the graph it joins names its nodes.
+        const names =
+            fromFile &&
+            step.mode !== "merge" &&
+            knownFields.nodeLabelPath === null &&
+            step.source.type !== undefined &&
+            step.source.type !== "csv";
+        const before: BatchCommand["steps"] = [
+            ...(resets
+                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                : []),
+            ...(names
+                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                : []),
+        ];
+        // The batch is the import in the history, so it carries the import's fact: a page load's
+        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+        await send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+    }
+
+    /**
+     * Check a network source's params and credential without loading anything.
+     * @param source - The source id and its params.
+     * @param options - The credential and the endpoint.
+     * @returns What the service said.
+     */
+    testSource(source: SourceInput, options: SourceLoadOptions = {}): Promise<SourceProbe> {
+        this.requireLive("testSource");
+        return sourceLoad.testSource(this.sourceHost(), source, options);
+    }
+
+    /**
+     * Search what a network source holds.
+     * @param source - The source id and the params narrowing the search.
+     * @param query - The search text, cursor and page size.
+     * @param options - The credential and the endpoint.
+     * @returns One page of rows.
+     */
+    listSource(
+        source: SourceInput,
+        query: Omit<SourceListQuery<Record<string, unknown>>, "params"> = {},
+        options: SourceLoadOptions = {},
+    ): Promise<SourceListing> {
+        this.requireLive("listSource");
+        return sourceLoad.listSource(this.sourceHost(), source, query, options);
+    }
+
+    /**
+     * Fetch the neighborhood of nodes from the source that loaded them, as one undoable step.
+     * @param ids - The seeds.
+     * @param options - Depth, direction, limit and the credential.
+     * @returns Settles once the neighborhood is in the graph.
+     */
+    expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
+        this.requireLive("expand");
+        return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+    }
+
+    /**
+     * Remove what a node's expansions alone brought, as one undoable step.
+     * @param id - The node.
+     * @returns What was removed and kept.
+     */
+    collapse(id: NodeId): Promise<CollapseResult> {
+        this.requireLive("collapse");
+        return sourceExpand.collapseNode(this.sourceHost(), id);
+    }
+
+    /**
+     * Load the next page after a capped load from a source.
+     * @param options - The load options.
+     * @returns Settles once the page is in the graph.
+     */
+    more(options: SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("more");
+        return sourceLoad.more(this.sourceHost(), options);
+    }
+
+    /**
+     * Load a public sample a registered source lists, as one undoable step.
+     * @param id - The sample's id.
+     * @param options - Anything `import` takes.
+     * @returns Settles once the sample is in the graph.
+     */
+    async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("loadSample");
+        await sourceLoad.loadSample(this.sourceHost(), id, options);
+    }
+
+    /**
+     * The loads from network sources this graph holds: a load or an expansion is listed while a
+     * node it brought is in the graph, so undo and redo take its record away and back with it.
+     * @returns The records, in load order.
+     */
+    loads(): readonly SourceLoadRecord[] {
+        return this.ledger.loads(this.liveLoadKeys());
+    }
+
+    /**
+     * Every load and expansion key a node of the graph carries in `_source.loads`.
+     * ponytail: walks every node on each call; cache it by revision if `loads()` gets hot.
+     * @returns the keys
+     */
+    private liveLoadKeys(): ReadonlySet<string> {
+        const keys = new Set<string>();
+        const snapshot = this.current();
+        for (let index = 0; index < snapshot.nodeCount; index++) {
+            for (const key of sourceLoadsOf(this.records?.nodeAttributes(index, snapshot.ids.idOf(index)))) {
+                keys.add(key);
+            }
+        }
+
+        return keys;
+    }
+
+    /**
+     * The source loads an opened project holds but has not run.
+     * @returns One entry per waiting load.
+     */
+    pendingSourceLoads(): readonly PendingSourceLoad[] {
+        return sourceLoad.pendingSourceLoads(this.sourceHost());
+    }
+
+    /**
+     * Run one waiting source load of an opened project.
+     * @param id - The load's key.
+     * @param options - The credential.
+     * @returns Settles once it is loaded.
+     */
+    runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
+        this.requireLive("runPendingSourceLoad");
+        return sourceLoad.runPendingSourceLoad(this.sourceHost(), id, options);
+    }
+
+    /**
+     * The project file's `graphty-sources` member, or null when the graph holds no source load.
+     * Internal: the project file writes it.
+     * @returns the member
+     */
+    sourceMember(): unknown {
+        const loads = this.loads();
+        return loads.length === 0 ? null : { version: SOURCE_RECORD_VERSION, loads };
+    }
+
+    /**
+     * Take an opened project's `graphty-sources` member: its loads are recorded and wait, fetching
+     * nothing, until `runPendingSourceLoad`. Internal: the project file calls it.
+     * @param member - the member, or undefined when the file holds none
+     */
+    restoreSourceMember(member: unknown): void {
+        this.pendingLoads.clear();
+        if (member === undefined) {
+            this.ledger.clear();
+            return;
+        }
+
+        this.ledger.fromMember(member);
+        for (const record of this.ledger.loads()) {
+            this.pendingLoads.add(record.key);
+        }
+    }
+
+    /**
+     * What the network-source code works through.
+     * @returns the ledger, the dispatcher and the events
+     */
+    private sourceHost(): SourceHost {
+        const { writes } = this;
+        return {
+            ledger: this.ledger,
+            pending: this.pendingLoads,
+            owner: this,
+            expansions: this.expansions,
+            loads: () => this.loads(),
+            node: (id) => this.node(id),
+            nodeIds: () => [...this.current().ids],
+            edges: () => {
+                const snapshot = this.current();
+                const space = edgeSpaceOf(snapshot);
+                const out: HostEdge[] = [];
+                for (let row = 0; row < snapshot.edgeCount; row++) {
+                    out.push({
+                        id: space.idOf(row),
+                        source: snapshot.ids.idOf(snapshot.edgeSource(row)),
+                        target: snapshot.ids.idOf(snapshot.edgeTarget(row)),
+                        record: this.records?.edgeAttributes(row) ?? {},
+                    });
+                }
+
+                return out;
+            },
+            neighborIds: (id) => {
+                const snapshot = this.current();
+                const index = rowOfEitherSpelling(snapshot.ids, id);
+                const out = new Set<NodeId>();
+                if (index !== INVALID_INDEX) {
+                    eachAdjacentArc(snapshot, index, "all", (other) => out.add(snapshot.ids.idOf(other)));
+                }
+
+                return out;
+            },
+            placement: (id) => {
+                const snapshot = this.current();
+                const index = rowOfEitherSpelling(snapshot.ids, id);
+                const { positions } = this.graphStore;
+                if (index === INVALID_INDEX) {
+                    return { at: null, pinned: false };
+                }
+
+                const at = { x: Number.NaN, y: Number.NaN, z: Number.NaN };
+                positions.read(index, at);
+                return { at: positions.isPlaced(index) ? at : null, pinned: positions.isPinned(index) };
+            },
+            positionScale: () => this.readConfig().knownFields.positionScale,
+            dispatch: (command) =>
+                writes.send === undefined
+                    ? Promise.reject(
+                          new GraphtyError({
+                              code: "E_INTERNAL",
+                              source: "data",
+                              message: "This session cannot dispatch a source command.",
+                          }),
+                      )
+                    : writes.send(command),
+            emit: (event, detail) => writes.emit?.(event, detail),
+        };
     }
 
     /**
@@ -565,7 +963,17 @@ export class SessionData implements SessionDataApi {
                 config: () => this.readConfig(),
                 graph: () => {
                     const slice = this.writes.slice();
-                    return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
+                    const snapshot = this.current();
+                    const pairs = new Set<string>();
+                    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+                        const source = snapshot.ids.idOf(snapshot.edgeSource(edge));
+                        const target = snapshot.ids.idOf(snapshot.edgeTarget(edge));
+                        pairs.add(pairKey(source, target));
+                        if (!snapshot.directed) {
+                            pairs.add(pairKey(target, source)); // NOSONAR(S2234): the reverse pair, so an undirected edge matches either way
+                        }
+                    }
+                    return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
                 importer: () => this.writes.importer(),
                 measure: (command, config) => this.writes.measure(command, config),
@@ -904,6 +1312,17 @@ export class SessionData implements SessionDataApi {
             // ponytail: a collator sort per (node, options) per revision; share item 3's per-revision
             // name rank if a host clicks through many 40,000-degree hubs.
             rows.sort((a, b) => direction * NATURAL.compare(a.name ?? "", b.name ?? ""));
+        } else if (sort.by === "degree") {
+            const degree = new Map<number, number>();
+            for (const row of rows) {
+                let count = 0;
+                eachAdjacentArc(snapshot, row.other, "all", () => {
+                    count++;
+                });
+                degree.set(row.other, count);
+            }
+
+            rows.sort((a, b) => direction * ((degree.get(a.other) ?? 0) - (degree.get(b.other) ?? 0)));
         } else {
             rows.sort((a, b) => direction * (a.weight - b.weight));
         }
@@ -1002,7 +1421,15 @@ export class SessionData implements SessionDataApi {
 
         const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
         const revision = this.pages.revision();
-        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        const found = this.pages.search(text, {
+            offset,
+            limit,
+            kinds: new Set(kinds),
+            scope,
+            edgeNameJoiner: options.edgeNameJoiner,
+            scopeInput: options.scope,
+            ...(options.booleanWords === undefined ? {} : { booleanWords: options.booleanWords }),
+        });
         return { ...found, offset, revision: String(revision) };
     }
 
@@ -1213,6 +1640,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * @returns the loads, or an empty list when no import loaded the graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    sources(): readonly LoadedSource[] {
+        this.requireLive("sources");
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+    }
+
+    /**
      * Give the loaded source a new name, as one undoable step.
      * @param name - the new name
      * @returns settles once the step is recorded
@@ -1239,7 +1676,14 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        await this.writes.setSource({ ...current, name });
+        // The last load is the one `source()` describes, so it takes the new name too.
+        const sources = this.sources();
+        await this.writes.setSource(
+            { ...current, name },
+            sources.length === 0
+                ? undefined
+                : [...sources.slice(0, -1), ...sources.slice(-1).map((last) => ({ ...last, name }))],
+        );
     }
 
     /**
@@ -1251,6 +1695,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
+    }
+
+    /**
+     * The weight the graph was loaded with, and the meaning chosen for it at load.
+     * @returns the weight, or null when the last load read none
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    loadedWeight(): LoadedWeight | null {
+        const attribute = this.lastImport()?.weights.attribute ?? null;
+        return attribute === null
+            ? null
+            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
     }
 
     /**
@@ -1298,6 +1754,51 @@ export class SessionData implements SessionDataApi {
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The values every node carries from the graph's structure, with their catalog names.
+     * @returns degree, and on a directed graph in-degree and out-degree
+     */
+    structureValues(): readonly StructureValue[] {
+        // In and out degree only on a directed graph, where they differ from degree.
+        return this.statistics().directedness === "directed"
+            ? STRUCTURE_VALUES
+            : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
+    }
+
+    /**
+     * Every value a rule or a binding can read: the node id, the data columns and the fields
+     * finished runs published per element.
+     * @returns the values, the node id first, then the data columns, then each run's fields
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    readableValues(): readonly ReadableValue[] {
+        const snapshot = this.current();
+        const declarations = this.writes.declarations();
+        const runs: Run[] = [];
+        for (const id of this.pages.runIds()) {
+            const run = this.pages.run(id);
+            if (run !== undefined) {
+                runs.push(run);
+            }
+        }
+
+        return readableValues({
+            snapshot,
+            directed: this.statistics().directedness === "directed",
+            attributes: this.attributes(),
+            declarationOf: (column) => declarations.get(declarationKey(column)),
+            runs,
+            layersReading: (path, on) =>
+                this.writes
+                    .readers()
+                    .styles.filter(
+                        ({ layer, reads }) =>
+                            layer.target === on && reads.some((read) => read === path || read.startsWith(`${path}.`)),
+                    )
+                    .map(({ layer }) => ({ kind: "layer" as const, id: layer.id })),
+        });
     }
 
     /**
@@ -1390,6 +1891,27 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Name one value of a path, or take its name away. One undoable step.
+     * @param path - The value path.
+     * @param value - The value.
+     * @param label - The name, or null.
+     * @returns Settles once the name is recorded.
+     */
+    async setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void> {
+        this.requireLive("setValueLabel");
+        await this.writes.label(path, value, label);
+    }
+
+    /**
+     * The names given to a path's values.
+     * @param path - The value path.
+     * @returns The names, by the value as the legend spells it.
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string> {
+        return valueLabelsAt(this.writes.valueLabels(), path);
+    }
+
+    /**
      * How one data column's values are distributed.
      * @param column - the column
      * @param options - the bin count and, for a numeric column, the scale
@@ -1421,7 +1943,7 @@ export class SessionData implements SessionDataApi {
 
         const limit = resolveBinCount(options.bins);
         // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
-        const counts = new Map<string | number | boolean, number>();
+        const counts = new Map<ColumnScalar, number>();
         let present = 0;
         for (let index = 0; index < count; index++) {
             const value = valueAt(index);
@@ -1437,6 +1959,36 @@ export class SessionData implements SessionDataApi {
             .map(([value, n]) => Object.freeze({ value, count: n }));
         const listed = values.reduce((sum, each) => sum + each.count, 0);
         return Object.freeze({ kind: "categorical", values: Object.freeze(values), otherCount: present - listed });
+    }
+
+    /**
+     * How many elements carry each value of a readable path.
+     * @param path - the value path, or `"id"`
+     * @param options - which kind to count
+     * @param options.kind - nodes or edges; by default the kind the path is listed on
+     * @returns the counts, most elements first
+     */
+    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
+        const snapshot = this.current();
+        const kind =
+            options.kind ??
+            (this.readableValues().find((value) => value.path === path)?.on === "edge" ? "edge" : "node");
+        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<ColumnScalar, number>();
+        let missing = 0;
+        for (let index = 0; index < total; index++) {
+            const value =
+                path === "id" && kind === "node" ? snapshot.ids.idOf(index) : this.pages.valueAt(kind, index, path);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            } else {
+                missing++;
+            }
+        }
+
+        const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
+        return Object.freeze({ values: Object.freeze(values), missing, total });
     }
 
     /**
@@ -1509,6 +2061,18 @@ export class SessionData implements SessionDataApi {
             });
         }
     }
+}
+
+/**
+ * A generated graph or a downloaded dataset as the JSON source `import` reads: graph-samples' own
+ * records for it, with its direction stated.
+ * @param graph - The graph.
+ * @param name - What the source is called.
+ * @returns The source.
+ */
+function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSourceInput {
+    const data = JSON.stringify({ directed: graph.directed, ...toElementData(graph) });
+    return { type: "json", name, config: { data } };
 }
 
 /**

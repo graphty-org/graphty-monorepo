@@ -38,8 +38,8 @@ const scratchB = new Vector3();
  */
 export interface EdgeLineMeta {
     joinedLine?: boolean;
-    /** A dashed or dotted line: its element's length along the line, and `line.patternCount`. */
-    pattern?: { elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: which, its element's length along the line, and `line.patternCount`. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
 }
 
 /**
@@ -360,6 +360,12 @@ export class EdgeLineBatch {
 
     /** Upload everything written since the last upload, in one call. */
     flush(): void {
+        // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
+        // of data uploaded in part), so the first frame after one uploads every slot again.
+        if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
+            this.dirty = true;
+        }
+
         if (!this.dirty || this.gone) {
             return;
         }

@@ -19,5 +19,6 @@ export type {
     PositionColumnExtra,
     PositionNote,
     PositionReadContext,
+    ViewerFit,
     YAxis,
 } from "./types.js";

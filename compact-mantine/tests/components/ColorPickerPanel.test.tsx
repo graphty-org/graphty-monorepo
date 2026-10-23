@@ -53,7 +53,7 @@ describe("ColorPickerPanel change-end", () => {
             />,
         );
 
-        await userEvent.click(screen.getByRole("button", { name: "#00FF00FF" }));
+        await userEvent.click(screen.getByRole("button", { name: "lime 00FF00" }));
 
         expect(onChangeEnd).toHaveBeenCalledTimes(1);
         expect(onChangeEnd).toHaveBeenCalledWith("#00FF00FF");
@@ -72,7 +72,7 @@ describe("ColorPickerPanel change-end", () => {
         const group = screen.getByRole("group", { name: "Swatches" });
         expect(group.tagName).toBe("FIELDSET");
 
-        const swatch = screen.getByRole("button", { name: "#00FF00FF" });
+        const swatch = screen.getByRole("button", { name: /00FF00/ });
         expect(group).toContainElement(swatch);
         while (document.activeElement !== swatch) {
             await userEvent.tab();

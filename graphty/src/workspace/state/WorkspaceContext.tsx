@@ -49,6 +49,8 @@ interface CommandDoor {
     readonly command: Command;
     /** Why it cannot run now, or null. */
     readonly disabledReason: string | null;
+    /** The tooltip's name: the command's `tooltip`, else its label. */
+    readonly tip: string;
     /** Runs it. */
     readonly run: () => void;
 }
@@ -70,6 +72,7 @@ export function useCommand(id: string): CommandDoor | null {
     return {
         command,
         disabledReason: command.disabled?.(workspace) ?? null,
+        tip: command.tooltip?.(workspace) ?? command.label,
         run: () => {
             workspace.run(id);
         },

@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Organizations 10 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: Organizations",
+     "color": "#0000ff"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#0000ff": 10,
+   "#6366f1": 14
+  },
+  "edges": {
+   "#a9a9a9": 59
+  }
+ }
+}

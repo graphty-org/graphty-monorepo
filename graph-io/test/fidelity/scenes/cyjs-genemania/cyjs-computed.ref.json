@@ -29,6 +29,7 @@
   "lineStyle": "yes",
   "arrows": "yes",
   "edgePath": "yes",
+  "selfLoops": "yes",
   "edgeLabel": "yes",
   "groups": "yes",
   "annotations": "yes",

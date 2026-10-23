@@ -34,6 +34,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 9424348,
         sha256: "a5703c970f993a33bd623846e0fdf2296fc833443ee1fcd3e301743d1cd7c979",
+        thumbnail: "road-ny.webp",
     },
     {
         name: "ogbn-arxiv",
@@ -61,6 +62,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 10637599,
         sha256: "9997f61804b66a5f16420b9d48470917bcac9c67f51331f21c59581f3d286ff2",
+        thumbnail: "ogbn-arxiv.webp",
     },
     {
         name: "go-basic",
@@ -89,6 +91,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 1372076,
         sha256: "d0c68b4d9d377bee34cf255c39a631dbb5a6aa809762518060fcda9f02f89a39",
+        thumbnail: "go-basic.webp",
     },
     {
         name: "disease-ontology",
@@ -116,6 +119,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 288394,
         sha256: "c0deb41124eae90e9bb79a46227d9aed7f93b687007d13dff58690dc7c2a36cf",
+        thumbnail: "disease-ontology.webp",
     },
     {
         name: "bioplex3-hct116",
@@ -144,6 +148,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 718314,
         sha256: "f3cec82afec54a53d5c25842dbab2730fd6cb3920dbb10d52f284830b28c8008",
+        thumbnail: "bioplex3-hct116.webp",
     },
     {
         name: "com-dblp",
@@ -169,5 +174,6 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
         hosting: "remote",
         bytes: 15625484,
         sha256: "fdf4976168e0461f42e651fd0bf4cb9e68dbbe1cfafd6813c93c9bb0097c7367",
+        thumbnail: "com-dblp.webp",
     },
 ];

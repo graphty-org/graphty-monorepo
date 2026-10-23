@@ -1,0 +1,23 @@
+{
+    "sample": "dot-specimen-groups-p10",
+    "file": "graph-io/test/fidelity/specimens/dot/specimen-groups-p10.gv",
+    "sha256": "aeec73cec5c732054db5393bddba2297e1b1ac76091f25a806bc987e03a9e925",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file> (run in the sheet's directory)",
+    "engineSource": "specimen sheet: every node pinned with pos, so neato -n2 draws it where the file says",
+    "standIn": false,
+    "expectedWarnings": [],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 675,
+        "heightPt": 900,
+        "widthPx": 900,
+        "heightPx": 1200
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-groups-p10 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-groups-p10.svg"
+}

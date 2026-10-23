@@ -178,7 +178,7 @@ describe("the accent follows the theme's primaryColor", () => {
 
 describe.each(["light", "dark"] as const)("the graphty accent (%s)", (scheme) => {
     /**
-     * Render a filled button, a danger button and a dark menu with one highlighted row under the
+     * Render a filled button, a danger button and an inverse (always dark) menu with one highlighted row under the
      * graphty accent in the AA mode, as the graphty app does.
      * @returns the container
      */
@@ -190,7 +190,7 @@ describe.each(["light", "dark"] as const)("the graphty accent (%s)", (scheme) =>
             >
                 <Button>Go</Button>
                 <Button color="red">Delete</Button>
-                <div className="cm-menu-surface">
+                <div className="cm-menu-surface cm-menu-inverse">
                     <div className="cm-menu-row" aria-selected="true" data-testid="lit">
                         Lit
                     </div>

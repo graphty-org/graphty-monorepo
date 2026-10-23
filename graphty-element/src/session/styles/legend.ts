@@ -97,6 +97,18 @@ export interface LegendSwatch {
      * value is painted when it is shown again. Absent on a row that is painted.
      */
     readonly hidden?: true;
+    /**
+     * The name a reader gave this value (`session.data.setValueLabel`). Absent when it has none.
+     * @since 3.26.0
+     */
+    readonly name?: string;
+    /**
+     * The value is an arbitrary code the element made up (a run's group id), not something the
+     * data says: an application names it ("Group 3", by `rank`) until a reader names it. Absent on
+     * a value the data supplied.
+     * @since 3.26.0
+     */
+    readonly arbitrary?: true;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
@@ -120,6 +132,14 @@ export interface LegendSwatch {
      * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
      */
     readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+    /**
+     * A layer above paints the block's channel on every element the block's layer selects that
+     * carries this value, so none of them shows this row's paint: the layer shown on the most of
+     * them. Absent while at least one element carrying the value shows it, and on a row no element
+     * carries. Set on the rows of a categorical block only.
+     * @since 3.33.0
+     */
+    readonly paintedOverBy?: LayerId;
 }
 
 /**
@@ -158,8 +178,18 @@ export interface LegendReading {
 export interface LegendBlock {
     /** The channel the block describes. */
     readonly channel: Channel;
-    /** The layer that paints it. */
+    /**
+     * The layer that paints it. For a block standing for several copies (`layers`), the copy
+     * shown on the most elements, whose domain and swatches the block reads.
+     */
     readonly layerId: LayerId;
+    /**
+     * Every layer whose copy of the same binding this one block stands for, bottom first, when
+     * several layers hold an identical binding (a binding copied into each of a folder's layers):
+     * {@link StylesApi.legend} lists such copies once. Absent for a block of one layer.
+     * @since 3.29.0
+     */
+    readonly layers?: readonly LayerId[];
     /** The run behind the layer, when a run put it there. */
     readonly runId?: RunId;
     /** What shape of legend a consumer draws: a ramp, a list of colours, a single chip. */
@@ -241,6 +271,30 @@ export interface LegendBlock {
     };
     /** Up to twelve rows, plus the `"other"` row when the paint folded some groups. */
     readonly swatches: readonly LegendSwatch[];
+    /**
+     * How many elements this block's layer currently paints on this channel: the elements where
+     * it is the layer the picture shows, as `styles.counts(layerId).painted[channel]` counts them.
+     * 0 when the layer matches nothing right now (a Selected row with nothing selected) or a layer
+     * above paints over all of it, so a consumer can leave such a block out.
+     * @since 3.26.0
+     */
+    readonly painted?: number;
+    /**
+     * How many elements of its kind the block's layer selects among those drawn (`count`) out of
+     * how many the graph holds (`of`), present when that is fewer than all of them: a layer of
+     * hand-picked nodes, one narrowed by a condition, or one whose elements a visibility step hides.
+     * An element a filter step hides is not counted, so `count` is 0 for a layer whose every
+     * element is hidden, and a consumer can leave such a block out. A block standing for several
+     * copies (`layers`) counts what the copies select together. Absent for a layer whose selector
+     * is `everything`.
+     * @since 3.33.0
+     */
+    readonly scope?: {
+        /** How many of the elements drawn the layer selects. */
+        readonly count: number;
+        /** How many elements of that kind the graph holds. */
+        readonly of: number;
+    };
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
         /** How many rows were left out of `swatches`, as a number. */
@@ -374,6 +428,72 @@ export interface LegendSources {
      * @returns The rank by group, or undefined when the run has no sizes table.
      */
     readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
+    /**
+     * The names given to one path's values (`data.setValueLabel`), by the value as the legend
+     * spells it. Absent, no swatch carries a name.
+     * @param path - The value path.
+     * @returns The names.
+     */
+    readonly valueLabels?: (path: Path) => ReadonlyMap<string, string>;
+    /**
+     * How many elements one layer is the shown layer on, per channel it writes.
+     *
+     * Absent, the blocks carry no `painted` count.
+     * @param layerId - The layer.
+     * @returns The count per channel.
+     */
+    readonly painted?: (layerId: LayerId) => Readonly<Partial<Record<Channel, number>>>;
+    /**
+     * Whether a layer is the base look's home (the Everything row while `editableBase` is on):
+     * its plain values are what the picture looks like when nothing has been said about the data,
+     * as a base layer's are, so only what it reads from the data is listed.
+     *
+     * Absent, no layer is.
+     * @param layer - The layer.
+     * @returns True for the base look's home.
+     */
+    readonly holdsBase?: (layer: Layer) => boolean;
+    /**
+     * The categories one layer's binding for a channel meets among the elements the layer
+     * selects, spelled as the legend spells a category. Read only for copies of one binding the
+     * legend folds into one block, so the block lists what the copies paint and no more.
+     *
+     * Absent, a folded block keeps its first copy's rows.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The categories, or undefined when the layer binds no category there.
+     */
+    readonly reached?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
+    /**
+     * How many of the elements drawn one layer selects, and how many of its kind the graph holds.
+     * Read only for a layer whose selector is not `everything`.
+     *
+     * Absent, no block carries a `scope`.
+     * @param layerId - The layer.
+     * @returns The two counts.
+     */
+    readonly selects?: (layerId: LayerId) => { readonly count: number; readonly of: number };
+    /**
+     * For each category one layer's binding meets among the elements it selects, how many carry
+     * it, how many of those show the layer's paint for the channel, and the layer shown instead on
+     * the most of the rest. Read for a categorical block only.
+     *
+     * Absent, no swatch carries `paintedOverBy`.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The reach by category, or undefined when the layer binds no category there.
+     */
+    readonly reach?: (layerId: LayerId, channel: Channel) => ReadonlyMap<string, ValueReach> | undefined;
+}
+
+/** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
+export interface ValueReach {
+    /** How many elements the layer selects that carry the category. */
+    readonly carried: number;
+    /** How many of those show the layer's paint for the channel. */
+    readonly shown: number;
+    /** The layer the picture shows instead on the most of the rest, when any. */
+    readonly coveredBy?: LayerId;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -623,12 +743,17 @@ function categorySwatches(
     // A stable sort, so the categories no order names keep their largest-first order.
     const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
     const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
+    const names = prepared.path === null ? undefined : sources.valueLabels?.(prepared.path);
     const row = (category: string, index: number): LegendSwatch => {
         const rank = groups ? rankOf(category, index) : undefined;
+        const name = names?.get(category);
         return {
-            label: rank === undefined ? category : groupName(rank),
+            label: name ?? (rank === undefined ? category : groupName(rank)),
             value: valueOf(category),
             ...(rank === undefined ? {} : { rank }),
+            ...(name === undefined ? {} : { name }),
+            // A run's group ids are made up by the run: a reader names them, never reads them.
+            ...(groups ? { arbitrary: true as const } : {}),
             ...swatchPaint(prepared.paintIgnoringHidden(category)),
             ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
         };
@@ -907,7 +1032,7 @@ function isRgb(value: unknown): value is { r: number; g: number; b: number } {
  * @param color.b - Blue.
  * @returns The luminance, 0 (black) to 1 (white).
  */
-function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+export function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
     const linear = (byte: number): number => {
         const c = byte / 255;
         return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -974,6 +1099,7 @@ function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): Legend
  * @param layers - The stack, bottom first, for the layers that paint over this one.
  * @param at - Where the layer sits in the stack.
  * @param sources - Where the scale's and the field's words come from.
+ * @param painted - How many elements the layer is shown on, per channel, when it was counted.
  * @returns The block.
  */
 function buildBlock(
@@ -982,23 +1108,22 @@ function buildBlock(
     layers: readonly Layer[],
     at: number,
     sources: LegendSources,
+    painted: Readonly<Partial<Record<Channel, number>>> | undefined,
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
-    const all = allSwatches(prepared, layer, sources);
-    // The "other" row is what the paint folded, so it is kept whatever the cap drops.
-    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
-    const rows = other === undefined ? all : all.slice(0, -1);
-    const hidden = Math.max(0, rows.length - SWATCH_CAP);
-    const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
+    const kind = kindOf(prepared, layer);
+    const all = markPaintedOver(allSwatches(prepared, layer, sources), kind, () => sources.reach?.(layer.id, channel));
+    const capped = capSwatches(all);
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
-    const kind = kindOf(prepared, layer);
     const reading = readingOf(prepared, kind);
     const { range } = prepared;
     const facts = factsOf(prepared, layers, at, sources);
+    const selects = layer.selector.match === "everything" ? undefined : sources.selects?.(layer.id);
+    const scoped = selects !== undefined && selects.count < selects.of;
 
-    return {
+    const block: LegendBlock = {
         channel,
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
@@ -1013,11 +1138,57 @@ function buildBlock(
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
-        swatches: Object.freeze(swatches),
-        ...(hidden === 0 ? {} : { overflow: { hidden } }),
+        swatches: Object.freeze(capped.swatches),
+        ...(painted === undefined ? {} : { painted: painted[channel] ?? 0 }),
+        ...(scoped ? { scope: { count: selects.count, of: selects.of } } : {}),
+        ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
         facts: Object.freeze([...facts]),
         departures: Object.freeze(facts.map(departureSentence)),
     };
+    UNCAPPED.set(block, all);
+    return block;
+}
+
+/**
+ * The rows of a categorical block, each row no element shows marked with the layer that paints
+ * over it ({@link LegendSwatch.paintedOverBy}).
+ * @param rows - The rows.
+ * @param kind - The block's kind; only a categorical block's rows are values elements carry.
+ * @param reach - Reads what each category reaches, once, when there is a row to mark.
+ * @returns The rows, marked.
+ */
+function markPaintedOver(
+    rows: readonly LegendSwatch[],
+    kind: LegendBlock["kind"],
+    reach: () => ReadonlyMap<string, ValueReach> | undefined,
+): readonly LegendSwatch[] {
+    const met = kind === "categorical" ? reach() : undefined;
+    if (met === undefined) {
+        return rows;
+    }
+    return rows.map((row) => {
+        const at = row.role === "other" || row.hidden === true ? undefined : met.get(String(row.value));
+        return at !== undefined && at.carried > 0 && at.shown === 0 && at.coveredBy !== undefined
+            ? { ...row, paintedOverBy: at.coveredBy }
+            : row;
+    });
+}
+
+/** Every row a block had before the cap, for {@link foldCopies} to choose from. */
+const UNCAPPED = new WeakMap<LegendBlock, readonly LegendSwatch[]>();
+
+/**
+ * At most {@link SWATCH_CAP} rows, plus the `"other"` row, which is what the paint folded and so
+ * is kept whatever the cap drops.
+ * @param all - Every row.
+ * @returns The rows kept and how many were left out.
+ */
+function capSwatches(all: readonly LegendSwatch[]): { swatches: LegendSwatch[]; hidden: number } {
+    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
+    const rows = other === undefined ? all : all.slice(0, -1);
+    const hidden = Math.max(0, rows.length - SWATCH_CAP);
+    const kept = rows.slice(0, SWATCH_CAP);
+    return { swatches: other === undefined ? kept : [...kept, other], hidden };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1027,8 +1198,8 @@ function buildBlock(
 /**
  * Read the legend out of the encoding model.
  *
- * SYNCHRONOUS, and it paints nothing and measures nothing: every figure it prints was worked out
- * when the bindings were prepared. The one cost it adds is the sweep that finds a stepped
+ * SYNCHRONOUS, and it paints nothing: every figure it prints was worked out when the bindings
+ * were prepared, except each block's `painted` count, which walks the layer's elements once. The one cost it adds is the sweep that finds a stepped
  * encoding's group boundaries, which is a few hundred calls into a closure per block.
  *
  * THE BASE LAYERS ARE NOT IN IT. A layer of kind "base" is what the picture looks like when
@@ -1051,12 +1222,131 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
             continue;
         }
 
-        for (const prepared of sources.encoding(layer.id)) {
-            blocks.push(buildBlock(layer, prepared, layers, at, sources));
+        const all = sources.encoding(layer.id);
+        const prepared = sources.holdsBase?.(layer) === true ? all.filter((each) => each.path !== null) : all;
+        // ponytail: one count per layer per read, a walk over that layer's elements; memoize by
+        // the counts' revision if legend reads ever show up in a profile.
+        const painted = prepared.length === 0 ? undefined : sources.painted?.(layer.id);
+        for (const binding of prepared) {
+            blocks.push(buildBlock(layer, binding, layers, at, sources, painted));
         }
     }
 
-    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
+    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(foldCopies(blocks, layers, sources.reached));
+}
+
+/**
+ * Fold the blocks of copies of one binding in several layers into one, which lists
+ * every layer it stands for and the elements they paint together. Copies that differ only in
+ * their value tables (`map`) are copies too -- a binding copied into each of a folder's group
+ * layers keeps each group's colour in its own table, so the colour follows the group across a
+ * re-run -- and the folded block lists the categories the copies meet among the elements they
+ * select, each painted as the copy that meets it paints it.
+ * @param blocks - The blocks, bottom first.
+ * @param layers - The stack.
+ * @param reached - The categories a layer's binding meets, when the sources can say.
+ * @returns The blocks, each binding once.
+ */
+function foldCopies(
+    blocks: readonly LegendBlock[],
+    layers: readonly Layer[],
+    reached: LegendSources["reached"],
+): LegendBlock[] {
+    const byId = new Map(layers.map((layer) => [layer.id, layer]));
+    const groups = new Map<string, LegendBlock[]>();
+    const order: (LegendBlock | LegendBlock[])[] = [];
+    for (const block of blocks) {
+        const binding = byId.get(block.layerId)?.encode?.[block.channel];
+        if (binding === undefined || !("by" in binding)) {
+            order.push(block);
+            continue;
+        }
+        const { map: _map, ...rest } = binding;
+        const key = `${block.channel}|${JSON.stringify(rest)}`;
+        const group = groups.get(key);
+        if (group === undefined) {
+            const fresh = [block];
+            groups.set(key, fresh);
+            order.push(fresh);
+        } else {
+            group.push(block);
+        }
+    }
+    return order.map((entry) => (Array.isArray(entry) ? foldGroup(entry, reached) : entry));
+}
+
+/**
+ * One block for several copies of a binding (see {@link foldCopies}).
+ * @param copies - The copies' blocks, bottom first.
+ * @param reached - The categories a layer's binding meets, when the sources can say.
+ * @returns The folded block, or the one block of a binding with no copies.
+ */
+function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reached"]): LegendBlock {
+    if (copies.length === 1) {
+        return copies[0];
+    }
+    // The copy shown on the most elements speaks for the rest: a copy painted over everywhere (a
+    // one-node layer under a layer that binds every node the same way) holds a domain read over
+    // its own few elements, so a block named for it kept that layer and lost the range drawn.
+    const kept = copies.reduce((best, copy) => ((copy.painted ?? 0) > (best.painted ?? 0) ? copy : best));
+    const painted = copies.some((copy) => copy.painted !== undefined)
+        ? { painted: copies.reduce((sum, copy) => sum + (copy.painted ?? 0), 0) }
+        : {};
+    // The copies' selections together; every element of the kind, and the block has no scope.
+    const together = copies.every((copy) => copy.scope !== undefined)
+        ? copies.reduce((sum, copy) => sum + (copy.scope?.count ?? 0), 0)
+        : undefined;
+    const { scope: _scope, ...keptRest } = kept;
+    const of = kept.scope?.of ?? 0;
+    const folded = {
+        ...keptRest,
+        layers: Object.freeze(copies.map((copy) => copy.layerId)),
+        ...painted,
+        ...(together !== undefined && together < of ? { scope: { count: together, of } } : {}),
+    };
+    // A ramp's rows are samples along the domain, not categories an element carries: kept whole,
+    // or the ramp lost both its end values to the category filter below.
+    if (kept.kind === "sequential" || kept.kind === "diverging") {
+        return Object.freeze(folded);
+    }
+    const met = copies.map((copy) => reached?.(copy.layerId, copy.channel));
+    if (met.includes(undefined)) {
+        return Object.freeze(folded);
+    }
+    // Each category once, painted as the copy that meets it paints it, in the kept copy's order.
+    const rank = new Map((UNCAPPED.get(kept) ?? kept.swatches).map((swatch, at) => [String(swatch.value), at]));
+    const seen = new Set<string>();
+    const rows: LegendSwatch[] = [];
+    let other: LegendSwatch | undefined;
+    copies.forEach((copy, at) => {
+        const categories = met[at] ?? new Set<string>();
+        for (const swatch of UNCAPPED.get(copy) ?? copy.swatches) {
+            if (swatch.role === "other") {
+                // The bucket stays when a copy meets a category folded into it.
+                const folds = Array.isArray(swatch.value) ? swatch.value : [];
+                other ??= folds.some((value) => categories.has(String(value))) ? swatch : undefined;
+                continue;
+            }
+            const category = String(swatch.value);
+            const key = `${category}|${JSON.stringify(swatch.paints ?? swatch.color ?? null)}`;
+            if (categories.has(category) && !seen.has(key)) {
+                seen.add(key);
+                rows.push(swatch);
+            }
+        }
+    });
+    rows.sort((a, b) => (rank.get(String(a.value)) ?? Infinity) - (rank.get(String(b.value)) ?? Infinity));
+    const capped = capSwatches(other === undefined ? rows : [...rows, other]);
+    const { overflow: _overflow, ...rest } = folded;
+    // Nothing the copies meet is folded into "other" when no copy keeps the bucket's row.
+    const facts = other === undefined ? kept.facts.filter((fact) => fact.code !== "legend.lumped") : kept.facts;
+    return Object.freeze({
+        ...rest,
+        swatches: Object.freeze(capped.swatches),
+        ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
+        facts: Object.freeze(facts),
+        departures: Object.freeze(facts.map(departureSentence)),
+    });
 }
 
 /**
@@ -1076,8 +1366,9 @@ export function buildLayerLegend(sources: LegendSources, layerId: LayerId): read
     }
 
     const layer = layers[at];
+    const painted = layer.enabled ? sources.painted?.(layerId) : undefined;
     const blocks = layer.enabled
-        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources))
+        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources, painted))
         : [];
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);

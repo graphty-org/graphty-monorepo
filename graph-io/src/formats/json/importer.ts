@@ -128,7 +128,7 @@ import {
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
 import { jsonPositions } from "./positions.js";
-import { jsonStyles, type JsonStyleSource } from "./styles.js";
+import { jsonStyles, type JsonStyleSource, SIGMA_DEFAULT_SETTINGS, type SigmaSettings } from "./styles.js";
 
 /**
  * The format-specific options of the JSON importer. `graphIndex` / `graphName` choose one graph of
@@ -204,6 +204,13 @@ export interface JsonImportOptions extends GraphChoiceOptions, CommonImportOptio
      * @defaultValue next to the nodes
      */
     edgesPath?: string | undefined;
+    /**
+     * graphology and Gephi JSON documents: the sigma.js settings the graph is drawn with, which are the application's
+     * and never in the file. `renderEdgeLabels: true` draws the edges' labels, between two labeled nodes or, with
+     * `edgeLabelAnchors: "allNodes"`, on every edge; other settings are accepted and not read.
+     * @defaultValue sigma.js's own settings (no edge labels)
+     */
+    sigmaSettings?: Readonly<Record<string, unknown>> | undefined;
 }
 
 /**
@@ -408,6 +415,15 @@ const GEPHI_NODE_KEYS: ReadonlySet<string> = new Set(["id", "attributes"]);
 /** The structural keys of an edge in Gephi's JSON export. */
 const GEPHI_EDGE_KEYS: ReadonlySet<string> = new Set([...GRAPHOLOGY_EDGE_KEYS, "id"]);
 
+/**
+ * The keys Gephi's JSON export writes beside a node's `attributes`, the ones sigma.js draws: a Gephi column named
+ * like one of them is data under `attributes`, read as `<key>#data` so it never stands in for the element's own key.
+ */
+const GEPHI_NODE_DISPLAY_KEYS: ReadonlySet<string> = new Set(["label", "x", "y", "size", "color"]);
+
+/** The keys Gephi's JSON export writes beside an edge's `attributes` (see GEPHI_NODE_DISPLAY_KEYS). */
+const GEPHI_EDGE_DISPLAY_KEYS: ReadonlySet<string> = new Set(["label", "size", "color"]);
+
 /** The vis.js endpoint keys. */
 const VIS_SOURCE_KEYS: readonly string[] = Object.freeze(["from"]);
 const VIS_TARGET_KEYS: readonly string[] = Object.freeze(["to"]);
@@ -452,6 +468,8 @@ interface ResolvedJsonOptions {
     readonly edgesPath: readonly string[] | null;
     /** Set by importAll(): every graph of a `graphs` array is read, so none is reported as skipped. */
     readonly all?: boolean;
+    /** graphology: the sigma.js settings of the drawing. */
+    readonly sigma: SigmaSettings;
 }
 
 /**
@@ -499,7 +517,30 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
         typedefs,
         nodesPath,
         edgesPath,
+        sigma: sigmaSettingsOption(o.sigmaSettings),
     };
+}
+
+/**
+ * Check the `sigmaSettings` option: an object, whose `renderEdgeLabels` and `edgeLabelAnchors` are sigma's values.
+ * @param value - the caller's value
+ * @returns the settings graph-io reads, sigma's own where not given
+ */
+function sigmaSettingsOption(value: unknown): SigmaSettings {
+    if (value === undefined) {
+        return SIGMA_DEFAULT_SETTINGS;
+    }
+    if (!isJsonObject(value)) {
+        throw unsupportedOption("sigmaSettings", value, ["an object of sigma.js settings"]);
+    }
+    const { renderEdgeLabels = false, edgeLabelAnchors = "nodeLabels" } = value;
+    if (typeof renderEdgeLabels !== "boolean") {
+        throw unsupportedOption("sigmaSettings.renderEdgeLabels", renderEdgeLabels, ["true", "false"]);
+    }
+    if (edgeLabelAnchors !== "nodeLabels" && edgeLabelAnchors !== "allNodes") {
+        throw unsupportedOption("sigmaSettings.edgeLabelAnchors", edgeLabelAnchors, ["nodeLabels", "allNodes"]);
+    }
+    return { renderEdgeLabels, edgeLabelAnchors };
 }
 
 /**
@@ -1326,9 +1367,10 @@ export class ImportContext {
      * @param structural - the element keys that are not attributes
      * @param element - the element name for issues
      * @param how - `weightFrom`: the weight key to skip in the dict; `plain`: write the element-level keys under their
-     * own names, not with the `#element` suffix
+     * own names, not with the `#element` suffix; `dataKeys`: the dict keys written with the `#data` suffix
      * @param how.weightFrom - the weight key to skip in the dict, or null (the default)
      * @param how.plain - write the element-level keys under their own names (default false)
+     * @param how.dataKeys - the dict keys that name an element-level key, written as `<key>#data` (default none)
      */
     writeNested(
         writer: AttributeWriter,
@@ -1337,12 +1379,17 @@ export class ImportContext {
         dict: JsonRecord,
         structural: ReadonlySet<string>,
         element: string,
-        how: { readonly weightFrom?: string | null; readonly plain?: boolean } = {},
+        how: {
+            readonly weightFrom?: string | null;
+            readonly plain?: boolean;
+            readonly dataKeys?: ReadonlySet<string>;
+        } = {},
     ): void {
-        const { weightFrom = null, plain = false } = how;
+        const { weightFrom = null, plain = false, dataKeys } = how;
         for (const key of Object.keys(dict)) {
             if (key !== weightFrom) {
-                writer.write(row, key, dict[key], SUFFIX.data, element);
+                const name = dataKeys?.has(key) === true ? `${key}${SUFFIX.data}` : key;
+                writer.write(row, name, dict[key], SUFFIX.data, element);
             }
         }
         for (const key of Object.keys(record)) {
@@ -2797,7 +2844,7 @@ function importGraphology(ctx: ImportContext, root: JsonRecord): void {
     // `y`, `color`, `size`) beside `attributes`; they are read as attributes, not as unknown element keys
     const firstNode = nodes.find((n) => isJsonObject(n));
     const gephi = isJsonObject(firstNode) && !hasKey(firstNode, "key") && hasKey(firstNode, "id");
-    ctx.styleSource = { dialect: "graphology", block: blockOf(root), gephi };
+    ctx.styleSource = { dialect: "graphology", block: blockOf(root), gephi, sigma: ctx.json.sigma };
     ctx.reportNodeIdFrom("graphology", "the node key");
     ctx.sink.reserve(nodes.length, edges.length);
 
@@ -2989,6 +3036,7 @@ function pushGraphologyEdge(
     ctx.writeNested(ctx.edges, edge, record, attributes, gephi ? GEPHI_EDGE_KEYS : GRAPHOLOGY_EDGE_KEYS, element, {
         weightFrom: ctx.options.weightFrom,
         plain: gephi,
+        dataKeys: gephi ? GEPHI_EDGE_DISPLAY_KEYS : undefined,
     });
     if (declared.allowSelfLoops === false && u === v) {
         violations.selfLoops++;
@@ -3069,7 +3117,10 @@ function pushNestedNode(
                 { element },
             );
         }
-        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, element, { plain });
+        ctx.writeNested(ctx.nodes, index, record, isJsonObject(dict) ? dict : {}, structural, element, {
+            plain,
+            dataKeys: plain ? GEPHI_NODE_DISPLAY_KEYS : undefined,
+        });
     } catch (err) {
         ctx.report.recordError(err, { element: String(id) });
     }
@@ -4267,6 +4318,7 @@ export const jsonImporter: GraphImporter<JsonImportOptions> = Object.freeze({
         "nodeIdKey",
         "nodesPath",
         "oboIds",
+        "sigmaSettings",
         "sourceKey",
         "targetKey",
         "typedefs",

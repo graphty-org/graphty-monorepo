@@ -45,7 +45,7 @@ export interface HelpButtonProps
 /**
  * Figma's floating help button: a 32 x 32 circle on `--cm-bg` with the 200 elevation and no hover
  * change. Its tooltip shows and hides at once outside a Tooltip.Group; its focus ring (1px at -2px) fades in over 200ms.
- * It opens a dark menu of the caller's items, 4px above and end-aligned.
+ * It opens a menu of the caller's items, 4px above and end-aligned.
  * @param props - Component props
  * @param props.label - Accessible name and tooltip
  * @param props.children - The menu's items

@@ -34,9 +34,9 @@ const FILES = [
     {
         type: "json",
         path: "json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json",
-        // `.catalysis` edges end in a circle, `.production` edges in a triangle.
+        // `.catalysis` edges end in a hollow circle, `.production` edges in a triangle.
         arrows: {
-            "glyph9->nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111": "dot",
+            "glyph9->nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111": "open-dot",
             "nwtN_f72662af-67d4-4ca2-8504-4ca032ddd111->glyph1": "normal",
         },
     },

@@ -1,0 +1,252 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g />
+	<g>
+		<rect x="52" y="797.5" width="136" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="804" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=DiagonalCross</text>
+	</g>
+	<g>
+		<ellipse cx="120" cy="764" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="120" y="764" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1005.5" y="633.5" width="149" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1080" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=ForwardDiagonal</text>
+	</g>
+	<g>
+		<ellipse cx="1080" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1080" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="842.5" y="633.5" width="155" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="920" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=BackwardDiagonal</text>
+	</g>
+	<g>
+		<ellipse cx="920" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="920" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="716.5" y="633.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="760" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Cross</text>
+	</g>
+	<g>
+		<ellipse cx="760" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="760" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="547.5" y="633.5" width="105" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Vertical</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="381" y="633.5" width="118" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="440" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Horizontal</text>
+	</g>
+	<g>
+		<ellipse cx="440" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="440" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="233.5" y="633.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="280" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense7</text>
+	</g>
+	<g>
+		<ellipse cx="280" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="280" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="73.5" y="633.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="640" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense6</text>
+	</g>
+	<g>
+		<ellipse cx="120" cy="600" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="120" y="600" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1033.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1080" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense5</text>
+	</g>
+	<g>
+		<ellipse cx="1080" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1080" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="873.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="920" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense4</text>
+	</g>
+	<g>
+		<ellipse cx="920" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="920" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="713.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="760" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense3</text>
+	</g>
+	<g>
+		<ellipse cx="760" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="760" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="553.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense2</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="393.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="440" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Dense1</text>
+	</g>
+	<g>
+		<ellipse cx="440" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="440" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="236.5" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="280" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Solid</text>
+	</g>
+	<g>
+		<ellipse cx="280" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="280" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="80" y="469.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=None</text>
+	</g>
+	<g>
+		<ellipse cx="120" cy="436" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="120" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1021" y="305.5" width="118" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1080" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Dashdotdot</text>
+	</g>
+	<g>
+		<ellipse cx="1080" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#505050" stroke-dasharray="12,6,3,6,3,6" />
+		<text x="1080" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="870.5" y="305.5" width="99" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="920" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Dashdot</text>
+	</g>
+	<g>
+		<ellipse cx="920" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#505050" stroke-dasharray="12,6,3,6" />
+		<text x="920" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="723" y="305.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="760" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Dot</text>
+	</g>
+	<g>
+		<ellipse cx="760" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#505050" stroke-dasharray="3,6" />
+		<text x="760" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="560" y="305.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Dash</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#505050" stroke-dasharray="12,6" />
+		<text x="600" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="396.5" y="305.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="440" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Solid</text>
+	</g>
+	<g>
+		<ellipse cx="440" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#505050" />
+		<text x="440" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="240" y="305.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="280" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=None</text>
+	</g>
+	<g>
+		<ellipse cx="280" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="none" />
+		<text x="280" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="83" y="305.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="312" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">lineWidth=6</text>
+	</g>
+	<g>
+		<ellipse cx="120" cy="272" rx="18" ry="18" fill="#C8C8C8" stroke-width="6.000000px" stroke="#505050" />
+		<text x="120" y="272" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1043" y="141.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1080" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">lineWidth=4</text>
+	</g>
+	<g>
+		<ellipse cx="1080" cy="108" rx="18" ry="18" fill="#C8C8C8" stroke-width="4.000000px" stroke="#505050" />
+		<text x="1080" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="883" y="141.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="920" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">lineWidth=2</text>
+	</g>
+	<g>
+		<ellipse cx="920" cy="108" rx="18" ry="18" fill="#C8C8C8" stroke-width="2.000000px" stroke="#505050" />
+		<text x="920" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="723" y="141.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="760" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">lineWidth=0</text>
+	</g>
+	<g>
+		<ellipse cx="760" cy="108" rx="18" ry="18" fill="#C8C8C8" stroke-width="0.000000px" stroke="#505050" />
+		<text x="760" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="550.5" y="141.5" width="99" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">outline=#0000FF</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="108" rx="18" ry="18" fill="#C8C8C8" stroke-width="3.000000px" stroke="#0000FF" />
+		<text x="600" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="400" y="141.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="440" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#ff8800</text>
+	</g>
+	<g>
+		<ellipse cx="440" cy="108" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="440" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="240" y="141.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="280" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#FF8800</text>
+	</g>
+	<g>
+		<ellipse cx="280" cy="108" rx="18" ry="18" fill="#FF8800" stroke-width="1.000000px" stroke="#505050" />
+		<text x="280" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="76.5" y="141.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="148" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<rect x="110" y="98" width="20" height="20" fill="#FFFFFF" stroke-width="1.000000px" stroke="#000000" />
+		<text x="120" y="108" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+</svg>

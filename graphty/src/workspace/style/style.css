@@ -1,0 +1,287 @@
+/* The Style tab (StylePanel): a Node tab and an Edge tab, each with the other kind's line, the
+   kind's switch and Which picker (a tree row), then its sections, one line per property the layer
+   sets. */
+
+/* One gutter for the tab: the tabs, the Which picker, the section titles and every field start 16px in, as
+   the sections' own content does (Figma's panel). */
+.ws-style-panel {
+    --ws-gutter: 16px;
+    /* The label column every field of the tab shares, so every field starts at one left edge. The
+       tab sizes it to its longest name, 40 to 80 px (useLabelColumn); this is the start. */
+    --ws-label: 80px;
+}
+
+/* One property the layer sets: its line, and under it the caption of a layer above that covers it. */
+.ws-row {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ws-field-covered {
+    padding-inline-start: var(--ws-label, 80px);
+    padding-bottom: 2px;
+}
+
+/* A field: one line of about 28px -- its name in the label column, the control, then the vary and
+   Clear columns. Without a name (a field its row already names), the control starts the line. */
+.ws-field {
+    display: grid;
+    grid-template-columns: var(--ws-label, 80px) minmax(0, 1fr) 24px 24px;
+    align-items: center;
+    min-width: 0;
+    min-height: 28px;
+}
+
+.ws-field:not([data-named]) {
+    grid-template-columns: minmax(0, 1fr) 24px 24px;
+}
+
+/* The name, in the label column. */
+.ws-field-label {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding-inline-end: 4px;
+    font-size: 11px;
+    color: var(--cm-text-secondary);
+}
+
+.ws-field-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-field-control {
+    min-width: 0;
+}
+
+/* A text entry's kind (its glyph and word) where the label column is, so its source starts on the
+   field column when the kind fits it. It is at least the column wide, with the field label's 4px
+   end padding; the negative margin takes back the row's 4px gap. It is not measured into the
+   column (useLabelColumn): with its glyph it is wider than a field's name, and widening the column
+   for it narrowed every field of the tab ("Icosphere" cut to "Icosph..."). So it takes its own
+   width, and its word is never cut. */
+.ws-text-kind {
+    display: flex;
+    flex: 0 0 auto;
+    min-width: var(--ws-label, 80px);
+    align-items: center;
+    gap: 4px;
+    padding-inline-end: 4px;
+    margin-inline-end: -4px;
+    font-size: 11px;
+    color: var(--cm-text-secondary);
+}
+
+/* The vary and Clear columns: always 24px, empty or not, so a field never changes width. */
+.ws-slot {
+    display: inline-flex;
+    flex: 0 0 24px;
+    justify-content: center;
+    width: 24px;
+    min-height: 24px;
+}
+
+/* The vary glyph is drawn at rest, dim, and full on hover and focus. */
+@media (hover: hover) {
+    .ws-varies:not(:hover, :focus-within) .ws-vary:not(:has([aria-expanded="true"])) button {
+        color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
+    }
+}
+
+/* A locked row: its controls stay focusable and say why they do nothing; drawn dimmed. */
+.ws-row-locked .ws-style-panel {
+    opacity: 0.55;
+}
+
+/* A varied field's second line: category chits and "+N", a ramp's ends or a number's From / To,
+   then its notes ("Logarithmic scale"), under the value pill. */
+.ws-varied-line {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 2px 0 4px;
+}
+
+/* One row that never wraps: at most 6 chits, or 5 and "+N". */
+.ws-varied-chits {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 2px;
+}
+
+/* 12 px, a 1 px inset ring at 3:1 on either theme, so a pale or a dark color keeps its edge. */
+.ws-varied-chit {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--cm-swatch-ring);
+}
+
+/* A field with a line under it: its name and its columns line up with the pill, its first line. */
+.ws-field:has(.ws-varied-line) {
+    align-items: start;
+    padding-top: 2px;
+}
+
+.ws-field:has(.ws-varied-line) > .ws-field-label {
+    min-height: 24px;
+}
+
+.ws-varied-ends {
+    display: flex;
+    justify-content: space-between;
+}
+
+/* After a write to several layers: what it did, "Also set those N" and Undo, under the field. */
+.ws-bulk-receipt {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    padding: 0 8px 4px var(--ws-label, 80px);
+}
+
+/* What a bulk edit says under its field (the breakdown, the receipt): 11 px in
+   the primary ink, so the small words keep 4.5:1 on either theme. */
+.ws-bulk-words.ws-bulk-words {
+    --text-fz: 11px;
+    --text-lh: 16px;
+    color: var(--cm-text);
+    font-size: 11px;
+    line-height: 16px;
+}
+
+/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+.ws-style-tabs > [role="tablist"] {
+    padding: 8px 8px 4px var(--ws-gutter);
+}
+
+.ws-other-line,
+.ws-kind-switch {
+    padding: 2px 8px 2px var(--ws-gutter);
+}
+
+/* A switch that cannot change carries its reason in a tooltip, anchored to the switch itself. */
+.ws-kind-switch-tip {
+    width: fit-content;
+}
+
+/* A kind's Which picker: the collapsed row, or the open cards. */
+.ws-which {
+    padding: 4px 8px 4px var(--ws-gutter);
+}
+
+/* The collapsed row: a disclosure button, its head on one line and its chips under it. */
+.ws-which-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 4px;
+    margin-inline: -4px;
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-which-row:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+.ws-which-head > svg {
+    flex: none;
+    color: var(--cm-icon-secondary, var(--mantine-color-dimmed));
+}
+
+.ws-which-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* A card's chip: its words and its own count, 11 px on the secondary fill; an unfinished card's
+   chip is dashed. */
+.ws-chip {
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 18px;
+    color: var(--cm-text);
+    background: var(--cm-bg-secondary);
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
+}
+
+.ws-chip[data-todo] {
+    background: transparent;
+    box-shadow: none;
+    outline: 1px dashed var(--cm-border-translucent-strong);
+    outline-offset: -1px;
+}
+
+/* "All 24 nodes": a line of the panel's reading, not a warning. */
+.ws-which-hint {
+    font-size: 11px;
+    line-height: 18px;
+}
+
+/* The base layer's Which row: plain text, not a control, at the panel's reading color. */
+.ws-which-base {
+    padding: 4px 0;
+    line-height: 18px;
+}
+
+/* One condition card: its header (name, count, x), its Match select and its editor. */
+.ws-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border-radius: var(--mantine-radius-sm);
+    box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
+}
+
+/* The card's x sits in its header's corner but comes after the card's controls in the Tab
+   order, so a walk through a card meets its value first and its remove button after. */
+.ws-card-head {
+    padding-inline-end: 20px;
+}
+
+.ws-card-remove {
+    position: absolute;
+    top: 4px;
+    inset-inline-end: 4px;
+}
+
+.ws-card-layer,
+.ws-card-layer-line {
+    display: block;
+    width: 100%;
+    padding: 2px 4px;
+    border-radius: var(--mantine-radius-sm);
+    text-align: start;
+}
+
+.ws-card-layer:hover,
+.ws-card-layer-line:hover {
+    background: var(--mantine-color-default-hover);
+}
+
+/* A color field's refusal is a line of its own under the whole row: the field's wrappers step
+   aside (display: contents), so the box sits in the field column and the message takes the next
+   grid line, and the name and the vary and Clear columns keep their line beside the box. */
+.ws-field-control:has(> .cm-paint),
+.ws-field-control > .cm-paint {
+    display: contents;
+}
+
+.ws-field-control > .cm-paint > .cm-paint-message {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    padding-bottom: 4px;
+}

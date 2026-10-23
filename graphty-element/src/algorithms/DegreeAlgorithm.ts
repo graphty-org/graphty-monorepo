@@ -21,6 +21,7 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
         technicalName: "inDegree",
         kind: "node",
         type: "integer",
+        directedOnly: true,
     }),
     metricField({
         name: "outDegree",
@@ -28,6 +29,7 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
         technicalName: "outDegree",
         kind: "node",
         type: "integer",
+        directedOnly: true,
     }),
 ];
 

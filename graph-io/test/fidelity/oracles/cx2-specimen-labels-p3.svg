@@ -1,0 +1,1043 @@
+<?xml version="1.0" standalone="no"?>
+
+<svg 
+     version="1.1"
+     baseProfile="full"
+     xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink"
+     xmlns:ev="http://www.w3.org/2001/xml-events"
+     x="0px"
+     y="0px"
+     width="1200px"
+     height="900px"
+     viewBox="0 0 1200 900"
+     >
+<title></title>
+<desc>Creator: Creator: Cytoscape via FreeHEP Graphics2D Driver Producer: org.freehep.graphicsio.svg.SVGGraphics2D Source: </desc>
+<g stroke-dashoffset="0" stroke-linejoin="miter" stroke-dasharray="none" stroke-width="1" stroke-linecap="square" stroke-miterlimit="10">
+<g fill="#ffffff" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 0 0 L 1200 0 L 1200 900 L 0 900 L 0 0 z"/>
+</g> <!-- drawing style -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 208.5 148 C 208.5 148.2761423749154 208.2761423749154 148.5 208 148.5 C 207.7238576250846 148.5 207.5 148.2761423749154 207.5 148 C 207.5 147.7238576250846 207.7238576250846 147.5 208 147.5 C 208.2761423749154 147.5 208.5 147.7238576250846 208.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 168.16977111921094, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 168.68169255199396, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">C,E,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 880.5 312 C 880.5 312.2761423749154 880.2761423749154 312.5 880 312.5 C 879.7238576250846 312.5 879.5 312.2761423749154 879.5 312 C 879.5 311.7238576250846 879.7238576250846 311.5 880 311.5 C 880.2761423749154 311.5 880.5 311.7238576250846 880.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 845.9330644296741, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 840.6254807434606, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,W,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 432.5 640 C 432.5 640.2761423749154 432.2761423749154 640.5 432 640.5 C 431.7238576250846 640.5 431.5 640.2761423749154 431.5 640 C 431.5 639.7238576250846 431.7238576250846 639.5 432 639.5 C 432.2761423749154 639.5 432.5 639.7238576250846 432.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 394.0908688893653, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 391.49580396387216, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,N,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 334.5 108 C 334.5 116.00812887254651 328.0081288725465 122.5 320 122.5 C 311.9918711274535 122.5 305.5 116.00812887254651 305.5 108 C 305.5 99.99187112745349 311.9918711274535 93.5 320 93.5 C 328.0081288725465 93.5 334.5 99.99187112745349 334.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 334.5 108 C 334.5 116.00812887254651 328.0081288725465 122.5 320 122.5 C 311.9918711274535 122.5 305.5 116.00812887254651 305.5 108 C 305.5 99.99187112745349 311.9918711274535 93.5 320 93.5 C 328.0081288725465 93.5 334.5 99.99187112745349 334.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 317.10566640759004, 102.68827052958832)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1006.5 272 C 1006.5 280.0081288725465 1000.0081288725465 286.5 992 286.5 C 983.9918711274535 286.5 977.5 280.0081288725465 977.5 272 C 977.5 263.9918711274535 983.9918711274535 257.5 992 257.5 C 1000.0081288725465 257.5 1006.5 263.9918711274535 1006.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1006.5 272 C 1006.5 280.0081288725465 1000.0081288725465 286.5 992 286.5 C 983.9918711274535 286.5 977.5 280.0081288725465 977.5 272 C 977.5 263.9918711274535 983.9918711274535 257.5 992 257.5 C 1000.0081288725465 257.5 1006.5 263.9918711274535 1006.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 966.6288224967839, 289.0936628966552)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 558.5 600 C 558.5 608.0081288725465 552.0081288725465 614.5 544 614.5 C 535.9918711274535 614.5 529.5 608.0081288725465 529.5 600 C 529.5 591.9918711274535 535.9918711274535 585.5 544 585.5 C 552.0081288725465 585.5 558.5 591.9918711274535 558.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 558.5 600 C 558.5 608.0081288725465 552.0081288725465 614.5 544 614.5 C 535.9918711274535 614.5 529.5 608.0081288725465 529.5 600 C 529.5 591.9918711274535 535.9918711274535 585.5 544 585.5 C 552.0081288725465 585.5 558.5 591.9918711274535 558.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 531.9324245551029, 625.7769283340481)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 320.5 148 C 320.5 148.2761423749154 320.2761423749154 148.5 320 148.5 C 319.7238576250846 148.5 319.5 148.2761423749154 319.5 148 C 319.5 147.7238576250846 319.7238576250846 147.5 320 147.5 C 320.2761423749154 147.5 320.5 147.7238576250846 320.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 281.13032000428814, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 277.14132182675814, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">C,SW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 992.5 312 C 992.5 312.2761423749154 992.2761423749154 312.5 992 312.5 C 991.7238576250846 312.5 991.5 312.2761423749154 991.5 312 C 991.5 311.7238576250846 991.7238576250846 311.5 992 311.5 C 992.2761423749154 311.5 992.5 311.7238576250846 992.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 958.8936133147513, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 954.9046151372213, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,C,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 544.5 640 C 544.5 640.2761423749154 544.2761423749154 640.5 544 640.5 C 543.7238576250846 640.5 543.5 640.2761423749154 543.5 640 C 543.5 639.7238576250846 543.7238576250846 639.5 544 639.5 C 544.2761423749154 639.5 544.5 639.7238576250846 544.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 507.0514177744425, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 501.588706381325, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,NE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 446.5 108 C 446.5 116.00812887254651 440.0081288725465 122.5 432 122.5 C 423.9918711274535 122.5 417.5 116.00812887254651 417.5 108 C 417.5 99.99187112745349 423.9918711274535 93.5 432 93.5 C 440.0081288725465 93.5 446.5 99.99187112745349 446.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 446.5 108 C 446.5 116.00812887254651 440.0081288725465 122.5 432 122.5 C 423.9918711274535 122.5 417.5 116.00812887254651 417.5 108 C 417.5 99.99187112745349 423.9918711274535 93.5 432 93.5 C 440.0081288725465 93.5 446.5 99.99187112745349 446.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 416.9547230113636, 102.68827052958832)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1118.5 272 C 1118.5 280.0081288725465 1112.0081288725464 286.5 1104 286.5 C 1095.9918711274536 286.5 1089.5 280.0081288725465 1089.5 272 C 1089.5 263.9918711274535 1095.9918711274536 257.5 1104 257.5 C 1112.0081288725464 257.5 1118.5 263.9918711274535 1118.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1118.5 272 C 1118.5 280.0081288725465 1112.0081288725464 286.5 1104 286.5 C 1095.9918711274536 286.5 1089.5 280.0081288725465 1089.5 272 C 1089.5 263.9918711274535 1095.9918711274536 257.5 1104 257.5 C 1112.0081288725464 257.5 1118.5 263.9918711274535 1118.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1066.4778791005574, 289.0936628966552)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 670.5 600 C 670.5 608.0081288725465 664.0081288725465 614.5 656 614.5 C 647.9918711274535 614.5 641.5 608.0081288725465 641.5 600 C 641.5 591.9918711274535 647.9918711274535 585.5 656 585.5 C 664.0081288725465 585.5 670.5 591.9918711274535 670.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 670.5 600 C 670.5 608.0081288725465 664.0081288725465 614.5 656 614.5 C 647.9918711274535 614.5 641.5 608.0081288725465 641.5 600 C 641.5 591.9918711274535 647.9918711274535 585.5 656 585.5 C 664.0081288725465 585.5 670.5 591.9918711274535 670.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 671.1159580027874, 619.9066989172384)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 432.5 148 C 432.5 148.2761423749154 432.2761423749154 148.5 432 148.5 C 431.7238576250846 148.5 431.5 148.2761423749154 431.5 148 C 431.5 147.7238576250846 431.7238576250846 147.5 432 147.5 C 432.2761423749154 147.5 432.5 147.7238576250846 432.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 394.0908688893653, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 394.58949366155656, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">C,S,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 1104.5 312 C 1104.5 312.2761423749154 1104.2761423749155 312.5 1104 312.5 C 1103.7238576250845 312.5 1103.5 312.2761423749154 1103.5 312 C 1103.5 311.7238576250846 1103.7238576250845 311.5 1104 311.5 C 1104.2761423749155 311.5 1104.5 311.7238576250846 1104.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1071.8541621998286, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1068.166554995712, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,E,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 656.5 640 C 656.5 640.2761423749154 656.2761423749154 640.5 656 640.5 C 655.7238576250846 640.5 655.5 640.2761423749154 655.5 640 C 655.5 639.7238576250846 655.7238576250846 639.5 656 639.5 C 656.2761423749154 639.5 656.5 639.7238576250846 656.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 620.0119666595197, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 616.324359455403, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,W,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 558.5 108 C 558.5 116.00812887254651 552.0081288725465 122.5 544 122.5 C 535.9918711274535 122.5 529.5 116.00812887254651 529.5 108 C 529.5 99.99187112745349 535.9918711274535 93.5 544 93.5 C 552.0081288725465 93.5 558.5 99.99187112745349 558.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 558.5 108 C 558.5 116.00812887254651 552.0081288725465 122.5 544 122.5 C 535.9918711274535 122.5 529.5 116.00812887254651 529.5 108 C 529.5 99.99187112745349 535.9918711274535 93.5 544 93.5 C 552.0081288725465 93.5 558.5 99.99187112745349 558.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 516.8037796151373, 102.68827052958832)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 110.5 436 C 110.5 444.0081288725465 104.00812887254651 450.5 96 450.5 C 87.99187112745349 450.5 81.5 444.0081288725465 81.5 436 C 81.5 427.9918711274535 87.99187112745349 421.5 96 421.5 C 104.00812887254651 421.5 110.5 427.9918711274535 110.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 110.5 436 C 110.5 444.0081288725465 104.00812887254651 450.5 96 450.5 C 87.99187112745349 450.5 81.5 444.0081288725465 81.5 436 C 81.5 427.9918711274535 87.99187112745349 421.5 96 421.5 C 104.00812887254651 421.5 110.5 427.9918711274535 110.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 76.05592369746994, 448.6299514901372)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 782.5 600 C 782.5 608.0081288725465 776.0081288725465 614.5 768 614.5 C 759.9918711274535 614.5 753.5 608.0081288725465 753.5 600 C 753.5 591.9918711274535 759.9918711274535 585.5 768 585.5 C 776.0081288725465 585.5 782.5 591.9918711274535 782.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 782.5 600 C 782.5 608.0081288725465 776.0081288725465 614.5 768 614.5 C 759.9918711274535 614.5 753.5 608.0081288725465 753.5 600 C 753.5 591.9918711274535 759.9918711274535 585.5 768 585.5 C 776.0081288725465 585.5 782.5 591.9918711274535 782.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 770.9650146065609, 619.9066989172384)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 544.5 148 C 544.5 148.2761423749154 544.2761423749154 148.5 544 148.5 C 543.7238576250846 148.5 543.5 148.2761423749154 543.5 148 C 543.5 147.7238576250846 543.7238576250846 147.5 544 147.5 C 544.2761423749154 147.5 544.5 147.7238576250846 544.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 507.0514177744425, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 504.6823960790094, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">C,SE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 96.5 476 C 96.5 476.2761423749154 96.2761423749154 476.5 96 476.5 C 95.7238576250846 476.5 95.5 476.2761423749154 95.5 476 C 95.5 475.7238576250846 95.7238576250846 475.5 96 475.5 C 96.2761423749154 475.5 96.5 475.7238576250846 96.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 55.20922223413373, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 47.02069541970406, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,SW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 768.5 640 C 768.5 640.2761423749154 768.2761423749154 640.5 768 640.5 C 767.7238576250846 640.5 767.5 640.2761423749154 767.5 640 C 767.5 639.7238576250846 767.7238576250846 639.5 768 639.5 C 768.2761423749154 639.5 768.5 639.7238576250846 768.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 732.9725155445968, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 730.6034938491637, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,C,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 670.5 108 C 670.5 116.00812887254651 664.0081288725465 122.5 656 122.5 C 647.9918711274535 122.5 641.5 116.00812887254651 641.5 108 C 641.5 99.99187112745349 647.9918711274535 93.5 656 93.5 C 664.0081288725465 93.5 670.5 99.99187112745349 670.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 670.5 108 C 670.5 116.00812887254651 664.0081288725465 122.5 656 122.5 C 647.9918711274535 122.5 641.5 116.00812887254651 641.5 108 C 641.5 99.99187112745349 647.9918711274535 93.5 656 93.5 C 664.0081288725465 93.5 670.5 99.99187112745349 670.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 671.1159580027874, 114.42872936320754)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 222.5 436 C 222.5 444.0081288725465 216.0081288725465 450.5 208 450.5 C 199.9918711274535 450.5 193.5 444.0081288725465 193.5 436 C 193.5 427.9918711274535 199.9918711274535 421.5 208 421.5 C 216.0081288725465 421.5 222.5 427.9918711274535 222.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 222.5 436 C 222.5 444.0081288725465 216.0081288725465 450.5 208 450.5 C 199.9918711274535 450.5 193.5 444.0081288725465 193.5 436 C 193.5 427.9918711274535 199.9918711274535 421.5 208 421.5 C 216.0081288725465 421.5 222.5 427.9918711274535 222.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 175.9049803012435, 448.6299514901372)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 894.5 600 C 894.5 608.0081288725465 888.0081288725465 614.5 880 614.5 C 871.9918711274535 614.5 865.5 608.0081288725465 865.5 600 C 865.5 591.9918711274535 871.9918711274535 585.5 880 585.5 C 888.0081288725465 585.5 894.5 591.9918711274535 894.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 894.5 600 C 894.5 608.0081288725465 888.0081288725465 614.5 880 614.5 C 871.9918711274535 614.5 865.5 608.0081288725465 865.5 600 C 865.5 591.9918711274535 871.9918711274535 585.5 880 585.5 C 888.0081288725465 585.5 894.5 591.9918711274535 894.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 870.8140712103345, 619.9066989172384)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 656.5 148 C 656.5 148.2761423749154 656.2761423749154 148.5 656 148.5 C 655.7238576250846 148.5 655.5 148.2761423749154 655.5 148 C 655.5 147.7238576250846 655.7238576250846 147.5 656 147.5 C 656.2761423749154 147.5 656.5 147.7238576250846 656.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 620.0119666595197, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 615.8102219125213, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,NW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 208.5 476 C 208.5 476.2761423749154 208.2761423749154 476.5 208 476.5 C 207.7238576250846 476.5 207.5 476.2761423749154 207.5 476 C 207.5 475.7238576250846 207.7238576250846 475.5 208 475.5 C 208.2761423749154 475.5 208.5 475.7238576250846 208.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 168.16977111921094, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 164.46886725450253, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,S,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 880.5 640 C 880.5 640.2761423749154 880.2761423749154 640.5 880 640.5 C 879.7238576250846 640.5 879.5 640.2761423749154 879.5 640 C 879.5 639.7238576250846 879.7238576250846 639.5 880 639.5 C 880.2761423749154 639.5 880.5 639.7238576250846 880.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 845.9330644296741, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 843.8654337076543, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,E,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 782.5 108 C 782.5 116.00812887254651 776.0081288725465 122.5 768 122.5 C 759.9918711274535 122.5 753.5 116.00812887254651 753.5 108 C 753.5 99.99187112745349 759.9918711274535 93.5 768 93.5 C 776.0081288725465 93.5 782.5 99.99187112745349 782.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 782.5 108 C 782.5 116.00812887254651 776.0081288725465 122.5 768 122.5 C 759.9918711274535 122.5 753.5 116.00812887254651 753.5 108 C 753.5 99.99187112745349 759.9918711274535 93.5 768 93.5 C 776.0081288725465 93.5 782.5 99.99187112745349 782.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 770.9650146065609, 114.42872936320754)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 334.5 436 C 334.5 444.0081288725465 328.0081288725465 450.5 320 450.5 C 311.9918711274535 450.5 305.5 444.0081288725465 305.5 436 C 305.5 427.9918711274535 311.9918711274535 421.5 320 421.5 C 328.0081288725465 421.5 334.5 427.9918711274535 334.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 334.5 436 C 334.5 444.0081288725465 328.0081288725465 450.5 320 450.5 C 311.9918711274535 450.5 305.5 444.0081288725465 305.5 436 C 305.5 427.9918711274535 311.9918711274535 421.5 320 421.5 C 328.0081288725465 421.5 334.5 427.9918711274535 334.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 275.75403690501713, 448.6299514901372)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1006.5 600 C 1006.5 608.0081288725465 1000.0081288725465 614.5 992 614.5 C 983.9918711274535 614.5 977.5 608.0081288725465 977.5 600 C 977.5 591.9918711274535 983.9918711274535 585.5 992 585.5 C 1000.0081288725465 585.5 1006.5 591.9918711274535 1006.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1006.5 600 C 1006.5 608.0081288725465 1000.0081288725465 614.5 992 614.5 C 983.9918711274535 614.5 977.5 608.0081288725465 977.5 600 C 977.5 591.9918711274535 983.9918711274535 585.5 992 585.5 C 1000.0081288725465 585.5 1006.5 591.9918711274535 1006.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1009.9976046580189, 614.0364695004289)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 768.5 148 C 768.5 148.2761423749154 768.2761423749154 148.5 768 148.5 C 767.7238576250846 148.5 767.5 148.2761423749154 767.5 148 C 767.5 147.7238576250846 767.7238576250846 147.5 768 147.5 C 768.2761423749154 147.5 768.5 147.7238576250846 768.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 732.9725155445968, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 733.2583937473198, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,N,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 320.5 476 C 320.5 476.2761423749154 320.2761423749154 476.5 320 476.5 C 319.7238576250846 476.5 319.5 476.2761423749154 319.5 476 C 319.5 475.7238576250846 319.7238576250846 475.5 320 475.5 C 320.2761423749154 475.5 320.5 475.7238576250846 320.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 281.13032000428814, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 274.5617696719554, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,SE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 992.5 640 C 992.5 640.2761423749154 992.2761423749154 640.5 992 640.5 C 991.7238576250846 640.5 991.5 640.2761423749154 991.5 640 C 991.5 639.7238576250846 991.7238576250846 639.5 992 639.5 C 992.2761423749154 639.5 992.5 639.7238576250846 992.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 958.8936133147513, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 952.3250629824186, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,SW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 894.5 108 C 894.5 116.00812887254651 888.0081288725465 122.5 880 122.5 C 871.9918711274535 122.5 865.5 116.00812887254651 865.5 108 C 865.5 99.99187112745349 871.9918711274535 93.5 880 93.5 C 888.0081288725465 93.5 894.5 99.99187112745349 894.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 894.5 108 C 894.5 116.00812887254651 888.0081288725465 122.5 880 122.5 C 871.9918711274535 122.5 865.5 116.00812887254651 865.5 108 C 865.5 99.99187112745349 871.9918711274535 93.5 880 93.5 C 888.0081288725465 93.5 894.5 99.99187112745349 894.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 870.8140712103345, 114.42872936320754)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 446.5 436 C 446.5 444.0081288725465 440.0081288725465 450.5 432 450.5 C 423.9918711274535 450.5 417.5 444.0081288725465 417.5 436 C 417.5 427.9918711274535 423.9918711274535 421.5 432 421.5 C 440.0081288725465 421.5 446.5 427.9918711274535 446.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 446.5 436 C 446.5 444.0081288725465 440.0081288725465 450.5 432 450.5 C 423.9918711274535 450.5 417.5 444.0081288725465 417.5 436 C 417.5 427.9918711274535 423.9918711274535 421.5 432 421.5 C 440.0081288725465 421.5 446.5 427.9918711274535 446.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 430.0662152926672, 460.3704103237564)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1118.5 600 C 1118.5 608.0081288725465 1112.0081288725464 614.5 1104 614.5 C 1095.9918711274536 614.5 1089.5 608.0081288725465 1089.5 600 C 1089.5 591.9918711274535 1095.9918711274536 585.5 1104 585.5 C 1112.0081288725464 585.5 1118.5 591.9918711274535 1118.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1118.5 600 C 1118.5 608.0081288725465 1112.0081288725464 614.5 1104 614.5 C 1095.9918711274536 614.5 1089.5 608.0081288725465 1089.5 600 C 1089.5 591.9918711274535 1095.9918711274536 585.5 1104 585.5 C 1112.0081288725464 585.5 1118.5 591.9918711274535 1118.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1109.8466612617922, 614.0364695004289)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 880.5 148 C 880.5 148.2761423749154 880.2761423749154 148.5 880 148.5 C 879.7238576250846 148.5 879.5 148.2761423749154 879.5 148 C 879.5 147.7238576250846 879.7238576250846 147.5 880 147.5 C 880.2761423749154 147.5 880.5 147.7238576250846 880.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 845.9330644296741, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 843.3512961647727, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,NE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 432.5 476 C 432.5 476.2761423749154 432.2761423749154 476.5 432 476.5 C 431.7238576250846 476.5 431.5 476.2761423749154 431.5 476 C 431.5 475.7238576250846 431.7238576250846 475.5 432 475.5 C 432.2761423749154 475.5 432.5 475.7238576250846 432.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 394.0908688893653, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 389.8758274817753, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,NW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 1104.5 640 C 1104.5 640.2761423749154 1104.2761423749155 640.5 1104 640.5 C 1103.7238576250845 640.5 1103.5 640.2761423749154 1103.5 640 C 1103.5 639.7238576250846 1103.7238576250845 639.5 1104 639.5 C 1104.2761423749155 639.5 1104.5 639.7238576250846 1104.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1071.8541621998286, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1069.7732348172171, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,S,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1006.5 108 C 1006.5 116.00812887254651 1000.0081288725465 122.5 992 122.5 C 983.9918711274535 122.5 977.5 116.00812887254651 977.5 108 C 977.5 99.99187112745349 983.9918711274535 93.5 992 93.5 C 1000.0081288725465 93.5 1006.5 99.99187112745349 1006.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1006.5 108 C 1006.5 116.00812887254651 1000.0081288725465 122.5 992 122.5 C 983.9918711274535 122.5 977.5 116.00812887254651 977.5 108 C 977.5 99.99187112745349 983.9918711274535 93.5 992 93.5 C 1000.0081288725465 93.5 1006.5 99.99187112745349 1006.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1009.9976046580189, 108.55849994639793)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 558.5 436 C 558.5 444.0081288725465 552.0081288725465 450.5 544 450.5 C 535.9918711274535 450.5 529.5 444.0081288725465 529.5 436 C 529.5 427.9918711274535 535.9918711274535 421.5 544 421.5 C 552.0081288725465 421.5 558.5 427.9918711274535 558.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 558.5 436 C 558.5 444.0081288725465 552.0081288725465 450.5 544 450.5 C 535.9918711274535 450.5 529.5 444.0081288725465 529.5 436 C 529.5 427.9918711274535 535.9918711274535 421.5 544 421.5 C 552.0081288725465 421.5 558.5 427.9918711274535 558.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 529.9152718964408, 460.3704103237564)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 110.5 764 C 110.5 772.0081288725465 104.00812887254651 778.5 96 778.5 C 87.99187112745349 778.5 81.5 772.0081288725465 81.5 764 C 81.5 755.9918711274535 87.99187112745349 749.5 96 749.5 C 104.00812887254651 749.5 110.5 755.9918711274535 110.5 764 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 110.5 764 C 110.5 772.0081288725465 104.00812887254651 778.5 96 778.5 C 87.99187112745349 778.5 81.5 772.0081288725465 81.5 764 C 81.5 755.9918711274535 87.99187112745349 749.5 96 749.5 C 104.00812887254651 749.5 110.5 755.9918711274535 110.5 764 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 80.09022901479412, 779.4429875107205)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 992.5 148 C 992.5 148.2761423749154 992.2761423749154 148.5 992 148.5 C 991.7238576250846 148.5 991.5 148.2761423749154 991.5 148 C 991.5 147.7238576250846 991.7238576250846 147.5 992 147.5 C 992.2761423749154 147.5 992.5 147.7238576250846 992.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 958.8936133147513, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 958.0869492388508, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,W,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 544.5 476 C 544.5 476.2761423749154 544.2761423749154 476.5 544 476.5 C 543.7238576250846 476.5 543.5 476.2761423749154 543.5 476 C 543.5 475.7238576250846 543.7238576250846 475.5 544 475.5 C 544.2761423749154 475.5 544.5 475.7238576250846 544.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 507.0514177744425, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 507.3239993165737, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,N,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 96.5 804 C 96.5 804.2761423749154 96.2761423749154 804.5 96 804.5 C 95.7238576250846 804.5 95.5 804.2761423749154 95.5 804 C 95.5 803.7238576250846 95.7238576250846 803.5 96 803.5 C 96.2761423749154 803.5 96.5 803.7238576250846 96.5 804 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 55.20922223413373, 804.895258227916)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 50.26064838389789, 815.4616711781732)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,SE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1118.5 108 C 1118.5 116.00812887254651 1112.0081288725464 122.5 1104 122.5 C 1095.9918711274536 122.5 1089.5 116.00812887254651 1089.5 108 C 1089.5 99.99187112745349 1095.9918711274536 93.5 1104 93.5 C 1112.0081288725464 93.5 1118.5 99.99187112745349 1118.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1118.5 108 C 1118.5 116.00812887254651 1112.0081288725464 122.5 1104 122.5 C 1095.9918711274536 122.5 1089.5 116.00812887254651 1089.5 108 C 1089.5 99.99187112745349 1095.9918711274536 93.5 1104 93.5 C 1112.0081288725464 93.5 1118.5 99.99187112745349 1118.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1109.8466612617922, 108.55849994639793)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 670.5 436 C 670.5 444.0081288725465 664.0081288725465 450.5 656 450.5 C 647.9918711274535 450.5 641.5 444.0081288725465 641.5 436 C 641.5 427.9918711274535 647.9918711274535 421.5 656 421.5 C 664.0081288725465 421.5 670.5 427.9918711274535 670.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 670.5 436 C 670.5 444.0081288725465 664.0081288725465 450.5 656 450.5 C 647.9918711274535 450.5 641.5 444.0081288725465 641.5 436 C 641.5 427.9918711274535 647.9918711274535 421.5 656 421.5 C 664.0081288725465 421.5 670.5 427.9918711274535 670.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 629.7643285002144, 460.3704103237564)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 1104.5 148 C 1104.5 148.2761423749154 1104.2761423749155 148.5 1104 148.5 C 1103.7238576250845 148.5 1103.5 148.2761423749154 1103.5 148 C 1103.5 147.7238576250846 1103.7238576250845 147.5 1104 147.5 C 1104.2761423749155 147.5 1104.5 147.7238576250846 1104.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1071.8541621998286, 143.26918618674955)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1072.3660836326117, 153.83559913700685)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,C,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 656.5 476 C 656.5 476.2761423749154 656.2761423749154 476.5 656 476.5 C 655.7238576250846 476.5 655.5 476.2761423749154 655.5 476 C 655.5 475.7238576250846 655.7238576250846 475.5 656 475.5 C 656.2761423749154 475.5 656.5 475.7238576250846 656.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 620.0119666595197, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 617.4169017340265, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,NE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 110.5 272 C 110.5 280.0081288725465 104.00812887254651 286.5 96 286.5 C 87.99187112745349 286.5 81.5 280.0081288725465 81.5 272 C 81.5 263.9918711274535 87.99187112745349 257.5 96 257.5 C 104.00812887254651 257.5 110.5 263.9918711274535 110.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 110.5 272 C 110.5 280.0081288725465 104.00812887254651 286.5 96 286.5 C 87.99187112745349 286.5 81.5 280.0081288725465 81.5 272 C 81.5 263.9918711274535 87.99187112745349 257.5 96 257.5 C 104.00812887254651 257.5 110.5 263.9918711274535 110.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 80.09022901479412, 273.9650179566895)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 782.5 436 C 782.5 444.0081288725465 776.0081288725465 450.5 768 450.5 C 759.9918711274535 450.5 753.5 444.0081288725465 753.5 436 C 753.5 427.9918711274535 759.9918711274535 421.5 768 421.5 C 776.0081288725465 421.5 782.5 427.9918711274535 782.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 782.5 436 C 782.5 444.0081288725465 776.0081288725465 450.5 768 450.5 C 759.9918711274535 450.5 753.5 444.0081288725465 753.5 436 C 753.5 427.9918711274535 759.9918711274535 421.5 768 421.5 C 776.0081288725465 421.5 782.5 427.9918711274535 782.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 768.9478619478988, 454.5001809069468)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 96.5 312 C 96.5 312.2761423749154 96.2761423749154 312.5 96 312.5 C 95.7238576250846 312.5 95.5 312.2761423749154 95.5 312 C 95.5 311.7238576250846 95.7238576250846 311.5 96 311.5 C 96.2761423749154 311.5 96.5 311.7238576250846 96.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 55.20922223413373, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 56.022534640330136, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,E,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 768.5 476 C 768.5 476.2761423749154 768.2761423749154 476.5 768 476.5 C 767.7238576250846 476.5 767.5 476.2761423749154 767.5 476 C 767.5 475.7238576250846 767.7238576250846 475.5 768 475.5 C 768.2761423749154 475.5 768.5 475.7238576250846 768.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 732.9725155445968, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 732.1525548081046, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,W,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 222.5 272 C 222.5 280.0081288725465 216.0081288725465 286.5 208 286.5 C 199.9918711274535 286.5 193.5 280.0081288725465 193.5 272 C 193.5 263.9918711274535 199.9918711274535 257.5 208 257.5 C 216.0081288725465 257.5 222.5 263.9918711274535 222.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 222.5 272 C 222.5 280.0081288725465 216.0081288725465 286.5 208 286.5 C 199.9918711274535 286.5 193.5 280.0081288725465 193.5 272 C 193.5 263.9918711274535 199.9918711274535 257.5 208 257.5 C 216.0081288725465 257.5 222.5 263.9918711274535 222.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 219.27376246247852, 268.0947885398799)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 894.5 436 C 894.5 444.0081288725465 888.0081288725465 450.5 880 450.5 C 871.9918711274535 450.5 865.5 444.0081288725465 865.5 436 C 865.5 427.9918711274535 871.9918711274535 421.5 880 421.5 C 888.0081288725465 421.5 894.5 427.9918711274535 894.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 894.5 436 C 894.5 444.0081288725465 888.0081288725465 450.5 880 450.5 C 871.9918711274535 450.5 865.5 444.0081288725465 865.5 436 C 865.5 427.9918711274535 871.9918711274535 421.5 880 421.5 C 888.0081288725465 421.5 894.5 427.9918711274535 894.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 868.7969185516724, 454.5001809069468)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 208.5 312 C 208.5 312.2761423749154 208.2761423749154 312.5 208 312.5 C 207.7238576250846 312.5 207.5 312.2761423749154 207.5 312 C 207.5 311.7238576250846 207.7238576250846 311.5 208 311.5 C 208.2761423749154 311.5 208.5 311.7238576250846 208.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 168.16977111921094, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 164.4821639150943, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,SW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 880.5 476 C 880.5 476.2761423749154 880.2761423749154 476.5 880 476.5 C 879.7238576250846 476.5 879.5 476.2761423749154 879.5 476 C 879.5 475.7238576250846 879.7238576250846 475.5 880 475.5 C 880.2761423749154 475.5 880.5 475.7238576250846 880.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 845.9330644296741, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 846.4316892018654, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,C,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 334.5 272 C 334.5 280.0081288725465 328.0081288725465 286.5 320 286.5 C 311.9918711274535 286.5 305.5 280.0081288725465 305.5 272 C 305.5 263.9918711274535 311.9918711274535 257.5 320 257.5 C 328.0081288725465 257.5 334.5 263.9918711274535 334.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 334.5 272 C 334.5 280.0081288725465 328.0081288725465 286.5 320 286.5 C 311.9918711274535 286.5 305.5 280.0081288725465 305.5 272 C 305.5 263.9918711274535 311.9918711274535 257.5 320 257.5 C 328.0081288725465 257.5 334.5 263.9918711274535 334.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 319.12281906625213, 268.0947885398799)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1006.5 436 C 1006.5 444.0081288725465 1000.0081288725465 450.5 992 450.5 C 983.9918711274535 450.5 977.5 444.0081288725465 977.5 436 C 977.5 427.9918711274535 983.9918711274535 421.5 992 421.5 C 1000.0081288725465 421.5 1006.5 427.9918711274535 1006.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1006.5 436 C 1006.5 444.0081288725465 1000.0081288725465 450.5 992 450.5 C 983.9918711274535 450.5 977.5 444.0081288725465 977.5 436 C 977.5 427.9918711274535 983.9918711274535 421.5 992 421.5 C 1000.0081288725465 421.5 1006.5 427.9918711274535 1006.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 968.645975155446, 454.5001809069468)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 320.5 312 C 320.5 312.2761423749154 320.2761423749154 312.5 320 312.5 C 319.7238576250846 312.5 319.5 312.2761423749154 319.5 312 C 319.5 311.7238576250846 319.7238576250846 311.5 320 311.5 C 320.2761423749154 311.5 320.5 311.7238576250846 320.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 281.13032000428814, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 281.9303357498928, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,S,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 992.5 476 C 992.5 476.2761423749154 992.2761423749154 476.5 992 476.5 C 991.7238576250846 476.5 991.5 476.2761423749154 991.5 476 C 991.5 475.7238576250846 991.7238576250846 475.5 992 475.5 C 992.2761423749154 475.5 992.5 475.7238576250846 992.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 958.8936133147513, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 959.6936290603559, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,E,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 446.5 272 C 446.5 280.0081288725465 440.0081288725465 286.5 432 286.5 C 423.9918711274535 286.5 417.5 280.0081288725465 417.5 272 C 417.5 263.9918711274535 423.9918711274535 257.5 432 257.5 C 440.0081288725465 257.5 446.5 263.9918711274535 446.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 446.5 272 C 446.5 280.0081288725465 440.0081288725465 286.5 432 286.5 C 423.9918711274535 286.5 417.5 280.0081288725465 417.5 272 C 417.5 263.9918711274535 423.9918711274535 257.5 432 257.5 C 440.0081288725465 257.5 446.5 263.9918711274535 446.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 418.9718756700257, 268.0947885398799)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1118.5 436 C 1118.5 444.0081288725465 1112.0081288725464 450.5 1104 450.5 C 1095.9918711274536 450.5 1089.5 444.0081288725465 1089.5 436 C 1089.5 427.9918711274535 1095.9918711274536 421.5 1104 421.5 C 1112.0081288725464 421.5 1118.5 427.9918711274535 1118.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1118.5 436 C 1118.5 444.0081288725465 1112.0081288725464 450.5 1104 450.5 C 1095.9918711274536 450.5 1089.5 444.0081288725465 1089.5 436 C 1089.5 427.9918711274535 1095.9918711274536 421.5 1104 421.5 C 1112.0081288725464 421.5 1118.5 427.9918711274535 1118.5 436 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1107.8295086031303, 448.6299514901372)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 432.5 312 C 432.5 312.2761423749154 432.2761423749154 312.5 432 312.5 C 431.7238576250846 312.5 431.5 312.2761423749154 431.5 312 C 431.5 311.7238576250846 431.7238576250846 311.5 432 311.5 C 432.2761423749154 311.5 432.5 311.7238576250846 432.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 394.0908688893653, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 392.0232381673456, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">E,SE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 1104.5 476 C 1104.5 476.2761423749154 1104.2761423749155 476.5 1104 476.5 C 1103.7238576250845 476.5 1103.5 476.2761423749154 1103.5 476 C 1103.5 475.7238576250846 1103.7238576250845 475.5 1104 475.5 C 1104.2761423749155 475.5 1104.5 475.7238576250846 1104.5 476 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1071.8541621998286, 474.08222220733273)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 1068.1532583351202, 484.64863515759004)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,SW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 22.5 20 C 22.5 21.38071187457698 21.38071187457698 22.5 20 22.5 C 18.619288125423015 22.5 17.5 21.38071187457698 17.5 20 C 17.5 18.619288125423015 18.619288125423015 17.5 20 17.5 C 21.38071187457698 17.5 22.5 18.619288125423015 22.5 20 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 22.5 20 C 22.5 21.38071187457698 21.38071187457698 22.5 20 22.5 C 18.619288125423015 22.5 17.5 21.38071187457698 17.5 20 C 17.5 18.619288125423015 18.619288125423015 17.5 20 17.5 C 21.38071187457698 17.5 22.5 18.619288125423015 22.5 20 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 558.5 272 C 558.5 280.0081288725465 552.0081288725465 286.5 544 286.5 C 535.9918711274535 286.5 529.5 280.0081288725465 529.5 272 C 529.5 263.9918711274535 535.9918711274535 257.5 544 257.5 C 552.0081288725465 257.5 558.5 263.9918711274535 558.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 558.5 272 C 558.5 280.0081288725465 552.0081288725465 286.5 544 286.5 C 535.9918711274535 286.5 529.5 280.0081288725465 529.5 272 C 529.5 263.9918711274535 535.9918711274535 257.5 544 257.5 C 552.0081288725465 257.5 558.5 263.9918711274535 558.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 527.8981192377787, 294.96389231346484)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 110.5 600 C 110.5 608.0081288725465 104.00812887254651 614.5 96 614.5 C 87.99187112745349 614.5 81.5 608.0081288725465 81.5 600 C 81.5 591.9918711274535 87.99187112745349 585.5 96 585.5 C 104.00812887254651 585.5 110.5 591.9918711274535 110.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 110.5 600 C 110.5 608.0081288725465 104.00812887254651 614.5 96 614.5 C 87.99187112745349 614.5 81.5 608.0081288725465 81.5 600 C 81.5 591.9918711274535 87.99187112745349 585.5 96 585.5 C 104.00812887254651 585.5 110.5 591.9918711274535 110.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 78.07307635613202, 614.0364695004289)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1182.5 20 C 1182.5 21.38071187457698 1181.380711874577 22.5 1180 22.5 C 1178.619288125423 22.5 1177.5 21.38071187457698 1177.5 20 C 1177.5 18.619288125423015 1178.619288125423 17.5 1180 17.5 C 1181.380711874577 17.5 1182.5 18.619288125423015 1182.5 20 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1182.5 20 C 1182.5 21.38071187457698 1181.380711874577 22.5 1180 22.5 C 1178.619288125423 22.5 1177.5 21.38071187457698 1177.5 20 C 1177.5 18.619288125423015 1178.619288125423 17.5 1180 17.5 C 1181.380711874577 17.5 1182.5 18.619288125423015 1182.5 20 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 544.5 312 C 544.5 312.2761423749154 544.2761423749154 312.5 544 312.5 C 543.7238576250846 312.5 543.5 312.2761423749154 543.5 312 C 543.5 311.7238576250846 543.7238576250846 311.5 544 311.5 C 544.2761423749154 311.5 544.5 311.7238576250846 544.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 507.0514177744425, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 498.34875341713115, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,NW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 96.5 640 C 96.5 640.2761423749154 96.2761423749154 640.5 96 640.5 C 95.7238576250846 640.5 95.5 640.2761423749154 95.5 640 C 95.5 639.7238576250846 95.7238576250846 639.5 96 639.5 C 96.2761423749154 639.5 96.5 639.7238576250846 96.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 55.20922223413373, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 55.9959413191466, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,S,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 22.5 880 C 22.5 881.380711874577 21.38071187457698 882.5 20 882.5 C 18.619288125423015 882.5 17.5 881.380711874577 17.5 880 C 17.5 878.619288125423 18.619288125423015 877.5 20 877.5 C 21.38071187457698 877.5 22.5 878.619288125423 22.5 880 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 22.5 880 C 22.5 881.380711874577 21.38071187457698 882.5 20 882.5 C 18.619288125423015 882.5 17.5 881.380711874577 17.5 880 C 17.5 878.619288125423 18.619288125423015 877.5 20 877.5 C 21.38071187457698 877.5 22.5 878.619288125423 22.5 880 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 670.5 272 C 670.5 280.0081288725465 664.0081288725465 286.5 656 286.5 C 647.9918711274535 286.5 641.5 280.0081288725465 641.5 272 C 641.5 263.9918711274535 647.9918711274535 257.5 656 257.5 C 664.0081288725465 257.5 670.5 263.9918711274535 670.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 670.5 272 C 670.5 280.0081288725465 664.0081288725465 286.5 656 286.5 C 647.9918711274535 286.5 641.5 280.0081288725465 641.5 272 C 641.5 263.9918711274535 647.9918711274535 257.5 656 257.5 C 664.0081288725465 257.5 670.5 263.9918711274535 670.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 627.7471758415523, 294.96389231346484)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 222.5 600 C 222.5 608.0081288725465 216.0081288725465 614.5 208 614.5 C 199.9918711274535 614.5 193.5 608.0081288725465 193.5 600 C 193.5 591.9918711274535 199.9918711274535 585.5 208 585.5 C 216.0081288725465 585.5 222.5 591.9918711274535 222.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 222.5 600 C 222.5 608.0081288725465 216.0081288725465 614.5 208 614.5 C 199.9918711274535 614.5 193.5 608.0081288725465 193.5 600 C 193.5 591.9918711274535 199.9918711274535 585.5 208 585.5 C 216.0081288725465 585.5 222.5 591.9918711274535 222.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 177.9221329599056, 614.0364695004289)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 1182.5 880 C 1182.5 881.380711874577 1181.380711874577 882.5 1180 882.5 C 1178.619288125423 882.5 1177.5 881.380711874577 1177.5 880 C 1177.5 878.619288125423 1178.619288125423 877.5 1180 877.5 C 1181.380711874577 877.5 1182.5 878.619288125423 1182.5 880 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 1182.5 880 C 1182.5 881.380711874577 1181.380711874577 882.5 1180 882.5 C 1178.619288125423 882.5 1177.5 881.380711874577 1177.5 880 C 1177.5 878.619288125423 1178.619288125423 877.5 1180 877.5 C 1181.380711874577 877.5 1182.5 878.619288125423 1182.5 880 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 656.5 312 C 656.5 312.2761423749154 656.2761423749154 312.5 656 312.5 C 655.7238576250846 312.5 655.5 312.2761423749154 655.5 312 C 655.5 311.7238576250846 655.7238576250846 311.5 656 311.5 C 656.2761423749154 311.5 656.5 311.7238576250846 656.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 620.0119666595197, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 615.7969252519296, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,N,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 208.5 640 C 208.5 640.2761423749154 208.2761423749154 640.5 208 640.5 C 207.7238576250846 640.5 207.5 640.2761423749154 207.5 640 C 207.5 639.7238576250846 207.7238576250846 639.5 208 639.5 C 208.2761423749154 639.5 208.5 639.7238576250846 208.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 168.16977111921094, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 166.08884373659944, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">S,SE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 113.5 108 C 113.5 117.66498312203888 105.66498312203888 125.5 96 125.5 C 86.33501687796112 125.5 78.5 117.66498312203888 78.5 108 C 78.5 98.33501687796112 86.33501687796112 90.5 96 90.5 C 105.66498312203888 90.5 113.5 98.33501687796112 113.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 113.5 108 C 113.5 117.66498312203888 105.66498312203888 125.5 96 125.5 C 86.33501687796112 125.5 78.5 117.66498312203888 78.5 108 C 78.5 98.33501687796112 86.33501687796112 90.5 96 90.5 C 105.66498312203888 90.5 113.5 98.33501687796112 113.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 78.07307635613202, 108.55849994639793)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 782.5 272 C 782.5 280.0081288725465 776.0081288725465 286.5 768 286.5 C 759.9918711274535 286.5 753.5 280.0081288725465 753.5 272 C 753.5 263.9918711274535 759.9918711274535 257.5 768 257.5 C 776.0081288725465 257.5 782.5 263.9918711274535 782.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 782.5 272 C 782.5 280.0081288725465 776.0081288725465 286.5 768 286.5 C 759.9918711274535 286.5 753.5 280.0081288725465 753.5 272 C 753.5 263.9918711274535 759.9918711274535 257.5 768 257.5 C 776.0081288725465 257.5 782.5 263.9918711274535 782.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 727.5962324453259, 294.96389231346484)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 334.5 600 C 334.5 608.0081288725465 328.0081288725465 614.5 320 614.5 C 311.9918711274535 614.5 305.5 608.0081288725465 305.5 600 C 305.5 591.9918711274535 311.9918711274535 585.5 320 585.5 C 328.0081288725465 585.5 334.5 591.9918711274535 334.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 334.5 600 C 334.5 608.0081288725465 328.0081288725465 614.5 320 614.5 C 311.9918711274535 614.5 305.5 608.0081288725465 305.5 600 C 305.5 591.9918711274535 311.9918711274535 585.5 320 585.5 C 328.0081288725465 585.5 334.5 591.9918711274535 334.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 332.2343113475557, 625.7769283340481)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 96.5 148 C 96.5 148.2761423749154 96.2761423749154 148.5 96 148.5 C 95.7238576250846 148.5 95.5 148.2761423749154 95.5 148 C 95.5 147.7238576250846 95.7238576250846 147.5 96 147.5 C 96.2761423749154 147.5 96.5 147.7238576250846 96.5 148 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 75.70824064644077, 148.5523926618782)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">default</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 768.5 312 C 768.5 312.2761423749154 768.2761423749154 312.5 768 312.5 C 767.7238576250846 312.5 767.5 312.2761423749154 767.5 312 C 767.5 311.7238576250846 767.7238576250846 311.5 768 311.5 C 768.2761423749154 311.5 768.5 311.7238576250846 768.5 312 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 732.9725155445968, 308.67570419704117)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 725.8898276693824, 319.2421171472985)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SW,NE,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="0" stroke="none">
+  <path d="M 320.5 640 C 320.5 640.2761423749154 320.2761423749154 640.5 320 640.5 C 319.7238576250846 640.5 319.5 640.2761423749154 319.5 640 C 319.5 639.7238576250846 319.7238576250846 639.5 320 639.5 C 320.2761423749154 639.5 320.5 639.7238576250846 320.5 640 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 281.13032000428814, 639.4887402176244)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">label_position= </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 274.04763212907375, 650.0551531678816)">
+<text font-weight="normal" font-size="9" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">SE,NW,c,0.00,0.00 </text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 222.5 108 C 222.5 116.00812887254651 216.0081288725465 122.5 208 122.5 C 199.9918711274535 122.5 193.5 116.00812887254651 193.5 108 C 193.5 99.99187112745349 199.9918711274535 93.5 208 93.5 C 216.0081288725465 93.5 222.5 99.99187112745349 222.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 222.5 108 C 222.5 116.00812887254651 216.0081288725465 122.5 208 122.5 C 199.9918711274535 122.5 193.5 116.00812887254651 193.5 108 C 193.5 99.99187112745349 199.9918711274535 93.5 208 93.5 C 216.0081288725465 93.5 222.5 99.99187112745349 222.5 108 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 177.9221329599056, 108.55849994639793)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 894.5 272 C 894.5 280.0081288725465 888.0081288725465 286.5 880 286.5 C 871.9918711274535 286.5 865.5 280.0081288725465 865.5 272 C 865.5 263.9918711274535 871.9918711274535 257.5 880 257.5 C 888.0081288725465 257.5 894.5 263.9918711274535 894.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 894.5 272 C 894.5 280.0081288725465 888.0081288725465 286.5 880 286.5 C 871.9918711274535 286.5 865.5 280.0081288725465 865.5 272 C 865.5 263.9918711274535 871.9918711274535 257.5 880 257.5 C 888.0081288725465 257.5 894.5 263.9918711274535 894.5 272 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 866.7797658930103, 289.0936628966552)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g stroke-opacity="1" fill="none" stroke="#505050" stroke-linecap="round">
+  <path d="M 446.5 600 C 446.5 608.0081288725465 440.0081288725465 614.5 432 614.5 C 423.9918711274535 614.5 417.5 608.0081288725465 417.5 600 C 417.5 591.9918711274535 423.9918711274535 585.5 432 585.5 C 440.0081288725465 585.5 446.5 591.9918711274535 446.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, -5.145797598627837, -3.8593481989708494)">
+<g fill="#c8c8c8" fill-rule="nonzero" fill-opacity="1" stroke="none">
+  <path d="M 446.5 600 C 446.5 608.0081288725465 440.0081288725465 614.5 432 614.5 C 423.9918711274535 614.5 417.5 608.0081288725465 417.5 600 C 417.5 591.9918711274535 423.9918711274535 585.5 432 585.5 C 440.0081288725465 585.5 446.5 591.9918711274535 446.5 600 z"/>
+</g> <!-- drawing style -->
+</g> <!-- transform -->
+<g transform="matrix(1.0085763293310464, 0, 0, 1.0085763293310464, 432.0833679513293, 625.7769283340481)">
+<text font-weight="normal" font-size="10" font-family="DejaVu Sans" font-style="normal" fill="#000000" fill-opacity="1" stroke="none" x="0" y="0">Label</text>
+</g> <!-- transform -->
+</g> <!-- default stroke -->
+</svg> <!-- bounding box -->

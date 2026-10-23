@@ -23,7 +23,7 @@ import type {
     StyleValue,
 } from "../types.js";
 import { STYLE_PROPERTIES } from "../vocabulary.js";
-import { JAVA_FONTS } from "./lexicon.js";
+import { JAVA_MONO, JAVA_SANS, JAVA_SERIF, javaFamily, vpStep } from "./lexicon.js";
 import {
     type CytoscapeContinuousPoint,
     type CytoscapeMapping,
@@ -130,6 +130,31 @@ function enumOut(
     };
 }
 
+/** Where a node's border sits: Cytoscape's own place for it is inside the node's size, which it always draws. */
+const BORDER_POSITION = "borderPosition";
+
+/**
+ * What Cytoscape always draws and no file can change, per target: where a border sits, how far its zigzag and
+ * sine-wave strokes swing and how often they repeat (`ding-presentation-impl` `ZigzagStroke`, `SineWaveStroke`), and
+ * a label's box round its words alone, its lines one font tall. Nothing is written for them, and any other value is
+ * drawn as Cytoscape's.
+ */
+const FIXED: Readonly<Record<"node" | "edge", ReadonlyMap<string, string | number>>> = {
+    node: new Map<string, string | number>([
+        [BORDER_POSITION, "inside"],
+        ["borderWaveAmplitude", 10],
+        ["borderWavePeriod", 20],
+        ["labelPadding", 0],
+        ["labelLineHeight", 1],
+    ]),
+    edge: new Map<string, string | number>([
+        ["waveAmplitude", 10],
+        ["wavePeriod", 20],
+        ["labelPadding", 0],
+        ["labelLineHeight", 1],
+    ]),
+};
+
 const DESKTOP_SHAPES = {
     ellipse: "ELLIPSE",
     rectangle: "RECTANGLE",
@@ -171,7 +196,6 @@ const NEAR_LINES = { "dash-dot": "dashed", "long-dash": "dashed", zigzag: "solid
 const DESKTOP_ARROWS = {
     none: "NONE",
     triangle: "DELTA",
-    vee: "ARROW",
     tee: "T",
     diamond: "DIAMOND",
     circle: "CIRCLE",
@@ -180,6 +204,8 @@ const DESKTOP_ARROWS = {
     "diamond-open": "OPEN_DIAMOND",
     "circle-open": "OPEN_CIRCLE",
     half: "HALF_TOP",
+    "other:cross-delta": "CROSS_DELTA",
+    "other:cross-open-delta": "CROSS_OPEN_DELTA",
 };
 const CX2_ARROWS = {
     none: "none",
@@ -193,11 +219,16 @@ const CX2_ARROWS = {
     "diamond-open": "open-diamond",
     "circle-open": "open-circle",
     half: "half-top",
+    // as Cytoscape 3.10.5 writes CROSS_DELTA and CROSS_OPEN_DELTA in CX2
+    "other:cross-delta": "triangle-cross",
+    "other:cross-open-delta": "cross_open_delta",
 };
 const NEAR_ARROWS = { crow: "vee", inverted: "triangle" };
+// desktop has no open vee: its ARROW, the nearest, is drawn as a filled delta and read back as one
+const DESKTOP_NEAR_ARROWS = { crow: "ARROW", inverted: "DELTA", vee: "ARROW" };
 
 /** The Cytoscape arrow names no canonical arrow names, which Cytoscape's readers keep as `other:` values. */
-const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle"]);
+const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle", "half-bottom"]);
 /** The Cytoscape line types no canonical line style names. */
 const CY_OTHER_LINES: ReadonlySet<string> = new Set([
     "backward-slash",
@@ -209,32 +240,62 @@ const CY_OTHER_LINES: ReadonlySet<string> = new Set([
 /** The Cytoscape line types a border can take that no canonical border style names. */
 const CY_OTHER_BORDERS: ReadonlySet<string> = new Set([...CY_OTHER_LINES, "zigzag", "sinewave"]);
 
-/** A label position: the node's anchor and the label's opposite anchor. */
-const DESKTOP_POSITIONS = {
-    center: "C,C,c,0.00,0.00",
-    top: "N,S,c,0.00,0.00",
-    bottom: "S,N,c,0.00,0.00",
-    left: "W,E,c,0.00,0.00",
-    right: "E,W,c,0.00,0.00",
-    "top-left": "NW,SE,c,0.00,0.00",
-    "top-right": "NE,SW,c,0.00,0.00",
-    "bottom-left": "SW,NE,c,0.00,0.00",
-    "bottom-right": "SE,NW,c,0.00,0.00",
+/**
+ * A label position as the point of the node and the point of the label's box pinned to it, in desktop's anchor
+ * letters: beside the node, the label's opposite point; inside it, the same point.
+ */
+const POSITION_ANCHORS: Readonly<Record<string, readonly [node: string, label: string]>> = {
+    center: ["C", "C"],
+    top: ["N", "S"],
+    bottom: ["S", "N"],
+    left: ["W", "E"],
+    right: ["E", "W"],
+    "top-left": ["NW", "SE"],
+    "top-right": ["NE", "SW"],
+    "bottom-left": ["SW", "NE"],
+    "bottom-right": ["SE", "NW"],
+    "inside-top": ["N", "N"],
+    "inside-bottom": ["S", "S"],
+    "inside-left": ["W", "W"],
+    "inside-right": ["E", "E"],
+    "inside-top-left": ["NW", "NW"],
+    "inside-top-right": ["NE", "NE"],
+    "inside-bottom-left": ["SW", "SW"],
+    "inside-bottom-right": ["SE", "SE"],
 };
-const CX2_ANCHORS: Readonly<Record<string, readonly [string, string]>> = {
-    center: ["center", "center"],
-    top: ["center", "top"],
-    bottom: ["center", "bottom"],
-    left: ["left", "center"],
-    right: ["right", "center"],
-    "top-left": ["left", "top"],
-    "top-right": ["right", "top"],
-    "bottom-left": ["left", "bottom"],
-    "bottom-right": ["right", "bottom"],
+const DESKTOP_POSITIONS: Readonly<Record<string, string>> = Object.fromEntries(
+    Object.entries(POSITION_ANCHORS).map(([k, [node, label]]) => [k, `${node},${label},c,0.00,0.00`]),
+);
+/** A desktop anchor letter as CX2's horizontal and vertical words. */
+const CX2_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+    C: ["center", "center"],
+    N: ["center", "top"],
+    S: ["center", "bottom"],
+    W: ["left", "center"],
+    E: ["right", "center"],
+    NW: ["left", "top"],
+    NE: ["right", "top"],
+    SW: ["left", "bottom"],
+    SE: ["right", "bottom"],
 };
 
 const desktopNumber: Write = String;
 const cx2Number: Write = (v) => v;
+
+/**
+ * A writer for a visual property Cytoscape holds as a whole number (a font size): the value is written as it is, and
+ * a fraction is noted, since Cytoscape draws it rounded.
+ * @param write - the dialect's number writer
+ * @returns the writer
+ */
+function whole(write: Write): Write {
+    return (v, approx) => {
+        if (typeof v === "number" && !Number.isInteger(v)) {
+            approx();
+        }
+        return write(v, approx);
+    };
+}
 const textOut: Write = String;
 const desktopBool: Write = (v) => String(v === true);
 const opacity255: Write = (v, approx) => {
@@ -252,6 +313,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fill", { vp: "NODE_FILL_COLOR", write: colorOut }],
             ["fillOpacity", { vp: "NODE_TRANSPARENCY", write: opacity255 }],
             ["borderColor", { vp: "NODE_BORDER_PAINT", write: colorOut }],
+            ["borderOpacity", { vp: "NODE_BORDER_TRANSPARENCY", write: opacity255 }],
             ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: desktopNumber }],
             [
                 "borderStyle",
@@ -265,8 +327,10 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["height", { vp: "NODE_HEIGHT", write: desktopNumber }],
             ["label", { vp: "NODE_LABEL", write: textOut }],
             ["labelColor", { vp: "NODE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: desktopNumber }],
+            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: whole(desktopNumber) }],
+            ["labelWrapWidth", { vp: "NODE_LABEL_WIDTH", write: desktopNumber }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: enumOut(DESKTOP_POSITIONS, {}, false) }],
+            ["labelRotation", { vp: "NODE_LABEL_ROTATION", write: desktopNumber }],
             ["tooltip", { vp: "NODE_TOOLTIP", write: textOut }],
             ["visible", { vp: "NODE_VISIBLE", write: desktopBool }],
         ]),
@@ -285,14 +349,14 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
                 "sourceArrow",
                 {
                     vp: "EDGE_SOURCE_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
+                    write: enumOut(DESKTOP_ARROWS, DESKTOP_NEAR_ARROWS, true, CY_OTHER_ARROWS),
                 },
             ],
             [
                 "targetArrow",
                 {
                     vp: "EDGE_TARGET_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
+                    write: enumOut(DESKTOP_ARROWS, DESKTOP_NEAR_ARROWS, true, CY_OTHER_ARROWS),
                 },
             ],
             ["sourceArrowColor", { vp: "EDGE_SOURCE_ARROW_UNSELECTED_PAINT", write: colorOut }],
@@ -300,7 +364,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["curved", { vp: "EDGE_CURVED", write: desktopBool }],
             ["label", { vp: "EDGE_LABEL", write: textOut }],
             ["labelColor", { vp: "EDGE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: desktopNumber }],
+            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: whole(desktopNumber) }],
             ["tooltip", { vp: "EDGE_TOOLTIP", write: textOut }],
             ["visible", { vp: "EDGE_VISIBLE", write: desktopBool }],
         ]),
@@ -310,6 +374,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["fill", { vp: "NODE_BACKGROUND_COLOR", write: colorOut }],
             ["fillOpacity", { vp: "NODE_BACKGROUND_OPACITY", write: cx2Number }],
             ["borderColor", { vp: "NODE_BORDER_COLOR", write: colorOut }],
+            ["borderOpacity", { vp: "NODE_BORDER_OPACITY", write: cx2Number }],
             ["borderWidth", { vp: "NODE_BORDER_WIDTH", write: cx2Number }],
             [
                 "borderStyle",
@@ -329,8 +394,10 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["height", { vp: "NODE_HEIGHT", write: cx2Number }],
             ["label", { vp: "NODE_LABEL", write: textOut }],
             ["labelColor", { vp: "NODE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: cx2Number }],
+            ["labelSize", { vp: "NODE_LABEL_FONT_SIZE", write: whole(cx2Number) }],
+            ["labelWrapWidth", { vp: "NODE_LABEL_MAX_WIDTH", write: cx2Number }],
             ["labelPosition", { vp: "NODE_LABEL_POSITION", write: cx2Position }],
+            ["labelRotation", { vp: "NODE_LABEL_ROTATION", write: cx2Number }],
             ["visible", { vp: "NODE_VISIBILITY", write: (v) => (v === true ? "element" : "none") }],
         ]),
         edge: new Map<string, Writer>([
@@ -363,7 +430,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
             ["curved", { vp: "EDGE_CURVED", write: (v) => v === true }],
             ["label", { vp: "EDGE_LABEL", write: textOut }],
             ["labelColor", { vp: "EDGE_LABEL_COLOR", write: colorOut }],
-            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: cx2Number }],
+            ["labelSize", { vp: "EDGE_LABEL_FONT_SIZE", write: whole(cx2Number) }],
             ["visible", { vp: "EDGE_VISIBILITY", write: (v) => (v === true ? "element" : "none") }],
         ]),
     },
@@ -375,10 +442,12 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
  * @returns the object
  */
 function cx2Position(v: StyleValue): unknown {
-    const [h, vert] = Object.hasOwn(CX2_ANCHORS, String(v)) ? CX2_ANCHORS[String(v)] : ["center", "center"];
+    const [node, label] = Object.hasOwn(POSITION_ANCHORS, String(v)) ? POSITION_ANCHORS[String(v)] : ["C", "C"];
+    const [h, vert] = CX2_WORDS[node];
+    const [ha, va] = CX2_WORDS[label];
     return {
-        HORIZONTAL_ALIGN: "center",
-        VERTICAL_ALIGN: "center",
+        HORIZONTAL_ALIGN: ha,
+        VERTICAL_ALIGN: va,
         HORIZONTAL_ANCHOR: h,
         VERTICAL_ANCHOR: vert,
         MARGIN_X: 0,
@@ -390,10 +459,12 @@ function cx2Position(v: StyleValue): unknown {
 /** The font properties, written together into one font face. */
 const FONT_PROPS = ["labelFont", "labelWeight", "labelItalic"] as const;
 const FONT_VP: Readonly<Record<StyleTarget, string>> = { node: "NODE_LABEL_FONT_FACE", edge: "EDGE_LABEL_FONT_FACE" };
+// A CSS generic family is written as it is: Java draws a name it does not know in Dialog, and reads it back the same.
 const CSS_TO_JAVA: Readonly<Record<string, string>> = {
-    "sans-serif": "SansSerif",
-    serif: "Serif",
-    monospace: "Monospaced",
+    // the families the reader gives Java's logical fonts
+    [JAVA_SANS]: "SansSerif",
+    [JAVA_SERIF]: "Serif",
+    [JAVA_MONO]: "Monospaced",
 };
 
 /**
@@ -422,11 +493,16 @@ function fontOut(
         return { FONT_FAMILY: fam, FONT_STYLE: it ? "italic" : "normal", FONT_WEIGHT: bold ? "bold" : "normal" };
     }
     const first = fam.includes(",") ? fam.split(",")[0].trim() : fam;
-    const java = Object.hasOwn(CSS_TO_JAVA, first) ? CSS_TO_JAVA[first] : first;
+    const asWritten = Object.hasOwn(CSS_TO_JAVA, first) ? CSS_TO_JAVA[first] : first;
+    const java = Object.hasOwn(CSS_TO_JAVA, fam) ? CSS_TO_JAVA[fam] : asWritten;
     if (fontReadsAs(java) !== fam) {
         approx();
     }
-    return `${java},${javaFontStyle(bold, it)},12`;
+    // desktop reads the face from the name alone: bold and italic go on it as a Java face suffix, as desktop itself
+    // writes them (`SansSerif.bold,bold,12`); the style word after it is not read (`FontVisualProperty`)
+    const style = javaFontStyle(bold, it);
+    const face = style === "plain" ? java : `${java}.${style}`;
+    return `${face},${bold ? "bold" : "plain"},12`;
 }
 
 /**
@@ -449,8 +525,7 @@ function javaFontStyle(bold: boolean, italic: boolean): string {
  * @returns the family
  */
 function fontReadsAs(name: string): string {
-    const family = name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, "");
-    return JAVA_FONTS.get(family.toLowerCase()) ?? family;
+    return javaFamily(name.replace(/\.(?:bold|italic|plain|bolditalic)$/i, ""));
 }
 
 /**
@@ -579,6 +654,25 @@ function targetEmit(
     };
 }
 
+/** The properties Cytoscape draws one way only, with that way: what is drawn so needs nothing written. */
+const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
+    // it measures each word with a space after it when it wraps a label
+    ["labelWrapTrailingSpace", true],
+    // it curves an edge through its bends' midpoints
+    ["bendCurve", "midpoints"],
+]);
+
+/**
+ * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write.
+ * @param p - the property
+ * @param values - each element's value
+ * @returns true when nothing is lost by not writing it
+ */
+function drawnSo(p: string, values: readonly (StyleValue | null)[]): boolean {
+    const way = DRAWN_SO.get(p);
+    return way !== undefined && values.every((v) => v === null || v === way);
+}
+
 /**
  * Emits one target.
  * @param e - the target's emission
@@ -595,7 +689,15 @@ function emitTarget(
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
     for (const [p, values] of truth) {
-        if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p)) {
+        const fixed = FIXED[target].get(p);
+        if (fixed !== undefined) {
+            // Cytoscape draws every border inside its node's size and every wave alike: nothing to write, and any
+            // other value is lost
+            const other = values.filter((v) => v !== null && v !== fixed).length;
+            if (other > 0) {
+                notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: other });
+            }
+        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values)) {
             const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }
@@ -701,14 +803,47 @@ function addBypasses(
             continue;
         }
         const drawn = resolveRules(modelRules, target, p, e.src);
+        const step = drawnStep(model.map.get(p), w.vp, STYLE_PROPERTIES[target].get(p));
+        let rounded = 0;
         for (let i = 0; i < e.n; i++) {
             const v = want[i];
             if (v !== null && v !== drawn[i]) {
                 bypasses[i] ??= new Map();
                 bypasses[i]?.set(w.vp, w.write(v, e.approx(p)));
+            } else if (offStep(v, step)) {
+                rounded++;
             }
         }
+        if (rounded > 0) {
+            e.notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: rounded });
+        }
     }
+}
+
+/**
+ * The step Cytoscape rounds the values of a written mapping to: a continuous mapping, or a passthrough written as
+ * one, on a visual property that holds whole numbers (a font size, a 0..255 transparency) is drawn rounded, unless
+ * the mapping already rounds to it. A passthrough written as a table writes its values through the property's writer,
+ * which notes them itself.
+ * @param m - the mapping written, if any
+ * @param vp - the visual property it sets
+ * @param kind - the kind of value the property holds
+ * @returns the step, or undefined when Cytoscape draws the mapping's values as they are
+ */
+function drawnStep(m: Mapping | undefined, vp: string, kind: string | undefined): number | undefined {
+    const ramp = m?.kind === "continuous" && m.step === undefined;
+    const passthrough = m?.kind === "passthrough" && PASSTHROUGH_SAFE.has(kind ?? "");
+    return ramp || passthrough ? vpStep(vp) : undefined;
+}
+
+/**
+ * Whether a value is not a multiple of a step, so Cytoscape draws it rounded.
+ * @param v - the value
+ * @param step - the step, or undefined for none
+ * @returns true when the value changes on rounding
+ */
+function offStep(v: StyleValue | null | undefined, step: number | undefined): boolean {
+    return step !== undefined && typeof v === "number" && num6(Math.round(v / step) * step) !== v;
 }
 
 /**
@@ -802,7 +937,11 @@ function cytoscapeMapping(
         return {
             kind: "discrete",
             column,
-            type: typeOf(m.table.map(([k]) => k)),
+            type: keyType(
+                e,
+                m.by,
+                m.table.map(([k]) => k),
+            ),
             table: m.table.map(([k, v]) => [k, write(v)]),
         };
     }
@@ -882,7 +1021,16 @@ function passthroughMapping(
         }
     }
     const table = Array.from(seen);
-    return { kind: "discrete", column, type: typeOf(table.map(([k]) => k)), table };
+    return {
+        kind: "discrete",
+        column,
+        type: keyType(
+            e,
+            by,
+            table.map(([k]) => k),
+        ),
+        table,
+    };
 }
 
 /**
@@ -915,6 +1063,28 @@ function cx2Points(m: Extract<Mapping, { kind: "continuous" }>, approx: () => vo
  */
 function isScalar(v: unknown): v is Scalar {
     return typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
+}
+
+/**
+ * The type a discrete mapping's keys are written with: `double` over a column the exporter writes as Double
+ * (Cytoscape compares an Integer key with a Double cell and finds no match), else the keys' own type.
+ * @param e - the target's emission
+ * @param by - the column the mapping reads
+ * @param keys - the keys
+ * @returns the type
+ */
+function keyType(e: TargetEmit, by: ColumnRef, keys: readonly unknown[]): string {
+    const type = typeOf(keys);
+    if (type !== "integer") {
+        return type;
+    }
+    if (!("data" in by)) {
+        // a column the exporter adds holds numbers as Double
+        return "double";
+    }
+    const meta = (e.target === "node" ? e.snapshot.nodes : e.snapshot.edges).get(by.data)?.meta;
+    const floating = (meta?.dtype === "f32" || meta?.dtype === "f64") && meta.origin?.type !== "long";
+    return floating ? "double" : type;
 }
 
 /**
@@ -1221,7 +1391,13 @@ function mappingXml(m: CytoscapeMapping): string[] {
  * @returns the properties
  */
 export function cytoscapeWritableProperties(target: StyleTarget, dialect: CytoscapeDialect): string[] {
-    return [...WRITERS[dialect][target].keys(), ...FONT_PROPS];
+    // a label wrapped as Cytoscape wraps it needs nothing written: emitTarget notes any other value
+    return [
+        ...WRITERS[dialect][target].keys(),
+        ...FONT_PROPS,
+        ...FIXED[target].keys(),
+        ...(target === "node" ? ["labelWrapTrailingSpace"] : ["bendCurve"]),
+    ];
 }
 
 /**

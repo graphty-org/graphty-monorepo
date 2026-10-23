@@ -1,0 +1,32 @@
+{
+ "key": [
+  {
+   "title": "Color: role",
+   "text": "Color: role volunteer staff board",
+   "rows": [
+    {
+     "text": "volunteer",
+     "color": "#e69f00"
+    },
+    {
+     "text": "staff",
+     "color": "#56b4e9"
+    },
+    {
+     "text": "board",
+     "color": "#009e73"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#009e73": 3,
+   "#56b4e9": 5,
+   "#e69f00": 16
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

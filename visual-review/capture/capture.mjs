@@ -664,34 +664,10 @@ export async function plan({ allIds, ids, params, baselines, renames, existing, 
     // A story whose own parameters exclude it while it still has a baseline is reported as
     // removed, so a pull request cannot drop a story from review without the owner seeing it.
     const newlyExcluded = new Set();
-    // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
-    const renamed = new Set();
-    const renameErrors = [];
     const known = new Set(allIds);
-    for (const [to, from] of stories ? [] : renames) {
-        if (known.has(to)) {
-            continue;
-        }
-        // Only a rename with an old baseline left to move is an error; once it is accepted the
-        // old baselines are gone, and the entry does nothing.
-        for (const file of existing) {
-            const [id, mode = null] = file.slice(0, -4).split(".");
-            if (id === from && BASELINE_NAME.test(file)) {
-                renamed.add(file);
-                renameErrors.push({
-                    id: to,
-                    mode,
-                    file: fileName(to, mode),
-                    from,
-                    threshold: DEFAULT_THRESHOLD,
-                    includeAA: false,
-                    ...EMPTY,
-                    status: "failed",
-                    reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
-                });
-            }
-        }
-    }
+    const renameErrors = stories ? [] : brokenRenames(renames, known, existing);
+    // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
+    const renamed = new Set(renameErrors.map((i) => fileName(i.from, i.mode)));
     items.push(...renameErrors.filter((i) => mine(i.id)));
     for (const id of ids) {
         const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
@@ -728,6 +704,38 @@ export async function plan({ allIds, ids, params, baselines, renames, existing, 
               (f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f) && mine(f.split(".")[0]),
           );
     return { items, jobs, gone, newlyExcluded };
+}
+
+/**
+ * The renames whose new id is not a story while the old id still has baselines: one failed item
+ * per such baseline. Once a rename is accepted the old baselines are gone, and the entry does
+ * nothing.
+ * @param {Map<string, string>} renames old id by new id
+ * @param {Set<string>} known every story id of the Storybook
+ * @param {Set<string>} existing the baseline PNGs
+ * @returns {object[]} the failed items, under the new id, each with `from`
+ */
+function brokenRenames(renames, known, existing) {
+    const errors = [];
+    for (const [to, from] of renames) {
+        for (const file of known.has(to) ? [] : existing) {
+            const [id, mode = null] = file.slice(0, -4).split(".");
+            if (id === from && BASELINE_NAME.test(file)) {
+                errors.push({
+                    id: to,
+                    mode,
+                    file: fileName(to, mode),
+                    from,
+                    threshold: DEFAULT_THRESHOLD,
+                    includeAA: false,
+                    ...EMPTY,
+                    status: "failed",
+                    reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
+                });
+            }
+        }
+    }
+    return errors;
 }
 
 /**

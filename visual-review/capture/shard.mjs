@@ -20,6 +20,14 @@ import { dirname, join, relative, resolve } from "node:path";
 import { validateResults } from "../trusted/lib/results.mjs";
 
 /**
+ * Orders strings by UTF-16 code unit, the same on every machine and locale (never localeCompare).
+ * @param {string} a one string
+ * @param {string} b another
+ * @returns {number} negative, zero or positive
+ */
+const byCodePoint = (a, b) => (a < b ? -1 : Number(a > b));
+
+/**
  * Reads a `--shard` value.
  * @param {string} text `<i>/<n>`, 1 <= i <= n
  * @returns {{ index: number, count: number }} the part and the number of parts
@@ -44,7 +52,7 @@ export function shardFilter(ids, shard) {
     if (!shard) {
         return () => true;
     }
-    const position = new Map([...ids].sort().map((id, k) => [id, k]));
+    const position = new Map([...ids].sort(byCodePoint).map((id, k) => [id, k]));
     return (id) => (position.get(id) ?? 0) % shard.count === shard.index - 1;
 }
 
@@ -118,7 +126,7 @@ export async function mergeShards(dirs, out) {
         ...header,
         // A re-run of one failed part is a later attempt of the same run.
         runAttempt: attempts.length > 0 ? Math.max(...attempts) : null,
-        capturedAt: parts.map((r) => r.capturedAt).sort()[0],
+        capturedAt: parts.map((r) => r.capturedAt).sort(byCodePoint)[0],
         complete: true,
         expected: parts.reduce((sum, r) => sum + r.expected, 0),
         items: parts.flatMap((r) => r.items).sort((a, b) => (a.file < b.file ? -1 : 1)),

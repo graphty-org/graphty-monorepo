@@ -692,6 +692,10 @@ function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, b
  */
 function intoBuild(holder, dir, graphs) {
     const own = (f) => f.startsWith(`${dir}/`) && buildInput(f.slice(dir.length + 1));
+    // a test or lint config never goes into a build (a Vite config may: it is not one of these)
+    if (holder && /^(vitest[^/]*|eslint)\.config\.[cm]?[jt]s$/u.test(holder.slice(dir.length + 1))) {
+        return false;
+    }
     if (!holder || own(holder)) {
         return true;
     }

@@ -919,6 +919,21 @@ describe("changes to another package's build, followed through its source", () =
         assert.ok(!p.specs.has("pb/test/one.test.ts"));
     });
 
+    it("a path the ESLint config names is not read into the package's build", () => {
+        const deps2 = new Map([...deps, ["pd", new Set(["pb"])]]);
+        const refs = new Map([["pb", [{ target: "pa", prefix: "pa", holder: "pb/eslint.config.js", build: false }]]]);
+        const sel = selectPackages({
+            changed: ["pa/src/two.ts"],
+            packages: new Map([...pkgs, ["pd", "pd"]]),
+            deps: deps2,
+            refs,
+            graphs: new Map([...graphs, ["pd", empty("pd")]]),
+            rules,
+        }).packages;
+        assert.equal(sel.get("pd").mode, "none", "pb's build did not change, and pd's tests reach nothing of pa");
+        assert.ok(sel.get("pb").specs.has("pb/test/two.test.ts"));
+    });
+
     it("a build output read by the ESLint config runs only the tests that read files (those that run ESLint)", () => {
         const refs = new Map([["pb", [{ target: "pz", prefix: "pz/", holder: "pb/eslint.config.js", build: true }]]]);
         const p = run(["pz/src/meta.ts"], refs);

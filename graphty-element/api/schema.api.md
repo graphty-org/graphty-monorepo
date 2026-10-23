@@ -1174,6 +1174,16 @@ export type FilterDirection = SelectionDirection;
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[];
 
 // @public
+export interface GlobeLook {
+    readonly atmosphere?: boolean;
+    readonly background?: string | null;
+    readonly sun?: {
+        readonly lat: number;
+        readonly lon: number;
+    } | null;
+}
+
+// @public
 export const GraphBackground: z.ZodDiscriminatedUnion<[z.ZodObject<{
     backgroundType: z.ZodLiteral<"color">;
     color: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1437,13 +1447,14 @@ export type MapFrameFact = {
         readonly params: Readonly<Record<string, unknown>>;
     }[];
 } & ({
-    readonly surface: "flat";
+    readonly mapDimension: "2d";
     readonly projection: ProjectionId;
     readonly bounds: GeoBounds;
     readonly size: number;
 } | {
-    readonly surface: "globe";
+    readonly mapDimension: "3d";
     readonly radius: number;
+    readonly bounds: GeoBounds;
 });
 
 // @public

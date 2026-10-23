@@ -264,6 +264,7 @@ export interface GraphtyElementJSXProps {
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     fitInsets?: Graphty["fitInsets"];
+    globeLook?: Graphty["globeLook"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];

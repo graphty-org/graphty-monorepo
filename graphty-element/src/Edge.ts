@@ -2042,7 +2042,12 @@ export class Edge {
         // a 2D cap is drawn at full size (see placeArrowHead)
         const scale = this.arrowCap?.is2D === true ? 1 : (geometry.scaleFactor ?? 1);
         return (
-            Edge.capGap(head) + EdgeMesh.calculateArrowLength() * (head.size ?? 1) * scale * (geometry.lineStop ?? 1)
+            Edge.capGap(head) +
+            EdgeMesh.calculateArrowLength() *
+                (head.size ?? 1) *
+                scale *
+                Edge.capScale(this.dstNode) *
+                (geometry.lineStop ?? 1)
         );
     }
 
@@ -2519,7 +2524,9 @@ export class Edge {
 
         const arrowType = arrowStyle.arrowHead?.type;
         const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const scale = Edge.capScale(this.dstNode);
+        arrowCap.setScale(scale);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
         const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
 
         // PHASE 4: Override scaleFactor for 2D arrows
@@ -2562,7 +2569,9 @@ export class Edge {
         this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const scale = Edge.capScale(this.dstNode);
+        arrowCap.setScale(scale);
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
         // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
         // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
@@ -2636,7 +2645,9 @@ export class Edge {
 
         // Get tail arrow dimensions and geometry
         const tailSize = tailStyle.arrowTail?.size ?? 1;
-        const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
+        const tailScale = Edge.capScale(this.srcNode);
+        arrowTailCap.setScale(tailScale);
+        const tailLength = EdgeMesh.calculateArrowLength() * tailSize * tailScale;
         const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
 
         // PHASE 4: Override scaleFactor for 2D tail arrows
@@ -2736,7 +2747,9 @@ export class Edge {
 
             const toward = new Vector3(along.toward.x, along.toward.y, along.toward.z);
             const tip = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1);
+            const scale = Edge.capScale(this.dstNode);
+            cap.setScale(scale);
+            const length = EdgeMesh.calculateArrowLength() * (arrow?.size ?? 1) * scale;
             cap.place(EdgeMesh.calculateArrowPosition(tip, toward, length, geometry), toward);
         }
     }
@@ -2907,7 +2920,7 @@ export class Edge {
         }
 
         const arrowSize = style.arrowHead?.size ?? 1;
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * Edge.capScale(this.dstNode);
         const arrowType = style.arrowHead?.type ?? "normal";
         const geometry = EdgeMesh.getArrowGeometry(arrowType);
 
@@ -2921,6 +2934,18 @@ export class Edge {
         const direction = dstPoint.subtract(srcPoint).normalize();
         const capEnd = dstPoint.subtract(direction.scale(Edge.capGap(style.arrowHead)));
         return EdgeMesh.calculateLineEndpoint(capEnd, direction, arrowLength, geometry);
+    }
+
+    /**
+     * How much larger or smaller than its style's size a cap at a node is drawn: as the node is,
+     * so a node kept one size on screen (a map's `nodeScale: "screen"`) or drawn at one depth's
+     * size keeps its arrowheads in proportion rather than buried under them.
+     * @param node - The node the cap stands on.
+     * @returns The node mesh's scale; 1 when it has none.
+     */
+    private static capScale(node: Node): number {
+        const scale = node.mesh.scaling.x;
+        return Number.isFinite(scale) && scale > 0 ? scale : 1;
     }
 
     /**

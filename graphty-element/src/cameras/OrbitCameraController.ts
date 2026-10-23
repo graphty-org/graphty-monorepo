@@ -92,6 +92,17 @@ export function turningFitDistance(center: Vector3, spots: readonly FramingSpot[
 }
 
 /**
+ * How far from a sphere's center a perspective camera stands for the sphere's outline to touch the
+ * edges of a view whose half field of view has this tangent: `radius / sin(atan(tan))`.
+ * @param radius - The sphere's radius.
+ * @param tan - The tangent of half the field of view, along the view's shorter side.
+ * @returns The distance.
+ */
+export function sphereFitDistance(radius: number, tan: number): number {
+    return (radius * Math.sqrt(1 + tan * tan)) / tan;
+}
+
+/**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
  */
@@ -438,6 +449,26 @@ export class OrbitCameraController {
 
         const tanY = Math.tan(verticalFov / 2);
         return { tanX: tanY * aspectRatio, tanY };
+    }
+
+    /**
+     * Frame a sphere so it fills the free area's shorter side: the camera stands where the sphere's
+     * outline touches the view's edges, `radius / sin(half the field of view)` from its center.
+     * A box around the sphere would leave it about a quarter smaller: the box's near corners stand
+     * in front of the sphere and out to the side of it.
+     * @param center - The sphere's center, in world space.
+     * @param radius - Its radius.
+     */
+    public zoomToSphere(center: Vector3, radius: number): void {
+        this.#sceneRadius = radius;
+        this.pivot.position.copyFrom(center);
+        this.pivot.computeWorldMatrix(true);
+        this.scene.getEngine().resize();
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const tan = Math.min(tanX * free.width, tanY * free.height);
+        this.cameraDistance = this.clampDistance(sphereFitDistance(radius, tan));
+        this.updateCameraPosition();
     }
 
     /**

@@ -2271,6 +2271,16 @@ export interface FormatWriterRegistration {
 }
 
 // @public
+export interface GlobeLook {
+    readonly atmosphere?: boolean;
+    readonly background?: string | null;
+    readonly sun?: {
+        readonly lat: number;
+        readonly lon: number;
+    } | null;
+}
+
+// @public
 export class Graph implements GraphContext {
     constructor(element: Element | string, useMockInput?: boolean);
     readonly acceleration: AccelerationController;
@@ -2343,6 +2353,7 @@ export class Graph implements GraphContext {
     getDataManager(): DataManager;
     getEdgeCount(): number;
     getEventManager(): EventManager;
+    getGlobeLook(): GlobeLook;
     getLayoutBehavior(): GraphBehaviorConfig | undefined;
     getLayoutManager(): LayoutManager;
     getLayoutScope(): Scope | undefined;
@@ -2488,6 +2499,7 @@ export class Graph implements GraphContext {
         edges: Record<string, unknown>[];
     }): void;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions & QueueableOptions): Promise<void>;
+    setGlobeLook(look: GlobeLook): void;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setLayoutBehavior(behavior: GraphBehaviorConfig): void;
@@ -2823,6 +2835,8 @@ export class Graphty extends LitElement {
     getVoiceAdapter(): VoiceInputAdapter;
     getXRConfig(): XRConfig | undefined;
     getXRSessionManager(): XRSessionManager | undefined;
+    get globeLook(): GlobeLook;
+    set globeLook(value: GlobeLook);
     get graph(): Graph;
     get historyKeys(): boolean;
     set historyKeys(value: boolean);
@@ -4137,13 +4151,14 @@ export type MapFrameFact = {
         readonly params: Readonly<Record<string, unknown>>;
     }[];
 } & ({
-    readonly surface: "flat";
+    readonly mapDimension: "2d";
     readonly projection: ProjectionId;
     readonly bounds: GeoBounds;
     readonly size: number;
 } | {
-    readonly surface: "globe";
+    readonly mapDimension: "3d";
     readonly radius: number;
+    readonly bounds: GeoBounds;
 });
 
 // @public
@@ -5693,6 +5708,7 @@ export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
     applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
     applyLighting(lighting: Lighting): void;
+    set backgroundOverride(color: string | null);
     // (undocumented)
     camera: CameraManager;
     dispose(): void;

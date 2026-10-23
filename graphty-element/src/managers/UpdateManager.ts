@@ -32,6 +32,9 @@ import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
 
+/** How much room a framed globe leaves around itself, as a share of its radius: its air's glow. */
+const GLOBE_FRAMING = 1.1;
+
 /**
  * How a flat map in 3D is first seen: turned from straight on toward the south by 45 degrees, so
  * the camera looks north across the map and the edges' arcs rise above it.
@@ -2213,15 +2216,23 @@ export class UpdateManager implements Manager {
         }
 
         const size = boundingBoxMax.subtract(boundingBoxMin);
+        const active = this.camera.getActiveController();
+        // A globe is framed as the sphere it is, filling the view, not as the box around its nodes
+        // and the arcs above it, which drew the earth half the size.
+        const sphere = frame?.surface === "globe" && active instanceof OrbitCameraController ? frame.radius : null;
 
-        if (size.length() <= this.config.minBoundingBoxSize) {
+        if (sphere === null && size.length() <= this.config.minBoundingBoxSize) {
             // A box too small to frame is the empty-graph case again: the request stays, and it is
             // waiting for a graph rather than for the camera.
             this.framingHasNothingToFrame = true;
             return;
         }
 
-        this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+        if (sphere !== null && active instanceof OrbitCameraController) {
+            active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
+        } else {
+            this.camera.zoomToBoundingBox(boundingBoxMin, boundingBoxMax, box.spots);
+        }
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;

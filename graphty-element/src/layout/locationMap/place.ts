@@ -63,7 +63,7 @@ export type LocationMapFrame =
           readonly radius: number;
           /** The box of the data on it, `[[west, south], [east, north]]` in degrees, or the whole world. */
           readonly bounds: GeoBounds;
-          /** Scene units across the data as drawn (the globe's width for world data). */
+          /** Scene units across the data as drawn: its chord, or the globe's width for world data. */
           readonly size: number;
           /** Whether the whole globe is the view's subject (world data or `extent: "world"`), not the data on it. */
           readonly world: boolean;
@@ -368,15 +368,27 @@ function spanOf(bounds: GeoBounds): number {
 }
 
 /**
- * The radius at which data spanning an angle of the globe is drawn `size` scene units across, as
- * the flat map draws it: the chord the angle subtends, `2 r sin(angle / 2)`, is `size`. Past half a
- * turn the globe's own width is what is seen, so world data makes a globe `size` units across.
- * @param size - Scene units across the data.
+ * A globe's radius: at least `size`, so a node of size 1 is drawn a two-hundredth of a world
+ * globe's width and never buries the continents, and large enough that data spanning a small angle
+ * is drawn `size` scene units across, as the flat map draws it (the chord the angle subtends,
+ * `2 r sin(angle / 2)`, is `size`).
+ * @param size - Scene units across the data, and the least radius.
  * @param angle - The data's span, in radians.
  * @returns The radius.
  */
 export function globeRadius(size: number, angle: number): number {
-    return size / (2 * Math.sin(Math.min(angle, Math.PI) / 2));
+    return Math.max(size, size / (2 * Math.sin(Math.min(angle, Math.PI) / 2)));
+}
+
+/**
+ * How wide data spanning an angle is drawn on a globe: the chord it subtends, or the globe's
+ * width for data past half a turn.
+ * @param radius - The globe's radius.
+ * @param angle - The data's span, in radians.
+ * @returns Scene units across.
+ */
+function drawnAcross(radius: number, angle: number): number {
+    return 2 * radius * Math.sin(Math.min(angle, Math.PI) / 2);
 }
 
 /**
@@ -384,10 +396,10 @@ export function globeRadius(size: number, angle: number): number {
  *
  * On a flat map the box is fitted to the data (or the whole world), crossing the date line when
  * the data does, and a point past the latitude Web Mercator reaches (+/-85.05 degrees) goes to the
- * tray as out of range rather than onto the map's edge. On a globe the radius is set so the
- * data's extent is drawn `size` scene units across ({@link globeRadius}), the same share of the
- * view as on the flat map (world data makes a globe `size` units wide), and the data's center
- * is turned to face the camera (world data at the equator, north up).
+ * tray as out of range rather than onto the map's edge. On a globe the radius is at least `size`
+ * and large enough that the data's extent is drawn `size` scene units across ({@link globeRadius}),
+ * so world data makes a globe `2 size` wide, and the data's center is turned to face the camera
+ * (world data at the equator, north up).
  * Unplaced nodes sit in one row below the map.
  * @param source - Where the locations are.
  * @param nodes - Ids, sizes and current positions by row.
@@ -479,10 +491,20 @@ export function placeOnMap(
     } else {
         const bounds = (options.extent === "world" ? null : dataBounds(placed)) ?? worldBounds("equirectangular");
         const world = bounds[1][0] - bounds[0][0] >= WORLD_SPAN;
-        const radius = globeRadius(options.size, world ? Math.PI : spanOf(bounds));
+        const angle = world ? Math.PI : spanOf(bounds);
+        const radius = globeRadius(options.size, angle);
         const center = placed.length > 0 ? centerOf(placed) : { lat: 0, lon: 0 };
         const rotation = facing(world ? { lat: 0, lon: center.lon } : center);
-        frame = { ...common, surface: "globe", dimensions: 3, radius, bounds, size: options.size, world, rotation };
+        frame = {
+            ...common,
+            surface: "globe",
+            dimensions: 3,
+            radius,
+            bounds,
+            size: drawnAcross(radius, angle),
+            world,
+            rotation,
+        };
         // degrees of arc per scene unit at the surface, for spreading in place
         const degPerUnit = 1 / (radius * DEG);
         const offsets =

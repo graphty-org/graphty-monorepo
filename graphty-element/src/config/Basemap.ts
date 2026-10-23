@@ -6,9 +6,9 @@ import { z } from "zod";
 /**
  * A named map source: one of babylonjs-map's keyless sources (`natural-earth`, the bundled
  * public-domain world image and the default, `natural-earth-gray`, the same picture as a plain
- * light gray backdrop, `openstreetmap`, `opentopomap`,
- * `nasa-gibs-blue-marble`, `usgs-topo`, `usgs-imagery`, `eox-s2cloudless-2016`), or `none` for the
- * layout with no picture under it.
+ * light gray backdrop, `openstreetmap`, `opentopomap`, `nasa-gibs-blue-marble`,
+ * `nasa-gibs-blue-marble-bathymetry` (the same with the sea floor's relief), `usgs-topo`,
+ * `usgs-imagery`, `eox-s2cloudless-2016`), or `none` for the layout with no picture under it.
  * @since 3.31.0
  */
 export type BasemapSourceId = MapSourceId | "none";

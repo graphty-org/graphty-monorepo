@@ -137,6 +137,13 @@ export interface TimePlayback {
     readonly step?: TimeStep | "auto";
     /** Whether an element with no usable time is kept in every window; default `"inside"`. */
     readonly missing?: "inside" | "outside";
+    /**
+     * What happens to elements outside the window: `"hide"` (the default) stops drawing them;
+     * `"ghost"` keeps them drawn and in the state `"ghosted"`, which a style layer selects with
+     * `{ match: "state", state: "ghosted" }`. Either way they are not visible: no count, run or
+     * export includes them.
+     */
+    readonly outside?: "hide" | "ghost";
 }
 
 /** One kind's instants for a time column, parsed once: per row, NaN where there is none. */

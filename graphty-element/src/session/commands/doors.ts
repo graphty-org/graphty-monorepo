@@ -3108,6 +3108,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            drawnMasks: READ,
+            ghosting: READ,
+            ghosted: READ,
+            ghosts: READ,
             rule: READ,
             previewSteps: READ,
             slideWindow: exempt(

@@ -325,6 +325,50 @@ export function startingRows(look: {
     ];
 }
 
+/** The template id the timeline's Ghost row carries. */
+export const GHOST_ROW_ID = "graphty:timeline-ghost";
+
+/**
+ * The look a ghost starts with: grey at low opacity, so the elements outside the time window stay
+ * on screen as context without reading as part of it.
+ */
+export const STARTING_GHOST_LOOK = {
+    "node.color": "#9E9E9E",
+    "node.opacity": 0.2,
+    "edge.color": "#9E9E9E",
+    "edge.opacity": 0.15,
+} as const;
+
+/**
+ * The Ghost row: nodes and edges in the state `"ghosted"` (outside the time window while the
+ * timeline draws ghosts), pinned to the top directly below Selected. A starting row that exists
+ * while a time field is designated.
+ * @returns The row.
+ */
+export function ghostRow(): { readonly templateId: typeof GHOST_ROW_ID; readonly pin: "top"; readonly spec: RowSpec } {
+    return {
+        templateId: GHOST_ROW_ID,
+        pin: "top",
+        spec: {
+            name: "Ghost",
+            target: "both",
+            selector: { match: "state", state: "ghosted" },
+            set: { ...STARTING_GHOST_LOOK },
+            source: { by: "template", templateId: GHOST_ROW_ID },
+        },
+    };
+}
+
+/**
+ * Whether a layer is a part of the Ghost row.
+ * @param entry - A layer in the stack.
+ * @returns True for one.
+ */
+export function isGhostRow(entry: CompiledLayer): boolean {
+    const { source } = entry.layer;
+    return source.by === "template" && source.templateId === GHOST_ROW_ID;
+}
+
 /**
  * Which starting row a layer is a part of.
  * @param entry - A layer in the stack.

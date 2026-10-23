@@ -171,6 +171,7 @@ const PLAYBACK_VALUES = {
     results: ["keep", "stale", "rerun"],
     mode: ["sliding", "cumulative"],
     missing: ["inside", "outside"],
+    outside: ["hide", "ghost"],
 } as const;
 
 /** The named steps a playback setting takes besides a positive number. */

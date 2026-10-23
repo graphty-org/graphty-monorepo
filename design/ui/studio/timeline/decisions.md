@@ -362,6 +362,38 @@ red team 13.)
 - Owner: graphty-element.
 - Check: no "Autosave: saving..." during a 10-step play; one write after pause.
 
+## Owner feedback, 2026-10-22
+
+**TL-27. Year numbers read as years; every unit moves.** (Owner: "the timeline shows up but I can't
+move it -- it's stuck at 1970".)
+
+- What: a number column designated with no unit takes its unit from its values: whole numbers
+  from 1000 to 2999 read as calendar years (new unit `"year"`: 1995 is Jan 1, 1995 UTC), epochs
+  in seconds as `"s"`, epochs in milliseconds as `"ms"`, any other numbers as `"ordinal"` (plain
+  numbers: steps, ticks; no calendar anywhere). Auto steps finer than a quarter hour use a 1-2-5
+  number of milliseconds, so a short span never sits in one window that cannot move. The Unit row
+  offers Year, Epoch ms, Epoch s and Number; the reader switches a year column to Number there.
+  Supersedes "Pre-select the unit the element suggests" for numbers; `time.unit-suspect` now
+  suggests `"year"` for four-digit years read as milliseconds.
+- Owner: graphty-element; graphty.
+- Check: Paper citations, Node time = year, reads "1995 - 2024" and steps a year at a time.
+
+**TL-28. Time detected from the values.** Text columns whose values are nearly all (95%) plain
+dates (ISO 8601 with at least a year and month, or a month name with a four-digit year) report
+measurement `"time"`, so the data UI shows Time and the time pickers list them first. Never from
+the column name; bare numbers never. Detection does not designate the timeline field.
+
+**TL-29. Ghosts.** `time.settings.outside`: `"hide"` (default, today's behavior) or `"ghost"`,
+which keeps elements outside the window drawn in the element state `"ghosted"`
+(`{ match: "state", state: "ghosted" }`) and not visible (no count, run or export includes them).
+With `startingRows` on, designating a field adds the Ghost starting row (grey `#9E9E9E`, nodes at
+opacity 0.2, edges 0.15), pinned to the top directly below Selected; clearing the field removes it.
+The time card has an Outside row: Hide, Ghost.
+
+**TL-30. Timeline toggle.** The toolbar's Timeline button (`timeline.toggle`, key T, shown only
+while a time field is set, pressed while the dock shows) hides and shows the dock; designating a
+field shows it.
+
 ## Rejected
 
 - **Pre-set the field, unit and step on the two timeline samples (red team 17).** It breaks
@@ -377,8 +409,8 @@ red team 13.)
   misstate what is visible; TL-15 lets the reader hide them instead.
 - **Do not count a playback move as an unsaved change (red team 18).** The window is saved project
   state; calling a changed project unchanged would be untruthful.
-- **The T key to show or hide the dock (interaction 20 part).** The prototype has no hidden-dock
-  state; clearing the field or window already removes it. Revisit with the phone layout.
+- **The T key to show or hide the dock (interaction 20 part).** Superseded by owner feedback on
+  2026-10-22: see TL-30.
 - **A notice for values far from the rest (red team 9 part).** TL-09's parse rule removes the case
   that was seen; an outlier detector is a new concept.
 - **An optional "entered this step" style layer (visual-a11y 19).** Already designed as phase 5

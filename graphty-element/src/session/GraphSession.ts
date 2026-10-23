@@ -2336,6 +2336,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let selection: SelectionOwner | null = null;
     // Set once the style stack exists: what a selection change repaints.
     let repaintSelected = (): void => undefined;
+    let repaintGhosts = (): void => undefined;
 
     // The style stack, late-bound because the runs are built before it and the auto-apply policy
     // hands a run's derived layer to it. A thunk rather than a captured object for the reason the
@@ -2695,7 +2696,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             timeline?.visibilityChanged(change);
+            repaintGhosts();
             publish(watchers, "visibility:changed", change);
+        },
+        onSlide: () => {
+            repaintGhosts();
         },
         onMaskVersion: advanceTick,
     });
@@ -3156,6 +3161,34 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         paintedSelection = now;
         repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
     };
+    // The ghosts as last repainted: a window move, a slide or the ghost setting repaints the
+    // elements that became or stopped being ghosts.
+    let paintedGhosts: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
+    repaintGhosts = (): void => {
+        if (!readsState()) {
+            paintedGhosts = null;
+            return;
+        }
+
+        const ghosts = visibility.ghosts();
+        if (ghosts === null && paintedGhosts === null) {
+            return;
+        }
+
+        const graph = snapshot();
+        const now = ghosts ?? { node: new Uint8Array(graph.nodeCount), edge: new Uint8Array(graph.edgeCount) };
+        const before = paintedGhosts;
+        paintedGhosts = now;
+        if (before === now) {
+            return;
+        }
+
+        if (ghosts === null) {
+            paintedGhosts = null;
+        }
+
+        repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
+    };
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
     const layerScopes = new LayerScopes({
@@ -3204,6 +3237,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             inState: (state, target, index) => {
+                if (state === "ghosted") {
+                    return visibility.ghosted(target, index);
+                }
+
                 const owner = requireSelection(selection);
                 if (state === "hovered") {
                     return (

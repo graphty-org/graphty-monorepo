@@ -331,6 +331,28 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * @returns What came into view and went out of it; null when put back.
      */
     slideWindow(window: TimeWindow | null): SlideCounts | null;
+    /**
+     * Whether elements outside the time window are drawn as ghosts now: the playback setting
+     * `outside` is `"ghost"` and a window is in force.
+     */
+    readonly ghosting: boolean;
+    /**
+     * What the renderer draws: the visible masks, or while {@link SessionVisibilityApi.ghosting},
+     * every element the filter and its steps keep, whatever the window says. Read-only copies.
+     */
+    readonly drawnMasks: ScopeVisibilitySource;
+    /**
+     * Whether an element is a ghost: drawn, but outside the time window, so not visible.
+     * @param target - Nodes or edges.
+     * @param index - The element's row.
+     * @returns True for a ghost; always false while not ghosting.
+     */
+    ghosted(target: "node" | "edge", index: number): boolean;
+    /**
+     * Every ghost at once: one byte per element, 1 for a ghost.
+     * @returns The bytes, or null while not ghosting.
+     */
+    ghosts(): { readonly node: Uint8Array; readonly edge: Uint8Array } | null;
 }
 
 /** Visible nodes and edges. */
@@ -384,6 +406,8 @@ export interface VisibilitySources extends FilterSources {
      * @param change - The counts, the unresolved paths, and what produced the change.
      */
     readonly onChange?: (change: VisibilityChange) => void;
+    /** Told after the time cursor slid the masks, which no step records. */
+    readonly onSlide?: () => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
     /**
@@ -675,6 +699,15 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     const nodeMaskValue = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1, sources.onMaskVersion);
     const edgeMaskValue = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1, sources.onMaskVersion);
 
+    // What the filter alone keeps, for drawing ghosts: evaluated only while ghosting.
+    const drawnNodes = new ElementMask<NodeId>(() => currentFrame().nodeSpace, 1);
+    const drawnEdges = new ElementMask<EdgeId>(() => currentFrame().edgeSpace, 1);
+    let drawnTag: {
+        readonly graph: GraphSnapshot;
+        readonly filter: RuleTree | null;
+        readonly inputs: readonly unknown[];
+    } | null = null;
+
     let cachedNodeIds: readonly NodeId[] | null = null;
     let cachedNodeSet: ReadonlySet<NodeId> | null = null;
     let cachedEdgeIds: readonly EdgeId[] | null = null;
@@ -940,6 +973,83 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     };
 
     /**
+     * Whether ghosts are drawn now.
+     * @returns True while the `outside` setting is `"ghost"` and a window is in force.
+     */
+    const ghostingNow = (): boolean =>
+        dispatcher.state.visibility.playback?.outside === "ghost" &&
+        (dispatcher.state.visibility.window !== null || slid);
+
+    /**
+     * Bring the drawn masks up to date: what the filter keeps with no window.
+     * @returns The frame.
+     */
+    const drawnUpToDate = (): VisibilityFrame => {
+        const active = upToDate();
+        const filter = ruleNow();
+        const inputs = inputsFor(filter, null);
+        if (drawnTag?.graph === active.graph && drawnTag.filter === filter && sameInputs(drawnTag.inputs, inputs)) {
+            return active;
+        }
+
+        drawnNodes.grow(active.graph.nodeCount);
+        drawnEdges.grow(active.graph.edgeCount);
+        drawnNodes.clear();
+        drawnEdges.clear();
+        if (filter === null) {
+            drawnNodes.fill();
+            drawnEdges.fill();
+        } else {
+            const compiled = compileVisibility(active.graph, filter, null, passSources(active.graph));
+            runPass({ compiled, edges: drawnEdges, graph: active.graph, nodes: drawnNodes });
+        }
+
+        drawnTag = { graph: active.graph, filter, inputs };
+
+        return active;
+    };
+
+    let ghostCache: { readonly key: readonly unknown[]; readonly node: Uint8Array; readonly edge: Uint8Array } | null =
+        null;
+
+    /**
+     * One byte per element, 1 for a ghost, or null while not ghosting. Kept until a mask, the
+     * graph, the filter or the runs it reads move, so a repaint asking per element walks once.
+     * @returns The bytes, or null.
+     */
+    const ghostsNow = (): { readonly node: Uint8Array; readonly edge: Uint8Array } | null => {
+        if (!ghostingNow()) {
+            return null;
+        }
+
+        const { state } = dispatcher;
+        const key = [
+            nodeMaskValue.version,
+            edgeMaskValue.version,
+            state.graph.token,
+            ruleNow(),
+            state.runs,
+            sources.snapshot(),
+        ];
+        if (ghostCache?.key.length === key.length && ghostCache.key.every((part, at) => part === key[at])) {
+            return ghostCache;
+        }
+
+        const active = drawnUpToDate();
+        const node = new Uint8Array(active.graph.nodeCount);
+        const edge = new Uint8Array(active.graph.edgeCount);
+        drawnNodes.forEachMember((index) => {
+            node[index] = nodeMaskValue.has(index) ? 0 : 1;
+        });
+        drawnEdges.forEachMember((index) => {
+            edge[index] = edgeMaskValue.has(index) ? 0 : 1;
+        });
+        ghostCache = { key, node, edge };
+
+        return ghostCache;
+    };
+
+    /**
      * What an edit looked at, which is always the whole graph.
      *
      * A filter has to be evaluated over everything it could possibly show, not over what is
@@ -1177,6 +1287,11 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         };
     };
 
+    const visibleNodeCopy = copies(nodeMaskValue);
+    const visibleEdgeCopy = copies(edgeMaskValue);
+    const drawnNodeCopy = copies(drawnNodes);
+    const drawnEdgeCopy = copies(drawnEdges);
+
     return {
         nodeMask(): Uint8Array {
             upToDate();
@@ -1312,7 +1427,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             const rule = ruleNow();
             slid = true;
 
-            return slider.move(
+            const counts = slider.move(
                 {
                     graph: active.graph,
                     filter: [filter, steps, active.graph],
@@ -1326,6 +1441,9 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
                 },
                 window,
             );
+            sources.onSlide?.();
+
+            return counts;
         },
 
         previewSteps(steps: readonly FilterStep[]): StepCounts {
@@ -1361,8 +1479,40 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         },
 
         masks: {
-            nodes: copies(nodeMaskValue),
-            edges: copies(edgeMaskValue),
+            nodes: visibleNodeCopy,
+            edges: visibleEdgeCopy,
+        },
+
+        get ghosting(): boolean {
+            return ghostingNow();
+        },
+
+        drawnMasks: {
+            nodes: () => {
+                if (!ghostingNow()) {
+                    return visibleNodeCopy();
+                }
+
+                drawnUpToDate();
+                return drawnNodeCopy();
+            },
+            edges: () => {
+                if (!ghostingNow()) {
+                    return visibleEdgeCopy();
+                }
+
+                drawnUpToDate();
+                return drawnEdgeCopy();
+            },
+        },
+
+        ghosts() {
+            return ghostsNow();
+        },
+
+        ghosted(target: "node" | "edge", index: number): boolean {
+            const ghosts = ghostsNow();
+            return ghosts !== null && ghosts[target][index] === 1;
         },
     };
 }

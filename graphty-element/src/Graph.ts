@@ -1227,7 +1227,10 @@ export class Graph implements GraphContext {
                 nodes: () => this.session.selection.nodeMembers(),
             },
             showContext: () => this.session.visibility.showContext,
-            visibility: this.session.visibility.masks,
+            // What is drawn: the visible elements, plus the ghosts outside the time window when
+            // the timeline draws them. Visible stays the data scope everything else reads.
+            visibility: this.session.visibility.drawnMasks,
+            ghost: () => this.session.visibility.ghosting,
         };
         this.updateManager.bindViewMasks(viewMasks);
 

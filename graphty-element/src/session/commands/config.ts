@@ -250,6 +250,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
             }
 
             restore ||= (path === "startingRows" || path === "editableBase") && value === true;
+            // Designating or clearing a time field adds or takes away the Ghost row.
+            restore ||= path === "data.knownFields.nodeTimePath" || path === "data.knownFields.edgeTimePath";
         }
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once

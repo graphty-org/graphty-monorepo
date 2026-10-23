@@ -516,8 +516,8 @@ describe.skipIf(!available)("8.2 context menu", () => {
         }
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => document.activeElement === copy);
-        // the page-themed menu's highlight in the light app (white text at 5.4:1)
-        expectMeasured(copy, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
+        // the page-themed menu's highlight in the light app: Figma's brand fill
+        expectMeasured(copy, { backgroundColor: "#0d99ff" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));
         expect(area.textContent).toBe("Copy");
@@ -1312,7 +1312,7 @@ describe.skipIf(!available)("8.4 light popover", () => {
             const bubble = await waitFor(() => document.querySelector<HTMLElement>('[role="dialog"]'));
             expectMeasured(bubble, { width: 240, borderRadius: "13px", borderTopWidth: "0px" });
             expectMeasured(part(bubble, ".cm-info-bubble"), {
-                color: scheme === "light" ? "#0000008c" : "#ffffffb2",
+                color: scheme === "light" ? "#00000080" : "#ffffffb2",
                 fontSize: "11px",
                 lineHeight: "16px",
                 fontWeight: "450",

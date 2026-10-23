@@ -76,7 +76,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * | Part | Value |
  * |---|---|
  * | Surface | `#ffffff` light, `#1e1e1e` dark (inverse: `#1e1e1e` in both), radius 13px, elevation 400, padding 8px 0, min width 152px |
- * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0768cf` light, `#0a6dc2` dark (inverse: `#0c8ce9`), white text |
+ * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0d99ff` light, `#0c8ce9` dark (Figma; the AA option darkens them to `#0768cf` / `#0a6dc2`), white text |
  * | Text | 11/16 weight 450; starts 16px from the edge (32px with a check column) |
  * | Check column | 16 x 16; icon slot 24 x 24 |
  * | Divider | 1px with 8px above and below |

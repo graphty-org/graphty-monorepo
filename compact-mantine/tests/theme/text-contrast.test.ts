@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { compactColors } from "../../src/theme/colors";
-import { CM_COLORS } from "../../src/theme/tokens";
+import { CM_COLORS, CM_HIGH_CONTRAST } from "../../src/theme/tokens";
 
 /**
- * WCAG 1.4.3 (AA): body text needs 4.5:1 against what it is drawn on. Every color the theme
- * hands out for readable, non-disabled text is checked here against every surface it sits on,
- * in both schemes. Disabled text, placeholders and icons are exempt or held to other minimums.
+ * WCAG 1.4.3 (AA): body text needs 4.5:1 against what it is drawn on. With the AA option
+ * (`highContrast`) on, every color the theme hands out for readable, non-disabled text is checked
+ * here against every surface it sits on, in both schemes. The default theme is Figma's and is not
+ * held to this (tests/constants/panel.test.ts records where it misses). Mantine's dimmed text
+ * follows the secondary ink in the AA mode, so it is covered by text-secondary.
  */
 
 function rgba(color: string): [number, number, number, number] {
@@ -34,7 +36,8 @@ function contrast(text: string, surface: string): number {
 }
 
 type Scheme = "light" | "dark";
-const tok = (name: keyof typeof CM_COLORS, scheme: Scheme): string => CM_COLORS[name][scheme];
+const tok = (name: keyof typeof CM_COLORS, scheme: Scheme): string =>
+    (CM_HIGH_CONTRAST[name] ?? CM_COLORS[name])[scheme];
 
 /** The panel, the field and the selected row: where panel text is drawn. */
 const panelSurfaces = (s: Scheme): string[] => [tok("bg", s), tok("bg-secondary", s), tok("bg-selected", s)];
@@ -44,23 +47,11 @@ const TEXT: Record<Scheme, { name: string; color: string; on: string[] }[]> = {
     light: [
         { name: "text", color: tok("text", "light"), on: panelSurfaces("light") },
         { name: "text-secondary", color: tok("text-secondary", "light"), on: panelSurfaces("light") },
-        // Mantine's dimmed text in light is gray-6; it sits on the panel, a field and gray-0 (default-hover)
-        {
-            name: "dimmed (gray-6)",
-            color: compactColors.gray[6],
-            on: [tok("bg", "light"), tok("bg-secondary", "light"), compactColors.gray[0]],
-        },
         { name: "text-menu-secondary", color: tok("text-menu-secondary", "light"), on: [tok("bg-menu", "light")] },
     ],
     dark: [
         { name: "text", color: tok("text", "dark"), on: panelSurfaces("dark") },
         { name: "text-secondary", color: tok("text-secondary", "dark"), on: panelSurfaces("dark") },
-        // Mantine's dimmed text in dark is dark-2; it sits on the panel, a field and a menu
-        {
-            name: "dimmed (dark-2)",
-            color: compactColors.dark[2],
-            on: [compactColors.dark[7], compactColors.dark[6], compactColors.dark[8]],
-        },
         { name: "text-menu-secondary", color: tok("text-menu-secondary", "dark"), on: [tok("bg-menu", "dark")] },
     ],
 };

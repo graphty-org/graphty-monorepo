@@ -71,9 +71,9 @@ const css = `
 .cm-tree-row[data-tint="parent"][aria-selected="true"]::after {
     box-sizing: content-box;
     height: 24px;
-    /* A selected parent is told apart from the band its children wear: the stronger selected
-       tint, where bg-selected sits within 1.2:1 of the band in dark (#394360 on #32394d). */
-    background: var(--cm-bg-selected-hover);
+    /* Figma's selected tint; the AA option takes the stronger one, since bg-selected sits within
+       1.2:1 of the band in dark (#394360 on #32394d). */
+    background: var(--cm-tree-parent-selected);
     border-bottom: 4px solid var(--cm-bg-selected-secondary);
     border-radius: 5px 5px 0 0;
 }
@@ -81,7 +81,7 @@ const css = `
 .cm-tree-row[data-tint="child-last"]::before { display: block; }
 .cm-tree-row[data-tint="child-last"]::before { bottom: 4px; border-radius: 0 0 5px 5px; }
 .cm-tree-row[data-tint^="child"]:hover::after,
-.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected); }
+.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-tree-child-hover); }
 
 /* Keyboard focus (ours; Figma rows take no focus): a 1px ring on the 24 pill area. */
 .cm-tree-ring {
@@ -227,8 +227,8 @@ const css = `
     .cm-tree-progress[data-indeterminate] .cm-tree-progress-fill { width: 100%; opacity: 0.5; animation: none; }
 }
 
-/* Lock / eye / pin: 24 x 24 hit targets side by side, never overlapping (WCAG 2.5.8), ending 8
-   from the panel edge. Hidden until the row is hovered or focused; a toggle that is on stays
+/* Lock / eye / pin: 24 hit targets on Figma's 20 pitch, ending 8 from the panel edge. The AA
+   option and a coarse pointer set them side by side, each a whole 24 x 24 target (WCAG 2.5.8). Hidden until the row is hovered or focused; a toggle that is on stays
    visible, and so does an action marked data-at-rest (an eye an app shows on every row). */
 .cm-tree-actions {
     flex: none;
@@ -244,6 +244,10 @@ const css = `
 .cm-tree-actions:has(> [data-pinned]):not(:has(button, input)) {
     flex: 0 4 auto;
     min-width: 0;
+}
+.cm-tree-actions > * + * { margin-inline-start: var(--cm-tree-action-overlap); }
+@media (pointer: coarse) {
+    .cm-tree-actions > * + * { margin-inline-start: 0; }
 }
 .cm-tree-actions > [data-pinned]:not(button, :has(button, input)) {
     min-width: 0;

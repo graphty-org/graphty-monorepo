@@ -444,11 +444,10 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
     });
 
-    // Figma draws every option at 450; the chosen one here takes 600 so which side is chosen
-    // reads without zooming (the face and its 1px edge alone did not).
-    it("text options: 11/16 450, padding 0 8; the chosen option 600", async () => {
+    // Figma draws every option at 450, the chosen one included (bc/popover-advanced-stroke #495).
+    it("text options: 11/16 450, padding 0 8; the chosen option 450 too", async () => {
         const { container } = await renderFigma(<SegmentedControl data={["Basic", "Dynamic", "Brush"]} />);
-        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[0], { fontWeight: "600" });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[0], { fontWeight: "450" });
         expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[1], {
             fontSize: "11px",
             lineHeight: "16px",
@@ -457,6 +456,14 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
             paddingRight: "8px",
             height: 24,
         });
+    });
+
+    it("the AA option draws the chosen text option at 600", async () => {
+        const { container } = await renderFigma(<SegmentedControl data={["Basic", "Dynamic", "Brush"]} />, {
+            highContrast: true,
+        });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[0], { fontWeight: "600" });
+        expectMeasured(container.querySelectorAll<HTMLElement>(".cm-sc-label")[1], { fontWeight: "450" });
     });
 
     it("the AA option gives the checked face a 3:1 edge", async () => {
@@ -547,7 +554,16 @@ describe.skipIf(!available)("Tabs, pills (5.1)", () => {
     );
     // Width is left out: the bundled Inter sets these words about 1px narrower than the Inter
     // the capture machine had; the padding, type and reservation below pin the geometry.
-    const TAB = ["height", "backgroundColor", "color", "paddingLeft", "paddingRight", "borderRadius", ...TYPE];
+    const TAB = [
+        "height",
+        "backgroundColor",
+        "color",
+        "paddingLeft",
+        "paddingRight",
+        "borderRadius",
+        "boxShadow",
+        ...TYPE,
+    ];
 
     it("light: selected and unselected tabs, the reserved widths and the 4 gap", async () => {
         const list = await figmaElement("bc/tab-design--default", { index: 34 });
@@ -559,6 +575,11 @@ describe.skipIf(!available)("Tabs, pills (5.1)", () => {
         expectMeasured(prototype, { x: design.getBoundingClientRect().width + 4 }, { origin: design });
         expectMeasured(design, figmaSpec(selected, TAB));
         expectMeasured(prototype, figmaSpec(unselected, TAB));
+    });
+
+    it("the AA option gives the selected tab a 3:1 edge", async () => {
+        const { container } = await renderFigma(tabs, { highContrast: true });
+        expectMeasured(part(container, "[role=tab]"), { boxShadow: "#00000073 0px 0px 0px 1px inset" });
     });
 
     it("hover on an unselected tab (bc/tab-prototype--hover #31)", async () => {

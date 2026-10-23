@@ -132,6 +132,15 @@ describe("the AA option (spec 2.9)", () => {
                 "text-danger",
                 "bg-danger",
                 "bg-success",
+                "text-warning",
+                "text-success",
+                "swatch-ring",
+                "chart-bar-ring",
+                "tab-edge",
+                "tree-parent-selected",
+                "tree-child-hover",
+                "text-menu-page-secondary",
+                "menu-onbrand-secondary",
             ].sort(),
         );
     });

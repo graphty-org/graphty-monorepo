@@ -216,7 +216,22 @@ describe("menu and light popover primitives", () => {
         expect(shadow.includes("inset")).toBe(true);
     });
 
-    it("a row is 24 tall with a #0768cf inset pill and white text, and only one row is filled", async () => {
+    it("AA option: the page menu's highlight is the darker brand, with white text and shortcut", async () => {
+        const { container } = await renderThemed(menu, { highContrast: true });
+        const row2 = part(container, "[data-testid=row2]");
+        expectMeasured(row2, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
+        expectMeasured(row2, { color: "#ffffff" });
+        const surface = part(container, "[data-testid=menu]");
+        expect(getComputedStyle(surface).getPropertyValue("--cm-text-onbrand-secondary").trim()).toBe("#ffffff");
+    });
+
+    it("the page menu's shortcut on the highlight is Figma's #ffffffcc by default", async () => {
+        const { container } = await renderThemed(menu);
+        const surface = part(container, "[data-testid=menu]");
+        expect(getComputedStyle(surface).getPropertyValue("--cm-text-onbrand-secondary").trim()).toBe("#ffffffcc");
+    });
+
+    it("a row is 24 tall with Figma's #0d99ff inset pill and white text, and only one row is filled", async () => {
         const { container } = await renderThemed(menu);
         const row1 = part(container, "[data-testid=row1]");
         const row2 = part(container, "[data-testid=row2]");
@@ -224,11 +239,11 @@ describe("menu and light popover primitives", () => {
         expectMeasured(row2, { color: "#ffffff" });
         expectMeasured(
             row2,
-            { backgroundColor: "#0768cf", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
+            { backgroundColor: "#0d99ff", left: "8px", right: "8px", borderTopLeftRadius: "5px" },
             { pseudo: "::before" },
         );
         await drive(row1, "hover");
-        expectMeasured(row1, { backgroundColor: "#0768cf", color: "#ffffff" }, { pseudo: "::before" });
+        expectMeasured(row1, { backgroundColor: "#0d99ff", color: "#ffffff" }, { pseudo: "::before" });
         expectMeasured(row1, { color: "#ffffff" });
         expectMeasured(row2, { backgroundColor: "#00000000" }, { pseudo: "::before" });
         expectMeasured(row2, { color: "#000000e5" });

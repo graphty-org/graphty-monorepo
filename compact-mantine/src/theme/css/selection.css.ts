@@ -321,8 +321,8 @@ const css = `
 }
 .cm-sc .cm-sc-label[data-active] {
     color: var(--cm-text);
-    /* 600, not the strong role's 550: at 11px on the dark track 550 beside 450 did not read. */
-    font-weight: 600;
+    /* Figma's 450; the AA option sets 600, so which side is chosen reads at 11px. */
+    font-weight: var(--cm-segment-chosen-weight);
     background-color: var(--cm-bg);
     box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
@@ -410,9 +410,9 @@ const css = `
     color: var(--cm-text);
     background-color: var(--cm-bg-secondary);
     font-weight: 550;
-    /* The selected segment's inset edge: 3:1 against the panel in the AA mode (WCAG 1.4.11),
-       so the selected pill is not told by its fill alone. */
-    box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
+    /* No edge in Figma; the AA option draws a 3:1 one (WCAG 1.4.11), so the selected pill is not
+       told by its fill alone. */
+    box-shadow: inset 0 0 0 1px var(--cm-tab-edge);
 }
 .cm-tabs[data-variant="pills"] .cm-tab:focus-visible {
     outline: 1px solid var(--cm-border-selected);

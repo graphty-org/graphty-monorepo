@@ -4,6 +4,15 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Owner ruling: menus follow the page theme (compact-mantine)
+
+The owner chose, for issue #3026, that menus, listboxes and context menus follow the page theme: a
+light surface with dark ink in the light app, Figma's #1e1e1e menu in the dark app. Figma's
+always-dark menu stays one prop away (`variant="inverse"`, or the class `cm-menu-inverse`). The
+highlight, danger fill and secondary ink inside the page-following menu are Figma's in the default
+theme; their darker contrast values belong to the opt-in AA option (`highContrast`), per the
+owner's rule that the default theme looks exactly like Figma (recorded 2026-10-22).
+
 ## 2026-10-20 -- Decided by the team: a row that started empty takes its first rule (graphty-element)
 
 graphty-element, non-breaking, the second half of "a row of one kind may start empty" (2026-10-19).

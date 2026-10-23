@@ -33,7 +33,6 @@
 
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -366,43 +365,46 @@ ${PAGE_SCRIPT}</script></body></html>
     return path.relative(work, path.join(out, "index.html"));
 }
 
-/**
- * Serves a directory over HTTP on a free port.
- * @param root - The directory.
- * @returns The server and its origin.
- */
-async function serve(root) {
-    const types = {
-        ".js": "text/javascript",
-        ".mjs": "text/javascript",
-        ".html": "text/html",
-        ".json": "application/json",
-        ".wasm": "application/wasm",
-        ".css": "text/css",
-    };
-    const server = createServer((request, response) => {
-        const file = path.join(root, decodeURIComponent(new URL(request.url, "http://x").pathname));
-        if (!file.startsWith(root) || !existsSync(file)) {
-            response.writeHead(404);
-            response.end();
-            return;
-        }
+/** The codes only the GPU package's own probe produces: proof that it was loaded. */
+const PROBE_CODES = ["E_SOFTWARE_ONLY", "E_NO_WEBGPU", "E_NO_ADAPTER"];
 
-        response.writeHead(200, { "content-type": types[path.extname(file)] ?? "application/octet-stream" });
-        response.end(readFileSync(file));
-    });
-    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-    return { server, origin: `http://127.0.0.1:${server.address().port}` };
-}
+/** The states of an attached accelerator. */
+const ATTACHED = ["idle", "active"];
+
+/** The origin the pages are opened at. No server listens there: every request is answered from disk. */
+const ORIGIN = "https://bundler-matrix.test";
+
+const CONTENT_TYPES = {
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".html": "text/html",
+    ".json": "application/json",
+    ".wasm": "application/wasm",
+    ".css": "text/css",
+};
 
 /**
  * Opens one page and reads where acceleration settled and what graphty-element printed.
  * @param browser - The Chromium instance.
- * @param url - The page.
+ * @param root - The directory the page's origin maps onto.
+ * @param target - The page's path and query under the origin.
  * @returns The status and the console lines.
  */
-async function observe(browser, url) {
-    const page = await browser.newPage();
+async function observe(browser, root, target) {
+    const context = await browser.newContext();
+    await context.route(`${ORIGIN}/**`, (route) => {
+        const file = path.join(root, decodeURIComponent(new URL(route.request().url()).pathname));
+        if (!file.startsWith(root) || !existsSync(file)) {
+            return route.fulfill({ status: 404 });
+        }
+
+        return route.fulfill({
+            status: 200,
+            contentType: CONTENT_TYPES[path.extname(file)] ?? "application/octet-stream",
+            body: readFileSync(file),
+        });
+    });
+    const page = await context.newPage();
     const lines = [];
     const errors = [];
     page.on("console", (message) => {
@@ -412,7 +414,7 @@ async function observe(browser, url) {
     });
     page.on("pageerror", (error) => errors.push(error.message));
     try {
-        await page.goto(url);
+        await page.goto(`${ORIGIN}/${target}`);
         const handle = await page.waitForFunction(
             () => {
                 const status =
@@ -428,8 +430,19 @@ async function observe(browser, url) {
     } catch (error) {
         return { status: null, lines, errors: [...errors, String(error)] };
     } finally {
-        await page.close();
+        await context.close();
     }
+}
+
+/**
+ * One line saying where a build's pages settled.
+ * @param auto - What the auto page showed.
+ * @param required - What the required page showed, when it was opened.
+ * @returns The line.
+ */
+function summarize(auto, required) {
+    const head = `${auto.status?.state ?? "-"} ${auto.status?.code ?? ""}`;
+    return required === undefined ? head : `${head} / required: ${required.status?.state ?? "-"}`;
 }
 
 /**
@@ -440,46 +453,88 @@ async function observe(browser, url) {
  * @returns The problems, empty when it passed.
  */
 function judge(state, auto, required) {
-    const problems = [];
-    const warns = auto.lines.filter((line) => line.type === "warning");
-    const errs = auto.lines.filter((line) => line.type === "error");
     if (auto.status === null) {
         return [`the page never settled: ${auto.errors.join("; ")}`];
     }
 
-    if (state === "absent") {
-        if (auto.status.code !== "E_MISSING_PACKAGE")
-            problems.push(`code ${auto.status.code}, expected E_MISSING_PACKAGE`);
-        if (auto.status.params?.package !== PEER) problems.push("params.package does not name the package");
-        if (auto.lines.length > 0) problems.push(`printed ${auto.lines.map((line) => line.text).join(" | ")}`);
-    } else if (state === "present") {
-        if (
-            !["E_SOFTWARE_ONLY", "E_NO_WEBGPU", "E_NO_ADAPTER"].includes(auto.status.code) &&
-            !["idle", "active"].includes(auto.status.state)
-        ) {
-            problems.push(
+    const warns = auto.lines.filter((line) => line.type === "warning").length;
+    const errs = auto.lines.filter((line) => line.type === "error").length;
+    const checks = {
+        absent: [
+            [auto.status.code === "E_MISSING_PACKAGE", `code ${auto.status.code}, expected E_MISSING_PACKAGE`],
+            [auto.status.params?.package === PEER, "params.package does not name the package"],
+            [auto.lines.length === 0, `printed ${auto.lines.map((line) => line.text).join(" | ")}`],
+        ],
+        present: [
+            [
+                PROBE_CODES.includes(auto.status.code) || ATTACHED.includes(auto.status.state),
                 `auto: state ${auto.status.state} code ${auto.status.code}, expected the package's own probe answer`,
-            );
-        }
-        if (auto.status.code !== null && (warns.length !== 1 || errs.length > 0))
-            problems.push(`auto printed ${warns.length} warnings and ${errs.length} errors, expected 1 warning`);
-        if (required?.status === null || !["idle", "active"].includes(required?.status?.state)) {
-            problems.push(
+            ],
+            [
+                auto.status.code === null || (warns === 1 && errs === 0),
+                `auto printed ${warns} warnings and ${errs} errors, expected 1 warning`,
+            ],
+            [
+                ATTACHED.includes(required?.status?.state),
                 `required: state ${required?.status?.state} code ${required?.status?.code}, expected the package attached`,
-            );
-        }
-    } else {
-        if (auto.status.code !== "E_ACCELERATOR_FAILED")
-            problems.push(`code ${auto.status.code}, expected E_ACCELERATOR_FAILED`);
-        if (errs.length !== 1 || warns.length > 0)
-            problems.push(`printed ${errs.length} errors and ${warns.length} warnings, expected 1 error`);
-    }
+            ],
+        ],
+        broken: [
+            [auto.status.code === "E_ACCELERATOR_FAILED", `code ${auto.status.code}, expected E_ACCELERATOR_FAILED`],
+            [errs === 1 && warns === 0, `printed ${errs} errors and ${warns} warnings, expected 1 error`],
+        ],
+    };
 
-    return problems;
+    return checks[state].filter(([passed]) => !passed).map(([, problem]) => problem);
 }
 
 const BUNDLERS = ["vite-8", "webpack-current", "webpack-5.90.2", "rollup", "esbuild", "import-map"];
 const STATES = ["absent", "present", "broken"];
+
+/**
+ * Type-checks a consumer against the published declarations with the GPU package absent.
+ * @returns The result row.
+ */
+function checkTypes() {
+    const row = { bundler: "tsc (skipLibCheck: false)", state: "absent", summary: "", problems: [] };
+    setPeer("absent");
+    try {
+        run("npx", ["tsc", "-p", "tsconfig.json"], app);
+    } catch (error) {
+        row.problems.push(String(error.message).slice(0, 2000));
+    }
+
+    return row;
+}
+
+/**
+ * Builds the app with one toolchain in the current state, and opens its pages.
+ * @param browser - The Chromium instance.
+ * @param state - absent, present or broken.
+ * @param bundler - The toolchain.
+ * @returns The result row.
+ */
+async function buildAndObserve(browser, state, bundler) {
+    try {
+        const { root, page } = build(bundler, path.join(work, "out", state, bundler));
+        const auto = await observe(browser, root, page);
+        const required =
+            state === "present" ? await observe(browser, root, `${page}?acceleration=required`) : undefined;
+        return { bundler, state, summary: summarize(auto, required), problems: judge(state, auto, required) };
+    } catch (error) {
+        return { bundler, state, summary: "", problems: [`build failed: ${String(error.message).slice(0, 2000)}`] };
+    }
+}
+
+/**
+ * Prints one result row.
+ * @param row - The row.
+ */
+function report(row) {
+    const verdict = row.problems.length === 0 ? "PASS" : "FAIL";
+    console.log(`${verdict}  ${row.bundler.padEnd(16)} ${row.state.padEnd(8)} ${row.summary}`);
+    for (const problem of row.problems) console.log(`      ${problem}`);
+}
 
 async function main() {
     const only = process.argv.slice(2);
@@ -490,61 +545,24 @@ async function main() {
     const require = createRequire(path.join(elementDir, "package.json"));
     const { chromium } = require("@playwright/test");
     const browser = await chromium.launch({ args: CHROMIUM_FLAGS });
-    const results = [];
-
-    setPeer("absent");
-    try {
-        run("npx", ["tsc", "-p", "tsconfig.json"], app);
-        results.push({ bundler: "tsc (skipLibCheck: false)", state: "absent", problems: [] });
-    } catch (error) {
-        results.push({
-            bundler: "tsc (skipLibCheck: false)",
-            state: "absent",
-            problems: [String(error.message).slice(0, 2000)],
-        });
-    }
+    const results = [checkTypes()];
+    report(results[0]);
 
     for (const state of STATES) {
         setPeer(state);
         for (const bundler of bundlers) {
-            const out = path.join(work, "out", state, bundler);
-            let problems;
-            let summary = "";
-            try {
-                const { root, page } = build(bundler, out);
-                const { server, origin } = await serve(root);
-                try {
-                    const auto = await observe(browser, `${origin}/${page}`);
-                    const required =
-                        state === "present"
-                            ? await observe(browser, `${origin}/${page}?acceleration=required`)
-                            : undefined;
-                    problems = judge(state, auto, required);
-                    summary = `${auto.status?.state ?? "-"} ${auto.status?.code ?? ""}${required ? ` / required: ${required.status?.state ?? "-"}` : ""}`;
-                } finally {
-                    server.close();
-                }
-            } catch (error) {
-                problems = [`build failed: ${String(error.message).slice(0, 2000)}`];
-            }
-
-            results.push({ bundler, state, summary, problems });
-            console.log(
-                `${problems.length === 0 ? "PASS" : "FAIL"}  ${bundler.padEnd(16)} ${state.padEnd(8)} ${summary}`,
-            );
-            for (const problem of problems) console.log(`      ${problem}`);
+            const row = await buildAndObserve(browser, state, bundler);
+            results.push(row);
+            report(row);
         }
     }
 
     await browser.close();
-    writeFileSync(path.join(work, "results.json"), JSON.stringify(results, null, 2));
-    const failed = results.filter((result) => result.problems.length > 0);
-    console.log(
-        `\n${results.length - failed.length} passed, ${failed.length} failed (${path.join(work, "results.json")})`,
-    );
-    for (const result of failed.filter((entry) => entry.bundler.startsWith("tsc")))
-        console.log(`FAIL  ${result.bundler}: ${result.problems[0]}`);
-    process.exitCode = failed.length > 0 ? 1 : 0;
+    const file = path.join(work, "results.json");
+    writeFileSync(file, JSON.stringify(results, null, 2));
+    const failed = results.filter((result) => result.problems.length > 0).length;
+    console.log(`\n${results.length - failed} passed, ${failed} failed (${file})`);
+    process.exitCode = failed > 0 ? 1 : 0;
 }
 
 await main();

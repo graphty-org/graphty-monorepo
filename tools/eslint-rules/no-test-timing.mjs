@@ -144,7 +144,7 @@ const CONFIG_DEADLINE_KEYS = new Set([
     "actionTimeout",
 ]);
 // Calls whose timeout option is a deadline on the test's own wait: a wait by name, a child process, a request.
-const WAITING_CALL = /^(wait|until|poll|settle|find)|(Stable|Settled|Idle)(Frame)?$/i;
+const WAITING_CALL = /(^(wait|until|poll|settle|find))|((Stable|Settled|Idle)(Frame)?$)/i;
 const PROCESS_CALLS = new Set(["exec", "execFile", "execSync", "execFileSync", "spawn", "spawnSync", "fork", "fetch"]);
 // The global hang guard's own constants (tools/test-wait-guard.mjs): the one value a deadline may take.
 const GUARD_NAMES = new Set(["WAIT_GUARD_MS", "TEST_GUARD_MS"]);
@@ -319,6 +319,7 @@ const rule = {
             obj.properties.some((p) => p.type === "Property" && keys.has(p.key.name ?? p.key.value));
 
         const TIMEOUT_KEYS = new Set(["timeout"]);
+        const isTimeoutProp = (p) => keyName(p) === "timeout";
         const CONFIG_KEYS = new Set(["testTimeout", "hookTimeout", "teardownTimeout"]);
 
         const checkTimeoutArgs = (node) => {
@@ -349,14 +350,7 @@ const rule = {
                         return [removeArg(fixer, args, i)];
                     }
                     return isOptions(a, i)
-                        ? [
-                              removeProps(
-                                  fixer,
-                                  args,
-                                  i,
-                                  budgetProps(a).filter((p) => keyName(p) === "timeout"),
-                              ),
-                          ].flat()
+                        ? [removeProps(fixer, args, i, budgetProps(a).filter(isTimeoutProp))].flat()
                         : [];
                 });
             context.report({ node, messageId: "timeout", fix });

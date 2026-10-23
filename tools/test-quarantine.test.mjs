@@ -1,8 +1,8 @@
 // Tests of tools/test-quarantine.mjs: a test that fails and then passes on the same inputs is flaky and does not
 // fail the shard; one that fails on the retry too does; a quarantined test's failure is let through; the gate's
 // bookkeeping files one issue per new entry, counts passes, proves flakiness across two runs of one input key,
-// and ends entries whose issue closed, asking GitHub at most once an hour. All of it only with
-// GRAPHTY_TEST_QUARANTINE=1; off (the default), the wrapper only runs the shard's command.
+// and ends entries whose issue closed, asking GitHub at most once an hour. All of it on by default;
+// GRAPHTY_TEST_QUARANTINE=0 switches it off, and then the wrapper only runs the shard's command.
 //
 //   node --test tools/test-quarantine.test.mjs
 import assert from "node:assert/strict";
@@ -18,6 +18,7 @@ import {
     decide,
     emptyState,
     PASSES_TO_LEAVE,
+    quarantineEnabled,
     readState,
     runShard,
     splitLog,
@@ -142,7 +143,7 @@ describe("runShard", () => {
             state: emptyState(),
             env: {
                 ...process.env,
-                GRAPHTY_TEST_QUARANTINE: "1",
+                GRAPHTY_TEST_QUARANTINE: undefined, // the default: on
                 TEST_LEDGER_RUN: "100-1-graphty-1",
                 TEST_QUARANTINE_RESULT: result,
                 ...env,
@@ -151,14 +152,16 @@ describe("runShard", () => {
         return { code, result: existsSync(result) ? JSON.parse(readFileSync(result, "utf8")) : null };
     };
 
-    it("is off by default: the shard's own exit code, no retry, no let-through, no result file", async () => {
-        for (const off of [undefined, "0", ""]) {
-            const c = checkout({ retryFails: false, quarantine: [entry(T1)] });
-            const { code, result } = await run(c, { GRAPHTY_TEST_QUARANTINE: off });
-            assert.equal(code, 1, "every failure fails the shard");
-            assert.equal(result, null, "no result for the gate's bookkeeping");
-            assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry");
-        }
+    it("is on by default and off only with GRAPHTY_TEST_QUARANTINE=0", async () => {
+        assert.equal(quarantineEnabled({}), true);
+        assert.equal(quarantineEnabled({ GRAPHTY_TEST_QUARANTINE: "1" }), true);
+        assert.equal(quarantineEnabled({ GRAPHTY_TEST_QUARANTINE: "" }), true);
+        assert.equal(quarantineEnabled({ GRAPHTY_TEST_QUARANTINE: "0" }), false);
+        const c = checkout({ retryFails: false, quarantine: [entry(T1)] });
+        const { code, result } = await run(c, { GRAPHTY_TEST_QUARANTINE: "0" });
+        assert.equal(code, 1, "off, every failure fails the shard");
+        assert.equal(result, null, "off, no result for the gate's bookkeeping");
+        assert.equal(existsSync(join(c.root, "retry-command")), false, "off, no retry");
         const passing = await runShard("graphty-1", "exit 0", { root: fresh(), env: {}, state: emptyState() });
         assert.equal(passing, 0);
     });

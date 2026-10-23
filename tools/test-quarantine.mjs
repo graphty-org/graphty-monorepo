@@ -25,9 +25,9 @@
  *    tools/test-quarantine.json; commit that file alone and land it, so CI and every other checkout apply it
  *    too. `status` prints the list and the counts.
  *
- * OFF unless GRAPHTY_TEST_QUARANTINE=1, pending the owner's decision (design/ci/ci-cd-plan.md 9 says no
- * automatic retries and quarantine only with the owner's yes). Off, `run` runs the shard's command and returns
- * its exit code, nothing more: no retry, no let-through, no result file, no state, no issues.
+ * ON by default (the owner's decision of 2026-10-22, design/ci/ci-cd-plan.md 9). GRAPHTY_TEST_QUARANTINE=0
+ * switches it off, for debugging: then `run` runs the shard's command and returns its exit code, nothing more:
+ * no retry, no let-through, no result file, no state, no issues.
  *
  * Usage:
  *   node tools/test-quarantine.mjs run <shard> <command> [--via-run-tests]
@@ -62,11 +62,11 @@ const FILE = "tools/test-quarantine.json";
 const RETRY_MARK = "test-quarantine: retrying";
 
 /**
- * Whether the quarantine is switched on (GRAPHTY_TEST_QUARANTINE=1); off by default.
+ * Whether the quarantine is switched on: on unless GRAPHTY_TEST_QUARANTINE=0.
  * @param [env] the environment
  * @returns boolean
  */
-export const quarantineEnabled = (env = process.env) => env.GRAPHTY_TEST_QUARANTINE === "1";
+export const quarantineEnabled = (env = process.env) => env.GRAPHTY_TEST_QUARANTINE !== "0";
 
 const keyOf = (t) => `${t.family}\0${t.file}\0${t.name}`;
 const idOf = (t) => `${t.file} > ${t.name}`;

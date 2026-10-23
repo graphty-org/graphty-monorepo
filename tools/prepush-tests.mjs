@@ -969,7 +969,7 @@ async function main() {
 
     // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
     process.on("exit", markGate());
-    // Off by default (GRAPHTY_TEST_QUARANTINE=1 turns it on): then the wrapper writes no result and nothing here runs.
+    // On by default; with GRAPHTY_TEST_QUARANTINE=0 the wrapper writes no result and nothing here runs.
     if (quarantineEnabled()) {
         quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));
     }

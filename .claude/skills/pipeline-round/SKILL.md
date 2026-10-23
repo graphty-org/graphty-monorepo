@@ -108,7 +108,13 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
   (`[KNOWN]` in the landing's summary), so unrelated landings go through. After reverting a culprit, `verify.mjs
 handled` closes the issues land checks filed for its failures; a verification that still sees them reopens them.
 - **The test ledger** (`node tools/test-ledger.mjs status`, design `design/ci/test-ledger.md`): failures on golden,
-  and flaky and broken tests. It is information: nothing in it is this round's to act on.
+  and flaky and broken tests. Nothing in the ledger is this round's to act on but the quarantine:
+- **The quarantine** (`node tools/test-quarantine.mjs status`): the gate quarantines a test itself when it fails and
+  then passes on the same inputs, and files its issue; the entry holds at once on this machine, from its local state.
+  When the status lists an entry the committed `tools/test-quarantine.json` lacks (or the state ended one), carry it
+  into git: a branch of its own from `origin/golden-verified`, `node tools/test-quarantine.mjs write`, commit only that
+  file (`test(workspace): quarantine <n> flaky tests`) and land it alone. CI applies only the committed list. Never
+  quarantine a `webgpu-graph-algorithms*` test by hand.
 - **Lessons.** When a round resolves a failure mode `lessons.md` does not hold, add an entry there (symptom, how it was
   told apart from a real failure, the fix) on the round's next docs branch.
 

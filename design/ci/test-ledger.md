@@ -212,14 +212,20 @@ Hashes are the first 16 hex of sha256. Signatures group failures for issues; exo
 
 ### 4.4 Quarantine
 
-An automatic quarantine exists (`tools/test-quarantine.mjs`: it adds a test that failed and then passed on the
-same inputs, and lets a quarantined test's failure through in every gate and CI run), but it is OFF pending the
-owner's decision and runs only with `GRAPHTY_TEST_QUARANTINE=1`. The ledger does not excuse quarantined tests,
-and `land` does not police the list: both were cut until the owner says yes to a quarantine, when they come back
-with these rules (`ci-cd-plan.md` 9.3): an issue, 14 days at most, never a GPU correctness test
-(`webgpu-graph-algorithms*`), the visual gate or a test guarding against silent CPU-for-GPU substitution; the
-list read from golden's tip, never from the tree under test; verification and the cut never excuse a quarantined
-failure. `checkQuarantine()` in `tools/test-ledger.mjs` checks an entry's shape against them.
+Owner's decision, 2026-10-22: the quarantine is automatic and on by default (`tools/test-quarantine.mjs`,
+off only with `GRAPHTY_TEST_QUARANTINE=0`). The gate and CI retry a shard's failed test files once; a test that
+failed and then passed on the same inputs is quarantined with its own `priority:high` issue, and its failures are
+let through, loudly, in every gate and CI run. An entry leaves when its issue closes, after 20 consecutive passing
+gate runs, or after 14 days. The gate holds a new entry locally at once; the pipeline round commits it into
+`tools/test-quarantine.json` with `node tools/test-quarantine.mjs write`, alone. Entries come only from the gate's
+own detection, never by hand.
+
+The ledger does not excuse quarantined tests, and `land` does not police the list: both were cut while the
+quarantine waited for the owner, and are not back yet. When they return, these rules hold (`ci-cd-plan.md` 9.3): an
+issue, 14 days at most, never a GPU correctness test (`webgpu-graph-algorithms*`), the visual gate or a test
+guarding against silent CPU-for-GPU substitution; the list read from golden's tip, never from the tree under test;
+verification and the cut never excuse a quarantined failure. `checkQuarantine()` in `tools/test-ledger.mjs` checks
+an entry's shape against them.
 
 ## 5. Decisions
 
@@ -425,7 +431,8 @@ Each phase lands alone and is useful alone.
 2. **Flaky and broken**: classification, point verdicts, the flaky bisect, `failed-known`.
 3. **History adds**, with misses.
 4. **History drops in shadow**, switched on once 5.4's bar is met.
-5. **More sources**: the release train's JUnit as kind `ci`, and, with the owner's yes, a quarantine.
+5. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
+   quarantine itself is on since 2026-10-22, 4.4).
 
 ## 11. Decisions for the owner, and what this changes
 
@@ -441,6 +448,6 @@ Each phase lands alone and is useful alone.
   "a second service that can fall behind" let Anthropic's regressions through. Here the run records
   itself, and history only adds tests until drops are measured in shadow, with verification behind.
   That section gets a pointer here when phase 3 lands.
-- **Unchanged:** no automatic retries (the re-run on golden's tip is a separate invocation of another
-  commit); the release train is the full run; quarantine only with the owner's yes; a failure is explained before it is called flaky; master gets nothing with a known
-  error.
+- **Unchanged:** the release train is the full run; a failure is explained before it is called flaky;
+  master gets nothing with a known error. (Since 2026-10-22 the gate and CI retry failed test files once
+  and quarantine flaky tests automatically, by the owner's decision; see 4.4.)

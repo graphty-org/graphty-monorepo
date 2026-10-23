@@ -9,6 +9,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
     type CytoscapeDialect,
@@ -16,11 +17,18 @@ import {
     cytoscapeWritableProperties,
     emitCytoscapeStyle,
 } from "../../styles/cytoscape/emit.js";
-import { type CytoscapeStyle, cytoscapeStyleFromCx } from "../../styles/cytoscape/mappings.js";
+import {
+    type CytoscapeStyle,
+    cytoscapeStyleFromCx,
+    dropMismatchedKeys,
+    sharedColumnFallback,
+    weightColumnFallback,
+} from "../../styles/cytoscape/mappings.js";
 import {
     cytoscapeBackground,
     type CytoscapeBypass,
     type CytoscapeElements,
+    edgeEnds,
     resolveCytoscape,
 } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
@@ -86,6 +94,10 @@ export interface CxStyleSource {
     readonly entries: readonly unknown[];
     /** How many other views the file styles, whose entries were left out. */
     readonly otherViews?: number;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
+    /** Whether the file is a collection (it has `cySubNetworks`), whose elements desktop creates in list order. */
+    readonly collection?: boolean;
 }
 
 /** What a CX2 import keeps for its styles. */
@@ -94,6 +106,8 @@ export interface Cx2StyleSource {
     readonly visualProperties: unknown;
     /** The `visualEditorProperties` aspect. */
     readonly visualEditorProperties: unknown;
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /**
@@ -122,6 +136,111 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
 }
 
 /**
+ * Points a target's mappings at the columns the import keeps them in (a shared column's plain one, the edge weight
+ * column), empties the CX version 1 mappings whose key type the column cannot match, and notes a mapping over a
+ * column the graph does not have.
+ * @param style - the style, changed in place
+ * @param target - nodes or edges
+ * @param table - the target's table
+ * @param read - where problems are noted, the dialect, and the attribute the import read as the edge weight
+ * @param read.notes - where problems are noted
+ * @param read.dialect - the Cytoscape dialect the file is written in
+ * @param read.weightFrom - the edge attribute the import read as the weight, or null
+ * @param read.weights - the weights a mapping over that attribute reads when no column holds them, or null
+ */
+function fitMappingsToColumns(
+    style: CytoscapeStyle,
+    target: StyleTarget,
+    table: Table,
+    read: {
+        readonly notes: StyleNotes;
+        readonly dialect: CytoscapeDialect;
+        readonly weightFrom: string | null;
+        readonly weights: ExplicitWeights | null;
+    },
+): void {
+    const { notes } = read;
+    sharedColumnFallback(style[target], (column) => table.has(column));
+    if (target === "edge") {
+        weightColumnFallback(style.edge, read.weightFrom, table);
+    }
+    // CX2's reader types a mapping's keys by the column; CX version 1 keeps the mapping's own type
+    if (read.dialect !== "cx2") {
+        dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
+    }
+    for (const m of style[target].mappings.values()) {
+        if (!table.has(m.column) && !(target === "edge" && read.weights !== null && m.column === read.weightFrom)) {
+            notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
+        }
+    }
+}
+
+/**
+ * The edge weights a mapping over the attribute read as the weight reads, when the import kept them as the graph's
+ * weights only: no column of that name and no weight column (a CX2 file's integer `weight`). Null otherwise, when
+ * the mapping reads a column.
+ * @param snapshot - the graph
+ * @param weightFrom - the attribute read as the weight, or null
+ * @returns the weights, or null
+ */
+function keptWeights(snapshot: GraphSnapshot, weightFrom: string | null): ExplicitWeights | null {
+    if (weightFrom === null || snapshot.edges.has(weightFrom) || snapshot.edges.byRole("weight") !== null) {
+        return null;
+    }
+    const weights = explicitWeights(snapshot);
+    return weights.weighted ? weights : null;
+}
+
+/**
+ * Where a Java `HashMap<Long, ...>` holding these keys (inserted in this order) iterates each, first at 0: its
+ * buckets in order (the key's `Long.hashCode` spread by `HashMap.hash`, masked by a capacity grown from 16 until the
+ * keys fill at most three quarters of it), each bucket in insertion order. Null when a key is not a non-negative
+ * integer (or its digits).
+ * @param ids - the keys, in insertion order
+ * @returns each key's rank, by insertion index, or null
+ */
+function javaHashOrder(ids: readonly unknown[]): number[] | null {
+    // an id read as text under the `ids` option is still the file's integer
+    const keys = ids.map((k) => (typeof k === "string" && /^\d{1,15}$/.test(k) ? Number(k) : k));
+    if (!keys.every((k) => typeof k === "number" && Number.isSafeInteger(k) && k >= 0)) {
+        return null;
+    }
+    let capacity = 16;
+    while (keys.length > 0.75 * capacity) {
+        capacity *= 2;
+    }
+    const bucket = (k: number): number => {
+        // (int) (v ^ (v >>> 32)), then h ^ (h >>> 16)
+        const h = ((k % 2 ** 32) ^ Math.floor(k / 2 ** 32)) >>> 0;
+        return (h ^ (h >>> 16)) & (capacity - 1);
+    };
+    const order = keys.map((_, i) => i).sort((a, b) => bucket(keys[a] as number) - bucket(keys[b] as number) || a - b);
+    const rank = new Array<number>(keys.length);
+    order.forEach((i, r) => {
+        rank[i] = r;
+    });
+    return rank;
+}
+
+/**
+ * The order Cytoscape desktop creates a CX graph's nodes and edges in when it creates them in hash order: its CX
+ * reader files them in `HashMap`s keyed by their ids and creates them as those iterate (`NiceCyRootNetwork.handleNodes`,
+ * `addElements`, cx-support 2.8.4), which decides the side it fans parallel edges to. Null when an id is not an
+ * integer or an edge has no id.
+ * @param snapshot - the graph
+ * @returns each node's and edge's rank, or null
+ */
+export function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<CytoscapeElements["ends"]>["created"] | null {
+    const ids = snapshot.edges.byRole("id");
+    if (ids === null) {
+        return null;
+    }
+    const node = javaHashOrder(Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.ids.idOf(i)));
+    const edge = javaHashOrder(Array.from({ length: snapshot.edgeCount }, (_, i) => ids.value(i)));
+    return node === null || edge === null ? null : { node, edge };
+}
+
+/**
  * The styles of a graph from its Cytoscape style and its bypass columns.
  * @param snapshot - the graph
  * @param context - the budget and cancel signal
@@ -129,6 +248,10 @@ function bypassesOf(table: Table, n: number, namespace: string): { maps: Cytosca
  * @param namespace - the importer's bypass namespace
  * @param notes - where problems are noted
  * @param dialect - the Cytoscape dialect the file is written in
+ * @param read - what the import read: the edge attribute it read as the weight (`weightFrom`, or null), and whether
+ * Cytoscape desktop creates the file's elements in hash order (`hashOrder`: a CX version 1 file without subnetworks)
+ * @param read.weightFrom - the weight attribute, or null
+ * @param read.hashOrder - whether desktop creates the elements in hash order
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -138,28 +261,36 @@ export function readDeclaredStyles(
     namespace: string,
     notes: StyleNotes,
     dialect: CytoscapeDialect = "desktop",
+    read: { readonly weightFrom?: string | null; readonly hashOrder?: boolean } = {},
 ): ImporterStyles {
+    const weightFrom = read.weightFrom ?? null;
+    const created = read.hashOrder === true ? (hashCreationOrder(snapshot) ?? undefined) : undefined;
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
     for (const target of ["node", "edge"] as const) {
         context.signal?.throwIfAborted();
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        for (const m of style[target].mappings.values()) {
-            if (!table.has(m.column)) {
-                notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
-            }
-        }
+        const weights = target === "edge" ? keptWeights(snapshot, weightFrom) : null;
+        fitMappingsToColumns(style, target, table, { notes, dialect, weightFrom, weights });
         const { maps, names } = bypassesOf(table, n, namespace);
         readFrom[target] = names;
         const elements: CytoscapeElements = {
             count: n,
-            value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
+            value: (column, i) => {
+                if (weights !== null && column === weightFrom) {
+                    return weights.isExplicit(i) ? weights.value(i) : null;
+                }
+                return table.has(column) ? plainCell(table.value(column, i)) : null;
+            },
             bypasses: maps,
+            ...(target === "edge"
+                ? { ends: { ...edgeEnds(snapshot, out.node.values), ...(created === undefined ? {} : { created }) } }
+                : {}),
         };
         const values = resolveCytoscape(target, style, elements, { notes, budget: context.budget });
         // a file graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
-        exactFromBlock(snapshot, target, values, dialect);
+        exactFromBlock(snapshot, target, values, dialect, created);
         const { rules, columns } = cytoscapeRules(target, style, elements, { notes, budget: context.budget });
         out[target] = { values: nonEmpty(values), rules, columns };
     }
@@ -195,7 +326,10 @@ export function readCxStyles(snapshot: GraphSnapshot, context: StyleReadContext)
             count: otherViews,
         });
     }
-    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes);
+    return readDeclaredStyles(snapshot, context, style, "cx.bypass", notes, "desktop", {
+        weightFrom: kept?.weightFrom ?? null,
+        hashOrder: kept?.collection !== true,
+    });
 }
 
 /**

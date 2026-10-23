@@ -14,12 +14,14 @@ import { DataSource, type DeclaredDirection } from "../data/DataSource";
 import { readEndpoint, resolveEndpoints } from "../data/endpoints";
 import type { DataLoadingError } from "../data/ErrorAggregator";
 import type { LoadReport } from "../data/report";
+import { readSource as sourceBytes } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
 import { describeRows } from "./attributes";
 import { resolveColumn } from "./columns";
 import type { BatchCommand } from "./commands";
-import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
+import { type DataImportCommand, type HeldRows, importCommand, type ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
+import { documentKind } from "./projectFile";
 import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
     ColumnRole,
@@ -28,6 +30,7 @@ import type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     LoadChoices,
     LoadDraft,
     LoadMapping,
@@ -43,8 +46,8 @@ import type {
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
-    /** The node ids the graph holds and its edge count, for a merge. */
-    graph(): { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
+    /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
+    graph(): NonNullable<DataImportCommand["measure"]>;
     /** Taken synchronously: dispatches a command as the session's next step. */
     importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
@@ -72,6 +75,8 @@ export interface ReadSource {
     readonly declaredDirection: DeclaredDirection | null;
     readonly errors: readonly DataLoadingError[];
     readonly errorLimit: number;
+    /** The kind of graphty document the source is, when it is one rather than data. */
+    readonly graphtyDocument?: "project" | "document";
 }
 
 /**
@@ -88,6 +93,9 @@ export const LOAD_ROLES: Readonly<
         requires: Object.freeze(["source", "target"] as const),
     }),
 });
+
+/** An edge's two ends, in the order its endpoint expressions are read. */
+const EDGE_ENDS: readonly EdgeEnd[] = ["source", "target"];
 
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
@@ -263,13 +271,34 @@ export async function readSource(
         throw unreadable;
     }
 
+    // A source that read as no rows at all may be a graphty document -- a saved project, style
+    // or notes -- which `project.open` opens and which holds no rows a data reader finds.
+    const graphtyDocument = nodes.length + edges.length === 0 ? await graphtyDocumentOf(config) : null;
     return {
         source,
         reader,
         tables: [heldTable("nodes", named, true, nodes, null), heldTable("edges", named, true, edges, null)],
         declaredDirection: reader.declaredDirection,
         ...errorsOf(reader),
+        ...(graphtyDocument === null ? {} : { graphtyDocument }),
     };
+}
+
+/**
+ * Whether a source's bytes are a graphty document, as `project.open` reads one.
+ * @param config - The source's options: inline `data`, a `file` or a `url`.
+ * @returns The document's kind, or null for anything else, or a source that cannot be read again.
+ */
+async function graphtyDocumentOf(config: Readonly<Record<string, unknown>>): Promise<"project" | "document" | null> {
+    try {
+        const input = await sourceBytes(config);
+        if (input === null) {
+            return null;
+        }
+        return documentKind(typeof input === "string" ? input : new TextDecoder().decode(input));
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -405,6 +434,7 @@ export class Draft implements LoadDraft {
     readonly type: string;
     readonly tables: readonly DraftTable[];
     readonly mapping: LoadMappingRead;
+    readonly graphtyDocument?: "project" | "document";
     readonly styles: LoadDraft["styles"];
 
     private read: ReadSource | null;
@@ -421,6 +451,9 @@ export class Draft implements LoadDraft {
         this.host = host;
         this.styles = styles;
         this.type = read.source.type ?? "";
+        if (read.graphtyDocument !== undefined) {
+            this.graphtyDocument = read.graphtyDocument;
+        }
         this.tables = Object.freeze(read.tables.map((held) => Object.freeze(held.table)));
         const config = host.config();
         const options = read.source.config ?? {};
@@ -522,12 +555,20 @@ export class Draft implements LoadDraft {
         const read = this.live("rows");
         const held = this.table(read, table);
         const { offset = 0, limit = 100, only, choices = {} } = options;
-        const picked = only === undefined ? null : this.filter(read, held, only, choices);
+        const missing = new Map<number, readonly EdgeEnd[]>();
+        const picked = only === undefined ? null : this.filter(read, held, only, choices, missing);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
             const index = picked?.[i] ?? i;
-            records.push(Object.freeze({ line: held.lines?.[index] ?? index + 1, values: held.rows[index] }));
+            const missingEnds = only === "unmatched" ? missing.get(index) : undefined;
+            records.push(
+                Object.freeze({
+                    line: held.lines?.[index] ?? index + 1,
+                    values: held.rows[index],
+                    ...(missingEnds === undefined ? {} : { missingEnds }),
+                }),
+            );
         }
 
         return Object.freeze({ records: Object.freeze(records), offset, total, revision: "draft" });
@@ -551,16 +592,18 @@ export class Draft implements LoadDraft {
     async loadVia(send: ReturnType<DraftHost["importer"]>, choices: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         const plan = this.plan(read, choices);
+        // One entry per table name, the first table of a name giving what it held.
+        const named = new Map<string, "nodes" | "edges">();
+        for (const held of read.tables) {
+            if (!named.has(held.table.name)) {
+                named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
+            }
+        }
         const command: DataImportCommand = {
-            op: "data.import",
-            source: read.source,
-            mode: choices.mode ?? "replace",
-            ...(choices.layout === undefined ? {} : { layout: choices.layout }),
-            ...(choices.styles === undefined ? {} : { styles: choices.styles }),
-            ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
-            held: plan.held,
-            ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
-            ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
+            ...importCommand(read.source, choices, plan.held),
+            tables: [...named.keys()],
+            // A graph file's one name holds both kinds, so it says nothing of what it held.
+            ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
@@ -688,7 +731,16 @@ export class Draft implements LoadDraft {
             });
         }
 
-        const named = knownFieldsOf(mapping, choices.mapping, read);
+        const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
+        if (
+            choices.mode !== "merge" &&
+            !("edgeWeightMeaning" in named) &&
+            this.host.config().knownFields.edgeWeightMeaning !== null
+        ) {
+            // A new graph does not inherit the last one's weight meaning.
+            Object.assign(named, { edgeWeightMeaning: null });
+        }
+
         // A graph file's label column, which the element reads by itself, labels the nodes as the
         // draft's mapping says it will, unless a label path is configured already.
         const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
@@ -735,6 +787,7 @@ export class Draft implements LoadDraft {
             held: {
                 nodes: key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
                 edges,
+                edgeLines: edgeTable?.lines ?? null,
                 declaredDirection: readGephiTypeColumn(edges),
                 errors: read.errors,
                 errorLimit: read.errorLimit,
@@ -752,9 +805,16 @@ export class Draft implements LoadDraft {
      * @param held - The table.
      * @param only - Which rows.
      * @param choices - The choices `report` and `load` take.
+     * @param missing - Filled, by row index, with the ends of each unmatched edge row that name no node.
      * @returns Their indexes.
      */
-    private filter(read: ReadSource, held: HeldTable, only: DraftRowFilter, choices: LoadChoices): number[] {
+    private filter(
+        read: ReadSource,
+        held: HeldTable,
+        only: DraftRowFilter,
+        choices: LoadChoices,
+        missing: Map<number, readonly EdgeEnd[]>,
+    ): number[] {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
@@ -795,7 +855,14 @@ export class Draft implements LoadDraft {
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
             const rejected = !ends.every(isStorableId);
-            const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end));
+            const missingEnds = EDGE_ENDS.filter((_, at) => {
+                const end = ends[at];
+                return isStorableId(end) && !known.has(end) && !graph.has(end);
+            });
+            const unmatched = matching && !rejected && missingEnds.length > 0;
+            if (unmatched) {
+                missing.set(index, Object.freeze(missingEnds));
+            }
             // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
             // does; a folding policy would have to fold repeats here too.
             const loaded = !rejected && !(unmatched && choices.unmatched === "leave-out");
@@ -883,12 +950,37 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
     const rowsAre = choice.rowsAre ?? base.rowsAre;
     const out: Record<string, unknown> = { ...base, rowsAre };
     for (const [role, value] of Object.entries(choice)) {
-        if (value !== undefined && role !== "rowsAre") {
+        if (role === "weightMeaning") {
+            out[role] = checkedMeaning(held, rowsAre, value);
+        } else if (value !== undefined && role !== "rowsAre") {
             out[role] = checkedRole(held, rowsAre, role, value);
         }
     }
 
     return Object.freeze(out) as unknown as TableMappingRead;
+}
+
+/** The meanings an edge weight can be given at load. */
+const WEIGHT_MEANINGS: ReadonlySet<unknown> = new Set(["distance", "strength", "capacity", null, undefined]);
+
+/**
+ * A reader's weight meaning, checked.
+ * @param held - The table.
+ * @param rowsAre - What its rows become.
+ * @param value - The meaning.
+ * @returns The meaning.
+ * @throws `E_BAD_COMMAND` for a node table's meaning or one the element does not know.
+ */
+function checkedMeaning(held: HeldTable, rowsAre: "nodes" | "edges", value: unknown): unknown {
+    if ((rowsAre === "nodes" && value !== undefined) || !WEIGHT_MEANINGS.has(value)) {
+        throw badCommand(`A weight meaning is "distance", "strength", "capacity" or null, on a table of edges.`, {
+            table: held.table.id,
+            role: "weightMeaning",
+            meanings: ["distance", "strength", "capacity"],
+        });
+    }
+
+    return value;
 }
 
 /**
@@ -948,6 +1040,11 @@ function tableFields(nodes: boolean, choice: TableMapping): Record<string, strin
 
     if (choice.weight !== undefined) {
         out.edgeWeightPath = choice.weight;
+    }
+
+    if (choice.weight !== undefined || choice.weightMeaning !== undefined) {
+        // A weight named without a meaning clears the last load's, so it never describes this one.
+        out.edgeWeightMeaning = choice.weightMeaning ?? null;
     }
 
     if (choice.edgeId !== undefined) {

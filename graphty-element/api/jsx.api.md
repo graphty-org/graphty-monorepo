@@ -47,6 +47,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { PropertyValues } from 'lit';
 import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import type { RetryOptions } from '@graphty/graph-io';
@@ -75,6 +76,8 @@ import { z } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    // (undocumented)
+    "aria-label"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
@@ -233,6 +236,7 @@ export interface GraphtyElementJSXProps {
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
@@ -259,6 +263,7 @@ export interface GraphtyElementJSXProps {
     layoutBehavior?: Graphty["layoutBehavior"];
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
+    lighting?: Graphty["lighting"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
@@ -272,8 +277,10 @@ export interface GraphtyElementJSXProps {
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
+    viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
     xr?: Graphty["xr"];
+    zoomToPointer?: Graphty["zoomToPointer"];
 }
 
 // (No @packageDocumentation comment for this package)

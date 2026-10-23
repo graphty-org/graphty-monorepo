@@ -38,8 +38,8 @@ const scratchB = new Vector3();
  */
 export interface EdgeLineMeta {
     joinedLine?: boolean;
-    /** A dashed or dotted line: its element's length along the line, and `line.patternCount`. */
-    pattern?: { elementLength: number; count?: number | undefined };
+    /** A dashed or dotted line: which, its element's length along the line, and `line.patternCount`. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
 }
 
 /**

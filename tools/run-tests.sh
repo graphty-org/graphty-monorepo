@@ -11,6 +11,9 @@
 #   ./tools/run-tests.sh [--list]   print the shard names
 #   ./tools/run-tests.sh <shard>    run one shard
 #   ./tools/run-tests.sh all        run every shard in turn, then list the ones that failed
+#   ./tools/run-tests.sh --command <shard> <command>
+#                                   run <command> in <shard>'s environment and judge it by its own
+#                                   output (a selection of the shard's test files: tools/test-changed.mjs)
 #
 # Build first, as CI does: pnpm exec nx run-many -t build
 #
@@ -39,13 +42,14 @@ SHARDS="$(MATRIX="$ROOT/tools/ci-test-matrix.mjs" node --input-type=module -e '
 ')" || exit 1
 
 run_shard() {
-    local name="$1" line browser lavapipe cmd icd
+    local name="$1" given="${2:-}" line browser lavapipe cmd icd
     line="$(awk -F'\t' -v n="$name" '$1 == n' <<<"$SHARDS")"
     if [ -z "$line" ]; then
         echo "tools/run-tests.sh: no shard named '$name' (--list shows them)" >&2
         return 2
     fi
     IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
+    cmd="${given:-$cmd}"
     (
         export CI=true
         if [ "$browser" = 1 ]; then
@@ -83,7 +87,7 @@ run_shard() {
         log="$logdir/output.log"
         start="$(node -p 'Date.now()')"
         sh -c "$cmd" 2>&1 | tee "$log"
-        node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start"
+        node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start" ${given:+"$given"}
     )
 }
 
@@ -101,6 +105,13 @@ case "${1:---list}" in
             exit 1
         fi
         echo "all shards passed"
+        ;;
+    --command)
+        if [ "$#" -ne 3 ]; then
+            echo "usage: tools/run-tests.sh --command <shard> <command>" >&2
+            exit 2
+        fi
+        run_shard "$2" "$3"
         ;;
     -h | --help)
         sed -n '3,20p' "$0" | sed 's/^# \{0,1\}//'

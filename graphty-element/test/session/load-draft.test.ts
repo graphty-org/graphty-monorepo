@@ -141,7 +141,11 @@ describe("session.data.prepare", () => {
 
         const unmatched = await draft.rows("edges", { only: "unmatched" });
         assert.strictEqual(unmatched.total, 1);
-        assert.deepEqual(unmatched.records[0], { line: 4, values: { source: "c", target: "z", weight: 1 } });
+        assert.deepEqual(unmatched.records[0], {
+            line: 4,
+            values: { source: "c", target: "z", weight: 1 },
+            missingEnds: ["target"],
+        });
 
         const report = await draft.report({ unmatched: "leave-out" });
         assert.strictEqual(report.counts.edges, 2);
@@ -150,6 +154,31 @@ describe("session.data.prepare", () => {
         await draft.load({ unmatched: "leave-out" });
         assert.strictEqual(session.data.statistics().edgeCount, 2);
         assert.isUndefined(session.data.node("z"));
+        session.dispose();
+    });
+
+    it("says which end of each unmatched row names no node: the source, the target or both", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({
+            config: {
+                nodeFile: new File([PEOPLE], "people.csv"),
+                edgeFile: new File(["source,target\na,b\ny,a\nb,z\ny,z\n"], "ties.csv"),
+            },
+        });
+        const unmatched = await draft.rows("edges", { only: "unmatched" });
+        assert.deepEqual(
+            unmatched.records.map((row) => [row.line, row.missingEnds]),
+            [
+                [3, ["source"]],
+                [4, ["target"]],
+                [5, ["source", "target"]],
+            ],
+        );
+        const all = await draft.rows("edges");
+        assert.isTrue(
+            all.records.every((row) => row.missingEnds === undefined),
+            "only the unmatched filter names ends",
+        );
         session.dispose();
     });
 
@@ -177,6 +206,27 @@ describe("session.data.prepare", () => {
         assert.strictEqual(report?.counts.edges, 3);
         assert.strictEqual(report?.weights.attribute, "trips");
         assert.strictEqual(session.config.data.knownFields.edgeWeightPath, "trips");
+        session.dispose();
+    });
+
+    it("reports the end columns a draft load read, and lists them as no edge attribute", async () => {
+        const session = createGraphSession();
+        const file = new File(["from,to,minutes\nStation,Stadium,4\nDepot,Station,15\n"], "bus-stops.csv");
+        const draft = await session.data.prepare({ config: { file } });
+        await draft.load();
+        assert.deepStrictEqual(session.data.lastImport()?.endpoints, {
+            source: "from",
+            target: "to",
+            resolvedFrom: "declared",
+        });
+        // The ends are the edge's own From and To, as source and target are for a file that says so.
+        assert.deepStrictEqual(
+            session.data
+                .attributes()
+                .filter((column) => column.kind === "edge")
+                .map((column) => column.name),
+            ["minutes"],
+        );
         session.dispose();
     });
 

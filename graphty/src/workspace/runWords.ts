@@ -7,6 +7,8 @@
 
 import type { GraphSession, RunDistinction, Scope, SetId } from "@graphty/graphty-element/session";
 
+import { wordsFor } from "./analyze/words";
+
 /** The facts a run's name is worded from: a `Run`, or its `record`. */
 interface NamedRun {
     readonly algorithm: string;
@@ -94,8 +96,12 @@ export function runName(session: GraphSession, run: NamedRun): string {
         return typeof run.params.label === "string" ? run.params.label : "Batch";
     }
 
-    const algorithm =
-        session.catalog.algorithms().find((descriptor) => descriptor.key === run.algorithm)?.plainName ?? run.algorithm;
+    // The method's name in the app's words, so a reader who picked "PageRank" sees it everywhere.
+    const descriptor = session.catalog.algorithms().find((each) => each.key === run.algorithm);
+    let { algorithm } = run;
+    if (descriptor !== undefined) {
+        algorithm = wordsFor(descriptor).name;
+    }
     const { distinguishedBy: by } = run;
     const base =
         by === null ? algorithm : `${algorithm} (${OPTION_WORDS[by.option] ?? by.option} ${valueWords(by.value)})`;

@@ -1,5 +1,3 @@
-import "./settings.css";
-
 import { ModalFooter, PageList, SegmentedControl } from "@graphty/compact-mantine";
 import type { AccelerationStatus } from "@graphty/graphty-element/session";
 import {
@@ -249,13 +247,13 @@ export function SettingsDialog(): React.JSX.Element {
             opened={opened}
             onClose={close}
             title="Settings"
-            size="xl"
+            size="lg"
             withOverlay={onStart ? true : undefined}
             overlayProps={onStart ? { color: "#0a0c12", backgroundOpacity: 0.45 } : undefined}
             radius={onStart ? 16 : undefined}
             classNames={onStart ? { content: "ws-land-settings" } : undefined}
         >
-            <div className="ws-settings">
+            <div className="ws-dialog-columns">
                 <PageList
                     label="Settings sections"
                     items={SECTIONS}
@@ -264,7 +262,7 @@ export function SettingsDialog(): React.JSX.Element {
                         store.set({ dialog: `settings:${id}` });
                     }}
                 />
-                <section className="ws-settings-body" aria-label={title}>
+                <section className="ws-dialog-page" aria-label={title}>
                     <Title order={2} size="sm" mb="sm">
                         {title}
                     </Title>

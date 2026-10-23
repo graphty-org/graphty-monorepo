@@ -3,10 +3,10 @@ import { definePalette } from "@graphty/graphty-element/extend";
 import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { UnstyledButton } from "@mantine/core";
-import { Pause, Play, Square, X } from "lucide-react";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
+import { GLYPHS } from "../glyphs";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
@@ -20,8 +20,13 @@ export interface HeroSample {
     readonly path: readonly [string, string];
 }
 
-/** Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks. */
-const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" } } as const;
+/**
+ * Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks.
+ * Paused, the still graph is not drawn again on every animation frame: on a software GPU each
+ * frame held the page for tens of milliseconds, so every click on the page's buttons waited
+ * behind them (the workspace's element does the same, issue #1943).
+ */
+const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" }, rendering: { onDemand: true } } as const;
 
 /**
  * The selection's own halo is hidden: the clicked node is marked by the page's highlight layer
@@ -463,6 +468,11 @@ export function HeroGraph({
                 setSaid((before) => ({ ...before, communities: communities.summary().groups?.length }));
             }
         })().catch((error: unknown) => {
+            // Unmounted mid-load: the element aborts the import it no longer needs, which is no
+            // failure to report.
+            if (!live) {
+                return;
+            }
             console.error("[start] the start page's graph could not be drawn:", error);
         });
         return () => {
@@ -645,7 +655,7 @@ export function HeroGraph({
                     <Chip
                         pressed={shown.flat}
                         disabled={!ready}
-                        icon={<Square aria-hidden />}
+                        icon={<GLYPHS.stop aria-hidden />}
                         onClick={() => void toggleFlat()}
                     >
                         2D
@@ -658,7 +668,7 @@ export function HeroGraph({
                             setTurning((before) => !before);
                         }}
                     >
-                        {turning ? <Pause aria-hidden /> : <Play aria-hidden />}
+                        {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
                     </UnstyledButton>
                 </div>
                 {lines.length > 0 ? (
@@ -823,7 +833,7 @@ function NodeCard({
     return (
         <dialog open className="ws-land-info" ref={boxRef} aria-label="Node details">
             <UnstyledButton className="ws-land-info-x" aria-label="Close" onClick={onClose}>
-                <X aria-hidden />
+                <GLYPHS.close aria-hidden />
             </UnstyledButton>
             <b>{card.name}</b>
             <p>

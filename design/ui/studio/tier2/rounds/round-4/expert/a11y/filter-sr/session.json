@@ -1,0 +1,32 @@
+{
+ "commit": "5277e2cbe1bd1ec8f9e9bcfd44177dfb275f8d3a",
+ "toolCommit": "a68bafe4f68e557bcbd446febfeea9dc47aae85c",
+ "uncommittedChanges": false,
+ "buildStamp": "5277e2cbe1bd graphty@0.8.64",
+ "url": "/?next",
+ "screenReaderMode": true,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-11T10:54:11.586Z",
+ "setup": [
+  "--click No thanks",
+  "--click New from data...",
+  "--click choose a file...",
+  "--upload friends.csv",
+  "--click Load",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run",
+  "--click PageRank",
+  "--click role=tab:Style",
+  "--click Add to Shape",
+  "--click role=menuitem:Size",
+  "--click role=option:PageRank",
+  "--key Escape"
+ ],
+ "task": null,
+ "followUp": "none"
+}

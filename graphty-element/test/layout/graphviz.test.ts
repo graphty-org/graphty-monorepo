@@ -86,6 +86,15 @@ describe("the DOT the element hands Graphviz", () => {
         assert.include(dot, "n2 -> n0;");
     });
 
+    it("writes a node with two different sides as a box that size, and leaves out the skipped rows", () => {
+        const dot = toDot(graph(true, TRIANGLE), {}, [3, 1, 1], [3, 1.5, 1, 1, 4, 2], (row) => row === 2);
+
+        assert.include(dot, "n0 [shape=box, width=3, height=1.5];", "a wide node is a box its own size");
+        assert.include(dot, "n1 [width=1];", "a node as tall as it is wide stays a circle");
+        assert.notMatch(dot, /n2/, "a skipped row and its edges are not handed over");
+        assert.strictEqual(dot.match(/n0 -> n1;/g)?.length, 2);
+    });
+
     it("writes an undirected graph with undirected edges, and escapes attribute values", () => {
         const dot = toDot(graph(false, [["a", "b"]]), { label: 'say "hi"\nthere' });
 
@@ -199,6 +208,11 @@ describe("options and failures", () => {
             rankdir: "LR",
             nodesep: "0.5",
         });
+        assert.deepEqual(
+            graphvizAttributes("dot", { nodesep: 2, ranksep: 4, scale: 4, attributes: {} }),
+            { nodesep: "0.5", ranksep: "1" },
+            "separations in scene units are handed over in inches at the layout's scale",
+        );
     });
 
     it("classifies a syntax error, a crash and any other refusal", () => {

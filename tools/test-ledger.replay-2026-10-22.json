@@ -1,0 +1,253 @@
+[
+    {
+        "shard": "graphty-element-browser-4",
+        "failures": [
+            [
+                "graphty-element/test/interactions/camera-behavior.test.ts",
+                "the keyboard > a tap on an arrow key turns the 3D camera by a step the reader can see",
+                "00d4390cc961de1b",
+                "fail",
+                "AssertionError: one tap turns the camera about 9 degrees: expected 0.<hex> to be close to 0.16 +/- 0.03"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-element-default",
+        "failures": [
+            [
+                "graphty-element/test/cost-coverage/cost-coverage.test.ts",
+                "cost coverage > classifies every public method as mutating or read-only, once",
+                "288c8f51a54e93d8",
+                "fail",
+                "AssertionError: add each to MUTATING or READ_ONLY in test/cost-coverage/method-classes.ts: expected [ 'UpdateManager.tha"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/Labels.real-element.test.tsx",
+                "a label entry's size, keys, lists and widths > the Fixed text box shows what is typed, and adding a label narrows no other field",
+                "0905581b02b60857",
+                "fail",
+                "AssertionError: expected false to be true"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/graph-place/__tests__/GraphPlace.test.tsx",
+                "the Graph place > says a refused rule once, politely, and not again on each keystroke",
+                "3d5e63e9b49f469e",
+                "fail",
+                "AssertionError: expected 'Did you mean Degree >= 10 ?' to equal 'Did you mean Degree >= 10?'"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-3",
+        "failures": [
+            [
+                "graphty/src/workspace/inspector/__tests__/InspectorAndTable.real-element.test.tsx",
+                "the inspector and the table > names each table row by its id, opens about ten rows tall, and sums up a partly filled column",
+                "bd1bd92ea230d569",
+                "fail",
+                "TestingLibraryElementError: Unable to find role=\"grid\" and name \"Nodes\""
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/Groups.real-element.test.tsx",
+                "per-group settings > College football: the largest 8, N more, search, sort, fold, the selected node's group, Select these",
+                "fd41e6e6da72a0f0",
+                "fail",
+                "TimeoutError: locator.click: Timeout 309ms exceeded."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/frame/__tests__/KeyboardStopsEscape.real-element.test.tsx",
+                "Keyboard stops and Escape (real element) > Escape on a selected node's inspector heading empties the selection",
+                "04dca9259cdc33b3",
+                "fail",
+                "AssertionError: Escape kept the selection: expected 1 to equal +0"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-3",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/StylePanel.real-element.test.tsx",
+                "the Style tab's rows on the real element > Palette and Reverse write the binding; the field's Stop varying puts one value back",
+                "2ce55f036de7812d",
+                "fail",
+                "AssertionError: expected [] to include 'Stop varying by data: use one color f…'"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/frame/__tests__/KeyboardStopsEscape.real-element.test.tsx",
+                "Keyboard stops and Escape (real element) > Escape on a selected node's inspector heading empties the selection",
+                "04dca9259cdc33b3",
+                "fail",
+                "AssertionError: Escape kept the selection: expected 1 to equal +0"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/VaryByLayer.real-element.test.tsx",
+                "color sets from 2 to dozens > draws every chit up to 6, else the first 5 and +N, never +1: 38 colors",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/frame/__tests__/KeyboardStopsEscape.real-element.test.tsx",
+                "Keyboard stops and Escape (real element) > Escape on a selected node's inspector heading empties the selection",
+                "04dca9259cdc33b3",
+                "fail",
+                "AssertionError: Escape kept the selection: expected 1 to equal +0"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/Sections.real-element.test.tsx",
+                "the Style tab's sections > starts an added pattern count at 10 marks, not the floor of 2 that reads as no line",
+                "4cb2d3f9092065a9",
+                "fail",
+                "TimeoutError: locator.click: Timeout 3412ms exceeded."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/VaryByLayer.real-element.test.tsx",
+                "color sets from 2 to dozens > draws every chit up to 6, else the first 5 and +N, never +1: 38 colors",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ],
+            [
+                "graphty/src/workspace/style/__tests__/BulkEdit.real-element.test.tsx",
+                "bulk editing a folder > says what an edit reaches; a typed Fill goes to the layers that set a color, one Undo restores them",
+                "0d6bc1b9274f7289",
+                "fail",
+                "TimeoutError: locator.click: Timeout -93ms exceeded."
+            ],
+            [
+                "graphty/src/workspace/style/__tests__/BulkEdit.real-element.test.tsx",
+                "bulk editing a folder > reaches a nested folder's layers from the outer folder, and none outside it",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ],
+            [
+                "graphty/src/workspace/style/__tests__/VaryByLayer.real-element.test.tsx",
+                "vary by layer > gives each layer of a hand-made folder a different shape",
+                "0c8bed9ab02c1355",
+                "fail",
+                "TimeoutError: locator.click: Timeout 748ms exceeded."
+            ],
+            [
+                "graphty/src/workspace/style/__tests__/VaryByLayer.real-element.test.tsx",
+                "vary by layer > spreads a size range over the layers, and a line pattern per edge layer",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ],
+            [
+                "graphty/src/workspace/style/__tests__/VaryByLayer.real-element.test.tsx",
+                "color sets from 2 to dozens > draws hard stops in the strip for 40 colors: the first 4",
+                "fd25f38ead0d0433",
+                "fail",
+                "TimeoutError: locator.click: Timeout 903ms exceeded."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-2",
+        "failures": [
+            [
+                "graphty/src/workspace/style/__tests__/StyleTab.real-element.test.tsx",
+                "labels from an attribute (task T10) on the real element > Add label line labels Everything as Text \"+\" does, by the open attribute or one picked",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/graph-place/__tests__/GraphPlace.test.tsx",
+                "the Graph place > says a refused rule once, politely, and not again on each keystroke",
+                "3d5e63e9b49f469e",
+                "fail",
+                "AssertionError: expected 'Did you mean Degree >= 10 ?' to equal 'Did you mean Degree >= 10?'"
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/frame/__tests__/UndoHistory.real-element.test.tsx",
+                "Undo from the reader's keys > starts a sample's history: Undo is disabled and Control+Z leaves the graph",
+                "3fea459daaee91d2",
+                "fail",
+                "TestingLibraryElementError: Unable to find an accessible element with the role \"button\" and name \"Undo\""
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/canvas/__tests__/LegendCard.real-element.test.tsx",
+                "the canvas key on the real element > at 900 x 700 leaves the drawing at least half the canvas's width",
+                "6aa300531cecd87e",
+                "timeout",
+                "Error: Test timed out in 15000ms."
+            ]
+        ]
+    },
+    {
+        "shard": "graphty-1",
+        "failures": [
+            [
+                "graphty/src/workspace/inspector/__tests__/tasks.real-element.test.tsx",
+                "tier 1 tasks in the inspector, on the real element > T8: Louvain's row shows its groups, a group its members, and Why this look names it for Color",
+                "74b0f10c3369a95e",
+                "fail",
+                "TimeoutError: locator.click: Timeout 6265ms exceeded."
+            ]
+        ]
+    }
+]

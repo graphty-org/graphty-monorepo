@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph label="repro" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML" directed="1">
+  <att name="documentVersion" value="1.1"/>
+  <att type="string" name="backgroundColor" value="#ffffff"/>
+  <node label="DB-00" id="-1">
+    <att type="string" name="canonicalName" value="DB-00"/>
+    <att type="string" name="name" value="DB-00"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="0.0" y="0.0" fill="#00cc00" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-01" id="-2">
+    <att type="string" name="canonicalName" value="DB-01"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="120.0" y="0.0" fill="#ff9900" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-02" id="-3">
+    <att type="string" name="canonicalName" value="DB-02"/>
+    <att type="string" name="name" value="DB-02"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="240.0" y="0.0" fill="#3366ff" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-03" id="-4">
+    <att type="string" name="canonicalName" value="DB-03"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="360.0" y="0.0" fill="#00cc00" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-04" id="-5">
+    <att type="string" name="canonicalName" value="DB-04"/>
+    <att type="string" name="name" value="DB-04"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="480.0" y="0.0" fill="#ff9900" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-05" id="-6">
+    <att type="string" name="canonicalName" value="DB-05"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="0.0" y="120.0" fill="#3366ff" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-06" id="-7">
+    <att type="string" name="canonicalName" value="DB-06"/>
+    <att type="string" name="name" value="DB-06"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="120.0" y="120.0" fill="#00cc00" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-07" id="-8">
+    <att type="string" name="canonicalName" value="DB-07"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="240.0" y="120.0" fill="#ff9900" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-08" id="-9">
+    <att type="string" name="canonicalName" value="DB-08"/>
+    <att type="string" name="name" value="DB-08"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="360.0" y="120.0" fill="#3366ff" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-09" id="-10">
+    <att type="string" name="canonicalName" value="DB-09"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="480.0" y="120.0" fill="#00cc00" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-10" id="-11">
+    <att type="string" name="canonicalName" value="DB-10"/>
+    <att type="string" name="name" value="DB-10"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="0.0" y="240.0" fill="#ff9900" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-11" id="-12">
+    <att type="string" name="canonicalName" value="DB-11"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="120.0" y="240.0" fill="#3366ff" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-12" id="-13">
+    <att type="string" name="canonicalName" value="DB-12"/>
+    <att type="string" name="name" value="DB-12"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="240.0" y="240.0" fill="#00cc00" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <node label="DB-13" id="-14">
+    <att type="string" name="canonicalName" value="DB-13"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="360.0" y="240.0" fill="#ff9900" width="1" outline="#ffffff" cy:nodeTransparency="1.0" cy:nodeLabelFont="SansSerif.bold-0-12" cy:borderLineType="solid"/>
+  </node>
+  <edge label="e0" source="-1" target="-4">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e1" source="-2" target="-8">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e2" source="-3" target="-12">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e3" source="-4" target="-2">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e4" source="-5" target="-6">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e5" source="-6" target="-10">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e6" source="-7" target="-14">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e7" source="-8" target="-4">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e8" source="-9" target="-8">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e9" source="-10" target="-12">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e10" source="-11" target="-2">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e11" source="-12" target="-6">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+  <edge label="e12" source="-13" target="-10">
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff" cy:sourceArrow="0" cy:targetArrow="0" cy:sourceArrowColor="#000000" cy:targetArrowColor="#000000" cy:edgeLineType="SOLID" cy:curved="STRAIGHT_LINES"/>
+  </edge>
+</graph>

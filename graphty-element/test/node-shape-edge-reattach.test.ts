@@ -16,7 +16,7 @@
  * whole point of (2) is which Babylon mesh ends up in the effect layer's inclusion list.
  */
 import { InstancedMesh, NullEngine, type Scene as BabylonScene, Scene, TransformNode, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import type { EdgeStyleConfig, NodeStyleConfig } from "../src/config";
 import { Edge } from "../src/Edge";
@@ -27,7 +27,6 @@ import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphCon
 import { LayoutManager, layoutManagerInternals } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
 import type { EdgePaint, NodePaint } from "../src/managers/StylePainter";
-import { EdgeMesh } from "../src/meshes/EdgeMesh";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { Node } from "../src/Node";
 import { Styles } from "../src/Styles";
@@ -320,60 +319,253 @@ describe("Edge ends on a non-round node under a moved graph root", () => {
     });
 });
 
-describe("A self-loop clears its node", () => {
+describe("A self-loop and a bundle of parallel edges", () => {
     let harness: Harness | undefined;
 
     afterEach(() => {
         harness?.dispose();
         harness = undefined;
-        vi.restoreAllMocks();
     });
+
+    const LINE: EdgeStyleConfig = { line: { type: "solid", color: "#AAAAAA", width: 0.5 } };
+    const CURVED: EdgeStyleConfig = { line: { ...LINE.line, bezier: true } };
 
     /**
-     * Draw a curved self-loop on one node and return how close the loop comes to its centre.
-     * @param shape - The node's shape.
-     * @returns The nearest loop point's distance from the centre in x-y, and the node's reach there.
+     * Add edges between two of the harness's nodes and place every edge once more, as a frame does.
+     * @param h - The harness.
+     * @param ends - Each edge's source and target.
+     * @param style - Their style.
+     * @returns The edges.
      */
-    function loopAround(shape: NonNullable<NodeStyleConfig["shape"]>): { nearest: number; reach: number } {
-        harness = createHarness();
-        const node = addNode(harness, "src", nodeStyle({ shape }));
-        const curves: number[][] = [];
-        const original = EdgeMesh.createBezierLine.bind(EdgeMesh);
-        vi.spyOn(EdgeMesh, "createBezierLine").mockImplementation((...args) => {
-            const points = original(...args);
-            curves.push(points);
-            return points;
+    function addEdges(h: Harness, ends: readonly (readonly [string, string])[], style = LINE): Edge[] {
+        const edges = ends.map(([from, to]) => {
+            const edge = new Edge(h.context, from, to, h.dataManager.edges.size, edgePaintOf(style), {});
+            dataManagerInternals.adoptEdge(h.dataManager, edge);
+            h.layoutEngine.addEdge(edge);
+            return edge;
         });
-        const style: EdgeStyleConfig = { line: { type: "solid", color: "#AAAAAA", width: 0.5, bezier: true } };
-        const edge = new Edge(harness.context, "src", "src", 0, edgePaintOf(style), {});
-        dataManagerInternals.adoptEdge(harness.dataManager, edge);
-        harness.layoutEngine.addEdge(edge);
-        edge.update();
-
-        assert.isAbove(curves.length, 0, "the self-loop was drawn as a curve");
-        const points = curves[curves.length - 1];
-        const centre = node.mesh.position;
-        let nearest = Infinity;
-        for (let i = 0; i < points.length; i += 3) {
-            nearest = Math.min(nearest, Math.hypot(points[i] - centre.x, points[i + 1] - centre.y));
+        for (const edge of edges) {
+            edge.update();
         }
 
-        const { extendSize } = node.mesh.getBoundingInfo().boundingBox;
-        const { scaling } = node.mesh;
-        const reach = Math.hypot(extendSize.x * scaling.x, extendSize.y * scaling.y);
-        return { nearest, reach };
+        return edges;
     }
 
-    it("runs outside a node bigger than the usual loop", () => {
-        const { nearest, reach } = loopAround({ type: "box", size: 6 });
+    /**
+     * The drawn points of an edge's line.
+     * @param edge - The edge.
+     * @returns Its points; one straight segment when it is not drawn as a run.
+     */
+    function drawn(edge: Edge): Vector3[] {
+        const curve = edge.drawnCurve;
+        assert.isNotNull(curve, "the edge is drawn as a run of segments");
+        return curve ?? [];
+    }
 
-        assert.isAbove(nearest, reach, "the loop is drawn inside the node, where it cannot be seen");
+    /**
+     * How far a node's surface reaches from its centre in x-y, at most.
+     * @param node - The node.
+     * @returns The reach.
+     */
+    function reachOf(node: Node): number {
+        const { extendSize } = node.mesh.getBoundingInfo().boundingBox;
+        const { scaling } = node.mesh;
+        return Math.hypot(extendSize.x * scaling.x, extendSize.y * scaling.y);
+    }
+
+    for (const shape of [
+        { type: "box", size: 6 },
+        { type: "sphere", size: 1 },
+    ] as const) {
+        it(`draws a straight-styled loop on a ${shape.type} as a teardrop outside it, not a ring round it`, () => {
+            harness = createHarness();
+            const node = addNode(harness, "src", nodeStyle({ shape }));
+            const [loop] = addEdges(harness, [["src", "src"]]);
+            const points = drawn(loop);
+            const centre = node.mesh.position;
+            const reach = reachOf(node);
+            const tip = Math.max(...points.map((p) => Math.hypot(p.x - centre.x, p.y - centre.y)));
+            assert.isAbove(tip, reach, "the loop reaches past the node");
+            // Every drawn point is outside the node's surface (the ends on it).
+            const ends = [points[0], points.at(-1)];
+            for (const p of points) {
+                if (!ends.includes(p)) {
+                    assert.isAtLeast(Math.hypot(p.x - centre.x, p.y - centre.y), reach * 0.5);
+                }
+            }
+
+            // A teardrop leaves and returns on one side: its points span well under a half turn.
+            const angles = points.map((p) => Math.atan2(p.y - centre.y, p.x - centre.x));
+            const span = Math.max(...angles) - Math.min(...angles);
+            assert.isBelow(span, Math.PI, "the loop is on one side of the node");
+        });
+    }
+
+    for (const type of ["dash", "dot"] as const) {
+        it(`draws a ${type} self-loop round its teardrop, not as a line of no length`, () => {
+            harness = createHarness();
+            const node = addNode(harness, "src", nodeStyle({}));
+            const [loop] = addEdges(harness, [["src", "src"]], { line: { ...LINE.line, type } });
+            const centre = node.mesh.position;
+            const tip = Math.max(...drawn(loop).map((p) => Math.hypot(p.x - centre.x, p.y - centre.y)));
+            assert.isAbove(tip, reachOf(node), "the loop reaches past the node");
+        });
+    }
+
+    it("turns each loop on one node a different way", () => {
+        harness = createHarness();
+        const node = addNode(harness, "src", nodeStyle({}));
+        const loops = addEdges(harness, [
+            ["src", "src"],
+            ["src", "src"],
+            ["src", "src"],
+        ]);
+        const centre = node.mesh.position;
+        const tips = loops.map((loop) => {
+            const points = drawn(loop);
+            return points[Math.floor(points.length / 2)].subtract(centre).normalize();
+        });
+        for (let i = 0; i < tips.length; i++) {
+            for (let j = i + 1; j < tips.length; j++) {
+                assert.isBelow(Vector3.Dot(tips[i], tips[j]), 0.9, `loops ${i} and ${j} point different ways`);
+            }
+        }
     });
 
-    it("keeps the usual radius around a default-sized node", () => {
-        const { nearest } = loopAround({ type: "sphere", size: 1 });
+    it("fans two curved edges between one pair apart, either way round, and leaves a lone edge straight", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [there, back] = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["dst", "src"],
+            ],
+            CURVED,
+        );
+        const middle = (edge: Edge): Vector3 => {
+            const points = drawn(edge);
+            return points[Math.floor(points.length / 2)];
+        };
+        // The nodes sit on the x axis: the two arcs bow to opposite sides of it.
+        assert.isBelow(middle(there).y * middle(back).y, 0, "the two edges bow to opposite sides");
+        assert.isAbove(Math.abs(middle(there).y), 0.5);
 
-        assert.closeTo(nearest, EdgeMesh.SELF_LOOP_RADIUS, 1e-6);
+        harness.dispose();
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [lone] = addEdges(harness, [["src", "dst"]]);
+        assert.isNull(lone.drawnCurve, "a lone edge is one straight segment");
+    });
+
+    it("draws a lone curved edge along its own curve, its arrow pointing along the curve's end", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [edge] = addEdges(harness, [["src", "dst"]], {
+            ...CURVED,
+            arrowHead: { type: "normal", color: "#AAAAAA", size: 1, opacity: 1 },
+        });
+        const points = drawn(edge);
+        // the nodes sit on the x axis, src left of dst: the curve bows to its left, up
+        assert.isAbove(points[Math.floor(points.length / 2)].y, 0.5, "the edge bows");
+        const direction = edge.arrowCap?.drawnAppearance?.direction;
+        assert.isDefined(direction, "the arrow is placed");
+        // it comes down into the target along the curve, not along the straight line between centers
+        assert.isBelow(direction?.normalize().y ?? 0, -0.2, "the arrow follows the curve");
+    });
+
+    it("draws each curved edge of a pair that does not fan as its own curve, bowing to its own left", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const own: EdgeStyleConfig = { line: { ...CURVED.line, fanned: false } };
+        const [forth, back] = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["dst", "src"],
+            ],
+            own,
+        );
+        // The nodes sit on the x axis, src left of dst: going right bows up, coming back bows down (Gephi's lens).
+        const middle = (edge: Edge): Vector3 => {
+            const points = drawn(edge);
+            return points[Math.floor(points.length / 2)];
+        };
+        assert.isAbove(middle(forth).y, 0.5, "the edge going right bows up, to its left");
+        assert.isBelow(middle(back).y, -0.5, "the edge coming back bows down, to its own left");
+    });
+
+    it("draws the middle edge of an odd curved bundle straight", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const edges = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["src", "dst"],
+                ["src", "dst"],
+            ],
+            CURVED,
+        );
+        // The nodes sit on the x axis: the middle edge stays on it.
+        const bows = edges.map((edge) => Math.max(...drawn(edge).map((p) => Math.abs(p.y))));
+        assert.isAbove(bows[0], 0.5);
+        assert.isBelow(bows[1], 1e-6);
+        assert.isAbove(bows[2], 0.5);
+    });
+
+    it("leaves a bundle of straight edges straight, overlapping as the style asks", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const edges = addEdges(harness, [
+            ["src", "dst"],
+            ["dst", "src"],
+            ["src", "dst"],
+        ]);
+        assert.deepEqual(
+            edges.map((edge) => edge.drawnCurve),
+            [null, null, null],
+        );
+    });
+
+    it("keeps a straight sibling on the line and alternates the curved ones either side of it", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [straight] = addEdges(harness, [["src", "dst"]]);
+        const curved = addEdges(
+            harness,
+            [
+                ["src", "dst"],
+                ["src", "dst"],
+            ],
+            CURVED,
+        );
+        straight.update();
+        assert.isNull(straight.drawnCurve, "the straight edge keeps the line");
+        const middles = curved.map((edge) => {
+            const points = drawn(edge);
+            return points[Math.floor(points.length / 2)].y;
+        });
+        assert.isBelow(middles[0] * middles[1], 0, "the two curved edges bow to opposite sides");
+    });
+
+    it("fans an edge out when a second one is added beside it, with no node moving", () => {
+        harness = createHarness();
+        addNode(harness, "src", nodeStyle({}));
+        addNode(harness, "dst", nodeStyle({}));
+        const [first] = addEdges(harness, [["src", "dst"]], CURVED);
+        // a lone curved edge is drawn with its own bow, not fanned
+        const lone = drawn(first).map((p) => p.clone());
+        addEdges(harness, [["dst", "src"]], CURVED);
+        first.update();
+        assert.notDeepEqual(drawn(first), lone, "the first edge regrouped into a bundle of two");
     });
 });
 

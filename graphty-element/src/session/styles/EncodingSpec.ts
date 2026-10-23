@@ -47,6 +47,7 @@ import type {
     LayerSpec,
     MeasurementDeclaration,
     PaletteId,
+    ReadableValueKind,
     ResultShape,
     RunId,
 } from "../../catalog/types";
@@ -58,7 +59,7 @@ import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
 import type { ChannelDescriptor, ChannelValueKind } from "./channels";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
-import { requireChannel, type RuleBinding } from "./encoding";
+import { overflowHalf, requireChannel, type RuleBinding } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
 import type { ScaleRegistry } from "./scales";
 
@@ -127,7 +128,7 @@ export interface EncodingSpec {
     readonly missing?: RuleBinding["missing"];
     /** Send the smallest value to the far end of the range instead of the near end. */
     readonly reverse?: boolean;
-    /** What to call the layer. Defaults to the run's label and the channel's plain name. */
+    /** What to call the layer. Defaults to the run's label. */
     readonly name?: string;
 }
 
@@ -152,7 +153,9 @@ export interface ColumnEncodingSpec extends EncodingOptions {
 
 /**
  * Why a column cannot be drawn on a channel by default, as the code of a {@link CodedFact}.
- * Every refusal carries `kind`, `name` and `channel` in its params, and:
+ * Every refusal carries `kind`, `name`, `channel` and `valueKind` (the column's
+ * {@link ReadableValueKind}, as `data.readableValues()` lists it: `"text"` for a column of free
+ * text) in its params, and:
  *
  * - `"E_UNSUPPORTED"` -- the element has no default drawing for what the column measures on this
  *   channel: groups on a size, amounts on a shape, or a time column on any channel. Params add
@@ -481,31 +484,40 @@ function overflowOf(spec: EncodingOptions, scale: string, descriptor: ChannelDes
 }
 
 /**
- * The node shape half of `overflow: "shape"`, written into the same layer as the colour.
+ * The second half of `overflow: "shape"` (node shapes) or `"pattern"` (edge patterns), written
+ * into the same layer as the colour.
  * @param spec - The encoding.
  * @param colour - The colour binding it pairs with.
  * @param descriptor - The channel, refused when it paints edges.
- * @returns The extra channel bindings, empty unless the policy is "shape".
- * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel.
+ * @returns The extra channel bindings, empty unless the policy cycles a second cue.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` for "shape" on an edge channel, or "pattern"
+ *   on a node channel.
  */
 function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descriptor: ChannelDescriptor): Encoding {
-    if (colour.overflow !== "shape") {
-        return {};
-    }
-
-    if (descriptor.target === "edge") {
+    if (colour.overflow === "shape" && descriptor.target === "edge") {
         throw badEncoding(
-            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "other" or "extend".`,
+            `overflow "shape" draws the groups past the palette in other node shapes, and an edge has no shape, so ${descriptor.channel} cannot use it. Use "pattern", "other" or "extend".`,
+            { channel: descriptor.channel, overflow: colour.overflow },
+        );
+    }
+    if (colour.overflow === "pattern" && descriptor.target === "node") {
+        throw badEncoding(
+            `overflow "pattern" draws the groups past the palette in other edge line patterns, and a node has no line, so ${descriptor.channel} cannot use it. Use "shape", "other" or "extend".`,
             { channel: descriptor.channel, overflow: colour.overflow },
         );
     }
 
-    const shape: RuleBinding = { by: colour.by, scale: colour.scale, overflow: "shape" };
-    if (colour.palette !== undefined) {
-        shape.palette = colour.palette;
-    }
+    // The half carries what decides the cycle -- the value, the scale, the palette -- and nothing
+    // the colour's own reading of the data adds.
+    const { by, overflow, scale, palette } = colour;
+    const half = overflowHalf(descriptor.channel, {
+        by,
+        overflow,
+        ...(scale === undefined ? {} : { scale }),
+        ...(palette === undefined ? {} : { palette }),
+    });
 
-    return { "node.shape": shape };
+    return half === null ? {} : { [half[0]]: half[1] };
 }
 
 /**
@@ -532,17 +544,24 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
 
     const { field } = resolveField(spec, run, descriptor);
     const path = resultPath(run.id, field.name);
-    const scale = spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
+    // An amount on a channel that takes one of a list is stepped, as a column's is.
+    const stepped =
+        spec.scale === undefined &&
+        descriptor.accepts === "enum" &&
+        fieldMeasurement(field, run.shape) === "quantitative"
+            ? steppedBinding(descriptor)
+            : undefined;
+    const scale = stepped?.scale ?? spec.scale ?? defaultScale(field, run.shape, descriptor.accepts);
     // An amount on a size gets the same default range a column's does, written into the layer
     // now, rather than the unit interval that draws every node smaller than the default size.
     const sized =
         spec.scale === undefined && spec.range === undefined && scaleDescriptor(scale)?.domainKind === "numeric";
-    const defaultRange = sized ? DEFAULT_RANGES.get(descriptor.channel) : undefined;
+    const defaultRange = sized ? defaultRangeOf(descriptor) : undefined;
     const ranged: EncodingOptions = defaultRange ? { ...spec, range: [defaultRange[0], defaultRange[1]] } : spec;
-    const binding = buildBinding(ranged, path, scale, descriptor);
+    const binding = { ...buildBinding(ranged, path, scale, descriptor), ...stepped?.extra };
 
     return {
-        name: spec.name ?? `${englishRunLabel(run)} - ${descriptor.plainName}`,
+        name: spec.name ?? englishRunLabel(run),
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },
@@ -566,6 +585,61 @@ const DEFAULT_RANGES: ReadonlyMap<Channel, readonly [number, number]> = new Map(
     ["node.size", DEFAULT_SIZE_RANGE],
     ["edge.width", DEFAULT_EDGE_WIDTH_RANGE],
 ]);
+
+/** How many steps a number is cut into on a channel that takes one of a list, at most. */
+const MAX_STEPS = 5;
+
+/**
+ * The ordered sets a number steps through on a channel that takes one of a list, lightest first:
+ * a line from dotted to solid, a shape from fewest faces to most, an arrow from a bar to a box.
+ * A channel not listed walks its own catalogue list.
+ */
+const STEPPED_CHOICES: ReadonlyMap<Channel, readonly string[]> = new Map([
+    ["edge.style", ["dot", "dash-dot", "dash", "solid"]],
+    ["node.shape", ["tetrahedron", "box", "octahedron", "dodecahedron", "icosahedron"]],
+    ["edge.arrowHead", ["tee", "vee", "normal", "diamond", "box"]],
+    ["edge.arrowTail", ["tee", "vee", "normal", "diamond", "box"]],
+]);
+
+/**
+ * The stepped binding a number gets on a channel that takes one of a list: equal-count groups,
+ * one per choice, at most {@link MAX_STEPS}, through an ordered set. The same answer for a run's
+ * field and a data column.
+ * @param descriptor - The channel.
+ * @returns The scale and the binding fields that go with it.
+ */
+function steppedBinding(descriptor: ChannelDescriptor): {
+    readonly scale: "quantile";
+    readonly extra: Partial<RuleBinding>;
+} {
+    const ordered = STEPPED_CHOICES.get(descriptor.channel) ?? descriptor.values ?? [];
+    const steps = Math.max(1, Math.min(MAX_STEPS, ordered.length));
+
+    return { scale: "quantile", extra: { bins: steps, choices: ordered.slice(0, steps) } };
+}
+
+/**
+ * The output range a numeric binding gets when its author names none: a size's own range, else
+ * the unit interval moved inside what the channel draws (a pattern count of at least 2 gets
+ * [2, 3], never values the channel refuses). Undefined when the unit interval already fits.
+ * @param descriptor - The channel.
+ * @returns The range, or undefined to leave the binding without one.
+ */
+export function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
+    const sized = DEFAULT_RANGES.get(descriptor.channel);
+    if (sized !== undefined || descriptor.accepts !== "number") {
+        return sized;
+    }
+
+    const min = descriptor.min ?? Number.NEGATIVE_INFINITY;
+    const max = descriptor.max ?? Number.POSITIVE_INFINITY;
+    if (min <= 0 && max >= 1) {
+        return undefined;
+    }
+
+    const low = Math.min(Math.max(0, min), max);
+    return [low, Math.min(low + 1, max)];
+}
 
 /** A default the column measurement chose: a scale and what goes with it, or a refusal. */
 type DefaultChoice =
@@ -638,7 +712,7 @@ function chooseForAmounts(
         return { scale: "linear", extra: { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) } };
     }
 
-    const range = spec.range ?? DEFAULT_RANGES.get(descriptor.channel);
+    const range = spec.range ?? defaultRangeOf(descriptor);
     return { scale: "linear", extra: range === undefined ? {} : { range: [range[0], range[1]] } };
 }
 
@@ -659,24 +733,100 @@ function chooseDefault(
     scales: ScaleRegistry,
 ): DefaultChoice {
     const { accepts } = descriptor;
-    const { measurement } = column;
-    const groups = accepts === "color" || accepts === "enum";
+    const route = defaultRoute(column, declaration, accepts);
+    switch (route.kind) {
+        case "groups":
+            return chooseForGroups(spec, column, accepts, scales);
+        case "order":
+            return chooseForOrder(spec, route.order, descriptor);
+        case "amounts":
+            return chooseForAmounts(spec, descriptor, scales);
+        case "steps":
+            return steppedBinding(descriptor);
+        default:
+            // Time has no default yet; groups on a size or amounts on a shape have none at all.
+            return { refuse: "E_UNSUPPORTED" };
+    }
+}
 
-    if (measurement === "categorical" && groups) {
-        return chooseForGroups(spec, column, accepts, scales);
+/** Which default a column's measurement leads to on a kind of channel, before any palette. */
+type DefaultRoute =
+    | { readonly kind: "groups" | "amounts" | "steps" | "none" }
+    | { readonly kind: "order"; readonly order: readonly (string | number)[] };
+
+/**
+ * Which default a column gets on a kind of channel: the one decision both
+ * {@link proposeColumnBinding} and {@link columnFits} read.
+ * @param column - The column's measurement.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param accepts - What the channel carries.
+ * @returns The route.
+ */
+function defaultRoute(
+    column: Pick<AttributeDescriptor, "measurement">,
+    declaration: MeasurementDeclaration | undefined,
+    accepts: ChannelValueKind,
+): DefaultRoute {
+    const { measurement } = column;
+    if (measurement === "categorical" && (accepts === "color" || accepts === "enum")) {
+        return { kind: "groups" };
     }
 
     const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
     if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
-        return chooseForOrder(spec, order, descriptor);
+        return { kind: "order", order };
     }
 
-    if (measurement === "quantitative" && accepts !== "enum") {
-        return chooseForAmounts(spec, descriptor, scales);
+    if (measurement !== "quantitative") {
+        return { kind: "none" };
     }
 
-    // Time has no default yet; groups on a size or amounts on a shape have none at all.
-    return { refuse: "E_UNSUPPORTED" };
+    return { kind: accepts === "enum" ? "steps" : "amounts" };
+}
+
+/**
+ * Whether a column can drive a kind of channel with no scale named: exactly when
+ * {@link proposeColumnBinding} would propose a binding rather than refuse.
+ * @param column - The column's measurement and distinct count.
+ * @param declaration - The column's declaration, read for an ordinal column's order.
+ * @param accepts - What the channel carries.
+ * @returns True when a binding would be proposed.
+ */
+export function columnFits(
+    column: Pick<AttributeDescriptor, "measurement" | "uniqueCount">,
+    declaration: MeasurementDeclaration | undefined,
+    accepts: ChannelValueKind,
+): boolean {
+    if (accepts === "text" || accepts === "boolean") {
+        return true;
+    }
+
+    if (accepts === "nothing" || accepts === "labelStyle") {
+        return false;
+    }
+
+    const route = defaultRoute(column, declaration, accepts).kind;
+    return route === "groups" ? column.uniqueCount !== undefined : route !== "none";
+}
+
+/**
+ * What kind of value a described column holds, as `data.readableValues()` lists it.
+ * @param column - The column.
+ * @returns The kind.
+ */
+export function readableKindOf(column: AttributeDescriptor): ReadableValueKind {
+    if (column.type === "boolean") {
+        return "yes-no";
+    }
+
+    if (column.measurement === "quantitative") {
+        return "number";
+    }
+
+    // A string column with too many values to be groups is free text; numbers declared as codes
+    // and a partition's ids are groups.
+    const grouped = column.measurement === "categorical" || column.measurement === "ordinal";
+    return grouped && column.type !== "string" && column.type !== "mixed" ? "category" : "text";
 }
 
 /**
@@ -713,7 +863,12 @@ export function proposeColumnBinding(
         return bind(choice.scale, choice.extra);
     }
 
-    const about = { kind: column.kind, name: column.name, channel: descriptor.channel };
+    const about = {
+        kind: column.kind,
+        name: column.name,
+        channel: descriptor.channel,
+        valueKind: readableKindOf(column),
+    };
     const measurement = column.measurement ?? null;
     return {
         ok: false,

@@ -167,6 +167,8 @@ const CASES: readonly Case[] = [
         format: "pajek",
         expect: { 2: [0.483, -0.1014, 0], 311: [0.8302, -0.5256, 0] },
         units: "file",
+        // Pajek draws the [0,1] square as 500 points
+        pxPerUnit: 500,
         yAxis: "down",
         dims: 2,
         placed: 332,
@@ -178,6 +180,8 @@ const CASES: readonly Case[] = [
         format: "pajek",
         expect: { 1: [0.8464, -0.8341, -(0.1164 - 0.5)], 2: [0.7463, -0.3394, -(0.8077 - 0.5)] },
         units: "file",
+        // Pajek draws the [0,1] square as 500 points
+        pxPerUnit: 500,
         yAxis: "down",
         dims: 3,
     },
@@ -274,6 +278,25 @@ describe("extractPositions over each format's samples", () => {
         ]);
     });
 
+    it("a Cytoscape.js compound's saved position is not read: Cytoscape.js draws it around its children", async () => {
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" }, position: { x: 500, y: 500 } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 20 } },
+                ],
+                edges: [],
+            },
+        });
+        const { snapshot, positions } = await load(saved, "json");
+        expect(positions?.placed).toBe(2);
+        expect(positions?.total).toBe(2);
+        expect(at(snapshot, positions as FilePositions, "group").every(Number.isNaN)).toBe(true);
+        expect(at(snapshot, positions as FilePositions, "m2")).toEqual([100, -20, 0]);
+        expect(positions?.groups).toEqual([]);
+    });
+
     it("an asymmetric 3D Pajek drawing is rotated, never mirrored (the signed volume keeps its sign)", async () => {
         const text = readFileSync(join(CONFORMANCE, "pajek", "bavla", "A97.NET"));
         const { snapshot, positions } = await load(text, "pajek");
@@ -323,6 +346,34 @@ describe("the JSON marker rule", () => {
         expect(d3.positions?.source.yAxis).toBe("down");
         expect(d3.positions?.units).toBe("px");
         expect(at(d3.snapshot, d3.positions as FilePositions, "a")).toEqual([1, -2, 0]);
+    });
+
+    it("a vis-network file is y down in canvas px, with or without physics", async () => {
+        // vis-network draws a node's x / y straight onto its canvas, whose y grows downward
+        const vis = await load(
+            JSON.stringify({
+                nodes: [
+                    { id: "a", x: 1, y: 2 },
+                    { id: "b", x: 3, y: 4 },
+                ],
+                edges: [{ from: "a", to: "b" }],
+            }),
+            "json",
+        );
+        expect(vis.positions?.source.yAxis).toBe("down");
+        expect(vis.positions?.units).toBe("px");
+        expect(at(vis.snapshot, vis.positions as FilePositions, "a")).toEqual([1, -2, 0]);
+    });
+
+    it("a graphology file is y up whatever d3-force keys it carries, as sigma.js draws it", async () => {
+        const nodes = [
+            { key: "a", attributes: { x: 1, y: 2, vx: 0, index: 0 } },
+            { key: "b", attributes: { x: 3, y: 4, fy: 1 } },
+        ];
+        const { snapshot, positions } = await load(JSON.stringify({ options: { type: "mixed" }, nodes }), "json");
+        expect(positions?.source.yAxis).toBe("up");
+        expect(positions?.units).toBe("file");
+        expect(at(snapshot, positions as FilePositions, "a")).toEqual([1, 2, 0]);
     });
 
     it("a d3 file with z is a 3D drawing, read y up", async () => {

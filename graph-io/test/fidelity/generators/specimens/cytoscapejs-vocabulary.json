@@ -1,0 +1,1692 @@
+{
+    "about": "Cytoscape.js's style vocabulary: every non-alias property of cy.style().properties (the table its stylesheet parser checks values against), its group and its enumerated values, read from the pinned Cytoscape.js by cytoscapejs.mjs --vocabulary. cytoscapejs.mjs fails when the live table differs, so a new version shows up as a new or missing specimen.",
+    "program": "Cytoscape.js 3.34.3",
+    "doc": "https://js.cytoscape.org/#style",
+    "properties": [
+        {
+            "name": "events",
+            "group": "behavior",
+            "enums": ["yes", "no"],
+            "kinds": []
+        },
+        {
+            "name": "text-events",
+            "group": "behavior",
+            "enums": ["yes", "no"],
+            "kinds": []
+        },
+        {
+            "name": "box-selection",
+            "group": "behavior",
+            "enums": ["contain", "overlap", "none"],
+            "kinds": []
+        },
+        {
+            "name": "transition-property",
+            "group": "transition",
+            "kinds": []
+        },
+        {
+            "name": "transition-duration",
+            "group": "transition",
+            "kinds": ["number"],
+            "units": "s|ms"
+        },
+        {
+            "name": "transition-delay",
+            "group": "transition",
+            "kinds": ["number"],
+            "units": "s|ms"
+        },
+        {
+            "name": "transition-timing-function",
+            "group": "transition",
+            "enums": [
+                "linear",
+                "ease",
+                "ease-in",
+                "ease-out",
+                "ease-in-out",
+                "ease-in-sine",
+                "ease-out-sine",
+                "ease-in-out-sine",
+                "ease-in-quad",
+                "ease-out-quad",
+                "ease-in-out-quad",
+                "ease-in-cubic",
+                "ease-out-cubic",
+                "ease-in-out-cubic",
+                "ease-in-quart",
+                "ease-out-quart",
+                "ease-in-out-quart",
+                "ease-in-quint",
+                "ease-out-quint",
+                "ease-in-out-quint",
+                "ease-in-expo",
+                "ease-out-expo",
+                "ease-in-out-expo",
+                "ease-in-circ",
+                "ease-out-circ",
+                "ease-in-out-circ"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "display",
+            "group": "visibility",
+            "enums": ["element", "none"],
+            "kinds": []
+        },
+        {
+            "name": "visibility",
+            "group": "visibility",
+            "enums": ["hidden", "visible"],
+            "kinds": []
+        },
+        {
+            "name": "opacity",
+            "group": "visibility",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-opacity",
+            "group": "visibility",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-zoomed-font-size",
+            "group": "visibility",
+            "kinds": ["number"]
+        },
+        {
+            "name": "z-compound-depth",
+            "group": "visibility",
+            "enums": ["bottom", "orphan", "auto", "top"],
+            "kinds": []
+        },
+        {
+            "name": "z-index-compare",
+            "group": "visibility",
+            "enums": ["auto", "manual"],
+            "kinds": []
+        },
+        {
+            "name": "z-index",
+            "group": "visibility",
+            "kinds": ["number"]
+        },
+        {
+            "name": "overlay-padding",
+            "group": "overlay",
+            "kinds": ["number"]
+        },
+        {
+            "name": "overlay-color",
+            "group": "overlay",
+            "kinds": ["color"]
+        },
+        {
+            "name": "overlay-opacity",
+            "group": "overlay",
+            "kinds": ["number"]
+        },
+        {
+            "name": "overlay-shape",
+            "group": "overlay",
+            "enums": ["roundrectangle", "round-rectangle", "ellipse"],
+            "kinds": []
+        },
+        {
+            "name": "overlay-corner-radius",
+            "group": "overlay",
+            "enums": ["auto"],
+            "kinds": ["number"],
+            "units": "px|em"
+        },
+        {
+            "name": "underlay-padding",
+            "group": "underlay",
+            "kinds": ["number"]
+        },
+        {
+            "name": "underlay-color",
+            "group": "underlay",
+            "kinds": ["color"]
+        },
+        {
+            "name": "underlay-opacity",
+            "group": "underlay",
+            "kinds": ["number"]
+        },
+        {
+            "name": "underlay-shape",
+            "group": "underlay",
+            "enums": ["roundrectangle", "round-rectangle", "ellipse"],
+            "kinds": []
+        },
+        {
+            "name": "underlay-corner-radius",
+            "group": "underlay",
+            "enums": ["auto"],
+            "kinds": ["number"],
+            "units": "px|em"
+        },
+        {
+            "name": "ghost",
+            "group": "ghost",
+            "enums": ["yes", "no"],
+            "kinds": []
+        },
+        {
+            "name": "ghost-offset-x",
+            "group": "ghost",
+            "kinds": ["number"]
+        },
+        {
+            "name": "ghost-offset-y",
+            "group": "ghost",
+            "kinds": ["number"]
+        },
+        {
+            "name": "ghost-opacity",
+            "group": "ghost",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-valign",
+            "group": "commonLabel",
+            "enums": ["top", "top-inside", "center", "bottom", "bottom-inside"],
+            "kinds": []
+        },
+        {
+            "name": "text-halign",
+            "group": "commonLabel",
+            "enums": ["left", "left-inside", "center", "right", "right-inside"],
+            "kinds": []
+        },
+        {
+            "name": "color",
+            "group": "commonLabel",
+            "kinds": ["color"]
+        },
+        {
+            "name": "text-outline-color",
+            "group": "commonLabel",
+            "kinds": ["color"]
+        },
+        {
+            "name": "text-outline-opacity",
+            "group": "commonLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-background-color",
+            "group": "commonLabel",
+            "kinds": ["color"]
+        },
+        {
+            "name": "text-background-opacity",
+            "group": "commonLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-background-padding",
+            "group": "commonLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-border-opacity",
+            "group": "commonLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-border-color",
+            "group": "commonLabel",
+            "kinds": ["color"]
+        },
+        {
+            "name": "text-border-width",
+            "group": "commonLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-border-style",
+            "group": "commonLabel",
+            "enums": ["solid", "dotted", "dashed", "double"],
+            "kinds": []
+        },
+        {
+            "name": "text-background-shape",
+            "group": "commonLabel",
+            "enums": ["rectangle", "roundrectangle", "round-rectangle", "circle"],
+            "kinds": []
+        },
+        {
+            "name": "text-justification",
+            "group": "commonLabel",
+            "enums": ["left", "center", "right", "auto"],
+            "kinds": []
+        },
+        {
+            "name": "text-metrics",
+            "group": "commonLabel",
+            "enums": ["font", "glyph"],
+            "kinds": []
+        },
+        {
+            "name": "box-select-labels",
+            "group": "commonLabel",
+            "enums": ["yes", "no"],
+            "kinds": []
+        },
+        {
+            "name": "font-family",
+            "group": "labelDimensions",
+            "kinds": []
+        },
+        {
+            "name": "font-style",
+            "group": "labelDimensions",
+            "enums": ["italic", "normal", "oblique"],
+            "kinds": []
+        },
+        {
+            "name": "font-weight",
+            "group": "labelDimensions",
+            "enums": [
+                "normal",
+                "bold",
+                "bolder",
+                "lighter",
+                "100",
+                "200",
+                "300",
+                "400",
+                "500",
+                "600",
+                "800",
+                "900",
+                "700"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "font-size",
+            "group": "labelDimensions",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-transform",
+            "group": "labelDimensions",
+            "enums": ["none", "uppercase", "lowercase"],
+            "kinds": []
+        },
+        {
+            "name": "text-wrap",
+            "group": "labelDimensions",
+            "enums": ["none", "wrap", "ellipsis"],
+            "kinds": []
+        },
+        {
+            "name": "text-overflow-wrap",
+            "group": "labelDimensions",
+            "enums": ["whitespace", "anywhere"],
+            "kinds": []
+        },
+        {
+            "name": "text-max-width",
+            "group": "labelDimensions",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-outline-width",
+            "group": "labelDimensions",
+            "kinds": ["number"]
+        },
+        {
+            "name": "line-height",
+            "group": "labelDimensions",
+            "kinds": ["number"]
+        },
+        {
+            "name": "label",
+            "group": "mainLabel",
+            "kinds": ["string"]
+        },
+        {
+            "name": "text-rotation",
+            "group": "mainLabel",
+            "enums": ["none", "autorotate"],
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "text-margin-x",
+            "group": "mainLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "text-margin-y",
+            "group": "mainLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "source-label",
+            "group": "sourceLabel",
+            "kinds": ["string"]
+        },
+        {
+            "name": "source-text-rotation",
+            "group": "sourceLabel",
+            "enums": ["none", "autorotate"],
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "source-text-margin-x",
+            "group": "sourceLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "source-text-margin-y",
+            "group": "sourceLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "source-text-offset",
+            "group": "sourceLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "target-label",
+            "group": "targetLabel",
+            "kinds": ["string"]
+        },
+        {
+            "name": "target-text-rotation",
+            "group": "targetLabel",
+            "enums": ["none", "autorotate"],
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "target-text-margin-x",
+            "group": "targetLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "target-text-margin-y",
+            "group": "targetLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "target-text-offset",
+            "group": "targetLabel",
+            "kinds": ["number"]
+        },
+        {
+            "name": "height",
+            "group": "nodeBody",
+            "enums": ["label"],
+            "kinds": ["number"]
+        },
+        {
+            "name": "width",
+            "group": "nodeBody",
+            "enums": ["label"],
+            "kinds": ["number"]
+        },
+        {
+            "name": "shape",
+            "group": "nodeBody",
+            "enums": [
+                "rectangle",
+                "roundrectangle",
+                "round-rectangle",
+                "cutrectangle",
+                "cut-rectangle",
+                "bottomroundrectangle",
+                "bottom-round-rectangle",
+                "barrel",
+                "ellipse",
+                "triangle",
+                "round-triangle",
+                "square",
+                "pentagon",
+                "round-pentagon",
+                "hexagon",
+                "round-hexagon",
+                "concavehexagon",
+                "concave-hexagon",
+                "heptagon",
+                "round-heptagon",
+                "octagon",
+                "round-octagon",
+                "tag",
+                "round-tag",
+                "star",
+                "diamond",
+                "round-diamond",
+                "vee",
+                "rhomboid",
+                "right-rhomboid",
+                "polygon"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "shape-polygon-points",
+            "group": "nodeBody",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "corner-radius",
+            "group": "nodeBody",
+            "enums": ["auto"],
+            "kinds": ["number"],
+            "units": "px|em"
+        },
+        {
+            "name": "background-color",
+            "group": "nodeBody",
+            "kinds": ["color"]
+        },
+        {
+            "name": "background-fill",
+            "group": "nodeBody",
+            "enums": ["solid", "linear-gradient", "radial-gradient"],
+            "kinds": []
+        },
+        {
+            "name": "background-opacity",
+            "group": "nodeBody",
+            "kinds": ["number"]
+        },
+        {
+            "name": "background-blacken",
+            "group": "nodeBody",
+            "kinds": ["number"]
+        },
+        {
+            "name": "background-gradient-stop-colors",
+            "group": "nodeBody",
+            "kinds": ["color", "multiple"]
+        },
+        {
+            "name": "background-gradient-stop-positions",
+            "group": "nodeBody",
+            "kinds": ["number", "multiple"],
+            "units": "%"
+        },
+        {
+            "name": "background-gradient-direction",
+            "group": "nodeBody",
+            "enums": [
+                "to-bottom",
+                "to-top",
+                "to-left",
+                "to-right",
+                "to-bottom-right",
+                "to-bottom-left",
+                "to-top-right",
+                "to-top-left",
+                "to-right-bottom",
+                "to-left-bottom",
+                "to-right-top",
+                "to-left-top"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "padding",
+            "group": "nodeBody",
+            "kinds": ["number"]
+        },
+        {
+            "name": "padding-relative-to",
+            "group": "nodeBody",
+            "enums": ["width", "height", "average", "min", "max"],
+            "kinds": []
+        },
+        {
+            "name": "bounds-expansion",
+            "group": "nodeBody",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "border-color",
+            "group": "nodeBorder",
+            "kinds": ["color"]
+        },
+        {
+            "name": "border-opacity",
+            "group": "nodeBorder",
+            "kinds": ["number"]
+        },
+        {
+            "name": "border-width",
+            "group": "nodeBorder",
+            "kinds": ["number"]
+        },
+        {
+            "name": "border-style",
+            "group": "nodeBorder",
+            "enums": ["solid", "dotted", "dashed", "double"],
+            "kinds": []
+        },
+        {
+            "name": "border-cap",
+            "group": "nodeBorder",
+            "enums": ["butt", "round", "square"],
+            "kinds": []
+        },
+        {
+            "name": "border-join",
+            "group": "nodeBorder",
+            "enums": ["round", "bevel", "miter"],
+            "kinds": []
+        },
+        {
+            "name": "border-dash-pattern",
+            "group": "nodeBorder",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "border-dash-offset",
+            "group": "nodeBorder",
+            "kinds": ["number"]
+        },
+        {
+            "name": "border-position",
+            "group": "nodeBorder",
+            "enums": ["center", "inside", "outside"],
+            "kinds": []
+        },
+        {
+            "name": "outline-color",
+            "group": "nodeOutline",
+            "kinds": ["color"]
+        },
+        {
+            "name": "outline-opacity",
+            "group": "nodeOutline",
+            "kinds": ["number"]
+        },
+        {
+            "name": "outline-width",
+            "group": "nodeOutline",
+            "kinds": ["number"]
+        },
+        {
+            "name": "outline-style",
+            "group": "nodeOutline",
+            "enums": ["solid", "dotted", "dashed", "double"],
+            "kinds": []
+        },
+        {
+            "name": "outline-offset",
+            "group": "nodeOutline",
+            "kinds": ["number"]
+        },
+        {
+            "name": "background-image",
+            "group": "backgroundImage",
+            "kinds": ["multiple", "url"]
+        },
+        {
+            "name": "background-image-crossorigin",
+            "group": "backgroundImage",
+            "enums": ["anonymous", "use-credentials", "null"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-image-opacity",
+            "group": "backgroundImage",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-image-containment",
+            "group": "backgroundImage",
+            "enums": ["inside", "over"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-image-smoothing",
+            "group": "backgroundImage",
+            "enums": ["yes", "no"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-position-x",
+            "group": "backgroundImage",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-position-y",
+            "group": "backgroundImage",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-width-relative-to",
+            "group": "backgroundImage",
+            "enums": ["inner", "include-padding"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-height-relative-to",
+            "group": "backgroundImage",
+            "enums": ["inner", "include-padding"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-repeat",
+            "group": "backgroundImage",
+            "enums": ["repeat", "repeat-x", "repeat-y", "no-repeat"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-fit",
+            "group": "backgroundImage",
+            "enums": ["none", "contain", "cover"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-clip",
+            "group": "backgroundImage",
+            "enums": ["none", "node"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "background-width",
+            "group": "backgroundImage",
+            "enums": ["auto"],
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-height",
+            "group": "backgroundImage",
+            "enums": ["auto"],
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-offset-x",
+            "group": "backgroundImage",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "background-offset-y",
+            "group": "backgroundImage",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "pie-size",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-hole",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-start-angle",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "pie-1-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-1-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-1-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-2-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-2-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-2-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-3-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-3-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-3-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-4-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-4-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-4-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-5-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-5-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-5-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-6-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-6-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-6-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-7-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-7-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-7-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-8-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-8-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-8-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-9-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-9-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-9-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-10-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-10-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-10-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-11-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-11-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-11-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-12-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-12-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-12-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-13-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-13-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-13-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-14-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-14-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-14-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-15-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-15-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-15-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "pie-16-background-color",
+            "group": "pie",
+            "kinds": ["color"]
+        },
+        {
+            "name": "pie-16-background-size",
+            "group": "pie",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "pie-16-background-opacity",
+            "group": "pie",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-size",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-direction",
+            "group": "stripe",
+            "enums": ["horizontal", "vertical"],
+            "kinds": []
+        },
+        {
+            "name": "stripe-1-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-1-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-1-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-2-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-2-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-2-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-3-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-3-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-3-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-4-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-4-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-4-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-5-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-5-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-5-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-6-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-6-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-6-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-7-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-7-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-7-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-8-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-8-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-8-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-9-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-9-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-9-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-10-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-10-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-10-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-11-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-11-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-11-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-12-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-12-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-12-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-13-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-13-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-13-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-14-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-14-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-14-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-15-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-15-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-15-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "stripe-16-background-color",
+            "group": "stripe",
+            "kinds": ["color"]
+        },
+        {
+            "name": "stripe-16-background-size",
+            "group": "stripe",
+            "kinds": ["number"],
+            "units": "%"
+        },
+        {
+            "name": "stripe-16-background-opacity",
+            "group": "stripe",
+            "kinds": ["number"]
+        },
+        {
+            "name": "position",
+            "group": "compound",
+            "enums": ["parent", "origin"],
+            "kinds": []
+        },
+        {
+            "name": "compound-sizing-wrt-labels",
+            "group": "compound",
+            "enums": ["include", "exclude"],
+            "kinds": []
+        },
+        {
+            "name": "min-width",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-width-bias-left",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-width-bias-right",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-height",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-height-bias-top",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "min-height-bias-bottom",
+            "group": "compound",
+            "kinds": ["number"]
+        },
+        {
+            "name": "line-style",
+            "group": "edgeLine",
+            "enums": ["solid", "dotted", "dashed"],
+            "kinds": []
+        },
+        {
+            "name": "line-color",
+            "group": "edgeLine",
+            "kinds": ["color"]
+        },
+        {
+            "name": "line-fill",
+            "group": "edgeLine",
+            "enums": ["solid", "linear-gradient", "radial-gradient"],
+            "kinds": []
+        },
+        {
+            "name": "line-cap",
+            "group": "edgeLine",
+            "enums": ["butt", "round", "square"],
+            "kinds": []
+        },
+        {
+            "name": "line-opacity",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "line-dash-pattern",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "line-dash-offset",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "line-outline-width",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "line-outline-color",
+            "group": "edgeLine",
+            "kinds": ["color"]
+        },
+        {
+            "name": "line-gradient-stop-colors",
+            "group": "edgeLine",
+            "kinds": ["color", "multiple"]
+        },
+        {
+            "name": "line-gradient-stop-positions",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"],
+            "units": "%"
+        },
+        {
+            "name": "curve-style",
+            "group": "edgeLine",
+            "enums": [
+                "bezier",
+                "unbundled-bezier",
+                "haystack",
+                "segments",
+                "straight",
+                "straight-triangle",
+                "taxi",
+                "round-segments",
+                "round-taxi"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "haystack-radius",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "source-endpoint",
+            "group": "edgeLine",
+            "enums": [
+                "inside-to-node",
+                "outside-to-node",
+                "outside-to-node-or-label",
+                "outside-to-line",
+                "outside-to-line-or-label"
+            ],
+            "kinds": ["number", "multiple"],
+            "units": "%|px|em|deg|rad"
+        },
+        {
+            "name": "target-endpoint",
+            "group": "edgeLine",
+            "enums": [
+                "inside-to-node",
+                "outside-to-node",
+                "outside-to-node-or-label",
+                "outside-to-line",
+                "outside-to-line-or-label"
+            ],
+            "kinds": ["number", "multiple"],
+            "units": "%|px|em|deg|rad"
+        },
+        {
+            "name": "control-point-step-size",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "control-point-distances",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "control-point-weights",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "segment-distances",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "segment-weights",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "segment-radii",
+            "group": "edgeLine",
+            "kinds": ["number", "multiple"]
+        },
+        {
+            "name": "radius-type",
+            "group": "edgeLine",
+            "enums": ["arc-radius", "influence-radius"],
+            "kinds": ["multiple"]
+        },
+        {
+            "name": "taxi-turn",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "taxi-turn-min-distance",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "taxi-direction",
+            "group": "edgeLine",
+            "enums": ["horizontal", "leftward", "rightward", "vertical", "upward", "downward", "auto"],
+            "kinds": []
+        },
+        {
+            "name": "taxi-radius",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "edge-distances",
+            "group": "edgeLine",
+            "enums": ["intersection", "node-position", "endpoints"],
+            "kinds": []
+        },
+        {
+            "name": "arrow-scale",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "loop-direction",
+            "group": "edgeLine",
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "loop-sweep",
+            "group": "edgeLine",
+            "kinds": ["number"],
+            "units": "deg|rad"
+        },
+        {
+            "name": "source-distance-from-node",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "target-distance-from-node",
+            "group": "edgeLine",
+            "kinds": ["number"]
+        },
+        {
+            "name": "source-arrow-shape",
+            "group": "edgeArrow",
+            "enums": [
+                "tee",
+                "triangle",
+                "triangle-tee",
+                "circle-triangle",
+                "triangle-cross",
+                "triangle-backcurve",
+                "vee",
+                "square",
+                "circle",
+                "diamond",
+                "chevron",
+                "none"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "mid-source-arrow-shape",
+            "group": "edgeArrow",
+            "enums": [
+                "tee",
+                "triangle",
+                "triangle-tee",
+                "circle-triangle",
+                "triangle-cross",
+                "triangle-backcurve",
+                "vee",
+                "square",
+                "circle",
+                "diamond",
+                "chevron",
+                "none"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "target-arrow-shape",
+            "group": "edgeArrow",
+            "enums": [
+                "tee",
+                "triangle",
+                "triangle-tee",
+                "circle-triangle",
+                "triangle-cross",
+                "triangle-backcurve",
+                "vee",
+                "square",
+                "circle",
+                "diamond",
+                "chevron",
+                "none"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "mid-target-arrow-shape",
+            "group": "edgeArrow",
+            "enums": [
+                "tee",
+                "triangle",
+                "triangle-tee",
+                "circle-triangle",
+                "triangle-cross",
+                "triangle-backcurve",
+                "vee",
+                "square",
+                "circle",
+                "diamond",
+                "chevron",
+                "none"
+            ],
+            "kinds": []
+        },
+        {
+            "name": "source-arrow-color",
+            "group": "edgeArrow",
+            "kinds": ["color"]
+        },
+        {
+            "name": "mid-source-arrow-color",
+            "group": "edgeArrow",
+            "kinds": ["color"]
+        },
+        {
+            "name": "target-arrow-color",
+            "group": "edgeArrow",
+            "kinds": ["color"]
+        },
+        {
+            "name": "mid-target-arrow-color",
+            "group": "edgeArrow",
+            "kinds": ["color"]
+        },
+        {
+            "name": "source-arrow-fill",
+            "group": "edgeArrow",
+            "enums": ["filled", "hollow"],
+            "kinds": []
+        },
+        {
+            "name": "mid-source-arrow-fill",
+            "group": "edgeArrow",
+            "enums": ["filled", "hollow"],
+            "kinds": []
+        },
+        {
+            "name": "target-arrow-fill",
+            "group": "edgeArrow",
+            "enums": ["filled", "hollow"],
+            "kinds": []
+        },
+        {
+            "name": "mid-target-arrow-fill",
+            "group": "edgeArrow",
+            "enums": ["filled", "hollow"],
+            "kinds": []
+        },
+        {
+            "name": "source-arrow-width",
+            "group": "edgeArrow",
+            "enums": ["match-line"],
+            "kinds": ["number"],
+            "units": "%|px|em"
+        },
+        {
+            "name": "mid-source-arrow-width",
+            "group": "edgeArrow",
+            "enums": ["match-line"],
+            "kinds": ["number"],
+            "units": "%|px|em"
+        },
+        {
+            "name": "target-arrow-width",
+            "group": "edgeArrow",
+            "enums": ["match-line"],
+            "kinds": ["number"],
+            "units": "%|px|em"
+        },
+        {
+            "name": "mid-target-arrow-width",
+            "group": "edgeArrow",
+            "enums": ["match-line"],
+            "kinds": ["number"],
+            "units": "%|px|em"
+        },
+        {
+            "name": "selection-box-color",
+            "group": "core",
+            "kinds": ["color"]
+        },
+        {
+            "name": "selection-box-opacity",
+            "group": "core",
+            "kinds": ["number"]
+        },
+        {
+            "name": "selection-box-border-color",
+            "group": "core",
+            "kinds": ["color"]
+        },
+        {
+            "name": "selection-box-border-width",
+            "group": "core",
+            "kinds": ["number"]
+        },
+        {
+            "name": "active-bg-color",
+            "group": "core",
+            "kinds": ["color"]
+        },
+        {
+            "name": "active-bg-opacity",
+            "group": "core",
+            "kinds": ["number"]
+        },
+        {
+            "name": "active-bg-size",
+            "group": "core",
+            "kinds": ["number"]
+        },
+        {
+            "name": "outside-texture-bg-color",
+            "group": "core",
+            "kinds": ["color"]
+        },
+        {
+            "name": "outside-texture-bg-opacity",
+            "group": "core",
+            "kinds": ["number"]
+        }
+    ]
+}

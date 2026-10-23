@@ -1,3 +1,40 @@
+## 0.0.28 (2026-10-21)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** one caption line per story, the explanation on its Docs page ([#2048](https://github.com/graphty-org/graphty-monorepo/issues/2048))
+- **cytoscape-extensions:** traversal, spanning-tree and cycle stories show how they work ([#2045](https://github.com/graphty-org/graphty-monorepo/issues/2045), [#2046](https://github.com/graphty-org/graphty-monorepo/issues/2046), [#2047](https://github.com/graphty-org/graphty-monorepo/issues/2047))
+- **cytoscape-extensions:** show what the spiral, BFS and spectral layouts are for ([#2041](https://github.com/graphty-org/graphty-monorepo/issues/2041), [#2042](https://github.com/graphty-org/graphty-monorepo/issues/2042), [#2043](https://github.com/graphty-org/graphty-monorepo/issues/2043))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** set imported style bypasses after the elements are added ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+- **cytoscape-extensions:** expect Gephi's mixed edge color in the styles guide example ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.61
+- Updated graph-samples to 0.1.39
+- Updated graph-format to 1.4.7
+- Updated algorithms to 3.4.14
+- Updated graph-io to 0.3.48
+- Updated layout to 2.5.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.27 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.60
+- Updated graph-samples to 0.1.38
+- Updated graph-format to 1.4.6
+- Updated algorithms to 3.4.13
+- Updated graph-io to 0.3.47
+- Updated layout to 2.5.9
+
 ## 0.0.26 (2026-10-19)
 
 ### 🧱 Updated Dependencies

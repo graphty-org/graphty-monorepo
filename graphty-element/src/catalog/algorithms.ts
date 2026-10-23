@@ -376,6 +376,7 @@ const shortestPathEngineOptions = defineOptions({
                 "Which engine computes the paths. Left unset, the element uses Dijkstra when every weight is zero or above and Bellman-Ford when any weight is negative.",
             advanced: true,
             group: "engine",
+            choiceLabels: { dijkstra: "Dijkstra", "bellman-ford": "Bellman-Ford" },
         },
     },
 });
@@ -395,6 +396,20 @@ const componentStrengthOptions = defineOptions({
 // ---------------------------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The `weight` option every algorithm with a weighted form takes: absent, the weight the graph was
+ * loaded with; null, none; an edge column's name, or `{ attribute, meaning }`, that column for this
+ * run. A weight whose meaning the algorithm does not read is left unread (`caveats.weightSkipped`).
+ */
+const WEIGHT_OPTION: OptionDescriptor = {
+    name: "weight",
+    plainName: "Weight",
+    technicalName: "weight",
+    type: "attribute",
+    on: "edge",
+    description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
+};
 
 /** The built-in descriptors as written, before what is read from the classes is added. */
 const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
@@ -418,6 +433,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "inDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
             field({
                 name: "outDegree",
@@ -425,6 +441,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "outDegree",
                 kind: "node",
                 type: "integer",
+                directedOnly: true,
             }),
         ],
         options: optionsOf(DegreeAlgorithm),
@@ -1072,7 +1089,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 ];
 
 /** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
-const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
+const CLASSES: ReadonlyMap<
+    string,
+    { readonly scopeInput?: string; readonly weightMeaning: AlgorithmDescriptor["weightMeaning"] }
+> = new Map(
     [
         AStarAlgorithm,
         BellmanFordAlgorithm,
@@ -1118,12 +1138,19 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
  * `scopeInput` is read from the classes rather than written here, so it cannot disagree with what
  * a run computes over: a folded key computes over its scope only when every class behind it does.
  */
-export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => ({
-    ...descriptor,
-    scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
-        ? "subgraph"
-        : "none",
-}));
+export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => {
+    // Every class behind a folded key reads the same meaning (both shortest-path engines read a distance).
+    const weightMeaning = CLASSES.get(descriptor.legacyKeys[0].key)?.weightMeaning ?? null;
+
+    return {
+        ...descriptor,
+        options: weightMeaning === null ? descriptor.options : [...descriptor.options, WEIGHT_OPTION],
+        weightMeaning,
+        scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
+            ? "subgraph"
+            : "none",
+    };
+});
 
 // ---------------------------------------------------------------------------------------------
 // Lookups

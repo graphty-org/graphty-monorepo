@@ -87,6 +87,31 @@ const css = `
     outline: 1px solid var(--cm-border-selected);
     outline-offset: 1px;
 }
+/* The extra-small box is drawn 12 px but takes clicks over 24 x 24 (WCAG 2.5.8): the input grows
+   6 px past the drawn box on every side (the negative margin keeps the layout) and paints nothing
+   itself; ::before draws the 12 px face from the input's own state colors. A row drawn after it
+   (a positioned row, as Tree's are) keeps its own clicks where the two overlap. */
+.cm-checkbox[data-size="xs"] .cm-checkbox-input {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    margin: -6px;
+    padding: 12px;
+    border-style: none;
+    background-clip: content-box;
+    outline-offset: -5px;
+}
+.cm-checkbox[data-size="xs"] .cm-checkbox-input::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    box-sizing: border-box;
+    border: 1px solid;
+    border-color: inherit;
+    border-radius: inherit;
+    background-color: inherit;
+    pointer-events: none;
+}
 /* The blue (filled, default) variant. */
 .cm-checkbox:not([data-variant="neutral"]) .cm-checkbox-input:is(:checked, [data-indeterminate]) {
     background-color: var(--cm-bg-brand);
@@ -266,6 +291,11 @@ const css = `
 }
 .cm-sc-indicator { display: none; }
 .cm-sc-control { flex: 1 1 0; min-width: 0; }
+/* A track that is not fullWidth starts each option at its content: sized by its content, the
+   track fits every label with its padding (with a 0 basis each option got the average width, so
+   "Leave out" beside "Add" lost its padding and its end); given a width, options with equal
+   content still share it equally. A full-width track keeps the equal 0 basis. */
+.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto; }
 .cm-sc[data-content-width] .cm-sc-control { flex: 1 1 auto; min-width: 24px; }
 .cm-sc[data-content-width] .cm-sc-label { padding-inline: 0; }
 .cm-sc .cm-sc-label {
@@ -278,7 +308,11 @@ const css = `
     border-radius: 5px;
     ${cmFont("body")}
     font-size: var(--sc-font-size);
-    color: var(--cm-text-secondary);
+    /* An unchosen option is a choice the reader can make, so its label is drawn in the body
+       color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
+       one ("Add" of Add / Leave out). The chosen one is marked by its face, its edge and the
+       strong weight of its label, so which side is chosen reads without zooming. */
+    color: var(--cm-text);
     background-color: transparent;
     outline: 1px solid transparent;
     outline-offset: 1px;
@@ -287,6 +321,8 @@ const css = `
 }
 .cm-sc .cm-sc-label[data-active] {
     color: var(--cm-text);
+    /* 600, not the strong role's 550: at 11px on the dark track 550 beside 450 did not read. */
+    font-weight: 600;
     background-color: var(--cm-bg);
     box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
@@ -374,6 +410,9 @@ const css = `
     color: var(--cm-text);
     background-color: var(--cm-bg-secondary);
     font-weight: 550;
+    /* The selected segment's inset edge: 3:1 against the panel in the AA mode (WCAG 1.4.11),
+       so the selected pill is not told by its fill alone. */
+    box-shadow: inset 0 0 0 1px var(--cm-segment-edge);
 }
 .cm-tabs[data-variant="pills"] .cm-tab:focus-visible {
     outline: 1px solid var(--cm-border-selected);
@@ -446,6 +485,10 @@ const css = `
     position: relative;
     isolation: isolate;
     ${cmFont("body")}
+    /* The size prop's type, so a link in an xs caption is the caption's size (sm, the default, is
+       the body role). The caption's weight and tracking come from the Text rule in shell.css. */
+    font-size: var(--text-fz, var(--mantine-font-size-sm));
+    line-height: var(--text-lh, var(--mantine-line-height-sm));
     color: var(--cm-text-brand);
     text-decoration: none;
     border-radius: 2px;

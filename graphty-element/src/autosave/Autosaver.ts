@@ -408,6 +408,10 @@ export class Autosaver {
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
     #heldDuringLoad = { count: 0, tags: new Set<PartTag>(), stash: false };
+    /** While page loads run: the history steps there were before them, so a later one is the reader's. */
+    #stepsBeforeLoad: ReadonlySet<string> | null = null;
+    /** Of the reader's steps since then, how many a write that could not wait already took. */
+    #releasedSteps = 0;
     /** The listing has not succeeded yet: nothing is written, so no entry can shadow the real one. */
     #blocked = false;
     /** The next write rewrites an older-format entry, flushed to disk. */
@@ -553,7 +557,7 @@ export class Autosaver {
             return "failing";
         }
 
-        return this.#pump !== null || this.#hasWork() ? "pending" : "saved";
+        return this.#pump !== null || this.#hasWork() || this.#heldReaderWork() ? "pending" : "saved";
     }
 
     /**
@@ -584,6 +588,7 @@ export class Autosaver {
         if (this.#quiet > 0 && !this.#restoring) {
             // Never the page load's own: written once the load ends.
             this.#heldDuringLoad.stash = true;
+            this.#tell();
             return;
         }
 
@@ -607,6 +612,7 @@ export class Autosaver {
      * @returns Settles once nothing is outstanding, or the write failed (read `status`).
      */
     async flush(capture = false): Promise<void> {
+        this.#releaseHeld();
         if (capture && this.#entry.started) {
             this.#entry.unwritten.add("arrangement").add("rest");
         }
@@ -745,7 +751,7 @@ export class Autosaver {
         // are in, and an edit queued behind it ran inside the window and was never written (the
         // lifecycle tests, at 50,000 nodes). Once the load settles, a history step it did not make
         // says the reader worked meanwhile.
-        const steps = new Set(this.#session.history.steps.map((step) => step.id));
+        this.#stepsBeforeLoad ??= new Set(this.#session.history.steps.map((step) => step.id));
         this.#quiet += 1;
         try {
             await load();
@@ -753,7 +759,11 @@ export class Autosaver {
             // Settled whether the load worked or threw: a failed load says nothing about the
             // reader's changes made while it ran.
             this.#quiet -= 1;
-            this.#settleHeld(steps);
+            this.#settleHeld();
+            if (this.#quiet === 0) {
+                this.#stepsBeforeLoad = null;
+                this.#releasedSteps = 0;
+            }
         }
 
         if (restored !== null) {
@@ -773,22 +783,19 @@ export class Autosaver {
     /**
      * A page load ended: write the reader's changes made while it ran. A history step the load did
      * not make says the reader worked; a stash made meanwhile is the reader's in any case.
-     * @param before - The history steps before the load.
      */
-    #settleHeld(before: ReadonlySet<string>): void {
+    #settleHeld(): void {
         if (this.#quiet > 0) {
             return;
         }
 
         const held = this.#heldDuringLoad;
         this.#heldDuringLoad = { count: 0, tags: new Set(), stash: false };
-        const readerSteps = this.#session.history.steps.filter(
-            (step) => !before.has(step.id) && !PAGE_LOAD_CODES.has(step.fact.code),
-        ).length;
+        const readerSteps = this.#readerStepsInLoad();
         if (held.count > 0 && readerSteps > 0) {
             // The reader's steps count, as their changes would have outside the load; the mark
             // counts one of them.
-            this.#changes += readerSteps - 1;
+            this.#changes += readerSteps - this.#releasedSteps - 1;
             this.#mark([...held.tags], false, true);
         }
 
@@ -837,6 +844,7 @@ export class Autosaver {
             return this.settled();
         }
 
+        this.#releaseHeld();
         const entry = this.#entry;
         if (entry.started) {
             entry.unwritten.add("arrangement").add("rest");
@@ -1387,6 +1395,50 @@ export class Autosaver {
     }
 
     /**
+     * The history steps the reader recorded while the page loads now running ran.
+     * @returns How many.
+     */
+    #readerStepsInLoad(): number {
+        const before = this.#stepsBeforeLoad;
+        if (before === null) {
+            return 0;
+        }
+
+        return this.#session.history.steps.filter(
+            (step) => !before.has(step.id) && !PAGE_LOAD_CODES.has(step.fact.code),
+        ).length;
+    }
+
+    /**
+     * Whether a page load running now holds a change of the reader's, which is outstanding work.
+     * @returns True when it does.
+     */
+    #heldReaderWork(): boolean {
+        const held = this.#heldDuringLoad;
+        return !this.#stopped && (held.stash || (held.count > 0 && this.#readerStepsInLoad() > 0));
+    }
+
+    /**
+     * Take the reader's changes a running page load holds as work now, for a write that cannot
+     * wait for the load to settle: `flush()` and the final write. The load's rows are in long
+     * before it settles.
+     */
+    #releaseHeld(): void {
+        if (!this.#heldReaderWork()) {
+            return;
+        }
+
+        const quiet = this.#quiet;
+        this.#quiet = 0;
+        try {
+            this.#settleHeld();
+        } finally {
+            this.#quiet = quiet;
+            this.#releasedSteps = this.#readerStepsInLoad();
+        }
+    }
+
+    /**
      * Mark parts unwritten and schedule their write.
      * @param tags - The parts.
      * @param now - Write at once (a run finished).
@@ -1396,6 +1448,8 @@ export class Autosaver {
         if (this.#quiet > 0 && counted && !this.#stopped && !this.#restoring) {
             this.#heldDuringLoad.count += 1;
             tags.forEach((tag) => this.#heldDuringLoad.tags.add(tag));
+            // A step of the reader's among them is outstanding work: the status and the guard say so.
+            this.#tell();
             return;
         }
 

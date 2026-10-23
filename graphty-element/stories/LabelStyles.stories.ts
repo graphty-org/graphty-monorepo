@@ -5,6 +5,7 @@ import "../src/graphty-element";
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import { ON_TOP_RENDERING_GROUP } from "../src/meshes/RichTextLabel";
 import {
     assertDistinctPicture,
     assertGraphLoaded,
@@ -1654,6 +1655,72 @@ export const DepthFade: Story = {
             labels.every((l, i) => i === 0 || l.alpha <= labels[i - 1].alpha),
             `Styles/Label DepthFade: a label farther from the camera should never be drawn more solidly than a ` +
                 `nearer one -- ${readings}`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
+ * Two large spheres, each in front of a small node whose label hangs behind it. The default
+ * (left) sorts the label by depth, so the nearer sphere hides it; `onTop` (right) draws it over
+ * the whole graph, so it stays whole.
+ */
+const BEHIND_SPHERES = [
+    { id: "front left", position: { x: -6, y: 0, z: -8 } },
+    { id: "behind left", position: { x: -6, y: -1, z: 4 } },
+    { id: "front right", position: { x: 6, y: 0, z: -8 } },
+    { id: "behind right", position: { x: 6, y: -1, z: 4 } },
+];
+
+export const OnTop: Story = {
+    args: {
+        dataSource: "",
+        nodeData: BEHIND_SPHERES,
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: { dim: 3 },
+        setup: storySetup({
+            layers: [
+                {
+                    name: "big front spheres",
+                    selector: { match: "ids", nodes: ["front left", "front right"] },
+                    set: { "node.size": 4 },
+                },
+                {
+                    name: "depth sorted label",
+                    selector: { match: "ids", nodes: ["behind left"] },
+                    set: { "node.label": "Hidden", "node.labelStyle": { sizePx: 64 } },
+                },
+                {
+                    name: "label on top",
+                    selector: { match: "ids", nodes: ["behind right"] },
+                    set: { "node.label": "On top", "node.labelStyle": { sizePx: 64, onTop: true } },
+                },
+            ],
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await loaded(canvasElement, "OnTop", { nodes: BEHIND_SPHERES.length, edges: 0 });
+        const groupOf = (id: string): number | undefined => scene.graph.getNode(id)?.label?.labelMesh?.renderingGroupId;
+
+        // A label is drawn in its own group after the graph's (so no glow covers its words), and only
+        // an onTop label's group clears the depth the graph left: the default one still sorts by depth.
+        const clearsDepth = (id: string): boolean | undefined => {
+            const group = groupOf(id);
+            if (group === undefined) {
+                return undefined;
+            }
+            const setup = scene.graph.scene.getAutoClearDepthStencilSetup(group);
+            return setup.autoClear && setup.depth;
+        };
+        await holds(
+            groupOf("behind left") !== ON_TOP_RENDERING_GROUP && clearsDepth("behind left") === false,
+            `Styles/Label OnTop: the default label should sort by depth (a group that keeps the depth), got group ${String(groupOf("behind left"))}, clears depth ${String(clearsDepth("behind left"))}`,
+        );
+        await holds(
+            groupOf("behind right") === ON_TOP_RENDERING_GROUP,
+            `Styles/Label OnTop: the onTop label should draw over the graph (group ${String(ON_TOP_RENDERING_GROUP)}), got ${String(groupOf("behind right"))}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));

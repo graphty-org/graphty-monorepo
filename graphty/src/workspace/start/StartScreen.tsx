@@ -8,30 +8,19 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import {
-    ArrowRight,
-    Code,
-    Database,
-    Folder,
-    LayoutGrid,
-    List,
-    Lock,
-    Plus,
-    Search,
-    Settings,
-    Shuffle,
-    Upload,
-    Waypoints,
-    Zap,
-} from "lucide-react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
+import { focusIsLost } from "../frame/focus";
+import { MainMenu } from "../frame/menus";
+import { NoticeSlot } from "../frame/NoticeSlot";
+import { GLYPHS } from "../glyphs";
+import { ariaKey } from "../keys/keys";
 import { UsageDataCard } from "../privacy/UsageDataCard";
-import { locateRecent, openRecent } from "../project/actions";
+import { openProjectFile, openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
@@ -44,7 +33,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFile, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openGenerated, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -366,12 +355,12 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
             className="ws-land-recent"
             aria-label={`Open ${entry.name}`}
             onClick={() => {
-                void (entry.handle === undefined ? locateRecent(workspace, entry) : openRecent(workspace, entry));
+                void openRecent(workspace, entry);
             }}
         >
             {picture === undefined ? (
                 <span className="ws-land-recent-pic ws-land-recent-none" aria-hidden>
-                    <Waypoints />
+                    <GLYPHS.noPicture />
                 </span>
             ) : (
                 <img className="ws-land-recent-pic" src={picture} alt="" />
@@ -406,7 +395,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 {algorithms === undefined ? null : <b>{algorithms}</b>} algorithms
             </span>
             <span className="ws-land-it">
-                <LayoutGrid aria-hidden />
+                <GLYPHS.gridView aria-hidden />
                 {layouts === undefined ? null : <b>{layouts}</b>} layouts
             </span>
             <span className="ws-land-it ws-land-vr">
@@ -414,12 +403,12 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 2D, 3D, VR and AR
             </span>
             <span className="ws-land-it ws-land-gpu">
-                <Zap aria-hidden />
+                <GLYPHS.gpu aria-hidden />
                 GPU accelerated
             </span>
             <span className="ws-land-sp" />
             <a className="ws-land-dev" href={ELEMENT_DOCS}>
-                <Code aria-hidden />
+                <GLYPHS.developer aria-hidden />
                 Put it on your own site
             </a>
         </aside>
@@ -449,7 +438,7 @@ function Headset(): React.JSX.Element {
 function TilePicture({ picture }: Readonly<{ picture: string | undefined }>): React.JSX.Element {
     return picture === undefined ? (
         <span className="ws-land-sample-pic ws-land-sample-none" aria-hidden>
-            <Waypoints />
+            <GLYPHS.noPicture />
         </span>
     ) : (
         <img className="ws-land-sample-pic" src={picture} alt="" loading="lazy" />
@@ -470,15 +459,26 @@ function LibraryTile({
     onClick,
 }: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
     const generated = tile.field === GENERATED;
+    // The name is the label; the size line is the description, so a screen reader hears it too.
+    const described = useId();
     return (
-        <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
+        <UnstyledButton
+            className="ws-land-sample"
+            data-start-door={`sample:${tile.id}`}
+            aria-label={label}
+            aria-describedby={described}
+            title={tile.sentence}
+            onClick={onClick}
+        >
             <TilePicture picture={tile.picture} />
             <span className="ws-land-sample-tag">
-                {generated ? <Shuffle size={11} aria-hidden /> : null}
+                {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
                 {tile.field}
             </span>
             <span className="ws-land-sample-t">{tile.hook}</span>
-            <span className="ws-land-sample-m">{generated ? tile.sentence : `${tile.name} -- ${tile.size}`}</span>
+            <span className="ws-land-sample-m" id={described}>
+                {generated ? tile.sentence : `${tile.name} -- ${tile.size}`}
+            </span>
             {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
         </UnstyledButton>
     );
@@ -516,7 +516,7 @@ function SampleLibrary(): React.JSX.Element {
                     type="search"
                     aria-label="Search samples"
                     placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein, small world...`}
-                    leftSection={<Search size={15} aria-hidden />}
+                    leftSection={<GLYPHS.quickActions size={15} aria-hidden />}
                     value={text}
                     onChange={(event) => {
                         setText(event.currentTarget.value);
@@ -530,7 +530,7 @@ function SampleLibrary(): React.JSX.Element {
                             setView("grid");
                         }}
                     >
-                        <LayoutGrid size={16} aria-hidden />
+                        <GLYPHS.gridView size={16} aria-hidden />
                     </UnstyledButton>
                     <UnstyledButton
                         aria-label="List"
@@ -539,7 +539,7 @@ function SampleLibrary(): React.JSX.Element {
                             setView("list");
                         }}
                     >
-                        <List size={16} aria-hidden />
+                        <GLYPHS.listView size={16} aria-hidden />
                     </UnstyledButton>
                 </fieldset>
             </div>
@@ -688,11 +688,25 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * The start page, shown whenever no project is open: the graphty lockup, the headline and the
  * launcher over a live graph drawn by graphty-element, and a bar of facts at the foot. A first visit
  * gets Open a file, Open network data, Samples and New project; a returning reader gets Resume, their
- * recent projects, Open a file and New project. A file dropped anywhere on it opens.
+ * recent projects, Open a file and New project. A file dropped anywhere on it opens, as Open a
+ * file opens one.
+ * @param props - Component props
+ * @param props.openRef - Takes Open a file, the first way in: where focus goes when the page comes
+ *     back, once the usage data card is answered and when a notice is closed from inside it
+ * @param props.lastDoor - Takes the way in that last had focus (its `data-start-door`), so the
+ *     page coming back can hand focus to the control that left it
  * @returns The start page
  */
-export function StartScreen(): React.JSX.Element {
+export function StartScreen({
+    openRef,
+    lastDoor,
+}: Readonly<{
+    openRef?: RefObject<HTMLButtonElement | null>;
+    lastDoor?: RefObject<string | null>;
+}>): React.JSX.Element {
     const workspace = useWorkspace();
+    const ownOpenRef = useRef<HTMLButtonElement>(null);
+    const firstDoor = openRef ?? ownOpenRef;
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
@@ -731,7 +745,7 @@ export function StartScreen(): React.JSX.Element {
             setDragging(false);
             const file = event.dataTransfer?.files.item(0) ?? null;
             if (file !== null) {
-                openFile(workspace, file);
+                void openProjectFile(workspace, file);
             }
         };
         globalThis.addEventListener("dragover", over);
@@ -746,24 +760,37 @@ export function StartScreen(): React.JSX.Element {
 
     const returning = recent.length > 0;
     const [latest] = recent;
+    // The last Recent projects row removed takes Your projects, and the launcher's Open a file,
+    // with it: focus goes to the first-visit launcher's Open a file, not the page.
+    const wasReturning = useRef(returning);
+    useEffect(() => {
+        if (wasReturning.current && !returning && focusIsLost()) {
+            firstDoor.current?.focus();
+        }
+        wasReturning.current = returning;
+    }, [returning, firstDoor]);
     const showSamples = (): void => {
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (
         <Text size="xs" c="dimmed" className="ws-land-privacy">
-            <Lock size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
+            <GLYPHS.private size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
         </Text>
     );
+    const openKey = openDoor?.command.keys?.[0];
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
+            ref={firstDoor}
+            data-start-door="file.open"
+            aria-keyshortcuts={openKey === undefined ? undefined : ariaKey(openKey)}
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
             onClick={openDoor?.run}
-            leftSection={variant === "tint" ? <Folder size={16} aria-hidden /> : undefined}
+            leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
                 <span className="ws-land-xl-label">
                     <span className="ws-land-xl-top">
-                        <Folder size={18} aria-hidden />
+                        <GLYPHS.openFile size={18} aria-hidden />
                         Open a file
                     </span>
                     <span className="ws-land-xl-sub">CSV, GraphML, GEXF, Cytoscape, or a saved project</span>
@@ -777,7 +804,8 @@ export function StartScreen(): React.JSX.Element {
         <Button
             variant="default"
             className="ws-land-plain"
-            leftSection={<Plus size={16} aria-hidden />}
+            data-start-door="project.new"
+            leftSection={<GLYPHS.add size={16} aria-hidden />}
             onClick={newDoor?.run}
         >
             New project
@@ -785,8 +813,18 @@ export function StartScreen(): React.JSX.Element {
     );
 
     return (
-        <div className="ws-land" data-scheme={scheme}>
+        <div // NOSONAR(S6848): focus only records which door last held it; the page is not a control
+            className="ws-land"
+            data-scheme={scheme}
+            onFocus={(event) => {
+                if (lastDoor !== undefined && event.target instanceof HTMLElement) {
+                    lastDoor.current =
+                        event.target.closest<HTMLElement>("[data-start-door]")?.dataset.startDoor ?? null;
+                }
+            }}
+        >
             <header className="ws-land-top" data-scrolled={scrolled || undefined}>
+                <MainMenu start />
                 <Anchor
                     className="ws-land-toplogo"
                     href="#"
@@ -822,7 +860,7 @@ export function StartScreen(): React.JSX.Element {
                     GitHub
                 </Anchor>
                 <ColorSchemeToggle />
-                <CommandButton id="settings.open" icon={<Settings size={18} aria-hidden />} />
+                <CommandButton id="settings.open" icon={<GLYPHS.settings size={18} aria-hidden />} />
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
@@ -836,11 +874,9 @@ export function StartScreen(): React.JSX.Element {
                             <Paper className="ws-land-launcher" withBorder>
                                 <Button
                                     className="ws-land-go ws-land-resume"
-                                    leftSection={<ArrowRight size={18} aria-hidden />}
+                                    leftSection={<GLYPHS.go size={18} aria-hidden />}
                                     onClick={() => {
-                                        void (latest.handle === undefined
-                                            ? locateRecent(workspace, latest)
-                                            : openRecent(workspace, latest));
+                                        void openRecent(workspace, latest);
                                     }}
                                 >
                                     <span className="ws-land-xl-label">
@@ -863,7 +899,7 @@ export function StartScreen(): React.JSX.Element {
                                                         ?.scrollIntoView({ behavior: "smooth" });
                                                 }}
                                             >
-                                                All projects <ArrowRight size={13} aria-hidden />
+                                                All projects <GLYPHS.go size={13} aria-hidden />
                                             </Anchor>
                                         </div>
                                         <div className="ws-land-recents">
@@ -893,7 +929,7 @@ export function StartScreen(): React.JSX.Element {
                                 <div className="ws-land-more">
                                     <Button
                                         className="ws-land-tint"
-                                        leftSection={<Database size={16} aria-hidden />}
+                                        leftSection={<GLYPHS.data size={16} aria-hidden />}
                                         aria-haspopup="dialog"
                                         onClick={() => {
                                             setNetwork(true);
@@ -903,7 +939,7 @@ export function StartScreen(): React.JSX.Element {
                                     </Button>
                                     <Button
                                         className="ws-land-tint"
-                                        leftSection={<LayoutGrid size={16} aria-hidden />}
+                                        leftSection={<GLYPHS.gridView size={16} aria-hidden />}
                                         onClick={showSamples}
                                     >
                                         Samples
@@ -921,17 +957,24 @@ export function StartScreen(): React.JSX.Element {
             {returning ? (
                 <section className="ws-land-band" id="ws-land-projects" aria-label="Your projects">
                     <h2 className="ws-land-h2">Your projects</h2>
-                    <RecentProjects />
+                    <RecentProjects emptyFocus={firstDoor} />
                 </section>
             ) : null}
 
             <SampleLibrary />
 
             <div className="ws-land-usage">
-                <UsageDataCard />
+                <UsageDataCard
+                    onAnswered={() => {
+                        // The card's buttons go; focus goes to the first way in, not the page.
+                        firstDoor.current?.focus();
+                    }}
+                />
             </div>
 
             <PageFoot />
+
+            <NoticeSlot returnFocus={firstDoor} />
 
             <NetworkDataDialog
                 opened={network}
@@ -949,7 +992,7 @@ export function StartScreen(): React.JSX.Element {
                 <div className="ws-start-drop" aria-hidden>
                     <Paper withBorder p="lg">
                         <Stack align="center" gap={4}>
-                            <Upload size={24} aria-hidden />
+                            <GLYPHS.upload size={24} aria-hidden />
                             <Text fw={600}>Drop to open</Text>
                             <Text size="xs" c="dimmed">
                                 The file is read here and never uploaded.

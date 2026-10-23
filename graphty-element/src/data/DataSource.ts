@@ -828,7 +828,10 @@ export abstract class DataSource {
         }
 
         const { format, dialect } = extracted.styles.source;
-        const pxPerUnit = filePositionsOf(imported)?.pxPerUnit;
+        const positions = filePositionsOf(imported);
+        const pxPerUnit = positions?.pxPerUnit;
+        const fit = positions?.viewerFit;
+        const box = positions?.bounds;
         return {
             extracted,
             snapshot: imported.snapshot,
@@ -836,6 +839,17 @@ export abstract class DataSource {
             // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
             format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
+            ...(fit === undefined || box === null || box === undefined
+                ? {}
+                : {
+                      positionFit: {
+                          padding: fit.padding,
+                          width: box.max[0] - box.min[0],
+                          height: box.max[1] - box.min[1],
+                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
+                          ...(positions === null ? {} : { coords: positions.coords }),
+                      },
+                  }),
         };
     }
 
@@ -930,7 +944,7 @@ export abstract class DataSource {
             );
         }
 
-        if (FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type)) {
+        if (FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type && descriptor.canImport)) {
             if (dataSourceRegistry.hasOwn(type)) {
                 throw new GraphtyError({
                     code: "E_DUPLICATE_PLUGIN",

@@ -169,11 +169,19 @@ export const X11_COLORS: ReadonlyMap<string, string> = table(
         "tomato3=cd4f39 tomato4=8b3626 turquoise=40e0d0 turquoise1=00f5ff turquoise2=00e5ee turquoise3=00c5cd " +
         "turquoise4=00868b violet=ee82ee violetred=d02090 violetred1=ff3e96 violetred2=ee3a8c violetred3=cd3278 " +
         "violetred4=8b2252 wheat=f5deb3 wheat1=ffe7ba wheat2=eed8ae wheat3=cdba96 wheat4=8b7e66 white=ffffff " +
+        // added in later Graphviz releases (measured on 14.1.2): the web and X11 spellings of the five clashing names
+        "webgray=808080 webgreen=008000 webgrey=808080 webmaroon=800000 webpurple=800080 x11gray=bebebe " +
+        "x11green=00ff00 x11grey=bebebe x11maroon=b03060 x11purple=a020f0 " +
         "whitesmoke=f5f5f5 yellow=ffff00 yellow1=ffff00 yellow2=eeee00 yellow3=cdcd00 yellow4=8b8b00 " +
         "yellowgreen=9acd32",
 );
 
-/** dvips names, case as Pajek spells them. */
+/**
+ * dvips names, case as Pajek spells them, and the ten Pajek adds (from LightYellow on: Pajek 6.02 manual, figure 19,
+ * with the CMYK values of the color dictionary in Pajek's own EPS export). LightOrange is the one its SVG export draws
+ * otherwise: #ffd9bc, Pajek's default vertex fill, not the EPS dictionary's #ffccb3 (`pajek-specimen-node-fills-borders-p2`
+ * `ic-lightorange`, `pajek-graphstream-b`: 18 vertices).
+ */
 export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
     "GreenYellow=d9ff4f Yellow=ffff00 Goldenrod=ffe629 Dandelion=ffb529 Apricot=ffad7a Peach=ff804d " +
         "Melon=ff8a80 YellowOrange=ff9400 Orange=ff6321 BurntOrange=ff7d00 Bittersweet=c20300 RedOrange=ff3b21 " +
@@ -187,10 +195,8 @@ export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
         "JungleGreen=03ff7a SeaGreen=4fff80 Green=00ff00 ForestGreen=00e000 PineGreen=00bf29 LimeGreen=80ff00 " +
         "YellowGreen=8fff42 SpringGreen=bdff3d OliveGreen=009900 RawSienna=8c0000 Sepia=4d0000 Brown=660000 " +
         "Tan=db9470 Gray=808080 Black=000000 White=ffffff " +
-        // Pajek's own names, not in dvips: the RGB fill of each swatch in the Pajek 6.02 manual, Figure 19, p. 105
-        // (http://mrvar.fdv.uni-lj.si/pajek/pajekman.pdf); Pajek's SVG export draws LightCyan as rgb(204,255,255) too.
         "LightYellow=ffff99 LightCyan=ccffff LightMagenta=ffccff LightPurple=ccccff LightGreen=ccffb3 " +
-        "LightOrange=ffccb3 Canary=ffff7f LFadedGreen=e6ffcc Pink=ffd9f3 LSkyBlue=d9f3ff",
+        "LightOrange=ffd9bc Canary=ffff80 LFadedGreen=e6ffcc Pink=ffd9f2 LSkyBlue=d9f2ff",
 );
 
 /** Java's `java.awt.Color` constants, lowercase, with and without the underscore. */

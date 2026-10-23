@@ -957,7 +957,9 @@ const builders = {
     },
     "3d": { A: () => buildSS3D(false), C: () => buildSS3D(true), D: buildMiter, E: buildGreased, G: buildJoined },
 };
-const make = builders[MODE][VARIANT];
+// MODE and VARIANT come from the URL: only an own entry of the table is a builder.
+const modeBuilders = Object.hasOwn(builders, MODE) ? builders[MODE] : {};
+const make = Object.hasOwn(modeBuilders, VARIANT) ? modeBuilders[VARIANT] : undefined;
 const result = { variant: VARIANT, mode: MODE, dash: DASH, stress: STRESS };
 if (!make) {
     result.error = "not applicable in this mode";

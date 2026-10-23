@@ -325,6 +325,16 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.remove", runId: "deg" },
     },
     {
+        name: "algo.move: a run's layers to the top of the stack",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.add(nodeLayer("Fixture above", "#00ff00"));
+            await session.styles.settled();
+        },
+        command: { op: "algo.move", runId: "deg", before: null },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,
@@ -392,6 +402,99 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "resolveToStatic", id: "fixture-encoding_1", channel: "node.color" },
     },
     {
+        name: "style.patch addRow",
+        variant: "addRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: {
+            op: "style.patch",
+            action: "addRow",
+            spec: { name: "Fixture row", target: "both", selector: { match: "everything" }, set: { color: "#00ff00" } },
+        },
+    },
+    {
+        name: "style.patch writeRow",
+        variant: "writeRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.addRow({
+                name: "Fixture row",
+                target: "both",
+                selector: { match: "everything" },
+                set: { color: "#00ff00" },
+            });
+        },
+        command: { op: "style.patch", action: "writeRow", id: "fixture-row_2", write: { set: { width: 2 } } },
+    },
+    {
+        name: "style.patch addFolder",
+        variant: "addFolder",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "addFolder", name: "Fixture folder" },
+    },
+    {
+        name: "style.patch renameRow",
+        variant: "renameRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "renameRow", id: "fixture-a_1", name: "Renamed" },
+    },
+    {
+        name: "style.patch moveRow: a layer into a folder",
+        variant: "moveRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+            await session.styles.add(nodeLayer("Fixture B", "#0000ff"));
+            await session.styles.addFolder("Fixture folder", { index: 0 });
+        },
+        command: {
+            op: "style.patch",
+            action: "moveRow",
+            id: "fixture-b_1",
+            to: { parent: "folder:fixture-folder_1" },
+        },
+    },
+    {
+        name: "style.patch pinRow",
+        variant: "pinRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000"), nodeLayer("Fixture B", "#0000ff")),
+        command: { op: "style.patch", action: "pinRow", id: "fixture-a_1", pin: "top" },
+    },
+    {
+        name: "style.patch lockRow",
+        variant: "lockRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "lockRow", id: "fixture-a_1", locked: true },
+    },
+    {
+        name: "style.patch hideRow",
+        variant: "hideRow",
+        tags: BOTH,
+        before: withLayers(nodeLayer("Fixture A", "#ff0000")),
+        command: { op: "style.patch", action: "hideRow", id: "fixture-a_1", hidden: true },
+    },
+    {
+        name: "style.patch deleteRow: a folder and its layer",
+        variant: "deleteRow",
+        tags: BOTH,
+        before: async (session) => {
+            await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
+            const folder = await session.styles.addFolder("Fixture folder");
+            await session.styles.moveRow("fixture-a_1", { parent: folder.id });
+        },
+        command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
+    },
+    {
+        name: "style.patch restoreStartingRows",
+        variant: "restoreStartingRows",
+        tags: BOTH,
+        command: { op: "style.patch", action: "restoreStartingRows" },
+    },
+    {
         name: "style.encode",
         tags: BOTH,
         before: (session) => runQuietly(session, "degree", "deg"),
@@ -421,6 +524,35 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.styles.add(nodeLayer("Fixture A", "#ff0000"));
         },
         command: { op: "visibility.set", filter: null },
+    },
+    {
+        name: "visibility.steps: add a step",
+        tags: BOTH,
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: switch a step off",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: false, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: edit a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] },
+    },
+    {
+        name: "visibility.steps: remove a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [] },
     },
     {
         name: "visibility.window",
@@ -592,6 +724,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
     },
     {
+        name: "data.label",
+        tags: BOTH,
+        command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {
@@ -663,6 +800,18 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "selectionStyle",
         tags: BOTH,
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
+    },
+    {
+        name: "config.set startingRows",
+        variant: "startingRows",
+        tags: BOTH,
+        command: { op: "config.set", values: { startingRows: true } },
+    },
+    {
+        name: "config.set runPlacement",
+        variant: "runPlacement",
+        tags: BOTH,
+        command: { op: "config.set", values: { runPlacement: "top" } },
     },
     {
         name: "config.set author",

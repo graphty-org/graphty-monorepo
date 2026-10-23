@@ -44,7 +44,7 @@ import "./src/graphty-element";
 // =============================================================================
 // Core classes
 // =============================================================================
-export { Edge } from "./src/Edge";
+export { Edge, type EdgeCapEnd } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
@@ -80,6 +80,8 @@ export type {
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How the 3D nodes are lit, as `element.lighting` takes it
+    Lighting,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
@@ -101,6 +103,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 // Style configuration values and helpers
 export {
     colorToHex,
+    DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
     defaultNodeStyle,
@@ -108,7 +111,9 @@ export {
     defaultXRConfig,
     EdgeStyle,
     GraphBackground,
+    isLighting,
     isViewMode,
+    LIGHTING_VALUES,
     NodeShapes,
     NodeStyle,
     RichTextStyle,
@@ -125,14 +130,18 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
-export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
+export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
@@ -343,15 +352,20 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { ViewInsets } from "./src/camera/types";
 export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
+
+// One node drawn alone, for a key or a picker (element.nodeThumbnail)
+export type { NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
 export type { CapabilityCheck } from "./src/screenshot/capability-check";
@@ -420,6 +434,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export {
     ACCELERATION_MIN_NODES_DEFAULT,

@@ -1594,8 +1594,33 @@ interface EditOutcome<T> {
 /** An edit written and not yet repainted, told once the pass covering it has run. */
 interface Announcement {
     readonly change: Omit<StyleChange, "painted" | "cause">;
+    /**
+     * The draft of the step it was written in. Every command of one batch or transaction writes
+     * through the same draft, and they are told as one change: one edit, one event.
+     */
+    readonly step: object;
     settle(painted: RepaintReport | null): void;
     refuse(error: unknown): void;
+}
+
+/**
+ * The change of one edit, from the changes of the commands it was made of.
+ * @param parts - The commands' announcements, in the order they were written.
+ * @returns One change: the reason they share ("update" when they differ), and every layer, path
+ *     and warning they name, each once.
+ */
+function joined(parts: readonly Announcement[]): Omit<StyleChange, "painted" | "cause"> {
+    if (parts.length === 1) {
+        return parts[0].change;
+    }
+
+    const reasons = new Set(parts.map((part) => part.change.reason));
+    return {
+        reason: reasons.size === 1 ? parts[0].change.reason : "update",
+        layers: [...new Set(parts.flatMap((part) => part.change.layers))],
+        unresolvedPaths: [...new Set(parts.flatMap((part) => part.change.unresolvedPaths))],
+        warnings: parts.flatMap((part) => part.change.warnings),
+    };
 }
 
 /** What an edit's run is handed in place of a queue slot: it is never stopped. */
@@ -4025,6 +4050,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     unresolvedPaths: planned.unresolvedPaths,
                     warnings: planned.warnings ?? NO_WARNINGS,
                 },
+                step: draft,
                 settle,
                 refuse,
             });
@@ -4072,17 +4098,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             painted,
         };
 
-        for (const each of told) {
+        let edit: Announcement[] = [];
+        for (const [at, each] of told.entries()) {
             if (failure === null) {
                 each.settle(painted);
             } else {
                 each.refuse(failure);
             }
 
+            // One event per edit, not per command: a batch of 40 layers told 40 times made every
+            // listener that re-reads the stack do it 40 times over, quadratic in the layers.
+            edit.push(each);
+            if (told[at + 1]?.step === each.step) {
+                continue;
+            }
+
             styleRevision++;
-            const change: StyleChange = { ...each.change, painted, cause: "command" };
+            const change: StyleChange = { ...joined(edit), painted, cause: "command" };
             batch.push(change);
             sources.onChange?.(change);
+            edit = [];
         }
         flushBatch();
     });

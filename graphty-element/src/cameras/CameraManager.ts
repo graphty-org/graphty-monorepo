@@ -14,9 +14,11 @@ const GLIDE = 0.2;
  * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
  * @param from - The point, moved in place.
  * @param to - The target.
+ * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
+ *   time however slowly frames are drawn; 1 by default.
  * @returns Whether the point moved.
  */
-export function glideTowards(from: Vector3, to: Vector3): boolean {
+export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
     if (from.equals(to)) {
         return false;
     }
@@ -24,7 +26,7 @@ export function glideTowards(from: Vector3, to: Vector3): boolean {
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
     } else {
-        Vector3.LerpToRef(from, to, GLIDE, from);
+        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** Math.max(1, frames), from);
     }
 
     return true;
@@ -48,7 +50,7 @@ export interface CameraController {
      * Called each frame with the point the camera should pivot on, while there is one: the
      * controller glides its pivot there.
      */
-    followPoint?(point: Vector3): boolean;
+    followPoint?(point: Vector3, frames?: number): boolean;
     /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
     fitInsets?: FitInsets;
     /** What a 3D fit fits into view; see `camera.fitBounds`. */
@@ -178,9 +180,10 @@ export class CameraManager {
      * reader's turns and zooms happen about it and nothing moves; otherwise the active camera
      * glides its pivot to it.
      * @param point - The point, in world space.
+     * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
      * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3): boolean {
+    public followPoint(point: Vector3, frames = 1): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
@@ -189,7 +192,7 @@ export class CameraManager {
 
         const controller = this.activeCameraController;
         if (!this.#instantGlides) {
-            return controller?.followPoint?.(point) ?? false;
+            return controller?.followPoint?.(point, frames) ?? false;
         }
 
         // No glide: step to the point at once (each step covers a share of the way, and stops

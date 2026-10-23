@@ -88,7 +88,7 @@ async function load(url: string, format: string): Promise<Graph> {
     // published in a frame, which the stopped render loop does not draw by itself
     await vi.waitFor(() => {
         graph.update();
-        assert.isTrue(graph.layoutManager.isSettled, "the layout's answer is published");
+        assert.isTrue(graph.getLayoutManager().isSettled, "the layout's answer is published");
     });
     return graph;
 }

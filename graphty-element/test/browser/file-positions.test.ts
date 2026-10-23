@@ -74,7 +74,7 @@ async function settled(graph: Graph): Promise<void> {
 async function published(graph: Graph): Promise<void> {
     await vi.waitFor(() => {
         graph.update();
-        assert.isTrue(graph.layoutManager.isSettled, "the layout's answer is published");
+        assert.isTrue(graph.getLayoutManager().isSettled, "the layout's answer is published");
     });
 }
 

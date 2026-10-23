@@ -419,15 +419,15 @@ Each run broke 8 source files under one package's `src/` (seeded), built that pa
 mutants in it, and ran the reader's shards whole on its build, four or eight files at a time. None
 found a miss.
 
-| Broken package  | Reader's shards                                  | Selected (of the shard's test files) | Result                        |
-| --------------- | ------------------------------------------------ | ------------------------------------ | ----------------------------- |
-| graph-format    | graphty-element-default                          | 506 of 646 (204 for a types module)  | 472 failed, all selected      |
-| graph-format    | cytoscape-extensions, layout, algorithms-default | 19 of 20, 29 of 36, 48 of 51         | 17, 25 and 47 failed, no miss |
-| graph-io        | graphty-element-default, cytoscape-extensions    | 373 of 646; 19 of 20                 | 335 and 5 failed, no miss     |
-| algorithms      | graphty-element-default, cytoscape-extensions    | 414 of 646; 19 of 20                 | 372 and 17 failed, no miss    |
-| layout          | graphty-element-default, cytoscape-extensions    | 351 of 646; 19 of 20                 | 307 and 17 failed, no miss    |
-| compact-mantine | graphty (all projects, Storybook)                | 164 of 164, 21 of 21                 | 133 and 21 failed, no miss    |
-| graphty-element | graphty (all projects, Storybook)                | all (twice)                          | no miss                       |
+| Broken package  | Reader's shards                                  | Selected (of the shard's test files)                           | Result                        |
+| --------------- | ------------------------------------------------ | -------------------------------------------------------------- | ----------------------------- |
+| graph-format    | graphty-element-default                          | 506 of 646 (204 for a types module)                            | 472 failed, all selected      |
+| graph-format    | cytoscape-extensions, layout, algorithms-default | 19 of 20, 29 of 36, 48 of 51                                   | 17, 25 and 47 failed, no miss |
+| graph-io        | graphty-element-default, cytoscape-extensions    | 373 of 646; 19 of 20                                           | 335 and 5 failed, no miss     |
+| algorithms      | graphty-element-default, cytoscape-extensions    | 414 of 646; 19 of 20                                           | 372 and 17 failed, no miss    |
+| layout          | graphty-element-default, cytoscape-extensions    | 351 of 646; 19 of 20                                           | 307 and 17 failed, no miss    |
+| compact-mantine | graphty (all projects, Storybook)                | 164 of 164, 21 of 21                                           | 133 and 21 failed, no miss    |
+| graphty-element | graphty (all projects, Storybook)                | 164 of 164 and 21 of 21; 7 and none for the door list's source | 136 and 21 failed, no miss    |
 
 Two over-selections the runs showed were fixed: webgpu-graph-algorithms' ESLint config names
 `"../algorithms/*"` as a restricted import pattern, which counted as its build reading algorithms (a

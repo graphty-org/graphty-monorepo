@@ -159,10 +159,14 @@ async function mutateBatch({ wt, files, shards, graphs }) {
         const s = sels.get(f).find((x) => x.shard === shard.shard);
         return s.mode === "all" ? null : new Set(s.files.map((x) => x.file));
     };
-    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f), "utf8")]));
+    // kept as bytes, so a binary file (a font) is put back exactly
+    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f))]));
     const put = (broken) =>
         files.forEach((f) =>
-            writeFileSync(join(wt, f), broken.includes(f) ? mutant(f, originals.get(f)) : originals.get(f)),
+            writeFileSync(
+                join(wt, f),
+                broken.includes(f) ? mutant(f, originals.get(f).toString("utf8")) : originals.get(f),
+            ),
         );
     const browserOf = (shard) => shardSpecs(shardRuns(shard), graphs.get(shard.package) ?? []).browser;
     const failing = (shard, list, broken) => {
@@ -192,9 +196,16 @@ async function mutateBatch({ wt, files, shards, graphs }) {
         }
         const found = [];
         for (const g of unexplained(run.files, files, (m) => chosen(m, shard))) {
-            for (const f of failing(shard, g.files, g.non).files.filter((x) => g.files.includes(x))) {
-                const by = g.non.filter((m) => failing(shard, [f], [m]).files.includes(f));
-                if (failing(shard, [f], []).files.includes(f)) {
+            // with only the files that did not select them broken: what still fails is a miss of one of those
+            const again = failing(shard, g.files, g.non).files.filter((x) => g.files.includes(x));
+            if (again.length === 0) {
+                continue;
+            }
+            const flaky = new Set(failing(shard, again, []).files);
+            const alone = new Map(g.non.map((m) => [m, new Set(failing(shard, again, [m]).files)]));
+            for (const f of again) {
+                const by = g.non.filter((m) => alone.get(m).has(f));
+                if (flaky.has(f)) {
                     console.log(`${shard.shard}: flaky ${f} (fails unbroken)`);
                 } else if (by.length === 0) {
                     console.log(`${shard.shard}: ${f} fails only with several of ${g.non.join(" ")} broken together`);

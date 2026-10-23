@@ -181,7 +181,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
         // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
@@ -302,10 +302,8 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
-    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
-        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
-        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
-        // running then and is stopped. The stopped shard closing last must still end the stage.
+    // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository.
+    const runStage = (runTests, env = {}) => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
@@ -327,12 +325,9 @@ describe("the pre-push gate matches CI", () => {
                 join(dir, "tools/ci-test-matrix.mjs"),
                 `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
             );
-            writeFileSync(
-                join(dir, "tools/run-tests.sh"),
-                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
-            );
+            writeFileSync(join(dir, "tools/run-tests.sh"), runTests);
             assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
-            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+            return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
@@ -342,14 +337,31 @@ describe("the pre-push gate matches CI", () => {
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
+                    ...env,
                 },
             });
-            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
-            assert.match(run.stdout, /Stopped after broken failed/);
-            assert.equal(run.status, 1, run.stdout + run.stderr);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    };
+
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still running then
+        // and is stopped. The stopped shard closing last must still end the stage.
+        const run = runStage(
+            'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+        );
+        assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+        assert.match(run.stdout, /Stopped after broken failed/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+    });
+
+    it("runs every shard to the end under PREPUSH_ALL=1 (verification), so one failure cannot hide another", () => {
+        const summary = "echo ' Test Files  1 passed (1)'; echo '      Tests  1 passed (1)'";
+        const run = runStage(`if [ "$1" = broken ]; then exit 1; fi\n${summary}\n`, { PREPUSH_ALL: "1" });
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.match(run.stdout, /Failed: broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
     });
 
     it("fails a shard that exits 0 with no vitest run summary in its log", () => {

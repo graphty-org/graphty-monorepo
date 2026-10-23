@@ -163,7 +163,7 @@ export const GATE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
  */
 export function laneEnv(env = process.env) {
     const pairs = Object.keys(env)
-        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || k === "PREPUSH_ALL" || k === "PREPUSH_SELECT")
+        .filter((k) => /^(GRAPHTY_|VK_)/.test(k) || ["PREPUSH_ALL", "PREPUSH_SELECT", "PREPUSH_EXONERATE"].includes(k))
         .filter((k) => !k.startsWith("GRAPHTY_TEST_SLOT"))
         .sort()
         .map((k) => [k, env[k]]);

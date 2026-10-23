@@ -23,9 +23,10 @@
  *     does a package whose import graph could not be built.
  *
  * Usage:
- *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] [--json]
+ *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] [--json] [--defer-downstream]
  *       the selection for the change from the merge base of <base> (default origin/golden) to <head>
- *       (default HEAD), as text or JSON
+ *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
+ *       dependents or readers of a changed one
  *   node tools/test-select.mjs [--root <checkout>] --graph <package> [--config <file>]
  *       (internal) one package's import graph as JSON, built in a child process because creating a
  *       Vitest sets NODE_ENV and VITEST* in the process that does it
@@ -245,9 +246,21 @@ function specsReaching(file, graph, allSpecs, rev, add) {
  * @param input.rules loadRules()
  * @param input.rootImporters Map of root file to the root files that import it (rootImportGraph), optional
  * @param input.deleted Set of changed paths that no longer exist, optional
+ * @param input.deferDownstream leave out the tests of packages reached only as dependents or readers of a
+ *   changed package (a landing check defers them to verification, design/ci/fast-pipeline.md), optional
  * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs })}`
  */
-export function selectPackages({ changed, packages, deps, refs, graphs, rules, rootImporters, deleted }) {
+export function selectPackages({
+    changed,
+    packages,
+    deps,
+    refs,
+    graphs,
+    rules,
+    rootImporters,
+    deleted,
+    deferDownstream,
+}) {
     const dirs = [...packages.values()];
     const pkgOf = (f) => dirs.find((d) => f.startsWith(`${d}/`));
     const out = new Map(dirs.map((d) => [d, { mode: "none", reasons: [], specs: new Map() }]));
@@ -284,7 +297,9 @@ export function selectPackages({ changed, packages, deps, refs, graphs, rules, r
             a.packages.forEach((d) => whole(d, `${f}: ${a.why}`));
         }
     }
-    dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out });
+    if (!deferDownstream) {
+        dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out });
+    }
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
     }
@@ -2000,9 +2015,10 @@ function graphChild(root, dir, config) {
  * @param changed repo-relative changed paths
  * @param shards SHARDS entries
  * @param graphs optional prebuilt graphs (Map(dir -> [graph...])); built for the changed packages otherwise
+ * @param deferDownstream selectPackages' option of that name
  * @returns `{ everything, packages, shards }`
  */
-export async function selectChange(root, changed, shards, graphs) {
+export async function selectChange(root, changed, shards, graphs, deferDownstream = false) {
     const graph = projectGraph(root);
     if (!graph) {
         throw new Error("nx's project graph could not be read");
@@ -2021,6 +2037,7 @@ export async function selectChange(root, changed, shards, graphs) {
         rules,
         rootImporters: rootImportGraph(root, [...packages.values()]),
         deleted: new Set(changed.filter((f) => !existsSync(join(root, f)))),
+        deferDownstream,
     });
     return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser) };
 }
@@ -2098,7 +2115,7 @@ async function main(argv) {
     }
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
     const changed = changedFiles(root, arg("--base") ?? "origin/golden", arg("--head") ?? "HEAD");
-    const selection = await selectChange(root, changed, SHARDS);
+    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"));
     if (argv.includes("--json")) {
         console.log(
             JSON.stringify({

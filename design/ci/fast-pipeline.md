@@ -508,6 +508,20 @@ Decided by the owner on 2026-10-21:
    on a recorded failure (section 4.3).
 7. **The old rules in sections 7 and 8** are kept, narrowed or dropped as listed there.
 
+Decided by the owner on 2026-10-23 ("I'm fine with deferring downstream tests"):
+
+8. **A landing check defers downstream packages' tests to verification.** It runs the tests of the
+   packages the change touches (file-level where the selector allows) and every fixed check (build of
+   the affected packages, lint, API report, bundle size, docs site, SonarQube), but not the shards of
+   packages reached only as dependents or readers of a changed package: a graph-io change no longer
+   runs graphty-element's or the graphty app's shards before landing. A change to a shared root file
+   (nx's sharedGlobals, the lockfile, the rules' "everything" list) still runs everything. The switch is
+   `PREPUSH_DEFER_DOWNSTREAM` in `tools/prepush-tests.mjs`. It stays off until verification confirms a
+   failure before a culprit is reverted: today a bisect re-runs the failing commit once and judges each
+   probe by one run, over every first-parent commit, so an intermittent failure that happens to fail
+   twice can name an innocent landing (design/ci/integrated-cicd-plan.md, stage 2b, asks for five
+   confirming runs and probes on `land:` merges only).
+
 ## 10. Build order
 
 Each step is useful alone and lands separately.

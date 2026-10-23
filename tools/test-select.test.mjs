@@ -37,7 +37,7 @@ import {
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
-import { selectedShards, selectionOn } from "./prepush-tests.mjs";
+import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import { mutant, seededPick, unexplained } from "./test-select-mutate.mjs";
 
@@ -175,6 +175,64 @@ describe("selectPackages", () => {
 
     it("a design note runs nothing", () => {
         assert.ok([...select(["design/x.md"]).packages.values()].every((p) => p.mode === "none"));
+    });
+});
+
+describe("deferring downstream packages' tests (landing checks)", () => {
+    const defer = (changed) => selectPackages({ changed, packages, deps, refs, graphs, rules, deferDownstream: true });
+
+    it("runs only the changed package: neither its build dependents nor its readers", () => {
+        const sel = defer(["pa/scripts/bundle.js"]).packages;
+        assert.equal(sel.get("pa").mode, "all");
+        assert.equal(sel.get("pb").mode, "none", "pb depends on pa's build");
+        assert.equal(sel.get("pc").mode, "none", "pc reads pa's files");
+    });
+
+    it("still runs everything for a shared root file", () => {
+        assert.equal(defer([".github/workflows/ci.yml"]).everything, ".github/workflows/ci.yml");
+        assert.ok([...defer(["pnpm-lock.yaml"]).packages.values()].every((p) => p.mode === "all"));
+    });
+
+    it("on the real shards: a graph-io change selects only graph-io's shards; a shared global selects all", () => {
+        const real = new Map([
+            ["graph-format", "graph-format"],
+            ["graph-io", "graph-io"],
+            ["graphty-element", "graphty-element"],
+            ["graphty", "graphty"],
+        ]);
+        const realDeps = new Map([
+            ["graph-format", new Set()],
+            ["graph-io", new Set(["graph-format"])],
+            ["graphty-element", new Set(["graph-io", "graph-format"])],
+            ["graphty", new Set(["graphty-element"])],
+        ]);
+        const noGraphs = new Map([...real.values()].map((d) => [d, []]));
+        const run = (changed, deferDownstream) => {
+            const sel = selectPackages({
+                changed,
+                packages: real,
+                deps: realDeps,
+                refs: new Map(),
+                graphs: noGraphs,
+                rules: loadRules(ROOT),
+                deferDownstream,
+            });
+            const shards = SHARDS.filter((s) => real.has(s.package));
+            return selectShards(shards, sel.packages, noGraphs)
+                .filter((s) => s.mode !== "none")
+                .map((s) => s.package);
+        };
+        const ioOnly = run(["graph-io/src/index.ts"], true);
+        assert.ok(ioOnly.length > 0 && ioOnly.every((p) => p === "graph-io"), ioOnly.join(", "));
+        assert.ok(run(["graph-io/src/index.ts"], false).includes("graphty-element"), "without deferral it runs");
+        const shared = run(["vitest.shared.config.ts"], true);
+        assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
+    });
+
+    it("is off unless PREPUSH_DEFER_DOWNSTREAM=1", () => {
+        assert.equal(deferDownstreamOn({}), false);
+        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "1" }), true);
+        assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "0" }), false);
     });
 });
 

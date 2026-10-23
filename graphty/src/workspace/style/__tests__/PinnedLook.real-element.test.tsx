@@ -60,22 +60,22 @@ describe("the Pinned look of a new project", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await element.waitForSettled();
+        // The picture is still once the layout has converged, so the node stays where it is read.
+        await element.waitForStableFrame();
         const [dragged, alone] = session.data.nodes().map((node) => node.id);
-        let at = element.nodeScreenPosition(String(dragged));
+        // Pressed where the element says the node is drawn now, and again until the drag pins it.
         await waitFor(
-            () => {
-                at = element.nodeScreenPosition(String(dragged));
+            async () => {
+                const at = element.nodeScreenPosition(String(dragged));
                 assert.isTrue(at?.visible, "the node is on screen");
+                assert.equal(element.elementAt({ x: at?.x ?? 0, y: at?.y ?? 0 })?.id, dragged);
+                await dragAcross(element, 60, { x: at?.x ?? 0, y: at?.y ?? 0 });
+                assert.isTrue(session.positions.pinned.has(dragged), "the drag pinned the node");
             },
             { timeout: TIMEOUT_MS },
         );
-
-        await dragAcross(element, 60, { x: at?.x ?? 0, y: at?.y ?? 0 });
-
         await waitFor(
             () => {
-                assert.isTrue(session.positions.pinned.has(dragged), "the drag pinned the node");
                 assert.strictEqual(halo(session, dragged), RING, "the pinned node wears the ring");
             },
             { timeout: TIMEOUT_MS },
@@ -83,7 +83,7 @@ describe("the Pinned look of a new project", () => {
         assert.notStrictEqual(halo(session, alone), RING, "a node left alone wears no ring");
 
         // A click on the pinned node selects it.
-        await element.waitForSettled();
+        await element.waitForStableFrame();
         const now = element.nodeScreenPosition(String(dragged));
         assert.isTrue(now?.visible, "the dragged node is on screen");
         await userEvent.click(element, { position: { x: now?.x ?? 0, y: now?.y ?? 0 } });

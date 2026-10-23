@@ -122,6 +122,11 @@ export function GraphSettings(): React.JSX.Element | null {
                     </Input.Wrapper>
                     {showsImage ? (
                         <BackgroundImage
+                            address={
+                                background.backgroundType === "skybox" && !background.data.startsWith("data:")
+                                    ? background.data
+                                    : ""
+                            }
                             onCommit={(data) => {
                                 void session.config.set({ background: { backgroundType: "skybox", data } });
                             }}
@@ -245,13 +250,18 @@ export function GraphSettings(): React.JSX.Element | null {
  * The background image: an address typed in (Enter), or an image from this computer, chosen or
  * dropped on the row, kept in the project as a `data:` address.
  * @param props - Component props
+ * @param props.address - the image address in effect, or "" for none or an uploaded image
  * @param props.onCommit - writes a new address
  * @returns The field
  */
-function BackgroundImage({ onCommit }: Readonly<{ onCommit: (data: string) => void }>): React.JSX.Element {
+function BackgroundImage({
+    address,
+    onCommit,
+}: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
     return (
         <FileSource
             variant="row"
+            defaultValue={address}
             url
             accept="image/*"
             placeholder="Image address"

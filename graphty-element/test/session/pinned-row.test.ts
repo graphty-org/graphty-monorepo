@@ -40,10 +40,10 @@ function pinnedLayer(session: GraphSession): string | undefined {
  * The halo color a node is drawn with.
  * @param session - The session.
  * @param node - The node.
- * @returns The color, or undefined.
+ * @returns The color as upper-case hex, or undefined.
  */
-function halo(session: GraphSession, node: string): unknown {
-    return (session.styles.explain({ node }).merged as Record<string, unknown>)["node.haloColor"];
+function halo(session: GraphSession, node: string): string | undefined {
+    return session.styles.explain({ node }).merged["node.haloColor"]?.hex.toUpperCase();
 }
 
 describe("the Pinned row", () => {

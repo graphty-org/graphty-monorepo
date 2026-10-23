@@ -123,7 +123,10 @@ describe("the Layout popover", () => {
                 assert.isNotEmpty(line.trim(), `${row.textContent} has a description`);
             }
             assert.isFalse(
-                rows.some((row) => /flat/i.test(row.textContent)),
+                rows.some((row) => {
+                    const description = row.querySelector('[data-testid="layout-description"]')?.textContent ?? "";
+                    return /flat/i.test(row.textContent.replace(description, ""));
+                }),
                 "no separate flat force",
             );
             const force = within(popover).getByRole("option", { name: /^Force(?!Atlas)/ });

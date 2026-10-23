@@ -77,7 +77,10 @@ describe("the table's rows with issues", () => {
         assert.isNull(id.querySelector(".ws-th-role"), "no role pill on the key");
 
         const chip = await within(dock).findByRole("checkbox", { name: /^With issues/ }, { timeout: TIMEOUT_MS });
-        await userEvent.click(chip);
+        // A Chip's checkbox is hidden; the reader clicks its label.
+        const label = (chip as HTMLInputElement).labels?.[0];
+        assert.isDefined(label, "the chip has a label");
+        await userEvent.click(label);
         await waitFor(() => {
             const grid = within(dock).getByRole("grid", { name: "Nodes" });
             const rows = within(grid).getAllByRole("row").slice(1);

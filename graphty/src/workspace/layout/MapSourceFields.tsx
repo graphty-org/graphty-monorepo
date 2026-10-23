@@ -199,6 +199,7 @@ export function MapSourceFields({
                             url
                             accept="image/*"
                             placeholder="Address"
+                            defaultValue={sameKind && !address.startsWith("data:") ? address : ""}
                             label="Upload image"
                             onUrl={(next) => {
                                 onChange(customBasemap(custom, next, sameKind ? credit : pendingCredit));

@@ -698,6 +698,26 @@ export function classify(db, file, name, family, chain = [], before = "9999") {
 }
 
 /**
+ * How often a test failed before a range of landings: in any tool-owned run at the last verified commit (whenever it
+ * ran), or in any run before the range's first landing on a commit outside the range. Zero means verification
+ * treats a test that turns intermittent in the range as a regression to bisect, not as a known flake to quarantine.
+ * ponytail: all retained history (the ledger's prune bounds it); a window if old, fixed flakes keep counting.
+ * @param db the database
+ * @param t the test `{ file, name, family }`
+ * @param range `{ from, before, commits }`: the verified commit, the first landing's ISO time, the range's commits
+ * @returns the number of failed runs
+ */
+export function failuresBefore(db, t, range) {
+    return db
+        .prepare(
+            `SELECT COUNT(*) n FROM failure f JOIN test x ON x.id = f.test AND x.file = ? AND x.name = ?
+             JOIN invocation i ON i.id = f.inv WHERE i.family = ? AND i.kind IN ${inList(OWNED.length)} AND i.dirty = 0
+             AND (i.commit_sha = ? OR (i.started_at < ? AND i.commit_sha NOT IN (SELECT value FROM json_each(?))))`,
+        )
+        .get(t.file, t.name, t.family, ...OWNED, range.from ?? "", range.before, JSON.stringify(range.commits)).n;
+}
+
+/**
  * The bad threshold for a flaky test re-run `n` times at a bisect point: the smallest failure count whose
  * probability under Binomial(n, rate) is 2% or less (design 5.3: at a 2% rate, 2 or more of 10), at most n.
  * @param rate the test's failure rate before the range

@@ -5,7 +5,8 @@
  * A test is FLAKY when it both failed and passed on the same inputs: in one shard run (it failed, and the
  * automatic retry of only the failed test files passed it, or the other way round), or in two gate runs of
  * one shard with the same input key (tools/prepush-inputs.mjs). A flaky test goes on the quarantine list,
- * tools/test-quarantine.json, and gets one GitHub issue (bug, priority:high, effort:medium). A
+ * tools/test-quarantine.json, and gets one GitHub issue (bug, priority:critical, effort:medium: the owner's rule of
+ * 2026-10-22, a test that fails because of load or timing is a critical defect). A
  * quarantined test still runs and its result is printed loudly, but its failure does not fail the shard.
  * A test that fails on the first run AND on the retry, and is not quarantined, fails the shard: that is a
  * real failure. GPU tests (the webgpu-graph-algorithms families) are never quarantined.
@@ -424,6 +425,13 @@ export function fileIssue(t, had, gh) {
         "```",
         t.excerpt,
         "```",
+        ...(t.suspects?.length
+            ? [
+                  "",
+                  "Suspects, the landings in the range it failed in:",
+                  ...t.suspects.map((l) => `- ${l.sha} ${l.branch}`),
+              ]
+            : []),
     ].join("\n");
     try {
         if (had) {
@@ -438,7 +446,7 @@ export function fileIssue(t, had, gh) {
             "--label",
             "bug",
             "--label",
-            "priority:high",
+            "priority:critical",
             "--label",
             "effort:medium",
             "--body",
@@ -507,8 +515,8 @@ export function afterShard({ main, root, shard, inputKey, result, gh = ghCli, da
 // an entry GitHub refused is left out. Returns the entries added.
 function addEntries(main, fresh, gh) {
     const added = [];
-    for (const e of fresh) {
-        const issue = fileIssue(e, e.issue || undefined, gh);
+    for (const { suspects, ...e } of fresh) {
+        const issue = fileIssue({ ...e, suspects }, e.issue || undefined, gh);
         if (!issue) continue;
         const entry = { ...e, issue };
         updateState(main, (state) => {
@@ -526,7 +534,7 @@ function addEntries(main, fresh, gh) {
  * Quarantines tests another tool proved flaky (verification's confirming runs: a test that failed, then passed on
  * the same commit), as afterShard does for the gate's own: an entry and its issue each. GPU tests never.
  * @param main the main checkout
- * @param tests `[{ file, name, family, how, excerpt }]`
+ * @param tests `[{ file, name, family, how, excerpt, suspects }]`; `suspects`, `[{ sha, branch }]`, go in the issue
  * @param [gh] `(args) => stdout`
  * @param [day] ISO date
  * @returns the tests' entries now in force (added now or already listed); a test left out was refused
@@ -540,12 +548,13 @@ export function quarantineTests(main, tests, gh = ghCli, day = today()) {
         const had = quarantined(list, t.family, t);
         if (had) listed.push(had);
         else if (!fresh.some((e) => keyOf(e) === keyOf(t))) {
-            const { file, name, family, excerpt } = t;
+            const { file, name, family, excerpt, suspects } = t;
             const reason = `is flaky: it ${t.how}`;
             fresh.push({
                 file,
                 name,
                 family,
+                suspects,
                 issue: state.issues[idOf(t)] ?? 0,
                 reason,
                 since: day,

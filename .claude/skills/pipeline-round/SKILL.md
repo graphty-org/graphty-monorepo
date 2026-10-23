@@ -93,11 +93,22 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
   a `fix attempt` marker and a fix subagent (the "Two attempts" rule applies); and a one-line comment on the issue of
   every open branch that contains the culprit (`git branch -r --contains <culprit sha>`, each branch's issue from its
   name or `git config branch.<b>.issue`) saying it holds a reverted landing and should merge `origin/golden-verified`
-  again once verification passes. When the revert is pushed: `node tools/verify.mjs handled`.
-- **`last: flaky`:** every failing test passed in one of verification's confirming runs on the same commit and is now
-  quarantined with its issue. Nothing to revert or claim; the next verification runs with them quarantined.
+  again once verification passes. When the revert is pushed: `node tools/verify.mjs handled`. A culprit whose line
+  ends `(judged by 1 run)` failed outside the test shards and was judged by one whole gate per point: revert it the
+  same way, and say so in the comment.
+- **A newly intermittent test is a regression.** A test that passed a confirming run but has no failure in the test
+  ledger before the range (none at the last verified commit, none before the range's first landing) was made
+  intermittent by a landing: verification bisects it like a consistent failure, a point bad when it fails at least 1
+  of 5 runs and good only at 5 of 5, and names the landing only when that landing's parent passes 5 of 5. Its
+  culprit is handled exactly as above: claim, revert at once, comment. Never quarantine it by hand instead.
+- **`last: flaky`:** every failing test passed in one of verification's confirming runs on the same commit, was
+  already flaky before the range, and is now quarantined with a `priority:critical` issue that lists the range's
+  landings as suspects. Nothing to revert or claim; the next verification runs with them quarantined. The issue is
+  step 1's critical alarm: start its fix subagent like any critical issue (a test that fails because of load or
+  timing is a critical defect, owner 2026-10-22).
 - **`last: failed ... INTERMITTENT`** (a test passed a confirming run but is not quarantined: the quarantine is off,
-  or it was a whole shard or another step) **or `fails every time but no landing is to blame`:** revert nothing.
+  or it was a whole shard or another step) **or `fails every time` / `is newly intermittent` `but no landing is to
+blame`** (`noLanding` says why, such as a parent that failed 1 of 5): revert nothing.
   Never call it a flake and never just re-run: claim it, find the mechanism (the gate log, the lessons file), fix the cause or file the
   issue the failure classes call for, then `handled`, and `start --again` once the cause is fixed.
 - **A culprit that is not a landing** (an owner's accept commit, a sync merge of master): revert nothing; claim it,

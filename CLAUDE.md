@@ -342,7 +342,7 @@ The `tools/` directory contains build scripts:
 | `run-tests.sh` | Runs a CI test shard locally with the exact command CI runs, read from `ci-test-matrix.mjs`: `--list`, `<shard>` or `all`. Shards run with coverage, so this also checks the thresholds. Build first |
 | `ci-test-matrix.mjs` | The CI test shards and their commands (ci.yml and `run-tests.sh` both read it) |
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it and caps a Node run at its share of the cores (`workerShare()`, cores / slots), and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard); `--gpu <command>` holds the one machine-wide GPU slot instead (the gate's NVIDIA step, which runs beside the shards). Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
-| `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
+| `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line. In the pre-push gate (`prepush-tests.mjs` turns it on) it also lists, at the gate's end, every test over 50% of its limit, and fails a push that made a test under 50% in every earlier gate run (at least 3) 1.5x slower than its slowest; history in `tmp/time-budget/history.json` of the main checkout, the same allowlist |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
 | `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `cut`, `cut-fix <branch>`, `ship`, `revert <branch>`, `status` (with the open work) and `prune-branches` (a list; `--yes`, by hand, deletes) do the rest. See "Landing changes (golden-local)" |
@@ -581,7 +581,7 @@ writes this into the golden pull request's description from the landed commit me
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- nothing pushed or published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
-| `restricted-cpu-stress.yml` | Weekly (Sundays), dispatch; never on PRs, master pushes or the release train | Every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU); files or comments on one issue per failing test in the flaky-test tracker's format, marked load-sensitive (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
+| `restricted-cpu-stress.yml` | Nightly but Sunday (the flake hunt, on golden), weekly on Sundays (the stress run), dispatch (`mode` hunt or stress, `ref`); never on PRs, master pushes or the release train | Flake hunt: every browser shard of a full run, 3 times side by side on CI's normal runners, on golden (or the dispatched `ref`); each failing test gets one `priority:high` issue. Stress: every gating test shard of ci.yml under a fixed cgroup CPU quota (half the runner's CPU), filed as load-sensitive. Both file or comment on one issue per failing test in the flaky-test tracker's format (`tools/restricted-cpu-stress.mjs`). Gates nothing; a branch dispatch files nothing |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
 | `work-protection-macos.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | graphty-element's autosave on Apple's engines (macos-26, a time limit on every job): Playwright's WebKit killed and relaunched on a persistent profile, real Safari through safaridriver (the hide transition, stall detection, `persist()`, and a probe of whether IndexedDB survives between safaridriver sessions), and Safari on iOS in the Simulator (Xcode 26: app switch, then Safari terminated). A red run holds the release |
@@ -1246,6 +1246,35 @@ Rules:
   or in groups of related ones) in background subagents but never lands. Run both for normal work
   (two clients, or one `/loop` with issue-round second), only pipeline-round to drain, or only
   issue-round to start work that waits for the next pipeline round to land it.
+
+## Big landings
+
+Tier 3's cut (pull request #3246, 2026-10-22 and 23) failed CI on a different intermittent test in
+each run: work that grew for weeks off golden landed at once, and every race it carried was sampled
+one CI run at a time. To keep that from happening again:
+
+- **Land big work in pieces behind a switch that is off by default.** Each piece goes through the
+  gate on its own, so a slowdown or a race shows up beside the change that made it.
+- **Merge golden into a long-lived branch every day** (`git fetch origin`, `git merge origin/golden`,
+  never rebase), and run its tests on the merge. Conflicts and other branches' slowdowns then meet
+  the branch while it is small.
+- **Before cutting, run the flake hunt on the candidate:** `gh workflow run restricted-cpu-stress.yml
+  --ref master -f mode=hunt -f ref=<commit>`. It runs every browser shard three times on CI's own
+  runners and files each failing test as a `priority:high` issue. It also runs every night on golden;
+  cut only when its open issues are fixed.
+- **The gate watches test time.** At its end the pre-push gate lists every test that used more than
+  half of its time limit, and fails a push that made a test that was under half in every earlier
+  gate run at least 1.5x slower (`tools/vitest-time-budget.mjs`; history in
+  `tmp/time-budget/history.json` of the main checkout). Split such a test or find what slowed it; a
+  test that must stay slow goes in `tools/vitest-time-budget-allowlist.json` with its issue. Never
+  raise a timeout.
+- **Never retry a failed landing or a failed CI run without a mechanism.** A test that failed once
+  will fail again; find what it waits for that is not guaranteed, fix that, and say what it was in
+  the commit message. A re-run that passes proves nothing.
+- **A fix the cut needs goes in with `land.mjs cut-fix`,** on a branch made from the cut
+  (`./tools/worktree-new.sh <branch> origin/golden-cut`) holding only commits on top of it: no merge of
+  golden or of another branch, which the cut does not have and cut-fix refuses. It lands the same
+  branch on golden too.
 
 ## Where a change takes effect
 

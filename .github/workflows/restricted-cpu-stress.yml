@@ -1,6 +1,15 @@
-name: Restricted CPU stress (weekly)
+name: Flake hunt (nightly) and restricted CPU stress (weekly)
 
-# Every gating test shard of ci.yml, run with less CPU than CI gives it, to find load-sensitive tests
+# Two runs share this file, picked by the build job (outputs.mode):
+#
+# hunt (nightly, and a dispatch with mode hunt): every browser shard of a full ci.yml run, REPEAT (3) times
+# side by side as separate jobs, on golden, on CI's normal runners with no restriction. The cut of
+# 2026-10-23 failed CI five runs in a row, each on a different intermittent test: one run samples a
+# pool of races once. Running the browser shards three times a night on golden finds them before a cut
+# does, and files each one as an issue at priority:high ("intermittent in CI"). Run it on a candidate
+# before cutting: dispatch with ref set to that commit.
+#
+# stress (weekly): every gating test shard of ci.yml, run with less CPU than CI gives it, to find load-sensitive tests
 # on purpose instead of when they fail someone's push (issue #1603). It never gates anything: it is
 # not a required check, not in .mergify.yml, and nothing in ci.yml, release.yml or master-guard.yml
 # waits on it or reads it. tools/restricted-cpu-stress.test.mjs checks that.
@@ -13,9 +22,19 @@ name: Restricted CPU stress (weekly)
 
 on:
     schedule:
-        - cron: "41 3 * * 0" # Sundays 03:41 UTC, when few pull requests are waiting for runners
+        - cron: "41 3 * * 0" # stress: Sundays 03:41 UTC, when few pull requests are waiting for runners
+        - cron: "17 1 * * 1-6" # hunt: 01:17 UTC every night but Sunday's, which the stress run takes
     workflow_dispatch:
         inputs:
+            mode:
+                description: hunt (browser shards 3 times, no restriction) or stress (every shard under the CPU quota)
+                type: choice
+                options: [hunt, stress]
+                default: hunt
+            ref:
+                description: The branch or commit to test (default golden for hunt, the dispatched ref for stress)
+                type: string
+                default: ""
             dry-run:
                 description: Print the issues it would file or update, and write none
                 type: boolean
@@ -25,7 +44,7 @@ permissions:
     contents: read
 
 concurrency:
-    group: restricted-cpu-stress
+    group: restricted-cpu-stress-${{ github.event.schedule || inputs.mode }}
     cancel-in-progress: true
 
 env:
@@ -49,8 +68,34 @@ jobs:
         runs-on: ubuntu-24.04
         outputs:
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
+            mode: ${{ steps.mode.outputs.mode }}
+            sha: ${{ steps.mode.outputs.sha }}
         steps:
+            - name: Pick the run
+              id: pick
+              run: |
+                  if [ "$SCHEDULE" = "41 3 * * 0" ] || [ "$INPUT_MODE" = stress ]; then mode=stress; else mode=hunt; fi
+                  ref="$INPUT_REF"
+                  if [ -z "$ref" ] && [ "$mode" = hunt ]; then ref=golden; fi
+                  echo "mode=$mode" >> "$GITHUB_OUTPUT"
+                  echo "ref=$ref" >> "$GITHUB_OUTPUT"
+              env:
+                  SCHEDULE: ${{ github.event.schedule }}
+                  INPUT_MODE: ${{ inputs.mode }}
+                  INPUT_REF: ${{ inputs.ref }}
+
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ steps.pick.outputs.ref }}
+
+            # Every later job checks out this exact commit, so a golden that moves mid-run changes nothing.
+            - name: Record the commit under test
+              id: mode
+              run: |
+                  echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+                  echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              env:
+                  MODE: ${{ steps.pick.outputs.mode }}
 
             - uses: pnpm/action-setup@v4
 
@@ -65,12 +110,16 @@ jobs:
               env:
                   HUSKY: "0"
 
-            # every shard of every package, as a full ci.yml run (a manual dispatch, the release train) plans it
+            # stress: every shard of every package, as a full ci.yml run (a manual dispatch, the release
+            # train) plans it. hunt: its browser entries, each REPEAT times (tools/restricted-cpu-stress.mjs).
             - name: Plan the test shards
               id: plan
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  node tools/ci-test-matrix.mjs "$all" "$all" | tee -a "$GITHUB_OUTPUT"
+                  node tools/ci-test-matrix.mjs "$all" "$all" > /dev/null
+                  node tools/restricted-cpu-stress.mjs --matrix "$MODE" | tee -a "$GITHUB_OUTPUT"
+              env:
+                  MODE: ${{ steps.mode.outputs.mode }}
 
             - name: Build all
               run: pnpm exec nx run-many -t build --parallel=3
@@ -96,9 +145,10 @@ jobs:
                       compact-mantine/dist/
                   retention-days: 1
 
-    # The steps of ci.yml's test job, with the shard's command run inside the CPU quota.
+    # The steps of ci.yml's test job, with the shard's command run inside the CPU quota (stress) or as
+    # CI runs it (hunt).
     stress:
-        name: Restricted CPU (${{ matrix.shard }})
+        name: ${{ needs.build.outputs.mode == 'hunt' && 'Flake hunt' || 'Restricted CPU' }} (${{ matrix.shard }}${{ matrix.rep && format(' run {0}', matrix.rep) || '' }})
         needs: build
         runs-on: ubuntu-24.04
         timeout-minutes: 240
@@ -108,6 +158,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ needs.build.outputs.sha }}
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
@@ -178,10 +229,15 @@ jobs:
 
             # The step's shell moves itself into a cgroup with the quota, so the test command and every
             # process it starts (vitest workers, Chromium, Dawn) share it. A failing shard does not stop
-            # the run: the junit reports below are the result.
-            - name: Run tests under the CPU quota
+            # the run: the junit reports below are the result. The hunt runs the command as CI does.
+            - name: Run the tests
               continue-on-error: true
               run: |
+                  if [ "$MODE" = hunt ]; then
+                      status=0
+                      bash -c "$TEST_COMMAND" || status=$?
+                      exit "$status"
+                  fi
                   [ "$(stat -fc %T /sys/fs/cgroup)" = cgroup2fs ] || { echo "::error::no cgroup v2 on this runner"; exit 1; }
                   echo +cpu | sudo tee /sys/fs/cgroup/cgroup.subtree_control > /dev/null
                   sudo mkdir -p /sys/fs/cgroup/restricted-cpu
@@ -193,19 +249,20 @@ jobs:
                   echo "throttling:"; cat /sys/fs/cgroup/restricted-cpu/cpu.stat
                   exit "$status"
               env:
+                  MODE: ${{ needs.build.outputs.mode }}
                   TEST_COMMAND: ${{ matrix.test-command }}
 
             - name: Upload the junit reports
               if: always()
               uses: actions/upload-artifact@v4
               with:
-                  name: junit-${{ matrix.shard }}
+                  name: junit-${{ matrix.shard }}${{ matrix.rep && format('-run{0}', matrix.rep) || '' }}
                   path: test-results/junit-*.xml
                   if-no-files-found: warn
                   retention-days: 14
 
     report:
-        name: File the load-sensitive tests
+        name: File the failing tests
         needs: [build, stress]
         if: always() && needs.build.result == 'success'
         runs-on: ubuntu-24.04
@@ -214,6 +271,8 @@ jobs:
             issues: write
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.build.outputs.sha }}
 
             - uses: actions/setup-node@v4
               with:
@@ -229,6 +288,8 @@ jobs:
               run: mkdir -p junit && node tools/restricted-cpu-stress.mjs junit
               env:
                   GITHUB_TOKEN: ${{ github.token }}
+                  SOURCE: ${{ needs.build.outputs.mode }}
+                  RESTRICTION: ${{ needs.build.outputs.mode == 'stress' && env.RESTRICTION || '' }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-                  SHA: ${{ github.sha }}
+                  SHA: ${{ needs.build.outputs.sha }}
                   DRY_RUN: ${{ inputs.dry-run || github.ref != 'refs/heads/master' }}

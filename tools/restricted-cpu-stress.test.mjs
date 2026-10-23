@@ -4,10 +4,25 @@
 //
 //   node tools/restricted-cpu-stress.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { issueBody, junitFailures, LABELS, MARKER, MAX_FILED, packageOf, plan } from "./restricted-cpu-stress.mjs";
+import { plan as ciPlan, SHARDS } from "./ci-test-matrix.mjs";
+import {
+    huntMatrix,
+    issueBody,
+    junitFailures,
+    LABELS,
+    MARKER,
+    MAX_FILED,
+    packageOf,
+    plan,
+    REPEAT,
+    SOURCES,
+} from "./restricted-cpu-stress.mjs";
 
 // The shape vitest 3.2's junit reporter writes: attributes escaped, one testcase per test, the suite
 // chain joined with " > ", a failure child for a failed test.
@@ -99,13 +114,57 @@ describe("the issues", () => {
     });
 });
 
+describe("the nightly flake hunt", () => {
+    const [t] = junitFailures(XML, "graph-io", "graphty-1-run2");
+    const HUNT = { source: "hunt", restriction: "", runUrl: "https://example.invalid/run/2", sha: "def456" };
+
+    it("files a CI failure as intermittent at priority:high, with no restriction line", () => {
+        const [a] = plan([t], [], HUNT);
+        assert.equal(a.create.title, 'Intermittent test: reader > parses "x" (graph-io)');
+        assert.deepEqual(a.create.labels, ["bug", "intermittent", "effort:medium", "priority:high"]);
+        assert.match(a.create.body, /nightly flake hunt/);
+        assert.doesNotMatch(a.create.body, /Restriction:|load-sensitive/);
+        assert.match(a.create.body, /shard `graphty-1-run2`/);
+        assert.ok(a.create.body.endsWith(`${MARKER}${t.id}`), "the tracker's marker, shared with the stress run");
+    });
+
+    it("comments on the issue the stress run filed for the same test", () => {
+        const [a] = plan([t], [{ number: 9, state: "open", body: `${MARKER}${t.id}` }], HUNT);
+        assert.equal(a.issue, 9);
+        assert.match(a.comment, /^Again, in the nightly flake hunt:/);
+    });
+
+    it("runs every browser entry of a full run REPEAT times, and nothing else", () => {
+        const full = ciPlan([...new Set(SHARDS.map((s) => s.package))]);
+        const browser = full.filter((e) => e["needs-browser"]);
+        const got = huntMatrix("hunt");
+        assert.equal(REPEAT, 3);
+        assert.equal(got.length, browser.length * REPEAT);
+        assert.ok(got.every((e) => e["needs-browser"] && e.rep >= 1 && e.rep <= REPEAT));
+        // one artifact per job: the workflow names it junit-<shard>-run<rep>
+        assert.equal(new Set(got.map((e) => `${e.shard}-run${e.rep}`)).size, got.length);
+        assert.ok(
+            got.some((e) => e.shard === "small-browser"),
+            "the graphty shards run in their group",
+        );
+        assert.deepEqual(huntMatrix("stress"), full);
+    });
+
+    it("has words for every source", () => {
+        for (const s of Object.values(SOURCES)) {
+            for (const k of ["title", "what", "why", "failed", "again", "by", "labels"]) assert.ok(s[k], k);
+        }
+    });
+});
+
 describe("the workflow", () => {
     const text = readFileSync(new URL("../.github/workflows/restricted-cpu-stress.yml", import.meta.url), "utf8");
     const code = text.replace(/^\s*#.*$/gm, "");
 
-    it("runs only weekly and on dispatch", () => {
+    it("runs only on its two schedules and on dispatch", () => {
         const on = code.slice(code.indexOf("\non:"), code.indexOf("\npermissions:"));
-        assert.match(on, /schedule:/);
+        assert.match(on, /cron: "41 3 \* \* 0"/);
+        assert.match(on, /cron: "17 1 \* \* 1-6"/);
         assert.match(on, /workflow_dispatch:/);
         assert.doesNotMatch(on, /pull_request|push:|merge_group|workflow_call|workflow_run/);
     });
@@ -125,6 +184,44 @@ describe("the workflow", () => {
         assert.match(code, /node tools\/ci-test-matrix\.mjs "\$all" "\$all"/);
         assert.match(code, /continue-on-error: true\n\s+run: \|/);
         assert.match(code, /cpu\.max/);
+    });
+
+    // The build job's first step, run here under bash with each trigger's inputs.
+    it("picks stress for the Sunday schedule and hunt on golden for the nightly one", () => {
+        const step = /- name: Pick the run\n\s+id: pick\n\s+run: \|\n([\s\S]*?)\n\s+env:/.exec(text)[1];
+        const script = step.replaceAll(/^ {18}/gm, "");
+        const pick = (env) => {
+            const out = join(mkdtempSync(join(tmpdir(), "pick-")), "out");
+            execFileSync("bash", ["-c", script], {
+                env: {
+                    PATH: process.env.PATH,
+                    GITHUB_OUTPUT: out,
+                    SCHEDULE: "",
+                    INPUT_MODE: "",
+                    INPUT_REF: "",
+                    ...env,
+                },
+            });
+            return Object.fromEntries(
+                readFileSync(out, "utf8")
+                    .trim()
+                    .split("\n")
+                    .map((l) => l.split("=")),
+            );
+        };
+        assert.deepEqual(pick({ SCHEDULE: "41 3 * * 0" }), { mode: "stress", ref: "" });
+        assert.deepEqual(pick({ SCHEDULE: "17 1 * * 1-6" }), { mode: "hunt", ref: "golden" });
+        assert.deepEqual(pick({ INPUT_MODE: "hunt", INPUT_REF: "abc" }), { mode: "hunt", ref: "abc" });
+        assert.deepEqual(pick({ INPUT_MODE: "stress" }), { mode: "stress", ref: "" });
+        // every scheduled cron is one the pick step knows
+        assert.ok(text.includes('"41 3 * * 0"') && text.includes('cron: "17 1 * * 1-6"'));
+    });
+
+    it("tests one commit in every job and quotas only the stress run", () => {
+        assert.equal(code.match(/ref: \$\{\{ needs\.build\.outputs\.sha \}\}/g).length, 2);
+        assert.match(code, /if \[ "\$MODE" = hunt \]; then[\s\S]*?exit "\$status"\n\s+fi\n\s+\[ "\$\(stat/);
+        assert.match(code, /SOURCE: \$\{\{ needs\.build\.outputs\.mode \}\}/);
+        assert.match(code, /name: junit-\$\{\{ matrix\.shard \}\}\$\{\{ matrix\.rep && format\('-run\{0\}'/);
     });
 
     it("files nothing from a dispatch on a branch", () => {

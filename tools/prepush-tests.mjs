@@ -47,16 +47,22 @@
  * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
  * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
  * other gates hold is not a failure of this push.
+ *
+ * Every shard runs with the time-budget reporter's gate mode on (tools/vitest-time-budget.mjs): at the
+ * end the stage lists every test that used more than half of its time limit, and a shard fails when
+ * this push made a test that was under half in every earlier gate run at least 1.5x slower. The
+ * history is <main checkout>/tmp/time-budget/history.json, shared by every branch's gate.
  */
 
 import { spawn, execFileSync } from "node:child_process";
-import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard } from "./shard-verdict.mjs";
+import { formatGate } from "./vitest-time-budget.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -312,6 +318,14 @@ async function main() {
     const logs = join(ROOT, "tmp/prepush-tests");
     mkdirSync(logs, { recursive: true });
     const timeout = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
+    const budgetDir = join(main, "tmp/time-budget");
+    mkdirSync(budgetDir, { recursive: true });
+    const budget = {
+        VITEST_BUDGET_CHECK: "1",
+        VITEST_BUDGET_GATE: join(budgetDir, `gate-${process.pid}.jsonl`),
+        VITEST_BUDGET_HISTORY: join(budgetDir, "history.json"),
+    };
+    rmSync(budget.VITEST_BUDGET_GATE, { force: true });
     console.log(`Shards: ${shards.map((s) => s.shard).join(", ")}`);
 
     const running = new Map();
@@ -338,7 +352,7 @@ async function main() {
             cwd: ROOT,
             detached: true,
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env, ...shardEnv(shard) },
+            env: { ...process.env, ...budget, ...shardEnv(shard) },
         });
         child.stdout.pipe(out);
         child.stderr.pipe(out);
@@ -425,6 +439,16 @@ async function main() {
 
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
+        const slow = existsSync(budget.VITEST_BUDGET_GATE)
+            ? readFileSync(budget.VITEST_BUDGET_GATE, "utf8")
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((l) => JSON.parse(l))
+            : [];
+        rmSync(budget.VITEST_BUDGET_GATE, { force: true });
+        if (slow.length > 0) {
+            console.log(formatGate(slow));
+        }
         if (failed) {
             keepLog(failed);
             console.log(`Stopped after ${failed} failed (${secs}s); the other shards did not finish.`);

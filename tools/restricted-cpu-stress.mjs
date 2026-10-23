@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * restricted-cpu-stress.mjs -- files the findings of the weekly restricted-CPU stress run
- * (.github/workflows/restricted-cpu-stress.yml) as issues in the flaky-test tracker's format.
+ * restricted-cpu-stress.mjs -- files the findings of the weekly restricted-CPU stress run and the
+ * nightly flake hunt (both .github/workflows/restricted-cpu-stress.yml) as issues in the flaky-test
+ * tracker's format. SOURCE picks which run's words the issue uses: "stress" (the default) or "hunt".
  *
  * Every vitest run in CI writes test-results/junit-<package>-<pid>.xml (vitest.ci-junit.mjs). The
  * workflow uploads each shard's files as the artifact junit-<shard> and downloads them all into one
@@ -11,18 +12,74 @@
  * tracker and this run share one issue per test. These issues say "load-sensitive under restricted
  * CPU", not "proven flaky": the run only shows that the test fails when CPU is scarce.
  *
+ * The flake hunt runs every browser shard REPEAT times side by side on CI's normal runners, with no
+ * restriction, on golden: a test that fails in any repetition fails on the machine CI gives it, so its
+ * issue says "intermittent in CI" and is filed at priority:high.
+ *
  * Usage: node tools/restricted-cpu-stress.mjs <junit dir>
- *   env GITHUB_TOKEN, GITHUB_REPOSITORY, RESTRICTION (the restriction, in words), RUN_URL, SHA,
- *   DRY_RUN=true to print what it would file and write nothing.
+ *   env GITHUB_TOKEN, GITHUB_REPOSITORY, SOURCE (stress or hunt), RESTRICTION (the restriction, in
+ *   words; stress only), RUN_URL, SHA, DRY_RUN=true to print what it would file and write nothing.
+ *        node tools/restricted-cpu-stress.mjs --matrix stress|hunt
+ *   prints the run's matrix line for GITHUB_OUTPUT (huntMatrix below).
  */
 
 import { readdirSync, readFileSync, appendFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
+import { plan as ciPlan, SHARDS } from "./ci-test-matrix.mjs";
+
 /** The tracker's marker line prefix (githerd/lib/flakes.mjs MARKER). */
 export const MARKER = "githerd-flaky-test: ";
 /** The tracker's labels, at the lowest priority: the tracker raises priority, never lowers it. */
 export const LABELS = ["bug", "intermittent", "effort:medium", "priority:low"];
+/** How many times the flake hunt runs each browser shard. */
+export const REPEAT = 3;
+
+/**
+ * The words and labels of each source. A stress failure is load-sensitive under a quota the CI runner
+ * does not have; a hunt failure happened on CI's own runner, so it is a real intermittent failure.
+ */
+export const SOURCES = {
+    stress: {
+        title: "Load-sensitive test",
+        what: "fails when CPU is scarce",
+        why:
+            "Source: load-sensitive under restricted CPU (the weekly restricted-CPU stress run), not proven flaky. " +
+            "The test failed with the shard confined to a fixed CPU quota on a GitHub-hosted runner; a healthy " +
+            "test passes there too. It needs a fix that does not depend on how fast the machine is.",
+        failed: "Failed under restricted CPU",
+        again: "Again, load-sensitive under restricted CPU:",
+        by: "The weekly restricted-CPU stress run files and updates this issue (.github/workflows/restricted-cpu-stress.yml).",
+        labels: LABELS,
+    },
+    hunt: {
+        title: "Intermittent test",
+        what: "failed in the nightly flake hunt",
+        why:
+            `Source: the nightly flake hunt, which runs every browser shard ${REPEAT} times side by side on golden, ` +
+            "on CI's normal GitHub-hosted runners with no restriction. A test that fails there will fail a cut's CI " +
+            "run sooner or later. Find the mechanism (what the test waits for that is not guaranteed) and fix it; " +
+            "do not raise its timeout or retry it.",
+        failed: "Failed in the flake hunt",
+        again: "Again, in the nightly flake hunt:",
+        by: "The nightly flake hunt files and updates this issue (.github/workflows/restricted-cpu-stress.yml).",
+        labels: ["bug", "intermittent", "effort:medium", "priority:high"],
+    },
+};
+
+/**
+ * The matrix of one run. stress: every shard of a full ci.yml run, once. hunt: the browser entries of
+ * a full run (shards and the small-browser group), each REPEAT times, numbered by `rep`.
+ * @param source - "stress" or "hunt"
+ * @returns the matrix's include list
+ */
+export function huntMatrix(source) {
+    const include = ciPlan([...new Set(SHARDS.map((s) => s.package))]);
+    if (source !== "hunt") return include;
+    return include
+        .filter((e) => e["needs-browser"])
+        .flatMap((e) => Array.from({ length: REPEAT }, (_, i) => ({ ...e, rep: i + 1 })));
+}
 /** More failing tests than this means the restriction is too tight or the suite is broken: file nothing. */
 export const MAX_FILED = 25;
 const OUTPUT_MAX = 3000;
@@ -79,10 +136,12 @@ const fence = (text) => {
     return ["```text", cut.replaceAll("```", "'''"), "```"].join("\n");
 };
 
+const words = (ctx) => SOURCES[ctx.source ?? "stress"];
+
 const occurrence = (t, ctx) =>
     [
-        `Failed under restricted CPU in shard \`${t.shard}\`, run ${ctx.runUrl} at ${ctx.sha}.`,
-        `Restriction: ${ctx.restriction}`,
+        `${words(ctx).failed} in shard \`${t.shard}\`, run ${ctx.runUrl} at ${ctx.sha}.`,
+        ...(ctx.restriction ? [`Restriction: ${ctx.restriction}`] : []),
         "",
         fence(t.output),
     ].join("\n");
@@ -90,27 +149,26 @@ const occurrence = (t, ctx) =>
 /**
  * The new issue's title: the tracker's shape, with this source's word.
  * @param t - the failing test
+ * @param ctx - the run
  * @returns the title
  */
-const issueTitle = (t) => `Load-sensitive test: ${t.name} (${t.package})`.slice(0, 250);
+const issueTitle = (t, ctx) => `${words(ctx).title}: ${t.name} (${t.package})`.slice(0, 250);
 
 /**
  * The new issue's body, ending in the tracker's marker line.
  * @param t - the failing test
- * @param ctx - the run: restriction, runUrl, sha
+ * @param ctx - the run: source, restriction, runUrl, sha
  * @returns the body
  */
 export const issueBody = (t, ctx) =>
     [
-        `\`${t.file}\` > ${t.name} fails when CPU is scarce.`,
+        `\`${t.file}\` > ${t.name} ${words(ctx).what}.`,
         "",
-        "Source: load-sensitive under restricted CPU (the weekly restricted-CPU stress run), not proven flaky. " +
-            "The test failed with the shard confined to a fixed CPU quota on a GitHub-hosted runner; a healthy " +
-            "test passes there too. It needs a fix that does not depend on how fast the machine is.",
+        words(ctx).why,
         "",
         occurrence(t, ctx),
         "",
-        "The weekly restricted-CPU stress run files and updates this issue (.github/workflows/restricted-cpu-stress.yml).",
+        words(ctx).by,
         "",
         `${MARKER}${t.id}`,
     ].join("\n");
@@ -119,7 +177,7 @@ export const issueBody = (t, ctx) =>
  * What to write: one action per failing test, against the issues that already carry its marker.
  * @param failures - the failing tests from junitFailures (duplicates allowed)
  * @param issues - the issues labelled intermittent, as the REST API lists them
- * @param ctx - the run: restriction, runUrl, sha
+ * @param ctx - the run: source, restriction, runUrl, sha
  * @returns per test, `{create: {title, body, labels}}` or `{issue, reopen, comment}`
  */
 export function plan(failures, issues, ctx) {
@@ -131,11 +189,12 @@ export function plan(failures, issues, ctx) {
     }
     return tests.map((t) => {
         const found = issues.find((i) => !i.pull_request && (i.body ?? "").split("\n").includes(`${MARKER}${t.id}`));
-        if (!found) return { create: { title: issueTitle(t), body: issueBody(t, ctx), labels: LABELS } };
+        if (!found)
+            return { create: { title: issueTitle(t, ctx), body: issueBody(t, ctx), labels: words(ctx).labels } };
         return {
             issue: found.number,
             reopen: found.state === "closed",
-            comment: ["Again, load-sensitive under restricted CPU:", "", occurrence(t, ctx)].join("\n"),
+            comment: [words(ctx).again, "", occurrence(t, ctx)].join("\n"),
         };
     });
 }
@@ -193,9 +252,18 @@ async function perform(a, request, repo) {
 }
 
 async function main() {
-    const [dir] = process.argv.slice(2);
+    const [dir, source] = process.argv.slice(2);
+    if (dir === "--matrix") {
+        console.log(`test-matrix=${JSON.stringify({ include: huntMatrix(source) })}`);
+        return;
+    }
     const { GITHUB_REPOSITORY: repo, GITHUB_TOKEN: token, DRY_RUN, GITHUB_STEP_SUMMARY } = process.env;
-    const ctx = { restriction: process.env.RESTRICTION, runUrl: process.env.RUN_URL, sha: process.env.SHA };
+    const ctx = {
+        source: process.env.SOURCE || "stress",
+        restriction: process.env.RESTRICTION,
+        runUrl: process.env.RUN_URL,
+        sha: process.env.SHA,
+    };
     const request = async (method, path, body) => {
         const res = await fetch(`https://api.github.com${path}`, {
             method,
@@ -216,7 +284,7 @@ async function main() {
             lines.push(await perform(a, request, repo));
         }
     }
-    if (!actions.length) lines.push("No test failed under the restriction.");
+    if (!actions.length) lines.push("No test failed.");
     console.log(lines.join("\n"));
     const summary = lines.map((l) => "- " + l).join("\n");
     if (GITHUB_STEP_SUMMARY) appendFileSync(GITHUB_STEP_SUMMARY, summary + "\n");

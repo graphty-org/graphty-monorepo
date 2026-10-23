@@ -7,14 +7,25 @@
 //   node --test tools/vitest-time-budget.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { annotations, changedFiles, enabled, FAIL_RATIO, format, judge, WARN_RATIO } from "./vitest-time-budget.mjs";
+import {
+    annotations,
+    changedFiles,
+    enabled,
+    FAIL_RATIO,
+    format,
+    formatGate,
+    gateJudge,
+    HISTORY_KEEP,
+    judge,
+    WARN_RATIO,
+} from "./vitest-time-budget.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "time-budget-"));
@@ -106,6 +117,57 @@ describe("judge", () => {
     it("matches the allowlist by file and full name together", () => {
         const listed = [{ file: "pkg/test/other.test.ts", name: "suite > case" }];
         assert.equal(judge([test({ duration: 900 })], listed, changed).fail.length, 1);
+    });
+});
+
+describe("gateJudge (the pre-push gate)", () => {
+    const key = "pkg/test/a.test.ts\0suite > case\0default";
+    const hist = (...ratios) => ({ [key]: ratios });
+
+    it("fails a test that was under half in every earlier run and is now 1.5x its slowest, and does not record it", () => {
+        const { over, next } = gateJudge([test({ duration: 600 })], [], hist(0.2, 0.3, 0.35));
+        assert.equal(over.length, 1);
+        assert.equal(over[0].regressed, true);
+        assert.equal(over[0].slowest, 0.35);
+        assert.deepEqual(next[key], [0.2, 0.3, 0.35]);
+    });
+
+    it("only lists a test over half that is within 1.5x of its slowest earlier run (a busy machine)", () => {
+        const { over, next } = gateJudge([test({ duration: 520 })], [], hist(0.2, 0.3, 0.4));
+        assert.equal(over[0].regressed, false);
+        assert.deepEqual(next[key], [0.2, 0.3, 0.4, 0.52]);
+    });
+
+    it("never fails a test with too little history, one already over half before, or an allowlisted one", () => {
+        assert.equal(gateJudge([test({ duration: 900 })], [], hist(0.1, 0.1)).over[0].regressed, false);
+        assert.equal(gateJudge([test({ duration: 900 })], [], hist(0.1, 0.1, 0.55)).over[0].regressed, false);
+        const listed = [{ file: "pkg/test/a.test.ts", name: "suite > case" }];
+        assert.equal(gateJudge([test({ duration: 900 })], listed, hist(0.1, 0.1, 0.1)).over[0].regressed, false);
+    });
+
+    it("keeps the last HISTORY_KEEP ratios of every judged test, and skips what judge() skips", () => {
+        const { over, next } = gateJudge(
+            [test({ duration: 100 }), test({ name: "x", state: "failed" }), test({ name: "b", project: "bench" })],
+            [],
+            hist(0.1, 0.1, 0.1, 0.1, 0.1),
+        );
+        assert.equal(over.length, 0);
+        assert.equal(next[key].length, HISTORY_KEEP);
+        assert.equal(next[key].at(-1), 0.1);
+        assert.deepEqual(Object.keys(next), [key]);
+    });
+
+    it("lists the tests over half, slowest first, marking and explaining the ones this push slowed", () => {
+        assert.equal(formatGate([]), "");
+        const text = formatGate([
+            { ...test({ name: "a", duration: 600 }), ratio: 0.6, regressed: false, slowest: null },
+            { ...test({ name: "b", duration: 900 }), ratio: 0.9, regressed: true, slowest: 0.3 },
+        ]);
+        assert.match(text, /2 test\(s\) used more than 50% of their time limit in this gate run/);
+        assert.ok(text.indexOf("> b") < text.indexOf("> a"), "slowest first");
+        assert.match(text, /> b \[default\][\s\S]*at most 30% in earlier gate runs {2}SLOWED BY THIS CHANGE/);
+        assert.match(text, /Split it into several tests/);
+        assert.match(text, /1 of them were under 50% in every earlier gate run/);
     });
 });
 
@@ -278,6 +340,37 @@ describe("in a vitest run", () => {
         assert.equal(status, 0, output);
         assert.match(output, /1 allowlisted test\(s\) now run under 50% of their limit/);
         assert.match(output, /a\.test\.js > steady/);
+    });
+
+    it("in the gate, lists a test over half and fails once it is 1.5x slower than every earlier gate run", () => {
+        const dir = mkdtempSync(join(TMP, "gate-"));
+        const gate = {
+            VITEST_BUDGET_CHECK: "1",
+            VITEST_BUDGET_GATE: join(dir, "gate.jsonl"),
+            VITEST_BUDGET_HISTORY: join(dir, "h.json"),
+        };
+        // "slower" (67%) with a history of 30%: slowed by this change
+        writeFileSync(gate.VITEST_BUDGET_HISTORY, JSON.stringify({ "a.test.js\0slower\0": [0.3, 0.3, 0.3] }));
+        const failing = run([], gate);
+        assert.equal(failing.status, 1, failing.output);
+        assert.match(failing.output, /a\.test\.js > slower[\s\S]*SLOWED BY THIS CHANGE/);
+        const lines = readFileSync(gate.VITEST_BUDGET_GATE, "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l));
+        assert.deepEqual(
+            lines.map((t) => [t.name, t.regressed]),
+            [["slower", true]],
+        );
+        const history = JSON.parse(readFileSync(gate.VITEST_BUDGET_HISTORY, "utf8"));
+        assert.deepEqual(history["a.test.js\0slower\0"], [0.3, 0.3, 0.3], "a regression is not recorded");
+        assert.equal(history["a.test.js\0slow\0"].length, 1);
+        // with no history it is only listed
+        rmSync(gate.VITEST_BUDGET_HISTORY);
+        rmSync(gate.VITEST_BUDGET_GATE);
+        const listed = run([], gate);
+        assert.equal(listed.status, 0, listed.output);
+        assert.ok(existsSync(gate.VITEST_BUDGET_GATE));
     });
 
     it("does nothing when the check is off", () => {

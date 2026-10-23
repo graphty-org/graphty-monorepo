@@ -31,6 +31,20 @@
 // Not checked: tests that did not pass (a timeout already fails), tests with no limit (timeout 0),
 // and the timing projects that gate nothing (bench projects, *.bench.test.ts, llm-regression).
 //
+// In the pre-push gate (tools/prepush-tests.mjs sets VITEST_BUDGET_CHECK=1, VITEST_BUDGET_GATE and
+// VITEST_BUDGET_HISTORY) two more things happen, because a gate run on a shared machine cannot use the
+// one-run line above but can compare a test with itself:
+// - Every test over FAIL_RATIO is appended as a JSON line to VITEST_BUDGET_GATE; the gate prints them
+//   all once at its end, so each landing shows the tests to split.
+// - VITEST_BUDGET_HISTORY keeps each test's last HISTORY_KEEP ratios from earlier gate runs, on any
+//   branch. A test that was under FAIL_RATIO in all of them (at least HISTORY_MIN) and is now over it
+//   AND at least REGRESSION_FACTOR times its slowest recorded ratio fails the run: the change being
+//   pushed made it slower. Comparing with the slowest earlier ratio, not the average, is what keeps a
+//   busy machine from failing it (earlier busy runs are in the history too). Such a run's ratio is not
+//   recorded, so the slowdown keeps failing until it is fixed or the test is allowlisted. The slowdown
+//   the act() warning flood caused in graphty's tests (about 6x, 2026-10-22) would have failed the
+//   landing that introduced it.
+//
 // tools/vitest-time-budget-allowlist.json lists slow tests in changed files that could not be cut in
 // their pull request, each with the issue that tracks cutting it. A listed test never fails the run (it
 // still warns); a listed test that comes in under FAIL_RATIO is reported as removable. Never raise a
@@ -38,13 +52,16 @@
 //
 //   node --test tools/vitest-time-budget.test.mjs
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 export const WARN_RATIO = 0.25;
 export const FAIL_RATIO = 0.5;
+export const HISTORY_KEEP = 5;
+export const HISTORY_MIN = 3;
+export const REGRESSION_FACTOR = 1.5;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ALLOWLIST = join(ROOT, "tools/vitest-time-budget-allowlist.json");
 const EXEMPT_PROJECT = /bench|^llm-regression$/;
@@ -117,6 +134,76 @@ export function judge(tests, allowlist, changed = null) {
     }
     return { fail, warn, removable };
 }
+
+const historyKey = (t) => `${t.file}\0${t.name}\0${t.project ?? ""}`;
+
+/**
+ * The pre-push gate's judgement: the tests over FAIL_RATIO, and which of them a change made slow.
+ * @param tests - judged tests as judge() takes them
+ * @param allowlist - { file, name } entries; a listed test is never a regression
+ * @param history - { key: ratios } from earlier gate runs
+ * @returns over: every passed test over FAIL_RATIO (with `ratio` and `regressed`); next: the history
+ *   with this run's ratios added, except those of regressed tests
+ */
+export function gateJudge(tests, allowlist, history) {
+    const listed = new Set(allowlist.map((t) => `${t.file}\0${t.name}`));
+    const over = [];
+    const next = { ...history };
+    for (const t of tests) {
+        if (t.state !== "passed" || typeof t.limit !== "number" || t.limit <= 0) continue;
+        if (EXEMPT_PROJECT.test(t.project) || EXEMPT_FILE.test(t.file)) continue;
+        const ratio = t.duration / t.limit;
+        const before = history[historyKey(t)] ?? [];
+        const slowest = Math.max(0, ...before);
+        const regressed =
+            ratio > FAIL_RATIO &&
+            !listed.has(`${t.file}\0${t.name}`) &&
+            before.length >= HISTORY_MIN &&
+            slowest <= FAIL_RATIO &&
+            ratio >= REGRESSION_FACTOR * slowest;
+        if (ratio > FAIL_RATIO) over.push({ ...t, ratio, regressed, slowest: before.length ? slowest : null });
+        if (!regressed) next[historyKey(t)] = [...before, Math.round(ratio * 1000) / 1000].slice(-HISTORY_KEEP);
+    }
+    return { over, next };
+}
+
+/**
+ * The gate's end-of-run list of the tests over FAIL_RATIO, from the lines the shards appended.
+ * @param entries - gateJudge()'s `over` entries, from every shard
+ * @returns the text to print, empty when there are none
+ */
+export function formatGate(entries) {
+    if (entries.length === 0) return "";
+    const sorted = [...entries].sort((a, b) => b.ratio - a.ratio);
+    const regressed = sorted.filter((t) => t.regressed);
+    const text = [
+        `[time-budget] ${sorted.length} test(s) used more than ${percent(FAIL_RATIO)} of their time limit in this gate run:`,
+        ...sorted.map((t) => {
+            const was = t.slowest === null ? "" : `, at most ${percent(t.slowest)} in earlier gate runs`;
+            const mark = t.regressed ? "  SLOWED BY THIS CHANGE" : "";
+            return `${line(t)}${was}${mark}`;
+        }),
+        "  Each is close to failing on a busy machine. Split it into several tests or cut its work (a smaller",
+        "  graph, fewer steps, no needless waiting); never raise its timeout.",
+    ];
+    if (regressed.length > 0) {
+        text.push(
+            `  ${regressed.length} of them were under ${percent(FAIL_RATIO)} in every earlier gate run and are now at least ` +
+                `${REGRESSION_FACTOR}x slower: this push slowed them, which fails the gate. Find what made them slower ` +
+                "(a warning flood, a wait added in shared code) and fix it, or list the test in " +
+                "tools/vitest-time-budget-allowlist.json with the issue that tracks it.",
+        );
+    }
+    return text.join("\n");
+}
+
+const readJson = (path, fallback) => {
+    try {
+        return JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+        return fallback;
+    }
+};
 
 const seconds = (ms) => `${(ms / 1000).toFixed(2)} s`;
 const percent = (r) => `${Math.round(r * 100)}%`;
@@ -227,6 +314,21 @@ export default class TimeBudgetReporter {
         const text = format(result);
         if (text) {
             console.error(`\n${text}\n`);
+        }
+        const { VITEST_BUDGET_GATE: gate, VITEST_BUDGET_HISTORY: historyPath } = process.env;
+        if (gate && historyPath) {
+            // ponytail: read-modify-write without a lock; two shards ending together can lose one run's
+            // ratios, which only delays a test's history by a run. Add a lock if that ever matters.
+            const { over, next } = gateJudge(this.tests, allowlist, readJson(historyPath, {}));
+            mkdirSync(dirname(historyPath), { recursive: true });
+            writeFileSync(`${historyPath}.${process.pid}`, JSON.stringify(next));
+            renameSync(`${historyPath}.${process.pid}`, historyPath);
+            for (const t of over) appendFileSync(gate, JSON.stringify(t) + "\n");
+            const regressed = over.filter((t) => t.regressed);
+            if (regressed.length > 0) {
+                console.error(`\n${formatGate(regressed)}\n`);
+                process.exitCode = 1;
+            }
         }
         if (process.env.GITHUB_ACTIONS === "true") {
             for (const annotation of annotations(result)) {

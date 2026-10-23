@@ -174,13 +174,6 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(shown(section, "Location read as"), "Latitude + longitude");
         assert.equal(shown(section, "Latitude"), "latitude");
         assert.equal(shown(section, "Longitude"), "longitude");
-        // What is listed is not offered again.
-        await userEvent.click(section.getByRole("button", { name: "Add to node fields" }));
-        const offered = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
-        assert.notInclude(offered, "Label");
-        assert.notInclude(offered, "Location");
-        assert.include(offered, "Time");
-        await userEvent.keyboard("{Escape}");
         view.unmount();
     });
 

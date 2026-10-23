@@ -9,7 +9,7 @@ export const APP_GLOBE_LOOK: GlobeLook = { atmosphere: true, background: "#05070
 
 /**
  * The picture the app wraps onto a globe of world data when the reader has chosen no map: NASA's
- * Blue Marble satellite mosaic, free and keyless, loaded only for the tiles in view and finer as
+ * Blue Marble satellite mosaic with the sea floor's relief, free and keyless, loaded only for the tiles in view and finer as
  * the camera comes down to the surface. The bundled Natural Earth picture shows while it loads.
  */
-export const APP_GLOBE_SOURCE = "nasa-gibs-blue-marble";
+export const APP_GLOBE_SOURCE = "nasa-gibs-blue-marble-bathymetry";

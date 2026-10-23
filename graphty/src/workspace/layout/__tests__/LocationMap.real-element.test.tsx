@@ -420,7 +420,7 @@ describe("the location map", () => {
         await layOutOnMap(element);
         await waitFor(
             () => {
-                assert.deepEqual(element.session.layout.options.map, { source: "nasa-gibs-blue-marble" });
+                assert.deepEqual(element.session.layout.options.map, { source: "nasa-gibs-blue-marble-bathymetry" });
             },
             { timeout: TIMEOUT_MS },
         );

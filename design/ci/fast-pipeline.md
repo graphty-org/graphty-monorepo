@@ -516,11 +516,11 @@ Decided by the owner on 2026-10-23 ("I'm fine with deferring downstream tests"):
    packages reached only as dependents or readers of a changed package: a graph-io change no longer
    runs graphty-element's or the graphty app's shards before landing. A change to a shared root file
    (nx's sharedGlobals, the lockfile, the rules' "everything" list) still runs everything. The switch is
-   `PREPUSH_DEFER_DOWNSTREAM` in `tools/prepush-tests.mjs`. It stays off until verification confirms a
-   failure before a culprit is reverted: today a bisect re-runs the failing commit once and judges each
-   probe by one run, over every first-parent commit, so an intermittent failure that happens to fail
-   twice can name an innocent landing (design/ci/integrated-cicd-plan.md, stage 2b, asks for five
-   confirming runs and probes on `land:` merges only).
+   `PREPUSH_DEFER_DOWNSTREAM` in `tools/prepush-tests.mjs`, on by default since 2026-10-23
+   (`PREPUSH_DEFER_DOWNSTREAM=0` turns it off), now that verification names a culprit only on a failure
+   that fails all five confirming runs of its test files, bisects only `land:` merges, judges each probe by
+   the same five-run rule and requires the culprit's parent to pass every run; a test that passes any
+   confirming run goes to the quarantine, never to a revert.
 
 ## 10. Build order
 

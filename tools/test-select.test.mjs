@@ -229,8 +229,8 @@ describe("deferring downstream packages' tests (landing checks)", () => {
         assert.deepEqual([...new Set(shared)].sort(), ["graph-format", "graph-io", "graphty", "graphty-element"]);
     });
 
-    it("is off unless PREPUSH_DEFER_DOWNSTREAM=1", () => {
-        assert.equal(deferDownstreamOn({}), false);
+    it("is on unless PREPUSH_DEFER_DOWNSTREAM=0", () => {
+        assert.equal(deferDownstreamOn({}), true);
         assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "1" }), true);
         assert.equal(deferDownstreamOn({ PREPUSH_DEFER_DOWNSTREAM: "0" }), false);
     });

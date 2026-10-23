@@ -285,6 +285,11 @@ interface FixPlan {
 export interface FoundIssue {
     readonly issue: Omit<DataIssue, "ignored" | "status" | "fixedBy">;
     readonly plan: (fix: FixCode) => FixPlan;
+    /**
+     * The records in the graph the issue is on, by kind; absent for an issue on rows the graph
+     * never held (a blank id, a refused row).
+     */
+    readonly affected?: { readonly kind: "node" | "edge"; readonly ids: readonly (NodeId | EdgeId)[] };
 }
 
 /** The spellings a yes/no column holds, and the truth value each reads as. */
@@ -469,6 +474,7 @@ function columnIssues(
                 params,
                 fixes: fix === null ? [] : [fix],
             },
+            affected: { kind, ids: affected.map((cell) => cell.id) },
             plan: () => ({
                 steps: [
                     writeCells(
@@ -606,6 +612,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 fixes: ["leave-out"],
                 current: "add-nodes",
             },
+            affected: { kind: "edge", ids: touching.map((edge) => edge.id) },
             plan: (fix) =>
                 fix === "add-nodes"
                     ? { steps: [], state: mapFacts(state, forget), result: { nodes: ids.length, edges: 0 } }
@@ -639,6 +646,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 fixes: ["merge-rows"],
                 current: "keep-first",
             },
+            affected: { kind: "node", ids },
             plan: (fix) => ({
                 steps:
                     fix === "merge-rows"
@@ -735,6 +743,7 @@ function repeatedEdges(input: IssueInput): FoundIssue[] {
                 fixes: ["merge"],
                 current: "keep",
             },
+            affected: { kind: "edge", ids: repeats.map((edge) => edge.id) },
             plan: (fix) =>
                 fix === "keep"
                     ? {

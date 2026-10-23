@@ -2780,13 +2780,14 @@ export type Selector = {
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
 * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
-* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`). View state: the layer
+* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+* (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
 * follows each change with no step.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered" | "ghosted";
+    state: "selected" | "hovered" | "ghosted" | "pinned";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),

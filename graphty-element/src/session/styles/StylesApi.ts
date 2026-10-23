@@ -210,6 +210,8 @@ import {
     ghostRow,
     isGhostRow,
     partPatch,
+    PINNED_ROW_ID,
+    pinnedRow,
     retargetSelector,
     rowOf,
     type RowParts,
@@ -1189,7 +1191,10 @@ export interface StylesApi {
      * project setting `startingRows` to true adds them the same way. While a time field is
      * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
      * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
-     * `startingRows` on, designating a field adds it and clearing the field takes it away.
+     * `startingRows` on, designating a field adds it and clearing the field takes it away. While
+     * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
+     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
+     * `startingRows` on, setting `pinnedStyle` adds it and clearing it takes it away.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the rows added, bottom first.
      * @since 3.26.0
@@ -3564,15 +3569,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             layers.push(...plan.layers);
         }
 
-        // The Ghost row exists while a time field is designated: added directly below Selected,
-        // and taken away when the field is cleared.
+        // The Pinned row exists while the pinned look is set: added directly below Selected, and
+        // taken away when the look is cleared.
+        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
+        const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
+        const pinnedParts = stack.filter(isPinnedRow);
+        if (pinnedLook !== undefined && pinnedParts.length === 0) {
+            const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
+            const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
+            const below = selected === -1 ? hovered : selected;
+            const row = pinnedRow(pinnedLook);
+            const plan = planAddRow(row.spec, undefined, { stack, index: below === -1 ? stack.length : below });
+            ({ stack } = plan);
+            rows = reconcile(rows, stack);
+            pins.push([plan.result.id, row.pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
+        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
+            stack = stack.filter((entry) => !isPinnedRow(entry));
+            rows = reconcile(rows, stack);
+            layers.push(...pinnedParts.map((entry) => entry.layer.id));
+        }
+
+        // The Ghost row exists while a time field is designated: added directly below Selected
+        // (and below Pinned), and taken away when the field is cleared.
         const known = dispatcher.services.config?.().data.knownFields;
         const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
         const ghosts = stack.filter(isGhostRow);
         if (timed && ghosts.length === 0) {
+            const pinned = stack.findIndex(isPinnedRow);
             const selected = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
             const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = selected === -1 ? hovered : selected;
+            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
             const ghost = ghostRow();
             const plan = planAddRow(ghost.spec, undefined, { stack, index: below === -1 ? stack.length : below });
             ({ stack } = plan);

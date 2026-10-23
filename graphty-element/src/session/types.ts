@@ -252,6 +252,26 @@ export interface RecordPageOptions {
      * ```
      */
     readonly matching?: { readonly text: string; readonly mode?: SelectionTextMode };
+    /**
+     * Only the records an open issue is on: one issue's id, or the word `"any"` for every open
+     * issue (no issue id is `"any"`).
+     * An ignored issue, an issue the data does not have, and an issue on rows the graph never
+     * held (`blank-id`, `refused-row`) leave the page empty. Combines with `scope`, `matching`,
+     * `sort` and `columns`; `total` counts the matches.
+     *
+     * ```ts
+     * const rows = session.data.nodePage({ issue: "case-variant:node:city" });
+     * ```
+     * @since 3.37.0
+     */
+    readonly issue?: IssueId;
+    /**
+     * Carry each record's open issues as {@link RecordPage.issues}, without narrowing the page:
+     * what marks the affected cells of an unfiltered table. Finding the issues reads every record
+     * once per revision, so it is off by default; a page asked with `issue` carries them anyway.
+     * @since 3.37.0
+     */
+    readonly markIssues?: boolean;
 }
 
 /** Which edges a page holds: {@link RecordPageOptions}, plus the edges at one node. */
@@ -282,6 +302,15 @@ export interface RecordPage<TRecord> {
      * typed as present then, so a page read with `columns` needs no `?? []`.
      */
     readonly columns?: readonly PageColumn[];
+    /**
+     * The open issues each record is on, aligned with `records`: one list of issue ids per
+     * record, empty for a record with none. Present only on a page asked with
+     * {@link RecordPageOptions.issue} or {@link RecordPageOptions.markIssues}, and then absent
+     * when no record on the page is on an open issue. Kept beside the records, not in them,
+     * because a record's keys are its attributes.
+     * @since 3.37.0
+     */
+    readonly issues?: readonly (readonly IssueId[])[];
 }
 
 /** What {@link GraphSession.find} lists. An open set: later releases add kinds. */
@@ -745,7 +774,7 @@ export interface GraphStatistics {
  * How many elements carry each value of one readable path: what `session.data.valueCounts(path)`
  * returns. Unlike {@link ColumnHistogram} it reads any path `data.readableValues()` lists -- a data
  * column, a run's field, a node value read at an edge's end -- and it never bins or truncates.
- * @since 3.31.0
+ * @since 3.37.0
  */
 export interface ValueCounts {
     /** Every value carried, most elements first; a tie keeps the order the values were first seen in. */
@@ -1133,6 +1162,21 @@ export interface SessionDataApi {
      */
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     /**
+     * Ignore several issues, or list them again with `false`, as ONE undoable step saved with
+     * the project: what an "ignore all" reads. Issues already in the state asked for are skipped.
+     *
+     * ```ts
+     * await session.data.ignoreIssues(session.data.issues());
+     * ```
+     * @param issues - the issues, or their ids
+     * @param ignored - true (the default) to ignore, false to list them again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason: "unknown-issue"`) when
+     *     ignoring an issue the data does not have now; nothing is ignored then.
+     * @since 3.37.0
+     */
+    ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
+    /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
      * restores the old one.
@@ -1454,7 +1498,7 @@ export interface SessionDataApi {
      * @param options.kind - Nodes or edges; by default the kind `readableValues()` lists the path
      *     on, nodes first.
      * @returns The counts, most elements first.
-     * @since 3.31.0
+     * @since 3.37.0
      */
     valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
@@ -2507,6 +2551,20 @@ export interface ProjectConfig {
     /** What a selected node's halo looks like. */
     readonly selectionStyle: GraphSelectionStyleConfig;
     /**
+     * What a pinned node's halo looks like, in the shape of {@link ProjectConfig.selectionStyle}
+     * (only `color`, `scale` and `opacity` are read). Absent by default. Set while
+     * {@link ProjectConfig.startingRows} is on, the starting rows gain a fifth, Pinned (nodes in
+     * the state `"pinned"`, pinned to the top directly below Selected, drawing this halo); cleared,
+     * the row is taken away. The look is the consumer's choice, so nothing is drawn for a pinned
+     * node until it is set.
+     *
+     * ```ts
+     * await session.config.set({ startingRows: true, pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+     * ```
+     * @since 3.37.0
+     */
+    readonly pinnedStyle?: GraphSelectionStyleConfig;
+    /**
      * Whether the style tree starts with its three starting rows: Everything (pinned to the
      * bottom, writing nothing), Selected (pinned to the top, drawing a solid near-black node halo
      * with a white glow and a near-black edge band, at the selection settings' sizes, which
@@ -2577,6 +2635,8 @@ export interface ProjectConfigPatch {
     readonly runAlgorithmsOnLoad?: boolean;
     readonly background?: GraphBackgroundConfig;
     readonly selectionStyle?: GraphSelectionStyleInput;
+    /** See {@link ProjectConfig.pinnedStyle}; `undefined` clears it. */
+    readonly pinnedStyle?: GraphSelectionStyleInput;
     /** See {@link ProjectConfig.startingRows}. */
     readonly startingRows?: boolean;
     /** See {@link ProjectConfig.editableBase}. */
@@ -2866,6 +2926,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
  * | `data.fix-issue` | `issue`: the issue's id; `code`: its code; `fix`: the fix; `count`: the issue's count before |
  * | `data.ignore-issue` | `issue`: the issue's id; `ignored`: true when ignored, false when listed again |
+ * | `data.ignore-issues` | `issues`: the issues' ids; `ignored`: true when ignored, false when listed again |
  * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
@@ -2944,6 +3005,7 @@ export type HistoryCode =
     | "data.edit"
     | "data.fix-issue"
     | "data.ignore-issue"
+    | "data.ignore-issues"
     | "data.issues"
     | "data.clear"
     | "data.set"
@@ -3392,7 +3454,7 @@ export interface SessionLayout {
      * @param option - The option's name.
      * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
      * @returns The answer; every other option is `setting.inEffect`.
-     * @since 3.31.0
+     * @since 3.37.0
      */
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     /**
@@ -3407,12 +3469,12 @@ export interface SessionLayout {
      * await session.config.set({ data: { knownFields: { nodeLatitudePath: "lat", nodeLongitudePath: "lon" } } });
      * ```
      * @returns The columns; `from` is `none` when nothing reads as a location.
-     * @since 3.31.0
+     * @since 3.37.0
      */
     locationColumns(): LocationColumns;
 }
 
-/** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.31.0 */
+/** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.37.0 */
 export interface LocationColumns {
     /** `designated` in `data.knownFields`, `detected` by name or values, or `none` found. */
     readonly from: "designated" | "detected" | "none";
@@ -3712,7 +3774,7 @@ export interface GraphSession {
      * nodes its data placed (`seededNodeCount`), and whether its nodes carry geographic locations
      * the location map layout can read.
      * @returns The recommendation, or undefined when the catalogue serves none.
-     * @since 3.31.0
+     * @since 3.37.0
      */
     recommendLayout(): LayoutRecommendation | undefined;
     /**

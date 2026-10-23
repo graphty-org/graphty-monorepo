@@ -834,6 +834,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { selectionStyle: { color: "#00ff00", scale: 2 } } },
     },
     {
+        name: "config.set pinnedStyle",
+        variant: "pinnedStyle",
+        tags: BOTH,
+        command: { op: "config.set", values: { pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } } },
+    },
+    {
         name: "config.set startingRows",
         variant: "startingRows",
         tags: BOTH,

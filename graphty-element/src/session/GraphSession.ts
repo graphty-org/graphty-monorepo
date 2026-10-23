@@ -1433,6 +1433,9 @@ function configOf(
         get selectionStyle() {
             return read().selectionStyle;
         },
+        get pinnedStyle() {
+            return read().pinnedStyle;
+        },
         get startingRows() {
             return read().startingRows;
         },
@@ -3249,6 +3252,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         repaintStates({ node: changedBytes(before?.node, now.node), edge: changedBytes(before?.edge, now.edge) });
     };
+    // A pin or an unpin, forward or on undo and redo, repaints the nodes whose pin moved, for a
+    // `"pinned"` state layer. Registered after the arrangement's own hook, so the lane's pin bytes
+    // that `inState` reads already agree.
+    dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
+        const graph = snapshot();
+        repaintStates({
+            node: [...dirty].flatMap((key) => {
+                const row = graph.ids.indexOf(nodeOfKey(key));
+                return row === INVALID_INDEX ? [] : [row];
+            }),
+            edge: [],
+        });
+    });
     // The live scopes `{match:"member"}` layers test (design/sets 11): each watches its scope and
     // repaints exactly the elements that moved, or both halves whole after a freeze.
     const layerScopes = new LayerScopes({
@@ -3299,6 +3315,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             inState: (state, target, index) => {
                 if (state === "ghosted") {
                     return visibility.ghosted(target, index);
+                }
+
+                if (state === "pinned") {
+                    return target === "node" && store.store.positions.isPinned(index);
                 }
 
                 const owner = requireSelection(selection);

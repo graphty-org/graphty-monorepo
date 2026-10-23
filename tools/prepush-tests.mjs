@@ -471,6 +471,7 @@ export function rerunOnBase(shard, base, files, main) {
         const what = command ? files.join(", ") : "the whole shard";
         console.log(`  [BASE] ${shard.shard}: running ${what} on golden's tip ${base.slice(0, 10)}`);
         const log = join(ROOT, "tmp/prepush-tests", `${shard.shard}-base.log`);
+        mkdirSync(dirname(log), { recursive: true });
         const runId = ledger.newRunId(shard.shard);
         const t0 = Date.now();
         const argv = shardArgv(orig, command);

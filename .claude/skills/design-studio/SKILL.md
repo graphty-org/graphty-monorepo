@@ -159,6 +159,9 @@ Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/`
 `report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
 `tier<N>/dry-run-r<r>-<pass>.md`; fix groups the re-walk rejected in `tier<N>/rejected-fixes.md`.
 The pilot reports and triage are committed after every pass.
+Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): the pre-push gate
+refuses more than 20 new images or 20 MB outside the image folders (`tools/check-committed-images.mjs`);
+an `Images-Approved: <reason>` trailer passes a deliberate few, such as mockups.
 
 ## Keeping the owner informed
 

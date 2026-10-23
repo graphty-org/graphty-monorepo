@@ -127,8 +127,11 @@ export const TwoSources: Story = {
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
         await userEvent.click(
-            await within(canvasElement).findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)),
+            await within(canvasElement).findByRole("button", { name: "Add filter step" }, storyWaitOptions(1000)),
         );
-        await within(document.body).findByRole("menuitem", { name: "Data source" }, storyWaitOptions(1000));
+        await userEvent.click(
+            await within(document.body).findByRole("button", { name: "Add a condition" }, storyWaitOptions(1000)),
+        );
+        await within(document.body).findByRole("option", { name: /^Data source(,|$)/ }, storyWaitOptions(1000));
     },
 };

@@ -89,7 +89,7 @@ describe("the file-style paths", () => {
         assert.isUndefined(parseFileStylePath("graphty.style.gexf.node"));
         assert.isUndefined(parseFileStylePath("graphty.notes.count"));
         assert.strictEqual(computedPath("degree"), "graphty.degree");
-        assert.strictEqual(computedOf("graphty.indegree"), "indegree");
+        assert.strictEqual(computedOf("graphty.inDegree"), "indegree");
         assert.isUndefined(computedOf("graphty.degrees"));
     });
 
@@ -298,13 +298,13 @@ describe("the live degree paths", () => {
         const hubs = await session.styles.add({
             name: "Two out",
             target: "node",
-            selector: { match: "expression", where: "graphty.outdegree >= `2`" },
+            selector: { match: "expression", where: "graphty.outDegree >= `2`" },
             set: { "node.color": "#ff0000" },
         });
         const sinks = await session.styles.add({
             name: "Two in",
             target: "node",
-            selector: { match: "expression", where: "graphty.indegree >= `2`" },
+            selector: { match: "expression", where: "graphty.inDegree >= `2`" },
             set: { "node.color": "#0000ff" },
         });
 

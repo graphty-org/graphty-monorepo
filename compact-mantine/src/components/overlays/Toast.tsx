@@ -51,6 +51,12 @@ export interface ToastProps extends Omit<
     onClose?: () => void;
     /** The dismiss button's accessible name. @default "Dismiss" */
     closeLabel?: string;
+    /**
+     * Whether the message is its own alert. Set it to false when the caller speaks the message
+     * itself, through a status line already on the page, so it is said once and politely.
+     * @default true
+     */
+    alert?: boolean;
 }
 
 /**
@@ -64,10 +70,11 @@ export interface ToastProps extends Omit<
  * @param props.withCloseButton - Show the dismiss X
  * @param props.onClose - Called when the dismiss X is pressed
  * @param props.closeLabel - The dismiss button's accessible name
+ * @param props.alert - Whether the message is its own alert
  * @returns The toast
  */
 export const Toast = forwardRef<HTMLDivElement, ToastProps>(function Toast(
-    { message, icon, action, withCloseButton = false, onClose, closeLabel = "Dismiss", ...props },
+    { message, icon, action, withCloseButton = false, onClose, closeLabel = "Dismiss", alert = true, ...props },
     ref,
 ) {
     return (
@@ -80,7 +87,7 @@ export const Toast = forwardRef<HTMLDivElement, ToastProps>(function Toast(
             data-testid="toast"
             {...props}
         >
-            <span role="alert" className="cm-toast-message">
+            <span role={alert ? "alert" : undefined} className="cm-toast-message">
                 {icon}
                 {message}
             </span>

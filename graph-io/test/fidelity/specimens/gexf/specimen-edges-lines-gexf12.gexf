@@ -1,0 +1,525 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:viz="http://www.gexf.net/1.2draft/viz" version="1.2">
+  <meta lastmodifieddate="2026-10-18">
+    <creator>graphty gexf-gephi specimen generator</creator>
+    <description>The edges sheet written in GEXF 1.2draft (namespace http://www.gexf.net/1.2draft and its viz module): weight, viz:thickness, viz:color, viz:shape, loops and parallel edges. 1.2draft has no hex colors.</description>
+  </meta>
+  <graph mode="static" defaultedgetype="undirected">
+    <nodes>
+      <node id="anchor-nw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-ne">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="880"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-sw">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="20" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="anchor-se">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1180" y="20"/>
+        <viz:size value="3"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="58" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="default-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="134" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-default" label="edge=unset">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="96" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-0-5-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="170" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-0-5-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="246" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-0-5" label="weight=0.5">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="208" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-1-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="282" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-1-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="358" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-1" label="weight=1">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="320" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-2-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="394" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-2-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="470" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-2" label="weight=2">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="432" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-4-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="506" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-4-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="582" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-4" label="weight=4">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="544" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-8-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="618" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="weight-8-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="694" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-weight-8" label="weight=8">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="656" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-1-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="730" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-1-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="806" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-thickness-1" label="thickness=1">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="768" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-4-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="842" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-4-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="918" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-thickness-4" label="thickness=4">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="880" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-8-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="954" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="thickness-8-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1030" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-thickness-8" label="thickness=8">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="992" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-red-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1066" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-red-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1142" y="737.33"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-color-red" label="rgb=255,0,0">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1104" y="697.33"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-blue-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="58" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-blue-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="134" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-color-blue" label="rgb=0,0,255">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="96" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-alpha-0-5-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="170" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="color-alpha-0-5-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="246" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-color-alpha-0-5" label="a=0.5">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="208" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="end-colors-s">
+        <viz:color r="255" g="0" b="0"/>
+        <viz:position x="282" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="end-colors-t">
+        <viz:color r="0" g="0" b="255"/>
+        <viz:position x="358" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-end-colors" label="ends=red,blue">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="320" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-solid-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="394" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-solid-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="470" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-shape-solid" label="shape=solid">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="432" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-dotted-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="506" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-dotted-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="582" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-shape-dotted" label="shape=dotted">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="544" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-dashed-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="618" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-dashed-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="694" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-shape-dashed" label="shape=dashed">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="656" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-double-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="730" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="shape-double-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="806" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-shape-double" label="shape=double">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="768" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="self-loop-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="842" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-self-loop" label="loop=self">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="880" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="parallel-same-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="954" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="parallel-same-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1030" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-parallel-same" label="parallel=2 same">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="992" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="parallel-kind-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1066" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="parallel-kind-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="1142" y="464"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-parallel-kind" label="parallel=2 kinds">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1104" y="424"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="reverse-pair-s">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="58" y="190.67"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="reverse-pair-t">
+        <viz:color r="200" g="200" b="200"/>
+        <viz:position x="134" y="190.67"/>
+        <viz:size value="4"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-reverse-pair" label="pair=a-b b-a">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="96" y="150.67"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
+    </nodes>
+    <edges>
+      <edge id="default" source="default-s" target="default-t"/>
+      <edge id="weight-0-5" source="weight-0-5-s" target="weight-0-5-t" weight="0.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-1" source="weight-1-s" target="weight-1-t" weight="1">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-2" source="weight-2-s" target="weight-2-t" weight="2">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-4" source="weight-4-s" target="weight-4-t" weight="4">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="weight-8" source="weight-8-s" target="weight-8-t" weight="8">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="thickness-1" source="thickness-1-s" target="thickness-1-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="thickness-4" source="thickness-4-s" target="thickness-4-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="4"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="thickness-8" source="thickness-8-s" target="thickness-8-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="8"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="color-red" source="color-red-s" target="color-red-t" weight="1.5">
+        <viz:color r="255" g="0" b="0"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="color-blue" source="color-blue-s" target="color-blue-t" weight="1.5">
+        <viz:color r="0" g="0" b="255"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="color-alpha-0-5" source="color-alpha-0-5-s" target="color-alpha-0-5-t" weight="1.5">
+        <viz:color r="255" g="0" b="0" a="0.5"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="end-colors" source="end-colors-s" target="end-colors-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="shape-solid" source="shape-solid-s" target="shape-solid-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="shape-dotted" source="shape-dotted-s" target="shape-dotted-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="shape-dashed" source="shape-dashed-s" target="shape-dashed-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="shape-double" source="shape-double-s" target="shape-double-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="self-loop" source="self-loop-s" target="self-loop-s" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="parallel-same" source="parallel-same-s" target="parallel-same-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="parallel-same-2" source="parallel-same-s" target="parallel-same-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="parallel-kind" source="parallel-kind-s" target="parallel-kind-t" kind="a" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="parallel-kind-2" source="parallel-kind-s" target="parallel-kind-t" kind="b" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="reverse-pair" source="reverse-pair-s" target="reverse-pair-t" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+      <edge id="reverse-pair-2" source="reverse-pair-t" target="reverse-pair-s" weight="1.5">
+        <viz:color r="80" g="80" b="80"/>
+        <viz:thickness value="1.5"/>
+        <viz:shape value="solid"/>
+      </edge>
+    </edges>
+  </graph>
+</gexf>

@@ -17,6 +17,7 @@
 export {
     createSelectionApi,
     DEFAULT_SELECTION_CAP,
+    type RuleCheck,
     type SelectionApi,
     type SelectionAttributeStatistics,
     type SelectionCause,
@@ -26,6 +27,7 @@ export {
     type SelectionSources,
     type SelectionStatistics,
     SET_OPS,
+    type UnknownRulePath,
 } from "./SelectionApi";
 export {
     type ElementIdTarget,

@@ -1,0 +1,7 @@
+# T13 setup: Les Miserables sample with Louvain run
+--click No thanks
+--click Open the Les Miserables sample
+--key Shift+A
+--type Louvain
+--click Louvain
+--click Run

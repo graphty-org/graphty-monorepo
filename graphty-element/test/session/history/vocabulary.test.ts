@@ -230,7 +230,7 @@ describe("the vocabulary", () => {
         );
     });
 
-    it("view.immersive from 2D and from 3D, and layout.transport, leave the state digest unchanged", async () => {
+    it("view.immersive from 3D, and layout.transport, leave the state digest unchanged", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);
         dispatcher.services.layout = {
@@ -239,20 +239,47 @@ describe("the vocabulary", () => {
             immersive: () => Promise.resolve(),
         };
 
-        for (const dimension of ["2d", "3d"] as const) {
-            await session.layout.setDimension(dimension);
-            for (const command of [
-                { op: "view.immersive", mode: "ar" },
-                { op: "view.immersive", mode: null },
-                { op: "layout.transport", action: "pause" },
-            ] as const) {
-                const before = stateDigest(dispatcher.state);
-                const steps = session.history.steps.length;
-                await session.execute(command);
-                assert.strictEqual(stateDigest(dispatcher.state), before, `${JSON.stringify(command)} in ${dimension}`);
-                assert.strictEqual(session.history.steps.length, steps);
-            }
+        await session.layout.setDimension("3d");
+        for (const command of [
+            { op: "view.immersive", mode: "ar" },
+            { op: "view.immersive", mode: null },
+            { op: "layout.transport", action: "pause" },
+        ] as const) {
+            const before = stateDigest(dispatcher.state);
+            const steps = session.history.steps.length;
+            await session.execute(command);
+            assert.strictEqual(stateDigest(dispatcher.state), before, JSON.stringify(command));
+            assert.strictEqual(session.history.steps.length, steps);
         }
+
+        session.dispose();
+    });
+
+    it("view.immersive from 2D switches to 3D as one step, and its undo returns to 2D", async () => {
+        const session = await fixtureSession();
+        const dispatcher = dispatcherOf(session);
+        const entered: ("vr" | "ar" | null)[] = [];
+        dispatcher.services.layout = {
+            apply: () => Promise.resolve(),
+            transport: () => undefined,
+            immersive: (mode) => {
+                entered.push(mode);
+                return Promise.resolve();
+            },
+        };
+
+        await session.layout.setDimension("2d");
+        const steps = session.history.steps.length;
+        await session.execute({ op: "view.immersive", mode: "vr" });
+
+        assert.strictEqual(session.layout.dimension, "3d");
+        assert.deepEqual(entered, ["vr"]);
+        assert.strictEqual(session.history.steps.length, steps + 1);
+        assert.strictEqual(session.history.steps.at(-1)?.label, "Switched to 3D for VR");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "view.immersive", params: { mode: "vr" } });
+
+        await session.undo();
+        assert.strictEqual(session.layout.dimension, "2d");
 
         session.dispose();
     });

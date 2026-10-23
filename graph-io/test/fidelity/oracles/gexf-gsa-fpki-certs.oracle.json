@@ -1,0 +1,32 @@
+{
+    "sample": "gexf-gsa-fpki-certs",
+    "file": "graph-io/test/corpus/styles/gexf/gsa-fpki-certs.gexf",
+    "sha256": "df990234029be38975bd314bc1b7383c9314c0546c5ed92e211ac4f0cd3cb7b5",
+    "program": "Gephi Toolkit",
+    "version": "0.11.3 (gephi-toolkit-0.11.3-all.jar) on Temurin JDK 17",
+    "command": "java -Djava.awt.headless=true -cp gephi-toolkit-0.11.3-all.jar graph-io/test/fidelity/references/GephiExport.java <file> <out> labels noscale",
+    "apiCalls": [
+        "ImportController.importFile(file)",
+        "container.getLoader().setAutoScale(false)  (noscale: keep the file's coordinates)",
+        "ImportController.process(container, new DefaultProcessor(), workspace)",
+        "PreviewModel.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, true)  (every other preview property: Gephi's default)",
+        "PreviewController.refreshPreview()",
+        "ExportController.exportFile(new File(out + \".svg\"))  (SVGExporter, default settings)"
+    ],
+    "input": "the stored file as is",
+    "previewItems": {
+        "nodes": 120,
+        "edges": 119
+    },
+    "canvas": {
+        "requested": "1200 x 900 px is not available: Gephi's SVG render target sizes the canvas to the drawing's own bounds, and SVGExporter has no canvas setting (only margin and scaleStrokes)",
+        "width": 898.3086,
+        "height": 820,
+        "viewBox": "-421.130371 -410.000000 898.308594 820.000000"
+    },
+    "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
+    "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
+    "date": "2026-10-18",
+    "standIn": false,
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-gsa-fpki-certs && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-gsa-fpki-certs.svg"
+}

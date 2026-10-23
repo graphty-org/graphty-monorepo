@@ -1,0 +1,1695 @@
+{
+    "nodes": [
+        {
+            "id": "anchor-nw",
+            "x": 20,
+            "y": 20,
+            "shape": "dot",
+            "size": 3,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "anchor-ne",
+            "x": 1180,
+            "y": 20,
+            "shape": "dot",
+            "size": 3,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "anchor-sw",
+            "x": 20,
+            "y": 880,
+            "shape": "dot",
+            "size": 3,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "anchor-se",
+            "x": 1180,
+            "y": 880,
+            "shape": "dot",
+            "size": 3,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-default",
+            "x": 96,
+            "y": 271,
+            "shape": "text",
+            "label": "default",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "default-s",
+            "x": 58,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "default-t",
+            "x": 134,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-background-curved-enabled",
+            "x": 208,
+            "y": 271,
+            "shape": "text",
+            "label": "curvedCW background.enabled=true",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "background-curved-enabled-s",
+            "x": 170,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "background-curved-enabled-t",
+            "x": 246,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-background-curved-color",
+            "x": 320,
+            "y": 271,
+            "shape": "text",
+            "label": "curvedCW background.color=#ffd700",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "background-curved-color-s",
+            "x": 282,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "background-curved-color-t",
+            "x": 358,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-background-curved-size",
+            "x": 432,
+            "y": 271,
+            "shape": "text",
+            "label": "curvedCW background.size=4",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "background-curved-size-s",
+            "x": 394,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "background-curved-size-t",
+            "x": 470,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-background-curved-dashes",
+            "x": 544,
+            "y": 271,
+            "shape": "text",
+            "label": "curvedCW background.dashes=[6,4]",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "background-curved-dashes-s",
+            "x": 506,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "background-curved-dashes-t",
+            "x": 582,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-shadow-size",
+            "x": 656,
+            "y": 271,
+            "shape": "text",
+            "label": "shadow.size=20",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "shadow-size-s",
+            "x": 618,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "shadow-size-t",
+            "x": 694,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-shadow-offset",
+            "x": 768,
+            "y": 271,
+            "shape": "text",
+            "label": "shadow.x=10 y=-10",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "shadow-offset-s",
+            "x": 730,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "shadow-offset-t",
+            "x": 806,
+            "y": 231,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-curved-ccw",
+            "x": 880,
+            "y": 271,
+            "shape": "text",
+            "label": "curvedCCW roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-curved-ccw-s",
+            "x": 842,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-curved-ccw-t",
+            "x": 918,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-cubic-bezier",
+            "x": 992,
+            "y": 271,
+            "shape": "text",
+            "label": "cubicBezier roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-cubic-bezier-s",
+            "x": 954,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-cubic-bezier-t",
+            "x": 1030,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-horizontal",
+            "x": 1104,
+            "y": 271,
+            "shape": "text",
+            "label": "horizontal roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-horizontal-s",
+            "x": 1066,
+            "y": 211,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-horizontal-t",
+            "x": 1142,
+            "y": 251,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-vertical",
+            "x": 96,
+            "y": 681,
+            "shape": "text",
+            "label": "vertical roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-vertical-s",
+            "x": 58,
+            "y": 621,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-vertical-t",
+            "x": 134,
+            "y": 661,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-diagonal-cross",
+            "x": 208,
+            "y": 681,
+            "shape": "text",
+            "label": "diagonalCross roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-diagonal-cross-s",
+            "x": 170,
+            "y": 621,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-diagonal-cross-t",
+            "x": 246,
+            "y": 661,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-straight-cross",
+            "x": 320,
+            "y": 681,
+            "shape": "text",
+            "label": "straightCross roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-straight-cross-s",
+            "x": 282,
+            "y": 621,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-straight-cross-t",
+            "x": 358,
+            "y": 661,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-continuous",
+            "x": 432,
+            "y": 681,
+            "shape": "text",
+            "label": "continuous roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-continuous-s",
+            "x": 394,
+            "y": 621,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-continuous-t",
+            "x": 470,
+            "y": 661,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-roundness-0-9-discrete",
+            "x": 544,
+            "y": 681,
+            "shape": "text",
+            "label": "discrete roundness=0.9",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "roundness-0-9-discrete-s",
+            "x": 506,
+            "y": 621,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "roundness-0-9-discrete-t",
+            "x": 582,
+            "y": 661,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-color-hsl",
+            "x": 656,
+            "y": 681,
+            "shape": "text",
+            "label": "color=hsl(120,60%,40%)",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "color-hsl-s",
+            "x": 618,
+            "y": 641,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "color-hsl-t",
+            "x": 694,
+            "y": 641,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "cap-color-hex-alpha",
+            "x": 768,
+            "y": 681,
+            "shape": "text",
+            "label": "color=#1f77b480",
+            "font": {
+                "size": 9,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            },
+            "widthConstraint": {
+                "maximum": 104
+            }
+        },
+        {
+            "id": "color-hex-alpha-s",
+            "x": 730,
+            "y": 641,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        },
+        {
+            "id": "color-hex-alpha-t",
+            "x": 806,
+            "y": 641,
+            "shape": "dot",
+            "size": 4,
+            "color": {
+                "background": "#c8c8c8",
+                "border": "#505050"
+            },
+            "borderWidth": 1,
+            "opacity": 1,
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "id": "default",
+            "from": "default-s",
+            "to": "default-t"
+        },
+        {
+            "id": "background-curved-enabled",
+            "from": "background-curved-enabled-s",
+            "to": "background-curved-enabled-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "curvedCW"
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            },
+            "background": {
+                "enabled": true
+            }
+        },
+        {
+            "id": "background-curved-color",
+            "from": "background-curved-color-s",
+            "to": "background-curved-color-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "curvedCW"
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            },
+            "background": {
+                "enabled": true,
+                "color": "#ffd700"
+            }
+        },
+        {
+            "id": "background-curved-size",
+            "from": "background-curved-size-s",
+            "to": "background-curved-size-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "curvedCW"
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            },
+            "background": {
+                "enabled": true,
+                "size": 4
+            }
+        },
+        {
+            "id": "background-curved-dashes",
+            "from": "background-curved-dashes-s",
+            "to": "background-curved-dashes-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "curvedCW"
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            },
+            "background": {
+                "enabled": true,
+                "dashes": [6, 4]
+            }
+        },
+        {
+            "id": "shadow-size",
+            "from": "shadow-size-s",
+            "to": "shadow-size-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": false
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": {
+                "enabled": true,
+                "size": 20
+            },
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "shadow-offset",
+            "from": "shadow-offset-s",
+            "to": "shadow-offset-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": false
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": {
+                "enabled": true,
+                "x": 10,
+                "y": -10
+            },
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-curved-ccw",
+            "from": "roundness-0-9-curved-ccw-s",
+            "to": "roundness-0-9-curved-ccw-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "curvedCCW",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-cubic-bezier",
+            "from": "roundness-0-9-cubic-bezier-s",
+            "to": "roundness-0-9-cubic-bezier-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "cubicBezier",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-horizontal",
+            "from": "roundness-0-9-horizontal-s",
+            "to": "roundness-0-9-horizontal-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "horizontal",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-vertical",
+            "from": "roundness-0-9-vertical-s",
+            "to": "roundness-0-9-vertical-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "vertical",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-diagonal-cross",
+            "from": "roundness-0-9-diagonal-cross-s",
+            "to": "roundness-0-9-diagonal-cross-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "diagonalCross",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-straight-cross",
+            "from": "roundness-0-9-straight-cross-s",
+            "to": "roundness-0-9-straight-cross-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "straightCross",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-continuous",
+            "from": "roundness-0-9-continuous-s",
+            "to": "roundness-0-9-continuous-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "continuous",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "roundness-0-9-discrete",
+            "from": "roundness-0-9-discrete-s",
+            "to": "roundness-0-9-discrete-t",
+            "color": {
+                "color": "#505050",
+                "inherit": false,
+                "opacity": 1
+            },
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": true,
+                "type": "discrete",
+                "roundness": 0.9
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "color-hsl",
+            "from": "color-hsl-s",
+            "to": "color-hsl-t",
+            "color": "hsl(120,60%,40%)",
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": false
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        },
+        {
+            "id": "color-hex-alpha",
+            "from": "color-hex-alpha-s",
+            "to": "color-hex-alpha-t",
+            "color": "#1f77b480",
+            "width": 1.5,
+            "dashes": false,
+            "smooth": {
+                "enabled": false
+            },
+            "arrows": {
+                "to": {
+                    "enabled": false
+                },
+                "middle": {
+                    "enabled": false
+                },
+                "from": {
+                    "enabled": false
+                }
+            },
+            "shadow": false,
+            "font": {
+                "size": 10,
+                "face": "DejaVu Sans",
+                "color": "#000000",
+                "strokeWidth": 0,
+                "background": "none",
+                "align": "horizontal"
+            }
+        }
+    ],
+    "options": {
+        "physics": false
+    }
+}

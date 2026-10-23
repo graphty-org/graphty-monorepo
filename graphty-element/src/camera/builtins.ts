@@ -14,15 +14,17 @@
  * times the longest side: every one of those is what the element computed before, so no picture
  * moves. They disagree with each other -- the orbit controller's own framing pads 5 percent and
  * the 2D controller's pads 10 percent -- and this file does not average them, because averaging
- * them would change what a saved screenshot looks like. A plugin picks its own. The one
- * exception is the isometric `beta`: it was 0.615, the elevation above the horizon, in a field
- * measured down from the pole, and no picture depended on it because nothing applied it.
+ * them would change what a saved screenshot looks like. A plugin picks its own. Two exceptions:
+ * the isometric `beta` was 0.615, the elevation above the horizon, in a field measured down from
+ * the pole, and no picture depended on it because nothing applied it; and the 2D `fitToGraph`
+ * zoom was pixels per unit with the aspect upside down, which framed a single edge.
  *
  * THESE ARE NOT REGISTERED. A built-in id is reserved and `registerCameraView` refuses one, so
  * the table below is looked up first and the registry second, which is what keeps a registration
  * from changing what an existing name means.
  */
 
+import { freeArea } from "./insets";
 import type { CameraState, CameraViewInput } from "./types";
 
 /**
@@ -35,6 +37,14 @@ const DEFAULT_FOV = 0.8;
 
 /** How much room a flat framing leaves around the box: 5 percent. */
 const FLAT_PADDING = 1.05;
+
+/**
+ * How many world units the 2D camera shows either side of its centre, across, at a zoom of 1.
+ *
+ * An orthographic `zoom` is relative to this: zoom 2 shows half as much, so it reads half-width
+ * over this many units, and a view that wants a half-width of `h` asks for `5 / h`.
+ */
+export const FLAT_HALF_WIDTH_AT_ZOOM_ONE = 5;
 
 /** How much room a perspective framing leaves around the box: 10 percent. */
 const PERSPECTIVE_PADDING = 1.1;
@@ -63,6 +73,66 @@ const STRAIGHT_ON_DISTANCE = 1.5;
 const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 
 /**
+ * Frame everything from the direction the camera looks from now (`fitToGraph`'s `keepAngle`).
+ *
+ * The distance puts every corner of the box, padded 10 percent off the view axis, inside the
+ * narrower of the two fields of view, so every node is in shot from any angle. The pivot
+ * rotation is carried over, so a turn the reader gave the drawing (roll included) is kept.
+ * @param input - The box to frame and where the camera is now.
+ * @param fov - The vertical field of view in radians.
+ * @returns The state, or undefined when the current state has no direction to keep.
+ */
+function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | undefined {
+    const { current, bounds, aspect } = input;
+    if (current.position === undefined || current.target === undefined) {
+        return undefined;
+    }
+
+    const dx = current.position.x - current.target.x;
+    const dy = current.position.y - current.target.y;
+    const dz = current.position.z - current.target.z;
+    const length = Math.hypot(dx, dy, dz);
+    if (length === 0 || !Number.isFinite(length)) {
+        return undefined;
+    }
+
+    const ux = dx / length;
+    const uy = dy / length;
+    const uz = dz / length;
+    const halfFov = aspect > 0 ? Math.min(fov / 2, Math.atan(Math.tan(fov / 2) * aspect)) : fov / 2;
+    const tanHalf = Math.tan(halfFov);
+    const { center } = bounds;
+
+    // The nearest distance from the center that keeps each corner of the box, padded off the
+    // view axis, inside the narrower field of view; the farthest of those keeps them all.
+    let distance = 0;
+    for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+            for (const z of [bounds.min.z, bounds.max.z]) {
+                const cx = x - center.x;
+                const cy = y - center.y;
+                const cz = z - center.z;
+                const along = cx * ux + cy * uy + cz * uz;
+                const off = Math.hypot(cx - along * ux, cy - along * uy, cz - along * uz);
+                distance = Math.max(distance, along + (off * PERSPECTIVE_PADDING) / tanHalf);
+            }
+        }
+    }
+
+    return {
+        type: "arcRotate",
+        position: {
+            x: center.x + ux * distance,
+            y: center.y + uy * distance,
+            z: center.z + uz * distance,
+        },
+        target: center,
+        ...(current.pivotRotation === undefined ? {} : { pivotRotation: current.pivotRotation }),
+        cameraDistance: distance,
+    };
+}
+
+/**
  * Frame everything: an angled view in three dimensions, straight on in two.
  * @param input - The box to frame, the drawing mode, the viewport and the field of view.
  * @returns The state that puts the whole box in shot.
@@ -70,23 +140,38 @@ const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 function fitToGraph(input: CameraViewInput): CameraState {
     const { bounds } = input;
     const { center } = bounds;
+    // The part of the viewport the view insets leave free; all of it when there are none.
+    const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
 
     if (input.mode === "2d") {
-        // The flat framing is a ratio of pixels to world units, so it needs the render width and
-        // not only the aspect: the box is widened to whichever of its two sides fills the frame
-        // first, and the zoom is however many pixels that leaves per unit.
-        const extent = Math.max(bounds.size.x, bounds.size.y / input.aspect);
+        // The width that shows the whole box: its own width, or the width a frame of this aspect
+        // (width over height) needs to show its height, whichever is more -- each over the share
+        // of that side the insets leave free. The zoom is the half-width at zoom 1 over half of
+        // that. NOT pixels per unit: the camera never reads a zoom that way, and on a graph tens
+        // of units wide that number put a single edge across the whole screen.
+        const extent = Math.max(bounds.size.x / free.width, (bounds.size.y * input.aspect) / free.height);
+        const halfWidth = (extent * FLAT_PADDING) / 2;
+        const halfHeight = input.aspect > 0 ? halfWidth / input.aspect : halfWidth;
 
         return {
             type: "orthographic",
-            zoom: input.viewport.width / (extent * FLAT_PADDING),
-            pan: { x: center.x, y: center.y },
+            zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfWidth,
+            // Centered on the free area, not on the canvas.
+            pan: { x: center.x - free.x * halfWidth, y: center.y - free.y * halfHeight },
         };
     }
 
+    // In 3D the camera already centers what it looks at on the free area; the box only has to be
+    // small enough for it, so the distance grows by the narrower free share.
+    const room = Math.min(free.width, free.height);
     const fov = input.fov ?? DEFAULT_FOV;
+    const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
+    if (keptAngle !== undefined) {
+        return farther(keptAngle, room);
+    }
+
     const straightOn = (bounds.maxDimension / Math.tan(fov / 2)) * PERSPECTIVE_PADDING;
-    const distance = straightOn * ISOMETRIC_FACTOR;
+    const distance = (straightOn * ISOMETRIC_FACTOR) / room;
 
     return {
         type: "arcRotate",
@@ -96,6 +181,29 @@ function fitToGraph(input: CameraViewInput): CameraState {
             z: center.z + distance * DIAGONAL_OFFSET,
         },
         target: center,
+    };
+}
+
+/**
+ * Move an orbit state back along its line of sight, so the box fits a smaller free area.
+ * @param state - A state with a position and a target.
+ * @param room - The free share of the viewport, 1 for all of it.
+ * @returns The state, its distance divided by `room`.
+ */
+function farther(state: CameraState, room: number): CameraState {
+    const { position, target } = state;
+    if (room === 1 || position === undefined || target === undefined) {
+        return state;
+    }
+
+    return {
+        ...state,
+        position: {
+            x: target.x + (position.x - target.x) / room,
+            y: target.y + (position.y - target.y) / room,
+            z: target.z + (position.z - target.z) / room,
+        },
+        ...(state.cameraDistance === undefined ? {} : { cameraDistance: state.cameraDistance / room }),
     };
 }
 

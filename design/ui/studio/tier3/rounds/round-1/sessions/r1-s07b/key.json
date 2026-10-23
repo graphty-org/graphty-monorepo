@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Married women (Mme) 6 of 77 nodes",
+   "rows": [
+    {
+     "text": "Color: Married women (Mme)",
+     "color": "#800080"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 71,
+   "#800080": 6
+  },
+  "edges": {
+   "#a9a9a9": 254
+  }
+ }
+}

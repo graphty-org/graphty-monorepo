@@ -1,0 +1,3736 @@
+{
+    "elements": {
+        "nodes": [
+            {
+                "data": {
+                    "id": "anchor-nw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-ne"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-sw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-se"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "cap-default",
+                    "label": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "default-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "default-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-color-red",
+                    "label": "line-color=red"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-color-red-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-color-red-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-width-0-5",
+                    "label": "width=0.5"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "width-0-5-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "width-0-5-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-width-5",
+                    "label": "width=5"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "width-5-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "width-5-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-opacity-0-3",
+                    "label": "line-opacity=0.3"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-opacity-0-3-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-opacity-0-3-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-opacity-0-3",
+                    "label": "opacity=0.3"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "opacity-0-3-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "opacity-0-3-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-style-solid",
+                    "label": "line-style=solid"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-style-solid-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-style-solid-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-style-dotted",
+                    "label": "line-style=dotted"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-style-dotted-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-style-dotted-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-style-dashed",
+                    "label": "line-style=dashed"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-style-dashed-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-style-dashed-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-dash-pattern",
+                    "label": "line-dash-pattern=12 3 2 3"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-dash-pattern-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-dash-pattern-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 108
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-dash-offset",
+                    "label": "line-dash-offset=6"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-dash-offset-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-dash-offset-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-cap-butt",
+                    "label": "line-cap=butt"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-cap-butt-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-cap-butt-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-cap-round",
+                    "label": "line-cap=round"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-cap-round-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-cap-round-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-cap-square",
+                    "label": "line-cap=square"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-cap-square-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-cap-square-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-fill-solid",
+                    "label": "line-fill=solid"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-fill-solid-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-fill-solid-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-fill-linear-gradient",
+                    "label": "line-fill=linear-gradient"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-fill-linear-gradient-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-fill-linear-gradient-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-fill-radial-gradient",
+                    "label": "line-fill=radial-gradient"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-fill-radial-gradient-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-fill-radial-gradient-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-gradient-stop-colors",
+                    "label": "line-gradient-stop-colors=cyan magenta"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-colors-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-colors-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-gradient-stop-positions",
+                    "label": "line-gradient-stop-positions=0% 80%"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-positions-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-positions-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-outline-width-2",
+                    "label": "line-outline-width=2"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-outline-width-2-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-outline-width-2-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-line-outline-color-red",
+                    "label": "line-outline-color=red"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "line-outline-color-red-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "line-outline-color-red-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-straight",
+                    "label": "curve-style=straight"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-straight-triangle",
+                    "label": "curve-style=straight-triangle"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight-triangle-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight-triangle-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-haystack",
+                    "label": "curve-style=haystack"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-haystack-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-haystack-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-bezier",
+                    "label": "curve-style=bezier"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-bezier-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-bezier-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-unbundled-bezier",
+                    "label": "curve-style=unbundled-bezier"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-unbundled-bezier-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-unbundled-bezier-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-segments",
+                    "label": "curve-style=segments"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-segments-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-segments-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-round-segments",
+                    "label": "curve-style=round-segments"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-segments-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-segments-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 436
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-taxi",
+                    "label": "curve-style=taxi"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-taxi-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 416
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-taxi-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 456
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-curve-style-round-taxi",
+                    "label": "curve-style=round-taxi"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-taxi-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 416
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-taxi-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 456
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-width-6-straight-triangle",
+                    "label": "width=6 (straight-triangle)"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "width-6-straight-triangle-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "width-6-straight-triangle-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-haystack-radius-0-8",
+                    "label": "haystack-radius=0.8"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "haystack-radius-0-8-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "haystack-radius-0-8-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-bezier-parallel-3",
+                    "label": "curve-style=bezier x3 parallel"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "bezier-parallel-3-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "bezier-parallel-3-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-control-point-step-size-12",
+                    "label": "control-point-step-size=12"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "control-point-step-size-12-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "control-point-step-size-12-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-straight-parallel-2",
+                    "label": "curve-style=straight x2 parallel"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "straight-parallel-2-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "straight-parallel-2-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-haystack-parallel-2",
+                    "label": "curve-style=haystack x2 parallel"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "haystack-parallel-2-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "haystack-parallel-2-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-control-point-distances",
+                    "label": "control-point-distances=20 -20"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "control-point-distances-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "control-point-distances-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-control-point-weights",
+                    "label": "control-point-weights=0.2"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "control-point-weights-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "control-point-weights-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-segment-distances",
+                    "label": "segment-distances=20 -20"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "segment-distances-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "segment-distances-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-segment-weights",
+                    "label": "segment-weights=0.2"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "segment-weights-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "segment-weights-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-segment-radii-12",
+                    "label": "segment-radii=12"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "segment-radii-12-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "segment-radii-12-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-radius-type-arc-radius",
+                    "label": "radius-type=arc-radius"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-radius-type-influence-radius",
+                    "label": "radius-type=influence-radius"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-horizontal",
+                    "label": "taxi-direction=horizontal"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 744
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 784
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            }
+        ],
+        "edges": [
+            {
+                "data": {
+                    "id": "default",
+                    "source": "default-s",
+                    "target": "default-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-color-red",
+                    "source": "line-color-red-s",
+                    "target": "line-color-red-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "width-0-5",
+                    "source": "width-0-5-s",
+                    "target": "width-0-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "width-5",
+                    "source": "width-5-s",
+                    "target": "width-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-opacity-0-3",
+                    "source": "line-opacity-0-3-s",
+                    "target": "line-opacity-0-3-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "opacity-0-3",
+                    "source": "opacity-0-3-s",
+                    "target": "opacity-0-3-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-style-solid",
+                    "source": "line-style-solid-s",
+                    "target": "line-style-solid-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-style-dotted",
+                    "source": "line-style-dotted-s",
+                    "target": "line-style-dotted-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-style-dashed",
+                    "source": "line-style-dashed-s",
+                    "target": "line-style-dashed-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-dash-pattern",
+                    "source": "line-dash-pattern-s",
+                    "target": "line-dash-pattern-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-dash-offset",
+                    "source": "line-dash-offset-s",
+                    "target": "line-dash-offset-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-cap-butt",
+                    "source": "line-cap-butt-s",
+                    "target": "line-cap-butt-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-cap-round",
+                    "source": "line-cap-round-s",
+                    "target": "line-cap-round-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-cap-square",
+                    "source": "line-cap-square-s",
+                    "target": "line-cap-square-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-fill-solid",
+                    "source": "line-fill-solid-s",
+                    "target": "line-fill-solid-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-fill-linear-gradient",
+                    "source": "line-fill-linear-gradient-s",
+                    "target": "line-fill-linear-gradient-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-fill-radial-gradient",
+                    "source": "line-fill-radial-gradient-s",
+                    "target": "line-fill-radial-gradient-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-colors",
+                    "source": "line-gradient-stop-colors-s",
+                    "target": "line-gradient-stop-colors-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-gradient-stop-positions",
+                    "source": "line-gradient-stop-positions-s",
+                    "target": "line-gradient-stop-positions-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-outline-width-2",
+                    "source": "line-outline-width-2-s",
+                    "target": "line-outline-width-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "line-outline-color-red",
+                    "source": "line-outline-color-red-s",
+                    "target": "line-outline-color-red-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight",
+                    "source": "curve-style-straight-s",
+                    "target": "curve-style-straight-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-straight-triangle",
+                    "source": "curve-style-straight-triangle-s",
+                    "target": "curve-style-straight-triangle-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-haystack",
+                    "source": "curve-style-haystack-s",
+                    "target": "curve-style-haystack-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-bezier",
+                    "source": "curve-style-bezier-s",
+                    "target": "curve-style-bezier-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-unbundled-bezier",
+                    "source": "curve-style-unbundled-bezier-s",
+                    "target": "curve-style-unbundled-bezier-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-segments",
+                    "source": "curve-style-segments-s",
+                    "target": "curve-style-segments-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-segments",
+                    "source": "curve-style-round-segments-s",
+                    "target": "curve-style-round-segments-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-taxi",
+                    "source": "curve-style-taxi-s",
+                    "target": "curve-style-taxi-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "curve-style-round-taxi",
+                    "source": "curve-style-round-taxi-s",
+                    "target": "curve-style-round-taxi-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "width-6-straight-triangle",
+                    "source": "width-6-straight-triangle-s",
+                    "target": "width-6-straight-triangle-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "haystack-radius-0-8",
+                    "source": "haystack-radius-0-8-s",
+                    "target": "haystack-radius-0-8-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "bezier-parallel-3",
+                    "source": "bezier-parallel-3-s",
+                    "target": "bezier-parallel-3-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "bezier-parallel-3-2",
+                    "source": "bezier-parallel-3-s",
+                    "target": "bezier-parallel-3-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "bezier-parallel-3-3",
+                    "source": "bezier-parallel-3-s",
+                    "target": "bezier-parallel-3-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "control-point-step-size-12",
+                    "source": "control-point-step-size-12-s",
+                    "target": "control-point-step-size-12-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "control-point-step-size-12-2",
+                    "source": "control-point-step-size-12-s",
+                    "target": "control-point-step-size-12-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "control-point-step-size-12-3",
+                    "source": "control-point-step-size-12-s",
+                    "target": "control-point-step-size-12-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "straight-parallel-2",
+                    "source": "straight-parallel-2-s",
+                    "target": "straight-parallel-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "straight-parallel-2-2",
+                    "source": "straight-parallel-2-s",
+                    "target": "straight-parallel-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "haystack-parallel-2",
+                    "source": "haystack-parallel-2-s",
+                    "target": "haystack-parallel-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "haystack-parallel-2-2",
+                    "source": "haystack-parallel-2-s",
+                    "target": "haystack-parallel-2-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "control-point-distances",
+                    "source": "control-point-distances-s",
+                    "target": "control-point-distances-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "control-point-weights",
+                    "source": "control-point-weights-s",
+                    "target": "control-point-weights-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "segment-distances",
+                    "source": "segment-distances-s",
+                    "target": "segment-distances-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "segment-weights",
+                    "source": "segment-weights-s",
+                    "target": "segment-weights-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "segment-radii-12",
+                    "source": "segment-radii-12-s",
+                    "target": "segment-radii-12-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "radius-type-arc-radius",
+                    "source": "radius-type-arc-radius-s",
+                    "target": "radius-type-arc-radius-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "radius-type-influence-radius",
+                    "source": "radius-type-influence-radius-s",
+                    "target": "radius-type-influence-radius-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-horizontal",
+                    "source": "taxi-direction-horizontal-s",
+                    "target": "taxi-direction-horizontal-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            }
+        ]
+    },
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "shape": "ellipse",
+                "width": "36px",
+                "height": "36px",
+                "background-color": "rgb(200,200,200)",
+                "background-opacity": "1",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "border-style": "solid",
+                "border-opacity": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "font-style": "normal",
+                "font-weight": "normal",
+                "text-valign": "center",
+                "text-halign": "center",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node:parent",
+            "style": {
+                "shape": "rectangle",
+                "padding": "10px",
+                "background-color": "rgb(238,238,238)",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "text-valign": "top",
+                "text-halign": "center"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "width": "1.5px",
+                "line-color": "rgb(80,80,80)",
+                "line-style": "solid",
+                "line-opacity": "1",
+                "curve-style": "straight",
+                "source-arrow-shape": "none",
+                "target-arrow-shape": "none",
+                "mid-source-arrow-shape": "none",
+                "mid-target-arrow-shape": "none",
+                "source-arrow-color": "rgb(80,80,80)",
+                "target-arrow-color": "rgb(80,80,80)",
+                "mid-source-arrow-color": "rgb(80,80,80)",
+                "mid-target-arrow-color": "rgb(80,80,80)",
+                "arrow-scale": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node.end",
+            "style": {
+                "width": "8px",
+                "height": "8px"
+            }
+        },
+        {
+            "selector": "node.child",
+            "style": {
+                "width": "14px",
+                "height": "14px"
+            }
+        },
+        {
+            "selector": "node.anchor",
+            "style": {
+                "width": "6px",
+                "height": "6px"
+            }
+        },
+        {
+            "selector": "node.cap",
+            "style": {
+                "width": "1px",
+                "height": "1px",
+                "background-opacity": "0",
+                "border-width": "0px",
+                "label": "data(label)",
+                "font-size": "9px",
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-wrap": "wrap",
+                "text-max-width": "104px",
+                "text-overflow-wrap": "anywhere"
+            }
+        },
+        {
+            "selector": "#line-color-red",
+            "style": {
+                "line-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "#width-0-5",
+            "style": {
+                "width": "0.5px"
+            }
+        },
+        {
+            "selector": "#width-5",
+            "style": {
+                "width": "5px"
+            }
+        },
+        {
+            "selector": "#line-opacity-0-3",
+            "style": {
+                "line-opacity": "0.3",
+                "width": "4px"
+            }
+        },
+        {
+            "selector": "#opacity-0-3",
+            "style": {
+                "opacity": "0.3",
+                "width": "4px"
+            }
+        },
+        {
+            "selector": "#line-style-solid",
+            "style": {
+                "width": "2px",
+                "line-style": "solid"
+            }
+        },
+        {
+            "selector": "#line-style-dotted",
+            "style": {
+                "width": "2px",
+                "line-style": "dotted"
+            }
+        },
+        {
+            "selector": "#line-style-dashed",
+            "style": {
+                "width": "2px",
+                "line-style": "dashed"
+            }
+        },
+        {
+            "selector": "#line-dash-pattern",
+            "style": {
+                "line-dash-pattern": "12 3 2 3",
+                "line-style": "dashed",
+                "width": "2px"
+            }
+        },
+        {
+            "selector": "#line-dash-offset",
+            "style": {
+                "line-dash-offset": "6",
+                "line-style": "dashed",
+                "width": "2px"
+            }
+        },
+        {
+            "selector": "#line-cap-butt",
+            "style": {
+                "width": "8px",
+                "line-cap": "butt"
+            }
+        },
+        {
+            "selector": "#line-cap-round",
+            "style": {
+                "width": "8px",
+                "line-cap": "round"
+            }
+        },
+        {
+            "selector": "#line-cap-square",
+            "style": {
+                "width": "8px",
+                "line-cap": "square"
+            }
+        },
+        {
+            "selector": "#line-fill-solid",
+            "style": {
+                "width": "6px",
+                "line-gradient-stop-colors": "rgb(228,26,28) rgb(255,215,0) rgb(55,126,184)",
+                "line-fill": "solid"
+            }
+        },
+        {
+            "selector": "#line-fill-linear-gradient",
+            "style": {
+                "width": "6px",
+                "line-gradient-stop-colors": "rgb(228,26,28) rgb(255,215,0) rgb(55,126,184)",
+                "line-fill": "linear-gradient"
+            }
+        },
+        {
+            "selector": "#line-fill-radial-gradient",
+            "style": {
+                "width": "6px",
+                "line-gradient-stop-colors": "rgb(228,26,28) rgb(255,215,0) rgb(55,126,184)",
+                "line-fill": "radial-gradient"
+            }
+        },
+        {
+            "selector": "#line-gradient-stop-colors",
+            "style": {
+                "line-gradient-stop-colors": "rgb(0,255,255) rgb(255,0,255)",
+                "line-fill": "linear-gradient",
+                "width": "6px"
+            }
+        },
+        {
+            "selector": "#line-gradient-stop-positions",
+            "style": {
+                "line-gradient-stop-positions": "0% 80%",
+                "line-gradient-stop-colors": "rgb(0,255,255) rgb(255,0,255)",
+                "line-fill": "linear-gradient",
+                "width": "6px"
+            }
+        },
+        {
+            "selector": "#line-outline-width-2",
+            "style": {
+                "line-outline-width": "2px",
+                "width": "3px"
+            }
+        },
+        {
+            "selector": "#line-outline-color-red",
+            "style": {
+                "line-outline-color": "rgb(255,0,0)",
+                "line-outline-width": "2px",
+                "width": "3px"
+            }
+        },
+        {
+            "selector": "#curve-style-straight",
+            "style": {
+                "curve-style": "straight"
+            }
+        },
+        {
+            "selector": "#curve-style-straight-triangle",
+            "style": {
+                "curve-style": "straight-triangle"
+            }
+        },
+        {
+            "selector": "#curve-style-haystack",
+            "style": {
+                "curve-style": "haystack"
+            }
+        },
+        {
+            "selector": "#curve-style-bezier",
+            "style": {
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "#curve-style-unbundled-bezier",
+            "style": {
+                "curve-style": "unbundled-bezier"
+            }
+        },
+        {
+            "selector": "#curve-style-segments",
+            "style": {
+                "curve-style": "segments"
+            }
+        },
+        {
+            "selector": "#curve-style-round-segments",
+            "style": {
+                "curve-style": "round-segments"
+            }
+        },
+        {
+            "selector": "#curve-style-taxi",
+            "style": {
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#curve-style-round-taxi",
+            "style": {
+                "curve-style": "round-taxi"
+            }
+        },
+        {
+            "selector": "#width-6-straight-triangle",
+            "style": {
+                "width": "6px",
+                "curve-style": "straight-triangle"
+            }
+        },
+        {
+            "selector": "#haystack-radius-0-8",
+            "style": {
+                "haystack-radius": "0.8",
+                "curve-style": "haystack"
+            }
+        },
+        {
+            "selector": "#haystack-radius-0-8-s, #haystack-radius-0-8-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#bezier-parallel-3, #bezier-parallel-3-2, #bezier-parallel-3-3",
+            "style": {
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "#control-point-step-size-12, #control-point-step-size-12-2, #control-point-step-size-12-3",
+            "style": {
+                "control-point-step-size": "12px",
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "#straight-parallel-2, #straight-parallel-2-2",
+            "style": {
+                "curve-style": "straight"
+            }
+        },
+        {
+            "selector": "#haystack-parallel-2, #haystack-parallel-2-2",
+            "style": {
+                "curve-style": "haystack"
+            }
+        },
+        {
+            "selector": "#control-point-distances",
+            "style": {
+                "control-point-distances": "20px -20px",
+                "control-point-weights": "0.25 0.75",
+                "curve-style": "unbundled-bezier"
+            }
+        },
+        {
+            "selector": "#control-point-weights",
+            "style": {
+                "control-point-weights": "0.2",
+                "control-point-distances": "24px",
+                "curve-style": "unbundled-bezier"
+            }
+        },
+        {
+            "selector": "#segment-distances",
+            "style": {
+                "segment-distances": "20px -20px",
+                "segment-weights": "0.25 0.75",
+                "curve-style": "segments"
+            }
+        },
+        {
+            "selector": "#segment-weights",
+            "style": {
+                "segment-weights": "0.2",
+                "segment-distances": "24px",
+                "curve-style": "segments"
+            }
+        },
+        {
+            "selector": "#segment-radii-12",
+            "style": {
+                "segment-radii": "12",
+                "segment-distances": "24px -24px",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments"
+            }
+        },
+        {
+            "selector": "#radius-type-arc-radius",
+            "style": {
+                "segment-radii": "12",
+                "segment-distances": "24px -24px",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments",
+                "radius-type": "arc-radius"
+            }
+        },
+        {
+            "selector": "#radius-type-influence-radius",
+            "style": {
+                "segment-radii": "12",
+                "segment-distances": "24px -24px",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments",
+                "radius-type": "influence-radius"
+            }
+        },
+        {
+            "selector": "#taxi-direction-horizontal",
+            "style": {
+                "taxi-direction": "horizontal",
+                "curve-style": "taxi"
+            }
+        }
+    ],
+    "zoom": 1e-50,
+    "pan": {
+        "x": 0.5,
+        "y": 0.5
+    },
+    "data": {
+        "sheet": "specimen-edges-lines",
+        "about": "Cytoscape.js style specimen sheet specimen-edges-lines: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js 3.34.3"
+    }
+}

@@ -126,7 +126,10 @@ export function applySelectionGesture(gesture: SelectionGesture): SelectionResul
         return { selected: [id], anchor: id };
     }
 
-    const anchorIndex = anchor === undefined ? -1 : ids.indexOf(anchor);
+    // A table that has no anchor yet -- one handed its selection from outside, or drawn afresh --
+    // extends from the one row selected, which is where a reader would expect Shift to start.
+    const from = anchor ?? (selected.length === 1 ? selected[0] : undefined);
+    const anchorIndex = from === undefined ? -1 : ids.indexOf(from);
 
     if (modifiers.extend && anchorIndex !== -1) {
         const range = rangeOf(ids, anchorIndex, index);
@@ -139,7 +142,7 @@ export function applySelectionGesture(gesture: SelectionGesture): SelectionResul
 
         // The anchor deliberately does not move: extending again from the same
         // anchor is how a range is grown and shrunk.
-        return { selected: next, anchor };
+        return { selected: next, anchor: from };
     }
 
     if (modifiers.toggle) {

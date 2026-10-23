@@ -6,19 +6,27 @@
  * inspected without a canvas.
  */
 
+export type { CanvasKeyAction, CanvasKeyDescriptor, CanvasKeyView } from "./canvasKeys";
+export { CANVAS_KEY_DESCRIPTORS } from "./canvasKeys";
+export type { LabelLookDescriptor, LabelLookId } from "./label-looks";
+export { LABEL_LOOKS, labelLook, labelLookChanges } from "./label-looks";
 export type {
     LabelAnimation,
     LabelBadge,
+    LabelDeclutterOrder,
     LabelGradientDirection,
     LabelGradientType,
     LabelIconPosition,
     LabelLocation,
     LabelPointerDirection,
+    LabelSizeMode,
     LabelTextAlign,
 } from "./label-style";
-export { LABEL_STYLE_FIELDS } from "./label-style";
+export { LABEL_STYLE_DEFAULTS, LABEL_STYLE_FIELDS } from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";
+export type { EdgeArrowKind, GlyphDescriptor, NodeShape } from "./shapes";
+export { EDGE_ARROW_DESCRIPTORS, EDGE_LINE_DESCRIPTORS, NODE_SHAPE_DESCRIPTORS } from "./shapes";
 export type {
     AlgorithmDescriptor,
     AlgorithmKey,
@@ -42,18 +50,22 @@ export type {
     FieldDescriptor,
     FieldInterpretation,
     FormatDescriptor,
+    FormatExportVariant,
     FormatId,
     FormatStyles,
     FunctionDescriptor,
     GraphtyErrorCode,
+    GroupMatchCode,
     KnownAlgorithm,
     LabelStyle,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerUnmatchedGroup,
     LayoutDescriptor,
     LayoutId,
+    LayoutRequirements,
     LogSinkDescriptor,
     LogSinkId,
     Measurement,
@@ -70,6 +82,9 @@ export type {
     Path,
     Query,
     QueryValidation,
+    ReadableChannelKind,
+    ReadableValue,
+    ReadableValueKind,
     ResultShape,
     Rgba,
     RunId,
@@ -78,7 +93,9 @@ export type {
     ScopeId,
     Selector,
     StaticStyle,
+    StructureValue,
     StyleDocument,
+    StyleDocumentRow,
     SuggestedName,
     ThemeDescriptor,
 } from "./types";
@@ -86,6 +103,7 @@ export {
     ATTRIBUTE_TYPES,
     COST_CLASSES,
     DEPRECATED_ALGORITHMS,
+    DEPRECATED_LAYOUT_IDS,
     isAttributeType,
     isCostClass,
     isOptionBound,

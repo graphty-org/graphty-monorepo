@@ -1,8 +1,3 @@
 {
-    "mcpServers": {
-        "githerd": {
-            "command": "node",
-            "args": ["${HOME}/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-mcp.mjs"]
-        }
-    }
+    "mcpServers": {}
 }

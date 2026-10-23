@@ -18,6 +18,8 @@ import {
     labelPositionOf,
     lineStyleOf,
     occluders,
+    polygonClassOf,
+    sceneNode,
     shapeClassOf,
 } from "./extract-scene";
 
@@ -38,13 +40,19 @@ function drawn(x0: number, y0: number, x1: number, y1: number, near: number, fil
         box: { x0, y0, x1, y1, near, far: near + 1 },
         meshName: "box",
         shapeType: "box",
+        polygon: undefined,
+        shown: true,
+        insetPx: 0,
         fillDrawn: "#cccccc",
         fillOpacity,
+        gradient: false,
+        ramp: null,
         instanceColor: false,
         visible: true,
         ring: null,
         border: null,
         label: null,
+        pieces: [],
     };
 }
 
@@ -150,6 +158,32 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
             [["outer", ["inner"]]],
         );
     });
+
+    it("draws an unfilled node with an outline: visible, with no fill", () => {
+        // Graphviz's default node is an unfilled ellipse: a transparent body and its outline
+        const outlined: DrawnNode = {
+            ...drawn(40, 40, 60, 60, 35, 0),
+            border: { color: "#000000", widthPx: 1, style: "solid", screen: false, opacity: 1 },
+        };
+        const n = sceneNode("a", outlined, {}, null);
+        assert.isTrue(n.visible);
+        assert.isNull(n.fill);
+        assert.strictEqual(n.border.color, "#000000");
+        assert.strictEqual(sceneNode("b", drawn(40, 40, 60, 60, 35), {}, null).fill, "#cccccc");
+    });
+
+    it("counts an outline drawn round a node as its border, and a glow as none", () => {
+        const ring = (kind: "outline" | "glow"): DrawnNode => ({
+            ...drawn(40, 40, 60, 60, 35),
+            ring: { kind, color: "#ff0000", reachPx: 3, inner: false },
+        });
+        assert.deepEqual(sceneNode("a", ring("outline"), {}, null).border, {
+            color: "#ff0000",
+            width: 3,
+            style: "solid",
+        });
+        assert.deepEqual(sceneNode("a", ring("glow"), {}, null).border, { color: null, width: 0, style: "solid" });
+    });
 });
 
 describe("the graphty scene extractor's vocabulary", () => {
@@ -161,7 +195,7 @@ describe("the graphty scene extractor's vocabulary", () => {
             rectangle: "rect",
             "round-rectangle": "roundrect",
             parallelogram: "parallelogram",
-            trapezoid: "rect",
+            trapezoid: "other",
             triangle: "triangle",
             diamond: "diamond",
             hexagon: "hexagon",
@@ -169,11 +203,41 @@ describe("the graphty scene extractor's vocabulary", () => {
             star: "star",
             pentagon: "other",
             vee: "other",
-            none: "ellipse",
+            // a polygon's class comes from its corners (polygonClassOf), not its name
+            polygon: "other",
+            // a node with no body, and Pajek's cross, house and figures, have no 2D class of their own
+            none: "other",
+            "other:cross": "other",
+            "other:house": "other",
+            "other:man": "other",
+            "other:woman": "other",
+            // Cytoscape.js's rounded polygons are curved shapes of no class; its barrel, vis-network's database and
+            // Graphviz's cylinder (drawn as a database) read as rounded boxes, as the programs' own do
+            "other:round-triangle": "other",
+            "other:round-diamond": "other",
+            "other:round-pentagon": "other",
+            "other:round-hexagon": "other",
+            "other:round-octagon": "other",
+            "other:round-polygon": "other",
+            "other:barrel": "roundrect",
+            "other:database": "roundrect",
+            "other:cylinder": "roundrect",
+            "other:icon": "other",
         };
         for (const [fileShape, mesh] of Object.entries(FILE_STYLE_SHAPES)) {
             assert.strictEqual(shapeClassOf(mesh), expected[fileShape], `${fileShape} -> ${mesh}`);
         }
+    });
+
+    it("classes a polygon by its corners, as a reader of the program's drawing does", () => {
+        assert.strictEqual(polygonClassOf("0,1 -1,-1 1,-1"), "triangle");
+        assert.strictEqual(polygonClassOf("1,1 -1,1 -1,-1 1,-1"), "rect");
+        assert.strictEqual(polygonClassOf("0,1 -1,0 0,-1 1.4,0"), "diamond");
+        assert.strictEqual(polygonClassOf("1,0.7 -0.6,0.7 -1,-0.7 0.6,-0.7"), "other", "a parallelogram");
+        assert.strictEqual(polygonClassOf("1,0 0.5,1 -0.5,1 -1,0 -0.5,-1 0.5,-1"), "hexagon");
+        assert.strictEqual(polygonClassOf("1,0 0,1 -1,0 0,-1 0.5,-0.5 0.7,-0.2 0.9,-0.1"), "other");
+        // without corners graphty draws the node's box
+        assert.strictEqual(polygonClassOf(undefined), "rect");
     });
 
     it("gives every node shape the element has a class, and anything else other", () => {

@@ -2,9 +2,11 @@ import "./table.css";
 
 import { type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import { ActionIcon, Button, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { isPanelEscape } from "../keys/keys";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -13,13 +15,19 @@ import { GroupTable } from "./GroupTable";
 import { RecordTable } from "./RecordTable";
 import { useSessionVersion } from "./useSessionVersion";
 
-/** The dock's chrome above the table: the tab strip and the caption line. */
-const CHROME_HEIGHT = 64;
+/**
+ * The dock's chrome above the table: its 1 px top rule, the 40 px tab strip and the 24 px caption
+ * line. Leaving the rule out made the table 1 px taller than the dock, so focusing a cell at its
+ * bottom scrolled the whole window up by that pixel.
+ */
+const CHROME_HEIGHT = 65;
 
 /** The reader's arrangement of one record table. */
 interface View {
     /** Column ids the reader unchecked. */
     readonly hidden: readonly string[];
+    /** The reader's column order, ids first to last; ids missing from it keep their place after it. */
+    readonly order: readonly string[];
     readonly sort: DataTableSort | null;
 }
 
@@ -31,20 +39,36 @@ interface Members {
     readonly scope: ScopeInput;
 }
 
-const EMPTY_VIEW: View = { hidden: [], sort: null };
+const EMPTY_VIEW: View = { hidden: [], order: [], sort: null };
 
-/** The reader's arrangement of the dock: its tab, each table's view, and the members chip. */
+/**
+ * The columns a view shows, in the reader's order: the keys first, then the order the reader set.
+ * @param choices - every column the table can show.
+ * @param view - the reader's view.
+ * @returns the shown columns, first to last.
+ */
+function shownColumns(choices: readonly TableColumnChoice[], view: View): TableColumnChoice[] {
+    const rank = (choice: TableColumnChoice): number => {
+        if (choice.group === "key") {
+            return -1;
+        }
+        const at = view.order.indexOf(choice.id);
+        return at === -1 ? view.order.length : at;
+    };
+    return choices.filter((choice) => !view.hidden.includes(choice.id)).sort((a, b) => rank(a) - rank(b));
+}
+
+/** The reader's arrangement of the dock: each table's view and the members chip (the tab is the store's). */
 interface Arrangement {
-    readonly tab: string;
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = { tab: "nodes", views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
+const FIRST_ARRANGEMENT: Arrangement = { views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
- * Shift+T twice must bring back the same tab, sort, columns and chip. Keyed by the workspace's
+ * Shift+T twice must bring back the same sort, columns and chip (the store keeps the tab). Keyed by the workspace's
  * store, so each mounted workspace (each story, each test) keeps its own.
  */
 const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
@@ -82,6 +106,9 @@ function membersScope(session: GraphSession, run: string, group: SummaryGroup): 
         },
     };
 }
+
+/** Why the Columns chooser has nothing to offer: the table has no column but the ones that always show. */
+const ONLY_KEYS_WORDS = "No other columns to show or hide";
 
 /** Props for the Columns chooser. */
 interface ColumnsMenuProps {
@@ -139,11 +166,30 @@ function ColumnSection({
  */
 function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuProps>): React.JSX.Element {
     const shown = choices.filter((choice) => !hidden.includes(choice.id)).length;
+    const words = `Columns: ${String(shown)} of ${String(choices.length)}`;
+    // Only the key columns, which always show: nothing to choose, so no empty list opens. Drawn
+    // disabled but focusable, so hover and focus say why.
+    if (choices.every((choice) => choice.group === "key")) {
+        return (
+            <Tooltip label={ONLY_KEYS_WORDS}>
+                <Button
+                    variant="subtle"
+                    size="compact-xs"
+                    className="ws-table-columns"
+                    aria-disabled
+                    data-disabled
+                    aria-description={ONLY_KEYS_WORDS}
+                >
+                    <span className="ws-table-ellipsis">{words}</span>
+                </Button>
+            </Tooltip>
+        );
+    }
     return (
         <Menu closeOnItemClick={false} position="bottom-end">
             <Menu.Target>
-                <Button variant="subtle" size="compact-xs">
-                    {`Columns: ${String(shown)} of ${String(choices.length)}`}
+                <Button variant="subtle" size="compact-xs" className="ws-table-columns">
+                    <span className="ws-table-ellipsis">{words}</span>
                 </Button>
             </Menu.Target>
             <Menu.Dropdown mah={320} style={{ overflowY: "auto" }}>
@@ -175,6 +221,20 @@ function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuPr
 function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput): number {
     const counted = { limit: 0, scope };
     return kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
+}
+
+/**
+ * The tab's count: "41 edges", or "12 of 41 edges" while a filter step hides some, in the
+ * filter chip's words.
+ * @param session - the element's session.
+ * @param kind - nodes or edges.
+ * @param scope - the records showing.
+ * @returns the words.
+ */
+function recordCount(session: GraphSession, kind: RecordKind, scope: ScopeInput): string {
+    const shown = recordTotal(session, kind, scope);
+    const all = scope === "visible" ? recordTotal(session, kind, "graph") : shown;
+    return shown === all ? countOf(all, kind) : `${shown.toLocaleString("en-US")} of ${countOf(all, kind)}`;
 }
 
 /**
@@ -245,6 +305,22 @@ function tableKey(kind: RecordKind, members: Members | null): string {
 }
 
 /**
+ * Escape in the table's grid: focus goes to the toolbar's Table button. A cell's own control that
+ * used the Escape (a list it closed) keeps it.
+ * @param event - the key press inside the dock.
+ */
+function leaveGrid(event: React.KeyboardEvent): void {
+    if (!isPanelEscape(event) || !(event.target instanceof Element) || event.target.closest('[role="grid"]') === null) {
+        return;
+    }
+    const button = document.querySelector<HTMLElement>('[data-command="table.toggle"]');
+    if (button !== null) {
+        event.preventDefault();
+        button.focus();
+    }
+}
+
+/**
  * The table dock (tier1-design.md section 2.9): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; the sort caption. Canvas, table
  * and inspector share graphty-element's one selection.
@@ -253,12 +329,44 @@ function tableKey(kind: RecordKind, members: Members | null): string {
 export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const tab = useWorkspaceState((state) => state.dockTab);
     useSessionVersion(session);
+    // A filter step changes which records the table lists.
+    useVisibilityVersion(session);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { tab, views, members } = arrangement;
+    const { views, members } = arrangement;
+
+    // Show in table: bring the asked-for column into view, checking it first if the reader
+    // unchecked it, then forget the ask.
+    const wanted = useWorkspaceState((state) => state.dockColumn);
+    const root = useRef<HTMLDivElement>(null);
+    const nodesTab = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        if (wanted === null || session === null) {
+            return;
+        }
+        const kind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        const view = arrangement.views[kind];
+        const { hidden } = view;
+        if (hidden.includes(wanted)) {
+            // The next render draws it, and this runs again to scroll to it.
+            setArrangement((now) => ({
+                ...now,
+                views: { ...now.views, [kind]: { ...now.views[kind], hidden: hidden.filter((h) => h !== wanted) } },
+            }));
+            return;
+        }
+        const at = shownColumns(columnChoices(session, kind), view).findIndex((choice) => choice.id === wanted);
+        if (at >= 0) {
+            root.current
+                ?.querySelector(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`)
+                ?.scrollIntoView({ block: "nearest", inline: "center" });
+        }
+        store.set({ dockColumn: null });
+    }, [wanted, session, store, arrangement]);
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
@@ -294,35 +402,42 @@ export function TableDock(): React.JSX.Element {
     const choices = columnChoices(session, kind);
     const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
-    const visible = choices.filter((choice) => !view.hidden.includes(choice.id));
+    const visible = shownColumns(choices, view);
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     // A chip whose run went away (undo, remove) goes with it.
     const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
-    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "graph";
+    // The table lists what the filter steps keep; a group shows its members.
+    const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : "visible";
     const tableHeight = Math.max(32, dockHeight - CHROME_HEIGHT);
 
     const setView = (change: Partial<View>): void => {
         setArrangement((now) => ({ ...now, views: { ...now.views, [kind]: { ...now.views[kind], ...change } } }));
     };
 
-    const count =
-        groupRun === undefined
-            ? countOf(recordTotal(session, kind, scope), kind)
-            : countOf(groupRun.groups.length, "group");
+    const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
     return (
-        <div className="ws-table">
+        // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
+        // always does its job, where nothing in the grid has an Escape of its own.
+        <div // NOSONAR(S6848): catches Escape bubbling from the grid's own controls to leave it
+            className="ws-table"
+            ref={root}
+            onKeyDown={leaveGrid}
+        >
             <div className="ws-table-strip">
                 <Tabs
+                    className="ws-table-tabs"
                     value={active}
                     onChange={(value) => {
                         if (value !== null) {
-                            arrange({ tab: value });
+                            store.set({ dockTab: value });
                         }
                     }}
                 >
                     <Tabs.List>
-                        <Tabs.Tab value="nodes">Nodes</Tabs.Tab>
+                        <Tabs.Tab ref={nodesTab} value="nodes">
+                            Nodes
+                        </Tabs.Tab>
                         <Tabs.Tab value="edges">Edges</Tabs.Tab>
                         {groups.map((run) => (
                             <Tabs.Tab key={run.id} value={`g:${run.id}`}>
@@ -331,7 +446,7 @@ export function TableDock(): React.JSX.Element {
                         ))}
                     </Tabs.List>
                 </Tabs>
-                <Text size="xs" c="dimmed" className="ws-table-count">
+                <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
                 {active === "nodes" && shownMembers !== null ? (
@@ -339,6 +454,8 @@ export function TableDock(): React.JSX.Element {
                         members={shownMembers}
                         onRemove={() => {
                             arrange({ members: null });
+                            // The chip and its x go; focus goes to the tab it narrowed.
+                            nodesTab.current?.focus();
                         }}
                     />
                 ) : null}
@@ -368,8 +485,21 @@ export function TableDock(): React.JSX.Element {
                     sort={sorted === undefined ? null : view.sort}
                     onSortChange={(sort) => {
                         setView({ sort });
+                        // The caption changes with the sort; a reader hears it.
+                        const column = visible.find((choice) => choice.id === sort?.id);
+                        store.set({ announcement: sortCaption(column, sort?.desc ?? false) });
                     }}
                     height={tableHeight}
+                    onMoveColumn={(id, by) => {
+                        const ids = visible.filter((choice) => choice.group !== "key").map((choice) => choice.id);
+                        const from = ids.indexOf(id);
+                        const to = from + by;
+                        if (from === -1 || to < 0 || to >= ids.length) {
+                            return;
+                        }
+                        [ids[from], ids[to]] = [ids[to], ids[from]];
+                        setView({ order: ids });
+                    }}
                 />
             ) : (
                 <GroupTable
@@ -377,8 +507,8 @@ export function TableDock(): React.JSX.Element {
                     groups={groupRun.groups}
                     height={tableHeight}
                     onShowMembers={(group, name) => {
+                        store.set({ dockTab: "nodes" });
                         arrange({
-                            tab: "nodes",
                             members: {
                                 run: groupRun.id,
                                 runLabel: groupRun.label,

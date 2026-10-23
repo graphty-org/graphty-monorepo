@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { SecondaryToolbar, Toolbar, ToolButton, ToolGroup, type ToolItem } from "../../../src";
+import { TipLabel } from "../../../src/components/shell/ToolButton";
 import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
 import { renderShell } from "./render";
 
@@ -69,6 +70,17 @@ describe("Toolbar", () => {
         expect(screen.getByRole("button", { name: "Move" })).toHaveFocus();
         await userEvent.tab();
         expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Rectangle" })).not.toHaveFocus();
+    });
+
+    it("lands on its first item with startAt first, whatever is pressed", async () => {
+        renderShell(
+            <Toolbar aria-label="Canvas" startAt="first">
+                <ToolButton label="Analyze" icon={<span>A</span>} />
+                <ToolButton label="Legend" icon={<span>L</span>} selected />
+            </Toolbar>,
+        );
+        await userEvent.tab();
+        expect(screen.getByRole("button", { name: "Analyze" })).toHaveFocus();
     });
 
     // Real key presses, without tooltips: each focus move would mount one (see
@@ -193,5 +205,16 @@ describe("SecondaryToolbar", () => {
         expect(more).toHaveAttribute("data-dropdown");
         expect(more.querySelector(".cm-secondary-item-chevron [data-glyph='chevronDown']")).not.toBeNull();
         expect(screen.getByRole("button", { name: "Lasso" }).querySelector(".cm-secondary-item-chevron")).toBeNull();
+    });
+});
+
+describe("TipLabel", () => {
+    it("puts a space between the name and its key, so the tooltip reads as two words", () => {
+        renderShell(
+            <span data-testid="tip">
+                <TipLabel label="Table" shortcut="Shift+T" />
+            </span>,
+        );
+        expect(screen.getByTestId("tip").textContent).toBe("Table Shift+T");
     });
 });

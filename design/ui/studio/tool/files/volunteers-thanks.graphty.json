@@ -1,0 +1,427 @@
+{
+    "kind": "graphty-document",
+    "version": 1,
+    "generator": { "name": "graphty-element", "version": "1.10.0" },
+    "requires": ["graphty-data", "graphty-session", "graphty-results"],
+    "members": [
+        {
+            "kind": "graphty-data",
+            "version": 1,
+            "format": "json",
+            "dialect": "node-link",
+            "graph": {
+                "directed": false,
+                "nodes": [
+                    {
+                        "id": "v01",
+                        "name": "Maria Lopez",
+                        "role": "board",
+                        "hours": 12,
+                        "trained": true,
+                        "phone": "555-0101"
+                    },
+                    {
+                        "id": "v02",
+                        "name": "James Carter",
+                        "role": "staff",
+                        "hours": 48,
+                        "trained": true,
+                        "phone": "555-0102"
+                    },
+                    { "id": "v03", "name": "Aisha Bello", "role": "volunteer", "hours": 22, "trained": true },
+                    {
+                        "id": "v04",
+                        "name": "Tobias Becker",
+                        "role": "volunteer",
+                        "hours": 6,
+                        "trained": false,
+                        "phone": "555-0104"
+                    },
+                    {
+                        "id": "v05",
+                        "name": "Priya Nair",
+                        "role": "volunteer",
+                        "hours": 31,
+                        "trained": true,
+                        "phone": "555-0105"
+                    },
+                    { "id": "v06", "name": "Leo Novak", "role": "volunteer", "hours": 3, "trained": false },
+                    {
+                        "id": "v07",
+                        "name": "Gina Kim",
+                        "role": "volunteer",
+                        "hours": 18,
+                        "trained": true,
+                        "phone": "555-0107"
+                    },
+                    {
+                        "id": "v08",
+                        "name": "Omar Haddad",
+                        "role": "volunteer",
+                        "hours": 9,
+                        "trained": false,
+                        "phone": "555-0108"
+                    },
+                    {
+                        "id": "v09",
+                        "name": "Hannah Weiss",
+                        "role": "staff",
+                        "hours": 52,
+                        "trained": true,
+                        "phone": "555-0109"
+                    },
+                    { "id": "v10", "name": "Diego Ruiz", "role": "volunteer", "hours": 27, "trained": true },
+                    {
+                        "id": "v11",
+                        "name": "Chen Wei",
+                        "role": "volunteer",
+                        "hours": 14,
+                        "trained": true,
+                        "phone": "555-0111"
+                    },
+                    {
+                        "id": "v12",
+                        "name": "Fatima Diallo",
+                        "role": "volunteer",
+                        "hours": 4,
+                        "trained": false,
+                        "phone": "555-0112"
+                    },
+                    {
+                        "id": "v13",
+                        "name": "Seun Okoro",
+                        "role": "board",
+                        "hours": 8,
+                        "trained": false,
+                        "phone": "555-0113"
+                    },
+                    { "id": "v14", "name": "Nora Lindqvist", "role": "volunteer", "hours": 20, "trained": true },
+                    { "id": "v15", "name": "Ivan Petrov", "role": "volunteer", "hours": 11, "trained": false },
+                    {
+                        "id": "v16",
+                        "name": "Lucy Grant",
+                        "role": "volunteer",
+                        "hours": 35,
+                        "trained": true,
+                        "phone": "555-0116"
+                    },
+                    {
+                        "id": "v17",
+                        "name": "Ken Ito",
+                        "role": "staff",
+                        "hours": 44,
+                        "trained": true,
+                        "phone": "555-0117"
+                    },
+                    {
+                        "id": "v18",
+                        "name": "Rosa Mendes",
+                        "role": "volunteer",
+                        "hours": 16,
+                        "trained": true,
+                        "phone": "555-0118"
+                    },
+                    {
+                        "id": "v19",
+                        "name": "Ahmed Saleh",
+                        "role": "volunteer",
+                        "hours": 2,
+                        "trained": false,
+                        "phone": "555-0119"
+                    },
+                    { "id": "v20", "name": "Julia Rossi", "role": "volunteer", "hours": 25, "trained": true },
+                    {
+                        "id": "v21",
+                        "name": "Ben Adler",
+                        "role": "staff",
+                        "hours": 40,
+                        "trained": true,
+                        "phone": "555-0121"
+                    },
+                    {
+                        "id": "v22",
+                        "name": "Mei Tanaka",
+                        "role": "volunteer",
+                        "hours": 7,
+                        "trained": false,
+                        "phone": "555-0122"
+                    },
+                    {
+                        "id": "v23",
+                        "name": "Paul Dubois",
+                        "role": "board",
+                        "hours": 5,
+                        "trained": true,
+                        "phone": "555-0123"
+                    },
+                    { "id": "v24", "name": "Zara Ahmed", "role": "staff", "hours": 38, "trained": false }
+                ],
+                "links": [
+                    { "source": "v01", "target": "v02" },
+                    { "source": "v01", "target": "v03" },
+                    { "source": "v01", "target": "v05" },
+                    { "source": "v01", "target": "v06" },
+                    { "source": "v01", "target": "v07" },
+                    { "source": "v01", "target": "v08" },
+                    { "source": "v02", "target": "v03" },
+                    { "source": "v02", "target": "v04" },
+                    { "source": "v02", "target": "v05" },
+                    { "source": "v02", "target": "v06" },
+                    { "source": "v02", "target": "v07" },
+                    { "source": "v02", "target": "v08" },
+                    { "source": "v02", "target": "v09" },
+                    { "source": "v03", "target": "v04" },
+                    { "source": "v03", "target": "v05" },
+                    { "source": "v03", "target": "v06" },
+                    { "source": "v04", "target": "v05" },
+                    { "source": "v04", "target": "v06" },
+                    { "source": "v04", "target": "v08" },
+                    { "source": "v05", "target": "v06" },
+                    { "source": "v05", "target": "v07" },
+                    { "source": "v05", "target": "v08" },
+                    { "source": "v05", "target": "v21" },
+                    { "source": "v06", "target": "v07" },
+                    { "source": "v06", "target": "v08" },
+                    { "source": "v07", "target": "v08" },
+                    { "source": "v09", "target": "v10" },
+                    { "source": "v09", "target": "v13" },
+                    { "source": "v09", "target": "v14" },
+                    { "source": "v09", "target": "v15" },
+                    { "source": "v09", "target": "v16" },
+                    { "source": "v09", "target": "v17" },
+                    { "source": "v10", "target": "v11" },
+                    { "source": "v10", "target": "v13" },
+                    { "source": "v10", "target": "v14" },
+                    { "source": "v10", "target": "v16" },
+                    { "source": "v11", "target": "v12" },
+                    { "source": "v11", "target": "v15" },
+                    { "source": "v12", "target": "v13" },
+                    { "source": "v12", "target": "v16" },
+                    { "source": "v13", "target": "v14" },
+                    { "source": "v13", "target": "v15" },
+                    { "source": "v13", "target": "v16" },
+                    { "source": "v13", "target": "v23" },
+                    { "source": "v14", "target": "v15" },
+                    { "source": "v14", "target": "v16" },
+                    { "source": "v15", "target": "v16" },
+                    { "source": "v17", "target": "v18" },
+                    { "source": "v17", "target": "v23" },
+                    { "source": "v18", "target": "v19" },
+                    { "source": "v18", "target": "v21" },
+                    { "source": "v18", "target": "v24" },
+                    { "source": "v19", "target": "v20" },
+                    { "source": "v19", "target": "v21" },
+                    { "source": "v20", "target": "v21" },
+                    { "source": "v20", "target": "v22" },
+                    { "source": "v20", "target": "v23" },
+                    { "source": "v21", "target": "v22" },
+                    { "source": "v21", "target": "v23" },
+                    { "source": "v21", "target": "v24" },
+                    { "source": "v22", "target": "v23" },
+                    { "source": "v22", "target": "v24" },
+                    { "source": "v23", "target": "v24" }
+                ]
+            },
+            "source": { "type": "graphml", "name": "volunteers.graphml", "size": 8761, "config": {} },
+            "sources": [
+                {
+                    "type": "graphml",
+                    "name": "volunteers.graphml",
+                    "size": 8761,
+                    "config": {},
+                    "tables": ["volunteers.graphml"],
+                    "added": { "nodes": 24, "edges": 63 }
+                }
+            ]
+        },
+        {
+            "kind": "graphty-session",
+            "version": 1,
+            "config": {
+                "data": {
+                    "directed": "auto",
+                    "knownFields": {
+                        "nodeIdPath": "id",
+                        "nodeLabelPath": null,
+                        "nodeWeightPath": null,
+                        "nodeTimePath": null,
+                        "edgeSrcIdPath": null,
+                        "edgeDstIdPath": null,
+                        "edgeIdPath": null,
+                        "repeatedEdges": "keep",
+                        "edgeWeightPath": "weight",
+                        "edgeWeightMeaning": null,
+                        "edgeTimePath": null,
+                        "positionScale": 1,
+                        "idCoercion": "canonical"
+                    }
+                },
+                "runAlgorithmsOnLoad": false,
+                "background": { "backgroundType": "color", "color": "#F5F5F5" },
+                "selectionStyle": {
+                    "color": "#FFD700",
+                    "scale": 1.45,
+                    "opacity": 0.4,
+                    "edgeColor": "#0077BB",
+                    "edgeScale": 2.5,
+                    "edgeOpacity": 1
+                },
+                "layoutBehavior": { "preSteps": 0, "stepMultiplier": 1, "minDelta": 0 }
+            },
+            "layout": { "id": "force", "engine": "ngraph", "options": { "seed": 1 }, "dimension": "3d" },
+            "visibility": { "filter": null, "window": null, "showContext": false },
+            "sets": [],
+            "views": []
+        },
+        {
+            "kind": "graphty-arrangement",
+            "version": 1,
+            "ids": [
+                "v01",
+                "v02",
+                "v03",
+                "v04",
+                "v05",
+                "v06",
+                "v07",
+                "v08",
+                "v09",
+                "v10",
+                "v11",
+                "v12",
+                "v13",
+                "v14",
+                "v15",
+                "v16",
+                "v17",
+                "v18",
+                "v19",
+                "v20",
+                "v21",
+                "v22",
+                "v23",
+                "v24"
+            ],
+            "x": {
+                "dtype": "f64",
+                "data": "AAAAALx5HsAAAADgHTD2PwAAACACPSHAAAAAoKKVAEAAAABgpmMewAAAAOC1gfs/AAAAgN3zCsAAAADAb3AXwAAAAIAyDiFAAAAAQNbhMUAAAABA6S00QAAAAAAQbDRAAAAAoOoII0AAAACAVc0pQAAAAMAZkDFAAAAAYHKMNEAAAADgKtwUwAAAAODkmTPAAAAAICVRMMAAAADgjuUqwAAAAKD94SbAAAAAYGDkLcAAAAAgqSgTwAAAAEDO3C7A"
+            },
+            "y": {
+                "dtype": "f64",
+                "data": "AAAAAIDCLcAAAAAgnOknwAAAAABMEjbAAAAAgDION8AAAADg1VkpwAAAAKCCJDTAAAAA4IMNNcAAAADg5e83wAAAAKBCSg5AAAAAINbOI0AAAADg0Q8jQAAAAMDI8zJAAAAAgEI5LUAAAABAzckoQAAAAAArPRNAAAAAQBiMKkAAAAAgYvYbQAAAAKDeNhpAAAAAICOgIUAAAACg3K8uQAAAAIDFwgdAAAAAgMb1LEAAAAAg/vwnQAAAAOB9CBZA"
+            },
+            "z": {
+                "dtype": "f64",
+                "data": "AAAAQMtFKkAAAABgDZMZQAAAAACeCxVAAAAA4MQMAUAAAADgK1MGQAAAAKCRXidAAAAAQKoz/T8AAABg3KwlQAAAAKBulwZAAAAAoEMYEcAAAAAg53YrwAAAACChThvAAAAAgJAMC8AAAAAgAmoaQAAAAEC51gLAAAAAoFTBCkAAAAAABz70PwAAAGDTPAbAAAAAYIOGGUAAAACAuuf3vwAAAKAsdgvAAAAAAN9LJsAAAAAgegUhwAAAAKA+uCrA"
+            },
+            "pins": []
+        },
+        { "kind": "graphty-results", "version": 1, "fingerprint": "547c3378fd406891", "runs": [] },
+        {
+            "kind": "graphty-style",
+            "version": 1,
+            "layers": [
+                {
+                    "name": "Everything",
+                    "target": "edge",
+                    "kind": "custom",
+                    "selector": { "match": "everything" },
+                    "source": { "by": "template", "templateId": "graphty:starting-everything" },
+                    "enabled": true,
+                    "set": {
+                        "edge.color": "darkgrey",
+                        "edge.width": 8,
+                        "edge.style": "solid",
+                        "edge.animationSpeed": 0
+                    },
+                    "row": "everything_2"
+                },
+                {
+                    "name": "Everything",
+                    "target": "node",
+                    "kind": "custom",
+                    "selector": { "match": "everything" },
+                    "source": { "by": "template", "templateId": "graphty:starting-everything" },
+                    "enabled": true,
+                    "set": { "node.color": "#6366F1", "node.size": 1, "node.shape": "icosphere" },
+                    "row": "everything_2"
+                },
+                {
+                    "name": "Thank-you cards",
+                    "target": "edge",
+                    "kind": "custom",
+                    "selector": { "match": "everything" },
+                    "source": { "by": "user" },
+                    "enabled": true,
+                    "row": "layer-1_2"
+                },
+                {
+                    "name": "Thank-you cards",
+                    "target": "node",
+                    "kind": "custom",
+                    "selector": {
+                        "match": "rule",
+                        "where": {
+                            "kind": "all",
+                            "of": [
+                                { "kind": "range", "attribute": "data.hours", "min": 30, "max": 52 },
+                                {
+                                    "kind": "text",
+                                    "reads": "data.trained",
+                                    "mode": "exact",
+                                    "text": "true",
+                                    "caseSensitive": true
+                                }
+                            ]
+                        }
+                    },
+                    "source": { "by": "user" },
+                    "enabled": true,
+                    "set": { "node.color": "#008000" },
+                    "row": "layer-1_2"
+                },
+                {
+                    "name": "Selected",
+                    "target": "edge",
+                    "kind": "custom",
+                    "selector": { "match": "state", "state": "selected" },
+                    "source": { "by": "template", "templateId": "graphty:starting-selected" },
+                    "enabled": true,
+                    "set": { "edge.bandColor": "#0077BB", "edge.bandWidth": 2.5, "edge.bandOpacity": 1 },
+                    "row": "selected_2"
+                },
+                {
+                    "name": "Selected",
+                    "target": "node",
+                    "kind": "custom",
+                    "selector": { "match": "state", "state": "selected" },
+                    "source": { "by": "template", "templateId": "graphty:starting-selected" },
+                    "enabled": true,
+                    "set": {
+                        "node.haloColor": "#FFD700",
+                        "node.haloSize": 1.45,
+                        "node.haloOpacity": 1,
+                        "node.glow": "#111111"
+                    },
+                    "row": "selected_2"
+                },
+                {
+                    "name": "Hovered",
+                    "target": "node",
+                    "kind": "custom",
+                    "selector": { "match": "state", "state": "hovered" },
+                    "source": { "by": "template", "templateId": "graphty:starting-hovered" },
+                    "enabled": true
+                }
+            ],
+            "tree": [
+                { "layer": 1, "pin": "bottom" },
+                { "layer": 3 },
+                { "layer": 5, "pin": "top" },
+                { "layer": 6, "pin": "top" }
+            ]
+        },
+        { "kind": "graphty-notes", "version": 1, "notes": [] },
+        { "kind": "graphty-view-state", "version": 1, "selection": { "nodes": [], "edges": [] } }
+    ]
+}

@@ -19,6 +19,24 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // the network sources (design/graph-io/network-sources-design.md section 8), experimental
+    "E_SOURCE_BLOCKED",
+    "E_SOURCE_AUTH",
+    "E_SOURCE_FORBIDDEN",
+    "E_SOURCE_NOT_FOUND",
+    "E_SOURCE_QUOTA",
+    "E_SOURCE_TIMEOUT",
+    "E_SOURCE_QUERY",
+    "E_SOURCE_NOT_A_GRAPH",
+    "E_SOURCE_RESPONSE",
+    "E_SOURCE_REDIRECT",
+    "E_SOURCE_RUNTIME",
+    "E_SOURCE_PARAM",
+    "E_SOURCE_LIMIT",
+    "E_SOURCE_UNKNOWN",
+    "E_SOURCE_UNSUPPORTED",
+    "E_SOURCE_INVALID",
+    "E_CREDENTIAL_NOT_STORABLE",
     "E_BAD_COMMAND",
     "E_BAD_QUERY",
     "E_BAD_LAYER",
@@ -36,6 +54,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
     "E_UNKNOWN_CAMERA",
+    "E_UNKNOWN_GENERATOR",
+    "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
@@ -43,13 +63,17 @@ const CODES_FROM_THE_DESIGN = [
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
+    "E_AUTOSAVE_ENTRY_TAKEN",
+    "E_AUTOSAVE_UNKNOWN_ENTRY",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
     "E_DUPLICATE_PLUGIN",
     "E_PROTECTED",
+    "E_LOCKED",
     "E_FETCH_FAILED",
     "E_PARSE_FAILED",
+    "E_PROJECT_FILE_AS_DATA",
     "E_EDGE_ENDPOINTS_UNRESOLVED",
     "E_ID_MISSING",
     "E_EMPTY_LOAD",
@@ -70,6 +94,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_BAD_PATH",
     "E_PATH_COUNT_OVERFLOW",
     "E_NO_ACCELERATOR",
+    "E_NO_ACCELERATOR_REGISTERED",
+    "E_ACCELERATOR_FAILED",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
     "E_SOFTWARE_ONLY",
@@ -112,6 +138,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
         case "E_UNKNOWN_CAMERA":
+        case "E_UNKNOWN_GENERATOR":
+        case "E_UNKNOWN_DATASET":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
@@ -122,7 +150,10 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
+        case "E_LOCKED":
         case "E_UNSAVED_CHANGES":
+        case "E_AUTOSAVE_ENTRY_TAKEN":
+        case "E_AUTOSAVE_UNKNOWN_ENTRY":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -130,6 +161,7 @@ function bucketOf(code: GraphtyErrorCode): string {
             return "identity";
         case "E_FETCH_FAILED":
         case "E_PARSE_FAILED":
+        case "E_PROJECT_FILE_AS_DATA":
         case "E_EDGE_ENDPOINTS_UNRESOLVED":
         case "E_ID_MISSING":
         case "E_EMPTY_LOAD":
@@ -142,6 +174,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_NOT_CONVERGED":
             return "size";
         case "E_NO_ACCELERATOR":
+        case "E_NO_ACCELERATOR_REGISTERED":
+        case "E_ACCELERATOR_FAILED":
         case "E_NO_WEBGPU":
         case "E_NO_ADAPTER":
         case "E_SOFTWARE_ONLY":
@@ -163,6 +197,24 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_SOURCE_BLOCKED":
+        case "E_SOURCE_AUTH":
+        case "E_SOURCE_FORBIDDEN":
+        case "E_SOURCE_NOT_FOUND":
+        case "E_SOURCE_QUOTA":
+        case "E_SOURCE_TIMEOUT":
+        case "E_SOURCE_QUERY":
+        case "E_SOURCE_NOT_A_GRAPH":
+        case "E_SOURCE_RESPONSE":
+        case "E_SOURCE_REDIRECT":
+        case "E_SOURCE_RUNTIME":
+        case "E_SOURCE_PARAM":
+        case "E_SOURCE_LIMIT":
+        case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_UNSUPPORTED":
+        case "E_SOURCE_INVALID":
+        case "E_CREDENTIAL_NOT_STORABLE":
+            return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
         default: {
@@ -225,10 +277,19 @@ describe("isGraphtyErrorCode", () => {
 });
 
 describe("ACCELERATION_ERROR_CODES", () => {
-    it("is the six codes capabilities.acceleration can report", () => {
+    it("is the eight codes capabilities.acceleration can report", () => {
         assert.deepStrictEqual(
             [...ACCELERATION_ERROR_CODES],
-            ["E_NO_WEBGPU", "E_NO_ADAPTER", "E_SOFTWARE_ONLY", "E_DEVICE_INCORRECT", "E_DEVICE_LOST", "E_TOO_LARGE"],
+            [
+                "E_NO_WEBGPU",
+                "E_NO_ADAPTER",
+                "E_SOFTWARE_ONLY",
+                "E_DEVICE_INCORRECT",
+                "E_DEVICE_LOST",
+                "E_TOO_LARGE",
+                "E_NO_ACCELERATOR_REGISTERED",
+                "E_ACCELERATOR_FAILED",
+            ],
         );
     });
 

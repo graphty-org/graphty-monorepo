@@ -27,6 +27,7 @@
 import { BLUE_HIGHLIGHT, GREEN_SUCCESS, ORANGE_WARNING } from "../config/palettes/binary";
 import {
     CARBON_COLORS,
+    KELLY_COLORS,
     OKABE_ITO_COLORS,
     PASTEL_COLORS,
     TOL_MUTED_COLORS,
@@ -154,6 +155,14 @@ export const PALETTE_DESCRIPTORS: readonly PaletteDescriptor[] = Object.freeze([
         kind: "categorical",
         colors: CARBON_COLORS,
         capacity: CARBON_COLORS.length,
+        colorblindSafe: [],
+    },
+    {
+        id: "kelly",
+        plainName: "Nineteen Contrasting Colors",
+        kind: "categorical",
+        colors: KELLY_COLORS,
+        capacity: KELLY_COLORS.length,
         colorblindSafe: [],
     },
     {

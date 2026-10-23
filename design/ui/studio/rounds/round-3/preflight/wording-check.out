@@ -1,0 +1,124 @@
+proof ok: planted echo caught (picture, save, analyze, export); 51 screens, 19 prompts
+
+T2:
+  answer          1 screens, e.g. start
+  back            5 screens, e.g. analyze-form-Louvain, analyze-form-PageRank, analyze-list, layout-spectral-form
+  change          3 screens, e.g. after-no-thanks, settings-closed, settings-privacy
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  file           22 screens, e.g. College football-loaded, Florentine-loaded, after-no-thanks, analyze-form-PageRank
+  help            3 screens, e.g. main-menu, settings-privacy, start
+  see             2 screens, e.g. settings-privacy, start
+
+T3:
+  between         6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  drawn           2 screens, e.g. analyze-list, settings-privacy
+  kept            6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  saved           4 screens, e.g. export-data, export-image, settings-privacy, start-after-close
+
+T5:
+  carry           1 screens, e.g. analyze-list
+  club-members    1 screens, e.g. club-members.graphml-opened
+  exactly         2 screens, e.g. layout-closed, layout-popover
+  fix             1 screens, e.g. size-list-open
+  point           1 screens, e.g. analyze-list
+  saved           4 screens, e.g. export-data, export-image, settings-privacy, start-after-close
+
+T6:
+  between         6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  connection      4 screens, e.g. analyze-form-Louvain, analyze-list, javert-neighbors, louvain-run
+  connections     4 screens, e.g. analyze-form-Louvain, analyze-list, javert-neighbors, louvain-run
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  reached         1 screens, e.g. analyze-list
+
+T7A:
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  order           7 screens, e.g. analyze-list, main-menu, save-as, save-closed
+  top             6 screens, e.g. add-to-shape-menu, pagerank-row-style, pagerank-row-style-again, pagerank-row-values
+
+T7B:
+  drawn           2 screens, e.g. analyze-list, settings-privacy
+  order           7 screens, e.g. analyze-list, main-menu, save-as, save-closed
+  top             6 screens, e.g. add-to-shape-menu, pagerank-row-style, pagerank-row-style-again, pagerank-row-values
+
+T8:
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  keep            2 screens, e.g. layout-closed, layout-popover
+  pick            3 screens, e.g. College football-label-options, Florentine-label-options, label-line-options
+  together        5 screens, e.g. after-no-thanks, club-members.graphml-opened, settings-closed, settings-privacy
+
+T9A:
+  colors         46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  show            4 screens, e.g. communities-values, find-results, label-bound, show-all-labels
+  sizes           1 screens, e.g. communities-values
+
+T9B:
+  between         6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  leading         5 screens, e.g. after-no-thanks, club-members.graphml-opened, settings-closed, settings-privacy
+
+T10A:
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+
+T10B:
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+
+T11:
+  clusters        1 screens, e.g. analyze-list
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  helped          3 screens, e.g. main-menu, settings-privacy, start
+
+T12A:
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  read            5 screens, e.g. after-no-thanks, club-members.graphml-opened, settings-closed, settings-privacy
+  see             2 screens, e.g. settings-privacy, start
+
+T12B:
+  between         6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  data           51 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  leading         5 screens, e.g. after-no-thanks, club-members.graphml-opened, settings-closed, settings-privacy
+  read            5 screens, e.g. after-no-thanks, club-members.graphml-opened, settings-closed, settings-privacy
+  see             2 screens, e.g. settings-privacy, start
+
+T13:
+  color          46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  colors         46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  file           22 screens, e.g. College football-loaded, Florentine-loaded, after-no-thanks, analyze-form-PageRank
+  keep            2 screens, e.g. layout-closed, layout-popover
+  looks           7 screens, e.g. after-no-thanks, club-members.graphml-opened, context-menu, javert-values
+  numbers         2 screens, e.g. analyze-list, data-page
+  open            6 screens, e.g. after-no-thanks, club-members.graphml-opened, main-menu, settings-closed
+  opened          6 screens, e.g. after-no-thanks, club-members.graphml-opened, main-menu, settings-closed
+  picture         1 screens, e.g. export-image
+
+T14:
+  away            1 screens, e.g. analyze-list
+  computer        7 screens, e.g. after-no-thanks, club-members.graphml-opened, export-data, export-image
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  kept            6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+
+T15A:
+  colors         46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  file           22 screens, e.g. College football-loaded, Florentine-loaded, after-no-thanks, analyze-form-PageRank
+  finish         37 screens, e.g. add-to-shape-menu, analyze-form-Louvain, analyze-list, communities-values
+  picture         1 screens, e.g. export-image
+  sizes           1 screens, e.g. communities-values
+
+T15B:
+  colors         46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  drawing        46 screens, e.g. College football-everything, College football-label-options, College football-loaded, Florentine-everything
+  file           22 screens, e.g. College football-loaded, Florentine-loaded, after-no-thanks, analyze-form-PageRank
+  finish         37 screens, e.g. add-to-shape-menu, analyze-form-Louvain, analyze-list, communities-values
+  kept            6 screens, e.g. after-no-thanks, analyze-list, club-members.graphml-opened, settings-closed
+  picture         1 screens, e.g. export-image
+  saved           4 screens, e.g. export-data, export-image, settings-privacy, start-after-close
+  sizes           1 screens, e.g. communities-values
+
+T16:
+  help            3 screens, e.g. main-menu, settings-privacy, start
+  keep            2 screens, e.g. layout-closed, layout-popover
+  short           1 screens, e.g. analyze-list

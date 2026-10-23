@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Edge color: Family ties 8 of 30 edges",
+   "rows": [
+    {
+     "text": "Edge color: Family ties",
+     "color": "#ff0000"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 16
+  },
+  "edges": {
+   "#ff0000": 8,
+   "#a9a9a9": 22
+  }
+ }
+}

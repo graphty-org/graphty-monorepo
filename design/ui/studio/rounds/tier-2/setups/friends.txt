@@ -1,0 +1,6 @@
+# A returning user's club list, already open
+--click No thanks
+--click New from data...
+--click choose a file...
+--upload friends.csv
+--click Load

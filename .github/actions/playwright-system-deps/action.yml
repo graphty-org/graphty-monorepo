@@ -1,6 +1,7 @@
 name: Install Playwright's system packages
 description: >
-    Installs the system packages Chromium needs (`playwright install-deps chromium`) from .deb files
+    Installs the system packages Chromium (or the browsers named in `browsers`) needs
+    (`playwright install-deps chromium`) from .deb files
     cached per runner image and Playwright version, instead of running apt on every job. apt took 15 s
     at the median and 30 s on average per job, 7 s of it `apt-get update` and a long download tail; a
     hit restores the files and runs only dpkg. The cached set is exactly what apt chose on the same
@@ -11,14 +12,22 @@ inputs:
     working-directory:
         description: The directory whose `pnpm exec playwright` is used, so its version keys the cache.
         default: .
+    browsers:
+        description: >
+            The browsers to install the system packages of, as `playwright install-deps` names them,
+            space separated. The graphty-element lifecycle shard needs all three.
+        default: chromium
 runs:
     using: composite
     steps:
         - id: key
           shell: bash
           working-directory: ${{ inputs.working-directory }}
+          env:
+              BROWSERS: ${{ inputs.browsers }}
           # ImageVersion keys the cache because a deb cached on an older image would downgrade packages.
-          run: echo "key=playwright-debs-${ImageOS:?}-${ImageVersion:?}-$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          # Browsers other than Chromium alone add their names, so Chromium's own key is unchanged.
+          run: echo "key=playwright-debs-${ImageOS:?}-${ImageVersion:?}-$(pnpm exec playwright --version | awk '{print $2}')$([ "$BROWSERS" = chromium ] || echo "-${BROWSERS// /-}")" >> "$GITHUB_OUTPUT"
 
         - id: cache
           uses: actions/cache@v4
@@ -30,4 +39,5 @@ runs:
           working-directory: ${{ inputs.working-directory }}
           env:
               HIT: ${{ steps.cache.outputs.cache-hit }}
+              BROWSERS: ${{ inputs.browsers }}
           run: '"$GITHUB_ACTION_PATH/install.sh"'

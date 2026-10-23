@@ -1,0 +1,36 @@
+{
+ "start": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "end": {
+  "runs": [
+   "pagerank PageRank (label Influence)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "influence_1 Influence"
+  ],
+  "notes": [
+   "note_01M4J0M85W06C17T0B6B24D2EN Spring list, checked against the sign-up sheet",
+   "note_01M4J0KS90Z6YYM1MY936CH8NG Moving away in May; ask who takes over the Tuesday run"
+  ],
+  "steps": [],
+  "sources": [
+   "friends.csv"
+  ]
+ },
+ "gone": {}
+}

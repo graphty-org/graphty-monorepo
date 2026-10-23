@@ -1021,6 +1021,30 @@ after each change. Such an ad hoc capture is look only. To approve before CI has
 capture the pull request's merge tree as a local preview (`serve --previews` above), and accept it
 on the pull request; CI's capture stays the judge.
 
+## Splitting one capture across machines
+
+A project with many stories can be captured in parts, one machine each, and joined before the gate
+reads it:
+
+```bash
+# on each of n machines, part i of n (the same commit and the same built Storybook):
+npx visual-review capture --project web --out parts/web-1 --shard 1/3
+# then, on one machine, with every part's output downloaded:
+npx visual-review capture --merge --out captures/web parts/web-1 parts/web-2 parts/web-3
+```
+
+`--shard <i>/<n>` captures part i of n. The parts depend only on the story ids: sorted, every n-th
+story goes to the same part, so the same stories and n give the same split everywhere, every story
+is in exactly one part, and no part is empty while there are at least n stories. A baseline whose
+story is gone (reported `removed`) and a rename to a story that does not exist belong to part 1.
+`--shard` combines with `--stories`, which filters first.
+
+A part's `results.json` is never `complete`, so a part handed to the gate on its own fails it. The
+merge checks that all n parts are there exactly once, that each finished, and that they captured the
+same commit with the same browser, then writes one `results.json` and every PNG into `--out`: the
+same items, in the same order, as one capture without `--shard` would have written. Upload that
+directory where you upload a whole capture today; the gate reads it unchanged.
+
 ## How captures and baselines move
 
 - **What a capture is.** Each story and mode is opened in a 1200 x 900 viewport at device scale

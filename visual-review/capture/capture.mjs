@@ -37,7 +37,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { hostname, tmpdir } from "node:os";
 import { dirname, extname, join, normalize, relative, sep } from "node:path";
@@ -48,6 +48,7 @@ import { PNG } from "pngjs";
 
 import { classify, DEFAULT_THRESHOLD, readBaseline, sha256 } from "../trusted/lib/compare.mjs";
 import { validateResults } from "../trusted/lib/results.mjs";
+import { shardFilter, writeResults } from "./shard.mjs";
 
 /* global document, requestAnimationFrame -- read only inside the page */
 
@@ -642,15 +643,116 @@ async function loadReference(dir) {
 }
 
 /**
+ * What one capture does with each story, mode and baseline: the items decided without a browser
+ * (excluded stories, broken renames), the stories and modes to screenshot, and the baselines no story
+ * claims any more (removed). With `shard`, only that part's share of each (see shard.mjs); what is
+ * planned and renamed is still worked out over every story, so a part never reports another part's
+ * baseline as removed.
+ * @param {{ allIds: string[], ids: string[], params: Record<string, { chromatic?: object }>,
+ *     baselines: string, renames: Map<string, string>, existing: Set<string>, stories: string[] | null,
+ *     base: string, shard?: { index: number, count: number } | null }} input every story id of the
+ *     Storybook, the ones to capture, their parameters, the baselines directory, the renames, the
+ *     baseline PNGs there, the --stories prefixes, the Storybook's URL and the part
+ * @returns {Promise<{ items: object[], jobs: object[], gone: string[], newlyExcluded: Set<string> }>} the
+ *     part's items, jobs and removed baselines, and every newly excluded story's baseline
+ */
+export async function plan({ allIds, ids, params, baselines, renames, existing, stories, base, shard = null }) {
+    const mine = shardFilter(ids, shard);
+    const jobs = [];
+    const items = [];
+    const planned = new Set();
+    // A story whose own parameters exclude it while it still has a baseline is reported as
+    // removed, so a pull request cannot drop a story from review without the owner seeing it.
+    const newlyExcluded = new Set();
+    // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
+    const renamed = new Set();
+    const renameErrors = [];
+    const known = new Set(allIds);
+    for (const [to, from] of stories ? [] : renames) {
+        if (known.has(to)) {
+            continue;
+        }
+        // Only a rename with an old baseline left to move is an error; once it is accepted the
+        // old baselines are gone, and the entry does nothing.
+        for (const file of existing) {
+            const [id, mode = null] = file.slice(0, -4).split(".");
+            if (id === from && BASELINE_NAME.test(file)) {
+                renamed.add(file);
+                renameErrors.push({
+                    id: to,
+                    mode,
+                    file: fileName(to, mode),
+                    from,
+                    threshold: DEFAULT_THRESHOLD,
+                    includeAA: false,
+                    ...EMPTY,
+                    status: "failed",
+                    reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
+                });
+            }
+        }
+    }
+    items.push(...renameErrors.filter((i) => mine(i.id)));
+    for (const id of ids) {
+        const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
+        for (const mode of s.modes) {
+            const file = fileName(id, mode.name);
+            const common = { id, mode: mode.name, file, threshold: s.threshold, includeAA: s.includeAA };
+            if (s.excludedByStory && existing.has(file)) {
+                newlyExcluded.add(file);
+                continue;
+            }
+            planned.add(file);
+            // Renamed: compared with the old id's baseline of this mode, while the new id has none
+            // of its own (after the accept it does, and the rename is done). A rename from an id
+            // that is still a story is not a move: it does nothing. Worked out for every part, so
+            // no part reports the old baseline as removed.
+            const old = s.disableSnapshot ? null : renamedFrom(renames, known, id, mode.name);
+            const from = old && !existing.has(file) && existing.has(old) ? renames.get(id) : null;
+            if (from) {
+                renamed.add(old);
+            }
+            if (!mine(id)) {
+                continue;
+            }
+            if (s.disableSnapshot) {
+                items.push({ ...common, ...EMPTY, status: "excluded", reason: s.reason });
+            } else {
+                jobs.push({ ...common, from, url: base + storyUrl(id, mode.globals), delay: s.delay });
+            }
+        }
+    }
+    const gone = stories
+        ? []
+        : [...existing].filter(
+              (f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f) && mine(f.split(".")[0]),
+          );
+    return { items, jobs, gone, newlyExcluded };
+}
+
+/**
+ * The baseline a renamed story's mode is compared with, before checking that it exists.
+ * @param {Map<string, string>} renames old id by new id
+ * @param {Set<string>} known every story id of the Storybook
+ * @param {string} id the story id
+ * @param {string | null} mode the mode name
+ * @returns {string | null} the old id's file name, or null when the story was not renamed from a gone id
+ */
+const renamedFrom = (renames, known, id, mode) =>
+    renames.has(id) && !known.has(renames.get(id)) ? fileName(renames.get(id), mode) : null;
+
+/**
  * Captures one project.
  * @param {{ project: string, storybook: string, baselines: string, out: string, workers: number,
  *     waitFor?: object | null, reference?: string | null, stories?: string[] | null,
- *     fontconfig?: string | null, log?: (line: string) => void }} options `fontconfig` is the
+ *     fontconfig?: string | null, shard?: { index: number, count: number } | null,
+ *     log?: (line: string) => void }} options `fontconfig` is the
  *     absolute path of the fonts.conf every browser draws with (the config's `fontconfig`), null for
  *     the host's fonts; `waitFor` is the project's config entry (see
  *     shootOnce); `reference` is the default branch's capture (see above); `stories` keeps only
  *     the story ids starting with one of these prefixes, for a quick local preview, and then no
- *     baseline is reported removed
+ *     baseline is reported removed; `shard` captures only that part of the stories (see shard.mjs),
+ *     and its results.json is then never `complete` until `capture --merge` joins the parts
  * @returns {Promise<object>} the final results.json contents
  */
 export async function capture({
@@ -663,6 +765,7 @@ export async function capture({
     reference = null,
     stories = null,
     fontconfig = null,
+    shard = null,
     log = console.log,
 }) {
     const started = Date.now();
@@ -690,71 +793,17 @@ export async function capture({
     try {
         const { params, renderer, gpu } = await extract(browser, base);
 
-        const jobs = [];
-        const items = [];
-        const planned = new Set();
-        const existing = new Set(await pngsIn(baselines));
-        // A story whose own parameters exclude it while it still has a baseline is reported as
-        // removed, so a pull request cannot drop a story from review without the owner seeing it.
-        const newlyExcluded = new Set();
-        // Old baselines a rename compares a story with (or reports as a broken rename): not removed.
-        const renamed = new Set();
-        const renameErrors = [];
-        const known = new Set(allIds);
-        for (const [to, from] of stories ? [] : renames) {
-            if (known.has(to)) {
-                continue;
-            }
-            // Only a rename with an old baseline left to move is an error; once it is accepted the
-            // old baselines are gone, and the entry does nothing.
-            for (const file of existing) {
-                const [id, mode = null] = file.slice(0, -4).split(".");
-                if (id === from && BASELINE_NAME.test(file)) {
-                    renamed.add(file);
-                    renameErrors.push({
-                        id: to,
-                        mode,
-                        file: fileName(to, mode),
-                        from,
-                        threshold: DEFAULT_THRESHOLD,
-                        includeAA: false,
-                        ...EMPTY,
-                        status: "failed",
-                        reason: `${RENAMES} renames ${from} to ${to}, but the Storybook has no story ${to}: fix ${RENAMES}`,
-                    });
-                }
-            }
-        }
-        items.push(...renameErrors);
-        for (const id of ids) {
-            const s = storySettings(params[id] ?? {}, await loadSettings(baselines, id));
-            for (const mode of s.modes) {
-                const file = fileName(id, mode.name);
-                const common = { id, mode: mode.name, file, threshold: s.threshold, includeAA: s.includeAA };
-                if (s.excludedByStory && existing.has(file)) {
-                    newlyExcluded.add(file);
-                    continue;
-                }
-                planned.add(file);
-                if (s.disableSnapshot) {
-                    items.push({ ...common, ...EMPTY, status: "excluded", reason: s.reason });
-                } else {
-                    // Renamed: compared with the old id's baseline of this mode, while the new id
-                    // has none of its own (after the accept it does, and the rename is done).
-                    // A rename from an id that is still a story is not a move: it does nothing.
-                    const old =
-                        renames.has(id) && !known.has(renames.get(id)) ? fileName(renames.get(id), mode.name) : null;
-                    const from = old && !existing.has(file) && existing.has(old) ? renames.get(id) : null;
-                    if (from) {
-                        renamed.add(old);
-                    }
-                    jobs.push({ ...common, from, url: base + storyUrl(id, mode.globals), delay: s.delay });
-                }
-            }
-        }
-        const gone = stories
-            ? []
-            : [...existing].filter((f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f));
+        const { items, jobs, gone, newlyExcluded } = await plan({
+            allIds,
+            ids,
+            params,
+            baselines,
+            renames,
+            existing: new Set(await pngsIn(baselines)),
+            stories,
+            base,
+            shard,
+        });
 
         const emojiFont = hasEmojiFont({ ...process.env, ...fontEnv });
         if (emojiFont === false) {
@@ -772,6 +821,7 @@ export async function capture({
             seeded: await hasBaselines(baselines),
             reference: refs.runId,
             complete: false,
+            ...(shard && { shard: { ...shard, finished: false } }),
             expected: items.length + jobs.length + gone.length,
             capturedAt: new Date().toISOString(),
             clock: { start: CLOCK_START, running: true },
@@ -876,13 +926,27 @@ export async function capture({
         if (problems.length > 0) {
             throw new Error(`results.json is invalid:\n${problems.slice(0, 20).join("\n")}`);
         }
-        results.complete = true;
+        // A part is finished, never complete: only `capture --merge` of every part makes a capture
+        // the gate accepts.
+        if (results.shard) {
+            results.shard.finished = true;
+        } else {
+            results.complete = true;
+        }
         await save();
         const counts = {};
         for (const item of items) {
             counts[item.status] = (counts[item.status] ?? 0) + 1;
         }
-        log(JSON.stringify({ project, items: items.length, seconds: (Date.now() - started) / 1000, counts }));
+        log(
+            JSON.stringify({
+                project,
+                ...(shard && { shard }),
+                items: items.length,
+                seconds: (Date.now() - started) / 1000,
+                counts,
+            }),
+        );
         return results;
     } finally {
         await Promise.all(browsers.map((b) => b.close()));
@@ -905,9 +969,3 @@ const EMPTY = {
 };
 
 const BASELINE_NAME = /^[a-z0-9][a-z0-9-]*(\.[a-z0-9][a-z0-9-]*)?\.png$/;
-
-async function writeResults(out, results) {
-    const tmp = join(out, "results.json.tmp");
-    await writeFile(tmp, `${JSON.stringify(results, null, 2)}\n`);
-    await rename(tmp, join(out, "results.json"));
-}

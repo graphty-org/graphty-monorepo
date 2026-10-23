@@ -42,7 +42,15 @@ that is an LFS pointer (run \`git lfs pull\`).
   --workers <n>           browsers in parallel (default: the project's "workers")
   --reference <dir>       the default branch's capture (from \`reference\`): a story with no
                           baseline that looks as it does there is "unseeded", not "new"
-  --stories <prefix,...>  only the story ids starting with a prefix, for a quick local preview`,
+  --stories <prefix,...>  only the story ids starting with a prefix, for a quick local preview
+  --shard <i>/<n>         only part i of n of the stories, to split one capture across machines;
+                          the part is not a finished capture until --merge joins all n
+
+usage: visual-review capture --merge --out <dir> <part dir>...
+
+Joins the n parts of one sharded capture (each \`capture --shard i/n\`'s --out) into <dir>, as one
+capture without --shard would have written it. Refuses a missing, repeated or unfinished part, and
+parts of different commits or browsers.`,
 
     reference: `usage: visual-review reference --project <id> --out <dir>
 
@@ -157,7 +165,7 @@ async function settings() {
 }
 
 async function capture(args) {
-    const { values } = parseArgs({
+    const { values, positionals } = parseArgs({
         args,
         options: {
             project: { type: "string" },
@@ -167,8 +175,38 @@ async function capture(args) {
             workers: { type: "string" },
             reference: { type: "string" },
             stories: { type: "string" },
+            shard: { type: "string" },
+            merge: { type: "boolean" },
         },
+        allowPositionals: true,
     });
+    if (values.merge || positionals.length > 0) {
+        if (!values.merge || !values.out || positionals.length === 0) {
+            console.error(HELP.capture);
+            return 2;
+        }
+        const { mergeShards } = await import("../capture/shard.mjs");
+        try {
+            await mergeShards(
+                positionals.map((d) => resolve(d)),
+                resolve(values.out),
+            );
+        } catch (e) {
+            console.error(`visual-review capture --merge: ${e.message}`);
+            return 1;
+        }
+        return 0;
+    }
+    let shard = null;
+    if (values.shard !== undefined) {
+        const { parseShard } = await import("../capture/shard.mjs");
+        try {
+            shard = parseShard(values.shard);
+        } catch (e) {
+            console.error(`visual-review capture: ${e.message}`);
+            return 2;
+        }
+    }
     const { root, config } = await settings();
     const project = Object.hasOwn(config.projects, values.project ?? "") ? config.projects[values.project] : undefined;
     const workers = Number(values.workers ?? project?.workers);
@@ -188,6 +226,7 @@ async function capture(args) {
         reference: values.reference ? resolve(values.reference) : null,
         stories: values.stories ? values.stories.split(",").filter(Boolean) : null,
         fontconfig: config.fontconfig ? join(root, config.fontconfig) : null,
+        shard,
     });
     return 0;
 }

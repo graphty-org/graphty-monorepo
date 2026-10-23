@@ -802,7 +802,7 @@ async function main() {
 
     // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
     process.on("exit", markGate());
-    for (const left of closeFinished(main, ROOT)) quarantineLines.push(`  [QUARANTINE-] ${left}`);
+    quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed.push(signal);

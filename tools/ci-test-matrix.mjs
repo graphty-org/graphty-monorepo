@@ -363,7 +363,8 @@ export function groupEntry(name, members) {
  * @returns a shell command
  */
 export function ciCommand(shard) {
-    const quoted = `'${shard["test-command"].replaceAll("'", String.raw`'\''`)}'`;
+    const escapedQuote = String.raw`'\''`;
+    const quoted = `'${shard["test-command"].replaceAll("'", escapedQuote)}'`;
     return `node tools/test-quarantine.mjs run ${shard.shard} ${quoted}`;
 }
 

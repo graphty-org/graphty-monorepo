@@ -511,14 +511,19 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await varyBy("Node color", "code");
-        // The way back to one color is the field's own button, and its tooltip says so.
+        // The way back to one color is the field's own button, and its tooltip says so. A tooltip
+        // opens a second after the pointer arrives (compact-mantine's open delay), as long as
+        // waitFor's own default wait, so the wait is the hang guard, not that default.
         await userEvent.hover(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
-        await waitFor(() => {
-            assert.include(
-                screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
-                "Stop varying by data: use one color for all",
-            );
-        });
+        await waitFor(
+            () => {
+                assert.include(
+                    screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
+                    "Stop varying by data: use one color for all",
+                );
+            },
+            { timeout: TIMEOUT_MS },
+        );
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
         const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};

@@ -1199,8 +1199,12 @@ export class UpdateManager implements Manager {
      * Not while the element is still framing the graph, which places the camera itself until it
      * is done, and not while a selected node is being dragged: a camera following the node under
      * the pointer would carry the drag along with it.
+     *
+     * The glide keeps to the clock, as the layout does: a pass stands for the nominal 60 Hz frames
+     * `frameMs` took, so a page drawing slowly arrives in the same time rather than over seconds.
+     * @param frameMs - How long the previous frame took; 0 glides one frame's share.
      */
-    private followSelection(): void {
+    private followSelection(frameMs: number): void {
         this.followingSelection = false;
         if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
@@ -1225,7 +1229,8 @@ export class UpdateManager implements Manager {
         }
 
         // A camera still gliding to the selection is a picture that is not final yet.
-        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length), frames);
     }
 
     /**
@@ -1261,7 +1266,7 @@ export class UpdateManager implements Manager {
             this.dataManager.notePaintDrawn();
         }
 
-        this.followSelection();
+        this.followSelection(frameMs);
 
         const { camera } = this.graphContext.getStyles().config.behavior;
         this.camera.setFitInsets(camera.fitInsets);

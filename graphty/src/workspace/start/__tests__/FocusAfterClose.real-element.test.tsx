@@ -207,7 +207,12 @@ describe("focus after the control holding it goes away, on the real element", ()
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { host } = await loaded(15);
+            const { host, session } = await loaded(15);
+            // The node count is up before the open finishes; the open then hands focus to the
+            // graph's heading. Wait for that hand-off, or it takes focus from the drawing later.
+            await waitFor(() => {
+                assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
+            });
             host.shadowRoot?.querySelector("canvas")?.focus();
             assertFocusOnDrawing(host);
 

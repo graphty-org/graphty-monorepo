@@ -481,6 +481,19 @@ function passed(shards, main) {
     return { run, record };
 }
 
+/**
+ * Families that failed on golden most recently start first (design/ci/test-ledger.md 5.4); not in verification.
+ * @param waiting the shards, sorted in place
+ */
+function orderShards(waiting) {
+    if (process.env.PREPUSH_ALL === "1") return;
+    try {
+        ledger?.orderShards(waiting, ROOT);
+    } catch {
+        // the order is only a speed-up
+    }
+}
+
 async function main() {
     if (process.argv[2] === "--triggers") {
         const out = {};
@@ -548,14 +561,7 @@ async function main() {
     const warmed = new Set();
     const canStart = startRule(shards);
     const waiting = [...shards];
-    // Families that failed on golden most recently start first (design/ci/test-ledger.md 5.4); not in verification.
-    if (process.env.PREPUSH_ALL !== "1") {
-        try {
-            ledger?.orderShards(waiting, ROOT);
-        } catch {
-            // the order is only a speed-up
-        }
-    }
+    orderShards(waiting);
     const failed = [];
     const known = [];
     let stopping = false;
@@ -623,7 +629,7 @@ async function main() {
                     // the stage exits 3 so prepush.sh records no gate pass and the next push judges it again.
                     known.push(shard.shard);
                     warmed.add(family(shard));
-                    ledger.knownLines(rec).forEach((l) => console.log(l));
+                    console.log(ledger.knownLines(rec).join("\n"));
                     next();
                     return;
                 }
@@ -632,11 +638,7 @@ async function main() {
                 console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
                 console.log(text.split("\n").slice(-80).join("\n"));
                 // Verification (PREPUSH_ALL=1) runs every shard to the end, so one failure cannot hide another.
-                if (process.env.PREPUSH_ALL === "1") {
-                    next();
-                } else {
-                    stopAll();
-                }
+                (process.env.PREPUSH_ALL === "1" ? next : stopAll)();
             };
             if (out.destroyed) {
                 settle();

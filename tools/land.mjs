@@ -642,7 +642,8 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
     return new Promise((resolve) =>
         child.on("close", (code) => {
             // The shards the gate excused, again at the end where the summary follows.
-            for (const l of output.match(/^\s*\[(KNOWN|QUARANTINED)\].*$/gm) ?? []) console.log(`land: ${l.trim()}`);
+            const known = output.split("\n").map((l) => l.trim());
+            for (const l of known.filter((k) => /^\[(KNOWN|QUARANTINED)\]/.test(k))) console.log(`land: ${l}`);
             resolve({ code: code ?? 1, output });
         }),
     );

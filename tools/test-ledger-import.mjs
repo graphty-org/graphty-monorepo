@@ -103,7 +103,8 @@ export async function importHistory(main, env = process.env) {
     const add = (r) => {
         const s = shardOf.get(r.shard);
         if (!s || !r.commit) return;
-        const id = `${Date.parse(r.at)}-imp${h16(`${r.commit}\0${r.shard}\0${r.at}\0${r.outcome}`).slice(0, 8)}-${r.shard}`;
+        const hash = h16([r.commit, r.shard, r.at, r.outcome].join("\0")).slice(0, 8);
+        const id = `${Date.parse(r.at)}-imp${hash}-${r.shard}`;
         const v = r.selected ? "+files" : "";
         recs.set(id, {
             v: 1,
@@ -136,34 +137,7 @@ export async function importHistory(main, env = process.env) {
         if (!e?.sha) continue;
         const gate = existsSync(e.gateLog ?? "") ? readFileSync(e.gateLog, "utf8").split("\n") : [];
         const base = { kind: importKind(e.cwd), branch: e.branch, commit: e.sha, at: e.startedAt ?? e.at };
-        for (const l of new Set([...(e.gate ?? []), ...gate])) {
-            const pass = /^\s*\[PASS\] (\S+)( \[selected)?/.exec(l);
-            if (pass) add({ ...base, shard: pass[1], selected: Boolean(pass[2]), outcome: "passed" });
-            const kept = /\[FAIL\] (\S+): its whole log is kept in (\S+)/.exec(l);
-            if (!kept || !existsSync(kept[2]) || !shardOf.has(kept[1])) continue;
-            const text = factLines(readFileSync(kept[2], "utf8"));
-            const s = shardOf.get(kept[1]);
-            const parsed = parseVitestLog(text, s.package);
-            // a run of selected files names them on its command line
-            const selected = /\.test\.[cm]?[jt]sx?\b/.test(/^==> \S+: (.*)$/m.exec(text)?.[1] ?? "");
-            const failures = parsed.failures.map((f) => ({
-                file: f.file,
-                name: f.name,
-                ...failureHashes(f.text, f.file, main),
-                message: f.text.slice(0, 2000),
-            }));
-            const outcome = outcomeOf({ code: 1, log: text, junit: { failures, bad: false } });
-            const files = [...parsed.files].map(([f, c]) => [f, c.passed, c.failed, c.skipped, c.ms, c.dup]);
-            add({
-                ...base,
-                shard: kept[1],
-                selected,
-                outcome,
-                files,
-                failures,
-                log: kept[2],
-            });
-        }
+        for (const l of new Set([...(e.gate ?? []), ...gate])) importLine(l, base, { add, shardOf, main });
     }
     for (const f of list(join(main, "tmp/prepush-passes/shard"))) {
         const p = readJson(join(main, "tmp/prepush-passes/shard", f));
@@ -194,6 +168,36 @@ export async function importHistory(main, env = process.env) {
 }
 
 /**
+ * One line of a gate's output: a `[PASS] <shard>` line, or the `[FAIL] <shard>: its whole log is kept in <file>`
+ * line, whose kept log gives the files and failures.
+ * @param l the line
+ * @param base the gate's kind, branch, commit and time
+ * @param io where it goes
+ * @param io.add adds a record
+ * @param io.shardOf the matrix entry of a shard name
+ * @param io.main the main checkout
+ */
+function importLine(l, base, { add, shardOf, main }) {
+    const pass = /^\s*\[PASS\] (\S+)( \[selected)?/.exec(l);
+    if (pass) add({ ...base, shard: pass[1], selected: Boolean(pass[2]), outcome: "passed" });
+    const kept = /\[FAIL\] (\S+): its whole log is kept in (\S+)/.exec(l);
+    if (!kept || !existsSync(kept[2]) || !shardOf.has(kept[1])) return;
+    const text = factLines(readFileSync(kept[2], "utf8"));
+    const parsed = parseVitestLog(text, shardOf.get(kept[1]).package);
+    // a run of selected files names them on its command line
+    const selected = /\.test\.[cm]?[jt]sx?\b/.test(/^==> \S+: (.*)$/m.exec(text)?.[1] ?? "");
+    const failures = parsed.failures.map((f) => ({
+        file: f.file,
+        name: f.name,
+        ...failureHashes(f.text, f.file, main),
+        message: f.text.slice(0, 2000),
+    }));
+    const outcome = outcomeOf({ code: 1, log: text, junit: { failures, bad: false } });
+    const files = [...parsed.files].map(([f, c]) => [f, c.passed, c.failed, c.skipped, c.ms, c.dup]);
+    add({ ...base, shard: kept[1], selected, outcome, files, failures, log: kept[2] });
+}
+
+/**
  * The lines of a kept gate log the import reads (a log can hold millions of lines of DOM dumps): the command,
  * the per-file and summary lines, and each failure's heading with the 8 lines after it.
  * @param text the log
@@ -203,7 +207,8 @@ function factLines(text) {
     const out = [];
     let after = 0;
     for (let pos = 0; pos < text.length;) {
-        const end = text.indexOf("\n", pos) < 0 ? text.length : text.indexOf("\n", pos);
+        let end = text.indexOf("\n", pos);
+        if (end === -1) end = text.length;
         const line = text.slice(pos, end);
         pos = end + 1;
         if (/^ (?:[✓❯]|FAIL) |Test Files |^\s+(?:Tests|Errors) |^==> |Failed Tests |^⎯/.test(line)) {

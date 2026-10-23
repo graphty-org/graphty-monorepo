@@ -87,11 +87,12 @@ export function ledgerDir(env = process.env, cwd = process.cwd()) {
 
 const ENTITIES = { lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" };
 const unxml = (s) =>
-    s.replace(/&(?:(lt|gt|quot|apos|amp)|#(\d+)|#x([\da-f]+));/gi, (_m, n, d, x) =>
-        n ? ENTITIES[n] : String.fromCodePoint(d ? Number(d) : Number.parseInt(x, 16)),
-    );
+    s.replaceAll(/&(?:(lt|gt|quot|apos|amp)|#(\d+)|#x([\da-f]+));/gi, (_m, n, d, x) => {
+        if (n) return ENTITIES[n];
+        return String.fromCodePoint(d ? Number(d) : Number.parseInt(x, 16));
+    });
 const attr = (tag, name) => {
-    const m = new RegExp(`\\s${name}="([^"]*)"`).exec(tag);
+    const m = new RegExp(String.raw`\s${name}="([^"]*)"`).exec(tag);
     return m ? unxml(m[1]) : "";
 };
 
@@ -103,7 +104,8 @@ const attr = (tag, name) => {
  * @param into `{ files: Map, failures: [] }`
  * @returns `into`
  */
-export function parseJunit(xml, pkg, into = { files: new Map(), failures: [] }) {
+export function parseJunit(xml, pkg, into = undefined) {
+    into ??= { files: new Map(), failures: [] };
     if (!xml.includes("<testsuites")) throw new Error("not a JUnit report");
     for (const [, tag, , body = ""] of xml.matchAll(/<testcase\b([^>]*?)(\/>|>([\s\S]*?)<\/testcase>)/g)) {
         const file = `${pkg}/${attr(tag, "classname")}`;
@@ -135,11 +137,11 @@ export function failureHashes(text, file, main = "/nonexistent") {
     const esc = main.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     const clean = (s) =>
         s
-            .replace(new RegExp(`${esc}(?:/\\.worktrees/[^/\\s]+)?/`, "g"), "")
-            .replace(/\/tmp\/\S*/g, "<tmp>")
-            .replace(/\b[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\b/gi, "<uuid>")
-            .replace(/\b[\da-f]{7,}\b/gi, "<hex>");
-    const mask = (s) => s.replace(/:\d+(?::\d+)?/g, "").replace(/\d+/g, "<n>");
+            .replaceAll(new RegExp(String.raw`${esc}(?:/\.worktrees/[^/\s]+)?/`, "g"), "")
+            .replaceAll(/\/tmp\/\S*/g, "<tmp>")
+            .replaceAll(/\b[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}\b/gi, "<uuid>")
+            .replaceAll(/\b[\da-f]{7,}\b/gi, "<hex>");
+    const mask = (s) => s.replaceAll(/:\d+(?::\d+)?/g, "").replaceAll(/\d+/g, "<n>");
     const lines = stripVTControlCharacters(text)
         .split("\n")
         .map((l) => l.trim())
@@ -164,14 +166,22 @@ export function failureHashes(text, file, main = "/nonexistent") {
 export function outcomeOf(run) {
     const { code, log, runs = 1, junit, cancelled } = run;
     if (cancelled) return "cancelled";
-    const text = stripVTControlCharacters(log ?? "");
-    const summaries = [...text.matchAll(/^\s*Test Files\s.*\(\d+\)\s*$/gm)].length;
+    // line by line, with no regular expression that could backtrack over a huge log
+    const lines = stripVTControlCharacters(log ?? "")
+        .split("\n")
+        .map((l) => l.trim());
+    const summaries = lines.filter((l) => l.startsWith("Test Files ") && /\(\d+\)$/.test(l)).length;
     if (code === null || [124, 137, 143].includes(code) || summaries < runs) return "infra";
     if (!junit) return "unattributed";
     if (junit.bad) return "infra";
     if (code === 0) return "passed";
-    const failed = [...text.matchAll(/^\s*Tests\s+(\d+) failed/gm)].reduce((n, m) => n + Number(m[1]), 0);
-    const errors = /^\s*Errors\s+\d+ error/m.test(text) || /ERROR: Coverage for|Unhandled Error/.test(text);
+    const failed = lines.reduce((n, l) => n + Number(/^Tests +(\d+) failed/.exec(l)?.[1] ?? 0), 0);
+    const errors = lines.some(
+        (l) =>
+            (l.startsWith("Errors ") && l.includes(" error")) ||
+            l.includes("ERROR: Coverage for") ||
+            l.includes("Unhandled Error"),
+    );
     return code === 1 && !errors && failed > 0 && failed === junit.failures.length ? "failed" : "error";
 }
 
@@ -346,19 +356,10 @@ function ingest(db, dir, from) {
     try {
         const have = db.prepare("SELECT 1 FROM invocation WHERE id = ?");
         for (const d of days) {
-            for (const f of list(join(dir, "records", d)).filter((n) => n.endsWith(".json.gz"))) {
-                if (have.get(f.slice(0, -8))) continue;
-                const r = readRecord(dir, f.slice(0, -8));
-                // One bad file must not stop every later reader: it is skipped whole, and stays on disk.
-                db.exec("SAVEPOINT one");
-                try {
-                    if (r) insertRecord(db, r);
-                    db.exec("RELEASE one");
-                } catch (e) {
-                    db.exec("ROLLBACK TO one; RELEASE one");
-                    console.error(`ledger: skipped record ${f}: ${e.message}`);
-                }
-            }
+            const fresh = list(join(dir, "records", d)).filter(
+                (n) => n.endsWith(".json.gz") && !have.get(n.slice(0, -8)),
+            );
+            fresh.forEach((f) => ingestOne(db, dir, f.slice(0, -8)));
         }
         for (const f of list(join(dir, "issues")).filter((n) => n.endsWith(".json"))) {
             const i = readJson(join(dir, "issues", f));
@@ -371,6 +372,19 @@ function ingest(db, dir, from) {
     } catch (e) {
         db.exec("ROLLBACK");
         throw e;
+    }
+}
+
+// One bad record file must not stop every later reader: it is skipped whole, and stays on disk.
+function ingestOne(db, dir, id) {
+    const r = readRecord(dir, id);
+    db.exec("SAVEPOINT one");
+    try {
+        if (r) insertRecord(db, r);
+        db.exec("RELEASE one");
+    } catch (e) {
+        db.exec("ROLLBACK TO one; RELEASE one");
+        console.error(`ledger: skipped record ${id}: ${e.message}`);
     }
 }
 
@@ -460,7 +474,8 @@ export function prune(env = process.env, cwd = process.cwd()) {
     if (last && Date.now() - Date.parse(last) < DAY) return "ledger: pruned less than a day ago";
     const cutoff = new Date(Date.now() - 120 * DAY).toISOString();
     let rows = 0;
-    for (let n = 1; n > 0; rows += n) {
+    let n;
+    do {
         n = Number(
             db
                 .prepare(
@@ -468,7 +483,8 @@ export function prune(env = process.env, cwd = process.cwd()) {
                 )
                 .run(cutoff).changes,
         );
-    }
+        rows += n;
+    } while (n > 0);
     list(join(dir, "records"))
         .filter((d) => d < cutoff.slice(0, 10))
         .forEach((d) => rmSync(join(dir, "records", d), { recursive: true }));
@@ -551,7 +567,8 @@ export function checkQuarantine(entries) {
     const problems = [];
     for (const q of entries) {
         const at = `${q.file} > ${q.name}`;
-        if (!q.file || !q.name || !q.family || !(q.issue > 0) || !q.reason || !q.since || !q.expires)
+        const filed = Number(q.issue) > 0;
+        if (!q.file || !q.name || !q.family || !filed || !q.reason || !q.since || !q.expires)
             problems.push(`${at}: needs file, name, family, issue, reason, since, expires`);
         if (Date.parse(q.expires) - Date.parse(q.since) > 14 * DAY) problems.push(`${at}: 14 days at most`);
         if (GPU_FAMILY.test(q.family ?? "")) problems.push(`${at}: GPU tests are never quarantined`);
@@ -596,28 +613,34 @@ export function exonerate(rec, root, env = process.env) {
             continue;
         }
         if (f.status === "timeout" || changed.has(f.file) || dups.get(f.file) > 0) continue;
-        const ev = newestWord(l.db, f.file, rec.variant, chain);
-        const was = ev && ev.d === 0 && failureIn(l.db, ev.id, f.file, f.name);
-        const issue =
-            was &&
-            was.key === f.key &&
-            l.db.prepare("SELECT * FROM golden_issue WHERE signature = ? AND issue > 0").get(was.signature);
-        if (!issue) continue;
-        const since = git(root, ["log", "--format=%B", `${ev.c}..${base}`]);
-        const fixed = new RegExp(`#${issue.issue}\\b`).test(since) || (issue.culprit && since.includes(issue.culprit));
-        if (!fixed)
-            out.push({
-                file: f.file,
-                name: f.name,
-                reason: "fails-on-golden",
-                evidence: ev.id,
-                commit: ev.c,
-                issue: issue.issue,
-                line: f.line,
-            });
+        const known = onGolden(l.db, f, rec.variant, chain, root, base);
+        if (known) out.push({ file: f.file, name: f.name, reason: "fails-on-golden", line: f.line, ...known });
     }
     l.db.close();
     return out.length === rec.failures.length ? out : [];
+}
+
+/**
+ * Whether golden's newest run of a failing test's file failed it the same way, with an issue and no fix or
+ * revert of it on golden since (design 5.1, conditions 1 and 5).
+ * @param db the database
+ * @param f the failure
+ * @param variant its variant
+ * @param chain golden's chain
+ * @param root the checkout
+ * @param base golden's tip
+ * @returns `{ evidence, commit, issue }`, or null
+ */
+function onGolden(db, f, variant, chain, root, base) {
+    const ev = newestWord(db, f.file, variant, chain);
+    const was = ev && ev.d === 0 && failureIn(db, ev.id, f.file, f.name);
+    if (!was || was.key !== f.key) return null;
+    const issue = db.prepare("SELECT * FROM golden_issue WHERE signature = ? AND issue > 0").get(was.signature);
+    if (!issue) return null;
+    const since = git(root, ["log", "--format=%B", `${ev.c}..${base}`]);
+    const fixed =
+        new RegExp(String.raw`#${issue.issue}\b`).test(since) || (issue.culprit && since.includes(issue.culprit));
+    return fixed ? null : { evidence: ev.id, commit: ev.c, issue: issue.issue };
 }
 
 /**
@@ -865,7 +888,7 @@ function status(l, cwd) {
     console.log(`failing on golden (${failing.length}):`);
     failing.forEach((f) =>
         console.log(
-            `  ${f.variant}  ${f.file} > ${f.name}  issue ${f.issue ? `#${f.issue}` : "none"}  at ${f.commit.slice(0, 10)}: ${f.line}`,
+            `  ${f.variant}  ${f.file} > ${f.name}  issue ${f.issue ? "#" + f.issue : "none"}  at ${f.commit.slice(0, 10)}: ${f.line}`,
         ),
     );
     const recent = new Date(Date.now() - 30 * DAY).toISOString();
@@ -877,9 +900,7 @@ function status(l, cwd) {
     const quarantine = quarantineAt(cwd, "origin/golden");
     for (const t of tests) {
         const c = classify(db, t.file, t.name, t.variant, chain);
-        const label = [c.broken && "BROKEN", c.rose && "FLAKE RATE ROSE", c.flaky && !c.rose && "flaky"].filter(
-            Boolean,
-        )[0];
+        const label = [c.broken && "BROKEN", c.rose && "FLAKE RATE ROSE", c.flaky && !c.rose && "flaky"].find(Boolean);
         const q = quarantine.some((e) => e.file === t.file && e.name === t.name) ? ", quarantined" : "";
         if (label)
             console.log(

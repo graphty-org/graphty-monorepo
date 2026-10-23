@@ -14,9 +14,12 @@
 # recorded in the wait log, with who held the slots when it began (tools/wait-log.mjs,
 # <main checkout>/tmp/waits.jsonl). BROWSER_SLOT_POLL sets the seconds between looks (5).
 #
-# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs) the
-# command waits for slot 4 only, the one every other command tries last, so it never holds more than one
-# of the four and never one an ordinary command would have taken first.
+# The low-priority lane: with BROWSER_SLOT_PRIORITY=low (the nightly branch sync, tools/branch-sync.mjs,
+# tools/low-priority.sh) the command waits for slot 4 only, the one every other command tries last, so it
+# never holds more than one of the four and never one an ordinary command would have taken first. While a
+# pre-push gate runs its test shards (a live gate mark, <main checkout>/tmp/test-slots/.gate-<pid>, written
+# by tools/prepush-tests.mjs through tools/test-slots.mjs), every command outside a gate takes the low lane
+# too; the gate's own shards (TEST_SLOT_GATE set) never do.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
 dir=${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}
@@ -33,11 +36,22 @@ holders() {
     done
 }
 
+# Whether a gate runs its test shards: a gate mark whose process is alive.
+gate_running() {
+    local f
+    for f in "${GRAPHTY_TEST_SLOTS_DIR:-$main/tmp/test-slots}"/.gate-*; do
+        [ -e "$f" ] && kill -0 "${f##*/.gate-}" 2>/dev/null && return 0
+    done
+    return 1
+}
+
 start=$(date +%s%3N)
 held_by=()
-slots="1 2 3 4"
-[ "${BROWSER_SLOT_PRIORITY:-}" = low ] && slots=4
 while :; do
+    slots="1 2 3 4"
+    if [ -z "${TEST_SLOT_GATE:-}" ] && { [ "${BROWSER_SLOT_PRIORITY:-}" = low ] || gate_running; }; then
+        slots=4
+    fi
     for i in $slots; do
         exec {fd}>"$dir/slot$i"
         if flock -n "$fd"; then

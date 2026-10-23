@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { ciCommand, GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -120,6 +120,21 @@ describe("the test matrix", () => {
         assert.equal(browser["needs-browser"], true);
     });
 
+    it("runs every shard, alone or in a group, through the quarantine wrapper with its own command", () => {
+        const include = plan(PACKAGES);
+        const wrapped = (shard) => ciCommand(SHARDS.find((s) => s.shard === shard));
+        for (const e of include) {
+            const members = e.shard in GROUPS ? GROUPS[e.shard] : [e.shard];
+            for (const m of members) assert.ok(e["test-command"].includes(wrapped(m)), m);
+        }
+        // The wrapper gets back exactly the shard's command, quotes and all.
+        const graphty = SHARDS.find((s) => s.shard === "graphty-1");
+        const r = spawnSync("bash", ["-c", ciCommand(graphty).replace(/^node \S+ run \S+ /, "printf %s ")], {
+            encoding: "utf8",
+        });
+        assert.equal(r.stdout, graphty["test-command"]);
+    });
+
     it("runs every member of a group even after one fails, then fails naming it", () => {
         const fake = (shard, cmd) => ({ shard, package: shard, "test-command": cmd, "needs-browser": false });
         const entry = groupEntry("g", [fake("a", "echo ran-a"), fake("b", "cd / && false"), fake("c", "echo ran-c")]);
@@ -190,7 +205,8 @@ describe("the pre-push gate matches CI", () => {
         assert.match(
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n\s+const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", \.\.\.what\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
+            // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", timeout, process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -314,6 +330,9 @@ describe("the pre-push gate matches CI", () => {
             copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
             copyFileSync(new URL("./push-base.mjs", import.meta.url), join(dir, "tools/push-base.mjs"));
             copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
+            // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+            copyFileSync(new URL("./test-quarantine.mjs", import.meta.url), join(dir, "tools/test-quarantine.mjs"));
+            copyFileSync(new URL("./test-ledger.mjs", import.meta.url), join(dir, "tools/test-ledger.mjs"));
             // and the advisory test selector it starts beside the shards
             copyFileSync(new URL("./test-select.mjs", import.meta.url), join(dir, "tools/test-select.mjs"));
             copyFileSync(
@@ -376,6 +395,8 @@ describe("the pre-push gate matches CI", () => {
                 "prepush-inputs.mjs",
                 "push-base.mjs",
                 "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
             ]) {
@@ -528,7 +549,7 @@ describe("the pre-push gate matches CI", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
             prepush,
-            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
+            /setsid env TEST_SLOT_GATE="\$\$" VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
         );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
@@ -3633,6 +3654,8 @@ describe("a failed pre-push test shard (#1562)", () => {
                 "prepush-inputs.mjs",
                 "push-base.mjs",
                 "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
                 "test-select.mjs",
                 "test-select-rules.json",
             ]) {

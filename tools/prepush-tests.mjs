@@ -52,14 +52,16 @@
 
 import { spawn, spawnSync, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
+import { afterShard, closeFinished, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
+import { markGate } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -385,6 +387,14 @@ function buildUnaffected(planned, affected) {
     return r.status === 0;
 }
 
+const readJson = (file) => {
+    try {
+        return JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+        return null;
+    }
+};
+
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 
 /**
@@ -409,7 +419,7 @@ function selectedNote(shard) {
  * @returns `{ run, record(shard) }`; record returns a note for the shard's PASS line
  */
 function passed(shards, main) {
-    const none = { run: shards, record: () => "" };
+    const none = { run: shards, record: () => "", keyOf: () => undefined };
     let branch = null;
     try {
         branch =
@@ -478,7 +488,7 @@ function passed(shards, main) {
             return `; not recorded: ${e.message.split("\n")[0]}`;
         }
     };
-    return { run, record };
+    return { run, record, keyOf: (shard) => before.get(shard.shard) };
 }
 
 /**
@@ -551,7 +561,8 @@ async function main() {
         console.log(why);
         return;
     }
-    const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
+    const tools = dirname(fileURLToPath(import.meta.url));
+    const gate = join(tools, "with-browser.sh");
     const logs = join(ROOT, "tmp/prepush-tests");
     mkdirSync(logs, { recursive: true });
     const timeout = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
@@ -564,6 +575,7 @@ async function main() {
     orderShards(waiting);
     const failed = [];
     const known = [];
+    const quarantineLines = [];
     let stopping = false;
     const started = Date.now();
     // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
@@ -577,18 +589,31 @@ async function main() {
         // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
         // a browser slot, so the two cannot wait on each other.
         const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
-        const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", ...what];
-        cmd.unshift(process.execPath, "tools/test-slots.mjs");
+        // Through the quarantine wrapper (tools/test-quarantine.mjs): when only tests failed, it runs the failed
+        // files once more, and a flaky or quarantined test does not fail the shard. The gate's own copies of it
+        // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
+        const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
+        const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
+        const cmd = ["timeout", "--kill-after=30s", timeout, process.execPath, ...quarantine];
+        cmd.unshift(process.execPath, join(tools, "test-slots.mjs"));
         if (shard["needs-browser"] && existsSync(gate)) {
             cmd.unshift(gate);
         }
         // Its own process group, so stopping it takes vitest, its workers and Chromium along.
         const runId = ledger?.newRunId(shard.shard);
+        const resultFile = join(logs, `${shard.shard}.quarantine.json`);
+        rmSync(resultFile, { force: true });
         const child = spawn(cmd[0], cmd.slice(1), {
             cwd: ROOT,
             detached: true,
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env, ...shardEnv(shard), ...(runId ? { TEST_LEDGER_RUN: runId } : {}) },
+            env: {
+                ...process.env,
+                ...shardEnv(shard),
+                ...(runId ? { TEST_LEDGER_RUN: runId } : {}),
+                TEST_QUARANTINE_RESULT: resultFile,
+                TEST_SLOT_GATE: String(process.pid),
+            },
         });
         child.stdout.pipe(out);
         child.stderr.pipe(out);
@@ -602,7 +627,19 @@ async function main() {
             const settle = () => {
                 running.delete(shard.shard);
                 const text = existsSync(log) ? readFileSync(log, "utf8") : "";
-                const facts = { code, log: text, runId, startedAt: t0, logFile: log };
+                const q = readJson(resultFile);
+                // The ledger records the first run and the retry as two runs, each with its own exit status.
+                const parts = splitLog(text);
+                const facts = { code: q?.firstCode ?? code, log: parts.first, runId, startedAt: t0, logFile: log };
+                if (q?.retryRunId) {
+                    const retried = { ...shard, selected: q.retryFiles };
+                    ledgerRecord(retried, main, {
+                        code: q.retryCode,
+                        log: parts.retry,
+                        runId: q.retryRunId,
+                        logFile: log,
+                    });
+                }
                 if (stopping) {
                     ledgerRecord(shard, main, { ...facts, cancelled: true });
                     // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
@@ -616,6 +653,18 @@ async function main() {
                 const verdict = checkShard(shard, code, text, ROOT, t0);
                 const rec = ledgerRecord(shard, main, { ...facts, exonerate: !verdict.pass && mayExcuse(process.env) });
                 results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
+                const excused = noteQuarantine(shard, q);
+                if (verdict.pass && excused) {
+                    // Passed only because a flaky or quarantined test was let through: no shard pass is recorded,
+                    // and the stage exits 3, so the next push judges this shard again.
+                    known.push(shard.shard);
+                    warmed.add(family(shard));
+                    console.log(
+                        `  [PASS] ${shard.shard}${selectedNote(shard)} (${secs}s) only with the failures above let through; no pass recorded`,
+                    );
+                    next();
+                    return;
+                }
                 if (verdict.pass) {
                     warmed.add(family(shard));
                     console.log(
@@ -689,9 +738,31 @@ async function main() {
         console.log(`  [FAIL] ${shard}: its whole log is kept in ${copy}`);
     };
 
+    // The quarantine's bookkeeping for one shard (tools/test-quarantine.mjs), and its loud lines, printed now and
+    // again in the summary. Returns whether the shard let a flaky or quarantined test's failure through.
+    const noteQuarantine = (shard, q) => {
+        if (!q || stopping) return false;
+        const done = afterShard({ main, root: ROOT, shard: shard.shard, inputKey: passes.keyOf(shard), result: q });
+        const lines = [
+            ...q.flaky.map(
+                (f) => `  [FLAKY] ${shard.shard}: ${f.file} > ${f.name} failed and passed on the same inputs`,
+            ),
+            ...q.excused.map((f) => `  [QUARANTINED] ${shard.shard}: ${f.file} > ${f.name} failed; it is quarantined`),
+            ...done.added.map((e) => `  [QUARANTINE+] ${e.file} > ${e.name}: added, issue #${e.issue}`),
+            ...done.left.map((e) => `  [QUARANTINE-] ${e.id}: left the list (${e.why})`),
+        ];
+        lines.forEach((l) => console.log(l));
+        quarantineLines.push(...lines);
+        return q.flaky.length + q.excused.length > 0;
+    };
+
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         advisory.report(results);
+        if (quarantineLines.length) {
+            console.log("Quarantine (tools/test-quarantine.mjs; `node tools/test-quarantine.mjs status`):");
+            quarantineLines.forEach((l) => console.log(l));
+        }
         if (failed.length) {
             failed.forEach(keepLog);
             // push-queue.sh reads "Stopped after SIG... failed" as the machine's failure, not this push's.
@@ -700,7 +771,9 @@ async function main() {
             process.exit(1);
         }
         if (known.length) {
-            console.log(`Every shard passed but ${known.join(", ")}, which failed only as on golden (${secs}s).`);
+            console.log(
+                `Every shard passed but ${known.join(", ")}, which passed only with failures excused: failing as on golden, flaky or quarantined (${secs}s).`,
+            );
             process.exit(3);
         }
         console.log(`All ${shards.length} shards passed in ${secs}s.`);
@@ -727,6 +800,9 @@ async function main() {
         }
     };
 
+    // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
+    process.on("exit", markGate());
+    quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed.push(signal);

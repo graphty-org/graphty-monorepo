@@ -454,6 +454,11 @@ The project's rule: a failing test is never called flaky without finding its cau
 the four red-master events were "flaky" UI tests that turned out to be real races. The policy
 must therefore be enforced by automation, because agents will otherwise re-run until green.
 
+Superseded in part on 2026-10-22 by the quarantine (`tools/test-quarantine.mjs`, CLAUDE.md "Testing"): the
+pre-push gate and CI run a shard's failed test files once more, and a test that fails and then passes on the
+same inputs is quarantined automatically, with its issue, instead of waiting for the owner's yes. Its failures
+are printed loudly and still recorded; the 14-day limit and the GPU exclusion below still hold.
+
 1. **No automatic retries anywhere.** Vitest has none configured today; keep it that way.
    Mergify `max_checks_retries: 0` and `skip_intermediate_results: false`. Retrying hides
    exactly the races that were real bugs here.

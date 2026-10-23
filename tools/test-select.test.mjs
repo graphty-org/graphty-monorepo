@@ -281,7 +281,13 @@ describe("the rules file", () => {
     });
 
     it("allows file-level selection only in the packages the design starts with", () => {
-        assert.deepEqual([...real.fileLevel].sort(), ["compact-mantine", "graph-format", "graphty", "remote-logger"]);
+        assert.deepEqual([...real.fileLevel].sort(), [
+            "compact-mantine",
+            "graph-format",
+            "graphty",
+            "graphty-element",
+            "remote-logger",
+        ]);
     });
 });
 

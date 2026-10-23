@@ -75,6 +75,8 @@ const importKind = (cwd = "") => {
     if (/^land-check|^golden-local$/.test(wt)) return "import-land-check";
     if (/^golden-verify/.test(wt)) return "import-verify";
     if (/^golden-bisect/.test(wt)) return "import-bisect";
+    // a cut's gate tests a golden commit in a tool-owned worktree
+    if (/^golden-cut/.test(wt)) return "import-cut";
     return "import-push";
 };
 

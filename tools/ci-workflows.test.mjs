@@ -190,7 +190,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n\s+const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", \.\.\.what\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
+            /const what = command \? \["--command", shard.shard, command\] : \[shard.shard\];\n\s+const cmd = \["timeout", "--kill-after=30s", TIMEOUT, "bash", "tools\/run-tests.sh", \.\.\.what\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -302,41 +302,59 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
-    // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository.
-    const runStage = (runTests, env = {}) => {
+    // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository. `shards` names
+    // the shards as [shard, package]; `setup(dir, git)` may commit before the run (the repository has no commit).
+    const STAGE_FILES = [
+        "prepush-tests.mjs",
+        // The runner wraps every shard in the machine-wide test slot (it imports the wait log beside it).
+        "test-slots.mjs",
+        "wait-log.mjs",
+        "prepush-inputs.mjs",
+        "push-base.mjs",
+        "shard-verdict.mjs",
+        // and the advisory test selector it starts beside the shards
+        "test-select.mjs",
+        "test-select-rules.json",
+        // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
+        "test-ledger.mjs",
+        "land.mjs",
+        "branch-sync.mjs",
+        "branch-note.mjs",
+    ];
+    const runStage = (runTests, env = {}, opts = {}) => {
+        const { shards = [["broken"], ["slow"]], setup } = opts;
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
-            // The runner wraps every shard in the machine-wide test slot (it imports the wait log beside it).
-            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
-            copyFileSync(new URL("./wait-log.mjs", import.meta.url), join(dir, "tools/wait-log.mjs"));
-            copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
-            copyFileSync(new URL("./push-base.mjs", import.meta.url), join(dir, "tools/push-base.mjs"));
-            copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
-            // and the advisory test selector it starts beside the shards
-            copyFileSync(new URL("./test-select.mjs", import.meta.url), join(dir, "tools/test-select.mjs"));
-            copyFileSync(
-                new URL("./test-select-rules.json", import.meta.url),
-                join(dir, "tools/test-select-rules.json"),
-            );
-            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            for (const f of STAGE_FILES) copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            const shard = ([name, pkg = name]) => ({
+                shard: name,
+                package: pkg,
+                "test-command": "true",
+                "needs-browser": false,
+            });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
-                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+                `export const SHARDS = ${JSON.stringify(shards.map(shard))};\n`,
             );
             writeFileSync(join(dir, "tools/run-tests.sh"), runTests);
-            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
-            return spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            assert.equal(git("init", "-q", "-b", "golden").status, 0);
+            setup?.(dir, git);
+            const packages = JSON.stringify([...new Set(shards.map(([n, p = n]) => p))]);
+            return spawnSync(process.execPath, ["tools/prepush-tests.mjs", packages], {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
                     ...withoutPrepushSettings(),
+                    // bin/ holds a fake gh when a test needs one
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
+                    TEST_LEDGER_DIR: join(dir, "tmp/test-ledger"),
                     ...env,
                 },
             });
@@ -344,6 +362,7 @@ describe("the pre-push gate matches CI", () => {
             rmSync(dir, { recursive: true, force: true });
         }
     };
+    const SUMMARY = "echo ' Test Files  1 passed (1)'; echo '      Tests  1 passed (1)'";
 
     it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
         // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still running then
@@ -357,10 +376,83 @@ describe("the pre-push gate matches CI", () => {
     });
 
     it("runs every shard to the end under PREPUSH_ALL=1 (verification), so one failure cannot hide another", () => {
-        const summary = "echo ' Test Files  1 passed (1)'; echo '      Tests  1 passed (1)'";
-        const run = runStage(`if [ "$1" = broken ]; then exit 1; fi\n${summary}\n`, { PREPUSH_ALL: "1" });
+        const run = runStage(`if [ "$1" = broken ]; then exit 1; fi\n${SUMMARY}\n`, { PREPUSH_ALL: "1" });
         assert.match(run.stdout, /\[PASS\] slow/);
         assert.match(run.stdout, /Failed: broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+        // and when the failed shard is its package's warm-up, the rest of the package still runs
+        const same = runStage(
+            `if [ "$1" = a-1 ]; then exit 1; fi\n${SUMMARY}\n`,
+            { PREPUSH_ALL: "1" },
+            {
+                shards: [
+                    ["a-1", "a"],
+                    ["a-2", "a"],
+                ],
+            },
+        );
+        assert.match(same.stdout, /\[PASS\] a-2/);
+        assert.match(same.stdout, /Failed: a-1/);
+        assert.equal(same.status, 1, same.stdout + same.stderr);
+    });
+
+    // A land check whose shard "broken" fails with test a.test.ts > t: HEAD is `land: b`, HEAD^1 golden's tip
+    // (origin/golden), on which the same fake run-tests.sh fails the same test the same way. A fake gh files #7.
+    const landedRepo = (dir, git) => {
+        writeFileSync(join(dir, ".gitignore"), "tmp/\ntest-results/\n.worktrees/\nbin/\n");
+        mkdirSync(join(dir, "bin"));
+        writeFileSync(join(dir, "bin/gh"), "#!/bin/sh\necho https://github.com/o/r/issues/7\n", { mode: 0o755 });
+        git("add", ".");
+        git("commit", "-q", "-m", "golden's tip");
+        git("update-ref", "refs/remotes/origin/golden", "HEAD");
+        git("checkout", "-q", "-b", "b");
+        writeFileSync(join(dir, "other.txt"), "x");
+        git("add", ".");
+        git("commit", "-q", "-m", "a change");
+        git("checkout", "-q", "golden");
+        git("merge", "-q", "--no-ff", "-m", "land: b", "b");
+    };
+    const failsWith = (message) =>
+        [
+            'if [ "$1" = --command ]; then shift; fi',
+            `if [ "$1" = broken ]; then mkdir -p test-results; printf '<testsuites><testcase classname="a.test.ts" name="t"><failure>${message}</failure></testcase></testsuites>' > "test-results/junit-broken-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1; fi`,
+            SUMMARY,
+        ].join("\n");
+
+    it("excuses a land check's failure that golden's tip has too, files its issue, and exits 3", () => {
+        const run = runStage(
+            failsWith("Error: broken on golden too"),
+            { TEST_LEDGER_KIND: "land-check" },
+            { setup: landedRepo },
+        );
+        assert.match(run.stdout, /\[BASE\] broken: running the whole shard on golden's tip/);
+        assert.match(run.stdout, /\[KNOWN\] broken: broken\/a\.test\.ts > t fails the same way on golden's tip/);
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.equal(run.status, 3, run.stdout + run.stderr);
+    });
+
+    it("records an excused gate as gate-known, which only a land check's push accepts", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
+        for (const script of [prepush, code(tool("push-queue.sh"))]) {
+            assert.match(script, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
+        }
+    });
+
+    it("blocks a land check's failure that golden's tip does not have, with no database at all", () => {
+        // golden's tip passes: its run-tests.sh is the one committed; the land commit's own fails
+        const run = runStage(
+            SUMMARY,
+            { TEST_LEDGER_KIND: "land-check" },
+            {
+                setup: (dir, git) => {
+                    landedRepo(dir, git);
+                    writeFileSync(join(dir, "tools/run-tests.sh"), failsWith("Error: new"));
+                },
+            },
+        );
+        assert.match(run.stdout, /\[BASE\] broken/);
+        assert.match(run.stdout, /\[FAIL\] broken/);
         assert.equal(run.status, 1, run.stdout + run.stderr);
     });
 

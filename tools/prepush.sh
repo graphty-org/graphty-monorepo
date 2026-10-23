@@ -70,9 +70,12 @@ PREPUSH_ROOT="$ROOT_DIR" source "$SCRIPT_DIR/prepush-source-checks.sh"
 # file git does not ignore, the installed lockfile, the gate's scripts, the Node version and the lane
 # environment; tools/prepush-inputs.mjs), on any branch: nothing below can come out differently, so it
 # does not run again. This is what lets golden's land commit of a branch that merged golden first push
-# in seconds. PREPUSH_RERUN_ALL=1 runs it all.
+# in seconds. PREPUSH_RERUN_ALL=1 runs it all. A land check's pass with a shard excused as failing on golden's
+# tip (gate-known, below) counts only for a push of the same landing, never for any other push.
 if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
-    GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)"; then
+    { GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)" ||
+        { [ "${TEST_LEDGER_KIND:-}" = land-check ] &&
+            GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate-known "$GATE_KEY" 2>/dev/null)"; }; }; then
     echo -e "${GREEN}[SKIP] The whole gate: it already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$GATE_PASS" 2>/dev/null); key ${GATE_KEY:0:12}; PREPUSH_RERUN_ALL=1 runs it)${NC}"
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
@@ -297,8 +300,8 @@ fi
 # gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
 # 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
 # prepush-tests.mjs stops every shard's process group itself.
-# Exit 3: every shard passed but some that failed only as on golden (tools/test-ledger.mjs); the step passes
-# and no whole-gate pass is recorded, so the next push judges those shards again.
+# Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
+# step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
 run_step "Tests (the CI shards of the affected packages)" \
     "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
 
@@ -335,7 +338,7 @@ sonar_reminder
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
-    [ -n "$GATE_KEY" ] && [ -z "${KNOWN_FAILURES:-}" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
+    [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
     PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0

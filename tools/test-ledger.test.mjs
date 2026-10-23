@@ -74,17 +74,15 @@ const rec = (over) => {
     L.writeRecord(ledgerHome, r);
     return r;
 };
-const issueFile = (signature, issue, extra = {}) => {
-    mkdirSync(join(ledgerHome, "issues"), { recursive: true });
-    writeFileSync(join(ledgerHome, "issues", `${signature}.json`), JSON.stringify({ signature, issue, ...extra }));
-};
 // A land check of a branch changing `file`: HEAD is the land commit, HEAD^1 golden's tip.
 const landCheck = (file = "graphty/src/other.ts") => {
     const tip = git("rev-parse", "HEAD");
-    git("checkout", "-q", "-b", `b${seq}`);
-    commit(file, String(seq));
+    const b = `b${seq++}`;
+    git("update-ref", "refs/remotes/origin/golden", tip);
+    git("checkout", "-q", "-b", b);
+    commit(file, b);
     git("checkout", "-q", "golden");
-    git("merge", "-q", "--no-ff", "-m", `land: b${seq}`, `b${seq}`);
+    git("merge", "-q", "--no-ff", "-m", `land: ${b}`, b);
     const landed = git("rev-parse", "HEAD");
     return { landed, base: tip };
 };
@@ -123,6 +121,19 @@ describe("parsing, outcomes and hashes", () => {
         const t = L.failureHashes("Test timed out in 5000ms.", "f");
         assert.equal(t.status, "timeout");
         assert.equal(t.signature, L.failureHashes("Test timed out in 30000ms.", "f").signature);
+        assert.equal(L.failureHashes('TestingLibraryElementError: Unable to find role="grid"', "f").status, "timeout");
+    });
+
+    it("keys a failure by what it says, past a bare error name and Storybook's debug link", () => {
+        // Two failures of AllNodeShapes from the ledger: one key would let the second hide behind the first.
+        const story = (n) =>
+            `AssertionError: \nClick to debug the error directly in Storybook: https://localhost:6006/?path=/story/styles-node--all-node-shapes\n\nStyles/Node AllNodeShapes: the story promises ${n} different node shapes and the scene draws ${n - 1} distinct geometries\n ❯ src/x.ts:1:1`;
+        const [a, b] = [L.failureHashes(story(43), "f"), L.failureHashes(story(51), "f")];
+        assert.notEqual(a.key, b.key);
+        assert.equal(a.signature, b.signature);
+        assert.match(a.line, /^Styles\/Node AllNodeShapes: the story promises 43/);
+        const play = "Error: \nClick to debug the error directly in Storybook: http://x\n\nTest timed out in 15000ms.";
+        assert.equal(L.failureHashes(play, "f").status, "timeout");
     });
 
     it("tells failed from error, infra and unattributed", () => {
@@ -156,90 +167,97 @@ describe("parsing, outcomes and hashes", () => {
     });
 });
 
-describe("exoneration of a failure already on golden", () => {
+describe("exoneration of a failure golden's tip has too", () => {
     const text = "AssertionError: expected 3 to be 4\n ❯ graphty/src/a.test.ts:9:1";
-    const f = failure(text);
     let n = 100;
+    // each case its own test file, so no case's evidence is another's
     const fresh = () => {
-        // each case its own test file, so no case's evidence is another's
         const file = `graphty/src/t${n++}.test.ts`;
-        const fl = { ...f, file };
-        return { file, fl };
+        return { file, fl: failure(text, file) };
     };
-    const excused = (r, root = repo) => L.exonerate(r, root, env).map((e) => e.reason);
-
-    it("excuses the same test failing the same way as golden's newest run of its file, with an issue", () => {
-        const { file, fl } = fresh();
-        rec({ commit: git("rev-parse", "HEAD"), files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
-        issueFile(fl.signature, 42);
-        L.rebuild(env, repo);
-        const { landed, base } = landCheck();
-        const r = {
-            ...rec({ kind: "land-check", commit: landed, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] }),
+    const gh = () => "https://github.com/o/r/issues/42";
+    // A re-run on golden's tip that answers with `answers` in turn (a list of failures, or null for a pass).
+    const reruns = (...answers) => {
+        const calls = [];
+        const rerun = async (base, files) => {
+            calls.push({ base, files });
+            const fails = answers[calls.length - 1] ?? null;
+            return rec({ kind: "base", commit: base, outcome: fails ? "failed" : "passed", failures: fails ?? [] });
         };
-        assert.deepEqual(excused(r), ["fails-on-golden"]);
-        assert.match(
-            L.knownLines({ ...r, exonerations: L.exonerate(r, repo, env) })[0],
-            /\[KNOWN\] graphty-2: graphty\/src\/t\d+\.test\.ts > panel > opens fails as on golden .* issue #42/,
-        );
-        // the index is only an index: deleted and rebuilt, the same answer
-        rmSync(join(ledgerHome, readFileSync(join(ledgerHome, "CURRENT"), "utf8").trim()));
-        L.rebuild(env, repo);
-        assert.deepEqual(excused(r), ["fails-on-golden"]);
-        // and a fix landed after the evidence, mentioning the issue, makes it suspect again
-        commit("graphty/src/fix.ts", "x", "fix: the panel (Refs #42)");
-        const later = landCheck();
-        assert.deepEqual(excused({ ...r, commit: later.landed, base: later.base }), []);
-    });
+        return { rerun, calls };
+    };
+    const excused = async (r, rerun) => (await L.exonerate(r, repo, { env, rerun, gh })).map((e) => e.reason);
+    const landed = (fl, file, changes) => {
+        const { landed: c, base } = landCheck(changes);
+        return {
+            base,
+            r: rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] }),
+        };
+    };
 
-    it("never excuses another key, a timeout, a changed file, a duplicated name, no issue, or a test golden passed", () => {
-        const cases = [
-            ["another key", (fl) => [fl, { ...fl, ...L.failureHashes("AssertionError: expected 0 to be 4", fl.file) }]],
-            ["a timeout", (fl) => Array(2).fill({ ...fl, ...L.failureHashes("Test timed out in 5000ms.", fl.file) })],
-            ["a changed file", (fl) => [fl, fl, true, fl.file]],
-            ["a duplicated name", (fl) => [fl, fl, true, undefined, 1]],
-            [
-                "no issue",
-                (fl) =>
-                    Array(2)
-                        .fill({ ...fl, ...L.failureHashes("Error: never filed", fl.file) })
-                        .concat(false),
-            ],
-            ["golden passed it", (fl) => [null, fl, true]],
-        ];
-        for (const [what, make] of cases) {
-            const { file, fl } = fresh();
-            const [onGolden, now = onGolden, filed = true, changes, dup = 0] = make(fl);
-            rec({
-                commit: git("rev-parse", "HEAD"),
-                files: [[file, 3, onGolden ? 1 : 0, 0, 1, dup]],
-                failures: onGolden ? [onGolden] : [],
-            });
-            if (filed) issueFile((onGolden ?? fl).signature, 7);
-            const { landed, base } = landCheck(changes);
-            const r = rec({
-                kind: "land-check",
-                commit: landed,
-                base,
-                files: [[file, 3, 1, 0, 1, dup]],
-                failures: [now],
-            });
-            assert.deepEqual(excused(r), [], what);
-        }
-    });
-
-    it("counts a reused pass as golden's word on the file", () => {
+    it("excuses a test that fails the same way when re-run on golden's tip, and files its issue", async () => {
         const { file, fl } = fresh();
-        const failed = rec({ commit: git("rev-parse", "HEAD"), files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
-        issueFile(fl.signature, 8);
-        const passed = rec({ outcome: "passed", files: [[file, 4, 0, 0, 1, 0]], failures: [] });
-        rec({ commit: git("rev-parse", "HEAD"), reused_from: passed.id, outcome: "passed", files: passed.files });
-        const { landed, base } = landCheck();
-        assert.ok(failed);
+        const { base, r } = landed(fl, file);
+        const { rerun, calls } = reruns([fl]);
+        const out = await L.exonerate(r, repo, { env, rerun, gh });
+        assert.deepEqual(calls, [{ base, files: [file] }]);
         assert.deepEqual(
-            excused(rec({ kind: "land-check", commit: landed, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] })),
-            [],
+            out.map((e) => [e.reason, e.commit, e.issue]),
+            [["fails-on-golden", base, 42]],
         );
+        assert.match(
+            L.knownLines({ ...r, exonerations: out })[0],
+            /\[KNOWN\] graphty-2: graphty\/src\/t\d+\.test\.ts > panel > opens fails the same way on golden's tip .* issue #42/,
+        );
+    });
+
+    it("takes golden's own failing run of exactly that commit as the answer, with no re-run", async () => {
+        const { file, fl } = fresh();
+        const { landed: c, base } = landCheck();
+        rec({ kind: "verify", commit: base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
+        L.rebuild(env, repo);
+        const r = rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] });
+        const { rerun, calls } = reruns();
+        assert.deepEqual(await excused(r, rerun), ["fails-on-golden"]);
+        assert.equal(calls.length, 0);
+    });
+
+    it("never excuses another key, a test golden's tip passes twice, a changed file, a duplicated name, or no answer", async () => {
+        const other = (fl) => ({ ...fl, ...L.failureHashes("AssertionError: expected 0 to be 4", fl.file) });
+        for (const [what, answers, changes, dup = 0] of [
+            ["another key", (fl) => [[other(fl)], [other(fl)]]],
+            ["passes twice", () => [null, null]],
+            ["a changed file", (fl) => [[fl]], true],
+            ["a duplicated name", (fl) => [[fl]], false, 1],
+        ]) {
+            const { file, fl } = fresh();
+            const { landed: c, base } = landCheck(changes ? file : undefined);
+            const r = rec({ kind: "land-check", commit: c, base, files: [[file, 3, 1, 0, 1, dup]], failures: [fl] });
+            const { rerun, calls } = reruns(...answers(fl));
+            assert.deepEqual(await excused(r, rerun), [], what);
+            assert.equal(calls.length, changes || dup ? 0 : 2, what);
+        }
+        const { file, fl } = fresh();
+        const { r } = landed(fl, file);
+        assert.deepEqual(await excused(r, async () => null), [], "the re-run could not run");
+    });
+
+    it("excuses an expired wait that golden's tip fails in either of two tries, but not the other way round", async () => {
+        const wait = (fl) => ({ ...fl, ...L.failureHashes("Error: Test timed out in 5000ms.", fl.file) });
+        let { file, fl } = fresh();
+        let { r } = landed(wait(fl), file);
+        assert.deepEqual(await excused(r, reruns(null, [fl]).rerun), ["fails-on-golden"]);
+        ({ file, fl } = fresh());
+        ({ r } = landed(fl, file));
+        assert.deepEqual(await excused(r, reruns([wait(fl)], [wait(fl)]).rerun), []);
+    });
+
+    it("asks golden's tip below every landing of a group, so an earlier branch of the group is not excused", () => {
+        const tip = git("rev-parse", "HEAD");
+        landCheck();
+        landCheck();
+        git("update-ref", "refs/remotes/origin/golden", tip);
+        assert.equal(L.goldenTip(repo), tip);
     });
 
     it("is allowed only in a land check, never in verification, strict mode, the cut or master", () => {
@@ -249,51 +267,29 @@ describe("exoneration of a failure already on golden", () => {
         assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_EXONERATE: "0" }), false);
         assert.equal(mayExcuse({ TEST_LEDGER_KIND: "land-check", PREPUSH_SELECT_BASE: "origin/golden-cut" }), false);
     });
-
-    it("excuses a quarantined test read from golden's tip, not from the tree under test", () => {
-        const { file, fl } = fresh();
-        const entry = {
-            file,
-            name: NAME,
-            family: "graphty",
-            issue: 9,
-            reason: "r",
-            since: "2026-10-20",
-            expires: "2999-01-01",
-        };
-        assert.deepEqual(L.checkQuarantine([entry]), [`${file} > ${NAME}: 14 days at most`]);
-        commit("tools/test-quarantine.json", JSON.stringify({ quarantine: [entry] }));
-        assert.deepEqual(L.quarantineAt(repo, "HEAD", "2026-10-21"), []); // over 14 days: invalid, ignored
-        const ok = { ...entry, since: "2998-12-25" };
-        commit("tools/test-quarantine.json", JSON.stringify({ quarantine: [ok] }));
-        const { landed, base } = landCheck();
-        assert.deepEqual(
-            excused(rec({ kind: "land-check", commit: landed, base, files: [[file, 3, 1, 0, 1, 0]], failures: [fl] })),
-            ["quarantined"],
-        );
-        assert.deepEqual(L.checkQuarantine([{ ...ok, family: "webgpu-graph-algorithms-node" }]).length, 1);
-        const committed = JSON.parse(readFileSync(new URL("./test-quarantine.json", import.meta.url), "utf8"));
-        assert.deepEqual(L.checkQuarantine(committed.quarantine), []);
-        commit("tools/test-quarantine.json", JSON.stringify({ quarantine: [] }));
-    });
 });
 
 describe("the 2026-10-22 replay", () => {
-    it("excuses almost none of that day's graphty failures: other tests each time, and timeouts never", () => {
-        // Each failing run of the day as a land check, with golden's newest word on each test assumed to be its
-        // previous failure there and every issue filed: the most rule 5.1 could have excused.
+    it("reads that day's waits as timeouts, and excuses at least the runs whose tests golden failed the same way", () => {
+        // Each failing run of the day as a land check, with golden's tip assumed to fail each test as it last failed
+        // there: a lower bound, since the re-run asks golden's tip itself, under the same load.
         const runs = JSON.parse(readFileSync(new URL("./test-ledger.replay-2026-10-22.json", import.meta.url), "utf8"));
         const last = new Map();
         let excusedRuns = 0;
+        let waits = 0;
         let failures = 0;
         for (const run of runs) {
             const fs = run.failures.map(([file, name, , , line]) => ({ file, name, ...L.failureHashes(line, file) }));
             failures += fs.length;
-            if (fs.every((f) => f.status !== "timeout" && last.get(`${f.file}>${f.name}`) === f.key)) excusedRuns++;
-            fs.forEach((f) => last.set(`${f.file}>${f.name}`, f.key));
+            waits += fs.filter((f) => f.status === "timeout").length;
+            const same = (f) =>
+                last.get(`${f.file}>${f.name}`) &&
+                (last.get(`${f.file}>${f.name}`).key === f.key || f.status === "timeout");
+            if (fs.every(same)) excusedRuns++;
+            fs.forEach((f) => last.set(`${f.file}>${f.name}`, f));
         }
-        assert.deepEqual([runs.length, failures], [18, 23]);
-        assert.equal(excusedRuns, 3); // KeyboardStopsEscape twice, GraphPlace once: the same test failing the same way
+        assert.deepEqual([runs.length, failures, waits], [18, 23, 14]);
+        assert.equal(excusedRuns, 3); // KeyboardStopsEscape twice, GraphPlace once; the rest were other tests each time
     });
 });
 
@@ -361,21 +357,31 @@ describe("flaky, broken and the flaky bisect", () => {
         assert.ok(L.badThreshold(0.3) > 4);
     });
 
-    it("starts the family that failed on golden most recently first", () => {
-        git("update-ref", "refs/remotes/origin/golden", git("rev-parse", "HEAD"));
-        rec({
-            shard: "layout",
-            family: "layout",
-            variant: "layout",
-            commit: git("rev-parse", "HEAD"),
-            failures: [failure("Error: x", "layout/a.test.ts")],
-            files: [["layout/a.test.ts", 0, 1, 0, 1, 0]],
-        });
-        const shards = [{ shard: "graph-io" }, { shard: "layout" }];
-        assert.deepEqual(
-            L.orderShards(shards, repo, env).map((s) => s.shard),
-            ["layout", "graph-io"],
-        );
+    it("counts a reused pass once, not once per copy, and a file's usual skip as no skip", () => {
+        const test = t(4);
+        verdicts(test, [
+            ["r", true],
+            ["s", true],
+        ]);
+        const pass = rec({ tree: "p", outcome: "passed", files: [[test.file, 1, 0, 0, 1, 0]] });
+        for (let i = 0; i < 5; i++) rec({ tree: "p", outcome: "passed", reused_from: pass.id, files: pass.files });
+        assert.deepEqual([classify(test).verdicts, classify(test).fails], [3, 2]);
+        // a file that always skips one test still passes the others
+        const skips = t(5);
+        for (const [tree, failed] of [
+            ["u", true],
+            ["v", false],
+            ["w", false],
+        ]) {
+            const fl = failure("Error: boom", skips.file, skips.name);
+            const files = [[skips.file, 2, failed ? 1 : 0, 1, 1, 0]];
+            rec({ tree, outcome: failed ? "failed" : "passed", files, failures: failed ? [fl] : [] });
+        }
+        assert.deepEqual([classify(skips).verdicts, classify(skips).broken], [3, false]);
+    });
+
+    it("never needs more bad runs than it makes", () => {
+        assert.equal(L.badThreshold(0.9), 10);
     });
 });
 
@@ -390,6 +396,17 @@ describe("storage", () => {
         assert.deepEqual(L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, broken), {});
         assert.deepEqual(L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, gh), { [fl[0].signature]: 77 });
         L.fileIssues(ledgerHome, fl, { commit: g0, log: "l" }, gh);
+        assert.equal(calls.length, 1);
+        // a claim another live process made a minute ago is its to file
+        const other = [{ ...failure("Error: twice", "graphty/src/j.test.ts"), file: "graphty/src/j.test.ts" }];
+        const claim = {
+            signature: other[0].signature,
+            issue: 0,
+            opened_at: new Date().toISOString(),
+            pid: process.ppid,
+        };
+        writeFileSync(join(ledgerHome, "issues", `${other[0].signature}.json`), JSON.stringify(claim));
+        assert.deepEqual(L.fileIssues(ledgerHome, other, { commit: g0, log: "l" }, gh), {});
         assert.equal(calls.length, 1);
         assert.match(calls[0].join(" "), /Failing on golden: Error: once .*priority:high.*test-ledger signature=/s);
     });

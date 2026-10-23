@@ -120,6 +120,11 @@ describe("detectFormat", () => {
             assert.strictEqual(detectFormat("", "left;right\nx;y"), "csv");
         });
 
+        test("looks past the leading # and % comment lines graph-io's CSV importer skips", () => {
+            assert.strictEqual(detectFormat("", "# Directed graph\n# Nodes: 2\nsource,target\na,b\n"), "csv");
+            assert.strictEqual(detectFormat("", "% sym unweighted\na\tb\nb\tc\n"), "csv");
+        });
+
         test("does not name space-separated text CSV, which the CSV reader cannot split", () => {
             assert.strictEqual(detectFormat("", "source target\na b\nb c"), null);
             assert.strictEqual(detectFormat("", "id name\n1 foo"), null);

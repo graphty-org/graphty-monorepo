@@ -2,11 +2,14 @@
  * @file Counted-work scaling of the pointer over the nodes: real mouse moves, a click and a drag
  * on a graph of n and of 4n nodes make the same number of `scene.pick` calls. Each node used to
  * pick the scene itself on every move and every press, to ask whether the pointer was over it, so
- * one move cost one pick per node, each testing every mesh (issue #2941). Counted, never timed
- * (issue #1643).
+ * one move cost one pick per node, each testing every mesh (issue #2941). And each pick builds the
+ * ray in the space of every mesh it tests, so a move onto a node on a graph of n and of 10n nodes
+ * builds the same number of rays: only the meshes the pointer's ray can reach are tested (issue
+ * #3244). Counted, never timed (issue #1643).
  */
 import "../../src/graphty-element";
 
+import { Ray } from "@babylonjs/core";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
@@ -126,6 +129,51 @@ describe("the pointer over the nodes", () => {
     it("makes the same number of scene picks at any graph size", async () => {
         const [small, large] = [await picksFor(SIZES[0]), await picksFor(SIZES[1])];
         const message = `scene picks: ${String(small)} at ${String(SIZES[0])} nodes, ${String(large)} at ${String(SIZES[1])}`;
+        assert.isAbove(small, 0, message);
+        assert.strictEqual(large, small, message);
+    });
+});
+
+/**
+ * Move the pointer onto the canvas at an empty spot and then onto node `t`, through real input, counting the picking rays Babylon builds
+ * meanwhile (one per mesh a pick tests, in that mesh's space), and check the hover reported `t`.
+ * @param size - The node count.
+ * @returns The rays built.
+ */
+async function raysFor(size: number): Promise<number> {
+    const element = await mounted(size);
+    const hovered: unknown[] = [];
+    element.addEventListener("graphty-node-hover", (event) => {
+        hovered.push((event as CustomEvent<{ nodeId: unknown }>).detail.nodeId);
+    });
+
+    const at = target(element);
+    // Frames drawn while the input is sent build no rays of their own: only the input does.
+    element.graph.engine.stopRenderLoop();
+
+    let rays = 0;
+    const unproject = Ray.prototype.unprojectRayToRef;
+    Ray.prototype.unprojectRayToRef = function (this: Ray, ...args) {
+        rays++;
+        unproject.apply(this, args);
+    };
+    try {
+        // The first move into the canvas counts too: Babylon installs its own move predicate then.
+        await hover(element, EMPTY);
+        await hover(element, at);
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(hovered, ["t"], "pointing at the node reported one hover, for that node");
+        });
+        return rays;
+    } finally {
+        Ray.prototype.unprojectRayToRef = unproject;
+    }
+}
+
+describe("one pointer move onto a node", () => {
+    it("tests the same number of meshes at 10x the nodes", async () => {
+        const [small, large] = [await raysFor(100), await raysFor(1000)];
+        const message = `picking rays built: ${String(small)} at 100 nodes, ${String(large)} at 1000`;
         assert.isAbove(small, 0, message);
         assert.strictEqual(large, small, message);
     });

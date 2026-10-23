@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../state/store";
@@ -95,10 +96,31 @@ function withStore(initial: Partial<WorkspaceState> = OPEN): {
 const inspector = (canvasElement: HTMLElement): ReturnType<typeof within> =>
     within(within(canvasElement).getByRole("complementary", { name: "Inspector" }));
 
+/**
+ * Open the inspector's Values tab, where a row's readings are; a run's row opens on Style.
+ * @param canvasElement - the story's root.
+ */
+async function openValues(canvasElement: HTMLElement): Promise<void> {
+    const tab = await inspector(canvasElement).findByRole("tab", { name: "Values" }, storyWaitOptions(1000));
+    if (tab.getAttribute("aria-selected") !== "true") {
+        await userEvent.click(tab);
+    }
+}
+
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Inspector",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A run's header and Made with show its start to the second, so its runs start on a fixed
+    // clock. Loaders run before beforeEach, and the held-session stories start their runs in a
+    // loader: this one is called before theirs, so those runs are stamped on the fixed clock too.
+    loaders: [
+        () => {
+            fixWallClock();
+        },
+    ],
+    // Its cleanup puts the real clock back when the story ends.
+    beforeEach: fixWallClock,
 };
 
 export default meta;
@@ -149,7 +171,7 @@ export const NodeWhyThisLook: Story = {
     },
 };
 
-/** Degree picked: the node's connections by name, strongest first (`#/inspector-several-elements/neighborhood`). */
+/** Degree picked: the node's connections, in name order (`#/inspector-several-elements/neighborhood`). */
 export const SeveralElementsNeighborhood: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -158,7 +180,11 @@ export const SeveralElementsNeighborhood: Story = {
         await userEvent.click(
             await inspector(canvasElement).findByRole("button", { name: /Degree/ }, storyWaitOptions(1000)),
         );
-        await inspector(canvasElement).findByRole("region", { name: "n0's 3 connections" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole(
+            "group",
+            { name: "Node 0 and 3 connections" },
+            storyWaitOptions(1000),
+        );
         await element.waitForStableFrame();
     },
 };
@@ -169,7 +195,11 @@ export const SeveralElementsSummary: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n1", "n4", "n9"] });
-        await inspector(canvasElement).findByRole("group", { name: "Edges among them" }, storyWaitOptions(1000));
+        await inspector(canvasElement).findByRole(
+            "group",
+            { name: "Edges joining these nodes" },
+            storyWaitOptions(1000),
+        );
         await element.waitForStableFrame();
     },
 };
@@ -182,6 +212,7 @@ export const MeasureRowData: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
         measure.store.set({ inspected: { kind: "measure-row", id } });
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Top 10" }, storyWaitOptions(1000));
     },
 };
@@ -194,6 +225,7 @@ export const RunRowData: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "louvain");
         groups.store.set({ inspected: { kind: "run-row", id } });
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Sizes" }, storyWaitOptions(1000));
     },
 };
@@ -206,14 +238,16 @@ export const RunRowSettingsChanged: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
         retuned.store.set({ inspected: { kind: "measure-row", id } });
+        await openValues(canvasElement);
         const field = await inspector(canvasElement).findByRole(
             "spinbutton",
-            { name: "Damping Factor" },
+            { name: /^Damping factor(,|$)/ },
             storyWaitOptions(1000),
         );
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
-        await inspector(canvasElement).findByRole("status", {}, storyWaitOptions(1000));
+        // The state bar's Rerun, not "the" status: the field's own Escape note is a live region too.
+        await inspector(canvasElement).findByRole("button", { name: "Rerun" }, storyWaitOptions(1000));
     },
 };
 
@@ -228,6 +262,7 @@ export const GroupSetPathRowCommunity: Story = {
         if (first !== undefined) {
             community.store.set({ inspected: { kind: "group-row", id: groupKey(id, first.group) } });
         }
+        await openValues(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Members" }, storyWaitOptions(1000));
     },
 };
@@ -242,7 +277,7 @@ export const SelectionAndEverythingEverything: Story = {
 
 /** An attribute from Data > Attributes: its table, roles and completeness (`#/inspector-attribute-and-filter-step/lesmis-field`). */
 export const AttributeAndFilterStepField: Story = {
-    args: { initialState: { ...OPEN, inspected: { kind: "attribute", id: "data.team" } } },
+    args: { initialState: { ...OPEN, place: "data", inspected: { kind: "attribute", id: "data.team" } } },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await inspector(canvasElement).findByRole("group", { name: "Table" }, storyWaitOptions(1000));

@@ -19,13 +19,16 @@
  * renderer's manager to talk to it.
  */
 
+import { paletteDescriptor } from "../../catalog/palettes";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
     type AlgorithmDescriptor,
     type AlgorithmKey,
     isDeprecatedAlgorithm,
     type LayerId,
+    type NodeId,
     type OptionDescriptor,
+    type PaletteId,
     type RunId,
     type Scope,
     type ScopeInput,
@@ -33,7 +36,7 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
+import { ALGO_DEFINITIONS, type AlgoMoveCommand, type AlgoRemoveCommand, type RunService } from "../commands/algo";
 import type { AlgorithmRunCommand } from "../planning";
 import {
     cancelReasonOf,
@@ -44,7 +47,8 @@ import {
 } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
-import type { RunResult } from "../results/types";
+import { elementIdsOf } from "../results/RunResult";
+import { RESULT_ROOT, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
 import type { CodedFact } from "../shared";
 import {
@@ -57,7 +61,10 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
+import { findRow, rowsOf } from "../styles/tree";
+import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
+import { valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
     ManagedRun,
     type RunBody,
@@ -90,6 +97,8 @@ import {
     type ResolvedScope,
     type Run,
     type RunChange,
+    type RunGroup,
+    type RunLayers,
     type RunOptions,
     type RunPainting,
     type RunPhase,
@@ -97,6 +106,7 @@ import {
     type RunsApi,
     type RunScopeFacts,
     type RunSpec,
+    type RunStyle,
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
@@ -201,6 +211,11 @@ export interface RunsApiOptions {
      * @returns The facts.
      */
     readonly scopeFacts?: (spec: Scope) => RunScopeFacts;
+    /**
+     * The digest of the graph's data now, compared with the one a run's scope facts recorded.
+     * Absent compares scopes only.
+     */
+    readonly dataDigest?: () => string;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -321,6 +336,65 @@ const PENDING: RunPainting = bare("pending");
 
 /** A run recorded without a decision. */
 const UNKNOWN: RunPainting = bare("unknown");
+
+/**
+ * A group's value spelled as a category, the way a rule's `categories` names it.
+ * @param value - The value.
+ * @returns The name.
+ */
+function categoryName(value: unknown): string {
+    return typeof value === "string" ? value : JSON.stringify(value);
+}
+
+/**
+ * What a colour binding paints each group of a partition when every group is a layer of its own:
+ * through the palette the binding paints with (the one it names, else the one the element picks
+ * for it), and past that palette's colours, colours of their own rather than one "other" grey.
+ * Keeping the palette matters: asked to extend, the element would otherwise pick a ramp sized to
+ * the number of groups.
+ * @param preview - The styles service's column preview.
+ * @param binding - The binding.
+ * @param column - The groups' values, one per node.
+ * @returns The preview.
+ */
+function groupsPreview<B extends { readonly palette?: string }, P extends { readonly palette: string | null }>(
+    preview: (binding: B, channel: "node.color", column: readonly unknown[]) => P,
+    binding: B,
+    column: readonly unknown[],
+): P {
+    const named = binding.palette ?? preview(binding, "node.color", column).palette;
+    const palette = named === null || named === "custom" ? {} : { palette: named };
+    return preview({ ...binding, overflow: "extend", ...palette }, "node.color", column);
+}
+
+/**
+ * The first of a consumer's palettes with a color for every group, else its first.
+ * @param palettes - The palettes, in order of preference.
+ * @param column - The groups' values, one per node.
+ * @returns `{ palette }`, or nothing when no palettes were given.
+ */
+function preferredPalette(
+    palettes: readonly PaletteId[] | undefined,
+    column: readonly unknown[],
+): { readonly palette?: PaletteId } {
+    if (palettes === undefined || palettes.length === 0) {
+        return {};
+    }
+    const groups = new Set(column.filter((value) => value !== undefined && value !== null)).size;
+    const covering = palettes.find((id) => (paletteDescriptor(id)?.colors.length ?? 0) >= groups);
+    return { palette: covering ?? palettes[0] };
+}
+
+/**
+ * A painted colour as one spelling, so two paints of one colour compare equal: a hex string as
+ * it is, a colour value by its hex, upper case.
+ * @param paints - The paint.
+ * @returns The hex, or undefined for anything else.
+ */
+function hexOf(paints: unknown): string | undefined {
+    const hex = typeof paints === "string" ? paints : (paints as { readonly hex?: unknown } | null | undefined)?.hex;
+    return typeof hex === "string" ? hex.toUpperCase() : undefined;
+}
 
 /**
  * The layers a style command added, read off what it resolved with: one layer for an encoding,
@@ -609,6 +683,7 @@ function runCommand(
         ...(options.exact === undefined ? {} : { exact: options.exact }),
         ...(options.as === undefined ? {} : { as: options.as }),
         ...(options.applySuggestedStyles === true ? { applySuggestedStyles: true } : {}),
+        ...(options.restoreLayer === true ? { restoreLayer: true } : {}),
     };
 }
 
@@ -619,9 +694,9 @@ function runCommand(
  * @returns The command a re-run dispatches.
  */
 function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
-    const { applySuggestedStyles, ...rest } = command;
+    const { applySuggestedStyles, restoreLayer, ...rest } = command;
 
-    return applySuggestedStyles === undefined ? command : rest;
+    return applySuggestedStyles === undefined && restoreLayer === undefined ? command : rest;
 }
 
 /** What a run is and what it answers to, worked out from what the caller asked for. */
@@ -635,6 +710,20 @@ interface ResolvedRun {
     readonly derived: boolean;
     /** The name the algorithm suggested, for a run the caller did not name. */
     readonly name?: RunName;
+}
+
+/** A run's group folder, and what every group layer added to it shares. */
+interface GroupFolder {
+    /** The folder's id. */
+    readonly folder: string;
+    /** The run's layer each group layer takes its source from. */
+    readonly from: Layer;
+    /** The group path. */
+    readonly path: string;
+    /** What to call a group, when the run's style names them. */
+    readonly groupName: ((group: RunGroup) => string) | undefined;
+    /** The names of the folder's group layers so far; each new name is added to it. */
+    readonly taken: string[];
 }
 
 /** Starting runs, finding them, and taking them away. */
@@ -674,6 +763,8 @@ class Runs implements SessionRunsApi {
 
     /** The batch each member's painting is held for. */
     private readonly holds = new Map<RunId, PaintHold>();
+    /** The style of each run first started with `groups: "layers"`, kept for its re-runs and restores. */
+    private readonly groupStyles = new Map<RunId, Exclude<RunStyle, boolean>>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -734,6 +825,10 @@ class Runs implements SessionRunsApi {
 
                 if (now !== undefined) {
                     this.dropped.delete(id);
+                    if (cause !== "command") {
+                        // A later re-run dispatches the command of the execution history put back.
+                        this.commands.set(id, now.command);
+                    }
                 } else if (was !== undefined && cause !== "command") {
                     // Its result went with it on undo, redo or a rollback: what read it reads
                     // again. A forward removal told them as it was written.
@@ -846,6 +941,36 @@ class Runs implements SessionRunsApi {
         return run;
     }
 
+    /**
+     * The finished run `start()` would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `start()` takes them.
+     * @returns The run, or undefined.
+     */
+    answered(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run | undefined {
+        const { identity, result, id } = this.resolve(algorithm, params, options);
+        const existing = this.runs.get(id);
+
+        if (
+            existing === undefined ||
+            !this.listed(existing) ||
+            existing.status !== "succeeded" ||
+            this.identities.get(id) !== result ||
+            canonicalize(existing.params) !== canonicalize(identity.params) ||
+            existing.seed !== identity.seed ||
+            this.shouldReexecute(existing)
+        ) {
+            return undefined;
+        }
+
+        return existing;
+    }
+
     // -- addressing ---------------------------------------------------------------------------
 
     /**
@@ -921,6 +1046,21 @@ class Runs implements SessionRunsApi {
         this.dispatcher.dispatchNow(command);
 
         return removal;
+    }
+
+    /**
+     * Move every layer reading a run, as one block in its own order, to sit immediately below
+     * `before` (`null` = the top), as one step.
+     * @param id - The run id.
+     * @param before - The layer to sit below, or null for the top of the stack.
+     * @param options - How the move is dispatched.
+     * @param options.signal - Withdraws the move.
+     * @returns Settles once the block has moved; rejects with the refusal.
+     */
+    move(id: RunId, before: LayerId | null, options: { readonly signal?: AbortSignal } = {}): Promise<void> {
+        const command: AlgoMoveCommand = { op: "algo.move", runId: id, before };
+
+        return this.dispatcher.dispatch(command, options).then(() => undefined);
     }
 
     /**
@@ -1243,7 +1383,10 @@ class Runs implements SessionRunsApi {
         if (this.shouldReexecute(existing)) {
             this.launches.set(existing.id, launch);
             existing.rerun();
-        } else if (launch.command.applySuggestedStyles === true && !this.adopting) {
+        } else if (
+            (launch.command.applySuggestedStyles === true || launch.command.restoreLayer === true) &&
+            !this.adopting
+        ) {
             // Nothing to compute, but its layers were asked for: the command still goes through,
             // and applies them from the result the run already has, as one step.
             existing.settleAfter(launch.via(launch.command));
@@ -1270,7 +1413,20 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest;
+        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run);
+    }
+
+    /**
+     * Whether the graph's data changed since a run recorded it.
+     * @param run - The run.
+     * @returns False when the run recorded no data digest, or the session gives none.
+     */
+    private dataMoved(run: ManagedRun): boolean {
+        const recorded = run.dataDigest;
+
+        return (
+            recorded !== undefined && this.options.dataDigest !== undefined && this.options.dataDigest() !== recorded
+        );
     }
 
     /**
@@ -1332,6 +1488,9 @@ class Runs implements SessionRunsApi {
         return {
             run: (command, ctx) => this.execute(command, ctx),
             remove: (command, draft) => this.removeInto(command, draft),
+            move: (command, draft) => {
+                this.moveInto(command, draft);
+            },
         };
     }
 
@@ -1351,6 +1510,10 @@ class Runs implements SessionRunsApi {
             // layers it was asked to apply are written.
             if (command.applySuggestedStyles === true && run.status === "succeeded") {
                 this.applySuggested(ctx.draft, run);
+            }
+
+            if (command.restoreLayer === true && run.status === "succeeded") {
+                this.restoreMissing(ctx.draft, run.id, this.dispatcher.state.runs.get(run.id)?.result);
             }
 
             return run.id;
@@ -1465,7 +1628,11 @@ class Runs implements SessionRunsApi {
 
         try {
             draft.runs.set(run.id, entry);
-            const outcomes = this.paint(draft, run.id, decision.paint);
+            if (prior !== undefined) {
+                this.realignGroups(draft, prior.result, entry.result);
+                this.addNewGroupLayers(draft, entry.result, run.style);
+            }
+            const outcomes = this.paint(draft, run.id, decision.paint, { style: run.style, result: entry.result });
 
             if (decision.painting !== undefined) {
                 // Written after the layers, which need the run's entry to bind to.
@@ -1479,9 +1646,126 @@ class Runs implements SessionRunsApi {
             if (command.applySuggestedStyles === true) {
                 this.applySuggested(draft, run);
             }
+
+            if (command.restoreLayer === true) {
+                this.restoreMissing(draft, run.id, entry.result);
+            }
         } catch (error) {
             revert();
             throw error;
+        }
+    }
+
+    /**
+     * Carry every layer's value-table entries, hidden values and rule conditions naming this run's
+     * groups across its re-run: a partition's groups follow the group sharing most members, other
+     * values match by name, and what matched nothing is reported on the layer as codes. Written
+     * into the run's own step, so undoing the re-run undoes this too.
+     * @param draft - The run's draft.
+     * @param before - The result being replaced.
+     * @param after - The result replacing it.
+     */
+    private realignGroups(draft: Draft, before: RunResult, after: RunResult): void {
+        const root = `${RESULT_ROOT}.${after.runId}.`;
+        // A run that publishes group sizes made its labels up; any other value is a name.
+        const byOverlap = Array.isArray(after.graph.sizes);
+        this.realignNames(draft, before, after, byOverlap);
+        const { styles } = this.dispatcher.services;
+        if (styles === undefined) {
+            return;
+        }
+
+        const matches = new Map<string, GroupMatch>();
+
+        for (const { layer } of draft.styles) {
+            // An element-owned layer is never written, and reads no run's groups.
+            if (layer.locked) {
+                continue;
+            }
+            const half = layer.target === "edge" ? "edge" : "node";
+            const matchOf = (path: string, named: boolean): GroupMatch | undefined => {
+                // By name, a layer that names no value has nothing to carry or to report.
+                if (!byOverlap && !named) {
+                    return undefined;
+                }
+                const key = `${half}|${path}`;
+                const known = matches.get(key);
+                if (known !== undefined) {
+                    return known;
+                }
+                const field = path.slice(root.length);
+                const read =
+                    (result: RunResult) =>
+                    (id: NodeId): unknown =>
+                        (half === "edge" ? result.edge(String(id)) : result.node(id))?.[field];
+                const match = matchGroups<NodeId>(
+                    new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
+                    read(before),
+                    read(after),
+                    byOverlap,
+                );
+                matches.set(key, match);
+                return match;
+            };
+            const patch = realignPatch(layer, after.runId, root, matchOf);
+            if (patch === null) {
+                continue;
+            }
+            try {
+                styles.execute({ op: "style.patch", action: "update", id: layer.id, patch }, draft);
+            } catch (error) {
+                // ponytail: a layer the reader locked keeps its entries as they were; carrying them
+                // needs a style.patch that bypasses the reader's lock, add it if a locked layer
+                // must follow its groups.
+                if (!isGraphtyError(error) || error.code !== "E_LOCKED") {
+                    throw error;
+                }
+            }
+        }
+    }
+
+    /**
+     * Carry the names given to a run's values (`data.setValueLabel`) across its re-run: a name
+     * follows its group to the group sharing most members (on a merge, the larger overlap keeps
+     * it), and the name of a group that matched none is dropped. Written into the run's own step.
+     * @param draft - The run's draft.
+     * @param before - The result being replaced.
+     * @param after - The result replacing it.
+     * @param byOverlap - Whether the run made its groups' labels up.
+     */
+    private realignNames(draft: Draft, before: RunResult, after: RunResult, byOverlap: boolean): void {
+        const root = `${RESULT_ROOT}.${after.runId}.`;
+        const named = [...this.dispatcher.state.valueLabels].map(([key, label]) => ({
+            key,
+            label,
+            ...valueLabelOf(key),
+        }));
+        const moved: [string, string][] = [];
+        const fields = new Set(named.filter(({ path }) => path.startsWith(root)).map(({ path }) => path));
+        for (const path of fields) {
+            const field = path.slice(root.length);
+            const half = after.fields.find((candidate) => candidate.name === field)?.kind === "edge" ? "edge" : "node";
+            const read =
+                (result: RunResult) =>
+                (id: NodeId): unknown =>
+                    (half === "edge" ? result.edge(String(id)) : result.node(id))?.[field];
+            const match = matchGroups<NodeId>(
+                new Set([...elementIdsOf(before, half), ...elementIdsOf(after, half)]),
+                read(before),
+                read(after),
+                byOverlap,
+            );
+            for (const { key, label, value } of named.filter((entry) => entry.path === path)) {
+                draft.valueLabels.delete(key);
+                const to = match.to.get(value);
+                if (to !== undefined) {
+                    moved.push([valueLabelKey(path, to), label]);
+                }
+            }
+        }
+
+        for (const [key, label] of moved) {
+            draft.valueLabels.set(key, label);
         }
     }
 
@@ -1490,9 +1774,17 @@ class Runs implements SessionRunsApi {
      * @param draft - The draft.
      * @param runId - The run they come from.
      * @param suggestions - What to paint.
+     * @param groups - The run's style option and result, for a run whose groups become layers.
+     * @param groups.style - The style option.
+     * @param groups.result - The result.
      * @returns What became of each.
      */
-    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): SuggestionOutcome[] {
+    private paint(
+        draft: Draft,
+        runId: RunId,
+        suggestions: readonly StyleSuggestion[],
+        groups?: { readonly style: RunStyle; readonly result: RunResult },
+    ): SuggestionOutcome[] {
         const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
@@ -1502,6 +1794,10 @@ class Runs implements SessionRunsApi {
         return suggestions.map((suggestion) => {
             try {
                 const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+                const layered = groups === undefined ? null : this.groupLayers(draft, outcome, groups);
+                if (layered !== null) {
+                    return Object.freeze({ outcome: "added" as const, suggestion, layerIds: layered });
+                }
 
                 return addedOutcome(
                     suggestion,
@@ -1513,6 +1809,252 @@ class Runs implements SessionRunsApi {
 
                 return refusedOutcome(suggestion, error);
             }
+        });
+    }
+
+    /**
+     * Turn the one layer a partition's colour suggestion added into a folder of one layer per group,
+     * when the run was started with `style: { groups: "layers" }`: see {@link RunStyle}. Planned into
+     * the same draft, so the run, the folder and its layers are one step.
+     * @param draft - The run's draft.
+     * @param outcome - What the colour suggestion's command resolved with.
+     * @param groups - The run's style option and its result.
+     * @param groups.style - The style option.
+     * @param groups.result - The result.
+     * @returns The group layers' ids, or null when this is not such a suggestion.
+     */
+    private groupLayers(
+        draft: Draft,
+        outcome: unknown,
+        { style, result }: { readonly style: RunStyle; readonly result: RunResult },
+    ): LayerId[] | null {
+        const { styles } = this.dispatcher.services;
+        const layer = (outcome as { result?: unknown } | null)?.result as Layer | undefined;
+        const binding = layer?.encode?.["node.color"];
+        if (
+            typeof style !== "object" ||
+            style.groups !== "layers" ||
+            result.shape !== "community" ||
+            styles?.previewColumn === undefined ||
+            layer === undefined ||
+            binding === undefined ||
+            !("by" in binding)
+        ) {
+            return null;
+        }
+
+        this.groupStyles.set(result.runId, style);
+        const field = binding.by.slice(`${RESULT_ROOT}.${result.runId}.`.length);
+        const column = elementIdsOf(result, "node").map((id) => result.node(id)?.[field]);
+        // Every group has a layer of its own, so none is folded into an "other" grey: the groups
+        // past the palette's colours take colours of their own.
+        const preview = groupsPreview(
+            styles.previewColumn.bind(styles),
+            { ...binding, ...preferredPalette(style.groupPalettes, column) },
+            column,
+        );
+        const found = findRow(rowsOf(draft.styles), layer.id);
+        const folder = styles.execute(
+            {
+                op: "style.patch",
+                action: "addFolder",
+                name: style.name ?? layer.name,
+                at: { parent: found?.ancestors.at(-1)?.id ?? null, index: found?.index ?? 0 },
+            },
+            draft,
+        ) as { result: { id: string } };
+        styles.execute({ op: "style.patch", action: "remove", id: layer.id }, draft);
+
+        // Largest first, each put at the bottom of the folder: the largest ends on top.
+        const ids: LayerId[] = [];
+        const values = preview.bins.filter((bin) => bin.value !== undefined && bin.count > 0);
+        const into: GroupFolder = {
+            folder: folder.result.id,
+            from: layer,
+            path: binding.by,
+            groupName: style.groupName,
+            taken: [],
+        };
+        for (const [at, bin] of values.entries()) {
+            ids.push(this.addGroupLayer(draft, into, bin, at + 1));
+        }
+
+        return ids;
+    }
+
+    /**
+     * Add one group's layer at the bottom of its folder.
+     * @param draft - The draft.
+     * @param into - The folder, and what every group layer in it shares.
+     * @param bin - The group, as a preview of the run's colour binding counts and paints it.
+     * @param bin.value - The group's value.
+     * @param bin.count - How many nodes it holds.
+     * @param bin.paints - The colour the run's layer paints it.
+     * @param rank - Its place by size, 1 for the largest.
+     * @returns The layer's id.
+     */
+    private addGroupLayer(
+        draft: Draft,
+        into: GroupFolder,
+        bin: { readonly value?: unknown; readonly count: number; readonly paints: unknown },
+        rank: number,
+    ): LayerId {
+        const { folder, from, path, groupName, taken } = into;
+        const { styles } = this.dispatcher.services;
+        const paints = bin.paints as { readonly hex?: string } | string | null;
+        const color = typeof paints === "string" ? paints : paints?.hex;
+        const value = categoryName(bin.value);
+        const given = groupName?.({ value: bin.value, rank, size: bin.count, taken: [...taken] });
+        const name = given ?? value;
+        taken.push(name);
+        if (given !== undefined) {
+            // The group goes by its layer's name wherever its value is named (the legend, a
+            // value list), and the name follows the group across a re-run.
+            draft.valueLabels.set(valueLabelKey(path, value), given);
+        }
+        const added = styles?.execute(
+            {
+                op: "style.patch",
+                action: "add",
+                spec: {
+                    name,
+                    target: "node",
+                    selector: {
+                        match: "rule",
+                        where: { kind: "categories", attribute: path, values: [value] },
+                    },
+                    ...(color === undefined ? {} : { set: { "node.color": color } }),
+                    source: from.source,
+                },
+            },
+            draft,
+        ) as { result: Layer };
+        styles?.execute(
+            { op: "style.patch", action: "moveRow", id: added.result.id, to: { parent: folder, index: 0 } },
+            draft,
+        );
+        return added.result.id;
+    }
+
+    /**
+     * After a re-run, add a layer at the bottom of a run's group folder for each group no layer
+     * there selects: see {@link RunStyle}'s `groups`.
+     * @param draft - The run's draft.
+     * @param result - The new result.
+     * @param style - The run's style option.
+     */
+    private addNewGroupLayers(draft: Draft, result: RunResult, style: RunStyle): void {
+        const { styles } = this.dispatcher.services;
+        if (styles?.previewColumn === undefined) {
+            return;
+        }
+        // A re-run started without the option still keeps its folder whole, named as it was.
+        const groupName =
+            (typeof style === "object" ? style.groupName : undefined) ?? this.groupStyles.get(result.runId)?.groupName;
+        const path = `${RESULT_ROOT}.${result.runId}.group`;
+        const groupValues = (layer: Layer): readonly string[] => {
+            const where = layer.selector.match === "rule" ? layer.selector.where : undefined;
+            return where?.kind === "categories" && where.attribute === path ? where.values : [];
+        };
+        const layers = draft.styles.map((entry) => entry.layer);
+        const mine = layers.filter(
+            (layer) =>
+                layer.source.by === "run" && layer.source.runId === result.runId && groupValues(layer).length > 0,
+        );
+        const rows = rowsOf(draft.styles);
+        const folder = mine.length === 0 ? undefined : findRow(rows, mine[0].id)?.ancestors.at(-1);
+        if (folder === undefined) {
+            return;
+        }
+        const held = new Set(mine.flatMap(groupValues));
+        const names = layers
+            .filter((layer) => findRow(rows, layer.id)?.ancestors.at(-1)?.id === folder.id)
+            .map((layer) => layer.name);
+        const used = new Set(mine.map((layer) => hexOf(layer.set?.["node.color"])));
+        const column = elementIdsOf(result, "node").map((id) => result.node(id)?.group);
+        const first = mine[0].encode?.["node.color"];
+        const { bins } = groupsPreview(
+            styles.previewColumn.bind(styles),
+            { by: path, scale: "ordinal", ...(first !== undefined && "by" in first ? { palette: first.palette } : {}) },
+            column,
+        );
+        // The run's palette by place among the groups, the colours no group layer holds yet first.
+        const free = bins.map((bin) => bin.paints).filter((paints) => !used.has(hexOf(paints)));
+        for (const [at, bin] of bins.entries()) {
+            if (bin.value !== undefined && bin.count > 0 && !held.has(categoryName(bin.value))) {
+                const paints = free.shift() ?? bin.paints;
+                used.add(hexOf(paints));
+                this.addGroupLayer(
+                    draft,
+                    { folder: folder.id, from: mine[0], path, groupName, taken: names },
+                    { ...bin, paints },
+                    at + 1,
+                );
+            }
+        }
+    }
+
+    /**
+     * The suggestions a run's first completion added that no layer reading the run paints now.
+     * @param stack - The layers, as the draft or the session holds them.
+     * @param painting - The run's first decision.
+     * @param runId - The run.
+     * @returns The missing suggestions, in the order they were made.
+     */
+    private missingOf(
+        stack: readonly { readonly layer: Layer }[],
+        painting: RunPainting | undefined,
+        runId: RunId,
+    ): StyleSuggestion[] {
+        const painted = new Set(
+            stack
+                .filter(({ layer }) => layer.source.by === "run" && layer.source.runId === runId)
+                .flatMap(({ layer }) => [...Object.keys(layer.encode ?? {}), ...Object.keys(layer.set ?? {})]),
+        );
+
+        return (painting?.suggestions ?? [])
+            .filter((outcome) => outcome.outcome === "added")
+            .map((outcome) => outcome.suggestion)
+            .filter((suggestion) => !suggestion.channels.some((channel) => painted.has(channel)));
+    }
+
+    /**
+     * Put back what {@link missingOf} finds, into the run's step, where the run's first completion
+     * put it (beneath the reader's own layers when the project places runs there).
+     * @param draft - The draft.
+     * @param runId - The run.
+     * @param result - The run's result, so a run whose groups were layers gets its folder back.
+     */
+    private restoreMissing(draft: Draft, runId: RunId, result?: RunResult): void {
+        const { styles } = this.dispatcher.services;
+        if (styles === undefined) {
+            return;
+        }
+
+        const style = this.groupStyles.get(runId);
+        for (const suggestion of this.missingOf(draft.styles, this.dispatcher.state.runs.get(runId)?.painting, runId)) {
+            const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+            // A run whose groups were layers gets its folder of groups back, not one layer.
+            if (result !== undefined && style !== undefined) {
+                this.groupLayers(draft, outcome, { style, result });
+            }
+        }
+    }
+
+    /**
+     * Which of a run's layers the stack holds: see {@link RunsApi.layers}.
+     * @param id - The run id.
+     * @returns The layers, or undefined when this session holds no such run.
+     */
+    layers(id: RunId): RunLayers | undefined {
+        if (this.get(id) === undefined) {
+            return undefined;
+        }
+
+        const stack = this.dispatcher.state.styles;
+        return Object.freeze({
+            present: this.bindings(id),
+            missing: Object.freeze(this.missingOf(stack, this.dispatcher.state.runs.get(id)?.painting, id)),
         });
     }
 
@@ -1576,11 +2118,80 @@ class Runs implements SessionRunsApi {
             if (styles === undefined) {
                 this.options.layers?.remove?.(layerIds);
             } else {
+                // A folder that held only this run's layers (its groups, see RunStyle) goes with them.
+                const folders = new Set(
+                    layerIds.flatMap((layerId) => findRow(rowsOf(draft.styles), layerId)?.ancestors.at(-1)?.id ?? []),
+                );
                 styles.execute({ op: "style.patch", action: "removeBySource", ids: layerIds }, draft);
+                for (const folder of folders) {
+                    const left = findRow(rowsOf(draft.styles), folder);
+                    if (left !== undefined && (left.row.children ?? []).length === 0) {
+                        styles.execute({ op: "style.patch", action: "deleteRow", id: folder }, draft);
+                    }
+                }
             }
         }
 
         return removal;
+    }
+
+    /**
+     * Carry out one `algo.move`: refuse what `styles.move` would refuse, then move the run's
+     * layers bottom first, each to sit below `before`, so each lands above the one moved before
+     * it and the block keeps its order.
+     * @param command - The move.
+     * @param draft - The command's draft.
+     */
+    private moveInto(command: AlgoMoveCommand, draft: Draft): void {
+        const { runId: id, before } = command;
+        const block = draft.styles
+            .filter((entry) => entry.layer.source.by === "run" && entry.layer.source.runId === id)
+            .map((entry) => entry.layer.id);
+        const target = before === null ? undefined : draft.styles.find((entry) => entry.layer.id === before)?.layer;
+
+        if (this.get(id) === undefined && !this.dispatcher.state.runs.has(id)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                message: `This session holds no run "${id}".`,
+                source: "run",
+                details: { runId: id },
+            });
+        }
+
+        if (before !== null && target === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_LAYER",
+                message: `No layer "${before}" is in the stack.`,
+                source: "style",
+                target: { kind: "layer", id: before },
+                details: { id: before },
+            });
+        }
+
+        if (target?.locked === true) {
+            throw new GraphtyError({
+                code: "E_PROTECTED",
+                message: `"${target.name}" is the element's own layer, and nothing moves beneath it.`,
+                source: "style",
+                target: { kind: "layer", id: target.id },
+                details: { id: target.id },
+            });
+        }
+
+        if (before !== null && block.includes(before)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Layer "${before}" reads run "${id}", so the run cannot move below it.`,
+                source: "style",
+                details: { runId: id, before },
+            });
+        }
+
+        const { styles } = this.dispatcher.services;
+
+        for (const layer of block) {
+            styles?.execute({ op: "style.patch", action: "move", id: layer, before }, draft);
+        }
     }
 
     /**
@@ -1642,10 +2253,11 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
+        const dataChanged = this.dataMoved(run);
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (current.digest === run.scope.digest) {
+            if (!dataChanged && current.digest === run.scope.digest) {
                 return null;
             }
 
@@ -1661,6 +2273,7 @@ class Runs implements SessionRunsApi {
         }
 
         return Object.freeze({
+            reason: dataChanged ? "data-changed" : "scope-changed",
             ranOn: run.scope.nodeCount,
             nowVisible,
             scopeSpec: run.scope.spec,

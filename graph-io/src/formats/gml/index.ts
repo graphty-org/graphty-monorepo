@@ -126,7 +126,7 @@ export const GML_ISSUE = Object.freeze({
     GRAPHICS: GRAPHICS_CODE,
     /** A graph, node or edge record nested in a node or edge; kept as json, not read as structure. */
     NESTED_ELEMENT: NESTED_ELEMENT_CODE,
-    /** YEd's isGroup / gid keys, kept as plain columns; the hierarchy is not read as containment. */
+    /** A yEd `gid` that names no other node; it stays a plain column value and puts the node in no group. */
     GROUPS: GROUPS_CODE,
     /**
      * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,

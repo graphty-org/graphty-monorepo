@@ -28,6 +28,8 @@ export type {
     CostGateLimits,
     CostInput,
     CostMeasurement,
+    EstimateRefusal,
+    EstimateRefusalCode,
     MachineCalibration,
     ScopeCandidate,
 } from "./estimate";
@@ -41,5 +43,6 @@ export {
     ITERATION_OPTION_NAME,
     MAX_COLUMN_LENGTH,
     MEASUREMENT_EXTRAPOLATION_LIMIT,
+    refused,
     resultBytes,
 } from "./estimate";

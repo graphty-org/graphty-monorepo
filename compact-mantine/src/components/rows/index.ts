@@ -19,6 +19,7 @@ export { ActionRow } from "./ActionRow";
 export { HistogramRow, MetricRow, SparklineRow } from "./ChartRow";
 export { CompoundRow } from "./CompoundRow";
 export { DataRow, DataRowHeader, RankChip } from "./DataRow";
+export { EllipsizedName } from "./EllipsizedName";
 export { FieldRow } from "./FieldRow";
 export { PanelField } from "./PanelField";
 export { ProseBlock } from "./ProseBlock";

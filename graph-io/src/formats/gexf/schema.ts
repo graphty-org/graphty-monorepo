@@ -195,7 +195,8 @@ export const NODE_DECLS: Readonly<Record<keyof typeof NODE_COLUMNS, ColumnDecl>>
         mutable: true,
         nullable: true,
         origin: VIZ_ORIGIN,
-        extra: { units: "file" },
+        // Gephi puts a node with no viz:position at the origin (gexf-specimen-node-sizes-opacity: position-none)
+        extra: { units: "file", originUnplaced: true },
     },
     color: {
         name: NODE_COLUMNS.color,

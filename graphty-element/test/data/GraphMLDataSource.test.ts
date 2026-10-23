@@ -108,6 +108,29 @@ describe("GraphMLDataSource", () => {
         assert.strictEqual(chunks[0].edges.length, 2);
     });
 
+    test("refuses a file cut short, yielding none of the nodes read before the cut", async () => {
+        const whole = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph edgedefault="undirected">
+${Array.from({ length: 9 }, (_, i) => `    <node id="n${i}"/>`).join("\n")}
+${Array.from({ length: 8 }, (_, i) => `    <edge source="n${i}" target="n${i + 1}"/>`).join("\n")}
+  </graph>
+</graphml>`;
+        const source = new GraphMLDataSource({ data: whole.slice(0, Math.floor(whole.length * 0.55)) });
+        const nodes = [];
+        let thrown: unknown;
+        try {
+            for await (const chunk of source.getData()) {
+                nodes.push(...chunk.nodes);
+            }
+        } catch (error) {
+            thrown = error;
+        }
+
+        assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_PARSE_FAILED");
+        assert.deepEqual(nodes, []);
+    });
+
     test("parses nodes without edges", async () => {
         const xml = `<?xml version="1.0"?>
 <graphml xmlns="http://graphml.graphdrawing.org/xmlns">

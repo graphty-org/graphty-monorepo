@@ -1,0 +1,18 @@
+{
+    "sample": "pajek-iliad",
+    "file": "graph-io/test/corpus/styles/pajek/kjhealy_kjhnet__iliad_killedby.net",
+    "sha256": "36bb5fe5d3700e3dca01ed40a4b3c10a1415bb5965bc20d4143e1e7d203f0d7c",
+    "program": "Pajek",
+    "version": "Pajek 6.02 (64-bit, Pajek64.zip of 2025-12-31) under Wine 9.0 on Xvfb",
+    "command": "Pajek.exe running the startup log Pajek.log: LOADINI oracle.ini (Pajek's SAVEINI defaults, Draw window 500 x 500); N 1 RDN \"<file>\" (311); E 1 DRAW 0 0 0 0 0 (Draw > Network); E 1 SVG 0 0 0 0 0 \"<out>.svg\" 1 0 (Draw > Export > 2D > SVG > General, SVG with Controls); EXIT",
+    "standIn": false,
+    "canvas": {
+        "requested": "500 x 500 px (the Draw window's size: the 0..1 square of the file's coordinates at 500 per unit, as Pajek's EPS export maps it; vertex sizes, line widths and fonts are fixed pixels whatever the window)",
+        "widthPx": 500,
+        "heightPx": 500
+    },
+    "fonts": "as Pajek writes them (its default label font, Arial); the PNG maps them to the pinned fonts",
+    "svgPostprocessing": "the CreationDate comment (the run's clock time) is replaced with a fixed text and Windows line ends become Unix ones; nothing else changes. Pajek always adds its signature layer (id PajekSig: the spider logo and the word Pajek, bottom left), which is not part of the network.",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/pajek.mjs pajek-iliad && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/pajek-iliad.svg"
+}

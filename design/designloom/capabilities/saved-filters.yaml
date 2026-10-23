@@ -28,7 +28,8 @@ requirements:
     - Validate imported filters against current graph schema; warn on incompatible attributes
     - "Support combining saved filters: 'Apply Filter A AND Filter B'"
     - Display indicator icon next to currently active saved filter
-    - Persist saved filters in browser localStorage
+    # Corrected 2026-10-19 by design/data/data-management-requirements.md (saved filters belong to the project).
+    - Save saved filters in the project file as graphty-element rule sets, so they reopen with the project
     - Sync saved filters to user account when logged in (if auth available)
     - Limit saved filters to 50 per user; display warning at 45
 sources:

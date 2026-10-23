@@ -28,22 +28,26 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
 export type {
     Binding,
+    BindingNumberFormat,
     BindingOverflow,
     BindingStop,
     Channel,
     ChannelValue,
+    CombineMode,
     EdgeId,
     EdgeLinePattern,
     EdgeMember,
     EdgeReading,
     EdgeRef,
     Encoding,
+    GroupMatchCode,
     ItemKey,
     LabelStyle,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerUnmatchedGroup,
     NodeId,
     Path,
     PathKind,
@@ -94,12 +98,15 @@ export type {
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
     ImageData,
+    Lighting,
     NodeStyleConfig,
     RichTextStyleType,
     ViewMode,
 } from "./src/config/index";
 export {
     colorToHex,
+    DEFAULT_BACKGROUND_COLOR,
+    DEFAULT_LIGHTING,
     DEFAULT_SELECTION_STYLE,
     DEFAULT_VIEW_MODE,
     defaultEdgeStyle,
@@ -107,11 +114,14 @@ export {
     defaultRichTextLabelStyle,
     EdgeArrowTypes,
     EdgeLineTypes,
+    EdgeOutlineTypes,
     EdgeStyle,
     FLAT_NODE_SHAPES,
     GraphBackground,
     GraphSelectionStyleOpts,
+    isLighting,
     isViewMode,
+    LIGHTING_VALUES,
     NodeBorderStyles,
     NodeShapes,
     NodeStyle,
@@ -135,6 +145,13 @@ export {
 } from "./src/utils/styleHelpers/accessibility/colorblindSimulation";
 export type { RgbColor } from "./src/utils/styleHelpers/color/interpolation";
 export { hexToRgb, interpolatePalette, MISSING_DATA_COLOR } from "./src/utils/styleHelpers/color/interpolation";
+
+// ---------------------------------------------------------------------------------------------
+// Label templates: a `{ template }` line read as a row (words and one value) and written back
+// ---------------------------------------------------------------------------------------------
+
+export type { LabelTemplateRow } from "./src/session/styles/labelTemplate";
+export { labelTemplateLine, labelTemplateRow } from "./src/session/styles/labelTemplate";
 
 /**
  * A rule tree: what the visibility filter keeps.

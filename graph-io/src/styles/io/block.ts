@@ -728,6 +728,15 @@ function predicate(v: unknown): Predicate {
 }
 
 /**
+ * A positive finite number.
+ * @param v - the parsed value
+ * @returns the number
+ */
+function positive(v: unknown): number {
+    return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : invalid();
+}
+
+/**
  * A mapping. A mapping of a kind this version does not know is kept and gives no value.
  * @param v - the parsed mapping
  * @returns the mapping
@@ -760,6 +769,7 @@ function mapping(v: unknown): Mapping {
                         above: scalar(q.above),
                     };
                 }),
+                ...(o.step === undefined ? {} : { step: positive(o.step) }),
             };
         default:
             return { ...o, kind: name(o.kind), by } as unknown as Mapping;

@@ -1,0 +1,2362 @@
+{
+    "about": "The style vocabulary of yEd GraphML and yEd Live GraphML, read by yed_vocabulary.py from yWorks' schema and API documentation and from what yEd writes in the corpus; yed.py builds both formats' specimen sheets from it and checks that every value is drawn or listed as not drawn, with the reason.",
+    "sources": {
+        "schema": "https://www.yworks.com/xml/schema/graphml/1.1/ygraphics.xsd",
+        "javadoc": [
+            "https://docs.yworks.com/yfiles/doc/api/y/view/ShapeNodeRealizer.html",
+            "https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html"
+        ],
+        "yfilesHtml2": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
+        "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
+        "ybpmn": "https://docs.yworks.com/ybpmn/doc/api/com/yworks/yfiles/bpmn/view/<Enum>.html",
+        "ysbgn": [
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/example_files/process_port_diagrams/ProcessPorts.graphml",
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/acsn_diagrams/apoptosis_v1.graphml",
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/src/main/java/fr/eisbm/GRAPHML2SBGNML/ConverterDefines.java"
+        ],
+        "yfilesHtml": "https://docs.yworks.com/yfiles-html/api/<Type>.html",
+        "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'"
+    },
+    "yed-graphml": {
+        "schemaEnums": {
+            "lineType": ["line", "dashed", "dotted", "dashed_dotted"],
+            "fontStyle": ["plain", "bold", "italic", "bolditalic"],
+            "shapeType": [
+                "rectangle",
+                "roundrectangle",
+                "ellipse",
+                "parallelogram",
+                "hexagon",
+                "octagon",
+                "diamond",
+                "triangle",
+                "trapezoid",
+                "trapezoid2",
+                "rectangle3d"
+            ],
+            "arrowType": [
+                "standard",
+                "delta",
+                "diamond",
+                "white_diamond",
+                "white_delta",
+                "none",
+                "plain",
+                "concave",
+                "convex",
+                "circle",
+                "dash",
+                "transparent_circle",
+                "skewed_dash",
+                "t_shape"
+            ],
+            "alignment": ["center", "left", "right"],
+            "nodeLabelModel": ["free", "sides", "corners", "eight_pos", "sandwich", "internal", "custom"],
+            "nodeLabelPosition": [
+                "n",
+                "nw",
+                "ne",
+                "w",
+                "e",
+                "sw",
+                "s",
+                "se",
+                "c",
+                "tl",
+                "t",
+                "tr",
+                "r",
+                "l",
+                "bl",
+                "b",
+                "br",
+                "anywhere"
+            ],
+            "autoSizePolicy": ["node_width", "node_height", "content", "none"],
+            "edgeLabelModel": [
+                "centered",
+                "center_slider",
+                "side_slider",
+                "free",
+                "two_pos",
+                "three_center",
+                "six_pos",
+                "custom"
+            ],
+            "edgeLabelPosition": [
+                "center",
+                "tcentr",
+                "scentr",
+                "anywhere",
+                "stail",
+                "ttail",
+                "tail",
+                "shead",
+                "thead",
+                "head"
+            ],
+            "preferredPlacement": [
+                "target_right",
+                "target",
+                "target_left",
+                "target_on_edge",
+                "source_right",
+                "source",
+                "source_left",
+                "source_on_edge",
+                "center_right",
+                "center",
+                "center_left",
+                "center_on_edge",
+                "anywhere",
+                "on_edge",
+                "left",
+                "right"
+            ],
+            "horizontalTextPosition": ["left", "right", "center", "left_aligned", "right_aligned"],
+            "verticalTextPosition": ["top", "bottom", "center"],
+            "arc": ["fixedHeight", "fixedRatio"],
+            "NodeScaledPortLocationModel.portLocationPolicy": [
+                "POLICY_DISCRETE",
+                "POLICY_BOUNDARY",
+                "POLICY_BOUNDARY_CENTER",
+                "POLICY_BOUNDARY_INSIDE",
+                "POLICY_FREE"
+            ],
+            "PortLabelModelParameter.position": ["north", "south", "east", "west", "center"]
+        },
+        "schemaTypes": {
+            "Rectangle": {
+                "attributes": [],
+                "extends": []
+            },
+            "Path": {
+                "attributes": ["reversedPathRendering", "sx", "sy", "tx", "ty"],
+                "extends": []
+            },
+            "LineStyle": {
+                "attributes": ["color", "hasColor", "type", "width"],
+                "extends": []
+            },
+            "DropShadow": {
+                "attributes": ["color", "offsetX", "offsetY"],
+                "extends": []
+            },
+            "Label": {
+                "attributes": [
+                    "visible",
+                    "alignment",
+                    "textColor",
+                    "lineColor",
+                    "hasLineColor",
+                    "backgroundColor",
+                    "hasBackgroundColor",
+                    "hasText",
+                    "fontFamily",
+                    "fontSize",
+                    "fontStyle",
+                    "rotationAngle",
+                    "icon",
+                    "image",
+                    "iconData",
+                    "underlinedText",
+                    "horizontalTextPosition",
+                    "verticalTextPosition",
+                    "iconTextGap",
+                    "configuration"
+                ],
+                "extends": []
+            },
+            "NodeLabel": {
+                "attributes": ["modelName", "modelPosition", "autoSizePolicy", "borderDistance"],
+                "extends": ["Label"]
+            },
+            "EdgeLabel": {
+                "attributes": ["modelName", "modelPosition", "preferredPlacement", "distance", "ratio"],
+                "extends": ["Label"]
+            },
+            "TableNodeLabelModel": {
+                "attributes": ["offset"],
+                "extends": []
+            },
+            "TableNodeLabelModelParameter": {
+                "attributes": ["id", "inside"],
+                "extends": []
+            },
+            "Geometry": {
+                "attributes": [],
+                "extends": []
+            },
+            "Node": {
+                "attributes": ["hasColor", "color", "color2", "transparent", "selected"],
+                "extends": []
+            },
+            "ShapeNode": {
+                "attributes": ["type"],
+                "extends": ["Node"]
+            },
+            "ImageNode": {
+                "attributes": ["href", "alphaImage", "refid"],
+                "extends": ["Node"]
+            },
+            "IntInsets": {
+                "attributes": ["top", "bottom", "left", "right"],
+                "extends": []
+            },
+            "FloatInsets": {
+                "attributes": ["top", "bottom", "left", "right"],
+                "extends": []
+            },
+            "Insets": {
+                "attributes": ["topF", "bottomF", "leftF", "rightF"],
+                "extends": ["IntInsets"]
+            },
+            "GroupNode": {
+                "attributes": ["type", "closed", "innerGraphDisplayEnabled", "considerNodeLabelSize"],
+                "extends": ["Node"]
+            },
+            "ProxyShapeNode": {
+                "attributes": ["active"],
+                "extends": []
+            },
+            "UserData": {
+                "attributes": ["class", "value"],
+                "extends": []
+            },
+            "GenericNode": {
+                "attributes": ["configuration"],
+                "extends": ["Node"]
+            },
+            "GenericGroupNode": {
+                "attributes": ["closed", "autoResize", "closedHeight", "closedWidth"],
+                "extends": ["GenericNode"]
+            },
+            "TableNode": {
+                "attributes": [],
+                "extends": ["GenericGroupNode"]
+            },
+            "Table": {
+                "attributes": [
+                    "autoResizeTable",
+                    "defaultColumnWidth",
+                    "defaultMinimumColumnWidth",
+                    "defaultRowHeight",
+                    "defaultMinimumRowHeight"
+                ],
+                "extends": []
+            },
+            "TableColumn": {
+                "attributes": ["id", "minimumWidth", "width"],
+                "extends": []
+            },
+            "TableRow": {
+                "attributes": ["id", "minimumHeight", "height"],
+                "extends": []
+            },
+            "Edge": {
+                "attributes": ["source", "target", "selected"],
+                "extends": []
+            },
+            "EdgePort": {
+                "attributes": ["type"],
+                "extends": []
+            },
+            "Icon": {
+                "attributes": ["icon", "image", "iconData"],
+                "extends": []
+            },
+            "PolyLineEdge": {
+                "attributes": ["smoothed"],
+                "extends": ["Edge"]
+            },
+            "ArcEdge": {
+                "attributes": ["type", "height", "ratio"],
+                "extends": ["Edge"]
+            },
+            "QuadCurveEdge": {
+                "attributes": ["straightness"],
+                "extends": ["Edge"]
+            },
+            "GenericEdge": {
+                "attributes": ["class", "value", "configuration"],
+                "extends": ["Edge"]
+            },
+            "PortGeometry": {
+                "attributes": [],
+                "extends": []
+            },
+            "NodeScaledPortLocationModel": {
+                "attributes": ["portLocationPolicy", "ratioX", "ratioY"],
+                "extends": []
+            },
+            "NodePorts": {
+                "attributes": [],
+                "extends": []
+            },
+            "NodePort": {
+                "attributes": ["id"],
+                "extends": []
+            },
+            "PortLabelModel": {
+                "attributes": ["localCandidatesEnabled", "offset"],
+                "extends": []
+            },
+            "PortLabelModelParameter": {
+                "attributes": ["id", "position"],
+                "extends": []
+            },
+            "PortGraphics": {
+                "attributes": ["configuration", "selected"],
+                "extends": []
+            },
+            "Resource": {
+                "attributes": ["id", "type", "format"],
+                "extends": []
+            },
+            "ResourceBlock": {
+                "attributes": [],
+                "extends": []
+            },
+            "StyleProperty": {
+                "attributes": ["name", "class", "value"],
+                "extends": []
+            },
+            "StyleProperties": {
+                "attributes": [],
+                "extends": []
+            }
+        },
+        "schemaElements": {
+            "RowNodeLabelModel": "TableNodeLabelModel",
+            "ColumnNodeLabelModel": "TableNodeLabelModel",
+            "RowNodeLabelModelParameter": "",
+            "ColumnNodeLabelModelParameter": "",
+            "ShapeNode": "ShapeNode",
+            "ImageNode": "ImageNode",
+            "GroupNode": "GroupNode",
+            "GenericNode": "GenericNode",
+            "GenericGroupNode": "GenericGroupNode",
+            "ProxyShapeNode": "ProxyShapeNode",
+            "ProxyAutoBoundsNode": "ProxyShapeNode",
+            "TableNode": "TableNode",
+            "PolyLineEdge": "PolyLineEdge",
+            "ArcEdge": "ArcEdge",
+            "BezierEdge": "Edge",
+            "SplineEdge": "Edge",
+            "QuadCurveEdge": "QuadCurveEdge",
+            "GenericEdge": "GenericEdge",
+            "Geometry": "PortGeometry",
+            "NodeScaledPortLocationModel": "NodeScaledPortLocationModel",
+            "PortLabelModelParameter": "PortLabelModelParameter",
+            "PortLabelModel": "PortLabelModel",
+            "Graphics": "PortGraphics",
+            "UserData": "UserData",
+            "Resources": "ResourceBlock",
+            "SimpleStyle": ""
+        },
+        "shapes": [
+            "rectangle",
+            "roundrectangle",
+            "ellipse",
+            "parallelogram",
+            "hexagon",
+            "octagon",
+            "diamond",
+            "triangle",
+            "trapezoid",
+            "trapezoid2",
+            "rectangle3d",
+            "fatarrow",
+            "fatarrow2",
+            "parallelogram2",
+            "star5",
+            "star6",
+            "star8",
+            "triangle2",
+            "hexagon2",
+            "octagon2"
+        ],
+        "arrows": [
+            "standard",
+            "delta",
+            "diamond",
+            "white_diamond",
+            "white_delta",
+            "none",
+            "plain",
+            "concave",
+            "convex",
+            "circle",
+            "dash",
+            "transparent_circle",
+            "skewed_dash",
+            "t_shape",
+            "cross",
+            "crows_foot_many",
+            "crows_foot_many_mandatory",
+            "crows_foot_many_optional",
+            "crows_foot_one",
+            "crows_foot_one_mandatory",
+            "crows_foot_one_optional",
+            "crows_foot_optional",
+            "short",
+            "white_circle",
+            "white_delta_bar"
+        ],
+        "lineTypes": ["line", "dashed", "dotted", "dashed_dotted"],
+        "nodeLabelPositions": {
+            "internal": ["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"],
+            "sandwich": ["n", "s"],
+            "sides": ["n", "s", "e", "w"],
+            "corners": ["nw", "ne", "sw", "se"],
+            "eight_pos": ["n", "ne", "e", "se", "s", "sw", "w", "nw"],
+            "free": ["anywhere"],
+            "custom": ["anywhere"]
+        },
+        "edgeLabelPositions": {
+            "centered": ["center"],
+            "two_pos": ["head", "tail"],
+            "three_center": ["scentr", "center", "tcentr"],
+            "six_pos": ["shead", "head", "thead", "stail", "tail", "ttail"],
+            "center_slider": ["center"],
+            "side_slider": ["center"],
+            "free": ["anywhere"],
+            "custom": ["anywhere"]
+        },
+        "genericConfigurations": [
+            {
+                "id": "com.yworks.flowchart.start1",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.start2",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.terminator",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.process",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.predefinedProcess",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.decision",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.loopLimit",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.loopLimitEnd",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.document",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.data",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.directData",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.storedData",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.sequentialData",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.dataBase",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.internalStorage",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.manualInput",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.card",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.paperType",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.cloud",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.delay",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.display",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.manualOperation",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.preparation",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.flowchart.onPageReference",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.offPageReference",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.userMessage",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.networkMessage",
+                "palette": "flowchart",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.flowchart.annotation",
+                "palette": "flowchart",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.bpmn.Activity",
+                "palette": "bpmn",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.bpmn.Activity.withShadow",
+                "palette": "bpmn",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.bpmn.Event",
+                "palette": "bpmn",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.bpmn.Event.withShadow",
+                "palette": "bpmn",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.bpmn.Gateway",
+                "palette": "bpmn",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.bpmn.Gateway.withShadow",
+                "palette": "bpmn",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.bpmn.Conversation",
+                "palette": "bpmn",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.bpmn.Conversation.withShadow",
+                "palette": "bpmn",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.bpmn.Artifact",
+                "palette": "bpmn",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.bpmn.Artifact.withShadow",
+                "palette": "bpmn",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.entityRelationship.big_entity",
+                "palette": "entityRelationship",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.entityRelationship.small_entity",
+                "palette": "entityRelationship",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.entityRelationship.relationship",
+                "palette": "entityRelationship",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yworks.entityRelationship.attribute",
+                "palette": "entityRelationship",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yworks.sbgn.UnspecifiedEntity",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.SimpleChemical",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Macromolecule",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.NucleicAcidFeature",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.PerturbingAgent",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Phenotype",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.EmptySet",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Submap",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.UnitOfInformation",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.StateVariable",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Tag",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Process",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yworks.sbgn.Operator",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            },
+            {
+                "id": "com.yjava.BevelNode",
+                "palette": "yjava",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yjava.BevelNode2",
+                "palette": "yjava",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yjava.BevelNode3",
+                "palette": "yjava",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yjava.BevelNodeWithShadow",
+                "palette": "yjava",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yjava.ShinyPlateNode",
+                "palette": "yjava",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yjava.ShinyPlateNode2",
+                "palette": "yjava",
+                "spelling": "inferred"
+            },
+            {
+                "id": "com.yjava.ShinyPlateNode3",
+                "palette": "yjava",
+                "spelling": "observed"
+            },
+            {
+                "id": "com.yjava.ShinyPlateNodeWithShadow",
+                "palette": "yjava",
+                "spelling": "inferred"
+            }
+        ],
+        "genericGroupConfigurations": [
+            {
+                "id": "com.yworks.sbgn.Complex",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
+            }
+        ],
+        "bpmnStyleProperties": {
+            "com.yworks.bpmn.type": {
+                "class": "com.yworks.yfiles.bpmn.view.BPMNTypeEnum",
+                "values": [
+                    {
+                        "value": "EVENT_TYPE_PLAIN",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_MESSAGE",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_TIMER",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_ESCALATION",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_TYPE_CONDITIONAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_ERROR",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_CANCEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_COMPENSATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_SIGNAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_PARALLEL_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_TYPE_TERMINATE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_DATA_BASED_EXCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_INCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PARALLEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_COMPLEX",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "GATEWAY_TYPE_PARALLEL_EVENT_BASED_EXCLUSIVE_START_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_DATA_OBJECT",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_ANNOTATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_GROUP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_DATA_STORE",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_REPLY_MESSAGE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ARTIFACT_TYPE_REQUEST_MESSAGE",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CHOREOGRAPHY_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_BIDIRECTED_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_CONDITIONAL_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_CONVERSATION_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_DEFAULT_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_DIRECTED_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_FORKED_CONVERSATION_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_MESSAGE_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_SEQUENCE_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONVERSATION_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_COLUMN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_EMPTY",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_LANE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_LANE_AND_COLUMN",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.characteristic": {
+                "class": "com.yworks.yfiles.bpmn.view.EventCharEnum",
+                "values": [
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_INTERRUPTING",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_NON_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_CATCHING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_BOUNDARY_NON_INTERRUPTING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_INTERMEDIATE_THROWING",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "EVENT_CHARACTERISTIC_END",
+                        "spelling": "observed"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.taskType": {
+                "class": "com.yworks.yfiles.bpmn.view.TaskTypeEnum",
+                "values": [
+                    {
+                        "value": "TASK_TYPE_ABSTRACT",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "TASK_TYPE_SEND",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_RECEIVE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_USER",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_MANUAL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_BUSINESS_RULE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_SERVICE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "TASK_TYPE_SCRIPT",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.dataObjectType": {
+                "class": "com.yworks.yfiles.bpmn.view.DataObjectTypeEnum",
+                "values": [
+                    {
+                        "value": "DATA_OBJECT_TYPE_PLAIN",
+                        "spelling": "observed"
+                    },
+                    {
+                        "value": "DATA_OBJECT_TYPE_INPUT",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "DATA_OBJECT_TYPE_OUTPUT",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.icon.fill": {
+                "class": "java.awt.Color",
+                "values": []
+            },
+            "com.yworks.bpmn.icon.fill2": {
+                "class": "java.awt.Color",
+                "values": []
+            },
+            "com.yworks.bpmn.icon.line.color": {
+                "class": "java.awt.Color",
+                "values": []
+            },
+            "com.yworks.bpmn.activityType": {
+                "class": "com.yworks.yfiles.bpmn.view.ActivityTypeEnum",
+                "values": [
+                    {
+                        "value": "ACTIVITY_TYPE_CALL_ACTIVITY",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_EVENT_SUB_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TRANSACTION",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.marker1": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": [
+                    {
+                        "value": "BPMN_MARKER_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_CLOSED",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_COMPENSATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_OPEN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_PARALLEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_SEQUENTIAL",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.marker2": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
+            },
+            "com.yworks.bpmn.marker3": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
+            },
+            "com.yworks.bpmn.marker4": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
+            }
+        },
+        "styleProperties": {
+            "com.yworks.sbgn.style.radius": "java.lang.Double",
+            "com.yworks.sbgn.style.inverse": "java.lang.Boolean",
+            "yed.table.lane.style": "java.lang.String",
+            "yed.table.section.color": "java.awt.Color",
+            "yed.table.header.height": "java.lang.Double",
+            "com.yworks.sbgn.style.mcount": "java.lang.Integer",
+            "com.yworks.sbgn.style.radiusY": "java.lang.Integer"
+        },
+        "observedInCorpus": {
+            "realizers": [
+                "ArcEdge",
+                "BezierEdge",
+                "GenericEdge",
+                "GenericGroupNode",
+                "GenericNode",
+                "GroupNode",
+                "ImageNode",
+                "PolyLineEdge",
+                "ProxyAutoBoundsNode",
+                "QuadCurveEdge",
+                "SVGNode",
+                "ShapeNode",
+                "SplineEdge",
+                "TableNode",
+                "UMLClassNode",
+                "UMLNoteNode"
+            ],
+            "shapes": [
+                "diamond",
+                "ellipse",
+                "fatarrow",
+                "fatarrow2",
+                "hexagon",
+                "hexagon2",
+                "octagon",
+                "octagon2",
+                "parallelogram",
+                "parallelogram2",
+                "rectangle",
+                "rectangle3d",
+                "roundrectangle",
+                "star5",
+                "star6",
+                "star8",
+                "trapezoid",
+                "trapezoid2",
+                "triangle",
+                "triangle2"
+            ],
+            "arrows": [
+                "circle",
+                "concave",
+                "convex",
+                "cross",
+                "crows_foot_many",
+                "crows_foot_many_mandatory",
+                "crows_foot_many_optional",
+                "crows_foot_one",
+                "crows_foot_one_mandatory",
+                "crows_foot_optional",
+                "dash",
+                "delta",
+                "diamond",
+                "none",
+                "plain",
+                "short",
+                "skewed_dash",
+                "standard",
+                "t_shape",
+                "transparent_circle",
+                "white_circle",
+                "white_delta",
+                "white_diamond"
+            ],
+            "lineTypes": ["dashed", "dashed_dotted", "dotted", "line"],
+            "configurations": [
+                "BevelNode",
+                "BevelNode2",
+                "BevelNode3",
+                "BevelNodeWithShadow",
+                "DemoGroup",
+                "PanelNode",
+                "com.yjava.BevelNode",
+                "com.yjava.BevelNode2",
+                "com.yjava.ShinyPlateNode",
+                "com.yjava.ShinyPlateNode3",
+                "com.yworks.bpmn.Activity.withShadow",
+                "com.yworks.bpmn.Artifact",
+                "com.yworks.bpmn.Artifact.withShadow",
+                "com.yworks.bpmn.Event.withShadow",
+                "com.yworks.bpmn.Gateway.withShadow",
+                "com.yworks.entityRelationship.attribute",
+                "com.yworks.entityRelationship.big_entity",
+                "com.yworks.flowchart.annotation",
+                "com.yworks.flowchart.cloud",
+                "com.yworks.flowchart.data",
+                "com.yworks.flowchart.dataBase",
+                "com.yworks.flowchart.decision",
+                "com.yworks.flowchart.delay",
+                "com.yworks.flowchart.directData",
+                "com.yworks.flowchart.document",
+                "com.yworks.flowchart.manualOperation",
+                "com.yworks.flowchart.predefinedProcess",
+                "com.yworks.flowchart.preparation",
+                "com.yworks.flowchart.process",
+                "com.yworks.flowchart.start1",
+                "com.yworks.flowchart.storedData",
+                "com.yworks.flowchart.terminator"
+            ],
+            "edgeConfigurations": ["com.yworks.edge.framed"],
+            "borderStyleAttributes": ["color", "hasColor", "raised", "type", "width"],
+            "labelChildren": [
+                "PreferredPlacementDescriptor",
+                "SmartEdgeLabelModel",
+                "SmartEdgeLabelModelParameter",
+                "SmartNodeLabelModel",
+                "SmartNodeLabelModelParameter"
+            ],
+            "labelModels": ["ErdAttributesNodeLabelModel", "SmartEdgeLabelModel", "SmartNodeLabelModel"],
+            "labelConfigurations": [
+                "AutoFlippingLabel",
+                "CroppingLabel",
+                "com.yworks.entityRelationship.label.attributes",
+                "com.yworks.entityRelationship.label.name"
+            ],
+            "styleProperties": [
+                "FramedEdgePainter.fillColor",
+                "com.yworks.bpmn.characteristic",
+                "com.yworks.bpmn.dataObjectType",
+                "com.yworks.bpmn.icon.fill",
+                "com.yworks.bpmn.icon.fill2",
+                "com.yworks.bpmn.icon.line.color",
+                "com.yworks.bpmn.taskType",
+                "com.yworks.bpmn.type",
+                "headerBackground",
+                "y.view.ShadowNodePainter.SHADOW_PAINTING",
+                "yed.table.lane.color.main"
+            ],
+            "bpmnValues": [
+                "ARTIFACT_TYPE_DATA_OBJECT",
+                "ARTIFACT_TYPE_DATA_STORE",
+                "ARTIFACT_TYPE_REQUEST_MESSAGE",
+                "DATA_OBJECT_TYPE_PLAIN",
+                "EVENT_CHARACTERISTIC_END",
+                "EVENT_CHARACTERISTIC_START",
+                "EVENT_CHARACTERISTIC_START_EVENT_SUB_PROCESS_INTERRUPTING",
+                "EVENT_TYPE_ESCALATION",
+                "EVENT_TYPE_MESSAGE",
+                "EVENT_TYPE_PLAIN",
+                "TASK_TYPE_ABSTRACT"
+            ]
+        },
+        "corpusFiles": 35
+    },
+    "yed-live-graphml": {
+        "types": {
+            "ShapeNodeShape": {
+                "field": [
+                    "DIAMOND",
+                    "ELLIPSE",
+                    "HEXAGON",
+                    "HEXAGON_STANDING",
+                    "OCTAGON",
+                    "OCTAGON_STANDING",
+                    "PENTAGON",
+                    "PILL",
+                    "RECTANGLE",
+                    "ROUND_RECTANGLE",
+                    "SQUIRCLE",
+                    "STAR5",
+                    "STAR6",
+                    "STAR8",
+                    "TRIANGLE",
+                    "TRIANGLE_POINTING_DOWN",
+                    "TRIANGLE_POINTING_LEFT",
+                    "TRIANGLE_POINTING_RIGHT"
+                ]
+            },
+            "ArrowType": {
+                "field": [
+                    "CHEVRON",
+                    "CROSS",
+                    "DELTOID",
+                    "DIAMOND",
+                    "ELLIPSE",
+                    "KITE",
+                    "NONE",
+                    "OPEN",
+                    "STEALTH",
+                    "TRIANGLE"
+                ]
+            },
+            "DashStyle": {
+                "property": ["dashes", "offset", "DASH", "DASH_DOT", "DASH_DOT_DOT", "DOT", "SOLID"]
+            },
+            "LabelShape": {
+                "field": ["HEXAGON", "PILL", "RECTANGLE", "ROUND_RECTANGLE", "SQUIRCLE"]
+            },
+            "TextWrapping": {
+                "field": [
+                    "CLIP",
+                    "NONE",
+                    "TRIM_CHARACTER",
+                    "TRIM_CHARACTER_ELLIPSIS",
+                    "TRIM_WORD",
+                    "TRIM_WORD_ELLIPSIS",
+                    "WRAP_CHARACTER",
+                    "WRAP_CHARACTER_ELLIPSIS",
+                    "WRAP_WORD",
+                    "WRAP_WORD_ELLIPSIS"
+                ]
+            },
+            "HorizontalTextAlignment": {
+                "field": ["CENTER", "LEFT", "RIGHT"]
+            },
+            "VerticalTextAlignment": {
+                "field": ["BOTTOM", "CENTER", "TOP"]
+            },
+            "TextDecorations": {
+                "field": ["LINE_THROUGH", "NONE", "OVERLINE", "UNDERLINE"]
+            },
+            "InteriorNodeLabelModelPosition": {
+                "field": [
+                    "BOTTOM",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "CENTER",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP",
+                    "TOP_LEFT",
+                    "TOP_RIGHT"
+                ]
+            },
+            "ExteriorNodeLabelModelPosition": {
+                "field": ["BOTTOM", "BOTTOM_LEFT", "BOTTOM_RIGHT", "LEFT", "RIGHT", "TOP", "TOP_LEFT", "TOP_RIGHT"]
+            },
+            "StretchNodeLabelModelPosition": {
+                "field": ["BOTTOM", "CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "LEFT", "RIGHT", "TOP"]
+            },
+            "NinePositionsEdgeLabelModelPosition": {
+                "field": [
+                    "CENTER_ABOVE",
+                    "CENTER_BELOW",
+                    "CENTER_CENTERED",
+                    "SOURCE_ABOVE",
+                    "SOURCE_BELOW",
+                    "SOURCE_CENTERED",
+                    "TARGET_ABOVE",
+                    "TARGET_BELOW",
+                    "TARGET_CENTERED"
+                ]
+            },
+            "EdgeSides": {
+                "field": ["ABOVE_EDGE", "BELOW_EDGE", "LEFT_OF_EDGE", "ON_EDGE", "RIGHT_OF_EDGE"]
+            },
+            "FontStyle": {
+                "field": ["INHERIT", "ITALIC", "NORMAL", "OBLIQUE"]
+            },
+            "LineCap": {
+                "field": ["FLAT", "ROUND", "SQUARE"]
+            },
+            "LineJoin": {
+                "field": ["BEVEL", "MITER", "ROUND"]
+            },
+            "RectangleCornerStyle": {
+                "field": ["CUT", "ROUND", "SQUIRCLE"]
+            },
+            "ArrowStyleShape": {
+                "field": ["ARROW", "DOUBLE_ARROW", "NOTCHED_ARROW", "PARALLELOGRAM", "TRAPEZOID"]
+            },
+            "ArrowNodeDirection": {
+                "field": ["DOWN", "LEFT", "RIGHT", "UP"]
+            },
+            "GroupNodeStyleTabPosition": {
+                "field": [
+                    "BOTTOM",
+                    "BOTTOM_LEADING",
+                    "BOTTOM_TRAILING",
+                    "LEFT",
+                    "LEFT_LEADING",
+                    "LEFT_TRAILING",
+                    "NONE",
+                    "RIGHT",
+                    "RIGHT_LEADING",
+                    "RIGHT_TRAILING",
+                    "TOP",
+                    "TOP_LEADING",
+                    "TOP_TRAILING"
+                ]
+            },
+            "GroupNodeStyleIconType": {
+                "field": [
+                    "CHEVRON_DOWN",
+                    "CHEVRON_LEFT",
+                    "CHEVRON_RIGHT",
+                    "CHEVRON_UP",
+                    "MINUS",
+                    "NONE",
+                    "PLUS",
+                    "TRIANGLE_DOWN",
+                    "TRIANGLE_LEFT",
+                    "TRIANGLE_RIGHT",
+                    "TRIANGLE_UP"
+                ]
+            },
+            "GroupNodeStyleIconBackgroundShape": {
+                "field": [
+                    "CIRCLE",
+                    "CIRCLE_SOLID",
+                    "NONE",
+                    "ROUND_RECTANGLE",
+                    "ROUND_RECTANGLE_SOLID",
+                    "SQUARE",
+                    "SQUARE_SOLID"
+                ]
+            },
+            "GroupNodeStyleIconPosition": {
+                "field": ["LEADING", "TRAILING"]
+            },
+            "ShapeNodeStyle": {
+                "property": ["cssClass", "fill", "keepIntrinsicAspectRatio", "renderer", "shape", "stroke"]
+            },
+            "RectangleNodeStyle": {
+                "property": [
+                    "corners",
+                    "cornerSize",
+                    "cornerStyle",
+                    "cssClass",
+                    "fill",
+                    "renderer",
+                    "scaleCornerSize",
+                    "stroke"
+                ]
+            },
+            "GroupNodeStyle": {
+                "property": [
+                    "contentAreaFill",
+                    "contentAreaPadding",
+                    "cornerRadius",
+                    "cssClass",
+                    "drawShadow",
+                    "folderIcon",
+                    "groupIcon",
+                    "hitTransparentContentArea",
+                    "iconBackgroundFill",
+                    "iconBackgroundShape",
+                    "iconForegroundFill",
+                    "iconOffset",
+                    "iconPosition",
+                    "iconSize",
+                    "minimumContentAreaSize",
+                    "renderer",
+                    "renderTransparentContentArea",
+                    "showFolderContentArea",
+                    "stroke",
+                    "tabBackgroundFill",
+                    "tabFill",
+                    "tabHeight",
+                    "tabPadding",
+                    "tabPosition",
+                    "tabSizePolicy",
+                    "tabSlope",
+                    "tabWidth"
+                ]
+            },
+            "ImageNodeStyle": {
+                "property": [
+                    "aspectRatio",
+                    "backgroundFill",
+                    "backgroundShape",
+                    "backgroundStroke",
+                    "cssClass",
+                    "href",
+                    "normalizedOutline",
+                    "renderer"
+                ]
+            },
+            "ArrowNodeStyle": {
+                "property": ["angle", "cssClass", "direction", "fill", "renderer", "shaftRatio", "shape", "stroke"]
+            },
+            "PolylineEdgeStyle": {
+                "property": [
+                    "cssClass",
+                    "orthogonalEditing",
+                    "renderer",
+                    "smoothingLength",
+                    "sourceArrow",
+                    "stroke",
+                    "targetArrow"
+                ]
+            },
+            "BezierEdgeStyle": {
+                "property": ["cssClass", "renderer", "sourceArrow", "stroke", "targetArrow"]
+            },
+            "ArcEdgeStyle": {
+                "property": [
+                    "cssClass",
+                    "fixedHeight",
+                    "height",
+                    "provideHeightHandle",
+                    "renderer",
+                    "sourceArrow",
+                    "stroke",
+                    "targetArrow"
+                ]
+            },
+            "LabelStyle": {
+                "property": [
+                    "autoFlip",
+                    "backgroundFill",
+                    "backgroundStroke",
+                    "cssClass",
+                    "font",
+                    "horizontalTextAlignment",
+                    "maximumSize",
+                    "minimumSize",
+                    "padding",
+                    "renderer",
+                    "shape",
+                    "textFill",
+                    "textSize",
+                    "textWrappingPadding",
+                    "textWrappingShape",
+                    "verticalTextAlignment",
+                    "wrapping",
+                    "enlargementAbsolute",
+                    "enlargementRelative"
+                ]
+            },
+            "Stroke": {
+                "property": [
+                    "dashStyle",
+                    "fill",
+                    "lineCap",
+                    "lineJoin",
+                    "miterLimit",
+                    "thickness",
+                    "ALICE_BLUE",
+                    "ANTIQUE_WHITE",
+                    "AQUA",
+                    "AQUAMARINE",
+                    "AZURE",
+                    "BEIGE",
+                    "BISQUE",
+                    "BLACK",
+                    "BLANCHED_ALMOND",
+                    "BLUE",
+                    "BLUE_VIOLET",
+                    "BROWN",
+                    "BURLY_WOOD",
+                    "CADET_BLUE",
+                    "CHARTREUSE",
+                    "CHOCOLATE",
+                    "CORAL",
+                    "CORNFLOWER_BLUE",
+                    "CORNSILK",
+                    "CRIMSON",
+                    "CURRENT_COLOR",
+                    "CYAN",
+                    "DARK_BLUE",
+                    "DARK_CYAN",
+                    "DARK_GOLDENROD",
+                    "DARK_GRAY",
+                    "DARK_GREEN",
+                    "DARK_KHAKI",
+                    "DARK_MAGENTA",
+                    "DARK_OLIVE_GREEN",
+                    "DARK_ORANGE",
+                    "DARK_ORCHID",
+                    "DARK_RED",
+                    "DARK_SALMON",
+                    "DARK_SEA_GREEN",
+                    "DARK_SLATE_BLUE",
+                    "DARK_SLATE_GRAY",
+                    "DARK_TURQUOISE",
+                    "DARK_VIOLET",
+                    "DEEP_PINK",
+                    "DEEP_SKY_BLUE",
+                    "DIM_GRAY",
+                    "DODGER_BLUE",
+                    "FIREBRICK",
+                    "FLORAL_WHITE",
+                    "FOREST_GREEN",
+                    "FUCHSIA",
+                    "GAINSBORO",
+                    "GHOST_WHITE",
+                    "GOLD",
+                    "GOLDENROD",
+                    "GRAY",
+                    "GREEN",
+                    "GREEN_YELLOW",
+                    "HONEYDEW",
+                    "HOT_PINK",
+                    "INDIAN_RED",
+                    "INDIGO",
+                    "IVORY",
+                    "KHAKI",
+                    "LAVENDER",
+                    "LAVENDER_BLUSH",
+                    "LAWN_GREEN",
+                    "LEMON_CHIFFON",
+                    "LIGHT_BLUE",
+                    "LIGHT_CORAL",
+                    "LIGHT_CYAN",
+                    "LIGHT_GOLDENROD_YELLOW",
+                    "LIGHT_GRAY",
+                    "LIGHT_GREEN",
+                    "LIGHT_PINK",
+                    "LIGHT_SALMON",
+                    "LIGHT_SEA_GREEN",
+                    "LIGHT_SKY_BLUE",
+                    "LIGHT_SLATE_GRAY",
+                    "LIGHT_STEEL_BLUE",
+                    "LIGHT_YELLOW",
+                    "LIME",
+                    "LIME_GREEN",
+                    "LINEN",
+                    "MAGENTA",
+                    "MAROON",
+                    "MEDIUM_AQUAMARINE",
+                    "MEDIUM_BLUE",
+                    "MEDIUM_ORCHID",
+                    "MEDIUM_PURPLE",
+                    "MEDIUM_SEA_GREEN",
+                    "MEDIUM_SLATE_BLUE",
+                    "MEDIUM_SPRING_GREEN",
+                    "MEDIUM_TURQUOISE",
+                    "MEDIUM_VIOLET_RED",
+                    "MIDNIGHT_BLUE",
+                    "MINT_CREAM",
+                    "MISTY_ROSE",
+                    "MOCCASIN",
+                    "NAVAJO_WHITE",
+                    "NAVY",
+                    "OLD_LACE",
+                    "OLIVE",
+                    "OLIVE_DRAB",
+                    "ORANGE",
+                    "ORANGE_RED",
+                    "ORCHID",
+                    "PALE_GOLDENROD",
+                    "PALE_GREEN",
+                    "PALE_TURQUOISE",
+                    "PALE_VIOLET_RED",
+                    "PAPAYA_WHIP",
+                    "PEACH_PUFF",
+                    "PERU",
+                    "PINK",
+                    "PLUM",
+                    "POWDER_BLUE",
+                    "PURPLE",
+                    "RED",
+                    "ROSY_BROWN",
+                    "ROYAL_BLUE",
+                    "SADDLE_BROWN",
+                    "SALMON",
+                    "SANDY_BROWN",
+                    "SEA_GREEN",
+                    "SEA_SHELL",
+                    "SIENNA",
+                    "SILVER",
+                    "SKY_BLUE",
+                    "SLATE_BLUE",
+                    "SLATE_GRAY",
+                    "SNOW",
+                    "SPRING_GREEN",
+                    "STEEL_BLUE",
+                    "TAN",
+                    "TEAL",
+                    "THISTLE",
+                    "TOMATO",
+                    "TRANSPARENT",
+                    "TURQUOISE",
+                    "VIOLET",
+                    "WHEAT",
+                    "WHITE",
+                    "WHITE_SMOKE",
+                    "YELLOW",
+                    "YELLOW_GREEN"
+                ]
+            },
+            "Arrow": {
+                "property": [
+                    "cropAtPort",
+                    "cropLength",
+                    "fill",
+                    "length",
+                    "lengthScale",
+                    "stroke",
+                    "type",
+                    "widthScale"
+                ]
+            },
+            "Font": {
+                "property": ["fontFamily", "fontSize", "fontStyle", "fontWeight", "lineSpacing", "textDecoration"]
+            },
+            "FontWeight": {
+                "field": ["normal", "bold", "light", "bolder", "lighter", "inherit"]
+            },
+            "LinearGradient": {
+                "property": ["endPoint", "gradientStops", "gradientTransform", "spreadMethod", "startPoint"]
+            },
+            "RadialGradient": {
+                "property": ["center", "gradientOrigin", "gradientStops", "gradientTransform", "radius", "spreadMethod"]
+            },
+            "SmartEdgeLabelModel": {
+                "property": ["angle", "autoRotation"]
+            },
+            "SmartEdgeLabelModelParameter": {
+                "property": ["distance", "model", "placeAlongEdge", "ratio", "segment"]
+            },
+            "EdgePathLabelModel": {
+                "property": ["angle", "autoRotation", "distance", "offset", "sideOfEdge"]
+            },
+            "EdgeSegmentLabelModel": {
+                "property": ["angle", "autoRotation", "distance", "offset", "sideOfEdge"]
+            },
+            "NinePositionsEdgeLabelModel": {
+                "property": ["angle", "distance"],
+                "field": [
+                    "CENTER_ABOVE",
+                    "CENTER_BELOW",
+                    "CENTER_CENTERED",
+                    "SOURCE_ABOVE",
+                    "SOURCE_BELOW",
+                    "SOURCE_CENTERED",
+                    "TARGET_ABOVE",
+                    "TARGET_BELOW",
+                    "TARGET_CENTERED"
+                ]
+            },
+            "FreeEdgeLabelModel": {
+                "property": ["edgeRelativeAngle"],
+                "field": ["INSTANCE"]
+            },
+            "FreeNodeLabelModel": {
+                "field": ["CENTER", "INSTANCE"]
+            },
+            "InteriorNodeLabelModel": {
+                "property": ["padding"],
+                "field": [
+                    "BOTTOM",
+                    "BOTTOM_LEFT",
+                    "BOTTOM_RIGHT",
+                    "CENTER",
+                    "LEFT",
+                    "RIGHT",
+                    "TOP",
+                    "TOP_LEFT",
+                    "TOP_RIGHT"
+                ]
+            },
+            "ExteriorNodeLabelModel": {
+                "property": ["margins"],
+                "field": ["BOTTOM", "BOTTOM_LEFT", "BOTTOM_RIGHT", "LEFT", "RIGHT", "TOP", "TOP_LEFT", "TOP_RIGHT"]
+            },
+            "StretchNodeLabelModel": {
+                "property": ["padding"],
+                "field": ["BOTTOM", "CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "LEFT", "RIGHT", "TOP"]
+            }
+        },
+        "yfilesHtml2": {
+            "types": {
+                "ShapeNodeShape": {
+                    "field": [
+                        "DIAMOND",
+                        "ELLIPSE",
+                        "FAT_ARROW",
+                        "FAT_ARROW2",
+                        "HEXAGON",
+                        "HEXAGON2",
+                        "OCTAGON",
+                        "PILL",
+                        "RECTANGLE",
+                        "ROUND_RECTANGLE",
+                        "SHEARED_RECTANGLE",
+                        "SHEARED_RECTANGLE2",
+                        "STAR5",
+                        "STAR5_UP",
+                        "STAR6",
+                        "STAR8",
+                        "TRAPEZ",
+                        "TRAPEZ2",
+                        "TRIANGLE",
+                        "TRIANGLE2"
+                    ],
+                    "property": []
+                },
+                "ArrowType": {
+                    "field": ["CIRCLE", "CROSS", "DEFAULT", "DIAMOND", "NONE", "SHORT", "SIMPLE", "TRIANGLE"],
+                    "property": []
+                },
+                "DashStyle": {
+                    "field": ["DASH", "DASH_DOT", "DASH_DOT_DOT", "DOT", "SOLID"],
+                    "property": ["dashes", "offset"]
+                },
+                "FontStyle": {
+                    "field": ["INHERIT", "ITALIC", "NORMAL", "OBLIQUE"],
+                    "property": []
+                },
+                "FontWeight": {
+                    "field": [
+                        "BOLD",
+                        "BOLDER",
+                        "INHERIT",
+                        "ITEM100",
+                        "ITEM200",
+                        "ITEM300",
+                        "ITEM400",
+                        "ITEM500",
+                        "ITEM600",
+                        "ITEM700",
+                        "ITEM800",
+                        "ITEM900",
+                        "LIGHTER",
+                        "NORMAL"
+                    ],
+                    "property": []
+                },
+                "TextDecoration": {
+                    "field": ["BLINK", "LINE_THROUGH", "NONE", "OVERLINE", "UNDERLINE"],
+                    "property": []
+                },
+                "TextWrapping": {
+                    "field": ["CHARACTER", "CHARACTER_ELLIPSIS", "NONE", "WORD", "WORD_ELLIPSIS"],
+                    "property": []
+                },
+                "LabelShape": {
+                    "field": ["HEXAGON", "PILL", "RECTANGLE", "ROUND_RECTANGLE"],
+                    "property": []
+                },
+                "HorizontalTextAlignment": {
+                    "field": ["CENTER", "LEFT", "RIGHT"],
+                    "property": []
+                },
+                "VerticalTextAlignment": {
+                    "field": ["BOTTOM", "CENTER", "TOP"],
+                    "property": []
+                },
+                "InteriorLabelModelPosition": {
+                    "field": [
+                        "CENTER",
+                        "EAST",
+                        "NORTH",
+                        "NORTH_EAST",
+                        "NORTH_WEST",
+                        "SOUTH",
+                        "SOUTH_EAST",
+                        "SOUTH_WEST",
+                        "WEST"
+                    ],
+                    "property": []
+                },
+                "ExteriorLabelModelPosition": {
+                    "field": ["EAST", "NORTH", "NORTH_EAST", "NORTH_WEST", "SOUTH", "SOUTH_EAST", "SOUTH_WEST", "WEST"],
+                    "property": []
+                },
+                "InteriorStretchLabelModelPosition": {
+                    "field": ["CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "EAST", "NORTH", "SOUTH", "WEST"],
+                    "property": []
+                },
+                "ShapeNodeStyle": {
+                    "field": [],
+                    "property": ["cssClass", "fill", "keepIntrinsicAspectRatio", "renderer", "shape", "stroke"]
+                },
+                "BevelNodeStyle": {
+                    "field": [],
+                    "property": ["color", "drawShadow", "inset", "radius", "renderer"]
+                },
+                "ShinyPlateNodeStyle": {
+                    "field": [],
+                    "property": ["drawShadow", "fill", "insets", "radius", "renderer", "stroke"]
+                },
+                "PanelNodeStyle": {
+                    "field": [],
+                    "property": ["color", "insets", "labelInsetsColor", "renderer"]
+                },
+                "DefaultLabelStyle": {
+                    "field": [],
+                    "property": [
+                        "autoFlip",
+                        "backgroundFill",
+                        "backgroundStroke",
+                        "clipText",
+                        "cssClass",
+                        "font",
+                        "horizontalTextAlignment",
+                        "insets",
+                        "maximumSize",
+                        "minimumSize",
+                        "renderer",
+                        "shape",
+                        "textFill",
+                        "textSize",
+                        "textWrappingPadding",
+                        "textWrappingShape",
+                        "verticalTextAlignment",
+                        "wrapping",
+                        "enlargementAbsolute",
+                        "enlargementRelative"
+                    ]
+                },
+                "Font": {
+                    "field": [],
+                    "property": ["fontFamily", "fontSize", "fontStyle", "fontWeight", "lineSpacing", "textDecoration"]
+                },
+                "Arrow": {
+                    "field": [],
+                    "property": ["cropLength", "fill", "length", "scale", "stroke", "type"]
+                },
+                "PolylineEdgeStyle": {
+                    "field": [],
+                    "property": ["cssClass", "renderer", "smoothingLength", "sourceArrow", "stroke", "targetArrow"]
+                },
+                "InteriorLabelModel": {
+                    "field": [
+                        "CENTER",
+                        "EAST",
+                        "NORTH",
+                        "NORTH_EAST",
+                        "NORTH_WEST",
+                        "SOUTH",
+                        "SOUTH_EAST",
+                        "SOUTH_WEST",
+                        "WEST"
+                    ],
+                    "property": ["insets"]
+                },
+                "ExteriorLabelModel": {
+                    "field": ["EAST", "NORTH", "NORTH_EAST", "NORTH_WEST", "SOUTH", "SOUTH_EAST", "SOUTH_WEST", "WEST"],
+                    "property": ["insets"]
+                },
+                "InteriorStretchLabelModel": {
+                    "field": ["CENTER", "CENTER_HORIZONTAL", "CENTER_VERTICAL", "EAST", "NORTH", "SOUTH", "WEST"],
+                    "property": ["insets"]
+                },
+                "SandwichLabelModel": {
+                    "field": ["NORTH", "SOUTH"],
+                    "property": ["yOffset"]
+                }
+            },
+            "flowchartNodeTypes": [
+                "process",
+                "decision",
+                "start1",
+                "start2",
+                "terminator",
+                "cloud",
+                "data",
+                "directData",
+                "database",
+                "document",
+                "predefinedProcess",
+                "storedData",
+                "internalStorage",
+                "sequentialData",
+                "manualInput",
+                "card",
+                "paperType",
+                "delay",
+                "display",
+                "manualOperation",
+                "preparation",
+                "loopLimit",
+                "loopLimitEnd",
+                "onPageReference",
+                "offPageReference",
+                "annotation",
+                "userMessage",
+                "networkMessage"
+            ],
+            "source": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
+            "flowchartSource": "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/flowchart/style/FlowchartStyle.ts"
+        },
+        "bpmn": {
+            "source": "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/bpmn/bpmn-view.ts",
+            "namespace": "http://www.yworks.com/xml/yfiles-bpmn/2.0",
+            "enums": {
+                "SubState": ["NONE", "EXPANDED", "COLLAPSED", "DYNAMIC"],
+                "GatewayType": [
+                    "EXCLUSIVE_WITHOUT_MARKER",
+                    "EXCLUSIVE_WITH_MARKER",
+                    "INCLUSIVE",
+                    "PARALLEL",
+                    "COMPLEX",
+                    "EVENT_BASED",
+                    "EXCLUSIVE_EVENT_BASED",
+                    "PARALLEL_EVENT_BASED"
+                ],
+                "EventType": [
+                    "PLAIN",
+                    "MESSAGE",
+                    "TIMER",
+                    "ESCALATION",
+                    "CONDITIONAL",
+                    "LINK",
+                    "ERROR",
+                    "CANCEL",
+                    "COMPENSATION",
+                    "SIGNAL",
+                    "MULTIPLE",
+                    "PARALLEL_MULTIPLE",
+                    "TERMINATE"
+                ],
+                "ActivityType": ["TASK", "SUB_PROCESS", "TRANSACTION", "EVENT_SUB_PROCESS", "CALL_ACTIVITY"],
+                "LoopCharacteristic": ["NONE", "LOOP", "PARALLEL", "SEQUENTIAL"],
+                "TaskType": [
+                    "ABSTRACT",
+                    "SEND",
+                    "RECEIVE",
+                    "USER",
+                    "MANUAL",
+                    "BUSINESS_RULE",
+                    "SERVICE",
+                    "SCRIPT",
+                    "EVENT_TRIGGERED"
+                ],
+                "ConversationType": [
+                    "CONVERSATION",
+                    "SUB_CONVERSATION",
+                    "CALLING_GLOBAL_CONVERSATION",
+                    "CALLING_COLLABORATION"
+                ],
+                "EdgeType": [
+                    "SEQUENCE_FLOW",
+                    "DEFAULT_FLOW",
+                    "CONDITIONAL_FLOW",
+                    "MESSAGE_FLOW",
+                    "ASSOCIATION",
+                    "DIRECTED_ASSOCIATION",
+                    "BIDIRECTED_ASSOCIATION",
+                    "CONVERSATION"
+                ],
+                "ChoreographyType": ["TASK", "CALL"],
+                "EventCharacteristic": [
+                    "START",
+                    "SUB_PROCESS_INTERRUPTING",
+                    "SUB_PROCESS_NON_INTERRUPTING",
+                    "CATCHING",
+                    "BOUNDARY_INTERRUPTING",
+                    "BOUNDARY_NON_INTERRUPTING",
+                    "THROWING",
+                    "END"
+                ],
+                "DataObjectType": ["NONE", "INPUT", "OUTPUT"]
+            },
+            "styles": {
+                "BpmnNodeStyle": {
+                    "minimumSize": "Size"
+                },
+                "ChoreographyNodeStyle": {
+                    "type": "ChoreographyType",
+                    "loopCharacteristic": "LoopCharacteristic",
+                    "subState": "SubState",
+                    "initiatingMessage": "boolean",
+                    "responseMessage": "boolean",
+                    "initiatingAtTop": "boolean",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill",
+                    "initiatingColor": "Fill",
+                    "responseColor": "Fill",
+                    "messageOutline": "Fill",
+                    "insets": "Insets",
+                    "textPlacement": "ILabelModelParameter | null"
+                },
+                "BpmnEdgeStyle": {
+                    "type": "EdgeType",
+                    "color": "Fill | null",
+                    "innerColor": "Fill | null",
+                    "smoothing": "number"
+                },
+                "ActivityNodeStyle": {
+                    "activityType": "ActivityType",
+                    "taskType": "TaskType",
+                    "triggerEventType": "EventType",
+                    "triggerEventCharacteristic": "EventCharacteristic",
+                    "loopCharacteristic": "LoopCharacteristic",
+                    "subState": "SubState",
+                    "adHoc": "boolean",
+                    "compensation": "boolean",
+                    "insets": "Insets",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill",
+                    "eventOutline": "Fill | null"
+                },
+                "AlternatingLeafStripeStyle": {
+                    "evenLeafDescriptor": "StripeDescriptor",
+                    "parentDescriptor": "StripeDescriptor",
+                    "oddLeafDescriptor": "StripeDescriptor",
+                    "backgroundFill": "Fill | null",
+                    "stroke": "Stroke | null",
+                    "insetFill": "Fill | null",
+                    "insets": "Insets"
+                },
+                "AnnotationNodeStyle": {
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "left": "boolean"
+                },
+                "AnnotationLabelStyle": {
+                    "insets": "number",
+                    "delegateStyle": "ConnectedIconLabelStyle",
+                    "background": "Fill",
+                    "outline": "Fill"
+                },
+                "PoolNodeStyle": {
+                    "multipleInstance": "boolean",
+                    "iconColor": "Fill",
+                    "tableNodeStyle": "TableNodeStyle"
+                },
+                "MessageLabelStyle": {
+                    "isInitiating": "boolean",
+                    "outline": "Fill | null",
+                    "initiatingColor": "Fill",
+                    "responseColor": "Fill"
+                },
+                "DataStoreNodeStyle": {
+                    "background": "Fill",
+                    "outline": "Fill"
+                },
+                "DataObjectNodeStyle": {
+                    "collection": "boolean",
+                    "type": "DataObjectType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "ConversationNodeStyle": {
+                    "type": "ConversationType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "EventNodeStyle": {
+                    "type": "EventType",
+                    "characteristic": "EventCharacteristic",
+                    "background": "Fill",
+                    "outline": "Fill | null",
+                    "iconColor": "Fill"
+                },
+                "GroupNodeStyle": {
+                    "insets": "Insets",
+                    "background": "Fill | null",
+                    "outline": "Fill | null"
+                },
+                "GatewayNodeStyle": {
+                    "type": "GatewayType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "EventPortStyle": {
+                    "type": "EventType",
+                    "characteristic": "EventCharacteristic",
+                    "renderSize": "Size",
+                    "background": "Fill",
+                    "outline": "Fill | null",
+                    "iconColor": "Fill",
+                    "checked": "boolean"
+                }
+            },
+            "booleanDefaults": {
+                "ChoreographyNodeStyle": {
+                    "initiatingMessage": "false",
+                    "responseMessage": "false",
+                    "initiatingAtTop": "true"
+                },
+                "ActivityNodeStyle": {
+                    "adHoc": "false",
+                    "compensation": "false"
+                },
+                "AnnotationNodeStyle": {
+                    "left": "false"
+                },
+                "PoolNodeStyle": {
+                    "multipleInstance": "false"
+                },
+                "MessageLabelStyle": {
+                    "isInitiating": "true"
+                },
+                "DataObjectNodeStyle": {
+                    "collection": "false"
+                },
+                "EventPortStyle": {
+                    "checked": "false"
+                }
+            }
+        },
+        "observedInCorpus": {
+            "styles": [
+                "DashStyle",
+                "DefaultLabelStyle",
+                "GroupNodeStyle",
+                "LabelStyle",
+                "MarkupLabelStyle",
+                "PolylineEdgeStyle",
+                "RectangleNodeStyle",
+                "ShapeNodeStyle"
+            ],
+            "elements": [
+                "Arrow",
+                "Bend",
+                "Color",
+                "CompositeLabelModel",
+                "CompositeLabelModelModelPair",
+                "CompositeLabelModelParameter",
+                "CssFill",
+                "DashStyle",
+                "DefaultLabelStyle",
+                "ExteriorLabelModel",
+                "ExteriorNodeLabelModel",
+                "ExteriorNodeLabelModelParameter",
+                "FolderNodeState",
+                "FoldingEdgeState",
+                "Font",
+                "FreeEdgeLabelModel",
+                "FreeEdgeLabelModelParameter",
+                "FreeNodeLabelModel",
+                "FreeNodeLabelModelParameter",
+                "FreeNodePortLocationModelParameter",
+                "GradientStop",
+                "GraphMLReference",
+                "GroupNodeLabelModel",
+                "GroupNodeLabelModelParameter",
+                "GroupNodeStyle",
+                "InteriorLabelModel",
+                "InteriorLabelModelParameter",
+                "InteriorNodeLabelModel",
+                "InteriorNodeLabelModelParameter",
+                "Json",
+                "Label",
+                "LabelStyle",
+                "LinearGradient",
+                "MarkupLabelStyle",
+                "PolylineEdgeStyle",
+                "Port",
+                "RatioAnchoredLabelModelParameter",
+                "RectD",
+                "RectangleNodeStyle",
+                "ShapeNodeStyle",
+                "SharedData",
+                "SmartEdgeLabelModel",
+                "SmartEdgeLabelModelParameter",
+                "SolidColorFill",
+                "Stroke",
+                "ViewState"
+            ],
+            "prefixedElements": [
+                "GraphvizNodeStyle:GraphvizNodeStyle",
+                "bpmn:AnnotationLabelStyle",
+                "bpmn:BpmnEdgeStyle",
+                "demostyle:FlowchartNodeStyle",
+                "icon-style:ColoredIconNodeStyle",
+                "sys:Double",
+                "sys:String",
+                "uml:UMLClassModel",
+                "uml:UMLNodeStyle",
+                "x:Array",
+                "x:List",
+                "x:Static",
+                "y:Bend",
+                "y:CompositeLabelModel",
+                "y:CompositeLabelModelParameter",
+                "y:ExteriorLabelModel",
+                "y:FolderNodeState",
+                "y:FoldingEdgeState",
+                "y:FreeEdgeLabelModel",
+                "y:FreeEdgeLabelModelParameter",
+                "y:FreeNodeLabelModel",
+                "y:FreeNodePortLocationModelParameter",
+                "y:GraphMLReference",
+                "y:GroupNodeLabelModel",
+                "y:GroupNodeLabelModelParameter",
+                "y:InteriorLabelModel",
+                "y:InteriorLabelModelParameter",
+                "y:Json",
+                "y:Label",
+                "y:Port",
+                "y:RatioAnchoredLabelModelParameter",
+                "y:RectD",
+                "y:SharedData",
+                "y:SmartEdgeLabelModel",
+                "y:SmartEdgeLabelModelParameter",
+                "y:ViewState",
+                "yjs:Arrow",
+                "yjs:Color",
+                "yjs:CssFill",
+                "yjs:DashStyle",
+                "yjs:DefaultLabelStyle",
+                "yjs:Font",
+                "yjs:GradientStop",
+                "yjs:GroupNodeStyle",
+                "yjs:LabelStyle",
+                "yjs:LinearGradient",
+                "yjs:MarkupLabelStyle",
+                "yjs:PolylineEdgeStyle",
+                "yjs:RectangleNodeStyle",
+                "yjs:ShapeNodeStyle",
+                "yjs:SolidColorFill",
+                "yjs:Stroke",
+                "yx:CompositeLabelModel",
+                "yx:CompositeLabelModelModelPair",
+                "yx:CompositeLabelModelParameter",
+                "yx:ExteriorNodeLabelModel",
+                "yx:ExteriorNodeLabelModelParameter",
+                "yx:FreeNodeLabelModelParameter",
+                "yx:InteriorNodeLabelModel",
+                "yx:InteriorNodeLabelModelParameter"
+            ]
+        },
+        "corpusFiles": 7
+    }
+}

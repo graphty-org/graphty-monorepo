@@ -183,12 +183,12 @@ const meta: Meta = {
             name: "layoutConfig.springLength",
         },
         ngraphSpringCoefficient: {
-            control: { type: "range", min: 0.0001, max: 0.01, step: 0.0001 },
+            control: { type: "range", min: 0.1, max: 2, step: 0.1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.springCoefficient",
         },
         ngraphGravity: {
-            control: { type: "range", min: -10, max: 10, step: 0.1 },
+            control: { type: "range", min: -50, max: 0, step: 1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.gravity",
         },
@@ -198,12 +198,12 @@ const meta: Meta = {
             name: "layoutConfig.theta",
         },
         ngraphDragCoefficient: {
-            control: { type: "range", min: 0.001, max: 0.1, step: 0.001 },
+            control: { type: "range", min: 0.05, max: 1, step: 0.05 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.dragCoefficient",
         },
         ngraphTimeStep: {
-            control: { type: "range", min: 1, max: 50, step: 1 },
+            control: { type: "range", min: 0.1, max: 2, step: 0.1 },
             table: { category: "NGraph Layout" },
             name: "layoutConfig.timeStep",
         },
@@ -241,12 +241,12 @@ export const ngraph: Story = {
         }),
         // Individual parameter args for controls
         ngraphSeed: 42,
-        // ngraphSpringLength: 30,
-        // ngraphSpringCoefficient: 0.0008,
-        // ngraphGravity: -1.2,
+        // ngraphSpringLength: 10,
+        // ngraphSpringCoefficient: 0.8,
+        // ngraphGravity: -12,
         // ngraphTheta: 0.8,
-        // ngraphDragCoefficient: 0.02,
-        // ngraphTimeStep: 20,
+        // ngraphDragCoefficient: 0.9,
+        // ngraphTimeStep: 0.5,
     },
     parameters: {
         controls: {

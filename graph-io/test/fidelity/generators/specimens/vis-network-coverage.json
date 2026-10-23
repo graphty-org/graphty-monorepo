@@ -1,0 +1,1535 @@
+{
+    "program": "vis-network 9.1.9",
+    "about": "Which specimen draws each option and enumerated value of vis-network-vocabulary.json (at most a few named each), or why none can; written by vis-network.mjs.",
+    "sheets": [
+        {
+            "id": "specimen-node-shapes",
+            "specimens": 34
+        },
+        {
+            "id": "specimen-node-fills-borders",
+            "specimens": 30
+        },
+        {
+            "id": "specimen-node-sizes-opacity",
+            "specimens": 38
+        },
+        {
+            "id": "specimen-labels",
+            "specimens": 29
+        },
+        {
+            "id": "specimen-labels-p2",
+            "specimens": 29
+        },
+        {
+            "id": "specimen-edges-lines",
+            "specimens": 57
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "specimens": 8
+        },
+        {
+            "id": "specimen-edges-lines-p3",
+            "specimens": 17
+        },
+        {
+            "id": "specimen-arrows",
+            "specimens": 58
+        },
+        {
+            "id": "specimen-labels-p3",
+            "specimens": 4
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "specimens": 5
+        },
+        {
+            "id": "specimen-edge-labels",
+            "specimens": 49
+        },
+        {
+            "id": "specimen-groups",
+            "specimens": 35
+        },
+        {
+            "id": "specimen-images-charts",
+            "specimens": 32
+        },
+        {
+            "id": "specimen-mappings-bypass",
+            "specimens": 35
+        },
+        {
+            "id": "specimen-groups-p2",
+            "specimens": 35
+        }
+    ],
+    "optionsCovered": 195,
+    "optionsNotDrawn": 47,
+    "valuesCovered": 90,
+    "uncovered": [],
+    "options": {
+        "nodes.borderWidth": {
+            "specimens": [
+                "specimen-node-fills-borders#border-width-0",
+                "specimen-node-fills-borders#border-width-2",
+                "specimen-node-fills-borders#border-width-4",
+                "specimen-node-fills-borders#border-width-8",
+                "specimen-node-fills-borders#border-width-4-box",
+                "specimen-node-fills-borders#border-width-4-square"
+            ]
+        },
+        "nodes.borderWidthSelected": {
+            "notDrawn": "selection only: the border width of a selected node"
+        },
+        "nodes.brokenImage": {
+            "specimens": ["specimen-images-charts#broken-image"]
+        },
+        "nodes.chosen": {
+            "notDrawn": "interaction only: how a node changes when selected or hovered (a boolean or a function)"
+        },
+        "nodes.chosen.label": {
+            "notDrawn": "interaction only"
+        },
+        "nodes.chosen.node": {
+            "notDrawn": "interaction only"
+        },
+        "nodes.color": {
+            "specimens": [
+                "specimen-node-fills-borders#color-hex",
+                "specimen-node-fills-borders#color-hex-short",
+                "specimen-node-fills-borders#color-rgb",
+                "specimen-node-fills-borders#color-rgba",
+                "specimen-node-fills-borders#color-named",
+                "specimen-node-fills-borders#color-hex-alpha"
+            ]
+        },
+        "nodes.color.border": {
+            "specimens": [
+                "specimen-node-fills-borders#color-border",
+                "specimen-node-fills-borders#color-background-border",
+                "specimen-groups#options.groups",
+                "specimen-mappings-bypass#bypass-color",
+                "specimen-mappings-bypass#bypass-over-group",
+                "specimen-mappings-bypass#global-partial-color"
+            ]
+        },
+        "nodes.color.background": {
+            "specimens": [
+                "specimen-node-fills-borders#color-background",
+                "specimen-node-fills-borders#color-background-border",
+                "specimen-node-fills-borders#color-on-ellipse",
+                "specimen-node-fills-borders#color-on-star",
+                "specimen-node-fills-borders#color-transparent",
+                "specimen-node-sizes-opacity#color-alpha"
+            ]
+        },
+        "nodes.color.highlight": {
+            "notDrawn": "selection only: the colors of a selected node"
+        },
+        "nodes.color.highlight.border": {
+            "notDrawn": "selection only"
+        },
+        "nodes.color.highlight.background": {
+            "notDrawn": "selection only"
+        },
+        "nodes.color.hover": {
+            "notDrawn": "hover only: the colors of a node under the pointer"
+        },
+        "nodes.color.hover.border": {
+            "notDrawn": "hover only"
+        },
+        "nodes.color.hover.background": {
+            "notDrawn": "hover only"
+        },
+        "nodes.opacity": {
+            "specimens": [
+                "specimen-node-sizes-opacity#opacity-0",
+                "specimen-node-sizes-opacity#opacity-0-25",
+                "specimen-node-sizes-opacity#opacity-0-5",
+                "specimen-node-sizes-opacity#opacity-0-75",
+                "specimen-node-sizes-opacity#opacity-1",
+                "specimen-node-sizes-opacity#opacity-box"
+            ]
+        },
+        "nodes.fixed": {
+            "notDrawn": "physics only: whether the simulation may move the node"
+        },
+        "nodes.fixed.x": {
+            "notDrawn": "physics only"
+        },
+        "nodes.fixed.y": {
+            "notDrawn": "physics only"
+        },
+        "nodes.font": {
+            "specimens": [
+                "specimen-labels#font-size-3",
+                "specimen-labels#font-size-6",
+                "specimen-labels#font-size-14",
+                "specimen-labels#font-size-20",
+                "specimen-labels#font-size-40",
+                "specimen-labels#font-face-deja-vu-serif"
+            ]
+        },
+        "nodes.font.align": {
+            "specimens": [
+                "specimen-labels#font-align-center",
+                "specimen-labels#font-align-left",
+                "specimen-labels#font-align-right"
+            ],
+            "values": {
+                "center": ["specimen-labels#font-align-center"],
+                "left": ["specimen-labels#font-align-left"],
+                "right": ["specimen-labels#font-align-right"]
+            }
+        },
+        "nodes.font.color": {
+            "specimens": [
+                "specimen-labels#font-color",
+                "specimen-groups#options.groups",
+                "specimen-mappings-bypass#bypass-font",
+                "specimen-mappings-bypass#options.nodes",
+                "specimen-mappings-bypass#options.groups",
+                "specimen-groups-p2#options.groups"
+            ]
+        },
+        "nodes.font.size": {
+            "specimens": [
+                "specimen-labels#font-size-3",
+                "specimen-labels#font-size-6",
+                "specimen-labels#font-size-14",
+                "specimen-labels#font-size-20",
+                "specimen-labels#font-size-40",
+                "specimen-labels-p2#draw-threshold"
+            ]
+        },
+        "nodes.font.face": {
+            "specimens": [
+                "specimen-labels#font-face-deja-vu-serif",
+                "specimen-labels#font-face-deja-vu-sans-mono",
+                "specimen-labels#font-face-liberation-sans",
+                "specimen-labels#font-face-arial",
+                "specimen-groups#options.groups",
+                "specimen-mappings-bypass#options.nodes"
+            ]
+        },
+        "nodes.font.background": {
+            "specimens": ["specimen-labels#font-background"]
+        },
+        "nodes.font.strokeWidth": {
+            "specimens": ["specimen-labels#font-stroke", "specimen-labels#font-stroke-default-color"]
+        },
+        "nodes.font.strokeColor": {
+            "specimens": ["specimen-labels#font-stroke"]
+        },
+        "nodes.font.vadjust": {
+            "specimens": ["specimen-labels#font-vadjust-neg", "specimen-labels#font-vadjust-pos"]
+        },
+        "nodes.font.multi": {
+            "specimens": [
+                "specimen-labels#font-multi-true",
+                "specimen-labels#font-multi-html",
+                "specimen-labels#font-multi-markdown",
+                "specimen-labels#font-multi-boldital",
+                "specimen-labels#font-multi-false",
+                "specimen-labels#font-bold-color"
+            ],
+            "values": {
+                "false": ["specimen-labels#font-multi-false"],
+                "true": ["specimen-labels#font-multi-true"],
+                "html": [
+                    "specimen-labels#font-multi-html",
+                    "specimen-labels#font-multi-boldital",
+                    "specimen-labels#font-bold-color"
+                ],
+                "markdown": ["specimen-labels#font-multi-markdown"]
+            }
+        },
+        "nodes.font.bold": {
+            "specimens": [
+                "specimen-labels#font-bold-color",
+                "specimen-labels-p2#font-bold-size",
+                "specimen-labels-p2#font-bold-face",
+                "specimen-labels-p2#font-bold-mod",
+                "specimen-labels-p2#font-bold-vadjust",
+                "specimen-labels-p2#font-bold-shorthand"
+            ]
+        },
+        "nodes.font.bold.color": {
+            "specimens": ["specimen-labels#font-bold-color"]
+        },
+        "nodes.font.bold.size": {
+            "specimens": ["specimen-labels-p2#font-bold-size"]
+        },
+        "nodes.font.bold.face": {
+            "specimens": ["specimen-labels-p2#font-bold-face"]
+        },
+        "nodes.font.bold.mod": {
+            "specimens": ["specimen-labels-p2#font-bold-mod"]
+        },
+        "nodes.font.bold.vadjust": {
+            "specimens": ["specimen-labels-p2#font-bold-vadjust"]
+        },
+        "nodes.font.boldital": {
+            "specimens": [
+                "specimen-labels-p2#font-boldital-color",
+                "specimen-labels-p2#font-boldital-size",
+                "specimen-labels-p2#font-boldital-face",
+                "specimen-labels-p2#font-boldital-mod",
+                "specimen-labels-p2#font-boldital-vadjust",
+                "specimen-labels-p3#font-boldital-shorthand"
+            ]
+        },
+        "nodes.font.boldital.color": {
+            "specimens": ["specimen-labels-p2#font-boldital-color"]
+        },
+        "nodes.font.boldital.size": {
+            "specimens": ["specimen-labels-p2#font-boldital-size"]
+        },
+        "nodes.font.boldital.face": {
+            "specimens": ["specimen-labels-p2#font-boldital-face"]
+        },
+        "nodes.font.boldital.mod": {
+            "specimens": ["specimen-labels-p2#font-boldital-mod"]
+        },
+        "nodes.font.boldital.vadjust": {
+            "specimens": ["specimen-labels-p2#font-boldital-vadjust"]
+        },
+        "nodes.font.ital": {
+            "specimens": [
+                "specimen-labels-p2#font-ital-color",
+                "specimen-labels-p2#font-ital-size",
+                "specimen-labels-p2#font-ital-face",
+                "specimen-labels-p2#font-ital-mod",
+                "specimen-labels-p2#font-ital-vadjust",
+                "specimen-labels-p3#font-ital-shorthand"
+            ]
+        },
+        "nodes.font.ital.color": {
+            "specimens": ["specimen-labels-p2#font-ital-color"]
+        },
+        "nodes.font.ital.size": {
+            "specimens": ["specimen-labels-p2#font-ital-size"]
+        },
+        "nodes.font.ital.face": {
+            "specimens": ["specimen-labels-p2#font-ital-face"]
+        },
+        "nodes.font.ital.mod": {
+            "specimens": ["specimen-labels-p2#font-ital-mod"]
+        },
+        "nodes.font.ital.vadjust": {
+            "specimens": ["specimen-labels-p2#font-ital-vadjust"]
+        },
+        "nodes.font.mono": {
+            "specimens": [
+                "specimen-labels-p2#font-mono-color",
+                "specimen-labels-p2#font-mono-size",
+                "specimen-labels-p2#font-mono-face",
+                "specimen-labels-p2#font-mono-mod",
+                "specimen-labels-p2#font-mono-vadjust",
+                "specimen-labels-p3#font-mono-shorthand"
+            ]
+        },
+        "nodes.font.mono.color": {
+            "specimens": ["specimen-labels-p2#font-mono-color"]
+        },
+        "nodes.font.mono.size": {
+            "specimens": ["specimen-labels-p2#font-mono-size"]
+        },
+        "nodes.font.mono.face": {
+            "specimens": ["specimen-labels-p2#font-mono-face"]
+        },
+        "nodes.font.mono.mod": {
+            "specimens": ["specimen-labels-p2#font-mono-mod"]
+        },
+        "nodes.font.mono.vadjust": {
+            "specimens": ["specimen-labels-p2#font-mono-vadjust"]
+        },
+        "nodes.group": {
+            "specimens": [
+                "specimen-groups#default-group-1",
+                "specimen-groups#default-group-2",
+                "specimen-groups#default-group-3",
+                "specimen-groups#default-group-4",
+                "specimen-groups#default-group-5",
+                "specimen-groups#default-group-6"
+            ]
+        },
+        "nodes.heightConstraint": {
+            "specimens": [
+                "specimen-node-sizes-opacity#height-constraint-min",
+                "specimen-node-sizes-opacity#height-constraint-number",
+                "specimen-node-sizes-opacity#valign-top",
+                "specimen-node-sizes-opacity#valign-middle",
+                "specimen-node-sizes-opacity#valign-bottom"
+            ]
+        },
+        "nodes.heightConstraint.minimum": {
+            "specimens": [
+                "specimen-node-sizes-opacity#height-constraint-min",
+                "specimen-node-sizes-opacity#valign-top",
+                "specimen-node-sizes-opacity#valign-middle",
+                "specimen-node-sizes-opacity#valign-bottom"
+            ]
+        },
+        "nodes.heightConstraint.valign": {
+            "specimens": [
+                "specimen-node-sizes-opacity#valign-top",
+                "specimen-node-sizes-opacity#valign-middle",
+                "specimen-node-sizes-opacity#valign-bottom"
+            ],
+            "values": {
+                "top": ["specimen-node-sizes-opacity#valign-top"],
+                "middle": ["specimen-node-sizes-opacity#valign-middle"],
+                "bottom": ["specimen-node-sizes-opacity#valign-bottom"]
+            }
+        },
+        "nodes.hidden": {
+            "specimens": ["specimen-node-sizes-opacity#hidden-true"]
+        },
+        "nodes.icon": {
+            "specimens": [
+                "specimen-node-shapes#shape-icon",
+                "specimen-labels-p2#label-icon",
+                "specimen-images-charts#icon",
+                "specimen-images-charts#icon-size",
+                "specimen-images-charts#icon-color",
+                "specimen-images-charts#icon-face"
+            ]
+        },
+        "nodes.icon.face": {
+            "specimens": [
+                "specimen-node-shapes#shape-icon",
+                "specimen-labels-p2#label-icon",
+                "specimen-images-charts#icon",
+                "specimen-images-charts#icon-size",
+                "specimen-images-charts#icon-color",
+                "specimen-images-charts#icon-face"
+            ]
+        },
+        "nodes.icon.code": {
+            "specimens": [
+                "specimen-node-shapes#shape-icon",
+                "specimen-labels-p2#label-icon",
+                "specimen-images-charts#icon",
+                "specimen-images-charts#icon-size",
+                "specimen-images-charts#icon-color",
+                "specimen-images-charts#icon-face"
+            ]
+        },
+        "nodes.icon.size": {
+            "specimens": [
+                "specimen-node-shapes#shape-icon",
+                "specimen-labels-p2#label-icon",
+                "specimen-images-charts#icon",
+                "specimen-images-charts#icon-size",
+                "specimen-images-charts#icon-color",
+                "specimen-images-charts#icon-face"
+            ]
+        },
+        "nodes.icon.color": {
+            "specimens": [
+                "specimen-node-shapes#shape-icon",
+                "specimen-labels-p2#label-icon",
+                "specimen-images-charts#icon",
+                "specimen-images-charts#icon-size",
+                "specimen-images-charts#icon-color",
+                "specimen-images-charts#icon-face"
+            ]
+        },
+        "nodes.icon.weight": {
+            "specimens": ["specimen-images-charts#icon-weight", "specimen-images-charts#icon-weight-number"]
+        },
+        "nodes.id": {
+            "notDrawn": "structural: the node's id (every specimen has one; ids are the specimen ids)"
+        },
+        "nodes.image": {
+            "specimens": [
+                "specimen-node-shapes#shape-image",
+                "specimen-node-shapes#shape-circular-image",
+                "specimen-labels-p2#label-image",
+                "specimen-groups#options.groups",
+                "specimen-images-charts#default",
+                "specimen-images-charts#image"
+            ]
+        },
+        "nodes.image.selected": {
+            "notDrawn": "selection only: the image of a selected node"
+        },
+        "nodes.image.unselected": {
+            "specimens": ["specimen-images-charts#image-object"]
+        },
+        "nodes.imagePadding": {
+            "specimens": ["specimen-images-charts#image-padding", "specimen-images-charts#image-padding-sides"]
+        },
+        "nodes.imagePadding.top": {
+            "specimens": ["specimen-images-charts#image-padding-sides"]
+        },
+        "nodes.imagePadding.right": {
+            "specimens": ["specimen-images-charts#image-padding-sides"]
+        },
+        "nodes.imagePadding.bottom": {
+            "specimens": ["specimen-images-charts#image-padding-sides"]
+        },
+        "nodes.imagePadding.left": {
+            "specimens": ["specimen-images-charts#image-padding-sides"]
+        },
+        "nodes.label": {
+            "specimens": [
+                "specimen-node-shapes#shape-ellipse-label",
+                "specimen-node-shapes#shape-circle-label",
+                "specimen-node-shapes#shape-database-label",
+                "specimen-node-shapes#shape-box-label",
+                "specimen-node-shapes#shape-text-label",
+                "specimen-node-shapes#shape-dot-label-below"
+            ]
+        },
+        "nodes.labelHighlightBold": {
+            "notDrawn": "selection only: a selected node's label turns bold"
+        },
+        "nodes.level": {
+            "notDrawn": "hierarchical layout only: the level a hierarchical layout puts the node on; the sheets store positions"
+        },
+        "nodes.margin": {
+            "specimens": [
+                "specimen-node-sizes-opacity#margin-0",
+                "specimen-node-sizes-opacity#margin-15",
+                "specimen-node-sizes-opacity#margin-sides"
+            ]
+        },
+        "nodes.margin.top": {
+            "specimens": ["specimen-node-sizes-opacity#margin-sides"]
+        },
+        "nodes.margin.right": {
+            "specimens": ["specimen-node-sizes-opacity#margin-sides"]
+        },
+        "nodes.margin.bottom": {
+            "specimens": ["specimen-node-sizes-opacity#margin-sides"]
+        },
+        "nodes.margin.left": {
+            "specimens": ["specimen-node-sizes-opacity#margin-sides"]
+        },
+        "nodes.mass": {
+            "notDrawn": "physics only"
+        },
+        "nodes.physics": {
+            "notDrawn": "physics only"
+        },
+        "nodes.scaling": {
+            "specimens": [
+                "specimen-node-sizes-opacity#scaling-min-max",
+                "specimen-node-sizes-opacity#scaling-label",
+                "specimen-labels-p2#draw-threshold",
+                "specimen-labels-p2#max-visible",
+                "specimen-mappings-bypass#options.nodes"
+            ]
+        },
+        "nodes.scaling.min": {
+            "specimens": ["specimen-node-sizes-opacity#scaling-min-max", "specimen-mappings-bypass#options.nodes"]
+        },
+        "nodes.scaling.max": {
+            "specimens": ["specimen-node-sizes-opacity#scaling-min-max", "specimen-mappings-bypass#options.nodes"]
+        },
+        "nodes.scaling.label": {
+            "specimens": [
+                "specimen-node-sizes-opacity#scaling-label",
+                "specimen-labels-p2#draw-threshold",
+                "specimen-labels-p2#max-visible"
+            ]
+        },
+        "nodes.scaling.label.enabled": {
+            "specimens": ["specimen-node-sizes-opacity#scaling-label"]
+        },
+        "nodes.scaling.label.min": {
+            "specimens": ["specimen-node-sizes-opacity#scaling-label"]
+        },
+        "nodes.scaling.label.max": {
+            "specimens": ["specimen-node-sizes-opacity#scaling-label"]
+        },
+        "nodes.scaling.label.maxVisible": {
+            "specimens": ["specimen-labels-p2#max-visible"]
+        },
+        "nodes.scaling.label.drawThreshold": {
+            "specimens": ["specimen-labels-p2#draw-threshold"]
+        },
+        "nodes.scaling.customScalingFunction": {
+            "notDrawn": "a JavaScript function; a document cannot hold one"
+        },
+        "nodes.shadow": {
+            "specimens": [
+                "specimen-node-fills-borders#shadow-true",
+                "specimen-node-fills-borders#shadow-color",
+                "specimen-node-fills-borders#shadow-size-20",
+                "specimen-node-fills-borders#shadow-offset",
+                "specimen-node-fills-borders#shadow-box",
+                "specimen-groups#options.groups"
+            ]
+        },
+        "nodes.shadow.enabled": {
+            "specimens": [
+                "specimen-node-fills-borders#shadow-color",
+                "specimen-node-fills-borders#shadow-size-20",
+                "specimen-node-fills-borders#shadow-offset",
+                "specimen-groups#options.groups",
+                "specimen-groups-p2#options.groups"
+            ]
+        },
+        "nodes.shadow.color": {
+            "specimens": [
+                "specimen-node-fills-borders#shadow-color",
+                "specimen-groups#options.groups",
+                "specimen-groups-p2#options.groups"
+            ]
+        },
+        "nodes.shadow.size": {
+            "specimens": ["specimen-node-fills-borders#shadow-size-20"]
+        },
+        "nodes.shadow.x": {
+            "specimens": ["specimen-node-fills-borders#shadow-offset"]
+        },
+        "nodes.shadow.y": {
+            "specimens": ["specimen-node-fills-borders#shadow-offset"]
+        },
+        "nodes.shape": {
+            "specimens": [
+                "specimen-node-shapes#shape-ellipse",
+                "specimen-node-shapes#shape-circle",
+                "specimen-node-shapes#shape-database",
+                "specimen-node-shapes#shape-box",
+                "specimen-node-shapes#shape-text",
+                "specimen-node-shapes#shape-image"
+            ],
+            "values": {
+                "custom": {
+                    "notDrawn": "draws with nodes.ctxRenderer, a function a document cannot hold"
+                },
+                "ellipse": [
+                    "specimen-node-shapes#shape-ellipse",
+                    "specimen-node-shapes#shape-ellipse-label",
+                    "specimen-node-shapes#shape-ellipse-long"
+                ],
+                "circle": [
+                    "specimen-node-shapes#shape-circle",
+                    "specimen-node-shapes#shape-circle-label",
+                    "specimen-node-shapes#shape-circle-long"
+                ],
+                "database": [
+                    "specimen-node-shapes#shape-database",
+                    "specimen-node-shapes#shape-database-label",
+                    "specimen-node-shapes#shape-database-long"
+                ],
+                "box": [
+                    "specimen-node-shapes#shape-box",
+                    "specimen-node-shapes#shape-box-label",
+                    "specimen-node-shapes#border-radius-0"
+                ],
+                "text": [
+                    "specimen-node-shapes#shape-text",
+                    "specimen-node-shapes#shape-text-label",
+                    "specimen-labels-p2#label-text-shape"
+                ],
+                "image": [
+                    "specimen-node-shapes#shape-image",
+                    "specimen-labels-p2#label-image",
+                    "specimen-groups#options.groups"
+                ],
+                "circularImage": [
+                    "specimen-node-shapes#shape-circular-image",
+                    "specimen-images-charts#circular-image",
+                    "specimen-images-charts#circular-image-wide"
+                ],
+                "diamond": [
+                    "specimen-node-shapes#shape-diamond",
+                    "specimen-node-shapes#shape-diamond-label-below",
+                    "specimen-node-sizes-opacity#size-30-diamond"
+                ],
+                "dot": ["specimen-node-shapes#shape-dot", "specimen-node-shapes#shape-dot-label-below"],
+                "star": [
+                    "specimen-node-shapes#shape-star",
+                    "specimen-node-shapes#shape-star-label-below",
+                    "specimen-node-fills-borders#color-on-star"
+                ],
+                "triangle": [
+                    "specimen-node-shapes#shape-triangle",
+                    "specimen-node-shapes#shape-triangle-label-below",
+                    "specimen-node-sizes-opacity#size-30-triangle"
+                ],
+                "triangleDown": [
+                    "specimen-node-shapes#shape-triangle-down",
+                    "specimen-node-shapes#shape-triangle-down-label-below"
+                ],
+                "square": [
+                    "specimen-node-shapes#shape-square",
+                    "specimen-node-shapes#shape-square-label-below",
+                    "specimen-node-fills-borders#border-width-4-square"
+                ],
+                "icon": [
+                    "specimen-node-shapes#shape-icon",
+                    "specimen-labels-p2#label-icon",
+                    "specimen-images-charts#icon"
+                ],
+                "hexagon": ["specimen-node-shapes#shape-hexagon", "specimen-node-shapes#shape-hexagon-label-below"]
+            }
+        },
+        "nodes.ctxRenderer": {
+            "notDrawn": "a JavaScript function (the custom shape's renderer); a document cannot hold one, so a file cannot draw it"
+        },
+        "nodes.shapeProperties": {
+            "specimens": [
+                "specimen-node-shapes#border-radius-0",
+                "specimen-node-shapes#border-radius-12",
+                "specimen-node-fills-borders#border-dashes-true",
+                "specimen-node-fills-borders#border-dashes-array",
+                "specimen-node-fills-borders#border-dashes-dots",
+                "specimen-node-fills-borders#border-dashes-box"
+            ]
+        },
+        "nodes.shapeProperties.borderDashes": {
+            "specimens": [
+                "specimen-node-fills-borders#border-dashes-true",
+                "specimen-node-fills-borders#border-dashes-array",
+                "specimen-node-fills-borders#border-dashes-dots",
+                "specimen-node-fills-borders#border-dashes-box"
+            ]
+        },
+        "nodes.shapeProperties.borderRadius": {
+            "specimens": ["specimen-node-shapes#border-radius-0", "specimen-node-shapes#border-radius-12"]
+        },
+        "nodes.shapeProperties.interpolation": {
+            "specimens": ["specimen-images-charts#interpolation-false", "specimen-images-charts#interpolation-true"]
+        },
+        "nodes.shapeProperties.useImageSize": {
+            "specimens": ["specimen-images-charts#use-image-size", "specimen-images-charts#use-image-size-circular"]
+        },
+        "nodes.shapeProperties.useBorderWithImage": {
+            "specimens": [
+                "specimen-images-charts#use-border-with-image",
+                "specimen-images-charts#image-padding-sides",
+                "specimen-images-charts#image-background"
+            ]
+        },
+        "nodes.shapeProperties.coordinateOrigin": {
+            "specimens": [
+                "specimen-images-charts#coordinate-origin-center",
+                "specimen-images-charts#coordinate-origin-top-left",
+                "specimen-images-charts#coordinate-origin-circular"
+            ],
+            "values": {
+                "center": ["specimen-images-charts#coordinate-origin-center"],
+                "top-left": [
+                    "specimen-images-charts#coordinate-origin-top-left",
+                    "specimen-images-charts#coordinate-origin-circular"
+                ]
+            }
+        },
+        "nodes.size": {
+            "specimens": [
+                "specimen-node-sizes-opacity#size-5",
+                "specimen-node-sizes-opacity#size-10",
+                "specimen-node-sizes-opacity#size-25",
+                "specimen-node-sizes-opacity#size-40",
+                "specimen-node-sizes-opacity#size-30-square",
+                "specimen-node-sizes-opacity#size-30-star"
+            ]
+        },
+        "nodes.title": {
+            "notDrawn": "tooltip only: HTML shown on hover"
+        },
+        "nodes.value": {
+            "specimens": [
+                "specimen-node-sizes-opacity#value-1",
+                "specimen-node-sizes-opacity#value-4",
+                "specimen-node-sizes-opacity#value-7",
+                "specimen-node-sizes-opacity#value-10",
+                "specimen-node-sizes-opacity#scaling-min-max",
+                "specimen-node-sizes-opacity#scaling-label"
+            ]
+        },
+        "nodes.widthConstraint": {
+            "specimens": [
+                "specimen-node-sizes-opacity#width-constraint-min",
+                "specimen-node-sizes-opacity#width-constraint-number",
+                "specimen-node-sizes-opacity#width-constraint-max",
+                "specimen-labels-p2#label-wrap"
+            ]
+        },
+        "nodes.widthConstraint.minimum": {
+            "specimens": ["specimen-node-sizes-opacity#width-constraint-min"]
+        },
+        "nodes.widthConstraint.maximum": {
+            "specimens": ["specimen-node-sizes-opacity#width-constraint-max", "specimen-labels-p2#label-wrap"]
+        },
+        "nodes.x": {
+            "notDrawn": "position: every specimen stores one (covered by every sheet)"
+        },
+        "nodes.y": {
+            "notDrawn": "position: every specimen stores one (covered by every sheet)"
+        },
+        "edges.arrows": {
+            "specimens": [
+                "specimen-arrows#default",
+                "specimen-arrows#arrow-to-arrow",
+                "specimen-arrows#arrow-to-bar",
+                "specimen-arrows#arrow-to-box",
+                "specimen-arrows#arrow-to-circle",
+                "specimen-arrows#arrow-to-crow"
+            ],
+            "values": {
+                "from": [
+                    "specimen-arrows#arrows-string-from",
+                    "specimen-arrows#arrows-string-to-from",
+                    "specimen-arrows#end-point-offset"
+                ],
+                "to": [
+                    "specimen-arrows#default",
+                    "specimen-arrows#arrows-string-to",
+                    "specimen-arrows#arrows-string-to-from"
+                ],
+                "middle": ["specimen-arrows#arrows-string-middle", "specimen-arrows#arrow-curved"]
+            }
+        },
+        "edges.arrows.to": {
+            "specimens": [
+                "specimen-arrows#arrow-to-arrow",
+                "specimen-arrows#arrow-to-bar",
+                "specimen-arrows#arrow-to-box",
+                "specimen-arrows#arrow-to-circle",
+                "specimen-arrows#arrow-to-crow",
+                "specimen-arrows#arrow-to-curve"
+            ]
+        },
+        "edges.arrows.to.enabled": {
+            "specimens": [
+                "specimen-arrows#arrow-to-arrow",
+                "specimen-arrows#arrow-to-bar",
+                "specimen-arrows#arrow-to-box",
+                "specimen-arrows#arrow-to-circle",
+                "specimen-arrows#arrow-to-crow",
+                "specimen-arrows#arrow-to-curve"
+            ]
+        },
+        "edges.arrows.to.scaleFactor": {
+            "specimens": ["specimen-arrows#scale-factor-0-5", "specimen-arrows#scale-factor-2"]
+        },
+        "edges.arrows.to.type": {
+            "specimens": [
+                "specimen-arrows#arrow-to-arrow",
+                "specimen-arrows#arrow-to-bar",
+                "specimen-arrows#arrow-to-box",
+                "specimen-arrows#arrow-to-circle",
+                "specimen-arrows#arrow-to-crow",
+                "specimen-arrows#arrow-to-curve"
+            ],
+            "values": {
+                "arrow": ["specimen-arrows#arrow-to-arrow"],
+                "bar": ["specimen-arrows#arrow-to-bar", "specimen-arrows#arrows-enabled-false"],
+                "box": ["specimen-arrows#arrow-to-box"],
+                "circle": [
+                    "specimen-arrows#arrow-to-circle",
+                    "specimen-mappings-bypass#edge-bypass-arrows",
+                    "specimen-mappings-bypass#options.edges"
+                ],
+                "crow": ["specimen-arrows#arrow-to-crow"],
+                "curve": ["specimen-arrows#arrow-to-curve"],
+                "diamond": ["specimen-arrows#arrow-to-diamond"],
+                "image": ["specimen-arrows#arrow-to-image", "specimen-arrows#arrow-image-size"],
+                "inv_curve": ["specimen-arrows#arrow-to-inv-curve"],
+                "inv_triangle": ["specimen-arrows#arrow-to-inv-triangle"],
+                "triangle": ["specimen-arrows#arrow-to-triangle"],
+                "vee": ["specimen-arrows#arrow-to-vee"]
+            }
+        },
+        "edges.arrows.to.imageHeight": {
+            "specimens": ["specimen-arrows#arrow-to-image", "specimen-arrows#arrow-image-size"]
+        },
+        "edges.arrows.to.imageWidth": {
+            "specimens": ["specimen-arrows#arrow-to-image", "specimen-arrows#arrow-image-size"]
+        },
+        "edges.arrows.to.src": {
+            "specimens": ["specimen-arrows#arrow-to-image", "specimen-arrows#arrow-image-size"]
+        },
+        "edges.arrows.middle": {
+            "specimens": [
+                "specimen-arrows#arrow-middle-arrow",
+                "specimen-arrows#arrow-middle-bar",
+                "specimen-arrows#arrow-middle-box",
+                "specimen-arrows#arrow-middle-circle",
+                "specimen-arrows#arrow-middle-crow",
+                "specimen-arrows#arrow-middle-curve"
+            ]
+        },
+        "edges.arrows.middle.enabled": {
+            "specimens": [
+                "specimen-arrows#arrow-middle-arrow",
+                "specimen-arrows#arrow-middle-bar",
+                "specimen-arrows#arrow-middle-box",
+                "specimen-arrows#arrow-middle-circle",
+                "specimen-arrows#arrow-middle-crow",
+                "specimen-arrows#arrow-middle-curve"
+            ]
+        },
+        "edges.arrows.middle.scaleFactor": {
+            "specimens": ["specimen-arrows#scale-factor-middle"]
+        },
+        "edges.arrows.middle.type": {
+            "specimens": [
+                "specimen-arrows#arrow-middle-arrow",
+                "specimen-arrows#arrow-middle-bar",
+                "specimen-arrows#arrow-middle-box",
+                "specimen-arrows#arrow-middle-circle",
+                "specimen-arrows#arrow-middle-crow",
+                "specimen-arrows#arrow-middle-curve"
+            ],
+            "values": {
+                "arrow": ["specimen-arrows#arrow-middle-arrow"],
+                "bar": ["specimen-arrows#arrow-middle-bar"],
+                "box": ["specimen-arrows#arrow-middle-box"],
+                "circle": ["specimen-arrows#arrow-middle-circle"],
+                "crow": ["specimen-arrows#arrow-middle-crow"],
+                "curve": ["specimen-arrows#arrow-middle-curve"],
+                "diamond": ["specimen-arrows#arrow-middle-diamond"],
+                "image": ["specimen-arrows#arrow-middle-image"],
+                "inv_curve": ["specimen-arrows#arrow-middle-inv-curve"],
+                "inv_triangle": ["specimen-arrows#arrow-middle-inv-triangle"],
+                "triangle": ["specimen-arrows#arrow-middle-triangle"],
+                "vee": ["specimen-arrows#arrow-middle-vee"]
+            }
+        },
+        "edges.arrows.middle.imageWidth": {
+            "specimens": ["specimen-arrows#arrow-middle-image"]
+        },
+        "edges.arrows.middle.imageHeight": {
+            "specimens": ["specimen-arrows#arrow-middle-image"]
+        },
+        "edges.arrows.middle.src": {
+            "specimens": ["specimen-arrows#arrow-middle-image"]
+        },
+        "edges.arrows.from": {
+            "specimens": [
+                "specimen-arrows#arrow-from-arrow",
+                "specimen-arrows#arrow-from-bar",
+                "specimen-arrows#arrow-from-box",
+                "specimen-arrows#arrow-from-circle",
+                "specimen-arrows#arrow-from-crow",
+                "specimen-arrows#arrow-from-curve"
+            ]
+        },
+        "edges.arrows.from.enabled": {
+            "specimens": [
+                "specimen-arrows#arrow-from-arrow",
+                "specimen-arrows#arrow-from-bar",
+                "specimen-arrows#arrow-from-box",
+                "specimen-arrows#arrow-from-circle",
+                "specimen-arrows#arrow-from-crow",
+                "specimen-arrows#arrow-from-curve"
+            ]
+        },
+        "edges.arrows.from.scaleFactor": {
+            "specimens": ["specimen-arrows#scale-factor-from"]
+        },
+        "edges.arrows.from.type": {
+            "specimens": [
+                "specimen-arrows#arrow-from-arrow",
+                "specimen-arrows#arrow-from-bar",
+                "specimen-arrows#arrow-from-box",
+                "specimen-arrows#arrow-from-circle",
+                "specimen-arrows#arrow-from-crow",
+                "specimen-arrows#arrow-from-curve"
+            ],
+            "values": {
+                "arrow": ["specimen-arrows#arrow-from-arrow"],
+                "bar": ["specimen-arrows#arrow-from-bar"],
+                "box": ["specimen-arrows#arrow-from-box"],
+                "circle": ["specimen-arrows#arrow-from-circle"],
+                "crow": ["specimen-arrows#arrow-from-crow"],
+                "curve": ["specimen-arrows#arrow-from-curve"],
+                "diamond": ["specimen-arrows#arrow-from-diamond"],
+                "image": ["specimen-arrows#arrow-from-image"],
+                "inv_curve": ["specimen-arrows#arrow-from-inv-curve"],
+                "inv_triangle": ["specimen-arrows#arrow-from-inv-triangle"],
+                "triangle": ["specimen-arrows#arrow-from-triangle"],
+                "vee": ["specimen-arrows#arrow-from-vee"]
+            }
+        },
+        "edges.arrows.from.imageWidth": {
+            "specimens": ["specimen-arrows#arrow-from-image"]
+        },
+        "edges.arrows.from.imageHeight": {
+            "specimens": ["specimen-arrows#arrow-from-image"]
+        },
+        "edges.arrows.from.src": {
+            "specimens": ["specimen-arrows#arrow-from-image"]
+        },
+        "edges.endPointOffset": {
+            "specimens": ["specimen-arrows#end-point-offset"]
+        },
+        "edges.endPointOffset.from": {
+            "specimens": ["specimen-arrows#end-point-offset"]
+        },
+        "edges.endPointOffset.to": {
+            "specimens": ["specimen-arrows#end-point-offset"]
+        },
+        "edges.arrowStrikethrough": {
+            "specimens": ["specimen-arrows#strikethrough-false"]
+        },
+        "edges.background": {
+            "specimens": [
+                "specimen-edges-lines#background",
+                "specimen-edges-lines#background-color",
+                "specimen-edges-lines#background-curved",
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-enabled"
+            ]
+        },
+        "edges.background.enabled": {
+            "specimens": [
+                "specimen-edges-lines#background",
+                "specimen-edges-lines#background-color",
+                "specimen-edges-lines#background-curved",
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-enabled"
+            ]
+        },
+        "edges.background.color": {
+            "specimens": [
+                "specimen-edges-lines#background-color",
+                "specimen-edges-lines#background-curved",
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines-p3#background-curved-color"
+            ]
+        },
+        "edges.background.size": {
+            "specimens": [
+                "specimen-edges-lines#background-curved",
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines-p3#background-curved-size"
+            ]
+        },
+        "edges.background.dashes": {
+            "specimens": [
+                "specimen-edges-lines#background-dashes-curved",
+                "specimen-edges-lines#background-dashes",
+                "specimen-edges-lines-p3#background-curved-dashes"
+            ]
+        },
+        "edges.chosen": {
+            "notDrawn": "interaction only: how an edge changes when selected or hovered"
+        },
+        "edges.chosen.label": {
+            "notDrawn": "interaction only"
+        },
+        "edges.chosen.edge": {
+            "notDrawn": "interaction only"
+        },
+        "edges.color": {
+            "specimens": [
+                "specimen-edges-lines#color-hex",
+                "specimen-edges-lines#color-rgb",
+                "specimen-edges-lines#color-rgba",
+                "specimen-edges-lines#color-named",
+                "specimen-edges-lines#color-object",
+                "specimen-edges-lines#color-opacity"
+            ]
+        },
+        "edges.color.color": {
+            "specimens": [
+                "specimen-edges-lines#color-object",
+                "specimen-mappings-bypass#edge-bypass-color",
+                "specimen-mappings-bypass#options.edges"
+            ]
+        },
+        "edges.color.highlight": {
+            "notDrawn": "selection only: the color of a selected edge"
+        },
+        "edges.color.hover": {
+            "notDrawn": "hover only: the color of an edge under the pointer"
+        },
+        "edges.color.inherit": {
+            "specimens": [
+                "specimen-edges-lines#inherit-from",
+                "specimen-edges-lines#inherit-to",
+                "specimen-edges-lines#inherit-both",
+                "specimen-edges-lines#inherit-true",
+                "specimen-edges-lines#inherit-false",
+                "specimen-mappings-bypass#edge-inherit-from-group"
+            ],
+            "values": {
+                "from": ["specimen-edges-lines#inherit-from", "specimen-mappings-bypass#edge-inherit-from-group"],
+                "to": ["specimen-edges-lines#inherit-to"],
+                "both": ["specimen-edges-lines#inherit-both"]
+            }
+        },
+        "edges.color.opacity": {
+            "specimens": ["specimen-edges-lines#color-opacity", "specimen-arrows#arrow-opacity"]
+        },
+        "edges.dashes": {
+            "specimens": [
+                "specimen-edges-lines#dashes-true",
+                "specimen-edges-lines#dashes-array",
+                "specimen-edges-lines#dashes-dots",
+                "specimen-edges-lines#dashes-pattern",
+                "specimen-edges-lines#dashes-wide",
+                "specimen-edges-lines#width-on-dashes"
+            ]
+        },
+        "edges.font": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand",
+                "specimen-edge-labels#font-size-6",
+                "specimen-edge-labels#font-size-14"
+            ]
+        },
+        "edges.font.color": {
+            "specimens": ["specimen-edge-labels#font-color", "specimen-mappings-bypass#options.edges"]
+        },
+        "edges.font.size": {
+            "specimens": [
+                "specimen-edge-labels#font-size-6",
+                "specimen-edge-labels#font-size-14",
+                "specimen-edge-labels#font-size-20",
+                "specimen-edge-labels#draw-threshold",
+                "specimen-edge-labels#max-visible",
+                "specimen-mappings-bypass#options.edges"
+            ]
+        },
+        "edges.font.face": {
+            "specimens": [
+                "specimen-edge-labels#font-face-deja-vu-serif",
+                "specimen-edge-labels#font-face-deja-vu-sans-mono",
+                "specimen-mappings-bypass#options.edges"
+            ]
+        },
+        "edges.font.background": {
+            "specimens": ["specimen-edge-labels#font-background"]
+        },
+        "edges.font.strokeWidth": {
+            "specimens": ["specimen-edge-labels#font-stroke", "specimen-edge-labels#font-stroke-default"]
+        },
+        "edges.font.strokeColor": {
+            "specimens": ["specimen-edge-labels#font-stroke", "specimen-edge-labels#font-stroke-default"]
+        },
+        "edges.font.align": {
+            "specimens": [
+                "specimen-edge-labels#font-align-horizontal",
+                "specimen-edge-labels#font-align-top",
+                "specimen-edge-labels#font-align-middle",
+                "specimen-edge-labels#font-align-bottom",
+                "specimen-edge-labels#label-steep"
+            ],
+            "values": {
+                "horizontal": ["specimen-edge-labels#font-align-horizontal"],
+                "top": ["specimen-edge-labels#font-align-top", "specimen-edge-labels#label-steep"],
+                "middle": ["specimen-edge-labels#font-align-middle"],
+                "bottom": ["specimen-edge-labels#font-align-bottom"]
+            }
+        },
+        "edges.font.vadjust": {
+            "specimens": ["specimen-edge-labels#font-vadjust"]
+        },
+        "edges.font.multi": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand",
+                "specimen-edge-labels#font-multi-html",
+                "specimen-edge-labels#font-multi-markdown"
+            ],
+            "values": {
+                "false": ["specimen-edge-labels#font-multi-false"],
+                "true": ["specimen-edge-labels#font-multi-true"],
+                "html": [
+                    "specimen-edge-labels-p2#font-bold-shorthand",
+                    "specimen-edge-labels-p2#font-ital-shorthand",
+                    "specimen-edge-labels-p2#font-boldital-shorthand"
+                ],
+                "markdown": ["specimen-edge-labels#font-multi-markdown"]
+            }
+        },
+        "edges.font.bold": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels#font-bold-color",
+                "specimen-edge-labels#font-bold-size",
+                "specimen-edge-labels#font-bold-face",
+                "specimen-edge-labels#font-bold-mod",
+                "specimen-edge-labels#font-bold-vadjust"
+            ]
+        },
+        "edges.font.bold.color": {
+            "specimens": ["specimen-edge-labels#font-bold-color"]
+        },
+        "edges.font.bold.size": {
+            "specimens": ["specimen-edge-labels#font-bold-size"]
+        },
+        "edges.font.bold.face": {
+            "specimens": ["specimen-edge-labels#font-bold-face"]
+        },
+        "edges.font.bold.mod": {
+            "specimens": ["specimen-edge-labels#font-bold-mod"]
+        },
+        "edges.font.bold.vadjust": {
+            "specimens": ["specimen-edge-labels#font-bold-vadjust"]
+        },
+        "edges.font.boldital": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels#font-boldital-color",
+                "specimen-edge-labels#font-boldital-size",
+                "specimen-edge-labels#font-boldital-face",
+                "specimen-edge-labels#font-boldital-mod",
+                "specimen-edge-labels#font-boldital-vadjust"
+            ]
+        },
+        "edges.font.boldital.color": {
+            "specimens": ["specimen-edge-labels#font-boldital-color"]
+        },
+        "edges.font.boldital.size": {
+            "specimens": ["specimen-edge-labels#font-boldital-size"]
+        },
+        "edges.font.boldital.face": {
+            "specimens": ["specimen-edge-labels#font-boldital-face"]
+        },
+        "edges.font.boldital.mod": {
+            "specimens": ["specimen-edge-labels#font-boldital-mod"]
+        },
+        "edges.font.boldital.vadjust": {
+            "specimens": ["specimen-edge-labels#font-boldital-vadjust"]
+        },
+        "edges.font.ital": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels#font-ital-color",
+                "specimen-edge-labels#font-ital-size",
+                "specimen-edge-labels#font-ital-face",
+                "specimen-edge-labels#font-ital-mod",
+                "specimen-edge-labels#font-ital-vadjust"
+            ]
+        },
+        "edges.font.ital.color": {
+            "specimens": ["specimen-edge-labels#font-ital-color"]
+        },
+        "edges.font.ital.size": {
+            "specimens": ["specimen-edge-labels#font-ital-size"]
+        },
+        "edges.font.ital.face": {
+            "specimens": ["specimen-edge-labels#font-ital-face"]
+        },
+        "edges.font.ital.mod": {
+            "specimens": ["specimen-edge-labels#font-ital-mod"]
+        },
+        "edges.font.ital.vadjust": {
+            "specimens": ["specimen-edge-labels#font-ital-vadjust"]
+        },
+        "edges.font.mono": {
+            "specimens": [
+                "specimen-edge-labels-p2#font-mono-shorthand",
+                "specimen-edge-labels#font-mono-color",
+                "specimen-edge-labels#font-mono-size",
+                "specimen-edge-labels#font-mono-face",
+                "specimen-edge-labels#font-mono-mod",
+                "specimen-edge-labels#font-mono-vadjust"
+            ]
+        },
+        "edges.font.mono.color": {
+            "specimens": ["specimen-edge-labels#font-mono-color"]
+        },
+        "edges.font.mono.size": {
+            "specimens": ["specimen-edge-labels#font-mono-size"]
+        },
+        "edges.font.mono.face": {
+            "specimens": ["specimen-edge-labels#font-mono-face"]
+        },
+        "edges.font.mono.mod": {
+            "specimens": ["specimen-edge-labels#font-mono-mod"]
+        },
+        "edges.font.mono.vadjust": {
+            "specimens": ["specimen-edge-labels#font-mono-vadjust"]
+        },
+        "edges.hidden": {
+            "specimens": ["specimen-edges-lines#hidden-true"]
+        },
+        "edges.hoverWidth": {
+            "notDrawn": "hover only: extra width under the pointer"
+        },
+        "edges.label": {
+            "specimens": [
+                "specimen-edges-lines-p2#label-scaling",
+                "specimen-edge-labels-p2#default",
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand"
+            ]
+        },
+        "edges.labelHighlightBold": {
+            "notDrawn": "selection only: a selected edge's label turns bold"
+        },
+        "edges.length": {
+            "notDrawn": "physics only: the spring length"
+        },
+        "edges.physics": {
+            "notDrawn": "physics only"
+        },
+        "edges.scaling": {
+            "specimens": [
+                "specimen-edges-lines-p2#scaling-min-max",
+                "specimen-edges-lines-p2#label-scaling",
+                "specimen-edge-labels#draw-threshold",
+                "specimen-edge-labels#max-visible"
+            ]
+        },
+        "edges.scaling.min": {
+            "specimens": ["specimen-edges-lines-p2#scaling-min-max"]
+        },
+        "edges.scaling.max": {
+            "specimens": ["specimen-edges-lines-p2#scaling-min-max"]
+        },
+        "edges.scaling.label": {
+            "specimens": [
+                "specimen-edges-lines-p2#label-scaling",
+                "specimen-edge-labels#draw-threshold",
+                "specimen-edge-labels#max-visible"
+            ]
+        },
+        "edges.scaling.label.enabled": {
+            "specimens": ["specimen-edges-lines-p2#label-scaling"]
+        },
+        "edges.scaling.label.min": {
+            "specimens": ["specimen-edges-lines-p2#label-scaling"]
+        },
+        "edges.scaling.label.max": {
+            "specimens": ["specimen-edges-lines-p2#label-scaling"]
+        },
+        "edges.scaling.label.maxVisible": {
+            "specimens": ["specimen-edge-labels#max-visible"]
+        },
+        "edges.scaling.label.drawThreshold": {
+            "specimens": ["specimen-edge-labels#draw-threshold"]
+        },
+        "edges.scaling.customScalingFunction": {
+            "notDrawn": "a JavaScript function; a document cannot hold one"
+        },
+        "edges.selectionWidth": {
+            "notDrawn": "selection only: extra width of a selected edge"
+        },
+        "edges.selfReferenceSize": {
+            "specimens": ["specimen-edges-lines#self-reference-size-legacy"]
+        },
+        "edges.selfReference": {
+            "specimens": [
+                "specimen-edges-lines#self-reference-size",
+                "specimen-edges-lines#self-reference-angle",
+                "specimen-edges-lines#self-reference-front"
+            ]
+        },
+        "edges.selfReference.size": {
+            "specimens": ["specimen-edges-lines#self-reference-size"]
+        },
+        "edges.selfReference.angle": {
+            "specimens": ["specimen-edges-lines#self-reference-angle"]
+        },
+        "edges.selfReference.renderBehindTheNode": {
+            "specimens": ["specimen-edges-lines#self-reference-front"]
+        },
+        "edges.shadow": {
+            "specimens": [
+                "specimen-edges-lines#shadow-true",
+                "specimen-edges-lines#shadow-color",
+                "specimen-edges-lines-p3#shadow-size",
+                "specimen-edges-lines-p3#shadow-offset"
+            ]
+        },
+        "edges.shadow.enabled": {
+            "specimens": [
+                "specimen-edges-lines#shadow-color",
+                "specimen-edges-lines-p3#shadow-size",
+                "specimen-edges-lines-p3#shadow-offset"
+            ]
+        },
+        "edges.shadow.color": {
+            "specimens": ["specimen-edges-lines#shadow-color"]
+        },
+        "edges.shadow.size": {
+            "specimens": ["specimen-edges-lines-p3#shadow-size"]
+        },
+        "edges.shadow.x": {
+            "specimens": ["specimen-edges-lines-p3#shadow-offset"]
+        },
+        "edges.shadow.y": {
+            "specimens": ["specimen-edges-lines-p3#shadow-offset"]
+        },
+        "edges.smooth": {
+            "specimens": [
+                "specimen-edges-lines#smooth-true",
+                "specimen-edges-lines#smooth-false",
+                "specimen-edges-lines#smooth-dynamic",
+                "specimen-edges-lines#smooth-continuous",
+                "specimen-edges-lines#smooth-discrete",
+                "specimen-edges-lines#smooth-diagonal-cross"
+            ]
+        },
+        "edges.smooth.enabled": {
+            "specimens": [
+                "specimen-edges-lines#smooth-dynamic",
+                "specimen-edges-lines#smooth-continuous",
+                "specimen-edges-lines#smooth-discrete",
+                "specimen-edges-lines#smooth-diagonal-cross",
+                "specimen-edges-lines#smooth-straight-cross",
+                "specimen-edges-lines#smooth-horizontal"
+            ]
+        },
+        "edges.smooth.type": {
+            "specimens": [
+                "specimen-edges-lines#smooth-dynamic",
+                "specimen-edges-lines#smooth-continuous",
+                "specimen-edges-lines#smooth-discrete",
+                "specimen-edges-lines#smooth-diagonal-cross",
+                "specimen-edges-lines#smooth-straight-cross",
+                "specimen-edges-lines#smooth-horizontal"
+            ],
+            "values": {
+                "dynamic": ["specimen-edges-lines#smooth-dynamic", "specimen-edges-lines#parallel-3-smooth"],
+                "continuous": [
+                    "specimen-edges-lines#smooth-continuous",
+                    "specimen-edges-lines-p3#roundness-0-9-continuous"
+                ],
+                "discrete": ["specimen-edges-lines#smooth-discrete", "specimen-edges-lines-p3#roundness-0-9-discrete"],
+                "diagonalCross": [
+                    "specimen-edges-lines#smooth-diagonal-cross",
+                    "specimen-edges-lines-p3#roundness-0-9-diagonal-cross"
+                ],
+                "straightCross": [
+                    "specimen-edges-lines#smooth-straight-cross",
+                    "specimen-edges-lines-p3#roundness-0-9-straight-cross"
+                ],
+                "horizontal": [
+                    "specimen-edges-lines#smooth-horizontal",
+                    "specimen-edges-lines-p3#roundness-0-9-horizontal"
+                ],
+                "vertical": ["specimen-edges-lines#smooth-vertical", "specimen-edges-lines-p3#roundness-0-9-vertical"],
+                "curvedCW": [
+                    "specimen-edges-lines#smooth-curved-cw",
+                    "specimen-edges-lines#roundness-0-1",
+                    "specimen-edges-lines#roundness-0-9"
+                ],
+                "curvedCCW": [
+                    "specimen-edges-lines#smooth-curved-ccw",
+                    "specimen-edges-lines#background-dashes-curved",
+                    "specimen-edges-lines-p3#roundness-0-9-curved-ccw"
+                ],
+                "cubicBezier": [
+                    "specimen-edges-lines#smooth-cubic-bezier",
+                    "specimen-edges-lines#force-direction-horizontal",
+                    "specimen-edges-lines#force-direction-vertical"
+                ]
+            }
+        },
+        "edges.smooth.roundness": {
+            "specimens": [
+                "specimen-edges-lines#roundness-0-1",
+                "specimen-edges-lines#roundness-0-9",
+                "specimen-edges-lines-p3#roundness-0-9-curved-ccw",
+                "specimen-edges-lines-p3#roundness-0-9-cubic-bezier",
+                "specimen-edges-lines-p3#roundness-0-9-horizontal",
+                "specimen-edges-lines-p3#roundness-0-9-vertical"
+            ]
+        },
+        "edges.smooth.forceDirection": {
+            "specimens": [
+                "specimen-edges-lines#force-direction-horizontal",
+                "specimen-edges-lines#force-direction-vertical",
+                "specimen-edges-lines#force-direction-none",
+                "specimen-edges-lines#force-direction-false"
+            ],
+            "values": {
+                "horizontal": ["specimen-edges-lines#force-direction-horizontal"],
+                "vertical": ["specimen-edges-lines#force-direction-vertical"],
+                "none": ["specimen-edges-lines#force-direction-none"]
+            }
+        },
+        "edges.title": {
+            "notDrawn": "tooltip only"
+        },
+        "edges.width": {
+            "specimens": [
+                "specimen-edges-lines#width-0-5",
+                "specimen-edges-lines#width-1",
+                "specimen-edges-lines#width-3",
+                "specimen-edges-lines#width-6",
+                "specimen-edges-lines#width-10",
+                "specimen-edges-lines#dashes-wide"
+            ]
+        },
+        "edges.widthConstraint": {
+            "specimens": ["specimen-edge-labels#width-constraint", "specimen-edge-labels#width-constraint-number"]
+        },
+        "edges.widthConstraint.maximum": {
+            "specimens": ["specimen-edge-labels#width-constraint"]
+        },
+        "edges.value": {
+            "specimens": [
+                "specimen-edges-lines-p2#value-1",
+                "specimen-edges-lines-p2#value-4",
+                "specimen-edges-lines-p2#value-10",
+                "specimen-edges-lines-p2#scaling-min-max",
+                "specimen-edges-lines-p2#label-scaling",
+                "specimen-edges-lines-p2#width-6-value"
+            ]
+        },
+        "groups.useDefaultGroups": {
+            "specimens": ["specimen-groups-p2#options.groups", "specimen-groups#default-group-1"]
+        },
+        "groups.<name>": {
+            "specimens": [
+                "specimen-groups#default-group-1",
+                "specimen-groups#default-group-2",
+                "specimen-groups#default-group-3",
+                "specimen-groups#default-group-4",
+                "specimen-groups#default-group-5",
+                "specimen-groups#default-group-6"
+            ]
+        },
+        "configure": {
+            "notDrawn": "DOM only: the option editor vis-network builds next to the canvas"
+        },
+        "interaction": {
+            "notDrawn": "interaction only (drag, zoom, hover, navigation buttons as DOM elements, keyboard, tooltips)"
+        },
+        "layout": {
+            "notDrawn": "layout only: the sheets store positions and turn physics off (a hierarchical layout would move them)"
+        },
+        "manipulation": {
+            "notDrawn": "DOM only: the edit toolbar"
+        },
+        "physics": {
+            "notDrawn": "physics only; every sheet sets physics: false so the stored positions stand"
+        },
+        "autoResize": {
+            "notDrawn": "DOM only: whether the canvas follows its container's size"
+        },
+        "clickToUse": {
+            "notDrawn": "interaction only"
+        },
+        "locale": {
+            "notDrawn": "DOM only: the language of the edit toolbar"
+        },
+        "locales": {
+            "notDrawn": "DOM only: the edit toolbar's strings"
+        },
+        "height": {
+            "notDrawn": "DOM only: the canvas element's CSS height (the oracle draws 1200 x 900)"
+        },
+        "width": {
+            "notDrawn": "DOM only: the canvas element's CSS width (the oracle draws 1200 x 900)"
+        }
+    }
+}

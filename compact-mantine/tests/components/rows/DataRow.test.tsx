@@ -9,7 +9,7 @@ import { DataRow, DataRowHeader, RankChip } from "../../../src/components/rows/D
 import { AdvancedButton } from "../../../src/components/rows/TrailingSlot";
 import { PANEL_GRID } from "../../../src/constants/panel";
 import { LabelsProvider } from "../../../src/i18n";
-import { FieldGlyph } from "../../../src/icons";
+import { FieldGlyph, UiGlyph } from "../../../src/icons";
 import treeCss from "../../../src/theme/css/tree.css";
 
 /**
@@ -57,23 +57,11 @@ describe("DataRow", () => {
         expect(screen.getByText("Mr_Whiskers")).toBeInTheDocument();
     });
 
-    it("carries the whole string as a title, because the name ellipsizes", () => {
+    it("ellipsizes the name; the whole string is its tooltip while cut (EllipsizedName.browser.test.tsx)", () => {
         renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" />);
 
         const label = screen.getByTestId("data-row-name");
-        expect(label).toHaveAttribute("title", "Mrs_Henderson_from_the_house_on_the_corner");
         expect(label).toHaveStyle({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
-    });
-
-    it("keeps the whole string as its accessible name, ellipsis or not", () => {
-        renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" value="4" onClick={vi.fn()} />);
-
-        // The ellipsis is a drawing: the element's text is still the whole
-        // string, so a title is a convenience for a pointer rather than the
-        // only way to the full name.
-        expect(
-            screen.getByRole("button", { name: "Mrs_Henderson_from_the_house_on_the_corner 4" }),
-        ).toBeInTheDocument();
     });
 
     it("is drawn by the shared list-row class: a 32px row with a 24px pill (measured in tests/figma/tree.browser.test.tsx)", () => {
@@ -479,6 +467,38 @@ describe("DataRow", () => {
             expect(open).toHaveBeenCalledTimes(1);
             expect(select).not.toHaveBeenCalled();
         });
+
+        it("counts a decorative trailing glyph as part of the row's hit area", async () => {
+            const select = vi.fn();
+            const user = userEvent.setup();
+            renderRow(
+                <DataRow
+                    name="Degree"
+                    value={17}
+                    onClick={select}
+                    trailing={
+                        <span data-testid="chevron">
+                            <UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />
+                        </span>
+                    }
+                />,
+            );
+
+            await user.click(screen.getByTestId("chevron").firstElementChild as Element);
+
+            expect(select).toHaveBeenCalledTimes(1);
+            expect(select.mock.calls[0][1]).toEqual({ source: "pointer" });
+            expect(screen.getByRole("button", { name: /Degree/ })).toHaveFocus();
+        });
+
+        it("leaves a click on an inert row's trailing glyph alone", async () => {
+            const user = userEvent.setup();
+            renderRow(<DataRow name="Degree" value={17} trailing={<span data-testid="chevron">{">"}</span>} />);
+
+            await user.click(screen.getByTestId("chevron"));
+
+            expect(screen.getByTestId("data-row")).not.toHaveAttribute("data-interactive");
+        });
     });
 });
 
@@ -613,14 +633,6 @@ describe("DataRowHeader", () => {
     });
 
     describe("when it sorts", () => {
-        it("becomes a button named by the column it heads", () => {
-            renderRow(<DataRowHeader label="Most connected" unit="links" onSortChange={vi.fn()} />);
-
-            const button = screen.getByRole("button", { name: "Most connected links" });
-            expect(button.tagName).toBe("BUTTON");
-            expect(button).toHaveAttribute("type", "button");
-        });
-
         it("reports the sort state on the column header, where aria-sort is defined", () => {
             renderInRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
 

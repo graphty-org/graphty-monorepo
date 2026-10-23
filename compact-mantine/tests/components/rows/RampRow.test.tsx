@@ -246,7 +246,7 @@ describe("RampRow", () => {
             const { background } = screen.getByTestId("ramp-row-ramp").style;
             expect(background).toContain("linear-gradient");
             expect(background).toContain(PANEL_INK.SURFACE);
-            expect(background).toContain(PANEL_INK.ACCENT);
+            expect(background).toContain(PANEL_INK.ACCENT_GRAPHIC);
         });
 
         it("is a bar at 2px radius on a 1px border, not a wedge", () => {

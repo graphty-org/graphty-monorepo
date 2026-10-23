@@ -24,7 +24,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
-import type { ProjectConfig, ProjectConfigPatch, SessionDataConfig } from "../types";
+import type { ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -34,7 +34,15 @@ export interface ConfigSetCommand {
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
 type ConfigGroup =
-    "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author" | "name";
+    | "data"
+    | "runAlgorithmsOnLoad"
+    | "background"
+    | "selectionStyle"
+    | "startingRows"
+    | "runPlacement"
+    | "layoutBehavior"
+    | "author"
+    | "name";
 
 /** One key of the `config` slice. */
 interface ConfigKey {
@@ -83,6 +91,10 @@ export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, Confi
     ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
     ["background", { group: "background", schema: GraphStyle.shape.background }],
     ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
+    ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
+    // The base look's home goes with the starting rows: one round-trip fixture covers both.
+    ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
+    ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
     ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
         `layoutBehavior.${name}`,
         { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
@@ -219,6 +231,7 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     },
     execute: (command, ctx) => {
         const effective = ctx.services.config?.();
+        let restore = false;
         for (const [path, value] of configLeaves(command.values)) {
             if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
                 // An unset key already reads as its default: writing that default changes nothing.
@@ -235,6 +248,14 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
             } else {
                 ctx.draft.config.set(path, value);
             }
+
+            restore ||= (path === "startingRows" || path === "editableBase") && value === true;
+        }
+
+        // The starting rows arrive with the setting, in its step: undo takes both back. Added once
+        // every key is written, so an Everything row added with `editableBase` holds the base look.
+        if (restore && ctx.state.config.get("startingRows") === true) {
+            ctx.services.styles?.execute({ op: "style.patch", action: "restoreStartingRows" }, ctx.draft);
         }
     },
 };
@@ -269,6 +290,9 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
         runAlgorithmsOnLoad: read("runAlgorithmsOnLoad") as boolean,
         background: read("background") as GraphBackgroundConfig,
         selectionStyle: read("selectionStyle") as GraphSelectionStyleConfig,
+        startingRows: read("startingRows") as boolean,
+        editableBase: read("editableBase") as boolean,
+        runPlacement: read("runPlacement") as RunPlacement,
         layoutBehavior: Object.freeze({
             preSteps: read("layoutBehavior.preSteps") as number,
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,

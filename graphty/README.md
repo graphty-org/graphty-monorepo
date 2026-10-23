@@ -4,11 +4,11 @@ A React TypeScript application providing a user-friendly interface for graph vis
 
 ## Features
 
-- Interactive graph visualization
-- Multiple layout algorithms (Force-directed, Circular, etc.)
-- Rich styling and theming options
-- 2D/3D visualization modes
-- Export and import capabilities
+- Open graph files in every format graphty-element reads, from a file, a URL or pasted text
+- Layouts, and about thirty graph algorithms whose results can drive the styling
+- Style layers: color, size, shape, labels and more, set by hand or from the data
+- Node and edge tables, 2D and 3D views, image and data export
+- Projects saved to and reopened from this computer
 
 ## Development
 
@@ -50,22 +50,18 @@ npm run storybook
 
 The application is structured as follows:
 
-- `/src/components` - React components
-- `/src/hooks` - Custom React hooks
-- `/src/utils` - Utility functions
+- `/src/workspace` - The app: its frame, panels, dialogs and commands
+- `/src/components` - The error boundary, the feedback dialog and the `?demo` component gallery
+- `/src/data` - The start screen's samples
+- `/src/lib` - Sentry and eruda integration
 - `/src/stories` - Storybook stories
 - `/src/test` - Test setup and utilities
 
 ## Working with graphty-element
 
-This project wraps the `graphty-element` web component. During development, it references the local graphty-element project at `../graphty-element`.
-
-When graphty-element is published to npm, update the import in:
-
-- `package.json` - Add as dependency
-- `vite.config.ts` - Remove alias
-- `tsconfig.json` - Remove path mapping
-- `src/components/Graphty.tsx` - Update import path
+This project renders one `graphty-element` web component (`src/workspace/frame/ElementHost.tsx`)
+and changes the graph only through the element's session. During development it uses the local
+graphty-element package in this monorepo (`../graphty-element`).
 
 ## Contributing
 

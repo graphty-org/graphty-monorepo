@@ -1,0 +1,10 @@
+source,target,average_minutes_between_visits
+Northern Regional Distribution Center 01,Harbor Street Warehouse,12
+Northern Regional Distribution Center 01,Eastside Cold Storage and Packing Facility,30
+Harbor Street Warehouse,Eastside Cold Storage and Packing Facility,18
+Harbor Street Warehouse,Airport Freight Terminal B,25
+Eastside Cold Storage and Packing Facility,Airport Freight Terminal B,40
+Airport Freight Terminal B,Southern Valley Agricultural Cooperative,55
+Southern Valley Agricultural Cooperative,Northern Regional Distribution Center 01,60
+Southern Valley Agricultural Cooperative,Riverside Pharmacy,15
+Riverside Pharmacy,Harbor Street Warehouse,9

@@ -16,6 +16,7 @@ const dir = mkdtempSync(join(tmpdir(), "test-ledger-"));
 const ledgerHome = join(dir, "ledger");
 process.env.TEST_LEDGER_DIR = ledgerHome;
 const L = await import("./test-ledger.mjs");
+const { importHistory } = await import("./test-ledger-import.mjs");
 const env = { ...isolatedGitEnv(), TEST_LEDGER_DIR: ledgerHome };
 after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -179,7 +180,7 @@ describe("exoneration of a failure already on golden", () => {
         assert.deepEqual(excused(r), ["fails-on-golden"]);
         assert.match(
             L.knownLines({ ...r, exonerations: L.exonerate(r, repo, env) })[0],
-            /\[KNOWN\] graphty-2: 1 test\(s\) fail as on golden .* issue #42/,
+            /\[KNOWN\] graphty-2: graphty\/src\/t\d+\.test\.ts > panel > opens fails as on golden .* issue #42/,
         );
         // the index is only an index: deleted and rebuilt, the same answer
         rmSync(join(ledgerHome, readFileSync(join(ledgerHome, "CURRENT"), "utf8").trim()));
@@ -458,7 +459,7 @@ describe("storage", () => {
             JSON.stringify({ shard: "graphty-3", branch: null, sha: g0, at: "2026-10-23T05:00:00Z" }),
         );
         const home = join(dir, "imported");
-        assert.deepEqual(await L.importHistory(main, { TEST_LEDGER_DIR: home }), {
+        assert.deepEqual(await importHistory(main, { TEST_LEDGER_DIR: home }), {
             invocations: 2,
             failed: 1,
             results: 8,

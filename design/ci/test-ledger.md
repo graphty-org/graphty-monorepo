@@ -403,7 +403,7 @@ reaches master. Each decision has an off switch (`PREPUSH_EXONERATE=0`, removing
 
 ## 9. Import of old results, never as evidence
 
-The history already on disk was imported once (`node tools/test-ledger.mjs import`, 2026-10-23): every gate in
+The history already on disk was imported once (`node tools/test-ledger-import.mjs`, 2026-10-23, a one-time script to delete once its records age out): every gate in
 `tmp/push-log.jsonl` (its `[PASS]` lines, and each failed shard's kept log in `tmp/push-gate-logs/`), and every
 shard pass in `tmp/prepush-passes/shard/`. Nothing is matched by time: each record comes from one log line that
 names its shard and commit. They carry kinds `import-<kind>` (the kind read from the worktree the gate ran in),

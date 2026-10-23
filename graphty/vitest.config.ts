@@ -9,6 +9,7 @@ import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -16,6 +17,8 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+/** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
+const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
@@ -56,7 +59,7 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile, failRequests },
+    commands: { chooseNextFile, failRequests, ...mapTileCommands },
 });
 
 export default defineConfig({
@@ -103,7 +106,8 @@ export default defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    // Map tiles from a local fixture, never a tile server (vitest.map-tiles.mjs).
+                    setupFiles: [MAP_TILES_SETUP, "./src/test/setup.ts"],
                 },
             },
             {
@@ -114,7 +118,7 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
@@ -140,7 +144,7 @@ export default defineConfig({
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
                     browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, ".storybook/vitest.setup.ts"],
                     // As graphty-element's storybook project: a story that loads the real element
                     // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
                     // its other browser shards beside it, which crossed the 15-second default.

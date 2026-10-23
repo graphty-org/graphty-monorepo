@@ -1,4 +1,17 @@
+import { TILE_HOSTS } from "../../vitest.map-tiles.mjs";
 import { mapSources, resolveSource } from "../src/sources.js";
+
+describe("the test tile fixture", () => {
+    it("answers every host a built-in source loads tiles from, so no test reaches a tile server", () => {
+        const hosts = Object.values(mapSources).flatMap((source) =>
+            "tiles" in source
+                ? (source.subdomains ?? [""]).map((sub) => new URL(source.tiles.replace("{s}", sub)).hostname)
+                : [],
+        );
+        expect(hosts.length).toBeGreaterThan(0);
+        expect(TILE_HOSTS).toEqual(expect.arrayContaining(hosts));
+    });
+});
 
 describe("resolveSource", () => {
     it("fills a Web Mercator XYZ source's defaults and URLs", () => {

@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
+import { failureHashes, newRunId, writeRecord } from "./test-ledger.mjs";
 import {
     bounds,
     claim,
@@ -276,6 +277,51 @@ describe("the watchdog's side", () => {
         await watching;
         assert.equal(seen.last.status, "failed");
         await withState(ctx, (s) => (s.last.status = "handled"));
+    });
+});
+
+describe("with the test ledger", () => {
+    it("files one issue per failure, and does not bisect the same failures again", async () => {
+        const ledgerDir = join(dir, "ledger");
+        const filed = [];
+        const gh = (args) => {
+            if (args[1] === "create") filed.push(args);
+            return { create: "https://github.com/o/r/issues/5", list: "[]" }[args[1]] ?? "";
+        };
+        const fails = (sha) => has(sha, "k.txt");
+        const failure = { file: "p/a.test.ts", name: "a > b", ...failureHashes("Error: known", "p/a.test.ts") };
+        const rec = { v: 1, kind: "verify", branch: "golden", base: null, dirty: false, shard: "s1", family: "s1" };
+        Object.assign(rec, { variant: "s1", selected: null, outcome: "failed", reused_from: null, secs: 1, log: null });
+        Object.assign(rec, { files: [["p/a.test.ts", 1, 1, 0, 1, 0]], failures: [failure], exonerations: [] });
+        const gate = async (_c, sha) => {
+            gated.push(sha);
+            if (!fails(sha)) return { code: 0, output: "", log: "l" };
+            const at = new Date().toISOString();
+            writeRecord(ledgerDir, { ...rec, id: newRunId("s1"), commit: sha, tree: sha, started_at: at });
+            return { code: 1, output: "  [FAIL] s1 (exit 1, 3s)\n[FAIL] Tests (x)", log: `log-${sha.slice(0, 7)}` };
+        };
+        const check = async (_c, sha) => (checked.push(sha), !fails(sha));
+        const files = { stateFile: join(dir, "ledger-verify.json"), lock: join(dir, "ledger-verify.lock") };
+        const c = verifyContext(repo, {
+            env: { ...env, TEST_LEDGER_DIR: ledgerDir },
+            ...fake,
+            gate,
+            check,
+            gh,
+            ...files,
+        });
+        const culprit = land("k1", { "k.txt": "k\n" });
+        await requestVerification(c, culprit);
+        await settle();
+        assert.equal(readState(c).last.culprit.sha, culprit);
+        assert.equal(filed.length, 1);
+        assert.match(filed[0].join(" "), /Failing on golden: Error: known/);
+        checked = [];
+        await requestVerification(c, land("k2", { "k2.txt": "2\n" }));
+        await settle();
+        assert.equal(readState(c).last.status, "failed-known");
+        assert.deepEqual(checked, [], "not bisected again");
+        assert.equal(filed.length, 1, "no second issue");
     });
 });
 

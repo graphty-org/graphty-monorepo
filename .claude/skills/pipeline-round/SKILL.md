@@ -94,8 +94,11 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
   every open branch that contains the culprit (`git branch -r --contains <culprit sha>`, each branch's issue from its
   name or `git config branch.<b>.issue`) saying it holds a reverted landing and should merge `origin/golden-verified`
   again once verification passes. When the revert is pushed: `node tools/verify.mjs handled`.
-- **`last: failed ... NOT REPRODUCED`:** the failing shard passed when run again on the same commit. Never call it a
-  flake and never just re-run: claim it, find the mechanism (the gate log, the lessons file), fix the cause or file the
+- **`last: flaky`:** every failing test passed in one of verification's confirming runs on the same commit and is now
+  quarantined with its issue. Nothing to revert or claim; the next verification runs with them quarantined.
+- **`last: failed ... INTERMITTENT`** (a test passed a confirming run but is not quarantined: the quarantine is off,
+  or it was a whole shard or another step) **or `fails every time but no landing is to blame`:** revert nothing.
+  Never call it a flake and never just re-run: claim it, find the mechanism (the gate log, the lessons file), fix the cause or file the
   issue the failure classes call for, then `handled`, and `start --again` once the cause is fixed.
 - **A culprit that is not a landing** (an owner's accept commit, a sync merge of master): revert nothing; claim it,
   diagnose, and file or fix like any golden failure.

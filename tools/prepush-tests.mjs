@@ -282,9 +282,9 @@ export function selectionOn(env, base) {
 
 // PREPUSH_DEFER_DOWNSTREAM's default. The owner agreed (2026-10-23) that a landing check need not run the
 // tests of packages reached only as dependents of the change (a graph-io change no longer runs graphty-element's
-// shards); verification of golden runs them. Off until verification confirms a failure before a culprit is
-// reverted (design/ci/fast-pipeline.md, section 9, decision 8); PREPUSH_DEFER_DOWNSTREAM=1 turns it on.
-const DEFER_DEFAULT = "0";
+// shards); verification of golden runs them, and reverts a culprit only on a failure that fails every confirming
+// run (design/ci/fast-pipeline.md, section 9, decision 8). On; PREPUSH_DEFER_DOWNSTREAM=0 turns it off.
+const DEFER_DEFAULT = "1";
 
 /**
  * Whether a selecting gate leaves out the packages reached only as dependents or readers of a changed package.
@@ -354,7 +354,7 @@ function selectRuns(gated, base) {
     console.log("Test selection (PREPUSH_SELECT=1; PREPUSH_SELECT=0 runs every shard whole):");
     if (deferDownstreamOn(process.env)) {
         console.log(
-            "  Packages reached only as dependents of the change are left to verification (PREPUSH_DEFER_DOWNSTREAM=1).",
+            "  Packages reached only as dependents of the change are left to verification (PREPUSH_DEFER_DOWNSTREAM=0 runs them).",
         );
     }
     return selectedShards(planRuns(ROOT, gated, selection));

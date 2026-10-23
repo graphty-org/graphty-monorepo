@@ -23,14 +23,19 @@
 //   wanted     the newest commit a landing asked for
 //   run        the live run: { pid, pidStart, commit, from, step, startedAt }; a pid alone can be reused,
 //              so a run is live only while that pid has the same start time (/proc/<pid>/stat)
-//   last       the newest result: { commit, from, status, at, log, failing, bisect, culprit, reproduced,
-//              handling }; status is passed, bisecting, failed, handling (a session claimed it) or handled
+//   last       the newest result: { commit, from, status, at, log, failing, confirm, bisect, culprit, reproduced,
+//              quarantined, handling }; status is passed, confirming, bisecting, flaky, failed, handling (a session
+//              claimed it) or handled
 //
-// A failure is bisected over the first-parent commits since the last verified one (the landing merges),
-// re-running only the failing test shards when the gate names them (else the whole gate) at `width`
-// points at once. The target itself is re-run first: a failure that does not come back is recorded as
-// not reproduced, never called a flake. A failure that needs two landings fails first at the later one,
-// which is the one named. Verification never reverts; the pipeline round does.
+// A failure is first confirmed: only its failing test files run again on the failing commit, up to CONFIRM_RUNS
+// times. A test that passes in any of those runs is intermittent: it goes to the quarantine (when that is on, with
+// its issue; else it is recorded as not reproduced), and is never bisected or reverted. A test that fails every
+// time is bisected over golden's first-parent `land:` merges since the last verified commit -- never a sync merge
+// of master, a revert or an accept commit -- running only its files, `width` points at once. A point is bad when
+// it fails in every one of its runs. The culprit is the first bad landing whose parent passes every run; when the
+// parent fails too, or no landing fails, no landing is named. A failure that needs two landings fails first at the
+// later one, which is the one named. A non-test failure (no test shard named) re-runs the whole gate once per
+// point. Verification never reverts; the pipeline round does, and only a named culprit.
 
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -55,6 +60,10 @@ import { selectedCommand } from "./test-select.mjs";
 // The test ledger (design/ci/test-ledger.md): issues for failures on golden, known failures, the flaky bisect.
 // Without it verification works as before.
 const ledger = await import("./test-ledger.mjs").catch(() => null);
+const quarantine = await import("./test-quarantine.mjs").catch(() => null);
+
+/** How many times a confirming run or a bisect point runs a failure's test files: failing every time is consistent. */
+export const CONFIRM_RUNS = 5;
 
 export const VERIFIED_REF = "golden-verified";
 const QUIET = { pollMs: 20, waitLog: () => {}, onWait: () => {}, onQueue: () => {} };
@@ -241,7 +250,7 @@ export async function run(ctx) {
 export function nextJob(ctx, s) {
     const self = me();
     if (alive(s.run) && s.run.pid !== self.pid) return null;
-    if (s.last?.status === "bisecting") {
+    if (s.last?.status === "bisecting" || s.last?.status === "confirming") {
         s.run = { ...self, commit: s.last.commit, from: s.last.from, step: "bisect", startedAt: now() };
         return { bisect: true };
     }
@@ -288,13 +297,8 @@ async function verifyCommit(ctx, { target, from }) {
         return;
     }
     const failing = failingShards(r.output, await shardNames(ctx));
-    const candidates = git(ctx, ctx.main, [
-        "rev-list",
-        "--first-parent",
-        "--reverse",
-        from ? `${from}..${target}` : target,
-    ]).split("\n");
-    const facts = failing && ledgerDo(ctx, (l) => gateFacts(ctx, l, target, from, started));
+    const candidates = landMerges(ctx, from, target);
+    const facts = failing && ledgerDo(ctx, (l) => gateFacts(ctx, l, target, started));
     // The same failures as the verification before: they stay on golden, so each gets its issue now.
     const again = facts && knownAgain(facts, readState(ctx).last, target);
     const issues = again ? (ledgerDo(ctx, (l) => fileFor(ctx, l, facts.tests, target, r.log)) ?? {}) : undefined;
@@ -305,20 +309,19 @@ async function verifyCommit(ctx, { target, from }) {
         s.last = {
             commit: target,
             from,
-            status: again ? "failed-known" : "bisecting",
+            status: again ? "failed-known" : "confirming",
             at: now(),
             log: r.log,
             failing,
             pairs: facts?.pairs,
             tests: facts?.tests,
             issues,
-            flaky: facts?.flaky,
-            bisect: { candidates, points: {} },
+            bisect: { candidates, points: {}, evidence: {} },
             handling,
         };
         // a live claim stays a claim: its session's `handled` must still find it
         if (again && handling) Object.assign(s.last, { status: "handling", known: true });
-        if (s.run) s.run.step = again ? "failed-known" : "bisect";
+        if (s.run) s.run.step = again ? "failed-known" : "confirm";
     });
     if (!again) await bisect(ctx);
 }
@@ -358,17 +361,15 @@ function ledgerDo(ctx, use) {
 }
 
 /**
- * What the ledger recorded of this verification's gate: its failures, their (test, key) pairs, and for each shard
- * whose failing tests are all flaky and none broken, the bad threshold of its bisect (design/ci/test-ledger.md 5.3).
+ * What the ledger recorded of this verification's gate: its failures and their (test, key) pairs.
  * No issue is filed here: a failure the bisect pins on a landing is reverted, not tracked.
  * @param ctx the context
  * @param l the ledger module
  * @param target the commit
- * @param from the last verified commit
  * @param started when the gate started
- * @returns `{ outcomes, tests, pairs, flaky, prev, passed }`, or null when the ledger is unavailable
+ * @returns `{ outcomes, tests, pairs, prev, passed }`, or null when the ledger is unavailable
  */
-function gateFacts(ctx, l, target, from, started) {
+function gateFacts(ctx, l, target, started) {
     const { db } = l.openLedger(ctx.env, ctx.main);
     if (!db) return null;
     const mine = "i.kind = 'verify' AND i.commit_sha = ? AND i.started_at >= ?";
@@ -379,15 +380,6 @@ function gateFacts(ctx, l, target, from, started) {
         )
         .all(target, started)
         .map((f) => ({ ...f }));
-    const chain = git(ctx, ctx.main, ["rev-list", "--first-parent", "-n", "200", target]).split("\n");
-    const before = from ? new Date(git(ctx, ctx.main, ["log", "-1", "--format=%cI", from])).toISOString() : undefined;
-    const flaky = {};
-    for (const shard of new Set(failures.map((f) => f.shard))) {
-        const tests = failures.filter((f) => f.shard === shard);
-        const c = tests.map((f) => l.classify(db, f.file, f.name, f.family, chain, before));
-        if (c.every((x) => x.flaky && !x.broken))
-            flaky[shard] = { threshold: l.badThreshold(Math.max(...c.map((x) => x.rate))) };
-    }
     const pairs = failures.map((f) => `${f.file}\0${f.name}\0${f.key}`).sort();
     const between = (prev) =>
         git(ctx, ctx.main, ["rev-list", "--first-parent", `${prev}..${target}`])
@@ -407,7 +399,7 @@ function gateFacts(ctx, l, target, from, started) {
     const prev = readState(ctx).last?.commit;
     const passed = Boolean(prev) && prev !== target && passedSince(prev);
     db.close();
-    return { outcomes, tests: failures, pairs, flaky, prev, passed };
+    return { outcomes, tests: failures, pairs, prev, passed };
 }
 
 /**
@@ -492,37 +484,154 @@ export function nextPoints(b, width) {
     return picks;
 }
 
+// The bisect's points: golden's first-parent `land:` merges after `from` up to `target`, oldest first. A sync merge
+// of master, a revert or an owner's accept commit is never a point, so it is never named.
+function landMerges(ctx, from, target) {
+    const range = from ? `${from}..${target}` : target;
+    return git(ctx, ctx.main, ["log", "--first-parent", "--reverse", "--format=%H %s", range])
+        .split("\n")
+        .filter((l) => LAND_SUBJECT.test(l.slice(41)))
+        .map((l) => l.slice(0, 40));
+}
+
+/**
+ * A failure's targets, as each check names them: one per failing test (the ledger's), else one per failing shard
+ * (run whole), else the whole gate (another step failed).
+ * @param last the failure
+ * @returns `[{ id, shard, file, name, ... }]`
+ */
+export function targetsOf(last) {
+    if (last.tests?.length) return last.tests.map((t) => ({ ...t, id: `${t.shard}: ${t.file} > ${t.name}` }));
+    if (last.failing) return last.failing.map((shard) => ({ id: `${shard}: the whole shard`, shard, file: null }));
+    return [{ id: "the whole gate", shard: null, file: null }];
+}
+
+/**
+ * The targets that failed in every run of a check.
+ * @param r a check's result `{ runs, failed: { id: count } }`
+ * @returns their ids
+ */
+export const failedEvery = (r) => Object.keys(r.failed).filter((id) => r.runs > 0 && r.failed[id] >= r.runs);
+
+// The targets the confirming runs found failing every time: the ones the bisect follows.
+const consistentTargets = (last) => targetsOf(last).filter((t) => last.confirm.consistent.includes(t.id));
+
 async function bisect(ctx) {
+    if (!readState(ctx).last.confirm) await confirm(ctx);
+    if (!readState(ctx).last.confirm.consistent.length) return finishIntermittent(ctx);
     for (;;) {
-        const b = readState(ctx).last.bisect;
+        const last = readState(ctx).last;
+        const b = last.bisect;
         const { good, bad } = bounds(b);
-        const targetPassed = b.points[b.candidates.at(-1)] === "good";
-        if (targetPassed || (bad !== null && bad - good === 1)) return finishBisect(ctx, targetPassed ? null : bad);
+        if (!b.candidates.length) return finishBisect(ctx, null, "no landing since the last verified commit");
+        if (b.points[b.candidates.at(-1)] === "good") {
+            const why = `the newest landing ${short(b.candidates.at(-1))} passes: a later commit that is not a landing brought it`;
+            return finishBisect(ctx, null, why);
+        }
+        if (bad !== null && bad - good === 1) return blame(ctx, b.candidates[bad]);
         const picks = nextPoints(b, ctx.width);
-        const failing = readState(ctx).last.failing;
-        const results = await Promise.all(picks.map((i, slot) => ctx.check(ctx, b.candidates[i], failing, slot + 1)));
+        const job = { failing: last.failing, targets: consistentTargets(last) };
+        const results = await Promise.all(
+            picks.map((i, slot) => ctx.check(ctx, b.candidates[i], { ...job, slot: slot + 1 })),
+        );
         await withState(ctx, (s) => {
-            picks.forEach((i, k) => (s.last.bisect.points[b.candidates[i]] = results[k] ? "good" : "bad"));
+            picks.forEach((i, k) => {
+                const sha = b.candidates[i];
+                s.last.bisect.points[sha] = failedEvery(results[k]).length ? "bad" : "good";
+                s.last.bisect.evidence[sha] = results[k];
+            });
         });
     }
 }
 
-async function finishBisect(ctx, bad) {
+/**
+ * Confirms a failure on the commit that failed: its targets run again, up to CONFIRM_RUNS times (stopping once
+ * none can fail every time). A test that passed in any run is intermittent and goes to the quarantine.
+ * @param ctx the context
+ */
+async function confirm(ctx) {
     const last = readState(ctx).last;
+    const targets = targetsOf(last);
+    const r = await ctx.check(ctx, last.commit, { failing: last.failing, targets, slot: 1 });
+    const every = failedEvery(r);
+    const intermittent = targets.filter((t) => !every.includes(t.id));
+    const quarantined = intermittent.length ? routeFlaky(ctx, intermittent, last.commit, r) : [];
+    await withState(ctx, (s) => {
+        s.last.confirm = { ...r, consistent: every };
+        s.last.intermittent = intermittent.map((t) => t.id);
+        s.last.quarantined = quarantined;
+        if (every.length) s.last.status = "bisecting";
+        if (s.run) s.run.step = "bisect";
+    });
+}
+
+// Intermittent tests go to the quarantine (on, with their issues): `[{ id, issue }]` of those it holds now.
+function routeFlaky(ctx, tests, commit, r) {
+    const real = tests.filter((t) => t.file && t.family);
+    if (!real.length || !quarantine?.quarantineEnabled(ctx.env)) return [];
+    try {
+        const how = (t) =>
+            `failed in verification of golden ${short(commit)}, then passed in ${r.runs - (r.failed[t.id] ?? 0)} of ${r.runs} confirming runs there`;
+        const entries = real.map((t) => ({ ...t, how: how(t), excerpt: t.line ?? "" }));
+        const held = quarantine.quarantineTests(ctx.main, entries, ctx.gh);
+        return real
+            .map((t) => ({ id: t.id, issue: held.find((e) => e.file === t.file && e.name === t.name)?.issue }))
+            .filter((q) => q.issue);
+    } catch (e) {
+        console.log(`verify: quarantine: ${e.message.split("\n")[0]}`);
+        return [];
+    }
+}
+
+// Nothing failed every time: never bisected, never reverted. Quarantined in full, it is `flaky`; else it is a
+// failure that was not reproduced, which gets its `Failing on golden` issue.
+async function finishIntermittent(ctx) {
+    const last = readState(ctx).last;
+    const held = new Set((last.quarantined ?? []).map((q) => q.id));
+    const all = targetsOf(last).every((t) => held.has(t.id));
     const tests = last.tests ?? [];
-    // Not reproduced: a failure golden still has now and then, which gets its issue. A culprit is reverted; the
+    const issues = !all && tests.length ? ledgerDo(ctx, (l) => fileFor(ctx, l, tests, last.commit, last.log)) : null;
+    return withState(ctx, (s) => {
+        s.last.culprit = null;
+        s.last.reproduced = false;
+        if (issues) s.last.issues = issues;
+        s.last.status = all ? "flaky" : s.last.handling ? "handling" : "failed";
+        if (s.run) s.run.step = s.last.status;
+    });
+}
+
+// The first bad landing is the culprit only when its parent passes every run (unless the parent is the verified
+// commit): a parent that fails too means a commit that is not a landing brought the failure.
+async function blame(ctx, sha) {
+    const last = readState(ctx).last;
+    const parent = git(ctx, ctx.main, ["rev-parse", `${sha}^1`]);
+    if (parent === last.from) return finishBisect(ctx, sha, null, { sha: parent, verified: true });
+    const job = { failing: last.failing, targets: consistentTargets(last), slot: 1, full: true };
+    const r = { sha: parent, ...(await ctx.check(ctx, parent, job)) };
+    if (Object.values(r.failed).some((n) => n > 0)) {
+        const why = `its parent ${short(parent)}, not a landing, fails it too (in ${Math.max(...Object.values(r.failed))} of ${r.runs} runs)`;
+        return finishBisect(ctx, null, `the first bad landing is ${short(sha)}, but ${why}`, r);
+    }
+    return finishBisect(ctx, sha, null, r);
+}
+
+async function finishBisect(ctx, sha, why, parent) {
+    const last = readState(ctx).last;
+    const tests = consistentTargets(last).filter((t) => t.file);
+    // No landing to blame: a failure golden has every time, which gets its issue. A culprit is reverted; the
     // issues a land check already filed for these failures are told who it is.
     const issues =
-        bad === null && tests.length ? ledgerDo(ctx, (l) => fileFor(ctx, l, tests, last.commit, last.log)) : null;
+        sha === null && tests.length ? ledgerDo(ctx, (l) => fileFor(ctx, l, tests, last.commit, last.log)) : null;
     return withState(ctx, (s) => {
-        const sha = bad === null ? null : s.last.bisect.candidates[bad];
         const subject = sha ? git(ctx, ctx.main, ["log", "-1", "--format=%s", sha]) : null;
-        s.last.culprit = sha ? { sha, subject, branch: LAND_SUBJECT.exec(subject)?.[1] ?? null } : null;
+        const evidence = sha ? { at: s.last.bisect.evidence[sha], parent } : undefined;
+        s.last.culprit = sha ? { sha, subject, branch: LAND_SUBJECT.exec(subject)?.[1] ?? null, evidence } : null;
+        if (why) s.last.noLanding = why;
         if (issues) s.last.issues = issues;
         const sigs = tests.map((t) => t.signature);
         if (sha && sigs.length)
             ledgerDo(ctx, (l) => l.noteCulprit(l.ledgerDir(ctx.env, ctx.main), sigs, s.last.culprit, ctx.gh));
-        s.last.reproduced = sha !== null;
+        s.last.reproduced = true;
         s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = "failed";
     });
@@ -609,88 +718,78 @@ async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GO
 }
 
 /**
- * One bisect point: the failing shards again (after a build, which nx's cache makes cheap), each through
- * tools/run-tests.sh as CI runs it; with no shards named, the whole gate.
+ * One check of a failure's targets at a commit (a confirming run, a bisect point, a culprit's parent): the
+ * failing shards' failing test files (after a build, which nx's cache makes cheap), each through
+ * tools/run-tests.sh, up to CONFIRM_RUNS times; it stops once no target can fail every time, unless `full`. With
+ * no shard named (another step failed), the whole gate, once.
+ * ponytail: a non-test failure is judged by one run per point; five full gates per point would take hours.
  * @param ctx the context
- * @param commit the point
- * @param failing the failing shards, or null
- * @param slot which bisect worktree (1..width)
- * @returns true when it passed
+ * @param commit the commit
+ * @param job what to run
+ * @param job.failing the failing shards, or null
+ * @param job.targets targetsOf() (or the consistent ones)
+ * @param job.slot which bisect worktree (1..width)
+ * @param [job.full] run all CONFIRM_RUNS (a culprit's parent must pass every one)
+ * @returns `{ runs, failed: { targetId: runs it failed } }`
  */
-async function defaultCheck(ctx, commit, failing, slot) {
+async function defaultCheck(ctx, commit, { failing, targets, slot, full }) {
     const name = `golden-bisect-${slot}`;
-    if (!failing) return (await ctx.gate(ctx, commit, name)).code === 0;
+    const all = (n) => Object.fromEntries(targets.map((t) => [t.id, n]));
+    if (!failing) return { runs: 1, failed: (await ctx.gate(ctx, commit, name)).code === 0 ? {} : all(1) };
     const dir = join(ctx.main, ".worktrees", name);
     prepareScratch(ctx, dir, commit);
     const log = join(ctx.main, `tmp/golden/verify-logs/bisect-${commit.slice(0, 10)}.log`);
     const opts = { cwd: dir, env: ctx.env, log };
-    if ((await runLogged("pnpm", ["exec", "nx", "run-many", "-t", "build"], opts)).code !== 0) return false;
+    if ((await runLogged("pnpm", ["exec", "nx", "run-many", "-t", "build"], opts)).code !== 0)
+        return { runs: 1, failed: all(1) };
     const { SHARDS } = await import(pathToFileURL(join(dir, "tools/ci-test-matrix.mjs")).href);
-    const { flaky = {}, tests = [] } = readState(ctx).last ?? {};
-    for (const shard of failing) {
-        const entry = SHARDS.find((s) => s.shard === shard) ?? { shard };
-        const target = tests.filter((t) => t.shard === shard);
-        if (!(await checkShard(ctx, { dir, opts, shard: entry, plan: flaky[shard], target }))) return false;
-    }
-    return true;
-}
-
-/**
- * One bisect run's verdict on the failures verification saw: `bad` when one of them fails here (the same test
- * with the same key, or any failure of a test that timed out), `pass` on exit 0, else `unknown` (another test, a
- * killed run, a coverage error), which is never counted as bad. With no failures known (the ledger had none), any
- * failure is bad.
- * @param code the run's exit code
- * @param rec its ledger record, or null
- * @param target the failures `{ file, name, key, status }`
- * @returns pass, bad or unknown
- */
-export function pointVerdict(code, rec, target) {
-    if (code === 0) return "pass";
-    if (!target.length || !rec) return "bad";
-    const hit = (f) =>
-        target.some((t) => t.file === f.file && t.name === f.name && (t.key === f.key || t.status === "timeout"));
-    return rec.failures.some(hit) ? "bad" : "unknown";
-}
-
-/**
- * One shard at one bisect point, each run recorded as a `bisect` invocation. A run that says nothing about the
- * failures verification saw (pointVerdict `unknown`) is run once more and never counted as bad. A shard whose
- * failing tests are all flaky runs only their files, up to 10 times, and is bad once they fail `plan.threshold`
- * times (design 5.3); it stops as soon as the answer is settled either way.
- * @param ctx the context
- * @param job what to run
- * @param job.dir the bisect worktree
- * @param job.opts runLogged's options
- * @param job.shard the SHARDS entry
- * @param job.plan `{ threshold }` for a flaky shard, else undefined
- * @param job.target the failures verification saw in this shard
- * @returns true when it passed
- */
-async function checkShard(ctx, { dir, opts, shard, plan, target }) {
-    const files = [...new Set(target.map((t) => t.file))];
-    const command = plan && shard["test-command"] ? selectedCommand(dir, shard, files) : null;
-    const n = plan ? 10 : 1;
-    const threshold = plan?.threshold ?? 1;
-    let hits = 0;
+    const failed = {};
     let runs = 0;
-    let retried = false;
-    while (runs < n) {
-        const verdict = await bisectRun(ctx, { dir, opts, shard, target, command, files });
-        if (verdict === "unknown" && !retried) {
-            retried = true;
-            continue;
+    while (runs < CONFIRM_RUNS) {
+        for (const shard of failing) {
+            const target = targets.filter((t) => t.shard === shard);
+            if (!target.length) continue;
+            const entry = SHARDS.find((s) => s.shard === shard) ?? { shard };
+            for (const id of await shardRun(ctx, { dir, opts, shard: entry, target }))
+                failed[id] = (failed[id] ?? 0) + 1;
         }
         runs++;
-        if (verdict === "bad") hits++;
-        if (hits >= threshold) return false;
-        if (hits + (n - runs) < threshold) return true;
+        if (!full && !failedEvery({ runs, failed }).length) break;
     }
-    return true;
+    return { runs, failed };
 }
 
-// One run of a shard (or of `command`, its failing files) at a bisect point, recorded; its pointVerdict.
-async function bisectRun(ctx, { dir, opts, shard, target, command, files }) {
+/**
+ * Which of a check's targets one run failed: none on exit 0; with no ledger record, or a target that is a whole
+ * shard, every target (any failure counts); else those that failed here (the same test with the same key, or any
+ * failure of a test that timed out). An empty list from a failed run says nothing about them.
+ * @param code the run's exit code
+ * @param rec its ledger record, or null
+ * @param target the targets `{ id, file, name, key, status }`
+ * @returns their ids
+ */
+export function failedTargets(code, rec, target) {
+    if (code === 0) return [];
+    if (!rec || target.some((t) => !t.file)) return target.map((t) => t.id);
+    const hit = (t) =>
+        rec.failures.some((f) => t.file === f.file && t.name === f.name && (t.key === f.key || t.status === "timeout"));
+    return target.filter(hit).map((t) => t.id);
+}
+
+// One counted run of a shard's targets: a run that failed but none of them (another test, a killed run, a coverage
+// error) is run once more, and then counts as passing them, never as failing.
+async function shardRun(ctx, job) {
+    for (let attempt = 0; ; attempt++) {
+        const { code, rec } = await bisectRun(ctx, job);
+        const ids = failedTargets(code, rec, job.target);
+        if (code === 0 || ids.length || attempt > 0) return ids;
+    }
+}
+
+// One run of a shard's failing files (the whole shard when none is known), recorded as a `bisect` invocation.
+async function bisectRun(ctx, { dir, opts, shard, target }) {
+    const files = [...new Set(target.map((t) => t.file).filter(Boolean))];
+    const command = files.length && shard["test-command"] ? selectedCommand(dir, shard, files) : null;
     const runId = ledger?.newRunId(shard.shard) ?? "";
     const env = { ...ctx.env, TEST_LEDGER_RUN: runId, TEST_LEDGER_KIND: "bisect", TEST_LEDGER_BRANCH: ctx.branch };
     const startedAt = Date.now();
@@ -700,11 +799,7 @@ async function bisectRun(ctx, { dir, opts, shard, target, command, files }) {
     const facts = { shard: shard.shard, code: r.code, log: r.output, root: dir, runId, startedAt, env };
     Object.assign(facts, { runs: cmd ? expectedRuns(cmd) : 1, main: ctx.main, logFile: opts.log });
     Object.assign(facts, { selected: command ? files : null });
-    return pointVerdict(
-        r.code,
-        ledgerDo(ctx, (l) => l.record(facts)),
-        target,
-    );
+    return { code: r.code, rec: ledgerDo(ctx, (l) => l.record(facts)) };
 }
 
 // golden-verified on GitHub, which branches merge. No gate: the commit is on golden, gated and its LFS
@@ -844,6 +939,20 @@ export function describe(ctx) {
     return lines.join("\n");
 }
 
+// What a finished failure names: the culprit with its evidence, no landing, or intermittent.
+function verdict(l) {
+    if (l.culprit) {
+        const { at, parent } = l.culprit.evidence ?? {};
+        const before = parent?.verified
+            ? "its parent is verified"
+            : `its parent passed ${parent?.runs} of ${parent?.runs}`;
+        const proof = at ? `: failed ${at.runs} of ${at.runs} runs, ${before}` : "";
+        return `culprit ${short(l.culprit.sha)} ${l.culprit.subject}${proof}`;
+    }
+    if (l.reproduced) return `fails every time but no landing is to blame (${l.noLanding}): revert nothing, diagnose`;
+    return "INTERMITTENT (passed in a confirming run, not quarantined): revert nothing, find the mechanism";
+}
+
 function lastLine(l) {
     const head = `${l.status} ${short(l.commit)} at ${l.at}`;
     if (l.status === "passed") return head;
@@ -851,12 +960,15 @@ function lastLine(l) {
         const issues = [...new Set(Object.values(l.issues ?? {}))].map((n) => `#${n}`).join(", ");
         return `${head}: the same failures as the verification before (issues ${issues}), not bisected again; log ${l.log}`;
     }
+    if (l.status === "confirming") return `${head}, confirming on the same commit; log ${l.log}`;
     if (l.status === "bisecting") {
-        return `${head}, ${Object.keys(l.bisect.points).length} of ${l.bisect.candidates.length} points tested (${l.failing?.join(", ") ?? "whole gate"}); log ${l.log}`;
+        return `${head}, ${Object.keys(l.bisect.points).length} of ${l.bisect.candidates.length} landings tested (${l.failing?.join(", ") ?? "whole gate"}); log ${l.log}`;
     }
-    const culprit = l.culprit
-        ? `culprit ${short(l.culprit.sha)} ${l.culprit.subject}`
-        : "NOT REPRODUCED when re-run: find the mechanism, never call it a flake";
+    if (l.status === "flaky") {
+        const held = l.quarantined.map((q) => `${q.id} (#${q.issue})`).join(", ");
+        return `${head}: intermittent, passed in a confirming run; quarantined, nothing to revert: ${held}; log ${l.log}`;
+    }
+    const culprit = verdict(l);
     const claim = l.handling ? `; claimed by ${l.handling.session}` : "";
     return `${head}: ${culprit}; failing ${l.failing?.join(", ") ?? "(not a test shard)"}; log ${l.log}${claim}`;
 }

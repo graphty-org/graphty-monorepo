@@ -461,6 +461,15 @@ export abstract class MapSurface {
         return false;
     }
 
+    /**
+     * How bright the picture is at a point of the surface, from 0 to 1, multiplied into its
+     * colour; null draws every point at full brightness.
+     * @returns The shading of a point in the root's own space, or null.
+     */
+    protected pointShade(): ((x: number, y: number, z: number) => number) | null {
+        return null;
+    }
+
     /** Drops every tile's mesh (the geometry changed) and redraws; keeps loaded textures. */
     protected invalidateGeometry(): void {
         for (const e of this.entries.values()) {
@@ -471,7 +480,7 @@ export abstract class MapSurface {
     }
 
     /** Something changed the picture: update before the next render, and tell the host to render. */
-    private changed(): void {
+    protected changed(): void {
         this.dirty = true;
         this.onChangedObservable.notifyObservers(this);
     }
@@ -848,6 +857,16 @@ export abstract class MapSurface {
                 const at = i - (i % 3);
                 return v / (Math.hypot(positions[at], positions[at + 1], positions[at + 2]) || 1);
             });
+        }
+        const shade = this.pointShade();
+        if (shade) {
+            // Multiplied into the unlit picture by the standard material, per vertex.
+            const colors: number[] = [];
+            for (let i = 0; i < positions.length; i += 3) {
+                const b = shade(positions[i], positions[i + 1], positions[i + 2]);
+                colors.push(b, b, b, 1);
+            }
+            vertexData.colors = colors;
         }
         vertexData.applyToMesh(mesh);
         const material = new StandardMaterial(`${mesh.name}-material`, this.scene);

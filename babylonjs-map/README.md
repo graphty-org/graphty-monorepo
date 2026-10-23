@@ -31,6 +31,21 @@ default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both 
 wrapped onto the sphere and needs no light: it is drawn at full brightness where the globe faces the
 camera and darker toward its rim, so it reads as a ball.
 
+Two looks are off by default and switch on with an option, or later with the property of the same
+name:
+
+```ts
+const globe = new Globe(scene, {
+    radius: 100,
+    atmosphere: true, // a thin blue glow of air around the rim, added onto the background
+    sun: { lat: 23.4, lon: -30 }, // where the sun is overhead: the far side is dark, with a soft twilight
+});
+globe.sun = null; // every side lit alike again
+```
+
+The glow is added onto what is behind the globe, so it shows on a dark background and fades into a
+light one.
+
 ## A flat map
 
 ```ts
@@ -62,7 +77,7 @@ gives) is drawn from both sides of the line.
 
 | Source                        | What it shows                                       | Deepest zoom |
 | ----------------------------- | --------------------------------------------------- | ------------ |
-| `natural-earth` (the default) | A 2048 x 1024 world picture shipped in the package  | one picture  |
+| `natural-earth` (the default) | A 4096 x 2048 world picture shipped in the package  | one picture  |
 | `natural-earth-gray`          | The same picture as a plain light gray backdrop     | one picture  |
 | `openstreetmap`               | Streets                                             | 19           |
 | `opentopomap`                 | Topographic                                         | 17           |

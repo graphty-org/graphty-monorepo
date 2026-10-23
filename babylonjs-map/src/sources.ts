@@ -67,7 +67,7 @@ const OSM_URL = "https://www.openstreetmap.org/copyright";
 const NATURAL_EARTH = new URL("../assets/natural-earth.jpg", import.meta.url).href;
 
 /**
- * Free map sources usable from a static page with no key. `natural-earth` is a 2048 x 1024
+ * Free map sources usable from a static page with no key. `natural-earth` is a 4096 x 2048
  * public-domain world image shipped in this package, so it contacts no third party;
  * `natural-earth-gray` is the same picture drawn as a plain light gray backdrop. The network
  * sources ask for light use: this package only loads the tiles in view and never prefetches.

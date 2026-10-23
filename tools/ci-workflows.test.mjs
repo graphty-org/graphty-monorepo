@@ -112,6 +112,10 @@ describe("the test matrix", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
         assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
         assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
+        // the three graphty parts keep their reports apart
+        assert.match(browser.coverage, /graphty-1=graphty\/.coverage-parts\/graphty-1\/lcov.info/);
+        assert.match(browser.coverage, /graphty-2=graphty\/.coverage-parts\/graphty-2\/lcov.info/);
+        assert.match(browser.coverage, /graphty-3=graphty\/.coverage-parts\/graphty-3\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
     });

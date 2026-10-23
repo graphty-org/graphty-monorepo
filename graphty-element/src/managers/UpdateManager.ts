@@ -1,8 +1,18 @@
-import type { AbstractMesh, EffectLayer, Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    Camera,
+    type EffectLayer,
+    type Mesh,
+    type Nullable,
+    type Observer,
+    type Scene,
+    type TransformNode,
+    type Vector3,
+} from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
-import type { FramingSpot } from "../cameras/OrbitCameraController";
+import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
@@ -580,17 +590,26 @@ export class UpdateManager implements Manager {
             }
         });
 
+        let changed = false;
         for (const edge of this.drawnSelectedEdges) {
-            if (!next.has(edge)) {
-                edge.setSelected(false);
+            if (!next.has(edge) && edge.setSelected(false)) {
+                changed = true;
             }
         }
 
         for (const edge of next) {
-            edge.setSelected(true);
+            if (edge.setSelected(true)) {
+                changed = true;
+            }
         }
 
         this.drawnSelectedEdges = next;
+
+        // Selecting redraws the edge marked, from a band batch of its own, and only the walk places
+        // that band: with nothing moving, the walk is skipped and the band was never drawn.
+        if (changed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**
@@ -621,8 +640,11 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
+            // Selecting redraws the edge marked, from a different batch: placed by the walk too.
             const selected = edgeSelection !== null && placed && edgeSelection.has(index);
-            edge.setSelected(selected);
+            if (edge.setSelected(selected)) {
+                revealed = true;
+            }
             if (selected) {
                 this.drawnSelectedEdges.add(edge);
             }
@@ -1018,6 +1040,11 @@ export class UpdateManager implements Manager {
             return false;
         }
 
+        // The depth-independent size switched on or off and not yet applied to the meshes.
+        if ((this.depthSizingPivot() !== null) !== this.depthScaled) {
+            return false;
+        }
+
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
             return false;
@@ -1142,6 +1169,16 @@ export class UpdateManager implements Manager {
         }
 
         this.runUpdatePass(frameMs);
+        this.refreshScreenBorders();
+
+        // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
+        if (this.sizeNodesForDepth()) {
+            for (const edge of this.dataManager.edges.values()) {
+                edge.invalidatePositionCache();
+            }
+            this.forceEdgeWalk();
+            this.updateEdges();
+        }
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1165,12 +1202,20 @@ export class UpdateManager implements Manager {
      */
     private followSelection(): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        if (this.willZoomToFit()) {
+            // The glide starts on the pass after the framing ends, so the frame the framing ends
+            // on is not the final one: without this, a stable frame was reported in between, with
+            // the pivot on the graph's middle rather than on the selection.
+            this.followingSelection = !this.framingHasNothingToFrame;
             return;
         }
 
@@ -1184,12 +1229,12 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
-     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     * Bring the meshes into line with the masks and the style paint that has arrived: what every
+     * frame does first, and what a layout that reads node sizes asks for before it reads them
+     * (`LayoutManager.drawArrivedPaint`), so it reads the sizes about to be drawn whether or not a
+     * frame has run since the paint arrived.
      */
-    private runUpdatePass(frameMs: number): void {
-        this.frameCount++;
-
+    drawArrivedPaint(): void {
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
         // filter has just hidden must not contribute to this frame's bounding box or be picked.
         this.syncViewMasks();
@@ -1201,6 +1246,16 @@ export class UpdateManager implements Manager {
         disposeLabelsTogether(() => {
             this.syncStyles();
         });
+    }
+
+    /**
+     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
+     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     */
+    private runUpdatePass(frameMs: number): void {
+        this.frameCount++;
+
+        this.drawArrivedPaint();
         // Nothing painted is left to apply: a frame drawn now shows every element's style.
         if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
             this.dataManager.notePaintDrawn();
@@ -1597,6 +1652,103 @@ export class UpdateManager implements Manager {
         return true;
     }
 
+    /** Whether a node mesh currently carries a depth-independent scale. */
+    private depthScaled = false;
+
+    /**
+     * The point whose depth every node is drawn at, when depth-independent size applies: the
+     * option is on and the active camera is the perspective orbit camera.
+     * @returns The orbit's pivot, or null when sizes follow the perspective.
+     */
+    private depthSizingPivot(): TransformNode | null {
+        const camera = this.graphContext.getScene().activeCamera;
+        const orbit = this.camera.getActiveController();
+        return this.graphContext.getStyles().config.behavior.node.depthIndependentSize === true &&
+            camera?.mode === Camera.PERSPECTIVE_CAMERA &&
+            orbit instanceof OrbitCameraController
+            ? orbit.pivot
+            : null;
+    }
+
+    /**
+     * Draw every node at the size it would have at the orbit's pivot depth when
+     * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
+     * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
+     * divides by the depth, so the drawn size is world size over the pivot depth for every node.
+     * Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     *
+     * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
+     * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
+     * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
+     */
+    private sizeNodesForDepth(): boolean {
+        const camera = this.graphContext.getScene().activeCamera;
+        const pivot = this.depthSizingPivot();
+        const on = pivot !== null;
+
+        if (!on && !this.depthScaled) {
+            return false;
+        }
+
+        let changed = false;
+        if (!on) {
+            for (const node of this.layoutManager.nodes) {
+                if (node.mesh.scaling.x !== 1) {
+                    node.mesh.scaling.setAll(1);
+                    changed = true;
+                }
+            }
+            this.depthScaled = false;
+
+            return changed;
+        }
+
+        const view = camera?.getViewMatrix().m;
+        const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
+        this.depthScaled = true;
+        const reference = depthOf(pivot.getAbsolutePosition());
+        if (Number.isNaN(reference) || reference <= 0) {
+            return false;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const { mesh } = node;
+            const depth = depthOf(mesh.getAbsolutePosition());
+            const scale = depth > 0 ? depth / reference : 1;
+            if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
+                mesh.scaling.setAll(scale);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /**
+     * Say that a mesh was shown or hidden outside a pass, so the next frame re-reads what is drawn
+     * instead of drawing the frozen list (see `settleActiveMeshFreeze`).
+     */
+    meshesShownOrHidden(): void {
+        this.sceneChanged = true;
+    }
+
+    /**
+     * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
+     *
+     * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node
+     * thumbnail, drawn by its own camera into a render target -- is not in it and comes out as
+     * nothing. The next quiet frame freezes the list again (see `settleActiveMeshFreeze`).
+     */
+    thawActiveMeshes(): void {
+        // Withdraws a freeze Babylon has not run yet; see `settleActiveMeshFreeze`.
+        this.freezeRequest++;
+
+        if (this.activeMeshesFrozen) {
+            this.graphContext.getScene().unfreezeActiveMeshes();
+            this.activeMeshesFrozen = false;
+        }
+    }
+
     /**
      * Make the next frame visit every edge, whatever the nodes say.
      *
@@ -1647,14 +1799,7 @@ export class UpdateManager implements Manager {
         this.sceneChanged = false;
 
         if (changed) {
-            // Withdraws a freeze Babylon has not run yet; see below.
-            this.freezeRequest++;
-
-            if (this.activeMeshesFrozen) {
-                scene.unfreezeActiveMeshes();
-                this.activeMeshesFrozen = false;
-            }
-
+            this.thawActiveMeshes();
             return;
         }
 
@@ -1690,6 +1835,32 @@ export class UpdateManager implements Manager {
                     scene.incrementRenderId();
                 }
             });
+        }
+    }
+
+    /** The camera's matrices when screen-width borders were last checked; see `refreshScreenBorders`. */
+    private screenBorderCamera: [number, number] | null = null;
+
+    /**
+     * Keep every border drawn in screen pixels (`border.screenWidth`) at its width on screen: on a
+     * frame the camera's view or projection changed, each such node rebuilds its ring if the zoom
+     * moved its width. A node with no such border answers at once.
+     */
+    private refreshScreenBorders(): void {
+        const camera = this.graphContext.getScene().activeCamera;
+        if (!camera) {
+            return;
+        }
+
+        const now: [number, number] = [camera.getViewMatrix().updateFlag, camera.getProjectionMatrix().updateFlag];
+        const before = this.screenBorderCamera;
+        this.screenBorderCamera = now;
+        if (before?.[0] === now[0] && before[1] === now[1]) {
+            return;
+        }
+
+        for (const node of this.dataManager.nodes.values()) {
+            node.refreshScreenBorder();
         }
     }
 

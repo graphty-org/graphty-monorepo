@@ -1,0 +1,3 @@
+#!/bin/sh
+# Never copy, always merge: refuses every rebase (tools/no-copy.sh says why).
+./tools/no-copy.sh rebase

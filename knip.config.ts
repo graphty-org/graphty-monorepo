@@ -90,6 +90,16 @@ const config: KnipConfig = {
             ignoreDependencies: production ? ["neo4j-driver"] : [],
         },
 
+        // graph-io-fidelity (private): the side-by-side style fidelity Storybook. It loads graphty-element and
+        // graph-io's fidelity harness from source by relative path (the scene extractor reads the renderer's own
+        // classes), so the two workspace dependencies are there for nx's project graph, not for an import; lit is
+        // the web-components Storybook renderer's peer.
+        "graph-io/fidelity-stories": {
+            entry: [".storybook/*.ts", "stories/**/*.stories.ts"],
+            project: [".storybook/*.ts", "stories/**/*.ts"],
+            ignoreDependencies: ["@graphty/graph-io", "@graphty/graphty-element", "lit"],
+        },
+
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
         "cytoscape-extensions": {
             // the root, and the Node build the "#gpu-platform" dynamic import loads (knip 5.88 follows the

@@ -1,5 +1,5 @@
 import type { TextSegment } from "./RichTextLabel.ts";
-import { measureLine } from "./RichTextParser";
+import { measureLine, type RunAlign } from "./RichTextParser";
 
 interface RenderOptions {
     textAlignment: "left" | "center" | "right";
@@ -18,6 +18,7 @@ interface RenderOptions {
     textOutlineColor: string;
     textOutlineWidth: number;
     textOutlineJoin: CanvasLineJoin;
+    runAlign?: RunAlign;
 }
 
 /**
@@ -53,10 +54,10 @@ export class RichTextRenderer {
         let currentY = contentArea.y + this.options.marginTop + pad;
 
         for (const lineSegments of parsedContent) {
-            const { width, lineBox, baseline } = measureLine(ctx, lineSegments, this.options);
+            const { width, lineBox, baseline, offsets } = measureLine(ctx, lineSegments, this.options);
             const startX = this.calculateLineStartX(textAreaX, textAreaWidth, width);
 
-            this.drawLine(ctx, lineSegments, startX, currentY, lineBox, currentY + baseline);
+            this.drawLine(ctx, lineSegments, startX, currentY, lineBox, currentY + baseline, offsets);
             currentY += lineBox;
         }
     }
@@ -81,12 +82,15 @@ export class RichTextRenderer {
         startX: number,
         lineTop: number,
         lineBox: number,
-        baselineY: number,
+        lineBaseline: number,
+        offsets: readonly number[],
     ): void {
         let currentX = startX;
 
-        for (const segment of lineSegments) {
+        for (const [i, segment] of lineSegments.entries()) {
             const { style } = segment;
+            // each run on its own baseline, where the line's alignment and its own shift put it
+            const baselineY = lineBaseline + (offsets[i] ?? 0);
 
             ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
             ctx.textBaseline = "alphabetic";

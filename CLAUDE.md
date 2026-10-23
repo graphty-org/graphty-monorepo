@@ -345,7 +345,7 @@ The `tools/` directory contains build scripts:
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
 | `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
-| `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `cut`, `ship`, `revert <branch>` and `status` do the rest. See "Landing changes (golden-local)" |
+| `land.mjs` | How every change reaches master: `land <branch>` merges a committed branch into the local integration branch `golden`, pushes golden through `push-queue.sh` (the full pre-push gate) and refreshes the standing golden pull request and its screenshot preview; `cut`, `cut-fix <branch>`, `ship`, `revert <branch>`, `status` (with the open work) and `prune-branches` (a list; `--yes`, by hand, deletes) do the rest. See "Landing changes (golden-local)" |
 | `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when the checkout's fingerprint (HEAD and every file git does not ignore) is the one they passed on |
@@ -362,7 +362,10 @@ The `tools/` directory contains build scripts:
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
-| `worktree-new.sh` | `<branch> [base] [name]`: a worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done |
+| `worktree-new.sh` | `<branch> [base] [name]`: a worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done. It needs the branch's issue (a number of three or more digits in the branch name, `--issue N`, or `--new-issue "<title>"`), pushes the new branch, labels the issue `in-progress` and writes the branch's progress note on it |
+| `branch-note.mjs` | The branch's progress note on its issue, one comment edited in place: branch, worktree, owning session, latest commit, and what is done, left and next. `update --done <t> --left <t> --next <t>` when you stop working |
+| `branch-push.sh` | Run by `.husky/post-commit`: pushes the current branch to GitHub in the background after every commit (no gate; never golden, golden-cut or master) and refreshes its note's latest commit at most every 10 minutes. Log: `tmp/branch-push.log` in the main checkout |
+| `no-copy.sh` | Run by `.husky/pre-commit`, `prepare-commit-msg` and `pre-rebase`: refuses a cherry-pick or a rebase. Never copy, always merge |
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
@@ -707,12 +710,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 30 test shards on a manual dispatch or the release train (a push
+The CI runs 32 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
-graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+graphty-1, graphty-2, graphty-3, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -723,7 +726,7 @@ shard. The shards:
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
-- `graphty`, `graphty-storybook`
+- `graphty-1`, `graphty-2`, `graphty-3` (the app's tests in three parts, each with its own coverage report), `graphty-storybook`
 - `remote-logger`
 - `visual-review`
 - `githerd`
@@ -1145,7 +1148,11 @@ its requirements are in `design/ci/golden-local.md`.
 How to land a change:
 
 1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):
-   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. Before your final tests, bring the
+   `./tools/worktree-new.sh <branch> origin/golden`. Every branch belongs to an issue: put its number in
+   the branch name (`fix/1234-topic`), or pass `--issue N`, or `--new-issue "<title>"` to open one. The
+   script pushes the branch, labels the issue `in-progress` and writes the branch's progress note on it.
+   Commit there; every commit pushes the branch to GitHub (`.husky/post-commit`). When you stop, say where
+   the work stands: `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`. Before your final tests, bring the
    branch up to date: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
    --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
    tool-version differences then show up early, from the session that knows the change, not at landing.
@@ -1186,12 +1193,19 @@ branch, has uncommitted changes or has commits master lacks, they leave it alone
 Every `node tools/land.mjs ...`, from any checkout or worktree, hands itself to one live copy,
 `.worktrees/land-live/tools/land.mjs`, with the same arguments, so every session runs the same version
 (without the live copy it runs itself and prints one line saying so); a new version goes live with
-`tools/live.sh land <branch>`. `--priority` (on `land`, `revert` and `cut`) waits ahead of every
+`tools/live.sh land <branch>`. `--priority` (on `land`, `revert`, `cut` and `cut-fix`) waits ahead of every
 ordinary landing, never interrupting the one running; use it only for fixes that unblock the pipeline:
 a red master, a broken golden, a fix a cut is blocked on.
 
 Rules:
 
+- **Never copy, always merge.** Never cherry-pick or rebase: a copy gets new commit ids, so the same
+  change exists twice and lands twice. The hooks refuse both (`tools/no-copy.sh`), and `land` refuses a
+  branch that holds copies of commits golden already has, naming them. `--no-verify` is the last resort only.
+- Every branch is on GitHub and belongs to an issue (see step 1). Merged branches stay, on GitHub and here,
+  as history: nothing deletes them automatically. `node tools/land.mjs prune-branches` only lists the
+  branches golden holds; deleting them from GitHub takes `--yes`, run by hand, and logs each name and tip
+  to `tmp/pruned-branches.log` first.
 - Do not open pull requests for your changes, do not push your branch to master, and do not open a
   pull request to master. Do not stack pull requests. The one exception is a baseline seed pull
   request that `visual-seed.yml` opens for the owner (see "Visual review"); it merges into master
@@ -1210,7 +1224,10 @@ Rules:
 - What ships is a cut, not golden's tip: `node tools/land.mjs cut [<commit>]` points `golden-cut` at the
   commit you name, or else the newest golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
-  are made on the cut pull request. A landing that breaks golden gets one pipeline round to be fixed, then
+  are made on the cut pull request. A fix the cut needs starts from the cut,
+  `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with `node tools/land.mjs cut-fix <branch>`:
+  it merges the branch into `golden-cut`, pushes it through the gate and starts the cut's preview, then lands
+  the same branch on golden, so both hold the same commits. A landing that breaks golden gets one pipeline round to be fixed, then
   is reverted from golden and landed again once fixed.
 - `node tools/land.mjs ship`, only after the owner says the cut review is finished: it marks the
   cut pull request ready and turns on auto-merge. CI runs once on it; green merges it into
@@ -1218,7 +1235,10 @@ Rules:
   that caused it from the failure, revert it from golden or fix it, and the pull request goes back
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.
 - `node tools/land.mjs status` shows golden against `origin/golden` and master, the landed changes
-  not yet on master, the golden pull request's state, the lock holder and the newest preview log.
+  not yet on master, the golden pull request's state, the lock holder, the newest preview log, and the
+  open work: every branch on GitHub that golden does not have, with its issue, the owner its note names,
+  its last commit, whether a `ready` marker names its tip, and its worktree. That table is the one place
+  to see open work.
 - An issue labeled `in-progress` belongs to the session that labeled it (its comment names the
   session and branch); other sessions skip it. Two project skills keep work moving without the
   owner routing it: `/loop 30m /pipeline-round` handles alarms, lands and ships golden and owns
@@ -1257,7 +1277,7 @@ origin/master: a fast-forward or plain merge when it holds no gate fixes of its 
 
 Several agents often work in this repository at once. They share one disk and one browser, so:
 
-- Work in your own worktree (`./tools/worktree-new.sh <branch>`), never by switching branches in
+- Work in your own worktree (`./tools/worktree-new.sh <branch> --issue N`), never by switching branches in
   the main checkout.
 - Write scratch files to `tmp/<agent-or-task-name>/`, never to `tmp/` itself, so one agent's
   screenshots and logs do not overwrite another's.

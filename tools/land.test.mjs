@@ -10,11 +10,13 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
+import { noteBody } from "./branch-note.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
     context,
     defaultPreview,
+    handOff,
     issueRefs,
     landedBranches,
     main,
@@ -27,6 +29,10 @@ const dir = mkdtempSync(join(tmpdir(), "land-"));
 const repo = join(dir, "main");
 const other = join(dir, "other");
 const env = isolatedGitEnv();
+// A landing runs this file through its own hand-off to the live copy, which marks the environment;
+// the tests' land.mjs must not inherit that mark, or it never hands off itself.
+delete env.LAND_LIVE;
+delete env.LAND_LIVE_COPY;
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 const git = (cwd, ...args) => {
@@ -47,8 +53,10 @@ const branch = (name, files, message, base = "origin/master") => {
 
 let gh;
 let previews;
+let previewHeads;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
+let refspecs; // what each push sent
 let duringPush; // runs once inside the next push, as if the gate were running
 let installed = null; // the lockfile golden's node_modules were last installed from
 let installs = [];
@@ -89,6 +97,7 @@ before(() => {
         gh: (_ctx, args) => {
             gh.push(args);
             const cut = args.includes("golden-cut");
+            if (args[1] === "graphql") return graphql(args.find((a) => a.startsWith("query=")));
             if (args[1] === "list") {
                 const pr = cut ? gh.cut : gh.open && { number: 7, isDraft: true, url: "u/pull/7" };
                 return JSON.stringify(pr ? [pr] : []);
@@ -102,6 +111,7 @@ before(() => {
         },
         push: async (c, cwd = c.golden, refspec = "golden:golden") => {
             pushes++;
+            refspecs.push(refspec);
             const during = duringPush;
             duringPush = null;
             during?.();
@@ -114,7 +124,11 @@ before(() => {
             });
             return { code: r.status, output: r.stderr };
         },
-        preview: (_ctx, pr) => previews.push(pr),
+        // What the real preview passes as --expect: the HEAD of the worktree it is given.
+        preview: (c, pr, cwd = c.golden) => {
+            previews.push(pr);
+            previewHeads.push(git(cwd, "rev-parse", "HEAD"));
+        },
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
         addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
@@ -128,11 +142,35 @@ before(() => {
 beforeEach(() => {
     gh = [];
     previews = [];
+    previewHeads = [];
     pushResult = 0;
     pushes = 0;
+    refspecs = [];
     duringPush = null;
     installs = [];
 });
+
+/**
+ * The fake GitHub's answer to readIssues' query: each `iN: issue(number: N)` alias from gh.issues.
+ * @param query the `query=...` argument
+ * @returns the JSON text
+ */
+const graphql = (query) => {
+    const repository = {};
+    for (const [, alias, n] of query.matchAll(/(i\d+): issue\(number: (\d+)\)/g)) {
+        const issue = gh.issues?.[n];
+        repository[alias] = issue
+            ? {
+                  number: Number(n),
+                  title: issue.title ?? "t",
+                  state: "OPEN",
+                  labels: { nodes: [] },
+                  comments: { nodes: issue.comments.map((body, i) => ({ databaseId: i + 1, body })) },
+              }
+            : null;
+    }
+    return JSON.stringify({ data: { repository } });
+};
 
 /**
  * Whether a fake gh call is the description update (a REST PATCH of the pull request).
@@ -510,6 +548,31 @@ describe("landing several branches", () => {
     });
 });
 
+describe("copies", () => {
+    it("refuses a branch holding a cherry-picked copy of a golden commit, naming it, golden untouched", async () => {
+        const wt = branch("copy/c", { "cp.txt": "own\n" }, "feat: own work");
+        git(wt, "cherry-pick", git(repo, "rev-parse", "multi/c"));
+        const before = head();
+        const r = await run("land", "copy/c");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /copy\/c holds copies of commits golden already has/);
+        assert.match(r.out, /\n {2}[0-9a-f]{10} feat: mc\n/);
+        assert.match(r.out, /Never copy, always merge/);
+        assert.equal(head(), before);
+        assert.equal(pushes, 0);
+    });
+
+    it("refuses the copy in a landing of several and lands the rest", async () => {
+        branch("copy/ok", { "cpok.txt": "ok\n" }, "feat: fine");
+        gh.open = true;
+        const r = await run("land", "copy/c", "copy/ok");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /copy\/c\s+refused \(copies of golden commits\)\n\s+copy\/ok\s+landed/);
+        assert.equal(pushes, 1);
+        assert.ok(existsSync(join(golden, "cpok.txt")) && !existsSync(join(golden, "cp.txt")));
+    });
+});
+
 describe("cuts", () => {
     const remote = (ref) =>
         spawnSync("git", ["rev-parse", "-q", "--verify", ref], {
@@ -684,6 +747,128 @@ describe("cuts", () => {
     });
 });
 
+describe("cut fixes", () => {
+    const onBoth = (sha) =>
+        ["origin/golden-cut", "origin/golden"].every(
+            (b) => spawnSync("git", ["merge-base", "--is-ancestor", sha, b], { cwd: repo, env }).status === 0,
+        );
+
+    it("refuses a branch that would bring golden commits the cut lacks, and says how to start one", async () => {
+        branch("cutfix/advance", { "adv.txt": "a\n" }, "feat: after the cut");
+        gh.open = true;
+        assert.equal((await run("land", "cutfix/advance")).code, 0);
+        branch("cutfix/from-golden", { "fg.txt": "x\n" }, "fix: from golden", "origin/golden");
+        const r = await run("cut-fix", "cutfix/from-golden");
+        assert.equal(r.code, 1, r.out);
+        assert.match(
+            r.out,
+            /cutfix\/from-golden cannot go into the cut: it would bring \d+ commits of golden or master/,
+        );
+        assert.match(r.out, /\.\/tools\/worktree-new\.sh <branch> origin\/golden-cut/);
+        assert.deepEqual(refspecs, ["golden:golden"], "nothing pushed to golden-cut");
+    });
+
+    it("merges the fix into golden-cut, pushes it, starts its preview, then lands the same commits on golden", async () => {
+        const wt = branch("cutfix/ok", { "cf.txt": "fix\n" }, "fix: the cut\n\nRefs #44", "origin/golden-cut");
+        const tip = git(wt, "rev-parse", "HEAD");
+        gh.open = true;
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
+        const r = await run("cut-fix", "cutfix/ok");
+        assert.equal(r.code, 0, r.out);
+        assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
+        git(repo, "fetch", "-q", "origin");
+        assert.ok(onBoth(tip), "one commit id on both");
+        assert.equal(git(repo, "log", "-1", "--format=%s", "origin/golden-cut"), "land: cutfix/ok");
+        assert.equal(git(repo, "log", "-1", "--format=%s", "origin/golden"), "land: cutfix/ok");
+        assert.ok(!existsSync(join(ctx.cut, "adv.txt")), "the cut did not take golden's newer landing");
+        assert.deepEqual(previews, [9, 7]);
+        assert.equal(previewHeads[0], git(repo, "rev-parse", "origin/golden-cut"), "--expect the pushed cut head");
+    });
+
+    it("run again, finds the fix on both and pushes nothing", async () => {
+        const r = await run("cut-fix", "cutfix/ok");
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /already on golden-cut/);
+        assert.match(r.out, /already on golden/);
+        assert.equal(pushes, 0);
+    });
+});
+
+describe("open work", () => {
+    it("lists each branch on GitHub that golden lacks: issue, owner, date, ready, worktree, from one query", async () => {
+        const wt = branch("feat/321-open", { "o.txt": "o\n" }, "feat: open");
+        git(wt, "push", "-q", "origin", "feat/321-open");
+        const tip = git(wt, "rev-parse", "HEAD");
+        const wt2 = branch("chore/no-number", { "n.txt": "n\n" }, "chore: n");
+        git(wt2, "push", "-q", "origin", "chore/no-number");
+        git(repo, "config", "branch.chore/no-number.issue", "55");
+        gh.issues = {
+            321: {
+                comments: [
+                    noteBody("feat/321-open", { owner: "session abc" }),
+                    `pipeline-round: ready feat/321-open ${tip}`,
+                ],
+            },
+            55: { comments: [] },
+        };
+        const r = await run("status");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(gh.filter((a) => a[1] === "graphql").length, 1);
+        assert.match(r.out, /open work \(branches on GitHub that golden does not have\):/);
+        assert.match(r.out, /branch\s+issue\s+owner\s+last commit\s+ready\s+worktree/);
+        assert.match(r.out, new RegExp(`feat/321-open\\s+#321\\s+session abc\\s+\\d{4}-\\d\\d-\\d\\d\\s+yes\\s+${wt}`));
+        assert.match(r.out, new RegExp(`chore/no-number\\s+#55\\s+-\\s+\\S+\\s+no\\s+${wt2}`));
+    });
+});
+
+describe("pruning branches", () => {
+    const remote = (b) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", `refs/heads/${b}`], {
+            cwd: join(dir, "origin.git"),
+            env,
+            encoding: "utf8",
+        }).stdout.trim();
+    const local = (b) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", `refs/heads/${b}`], { cwd: repo, env }).status === 0;
+
+    it("a landing deletes nothing: the landed branch stays on GitHub and here", async () => {
+        const wt = branch("prune/me", { "pm.txt": "p\n" }, "feat: pm");
+        git(wt, "push", "-q", "origin", "prune/me");
+        gh.open = true;
+        const r = await run("land", "prune/me");
+        assert.equal(r.code, 0, r.out);
+        assert.ok(remote("prune/me"));
+        assert.ok(existsSync(wt) && local("prune/me"));
+    });
+
+    it("by default only lists what --yes would delete", async () => {
+        git(repo, "fetch", "-q", "origin");
+        const tips = ["origin/golden:refs/heads/fresh/gone", "origin/golden:refs/heads/revert/x"];
+        git(repo, "push", "-q", "origin", "multi/d", "copy/c", ...tips);
+        git(repo, "worktree", "add", "-q", "-b", "fresh/kept", join(dir, "wt-fresh-kept"), "origin/golden");
+        git(repo, "push", "-q", "origin", "fresh/kept");
+        const r = await run("prune-branches");
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /dry run -- would delete from GitHub/);
+        for (const b of ["multi/d", "prune/me", "fresh/gone"]) {
+            assert.match(r.out, new RegExp(`\\n  ${b} [0-9a-f]{10}`));
+            assert.ok(remote(b), `${b} still on GitHub`);
+        }
+        assert.doesNotMatch(r.out, /copy\/c|fresh\/kept|revert\/x/);
+        assert.ok(!existsSync(join(repo, "tmp/pruned-branches.log")));
+    });
+
+    it("with --yes deletes them on GitHub only, logging each name and tip first", async () => {
+        const tip = git(repo, "rev-parse", "origin/multi/d");
+        const r = await run("prune-branches", "--yes");
+        assert.equal(r.code, 0, r.out);
+        for (const b of ["multi/d", "prune/me", "fresh/gone"]) assert.equal(remote(b), "", `${b} deleted on GitHub`);
+        for (const b of ["copy/c", "fresh/kept", "revert/x", "golden", "golden-cut", "master"]) assert.ok(remote(b), b);
+        assert.match(readFileSync(join(repo, "tmp/pruned-branches.log"), "utf8"), new RegExp(`Z multi/d ${tip}\\n`));
+        assert.ok(existsSync(join(dir, "wt-multi-d")) && local("multi/d"), "worktree and local branch kept");
+    });
+});
+
 describe("the main checkout", () => {
     // A new commit on GitHub's master, made from the other clone.
     const advanceMaster = (name) => {
@@ -778,10 +963,17 @@ describe("the live copy", () => {
         assert.equal(lines.length, 2);
     });
 
+    it("the live copy runs itself and drops the hand-off mark, so the gate it pushes through starts clean", async () => {
+        const handed = { ...env, LAND_LIVE: live, LAND_LIVE_COPY: join(live, "tools/land.mjs") };
+        assert.equal(await handOff(["status"], handed), null);
+        assert.equal("LAND_LIVE_COPY" in handed, false);
+    });
+
     it("never loops: a live copy that is this tool itself runs once", () => {
         const copy = join(dir, "live-real");
         mkdirSync(join(copy, "tools"), { recursive: true });
         writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
+        writeFileSync(join(copy, "tools/branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
         // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
         const r = cli(copy, "nonsense");
         assert.equal(r.status, 1, r.stderr);

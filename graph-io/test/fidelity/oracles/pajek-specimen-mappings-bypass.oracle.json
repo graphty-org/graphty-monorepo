@@ -1,0 +1,21 @@
+{
+    "sample": "pajek-specimen-mappings-bypass",
+    "file": "graph-io/test/fidelity/specimens/pajek/specimen-mappings-bypass.paj",
+    "sha256": "a68960d0fad250ce2a1b7be8218e14281f9bbca8cd648348cce0d1e7b23393ea",
+    "program": "Pajek",
+    "version": "Pajek 6.02 (64-bit, Pajek64.zip of 2025-12-31) under Wine 9.0 on Xvfb",
+    "route": "pajek-file",
+    "command": "Pajek.exe running the startup log Pajek.log: LOADINI specimen.ini (Pajek's SAVEINI defaults, Draw window 1200 x 900); N 1 RDPAJ \"<file>\" (File > Pajek Project File > Read); E 1 DRAW 1 1 0 0 0 (Draw > Network + First Partition + First Vector); E 1 SVG 1 1 0 0 0 \"<out>.svg\" 1 0 (Draw > Export > 2D > SVG > General, SVG with Controls); EXIT",
+    "standIn": false,
+    "ini": {},
+    "varies": "Draw > Network + First Partition + First Vector",
+    "canvas": {
+        "requested": "1200 x 900 px (the Draw window's size: Pajek stretches the file's 0..1 coordinates across it, one axis at a time; vertex sizes, line widths and fonts are fixed pixels whatever the window)",
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "as Pajek writes them (the sheets' font Helvetica, Pajek's own Arial where a sheet sets none); the PNG maps them to the pinned fonts",
+    "svgPostprocessing": "the CreationDate comment (the run's clock time) is replaced with a fixed text and Windows line ends become Unix ones; nothing else changes. Pajek always adds its signature layer (id PajekSig: the spider logo and the word Pajek, bottom left), which is not part of the network.",
+    "date": "2026-10-19",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/pajek.mjs pajek-specimen-mappings-bypass && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/pajek-specimen-mappings-bypass.svg"
+}

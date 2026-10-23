@@ -1,0 +1,23 @@
+{
+    "sample": "gml-dunnart-planar-orthogonal",
+    "file": "graph-io/test/corpus/styles/gml/fidelity/dunnart-planar-orthogonal.gml",
+    "sha256": "4de5e705ab37a03c3a3c4989845d9aa3ffaacb2bf833caacde147d063c2067e3",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "gml2gv <file> | neato -n2 -Tsvg -Gsize=\"12.5,9.375!\"",
+    "standIn": true,
+    "standInReason": "yEd, which wrote this file, cannot run on this machine; this is Graphviz's own drawing of gml2gv's conversion (pinned at the file's x/y with neato -n2). gml2gv maps a GML fill to the outline color (no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (the drawing is mirrored top to bottom), and drops yEd label and edge graphics.",
+    "mirrored": true,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 462,
+        "heightPt": 675,
+        "widthPx": 616,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs gml-dunnart-planar-orthogonal && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-dunnart-planar-orthogonal.svg"
+}

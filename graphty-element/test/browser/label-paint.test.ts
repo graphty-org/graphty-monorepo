@@ -443,6 +443,28 @@ describe("a label a layer asks for, on a graph that is already drawn", () => {
         );
     });
 
+    it("draws a label whose gradient is switched on with no colors named, on the default gradient", async () => {
+        const errors: unknown[] = [];
+        const original = console.error;
+        console.error = (...args: unknown[]): void => {
+            errors.push(args);
+        };
+        try {
+            await session.styles.add({
+                ...wordsOnNodes,
+                set: { "node.label": "HELLO", "node.labelStyle": { gradient: true, padding: 6 } },
+            });
+            await operationQueueOf(graph).waitForCompletion();
+            const frame = await readFrame();
+
+            assert.isDefined(nodeObject("alpha").label, "the label is built");
+            assert.isAbove(inkNearNode(frame, "alpha"), LEGIBLE, "and drawn, on the default dark gradient");
+        } finally {
+            console.error = original;
+        }
+        assert.deepEqual(errors, [], "nothing throws in the render loop");
+    });
+
     it("leaves the label alone when a repaint changes something else", async () => {
         await session.styles.add(wordsOnNodes);
         await operationQueueOf(graph).waitForCompletion();

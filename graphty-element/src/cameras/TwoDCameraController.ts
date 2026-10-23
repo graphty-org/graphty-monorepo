@@ -1,8 +1,10 @@
 import { Camera, Engine, FreeCamera, Scene, TransformNode, Vector3, WebGPUEngine } from "@babylonjs/core";
 
+import { freeArea } from "../camera/insets";
+import type { ViewInsets } from "../camera/types";
 import type { FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
-import { framedArea } from "./OrbitCameraController";
+import { framingInsets } from "./OrbitCameraController";
 
 // === Configuration Object ===
 export interface TwoDCameraControlsConfigType {
@@ -35,6 +37,10 @@ export class TwoDCameraController {
     public camera: FreeCamera;
     public parent: TransformNode;
     public velocity = { x: 0, y: 0, zoom: 0, rotate: 0 };
+    /** Margins of the canvas something else covers, in CSS pixels; every fit keeps the graph out of them. */
+    public viewInsets: ViewInsets = {};
+    /** Told each time the reader's input pans, zooms or turns the camera. */
+    public onReaderMove?: () => void;
     /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
     public fitInsets: FitInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
@@ -105,6 +111,7 @@ export class TwoDCameraController {
     public pan(dx: number, dy: number): void {
         this.camera.position.x += dx;
         this.camera.position.y += dy;
+        this.onReaderMove?.();
     }
 
     /**
@@ -125,6 +132,26 @@ export class TwoDCameraController {
         this.camera.orthoRight = factor * (this.camera.orthoRight ?? 1);
         this.camera.orthoTop = factor * (this.camera.orthoTop ?? 1);
         this.camera.orthoBottom = factor * (this.camera.orthoBottom ?? 1);
+        this.onReaderMove?.();
+    }
+
+    /**
+     * Zoom like {@link zoom}, keeping the point under a spot on the canvas where it is.
+     * @param factor - Zoom factor (greater than 1 zooms out, less than 1 zooms in)
+     * @param x - The spot's horizontal position, 0 (left edge) to 1 (right edge).
+     * @param y - The spot's vertical position, 0 (top edge) to 1 (bottom edge).
+     */
+    public zoomAt(factor: number, x: number, y: number): void {
+        const left = this.camera.orthoLeft ?? -1;
+        const right = this.camera.orthoRight ?? 1;
+        const top = this.camera.orthoTop ?? 1;
+        const bottom = this.camera.orthoBottom ?? -1;
+        // The spot's offset from the camera in the camera's own axes, which are its parent's.
+        const offsetX = left + x * (right - left);
+        const offsetY = top - y * (top - bottom);
+        this.zoom(factor);
+        this.camera.position.x += (1 - factor) * offsetX;
+        this.camera.position.y += (1 - factor) * offsetY;
     }
 
     /**
@@ -133,6 +160,7 @@ export class TwoDCameraController {
      */
     public rotate(delta: number): void {
         this.parent.rotation.z += delta;
+        this.onReaderMove?.();
     }
 
     /**
@@ -172,23 +200,29 @@ export class TwoDCameraController {
         const sizeX = max.x - min.x;
         const sizeY = max.y - min.y;
 
-        // World units per render pixel that fit the box inside what the insets leave, and the
-        // shift that puts its center at that area's center. With no insets this is the box
-        // fitted to the whole canvas, by whichever side fills it first.
-        const { scale, width, height, shareX, shareY } = framedArea(this.engine, this.fitInsets);
-        const perPixel = Math.max(sizeX / (width * shareX), sizeY / (height * shareY));
-        const orthoSize = (perPixel * width) / 2;
-        const { left, right, top, bottom } = this.fitInsets;
+        // The half-width that fits the box into the part of the canvas the view and fit insets
+        // leave free (`free.width` and `free.height` are its shares of the canvas), whichever side binds.
+        const viewportAspect = this.engine.getRenderHeight() / this.engine.getRenderWidth();
+        const free = freeArea(
+            framingInsets(this.viewInsets, this.fitInsets),
+            this.canvas.clientWidth,
+            this.canvas.clientHeight,
+        );
+        const orthoSize = Math.max(sizeX / (2 * free.width), sizeY / (2 * viewportAspect * free.height)) * 1.1; // Small padding for visual comfort
 
-        this.camera.position.x = centerX - ((left - right) / 2) * scale * perPixel * 1.1;
-        this.camera.position.y = centerY + ((top - bottom) / 2) * scale * perPixel * 1.1;
+        // Center the box on the free area rather than on the canvas.
+        this.camera.position.x = centerX - free.x * orthoSize;
+        this.camera.position.y = centerY - free.y * orthoSize * viewportAspect;
 
         // Put the camera behind the box and let the far plane reach past it. Babylon's
-        // default 10000 clips a layout that settles tens of thousands of units deep.
+        // default 10000 clips a layout that settles tens of thousands of units deep. The box holds
+        // the nodes, not what hangs in front of them: a text centered over a node stands half the
+        // node's diagonal in front of it, so the camera stands back by the box's width and height
+        // too, or the near plane cuts the texts over a big node away.
         const depth = max.z - min.z;
-        this.camera.position.z = min.z - Math.max(10, depth);
+        this.camera.position.z = min.z - Math.max(10, depth, sizeX, sizeY);
         this.camera.maxZ = Math.max(10000, depth + Math.abs(this.camera.position.z) * 2);
 
-        this.updateOrtho(orthoSize * 1.1); // Small padding for visual comfort
+        this.updateOrtho(orthoSize);
     }
 }

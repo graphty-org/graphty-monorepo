@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty",
-    "version": "0.8.91",
+    "version": "0.8.92",
     "private": true,
     "description": "React application for graph visualization built with Mantine and graphty-element",
     "author": "Adam Powers <apowers@ato.ms>",
@@ -8,7 +8,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
-        "build": "tsc && vite build",
+        "build": "tsc && NODE_OPTIONS=--max-old-space-size=8192 vite build",
         "preview": "vite preview --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "test": "vitest",
         "test:run": "vitest run",

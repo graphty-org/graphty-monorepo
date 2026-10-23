@@ -7,7 +7,7 @@
 import "../../src/graphty-element";
 
 import { type AbstractMesh, type InstancedMesh, Matrix, Vector3 } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { LayerSpec } from "../../src/catalog/types";
@@ -151,6 +151,18 @@ function rightmostCrossing(outline: readonly Point2[]): number {
     return crossing;
 }
 
+/**
+ * How wide an outline is at its widest, across or up.
+ * @param outline - The outline.
+ * @returns The larger of its width and height.
+ */
+function outlineWidth(outline: readonly Point2[]): number {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+
+    return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+}
+
 /** The frame as RGBA bytes, its size, and how many device pixels a CSS pixel is. */
 interface Frame {
     data: Uint8Array;
@@ -240,7 +252,11 @@ describe.each(["2d", "3d"] as const)("flat node shapes in %s (#2318)", (viewMode
 
         for (const shape of FLAT_NODE_SHAPES) {
             const { x, y, z } = sizeOf(meshOf(element, shape));
-            assert.approximately(Math.max(x, y), NODE_EXTENT_PER_SIZE, 1e-6, `${shape} is one node wide`);
+            // a rounded polygon keeps inside its sharp twin's box, as Cytoscape.js draws it, so it is
+            // as wide as its own outline: test/meshes/node-shape-geometry.test.ts holds it to that box
+            const outline = flatShapeOutline(shape, NODE_EXTENT_PER_SIZE, NODE_EXTENT_PER_SIZE);
+            const wide = /^round-(?!rectangle)/.test(shape) ? outlineWidth(outline) : NODE_EXTENT_PER_SIZE;
+            assert.approximately(Math.max(x, y), wide, 1e-6, `${shape} is one node wide`);
 
             assert.isBelow(z, 0.1, `${shape} is drawn flat in ${viewMode}`);
 
@@ -337,6 +353,86 @@ describe("node borders (#2316)", () => {
     });
 });
 
+describe("a border in screen pixels", () => {
+    /**
+     * How wide a node's border is drawn on screen, in CSS pixels: its reach past the outline,
+     * through the camera.
+     * @param element - The element.
+     * @returns The width.
+     */
+    function screenReach(element: Graphty): number {
+        const node = element.graph.getDataManager().nodes.get("n");
+        assert.isDefined(node);
+        const scene = element.graph.getScene();
+        const camera = scene.activeCamera;
+        assert.isNotNull(camera);
+        const engine = scene.getEngine();
+        const viewport = camera.viewport.toGlobal(engine.getRenderWidth(), engine.getRenderHeight());
+        const at = node.mesh.getAbsolutePosition();
+        const project = (p: Vector3): Vector3 =>
+            Vector3.Project(p, Matrix.Identity(), scene.getTransformMatrix(), viewport);
+        const a = project(at);
+        const b = project(at.add(new Vector3(node.borderReach, 0, 0)));
+        return Math.hypot(b.x - a.x, b.y - a.y) * engine.getHardwareScalingLevel();
+    }
+
+    it("draws the same width on screen at every zoom, rebuilding its ring when a zoom moves it", async () => {
+        const element = await mounted(
+            "2d",
+            [
+                { id: "n", position: { x: 0, y: 0, z: 0 } },
+                { id: "left", position: { x: -30, y: 0, z: 0 } },
+                { id: "right", position: { x: 30, y: 0, z: 0 } },
+            ],
+            [],
+            [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        // within a 1/16 doubling step: 4.4%
+        assert.approximately(screenReach(element), 3, 0.15);
+
+        const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+        // Zoom in, as a reader's zoom control does.
+        await element.graph.zoomStep("in");
+        await element.graph.zoomStep("in");
+
+        // The update loop rebuilds the ring on the next frame it sees the camera moved: thinner in
+        // the scene, as wide on screen.
+        await vi.waitFor(() => {
+            const reach = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+            assert.isBelow(reach, before * 0.8, "thinner in the scene");
+            assert.approximately(screenReach(element), 3, 0.15);
+        });
+    });
+
+    it("frames the graph the same at every zoom, so one load always draws one picture", async () => {
+        const nodes: Placed[] = [
+            { id: "n", position: { x: 0, y: 0, z: 0 } },
+            { id: "left", position: { x: -30, y: 0, z: 0 } },
+            { id: "right", position: { x: 30, y: 0, z: 0 } },
+        ];
+        const plain = await mounted("2d", nodes, [], [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10 })]);
+        const element = await mounted(
+            "2d",
+            nodes,
+            [],
+            [layerFor(["n"], { "node.shape": "ellipse", "node.size": 10, "node.borderScreenWidth": 3 })],
+        );
+        const half = (el: Graphty): number => el.graph.getDataManager().nodes.get("n")?.framingHalf("x") ?? NaN;
+        const unbordered = half(plain);
+        const before = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+        assert.isAbove(before, 0, "the border is drawn");
+        assert.approximately(half(element), unbordered, 1e-9);
+
+        await element.graph.zoomStep("in");
+        await element.graph.zoomStep("in");
+        await vi.waitFor(() => {
+            const reach = element.graph.getDataManager().nodes.get("n")?.borderReach ?? 0;
+            assert.isBelow(reach, before * 0.8, "the ring was rebuilt for the new zoom");
+        });
+        assert.approximately(half(element), unbordered, 1e-9, "the framed extent did not move with the zoom");
+    });
+});
+
 describe("node width and height (#2317)", () => {
     it("draws a node 4 wide and 1 tall, with edges ending at its sides", async () => {
         const element = await mounted(
@@ -405,7 +501,12 @@ describe("one extent for every shape (#2495)", () => {
         const projected = new Map<string, number>();
         const rasterised = new Map<string, number>();
 
-        for (const shape of NodeShapes.options) {
+        // a rounded polygon keeps inside its sharp twin's box, as Cytoscape.js draws it, so it is
+        // smaller across than the rest: test/meshes/node-shape-geometry.test.ts holds it to that box.
+        // "none" is Pajek's bodiless vertex, which draws only its label: it has no pixels to count.
+        for (const shape of NodeShapes.options.filter(
+            (name) => !/^round-(?!rectangle)/.test(name) && name !== "none",
+        )) {
             const layer = await element.session.styles.add(layerFor(["probe"], { "node.shape": shape }));
             await operationQueueOf(element.graph).waitForCompletion();
             const red = pixelsOf(await frameOf(element), isTouchedByRed);

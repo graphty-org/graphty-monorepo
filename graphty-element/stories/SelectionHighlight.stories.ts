@@ -234,7 +234,12 @@ export const RestyledWhileSelected: Story = {
 
         const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
-        await element.waitForStableFrame();
+        // The new style reaches the halo on a later pass, and waitForStableFrame does not wait for
+        // it (the frame is called final while the old halo is still drawn), so wait for the halo.
+        await eventually(
+            () => Math.abs((haloOnScreen(scene)?.clearance ?? 0) - 2) < 0.001,
+            "RestyledWhileSelected: the halo never took the new style",
+        );
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
     },

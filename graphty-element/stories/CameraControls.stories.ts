@@ -451,17 +451,23 @@ const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"
     await element.graph.zoomStep("in");
     await element.graph.zoomStep("in");
     await element.applyCameraView("fitToGraph");
-    // The picture once the camera has finished framing the graph.
-    await element.waitForStableFrame();
 
+    // Screen positions are read from the last frame drawn, and a frame with the fitted camera
+    // follows the call (waitForStableFrame does not wait for one: a camera move is not unfinished
+    // work).
     const { width, height } = element.graph.canvas.getBoundingClientRect();
-    for (const node of element.graph.getNodes()) {
-        const at = element.nodeScreenPosition(node.id);
-        await holds(
-            at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height,
-            `Camera Controls ${story}: after Fit, node ${String(node.id)} is not drawn inside the canvas`,
-        );
-    }
+    const outside = (): string[] =>
+        element.graph
+            .getNodes()
+            .filter((node) => {
+                const at = element.nodeScreenPosition(node.id);
+                return !(at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height);
+            })
+            .map((node) => String(node.id));
+    await eventually(
+        () => outside().length === 0,
+        `Camera Controls ${story}: after Fit, some nodes are never drawn inside the canvas`,
+    );
 };
 
 /**

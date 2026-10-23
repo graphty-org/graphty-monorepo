@@ -289,7 +289,11 @@ export class OrbitCameraController {
         const angle = Math.acos(Scalar.Clamp(Vector3.Dot(a, b), -1, 1));
         if (angle > 1e-6) {
             // The camera turns the other way about the globe's center, so the globe seems to turn a to b.
+            // About the center, not the pivot: a camera framed on data looks at a point near the surface.
+            const { center } = this.pivotController;
+            this.pivotController.center = Vector3.Zero();
             this.pivotController.rotateAroundAxis(Vector3.Cross(a, b), -angle);
+            this.pivotController.center = center;
             this.updateCameraPosition();
         }
 

@@ -2052,7 +2052,9 @@ export class UpdateManager implements Manager {
         const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame ?? null;
         if (frame !== null) {
-            for (const corner of mapCorners(frame)) {
+            // A globe framed to the data opens on the data, so a node is as large as on the flat map.
+            const corners = frame.surface === "globe" && !frame.world ? [] : mapCorners(frame);
+            for (const corner of corners) {
                 boundingBoxMin = Vector3.Minimize(boundingBoxMin, corner);
                 boundingBoxMax = Vector3.Maximize(boundingBoxMax, corner);
             }

@@ -9,7 +9,7 @@ import "../../src/graphty-element";
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 import { openflights } from "@graphty/graph-samples/datasets/openflights";
-import { createMapFrame } from "babylonjs-map/projection";
+import { createMapFrame, longitudeIn } from "babylonjs-map/projection";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { Edge } from "../../src/Edge";
@@ -134,7 +134,8 @@ describe("the location map layout", () => {
             const id = String(FLIGHTS.ids.idOf(row));
             const lat = Number(FLIGHTS.nodes.value("latitude", row));
             const lon = Number(FLIGHTS.nodes.value("longitude", row));
-            const expected = frame.toScene({ lat, lon });
+            // the box may run past 180 degrees (the gap rule), so a longitude is shifted into it
+            const expected = frame.toScene({ lat, lon: longitudeIn(lon, bounds) });
             const drawn = at(id);
             // co-located airports are spread by up to a few node sizes
             assert.closeTo(drawn.x, expected.x, 3, `${id} x`);
@@ -150,14 +151,19 @@ describe("the location map layout", () => {
 
     it("draws the map under the nodes with its credits, and removes it with another layout", async () => {
         await placeAirports({ latitude: "latitude", longitude: "longitude" });
-        await vi.waitFor(() => {
-            assert.notEqual(graph.basemapStatus.state, "off");
-        });
+        // a hang guard for the bundled picture loading, not a pass/fail timing
+        await vi.waitFor(
+            () => {
+                assert.equal(graph.basemapStatus.state, "ready");
+            },
+            { timeout: 20_000, interval: 100 },
+        );
         assert.equal(graph.basemapStatus.source, "natural-earth");
         assert.include(graph.basemapStatus.attribution, "Natural Earth");
         const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");
         assert.isNotNull(strip);
-        assert.equal(strip?.textContent, "Natural Earth");
+        // the credit, after the "(c)" button it folds into when it does not fit
+        assert.include(strip?.textContent, "Natural Earth");
         assert.notEqual(strip?.style.display, "none");
 
         await graph.setLayout("circular");
@@ -186,11 +192,20 @@ describe("the location map layout", () => {
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const p = at(id);
-        assert.closeTo(Math.hypot(p.x, p.y, p.z), 100, 2, "on the globe's surface");
+        const globe = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius?: number } | null })
+            .geoFrame;
+        const radius = globe?.radius ?? Number.NaN;
+        // the radius makes the data span `size` units of arc; a node sits half its size above it
+        assert.closeTo(Math.hypot(p.x, p.y, p.z), radius, 2, "on the globe's surface");
         const globeArc = longestCurve(edges);
         assert.isNotNull(globeArc);
         const radii = (globeArc ?? []).map((q) => Math.hypot(q.x, q.y, q.z));
-        assert.isAbove(Math.max(...radii), Math.max(radii[0], radii.at(-1) ?? 0) + 0.1, "the arc rises off the globe");
+        // a thousandth of the radius: 0.1 when the globe's radius was 100
+        assert.isAbove(
+            Math.max(...radii),
+            Math.max(radii[0], radii.at(-1) ?? 0) + radius / 1000,
+            "the arc rises off the globe",
+        );
         await vi.waitFor(() => {
             assert.notEqual(graph.basemapStatus.state, "off");
         });
@@ -233,15 +248,21 @@ describe("the location map layout", () => {
 });
 
 /**
- * The points of the edge whose drawn curve has the most points, or null when every edge is straight.
+ * The points of the edge whose drawn curve has the farthest apart ends, or null when every edge is straight.
  * @param edges - The edges.
  * @returns The points.
  */
 function longestCurve(edges: readonly Edge[]): { x: number; y: number; z: number }[] | null {
     let best: { x: number; y: number; z: number }[] | null = null;
+    let longest = -1;
     for (const edge of edges) {
         const curve = edge.drawnCurve;
-        if (curve !== null && (best === null || curve.length > best.length)) {
+        const first = curve?.[0];
+        const last = curve?.at(-1);
+        // the farthest apart ends: the arc that rises highest
+        const chord = first === undefined || last === undefined ? -1 : first.subtract(last).length();
+        if (curve !== null && chord > longest) {
+            longest = chord;
             best = curve.map((v) => ({ x: v.x, y: v.y, z: v.z }));
         }
     }

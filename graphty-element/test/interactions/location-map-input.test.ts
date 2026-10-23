@@ -228,6 +228,30 @@ describe("the camera on a location map", () => {
         assert.isBelow(viewDirection(element).y, -0.8);
     });
 
+    it("opens a globe on its data, as large as on the flat map, and an undo frames the flat map again", async () => {
+        const element = await mounted("3d");
+        // How far apart Seattle and Miami are drawn: the share of the view the data fills.
+        const spread = (): number => {
+            const a = at(element, "SEA");
+            const b = at(element, "MIA");
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        };
+        const flat = spread();
+        await element.session.layout.set("location-map", { options: { surface: "globe" } });
+        await applied(element);
+        await vi.waitFor(async () => {
+            await applied(element);
+            assert.closeTo(spread() / flat, 1, 0.25, "the globe frames the data, not the whole sphere");
+        });
+        await element.session.undo();
+        await applied(element);
+        await vi.waitFor(async () => {
+            await applied(element);
+            assert.strictEqual(element.mapFrame?.surface, "flat");
+            assert.closeTo(spread() / flat, 1, 0.25, "the flat map is framed again");
+        });
+    });
+
     it("holds node sizes on screen with nodeScale: screen as the view zooms", async () => {
         const element = await mounted("2d", { nodeScale: "screen" });
         const size = (): number => {
@@ -291,6 +315,65 @@ describe("the map under the graph", () => {
         await vi.waitFor(async () => {
             assert.isAbove(await colorsAround(element, CENTER, 40), 20, "and in 2D");
         });
+    });
+
+    it("says it is loading until a tile is drawn, so a reader waiting for ready sees the map", async () => {
+        const element = await mounted("3d");
+        await applied(element);
+        await element.session.layout.set("location-map", { options: { extent: "world" } });
+        // Nothing asked for yet is not ready: the status stays loading until a tile has settled.
+        await vi.waitFor(() => {
+            assert.strictEqual(element.basemapStatus.state, "ready");
+        });
+        await applied(element);
+        assert.isAbove(await colorsAround(element, CENTER, 40), 20, "the map is on screen once ready");
+    });
+});
+
+/** A hang guard for the map's picture loading, not a pass/fail timing. */
+const MAP_WAIT = { timeout: 20_000, interval: 100 };
+
+/**
+ * How many pixels of a frame are a dark neutral gray: an edge's line on a map, which no map
+ * color, node color or casing is.
+ * @param element - The element.
+ * @returns The count.
+ */
+async function darkGrayPixels(element: Graphty): Promise<number> {
+    const { engine } = element.graph;
+    element.graph.scene.render();
+    const pixels = (await engine.readPixels(
+        0,
+        0,
+        engine.getRenderWidth(),
+        engine.getRenderHeight(),
+    )) as unknown as Uint8Array;
+    let count = 0;
+    for (let o = 0; o < pixels.length; o += 4) {
+        const [r, g, b] = [pixels[o], pixels[o + 1], pixels[o + 2]];
+        if (Math.max(r, g, b) < 160 && Math.abs(r - g) < 12 && Math.abs(g - b) < 12) {
+            count++;
+        }
+    }
+    return count;
+}
+
+describe("edges on a map", () => {
+    it("draw a dark line inside their light casing, not the casing over the line, in 3D and 2D", async () => {
+        const element = await mounted("3d");
+        element.basemap = { source: "natural-earth-gray" };
+        await applied(element);
+        await vi.waitFor(async () => {
+            await applied(element);
+            const dark = await darkGrayPixels(element);
+            assert.isAbove(dark, 40, `the arcs' lines show in 3D (${String(dark)} dark pixels)`);
+        }, MAP_WAIT);
+        await element.setViewMode("2d");
+        await vi.waitFor(async () => {
+            await applied(element);
+            const dark = await darkGrayPixels(element);
+            assert.isAbove(dark, 40, `and the straight lines in 2D (${String(dark)} dark pixels)`);
+        }, MAP_WAIT);
     });
 });
 

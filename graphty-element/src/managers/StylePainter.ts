@@ -14,6 +14,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import { colorToHex } from "../config/common";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
@@ -81,11 +82,30 @@ const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyl
 /** The light casing a map gives nodes and edges no layer outlined (`basemap.casing`). */
 const CASING_COLOR = "#ffffff";
 
-/** How much wider than its line an edge's casing is, in the line's width units. */
-const EDGE_CASING_WIDTH = 1.2;
+/**
+ * How much wider than its line an edge's casing is, in the line's width units: one default line
+ * width more, about half a pixel each side. 1.2 was a seventh of the line and hid nothing but the
+ * line itself.
+ */
+const EDGE_CASING_WIDTH = 8;
 
-/** How solid the casing is. */
-const CASING_OPACITY = 0.85;
+/**
+ * Solid, so the casing is drawn in the opaque pass, under its line: a see-through casing went to
+ * the transparent pass, after every line, and painted over the line it was cased around.
+ */
+const CASING_OPACITY = 1;
+
+/**
+ * The line's color on a map when no layer chose one: dark enough to stand 3:1 off the casing and
+ * off light maps, where the plain edge gray stood 1.5:1 off Natural Earth's land.
+ */
+const CASED_EDGE_COLOR = "#505050";
+
+/** The edges' default gray, as the base layer writes it. */
+const DEFAULT_EDGE_HEX =
+    typeof defaultEdgeStyle.line?.color === "string"
+        ? colorToHex(defaultEdgeStyle.line.color)?.slice(0, 7).toLowerCase()
+        : undefined;
 
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
@@ -540,6 +560,11 @@ function edgePaintOf(
     const cased = casing && resolved["edge.outlineWidth"] === undefined && resolved["edge.outlineColor"] === undefined;
     if (cased) {
         setAtPath(bag, "line.outline", { color: CASING_COLOR, width: EDGE_CASING_WIDTH, opacity: CASING_OPACITY });
+        // The base layer writes the default gray to every edge, so the default is matched by value.
+        const hex = asColorValue(resolved["edge.color"])?.hex.slice(0, 7).toLowerCase();
+        if (hex === undefined || hex === DEFAULT_EDGE_HEX) {
+            setAtPath(bag, "line.color", CASED_EDGE_COLOR);
+        }
     }
 
     // See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner

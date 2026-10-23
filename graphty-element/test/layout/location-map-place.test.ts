@@ -278,7 +278,7 @@ describe("placeOnMap's edges of the world", () => {
         assert.isAbove(dx, 0, "Apia is east of Suva");
     });
 
-    it("gives all nodes at one point a map 1 degree across", () => {
+    it("gives all nodes at one point the region around it, 10 degrees across", () => {
         const one: LocationSource = {
             kind: "columns",
             latitude: "a",
@@ -287,8 +287,28 @@ describe("placeOnMap's edges of the world", () => {
             lon: [2.35, 2.35],
         };
         const placed = placeOnMap(one, nodes(2, 2), OPTIONS);
+        assert.strictEqual(placed.frame.surface, "flat");
         if (placed.frame.surface === "flat") {
-            assert.isAbove(placed.frame.bounds[1][0] - placed.frame.bounds[0][0], 1);
+            const [[west, south], [east, north]] = placed.frame.bounds;
+            assert.isAtLeast(east - west, 10);
+            assert.isAtLeast(north - south, 10);
+            assert.isBelow(east - west, 20, "a region, not the world");
+        }
+    });
+
+    it("frames a city's data at its own size, not at a degree", () => {
+        const city: LocationSource = {
+            kind: "columns",
+            latitude: "a",
+            longitude: "b",
+            lat: [45.43, 45.45, 45.5],
+            lon: [12.3, 12.35, 12.4],
+        };
+        const placed = placeOnMap(city, nodes(3, 2), OPTIONS);
+        assert.strictEqual(placed.frame.surface, "flat");
+        if (placed.frame.surface === "flat") {
+            const [[west], [east]] = placed.frame.bounds;
+            assert.isBelow(east - west, 0.2, "the box hugs the 0.1 degrees of data");
         }
     });
 

@@ -21,6 +21,7 @@ import {
     Quaternion,
     RenderingGroup,
     Scene,
+    type SubMesh,
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
@@ -1941,6 +1942,12 @@ export class Graph implements GraphContext {
             const { basemap } = this.session.config;
             this.basemapManager.sync(frame, basemap);
             if (frame !== this.#followedFrame) {
+                // A map swapped for one on the other surface (an undo of flat to globe) is framed
+                // again: the camera stood for a globe many times the flat map's size, or the reverse.
+                if (frame !== null && this.#followedFrame !== null && frame.surface !== this.#followedFrame.surface) {
+                    this.updateManager.enableZoomToFit();
+                }
+
                 this.#followedFrame = frame;
                 this.#followFrame(frame);
             }
@@ -2089,6 +2096,9 @@ export class Graph implements GraphContext {
      * @since 3.31.0
      */
     get basemapStatus(): BasemapStatus {
+        // Follow the layout's frame first: a frame published since the last frame drawn is a map
+        // still to draw, which is loading, not the old map's ready.
+        this.basemapManager.sync(this.#geoFrame(), this.session.config.basemap);
         return this.basemapManager.status;
     }
 
@@ -4315,6 +4325,9 @@ export class Graph implements GraphContext {
     /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
     readonly #edgeMeshes = new Set<AbstractMesh>();
 
+    /** The edge meshes drawn under the lines (outline and underlay bands), likewise. */
+    readonly #edgeBandMeshes = new Set<AbstractMesh>();
+
     /** The meshes the nodes are drawn from (an instance draws through its source), likewise. */
     readonly #nodeMeshes = new Set<AbstractMesh>();
 
@@ -4333,6 +4346,7 @@ export class Graph implements GraphContext {
             !(basemap !== undefined && "source" in basemap && basemap.source === "none");
         this.stylePainter.setCasing(casing, this.dataManager.nodes.size, this.dataManager.edges.size);
         this.#edgeMeshes.clear();
+        this.#edgeBandMeshes.clear();
         this.#nodeMeshes.clear();
         if (mapped) {
             for (const node of this.dataManager.nodes.values()) {
@@ -4341,8 +4355,14 @@ export class Graph implements GraphContext {
             }
         }
 
-        for (const batch of this.dataManager.meshCache.batchCacheMap.values()) {
+        for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
             this.#edgeMeshes.add(batch.mesh);
+            // A band under the line (the casing is one) must draw before it: with no depth written
+            // the later of two meshes at one depth wins, and a band drawn last hid its line.
+            if (key.includes("-outline") || key.includes("-underlay")) {
+                this.#edgeBandMeshes.add(batch.mesh);
+            }
+
             const { material } = batch.mesh;
             if (material !== null && material.disableDepthWrite !== mapped) {
                 material.disableDepthWrite = mapped;
@@ -4359,17 +4379,28 @@ export class Graph implements GraphContext {
                 return 1;
             }
 
-            if (this.#edgeMeshes.has(mesh)) {
+            if (this.#edgeBandMeshes.has(mesh)) {
                 return 2;
             }
 
-            return this.#nodeMeshes.has(mesh) ? 3 : 0;
+            if (this.#edgeMeshes.has(mesh)) {
+                return 3;
+            }
+
+            return this.#nodeMeshes.has(mesh) ? 4 : 0;
         };
-        // Everything else in Babylon's own order (as with no map), then the map, then the edges,
-        // then the nodes over them.
+        // Everything else in Babylon's own order (as with no map), then the map, then the edges'
+        // bands, their lines, then the nodes over them -- in the blended pass too, where the edge
+        // lines (antialiased) and their casings are drawn.
+        const byRank =
+            (then: (a: SubMesh, b: SubMesh) => number) =>
+            (a: SubMesh, b: SubMesh): number =>
+                rank(a.getMesh()) - rank(b.getMesh()) || then(a, b);
         this.scene.setRenderingOrder(
             0,
-            mapped ? (a, b) => rank(a.getMesh()) - rank(b.getMesh()) || RenderingGroup.PainterSortCompare(a, b) : null,
+            mapped ? byRank((a, b) => RenderingGroup.PainterSortCompare(a, b)) : null,
+            null,
+            mapped ? byRank((a, b) => RenderingGroup.defaultTransparentSortCompare(a, b)) : null,
         );
         this.renderManager.requestFrame();
     }

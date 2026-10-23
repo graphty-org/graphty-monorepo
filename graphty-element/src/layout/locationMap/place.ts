@@ -61,6 +61,8 @@ export type LocationMapFrame =
           readonly surface: "globe";
           readonly dimensions: 3;
           readonly radius: number;
+          /** Whether the whole globe is the view's subject (world data or `extent: "world"`), not the data on it. */
+          readonly world: boolean;
           /**
            * The turn that brings the data's center in front of the camera, as the rows of a 3x3
            * matrix (row i is where axis i goes), row-vector convention as Babylon.js uses it.
@@ -108,6 +110,30 @@ export interface PlaceNodes {
 const MAX_SAMPLES = 8;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const DEG = Math.PI / 180;
+
+/**
+ * Degrees across the box for data at one place: enough of the bundled world picture (about six
+ * degrees to a hundred texels) to show the region around it, where 1 degree showed a blur.
+ */
+const ONE_PLACE_SPAN = 10;
+
+/**
+ * The least span of any other data, about a kilometer: a city's data is framed at its own size
+ * (babylonjs-map's default of 1 degree drew Venice's 0.3 degrees as a blob).
+ */
+const DATA_MIN_SPAN = 0.01;
+
+/**
+ * The box around the placed points: boundsOf's own, or for points all at one place, the region
+ * around it.
+ * @param placed - The placed points.
+ * @returns The box, or null for none.
+ */
+function dataBounds(placed: readonly LatLon[]): GeoBounds | null {
+    const first = placed[0];
+    const onePlace = first !== undefined && placed.every((p) => p.lat === first.lat && p.lon === first.lon);
+    return boundsOf(placed, { minSpan: onePlace ? ONE_PLACE_SPAN : DATA_MIN_SPAN });
+}
 
 /**
  * A value as a warning sample shows it: primitives as they are, anything else as JSON text.
@@ -399,7 +425,7 @@ export function placeOnMap(
     let trayTop: number;
     if (flat) {
         const bounds =
-            options.extent === "world" ? worldBounds(projection) : (boundsOf(placed) ?? worldBounds(projection));
+            options.extent === "world" ? worldBounds(projection) : (dataBounds(placed) ?? worldBounds(projection));
         const mapFrame = createMapFrame({ projection, bounds, size: options.size });
         frame = {
             ...common,
@@ -434,12 +460,12 @@ export function placeOnMap(
         trayWidth = mapFrame.width;
         trayTop = -mapFrame.height / 2 - 2 * spacing;
     } else {
-        const bounds = options.extent === "world" ? worldBounds("equirectangular") : boundsOf(placed);
+        const bounds = options.extent === "world" ? worldBounds("equirectangular") : dataBounds(placed);
         const world = bounds === null || bounds[1][0] - bounds[0][0] >= WORLD_SPAN;
         const radius = options.size / (bounds === null ? 2 * Math.PI : spanOf(bounds));
         const center = placed.length > 0 ? centerOf(placed) : { lat: 0, lon: 0 };
         const rotation = facing(world ? { lat: 0, lon: center.lon } : center);
-        frame = { ...common, surface: "globe", dimensions: 3, radius, rotation };
+        frame = { ...common, surface: "globe", dimensions: 3, radius, world, rotation };
         // degrees of arc per scene unit at the surface, for spreading in place
         const degPerUnit = 1 / (radius * DEG);
         const offsets =

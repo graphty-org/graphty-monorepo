@@ -1,4 +1,4 @@
-import { Matrix, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import { type AbstractMesh, Matrix, Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
 import type { BasemapConfig, BasemapStatus } from "../config/Basemap";
@@ -9,6 +9,12 @@ type MapModule = typeof import("babylonjs-map");
 
 /** How far behind the graph's plane the flat map lies, as a share of its size, so lines on z = 0 stay in front. */
 const FLAT_MAP_BEHIND = 0.001;
+
+/**
+ * The most animation frames a frame is asked for while a new map mesh waits to be drawn (its
+ * shader compiling); one that never draws is left to the next change.
+ */
+const MAX_DRAW_FRAMES = 600;
 
 /** Room the credits leave at the canvas's left before they fold into their button, in CSS pixels. */
 const CREDIT_ROOM = 8;
@@ -30,6 +36,23 @@ export function mapCorners(frame: LocationMapFrame): Vector3[] {
 }
 
 /**
+ * The name the status reports for a basemap setting.
+ * @param basemap - The setting; unset is the bundled world image.
+ * @returns The named source's id, or "tiles" or "image" for a custom one.
+ */
+function nameOf(basemap: BasemapConfig | undefined): string {
+    if (basemap === undefined) {
+        return "natural-earth";
+    }
+
+    if ("source" in basemap) {
+        return basemap.source;
+    }
+
+    return "tiles" in basemap ? "tiles" : "image";
+}
+
+/**
  * The sources a basemap setting draws, bottom layer first. A tile service is drawn over the
  * bundled world image, which then shows wherever a tile has not arrived or failed; a picture (the
  * bundled world, its gray version, a custom image) is drawn alone.
@@ -42,8 +65,9 @@ function sourcesOf(
     basemap: BasemapConfig | undefined,
 ): { sources: MapSource[]; name: string; unknown: boolean } {
     const world = m.mapSources["natural-earth"];
+    const name = nameOf(basemap);
     if (basemap === undefined) {
-        return { sources: [world], name: "natural-earth", unknown: false };
+        return { sources: [world], name, unknown: false };
     }
 
     if ("source" in basemap) {
@@ -51,18 +75,18 @@ function sourcesOf(
             ? m.mapSources[basemap.source as keyof typeof m.mapSources]
             : undefined;
         if (named === undefined) {
-            return { sources: [world], name: basemap.source, unknown: true };
+            return { sources: [world], name, unknown: true };
         }
 
-        return { sources: "image" in named ? [named] : [world, named], name: basemap.source, unknown: false };
+        return { sources: "image" in named ? [named] : [world, named], name, unknown: false };
     }
 
     const { attributionShown: _shown, beyond: _beyond, casing: _casing, ...source } = basemap;
     if ("tiles" in source) {
-        return { sources: [world, source], name: "tiles", unknown: false };
+        return { sources: [world, source], name, unknown: false };
     }
 
-    return { sources: [source], name: "image", unknown: false };
+    return { sources: [source], name, unknown: false };
 }
 
 /**
@@ -190,6 +214,7 @@ export class BasemapManager {
         this.#shown = basemap?.attributionShown !== false;
         const generation = ++this.#generation;
         if (frame === null || (basemap !== undefined && "source" in basemap && basemap.source === "none")) {
+            this.#pending = false;
             this.#clear();
             this.#name = basemap !== undefined && "source" in basemap ? basemap.source : "none";
             this.#tell();
@@ -197,12 +222,18 @@ export class BasemapManager {
         }
 
         this.#module ??= import("babylonjs-map");
+        this.#pending = true;
+        this.#name = nameOf(basemap);
         void this.#module.then((m) => {
             if (generation === this.#generation) {
+                this.#pending = false;
                 this.#draw(m, frame, basemap, sourcesChanged);
             }
         });
     }
+
+    /** Whether a frame or setting has come in that the map has not been drawn for yet. */
+    #pending = false;
 
     /**
      * What the map is doing. `fallback` when a named source is unknown, or when a tile service
@@ -212,10 +243,10 @@ export class BasemapManager {
     get status(): BasemapStatus {
         const surface = this.#surface;
         if (surface === null) {
-            return { source: this.#name, state: "off", attribution: [] };
+            return { source: this.#name, state: this.#pending ? "loading" : "off", attribution: [] };
         }
 
-        const { loading, layers } = surface.status;
+        const { loading, ready, failed, layers } = surface.status;
         const { sources } = surface;
         // A tile service (not a picture) that drew nothing and failed: the base shows instead.
         const unreachable = layers.some(
@@ -224,7 +255,14 @@ export class BasemapManager {
         let state: BasemapStatus["state"] = "ready";
         if (this.#unknown || unreachable) {
             state = "fallback";
-        } else if (loading > 0) {
+        } else if (
+            this.#pending ||
+            loading > 0 ||
+            ready + failed === 0 ||
+            surface.root.getChildMeshes().some((m) => m.isEnabled() && !m.isReady(true))
+        ) {
+            // No tile asked for yet (the map was just made or its source changed) is loading too,
+            // and so is a tile whose shader is still compiling: it is not on screen yet.
             state = "loading";
         }
 
@@ -293,38 +331,54 @@ export class BasemapManager {
         }
 
         this.#showCredits(surface.credits);
-        this.requestFrame();
-        this.#untilReady();
+        this.#drawSoon();
         this.#tell();
     }
 
-    /** Whether frames are being asked for until the map's meshes can be drawn. */
-    #waiting = false;
+    /** The map meshes drawn at least once, so a frame is asked for until each new one is. */
+    readonly #drawnMeshes = new WeakSet<AbstractMesh>();
+
+    /** Whether frames are being asked for until every shown map mesh has been drawn. */
+    #drawing = false;
 
     /**
-     * Asks for frames until every map mesh shown is ready to draw (its shader compiled), then one
-     * more. A tile shown just before the scene draws, or one whose material is still compiling, is
-     * otherwise left out of a scene that freezes its list of drawn meshes or draws only on demand.
+     * Asks for frames until every map mesh shown has been drawn once. A tile shown just before the
+     * scene draws, whose shader then compiles, can otherwise be left out of every frame of a scene
+     * that draws only on demand and freezes its list of drawn meshes once still.
      */
-    #untilReady(): void {
-        if (this.#waiting) {
+    #drawSoon(): void {
+        this.requestFrame();
+        const surface = this.#surface;
+        if (surface === null) {
             return;
         }
 
-        this.#waiting = true;
-        const scene = this.getScene();
+        for (const mesh of surface.root.getChildMeshes()) {
+            if (mesh instanceof Mesh && !this.#drawnMeshes.has(mesh)) {
+                mesh.onAfterRenderObservable.addOnce(() => {
+                    this.#drawnMeshes.add(mesh);
+                });
+            }
+        }
+
+        if (this.#drawing) {
+            return;
+        }
+
+        this.#drawing = true;
+        let frames = 0;
         const check = (): void => {
-            const surface = this.#surface;
-            const pending =
-                surface !== null && surface.root.getChildMeshes().some((m) => m.isEnabled() && !m.isReady(true));
-            this.requestFrame();
-            if (pending) {
-                scene.onAfterRenderObservable.addOnce(check);
+            const shown = this.#surface?.root.getChildMeshes().filter((m) => m.isEnabled()) ?? [];
+            if (shown.some((m) => !this.#drawnMeshes.has(m)) && ++frames < MAX_DRAW_FRAMES) {
+                this.requestFrame();
+                requestAnimationFrame(check);
             } else {
-                this.#waiting = false;
+                this.#drawing = false;
+                // Every tile is on screen now, which may turn loading into ready.
+                this.#tell();
             }
         };
-        scene.onAfterRenderObservable.addOnce(check);
+        requestAnimationFrame(check);
     }
 
     /** Tells `emit` the status, when it changed since it was last told. */

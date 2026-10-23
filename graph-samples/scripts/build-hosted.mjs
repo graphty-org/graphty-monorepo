@@ -5,7 +5,12 @@
  * upstream sources; the small ones are copied from graph-samples' own build (dist/data/v1/, written
  * by scripts/pack-datasets.mjs from the repository's data/), so build graph-samples first.
  *
- *     node scripts/build-hosted.mjs [--cache <dir>]
+ *     node scripts/build-hosted.mjs [--cache <dir>] [--reuse-published]
+ *
+ * With --reuse-published (the deploy), a large dataset whose file graphty.app already publishes with
+ * the SHA-256 recorded in src/datasets/hosted.ts is taken from graphty.app and its sources are never
+ * fetched, so a deploy does not depend on the third-party hosts; only a dataset whose recorded
+ * checksum changed (or is not published yet) is built from its sources.
  *
  * For every dataset below it fetches the sources once into the cache directory (default:
  * <repo>/tmp/graph-samples-sources), refuses a source whose SHA-256 is not the one recorded here,
@@ -33,6 +38,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
 
 import { datasetOf, edgeArraysOf, importSource } from "./graph-io-source.mjs";
+import { publishedCopy } from "./published-copy.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheFlag = process.argv.indexOf("--cache");
@@ -42,11 +48,12 @@ const cacheDir =
         : path.resolve(packageRoot, "../tmp/graph-samples-sources");
 const outDir = path.join(packageRoot, "public-data/v1");
 const BASE_URL = "https://graphty.app/data/graph-samples/v1/";
+const reusePublished = process.argv.includes("--reuse-published");
 
 // graph-format from its tsc output, so the script runs without a workspace install. Not its bundle: the
 // bundle stamps the commit it was built from into every file's manifest (`producer`), which would change
 // each file's checksum with every commit; the tsc output writes "@graphty/graph-format@dev"
-const { fromEdgeArrays } = await import(
+const { fromBytes, fromEdgeArrays } = await import(
     pathToFileURL(path.resolve(packageRoot, "../graph-format/dist/src/index.js")).href
 );
 
@@ -435,14 +442,26 @@ async function main() {
     for (const file of readdirSync(pictures)) {
         copyFileSync(path.join(pictures, file), path.join(outDir, file));
     }
+    // the checksums this commit records (graph-samples' tsc output of src/datasets/hosted.ts)
+    const recorded = reusePublished
+        ? (await import(pathToFileURL(path.join(packageRoot, "dist/src/datasets/hosted.js")).href)).HOSTED_DATASETS
+        : [];
     const metas = [];
     for (const dataset of DATASETS) {
-        const files = {};
-        for (const key of dataset.sources) {
-            files[key] = await source(key);
+        const recordedSha = recorded.find((meta) => meta.name === dataset.meta.name)?.sha256;
+        let gz = await publishedCopy(`${BASE_URL}${dataset.meta.name}.gsnp.gz`, recordedSha);
+        let snapshot;
+        if (gz === null) {
+            const files = {};
+            for (const key of dataset.sources) {
+                files[key] = await source(key);
+            }
+            snapshot = fromEdgeArrays(await dataset.build(files));
+            gz = gzipSync(snapshot.toBytes(), { level: 9 });
+        } else {
+            console.log(`${dataset.meta.name}: reusing the published file (sha256 ${recordedSha})`);
+            snapshot = fromBytes(gunzipSync(gz));
         }
-        const snapshot = fromEdgeArrays(await dataset.build(files));
-        const gz = gzipSync(snapshot.toBytes(), { level: 9 });
         writeFileSync(path.join(outDir, `${dataset.meta.name}.gsnp.gz`), gz);
         const {
             name,

@@ -946,7 +946,12 @@ async function walkFile(project, file, ctx) {
         return;
     }
     ctx.walked.add(file);
-    const deps = CODE.test(file) ? await edgesOf(project, file, ctx.failed) : new Set();
+    let deps = new Set();
+    if (CODE.test(file)) {
+        deps = await edgesOf(project, file, ctx.failed);
+    } else if (STYLE.test(file)) {
+        deps = styleEdges(file);
+    }
     ctx.imports[ctx.rel(file)] = [...deps].map(ctx.rel);
     for (const d of deps) {
         await walkFile(project, d, ctx);
@@ -981,6 +986,26 @@ async function edgesOf(project, file, failed) {
     for (const m of safeRead(file).matchAll(NEW_URL)) {
         const path = join(dirname(file), m[1]);
         if (isFile(path)) {
+            deps.add(path);
+        }
+    }
+    return deps;
+}
+
+const STYLE = /\.(css|scss|sass|less)$/u;
+const STYLE_REF = /@import\s+(?:url\(\s*)?["']?([^"')\s;]+)|url\(\s*["']?([^"')\s]+)/gu;
+
+/**
+ * A stylesheet's edges: the relative files its `@import` and `url()` name (fonts, images, other sheets).
+ * @param file an absolute path
+ * @returns Set of absolute paths of files in the checkout
+ */
+function styleEdges(file) {
+    const deps = new Set();
+    for (const m of safeRead(file).matchAll(STYLE_REF)) {
+        const ref = (m[1] ?? m[2]).split(/[?#]/u, 1)[0];
+        const path = join(dirname(file), ref);
+        if (!/^[a-z]+:|^\//u.test(ref) && isFile(path)) {
             deps.add(path);
         }
     }
@@ -1336,7 +1361,7 @@ function graphCache(root) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 4;
+const GRAPH_VERSION = 5;
 
 const fileHash = (root, f) => {
     try {

@@ -414,8 +414,10 @@ describe("building a package's import graph (a fixture package, walked by Vitest
     put("pa/src/text.txt", "hello\n");
     put(
         "pa/src/w.ts",
-        'import t from "./text.txt?raw";\nexport const w = new URL("./worker.ts", import.meta.url);\nexport { t };\n',
+        'import t from "./text.txt?raw";\nimport "./s.css";\nexport const w = new URL("./worker.ts", import.meta.url);\nexport { t };\n',
     );
+    put("pa/src/s.css", '@font-face { font-family: f; src: url("./f.ttf") format("truetype"); }\n');
+    put("pa/src/f.ttf", "font\n");
     put("pa/src/worker.ts", "export {};\n");
     put("pa/test/a.test.ts", 'import { it } from "vitest";\nimport { a } from "../src/a";\nit("a", () => a());\n');
     put("pa/test/w.test.ts", 'import { it } from "vitest";\nimport { w } from "../src/w";\nit("w", () => w);\n');
@@ -441,7 +443,8 @@ describe("building a package's import graph (a fixture package, walked by Vitest
             assert.deepEqual(specs, ["pa/test/a.test.ts", "pa/test/reads.test.ts", "pa/test/w.test.ts"]);
             assert.ok(Object.values(g.projects).every((p) => p.browser === false));
             assert.deepEqual(g.imports["pa/src/a.ts"], ["pa/src/b.ts"]);
-            assert.deepEqual(g.imports["pa/src/w.ts"].sort(), ["pa/src/text.txt", "pa/src/worker.ts"]);
+            assert.deepEqual(g.imports["pa/src/w.ts"].sort(), ["pa/src/s.css", "pa/src/text.txt", "pa/src/worker.ts"]);
+            assert.deepEqual(g.imports["pa/src/s.css"], ["pa/src/f.ttf"], "a stylesheet's url() is an edge");
             assert.deepEqual(g.opaque, ["pa/test/reads.test.ts"]);
             assert.deepEqual([...selectInGraph(g, ["pa/src/b.ts"]).specs.keys()].sort(), [
                 "pa/test/a.test.ts",

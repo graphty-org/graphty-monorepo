@@ -63,24 +63,28 @@ async function handMade(
     const ids = session.data.nodes().map((node) => String(node.id));
     // One step and one repaint for the whole folder, as a project file loads it.
     await session.transaction(`add ${name}`, async (tx) => {
-        for (const [at, layerName] of names.entries()) {
-            const layer = await tx.styles.add({
-                name: `${name} ${layerName}`,
-                target,
-                selector:
-                    target === "node"
-                        ? {
-                              match: "ids",
-                              nodes: ids.slice((at * 2) % (ids.length - 1), ((at * 2) % (ids.length - 1)) + 2),
-                          }
-                        : {
-                              match: "rule",
-                              where: { kind: "range", attribute: "data.value", min: at + 1, max: at + 1 },
-                          },
-                set,
-            });
-            await tx.styles.moveRow(layer.id, { parent: folder.id });
-        }
+        // Dispatched together, not awaited one by one: each await lets a repaint pass and a
+        // style:changed event run, and the panels re-read the whole stack on every one of them.
+        const layers = await Promise.all(
+            names.map((layerName, at) =>
+                tx.styles.add({
+                    name: `${name} ${layerName}`,
+                    target,
+                    selector:
+                        target === "node"
+                            ? {
+                                  match: "ids",
+                                  nodes: ids.slice((at * 2) % (ids.length - 1), ((at * 2) % (ids.length - 1)) + 2),
+                              }
+                            : {
+                                  match: "rule",
+                                  where: { kind: "range", attribute: "data.value", min: at + 1, max: at + 1 },
+                              },
+                    set,
+                }),
+            ),
+        );
+        await Promise.all(layers.map((layer) => tx.styles.moveRow(layer.id, { parent: folder.id })));
     });
     await session.styles.settled();
     return [...session.styles.layersUnder([folder.id])].reverse().flatMap((reach) => {

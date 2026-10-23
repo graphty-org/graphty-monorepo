@@ -260,8 +260,11 @@ describe("the inspector", () => {
         assert.equal(command.getAttribute("data-variant"), "default");
         assert.isNull(command.getAttribute("aria-pressed"));
         await userEvent.hover(command);
+        // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
+        // default 1000 ms, which races the delay.
         const tip = await screen.findByText(
             "Hide every node outside this neighborhood. Its step in Filters turns it off",
+            {},
         );
         // Beside the button (right, or left where the window ends), never below it over the first
         // neighbor's name.
@@ -320,8 +323,9 @@ describe("the inspector", () => {
         const word = within(kind).getByText("Number");
         await userEvent.hover(word);
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
-        // was already in the page with this text (testing-library judged it inaccessible).
-        const tip = await screen.findByText(/quantity/);
+        // was already in the page with this text (testing-library judged it inaccessible). It mounts
+        // after the theme's 1000 ms open delay: wait longer than that, not the default 1000 ms.
+        const tip = await screen.findByText(/quantity/, {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
     });
 

@@ -403,10 +403,10 @@ describe("the mouse", () => {
                 fetchNodes: () => [{ id: "x" }],
             });
 
-            // One batch of four events, as a hand double-clicks: two awaited clicks leave the test's own
-            // round trips between them, and on a loaded machine that gap passes the scene's 300 ms
-            // double-click delay, so the second click is just a click.
-            await doubleClick(element, at(element, "b"));
+            const point = at(element, "b");
+            // One doubleClick, not two awaited clicks: the scene counts two presses as a double-click
+            // only within its 300 ms delay, and two round trips can take longer than that.
+            await doubleClick(element, point);
             await vi.waitFor(() => {
                 assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
             });

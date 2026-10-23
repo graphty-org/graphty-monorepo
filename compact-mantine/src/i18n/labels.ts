@@ -443,6 +443,13 @@ export interface CompactMantineLabels {
     entityNode: string;
     /** What a screen reader says before an edge chip's count or name. Never drawn: the chip shows a segment. */
     entityEdge: string;
+
+    // FileSource
+
+    /** The text of `FileSource`'s button that opens the file picker, and the name of its upload icon button. */
+    fileChoose: string;
+    /** Placeholder and accessible name of `FileSource`'s web address field. */
+    fileUrl: string;
 }
 
 /**
@@ -564,6 +571,9 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     entityNode: "Node",
     entityEdge: "Edge",
+
+    fileChoose: "Choose file",
+    fileUrl: "URL",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

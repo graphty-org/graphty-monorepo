@@ -124,7 +124,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "../components/inputs";
 
@@ -182,6 +187,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

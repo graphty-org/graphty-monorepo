@@ -43,9 +43,9 @@ export { ToggleWithContent } from "./components/ToggleWithContent";
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), and focus put on
-// a field by program with its ring drawn.
-export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
+// with its drop hook and file picker, and focus put on a field by program with its ring drawn.
+export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
 export { focusWithRing } from "./components/inputs/listbox";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
@@ -92,6 +92,7 @@ export {
     RailButton,
     SecondaryToolbar,
     ShortcutSheet,
+    StatusBar,
     Toolbar,
     ToolButton,
     ToolGroup,
@@ -277,7 +278,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "./types";
 export type {
@@ -329,6 +335,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

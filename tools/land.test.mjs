@@ -3,7 +3,7 @@
 //
 //   node tools/land.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
     chmodSync,
     existsSync,
@@ -490,6 +490,118 @@ describe("the short lock", () => {
         assert.equal(lockedGate?.pid, process.pid, "the fourth gate ran under the landing lock");
         assert.ok(["moved1.txt", "moved2.txt", "moved3.txt", "sc.txt"].every((f) => existsSync(join(golden, f))));
         assert.equal(originGolden(), head());
+    });
+});
+
+describe("a newer landing of the same work", () => {
+    /**
+     * Two landings in this process: the first's gate is a real process in its own group that runs until it is
+     * killed; the second starts once that gate runs. One console capture for both (run() swaps console.log).
+     * @param first the first landing's branches
+     * @param second the second landing's branches
+     * @param [between] runs once the first gate runs, before the second landing starts
+     * @returns `{ a, b, out, gate }`: both exit codes, what they printed, the first gate's exit signal
+     */
+    const overlap = async (first, second, between = () => {}) => {
+        let gateRunning;
+        const running = new Promise((r) => (gateRunning = r));
+        let gateSignal;
+        let gates = 0;
+        const c = {
+            ...ctx,
+            check: async (k) => {
+                checks++;
+                if (++gates > 1) return gate(k);
+                const child = spawn(process.execPath, ["-e", "process.stdin.resume()"], {
+                    detached: true,
+                    stdio: ["pipe", "ignore", "ignore"],
+                });
+                k.child = child;
+                const closed = new Promise((r) => child.on("close", (_code, signal) => r(signal)));
+                gateRunning();
+                gateSignal = await closed;
+                return { code: 1, output: "Terminated" };
+            },
+        };
+        const out = [];
+        const log = console.log;
+        const err = console.error;
+        console.log = (...a) => out.push(a.join(" "));
+        console.error = (...a) => out.push(a.join(" "));
+        try {
+            const a = main(["land", ...first], c);
+            await running;
+            between();
+            const b = await main(["land", ...second], c);
+            return { a: await a, b, out: out.join("\n"), gate: gateSignal };
+        } finally {
+            console.log = log;
+            console.error = err;
+        }
+    };
+
+    it("cancels the earlier check of a branch landed again, which stops and lands nothing", async () => {
+        const wt = branch("again/a", { "ag.txt": "1\n" }, "feat: again");
+        const r = await overlap(["again/a"], ["again/a"], () => {
+            write(wt, "ag.txt", "2\n");
+            git(wt, "commit", "-qam", "fix: again");
+        });
+        assert.equal(r.gate, "SIGTERM", "the first check's gate was stopped by its process group");
+        assert.equal(r.a, 1, r.out);
+        assert.match(r.out, /cancelled the check of again\/a/);
+        assert.match(r.out, /this check was cancelled by a newer landing of again\/a/);
+        assert.equal(r.b, 0, r.out);
+        assert.equal(readFileSync(join(golden, "ag.txt"), "utf8"), "2\n", "the newer landing's commit landed");
+        assert.equal(originGolden(), head());
+        assert.deepEqual(
+            readdirSync(join(repo, "tmp/golden")).filter((f) => f.startsWith("check-slot-")),
+            [],
+            "every slot freed",
+        );
+    });
+
+    it("cancels the check of a branch folded into a branch of the new landing", async () => {
+        branch("fold/a", { "fa.txt": "a\n" }, "feat: fa");
+        branch("fold/b", { "fb.txt": "b\n" }, "feat: fb", "fold/a");
+        const r = await overlap(["fold/a"], ["fold/b"]);
+        assert.equal(r.gate, "SIGTERM");
+        assert.equal(r.a, 1, r.out);
+        assert.match(r.out, /cancelled the check of fold\/a/);
+        assert.equal(r.b, 0, r.out);
+        assert.ok(["fa.txt", "fb.txt"].every((f) => existsSync(join(golden, f))));
+    });
+
+    it("leaves the check of an unrelated branch alone", async () => {
+        branch("apart/a", { "pa.txt": "a\n" }, "feat: pa");
+        branch("apart/b", { "pb.txt": "b\n" }, "feat: pb");
+        let gateRunning;
+        const running = new Promise((r) => (gateRunning = r));
+        let finish;
+        const c = {
+            ...ctx,
+            check: async (k) => {
+                if (!finish) {
+                    const held = new Promise((r) => (finish = r));
+                    gateRunning();
+                    await held;
+                }
+                return gate(k);
+            },
+        };
+        const out = [];
+        const log = console.log;
+        console.log = (...a) => out.push(a.join(" "));
+        try {
+            const a = main(["land", "apart/a"], c);
+            await running;
+            const b = await main(["land", "apart/b"], c);
+            finish();
+            assert.equal(b, 0, out.join("\n"));
+            assert.equal(await a, 0, out.join("\n"));
+            assert.doesNotMatch(out.join("\n"), /cancelled/);
+        } finally {
+            console.log = log;
+        }
     });
 });
 

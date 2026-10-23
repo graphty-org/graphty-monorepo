@@ -164,43 +164,65 @@ function busyDirs(dirs, root, home, procDir) {
         const d = holderOf(p, dirs);
         if (d && !busy.has(d)) busy.set(d, why);
     };
-    const tickets = join(root, "tmp/push-queue");
-    for (const name of existsSync(tickets) ? readdirSync(tickets) : []) {
-        const pid = Number(name.split("-").at(-1));
-        if (!alive(pid)) continue;
+    markTickets(join(root, "tmp/push-queue"), mark);
+    markSessions(join(home, ".claude/sessions"), mark);
+    for (const pid of readdirSync(procDir)) {
+        if (/^\d+$/.test(pid)) markProcess(join(procDir, pid), mark);
+    }
+    return busy;
+}
+
+const listDir = (dir) => (existsSync(dir) ? readdirSync(dir) : []);
+
+/**
+ * Marks the directory each live push-queue ticket names.
+ * @param tickets the ticket directory
+ * @param mark marks a path busy for a reason
+ */
+function markTickets(tickets, mark) {
+    for (const name of listDir(tickets)) {
+        if (!alive(Number(name.split("-").at(-1)))) continue;
         try {
             mark(readFileSync(join(tickets, name), "utf8").split(" :: ")[0].trim(), "ticket");
         } catch {
             // The push ended while read.
         }
     }
-    const sessions = join(home, ".claude/sessions");
-    for (const name of existsSync(sessions) ? readdirSync(sessions) : []) {
+}
+
+/**
+ * Marks the working directory of each live Claude session.
+ * @param sessions Claude's session directory
+ * @param mark marks a path busy for a reason
+ */
+function markSessions(sessions, mark) {
+    for (const name of listDir(sessions)) {
         const s = name.endsWith(".json") ? readJson(join(sessions, name)) : null;
         if (s?.pid && alive(s.pid)) mark(s.cwd, "process");
     }
-    for (const pid of readdirSync(procDir)) {
-        if (!/^\d+$/.test(pid)) continue;
+}
+
+/**
+ * Marks a process's cwd and every file it has open.
+ * @param dir the process's /proc directory
+ * @param mark marks a path busy for a reason
+ */
+function markProcess(dir, mark) {
+    const link = (p) => {
         try {
-            mark(readlinkSync(join(procDir, pid, "cwd")), "process");
+            mark(readlinkSync(p), "process");
         } catch {
-            // Another user's process, or gone.
+            // Another user's process, gone, or closed while read.
         }
-        let fds = [];
-        try {
-            fds = readdirSync(join(procDir, pid, "fd"));
-        } catch {
-            continue;
-        }
-        for (const fd of fds) {
-            try {
-                mark(readlinkSync(join(procDir, pid, "fd", fd)), "process");
-            } catch {
-                // Closed while read.
-            }
-        }
+    };
+    link(join(dir, "cwd"));
+    let fds = [];
+    try {
+        fds = readdirSync(join(dir, "fd"));
+    } catch {
+        return;
     }
-    return busy;
+    for (const fd of fds) link(join(dir, "fd", fd));
 }
 
 /**
@@ -266,6 +288,125 @@ function heldBranches(root, env) {
 }
 
 /**
+ * The finished worktrees: a branch gone upstream, or a head reachable from master or golden that is not
+ * on their first-parent line; a detached head when reachable.
+ * @param trees the worktrees
+ * @param root the main checkout
+ * @param env git's environment
+ * @returns the finished worktrees
+ */
+function finishedTrees(trees, root, env) {
+    const bases = BASES.filter((b) => git(root, ["rev-parse", "-q", "--verify", b], env).code === 0);
+    const firstParent = new Set(bases.flatMap((b) => lines(root, ["rev-list", "--first-parent", b], env)));
+    const gone = new Set(
+        lines(root, ["for-each-ref", "--format=%(refname:lstrip=2) %(upstream:track)", "refs/heads"], env)
+            .filter((l) => l.endsWith(" [gone]"))
+            .map((l) => l.slice(0, -" [gone]".length)),
+    );
+    const inBases = (sha) =>
+        Boolean(sha) && git(root, ["rev-list", "--count", sha, "--not", ...bases], env).out.trim() === "0";
+    return trees.filter((t) => {
+        if (!t.branch) return inBases(t.head);
+        return gone.has(t.branch) || (!firstParent.has(t.head) && inBases(t.head));
+    });
+}
+
+const WAIT = "wait";
+
+/**
+ * Why a finished worktree is kept, if it is.
+ * @param t the worktree
+ * @param c the checks: `prot` protected directories, `busy` busy directories with their reasons, `held`
+ *   whether a branch is held, `recentMs` the activity window, `env` git's environment
+ * @param full whether this run's batch is already full
+ * @returns a `KEEP` key, `WAIT` when it waits for a later run, or null to remove it
+ */
+function keepReason(t, c, full) {
+    if (c.prot.some((p) => p === t.dir || p.startsWith(t.dir + "/"))) return "tool";
+    if (t.locked) return "locked";
+    if (t.branch && c.held(t.branch)) return "held";
+    if (c.busy.has(t.dir)) return c.busy.get(t.dir);
+    if (Date.now() - lastActivity(t.dir) < c.recentMs) return "recent";
+    if (full) return WAIT;
+    const n = git(t.dir, ["rev-list", "--count", "HEAD", "--not", "--remotes"], c.env);
+    if (n.code !== 0 || n.out.trim() !== "0") return "unpushed";
+    // No index refresh: --no-optional-locks keeps this a read.
+    const st = git(t.dir, ["--no-optional-locks", "status", "--porcelain"], c.env);
+    return st.code !== 0 || st.out.trim() !== "" ? "dirty" : null;
+}
+
+/**
+ * Removes one worktree (its non-empty tmp/ moved to the main checkout's tmp/worktree-tmp first) and,
+ * when merged, its branch.
+ * @param t the worktree
+ * @param root the main checkout
+ * @param env git's environment
+ * @param record appends an entry to the log
+ * @param say prints a line
+ * @returns whether it was removed
+ */
+function removeTree(t, root, env, record, say) {
+    const scratch = join(t.dir, "tmp");
+    let movedTmp = null;
+    if (existsSync(scratch) && readdirSync(scratch).length) {
+        movedTmp = join(root, "tmp/worktree-tmp", basename(t.dir));
+        if (existsSync(movedTmp)) movedTmp += `-${Date.now()}`;
+        mkdirSync(dirname(movedTmp), { recursive: true });
+        renameSync(scratch, movedTmp);
+    }
+    const r = git(root, ["worktree", "remove", t.dir], env);
+    if (r.code !== 0) {
+        record({ kind: "worktree-remove-failed", dir: t.dir, branch: t.branch, movedTmp, error: r.err.trim() });
+        say(`refused: ${t.dir}: ${r.err.trim()}`);
+        return false;
+    }
+    const branchDeleted = t.branch ? git(root, ["branch", "-d", t.branch], env).code === 0 : null;
+    record({ kind: "worktree-removed", dir: t.dir, branch: t.branch, branchDeleted, movedTmp });
+    let what = "";
+    if (t.branch) what = ` (${t.branch}${branchDeleted ? ", branch deleted" : ""})`;
+    say(`removed ${t.dir}${what}`);
+    return true;
+}
+
+/**
+ * Splits the finished worktrees into this run's batch, the ones kept (counted through `bump`) and the
+ * ones that wait for a later run.
+ * @param finished the finished worktrees
+ * @param checks the checks `keepReason` takes
+ * @param max the most to put in the batch
+ * @param bump counts one kept worktree under a reason
+ * @returns `{ batch, waiting }`
+ */
+function pickBatch(finished, checks, max, bump) {
+    const batch = [];
+    let waiting = 0;
+    for (const t of finished) {
+        const why = keepReason(t, checks, batch.length >= max);
+        if (why === WAIT) waiting++;
+        else if (why) bump(KEEP[why]);
+        else batch.push(t);
+    }
+    return { batch, waiting };
+}
+
+/**
+ * Removes every worktree of the batch; a refused one is counted through `bump`.
+ * @param batch the worktrees
+ * @param c `root` the main checkout, `env` git's environment, `record` the log, `say` prints a line
+ * @param bump counts one kept worktree under a reason
+ * @returns the removed directories
+ */
+function removeBatch(batch, c, bump) {
+    const removed = [];
+    for (const t of batch) {
+        if (removeTree(t, c.root, c.env, c.record, c.say)) removed.push(t.dir);
+        else bump(KEEP.refused);
+    }
+    if (removed.length) git(c.root, ["worktree", "prune"], c.env);
+    return removed;
+}
+
+/**
  * One pass: finds the finished worktrees and, with `apply`, removes up to `max` that pass every check.
  * @param o the options: `root` the main checkout, `apply` whether to remove, `max` the most to remove,
  *   `recentHours` the activity window; for tests `env`, `home`, `procDir`, `fetch` and `log`
@@ -278,95 +419,42 @@ export function cleanup(o) {
     const home = o.home ?? homedir();
     const say = o.log ?? console.log;
     if (o.fetch !== false) git(root, ["fetch", "-q", "--prune", "--no-tags", "origin"], env);
-    const bases = BASES.filter((b) => git(root, ["rev-parse", "-q", "--verify", b], env).code === 0);
     const list = git(root, ["worktree", "list", "--porcelain"], env);
     if (list.code !== 0) throw new Error(`git worktree list failed: ${list.err.trim()}`);
     const trees = parseTrees(list.out);
-    const firstParent = new Set(bases.flatMap((b) => lines(root, ["rev-list", "--first-parent", b], env)));
-    const gone = new Set(
-        lines(root, ["for-each-ref", "--format=%(refname:lstrip=2) %(upstream:track)", "refs/heads"], env)
-            .filter((l) => l.endsWith(" [gone]"))
-            .map((l) => l.slice(0, -" [gone]".length)),
-    );
-    const inBases = (sha) =>
-        Boolean(sha) && git(root, ["rev-list", "--count", sha, "--not", ...bases], env).out.trim() === "0";
-    const finished = trees.filter((t) =>
-        t.branch ? gone.has(t.branch) || (!firstParent.has(t.head) && inBases(t.head)) : inBases(t.head),
-    );
+    const finished = finishedTrees(trees, root, env);
 
     const dirs = new Set(finished.map((t) => t.dir));
-    const prot = new Set(protectedDirs(root, home));
+    const prot = [...new Set(protectedDirs(root, home))];
     const busy = busyDirs(dirs, root, home, o.procDir ?? "/proc");
     const held = heldBranches(root, env);
     const recentMs = recentHours * 3600e3;
     const kept = {};
-    const batch = [];
-    let waiting = 0;
-    for (const t of finished) {
-        let why = null;
-        if (prot.has(t.dir) || [...prot].some((p) => p.startsWith(t.dir + "/"))) why = "tool";
-        else if (t.locked) why = "locked";
-        else if (t.branch && held(t.branch)) why = "held";
-        else if (busy.has(t.dir)) why = busy.get(t.dir);
-        else if (Date.now() - lastActivity(t.dir) < recentMs) why = "recent";
-        else if (batch.length >= max) {
-            waiting++;
-            continue;
-        } else {
-            const n = git(t.dir, ["rev-list", "--count", "HEAD", "--not", "--remotes"], env);
-            if (n.code !== 0 || n.out.trim() !== "0") why = "unpushed";
-            else {
-                // No index refresh: --no-optional-locks keeps this a read.
-                const st = git(t.dir, ["--no-optional-locks", "status", "--porcelain"], env);
-                if (st.code !== 0 || st.out.trim() !== "") why = "dirty";
-            }
-        }
-        if (why) kept[KEEP[why]] = (kept[KEEP[why]] ?? 0) + 1;
-        else batch.push(t);
-    }
+    const bump = (k) => {
+        kept[k] = (kept[k] ?? 0) + 1;
+    };
+    const { batch, waiting } = pickBatch(finished, { prot, busy, held, recentMs, env }, max, bump);
 
     const logFile = join(root, "tmp/worktree-cleanup/log.jsonl");
     const record = (e) => {
         mkdirSync(dirname(logFile), { recursive: true });
         appendFileSync(logFile, JSON.stringify({ at: new Date().toISOString(), ...e }) + "\n");
     };
-    const removed = [];
     const start = freeBytes(root);
-    if (apply) {
-        for (const t of batch) {
-            const scratch = join(t.dir, "tmp");
-            let movedTmp = null;
-            if (existsSync(scratch) && readdirSync(scratch).length) {
-                movedTmp = join(root, "tmp/worktree-tmp", basename(t.dir));
-                if (existsSync(movedTmp)) movedTmp += `-${Date.now()}`;
-                mkdirSync(dirname(movedTmp), { recursive: true });
-                renameSync(scratch, movedTmp);
-            }
-            const r = git(root, ["worktree", "remove", t.dir], env);
-            if (r.code !== 0) {
-                kept[KEEP.refused] = (kept[KEEP.refused] ?? 0) + 1;
-                record({ kind: "worktree-remove-failed", dir: t.dir, branch: t.branch, movedTmp, error: r.err.trim() });
-                say(`refused: ${t.dir}: ${r.err.trim()}`);
-                continue;
-            }
-            const branchDeleted = t.branch ? git(root, ["branch", "-d", t.branch], env).code === 0 : null;
-            removed.push(t.dir);
-            record({ kind: "worktree-removed", dir: t.dir, branch: t.branch, branchDeleted, movedTmp });
-            say(`removed ${t.dir}${t.branch ? ` (${t.branch}${branchDeleted ? ", branch deleted" : ""})` : ""}`);
-        }
-        if (removed.length) git(root, ["worktree", "prune"], env);
-    }
+    const removed = apply ? removeBatch(batch, { root, env, record, say }, bump) : [];
     const freedBytes = Math.max(0, freeBytes(root) - start);
-    const reasons = Object.entries(kept).sort((a, b) => b[1] - a[1]);
-    const keptTotal = reasons.reduce((s, [, n]) => s + n, 0);
+    const done = apply
+        ? `removed ${removed.length} (${(freedBytes / 1e9).toFixed(1)} GB freed)`
+        : `would remove ${batch.length} (dry run)`;
     const parts = [
         `${trees.length} worktrees, ${trees.length - finished.length} not finished, ${finished.length} finished`,
-        apply
-            ? `removed ${removed.length} (${(freedBytes / 1e9).toFixed(1)} GB freed)`
-            : `would remove ${batch.length} (dry run)`,
+        done,
     ];
     if (waiting) parts.push(`${waiting} more wait for the next run (--max ${max})`);
-    if (keptTotal) parts.push(`kept ${keptTotal}: ${reasons.map(([w, n]) => `${n} ${w}`).join(", ")}`);
+    const reasons = Object.entries(kept).sort((a, b) => b[1] - a[1]);
+    const keptTotal = reasons.reduce((sum, [, n]) => sum + n, 0);
+    const keptList = reasons.map(([w, n]) => `${n} ${w}`).join(", ");
+    if (keptTotal) parts.push(`kept ${keptTotal}: ${keptList}`);
     const text = `worktree-cleanup: ${parts.join("; ")}`;
     if (apply) record({ kind: "pass", text });
     return { removed, would: apply ? [] : batch.map((t) => t.dir), kept, waiting, freedBytes, text };
@@ -383,7 +471,7 @@ async function main(argv) {
         const i = argv.indexOf(name);
         if (i < 0) return d;
         const n = Number(argv[i + 1]);
-        if (!(n >= 0)) throw new Error(`${name} needs a number`);
+        if (Number.isNaN(n) || n < 0) throw new Error(`${name} needs a number`);
         return n;
     };
     const known = new Set(["--dry-run", "--apply", "--max", "--every", "--recent"]);

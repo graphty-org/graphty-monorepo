@@ -371,6 +371,7 @@ The `tools/` directory contains build scripts:
 | `assemble-pages-site.sh` | Builds the graphty.app site from the build outputs; deploy-pages.yml and the link check both run it |
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
+| `check-committed-images.mjs` | Fails a push (pre-push and CI's Checks job) that adds more than 20 images or 20 MB outside the folders that hold them (`visual-baselines/`, test fixtures, public assets): design studio walk screenshots go to `tmp/design-studio/`, never git. An `Images-Approved: <reason>` trailer on HEAD, or on the commit that adds them, passes a deliberate addition |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |

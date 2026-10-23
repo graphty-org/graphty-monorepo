@@ -3,6 +3,7 @@ import {
     CompactColorInput,
     ControlSection,
     FieldRow,
+    FileSource,
     PanelField,
     PanelLabelsProvider,
     ResetButton,
@@ -10,11 +11,12 @@ import {
 } from "@graphty/compact-mantine";
 import { DEFAULT_BACKGROUND_COLOR, type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
 import type { GraphSettingKey } from "@graphty/graphty-element/session";
-import { Input, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Input, Select, Stack, Switch, Text } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
 import type { WorkspaceStore } from "../state/store";
+import { readDataUrl } from "../start/open";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
 
@@ -120,7 +122,6 @@ export function GraphSettings(): React.JSX.Element | null {
                     </Input.Wrapper>
                     {showsImage ? (
                         <BackgroundImage
-                            value={background.backgroundType === "skybox" ? background.data : ""}
                             onCommit={(data) => {
                                 void session.config.set({ background: { backgroundType: "skybox", data } });
                             }}
@@ -241,33 +242,23 @@ export function GraphSettings(): React.JSX.Element | null {
 }
 
 /**
- * The background image's address, written when the field is left or Enter is pressed.
+ * The background image: an address typed in (Enter), or an image from this computer, chosen or
+ * dropped on the row, kept in the project as a `data:` address.
  * @param props - Component props
- * @param props.value - the address in effect
  * @param props.onCommit - writes a new address
  * @returns The field
  */
-function BackgroundImage({
-    value,
-    onCommit,
-}: Readonly<{ value: string; onCommit: (data: string) => void }>): React.JSX.Element {
-    const commit = (event: React.SyntheticEvent<HTMLInputElement>): void => {
-        const next = event.currentTarget.value.trim();
-        if (next !== "" && next !== value) {
-            onCommit(next);
-        }
-    };
+function BackgroundImage({ onCommit }: Readonly<{ onCommit: (data: string) => void }>): React.JSX.Element {
     return (
-        <TextInput
-            key={value}
-            size="xs"
-            label="Image address"
-            defaultValue={value}
-            onBlur={commit}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    commit(event);
-                }
+        <FileSource
+            variant="row"
+            url
+            accept="image/*"
+            placeholder="Image address"
+            label="Upload image"
+            onUrl={onCommit}
+            onFiles={([file]) => {
+                void readDataUrl(file).then(onCommit);
             }}
         />
     );

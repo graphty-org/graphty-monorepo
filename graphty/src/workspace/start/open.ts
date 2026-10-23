@@ -4,6 +4,7 @@
  * Undo work as for any file, and nothing is run on it.
  */
 
+import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
 import {
     type DatasetMeta,
     DEFAULT_DATASET_BASE_URL,
@@ -11,7 +12,7 @@ import {
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
 import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
@@ -20,7 +21,7 @@ import { focusOpenedGraph } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
-import { newProjectId, type WorkspaceStore } from "../state/store";
+import { newProjectId, useStoreValue, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 
 /**
@@ -192,14 +193,24 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 }
 
 /**
+ * The graph file at a web address as a source, named after the file (or the host when the address
+ * names no file).
+ * @param url - the address.
+ * @returns the source.
+ */
+function urlSource(url: string): Incoming {
+    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
+    return { name, source: { config: { url }, name } };
+}
+
+/**
  * Opens the graph file at a web address as a new project named after the file, drawn as a first
  * file is. The element reads the format from the address and the file.
  * @param workspace - the workspace store.
  * @param url - the address.
  */
 export function openUrl(workspace: WorkspaceStore, url: string): void {
-    const name = decodeURIComponent(new URL(url).pathname.split("/").pop() ?? "") || new URL(url).hostname;
-    openSeparate(workspace, { name, source: { config: { url }, name } });
+    openSeparate(workspace, urlSource(url));
 }
 
 /**
@@ -349,18 +360,7 @@ export function openFile(ctx: CommandContext, file: File): void {
  * @returns the files, empty when the reader cancels.
  */
 export function pickFiles(): Promise<File[]> {
-    return new Promise((resolve) => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.multiple = true;
-        input.addEventListener("change", () => {
-            resolve([...(input.files ?? [])]);
-        });
-        input.addEventListener("cancel", () => {
-            resolve([]);
-        });
-        input.click();
-    });
+    return pickFromBrowser({ multiple: true });
 }
 
 /**
@@ -373,6 +373,25 @@ export async function pickFile(): Promise<File | undefined> {
 }
 
 /**
+ * A file's contents as a `data:` address, for a setting that takes an image address (a background,
+ * a map), so an image from this computer is kept in the project with it.
+ * @param file - the file.
+ * @returns the address.
+ */
+export function readDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.addEventListener("load", () => {
+            resolve(String(reader.result));
+        });
+        reader.addEventListener("error", () => {
+            reject(reader.error ?? new Error(`${file.name} could not be read`));
+        });
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
  * Open project or file... and File...: the browser's file picker, then the files open.
  * @param ctx - the command context.
  */
@@ -380,25 +399,39 @@ export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
     openFiles(ctx, await pickFiles());
 }
 
+/** What Paste read from the clipboard: a web address, or text to read as data. */
+export type Pasted = { readonly kind: "url"; readonly url: string } | { readonly kind: "text"; readonly text: string };
+
 /**
- * Paste: the clipboard's text, read by graphty-element as any file is (CSV, TSV, JSON, a graph
- * format), added as a source; a web address opens the graph file there.
+ * Paste, wherever it is offered: the clipboard's text, as a web address when it is one (the graph
+ * file there opens), else as data graphty-element reads as any file (CSV, TSV, JSON, a graph format).
+ * @returns what was pasted, or null when the clipboard holds no text.
+ */
+export async function readPasted(): Promise<Pasted | null> {
+    const text = await navigator.clipboard.readText();
+    const pasted = text.trim();
+    if (pasted === "") {
+        return null;
+    }
+    return /^https?:\/\/\S+$/.test(pasted) ? { kind: "url", url: pasted } : { kind: "text", text };
+}
+
+/**
+ * Paste on the Sources "+": what {@link readPasted} read, added as a source.
  * @param ctx - the command context.
  */
 export async function pasteSource(ctx: CommandContext): Promise<void> {
-    const text = await navigator.clipboard.readText();
-    if (text.trim() === "") {
+    const pasted = await readPasted();
+    if (pasted === null) {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    const pasted = text.trim();
-    // A pasted web address opens the graph file there, named after the file.
-    if (/^https?:\/\/\S+$/.test(pasted)) {
-        const name = decodeURIComponent(new URL(pasted).pathname.split("/").pop() ?? "") || new URL(pasted).hostname;
-        addSource(ctx, { name, source: { config: { url: pasted }, name } });
-        return;
-    }
-    addSource(ctx, { name: "Pasted data", source: { config: { data: text }, name: "Pasted data" } });
+    addSource(
+        ctx,
+        pasted.kind === "url"
+            ? urlSource(pasted.url)
+            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
+    );
 }
 
 /**
@@ -409,25 +442,9 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
 export function useDropToOpen(ctx: CommandContext): void {
     const latest = useRef(ctx);
     latest.current = ctx;
-    useEffect(() => {
-        const inProject = (): boolean => latest.current.workspace.get().project !== null;
-        const over = (event: DragEvent): void => {
-            if (inProject()) {
-                event.preventDefault();
-            }
-        };
-        const drop = (event: DragEvent): void => {
-            if (!inProject() || event.defaultPrevented) {
-                return;
-            }
-            event.preventDefault();
-            openFiles(latest.current, [...(event.dataTransfer?.files ?? [])]);
-        };
-        globalThis.addEventListener("dragover", over);
-        globalThis.addEventListener("drop", drop);
-        return () => {
-            globalThis.removeEventListener("dragover", over);
-            globalThis.removeEventListener("drop", drop);
-        };
+    const inProject = useStoreValue(ctx.workspace, (state) => state.project !== null);
+    const open = useCallback((files: File[]) => {
+        openFiles(latest.current, files);
     }, []);
+    useFileDrop("window", open, { disabled: !inProject });
 }

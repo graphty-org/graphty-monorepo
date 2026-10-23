@@ -69,7 +69,16 @@ describe("the workspace frame", () => {
     it("draws every region", () => {
         renderWorkspace(OPEN);
 
-        assert.isNotNull(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        // The privacy chip reports state, so it sits in the status bar along the bottom, not the header.
+        const bar = screen.getByRole("contentinfo", { name: "Status" });
+        assert.isNotNull(within(bar).getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        assert.isNull(
+            within(screen.getByRole("banner", { name: "Project" })).queryByRole("button", {
+                name: /^(Local only|Usage data on, content masked)$/,
+            }),
+        );
+        const frame = document.querySelector(".ws-app");
+        assert.strictEqual(frame?.lastElementChild, bar, "the bar is the frame's bottom row");
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
         assert.isNotNull(document.querySelector("graphty-element"));
         // The one main landmark needs no name, so the rail's Graph button is the only "Graph".

@@ -1,10 +1,11 @@
 import "./frame.css";
 
-import { Popout, ResizeHandle } from "@graphty/compact-mantine";
+import { Popout, ResizeHandle, StatusBar } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useEffect, useRef } from "react";
 
+import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { TOOLBAR_SIDES, toolbarInsets, useOverlayInset } from "../canvas/viewInsets";
@@ -15,6 +16,7 @@ import { DATA_PLACE_KINDS } from "../inspector/inspected";
 import { Inspector } from "../inspector/Inspector";
 import { JoinScreen } from "../join/JoinScreen";
 import { NotesPlace } from "../notes/NotesPlace";
+import { PrivacyChip } from "../privacy/PrivacyChip";
 import { NodeMenu } from "../server/NodeMenu";
 import { DOCK_DEFAULT, DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -40,8 +42,9 @@ interface FrameProps {
 /**
  * The workspace frame (tier1-design.md section 2): the header across the top; under it the rail,
  * the left panel, the canvas with the toolbar floating at its foot, and the inspector; the table
- * dock along the canvas's foot. The Data page takes the area right of the rail while the element
- * stays mounted underneath.
+ * dock along the canvas's foot; and the status bar along the bottom, with the autosave state and the
+ * privacy chip. The Data page takes the area right of the rail while the element stays mounted
+ * underneath.
  * @param props - Component props
  * @param props.onElementReady - Called with the element and its session
  * @returns The frame
@@ -196,6 +199,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     </div>
                 )}
             </div>
+            {/* State the reader reads rather than acts on: the autosave state (with the workspace's
+                polite status region) and the privacy chip. */}
+            <StatusBar role="contentinfo" aria-label="Status" left={<AutosaveChip />} right={<PrivacyChip />} />
         </div>
     );
 }

@@ -6,13 +6,13 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { availableSentence, dataCountsFact, formatAutosaveChip } from "./words";
 
 /**
- * The chip's dot for each tone. Shade 8 keeps the dot at 3:1 or better on the header; the label
+ * The chip's dot for each tone. Shade 8 keeps the dot at 3:1 or better on the status bar; the label
  * itself is drawn in the text color (the dot variant), not in the tone.
  */
 const TONE_COLOR = { ok: "green.8", busy: "blue.8", problem: "red.8" } as const;
 
 /**
- * The header's autosave chip: where graphty-element's autosave stands, in the workspace's words.
+ * The status bar's autosave chip: where graphty-element's autosave stands, in the workspace's words.
  * A failing write is the chip's own "not saved" state. Beside it
  * is the workspace's one polite status region, which hears the data's counts after every change
  * to the graph and the chip's state when a write starts failing.

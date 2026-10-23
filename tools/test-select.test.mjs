@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -16,6 +16,7 @@ import {
     estimate,
     failingFiles,
     globToRe,
+    literalPaths,
     loadRules,
     measuredOf,
     outsideOf,
@@ -37,7 +38,7 @@ import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
 import { selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
-import { judge, mutant, seededPick } from "./test-select-mutate.mjs";
+import { mutant, seededPick, unexplained } from "./test-select-mutate.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // the fixtures below live under the checkout so that they resolve its installed vitest
@@ -84,7 +85,8 @@ const deps = new Map([
     ["pb", new Set(["pa"])],
     ["pc", new Set()],
 ]);
-const refs = new Map([["pc", new Set(["pa"])]]);
+// pc has no graph to say which of its files reads pa's, so any change to pa runs it whole
+const refs = new Map([["pc", [{ target: "pa", prefix: "pa/", holder: null, build: false }]]]);
 const graphs = new Map([
     ["pa", [graph]],
     ["pb", [{ ...graph, package: "pb", projects: {}, imports: {}, opaque: [] }]],
@@ -412,8 +414,10 @@ describe("building a package's import graph (a fixture package, walked by Vitest
     put("pa/src/text.txt", "hello\n");
     put(
         "pa/src/w.ts",
-        'import t from "./text.txt?raw";\nexport const w = new URL("./worker.ts", import.meta.url);\nexport { t };\n',
+        'import t from "./text.txt?raw";\nimport "./s.css";\nexport const w = new URL("./worker.ts", import.meta.url);\nexport { t };\n',
     );
+    put("pa/src/s.css", '@font-face { font-family: f; src: url("./f.ttf") format("truetype"); }\n');
+    put("pa/src/f.ttf", "font\n");
     put("pa/src/worker.ts", "export {};\n");
     put("pa/test/a.test.ts", 'import { it } from "vitest";\nimport { a } from "../src/a";\nit("a", () => a());\n');
     put("pa/test/w.test.ts", 'import { it } from "vitest";\nimport { w } from "../src/w";\nit("w", () => w);\n');
@@ -439,7 +443,8 @@ describe("building a package's import graph (a fixture package, walked by Vitest
             assert.deepEqual(specs, ["pa/test/a.test.ts", "pa/test/reads.test.ts", "pa/test/w.test.ts"]);
             assert.ok(Object.values(g.projects).every((p) => p.browser === false));
             assert.deepEqual(g.imports["pa/src/a.ts"], ["pa/src/b.ts"]);
-            assert.deepEqual(g.imports["pa/src/w.ts"].sort(), ["pa/src/text.txt", "pa/src/worker.ts"]);
+            assert.deepEqual(g.imports["pa/src/w.ts"].sort(), ["pa/src/s.css", "pa/src/text.txt", "pa/src/worker.ts"]);
+            assert.deepEqual(g.imports["pa/src/s.css"], ["pa/src/f.ttf"], "a stylesheet's url() is an edge");
             assert.deepEqual(g.opaque, ["pa/test/reads.test.ts"]);
             assert.deepEqual([...selectInGraph(g, ["pa/src/b.ts"]).specs.keys()].sort(), [
                 "pa/test/a.test.ts",
@@ -461,7 +466,11 @@ describe("building a package's import graph (a fixture package, walked by Vitest
                 ]),
                 new Map(),
             );
-            assert.deepEqual([...refs.get("pa")], ["pb"], "pa's tests read pb's files by relative path");
+            assert.deepEqual(
+                refs.get("pa"),
+                [{ target: "pb", prefix: "pb/data", holder: "pa/test/reads.test.ts", build: false }],
+                "pa's reads test names pb's data file by relative path",
+            );
         } finally {
             rmSync(fixture, { recursive: true, force: true });
         }
@@ -680,13 +689,14 @@ describe("mutation testing of the selection", () => {
         assert.equal(mutant("p/data/x.csv", "a,b"), "");
     });
 
-    it("calls a failure outside the selection a miss unless it fails on the unbroken tree too", () => {
-        const v = judge(["t/a", "t/b"], ["t/a", "t/c", "t/d"], (f) => f === "t/d");
-        assert.deepEqual(v, { misses: ["t/c"], flaky: ["t/d"], over: 1 });
-        assert.deepEqual(
-            judge(null, ["t/x"], () => false),
-            { misses: [], flaky: [], over: 0 },
-        );
+    it("checks each failing test against the broken files that did not select it, grouped", () => {
+        const chosen = (m) => ({ "x.ts": new Set(["t/a", "t/b"]), "y.ts": new Set(["t/c"]), "z.ts": null })[m];
+        assert.deepEqual(unexplained(["t/a", "t/c", "t/d"], ["x.ts", "y.ts"], chosen), [
+            { non: ["y.ts"], files: ["t/a"] },
+            { non: ["x.ts"], files: ["t/c"] },
+            { non: ["x.ts", "y.ts"], files: ["t/d"] },
+        ]);
+        assert.deepEqual(unexplained(["t/d"], ["z.ts"], chosen), [], "a whole-shard selection explains anything");
     });
 });
 
@@ -817,5 +827,136 @@ describe("misses found by mutation testing", () => {
 
     it("does not count a benchmark as a build input", () => {
         assert.ok(!buildInput("benchmarks/harness.ts"));
+    });
+});
+
+describe("reads of another package's files, path by path", () => {
+    const pkgs = new Map([
+        ["pa", "pa"],
+        ["pc", "pc"],
+        ["pd", "pd"],
+    ]);
+    const deps = new Map([
+        ["pa", new Set()],
+        ["pc", new Set()],
+        ["pd", new Set(["pc"])],
+    ]);
+    // pc: t1 names pa's corpus by path; t2 imports pa's test helper; t3 reads nothing of pa; src/gen.ts (a build
+    // input) names pa's template
+    const pc = {
+        package: "pc",
+        config: null,
+        projects: { unit: { specs: ["pc/test/t1.test.ts", "pc/test/t2.test.ts", "pc/test/t3.test.ts"], setup: [] } },
+        imports: {
+            "pc/test/t1.test.ts": [],
+            "pc/test/t2.test.ts": ["pa/test/helper.ts"],
+            "pa/test/helper.ts": [],
+            "pc/test/t3.test.ts": ["pc/src/gen.ts"],
+            "pc/src/gen.ts": [],
+        },
+        opaque: ["pc/test/t1.test.ts"],
+    };
+    const empty = (dir) => [{ package: dir, config: null, projects: {}, imports: {}, opaque: [] }];
+    const graphs = new Map([
+        ["pa", empty("pa")],
+        ["pc", [pc]],
+        ["pd", empty("pd")],
+    ]);
+    const ref = (prefix, holder, build = false) => ({ target: "pa", prefix, holder, build });
+    const run = (changed, list) =>
+        selectPackages({
+            changed,
+            packages: pkgs,
+            deps,
+            refs: new Map([["pc", list]]),
+            graphs,
+            rules,
+        }).packages;
+    const specs = (sel, dir) => [...sel.get(dir).specs.keys()].sort();
+
+    it("runs only the tests that name the changed path, and nothing for a file outside every named path", () => {
+        const list = [ref("pa/test/corpus", "pc/test/t1.test.ts")];
+        const sel = run(["pa/test/corpus/k.json"], list);
+        assert.equal(sel.get("pc").mode, "files");
+        assert.deepEqual(specs(sel, "pc"), ["pc/test/t1.test.ts"]);
+        assert.equal(run(["pa/test/other.test.ts"], list).get("pc").mode, "none");
+    });
+
+    it("runs the tests that import a changed file of another package", () => {
+        const sel = run(["pa/test/helper.ts"], []);
+        assert.deepEqual(specs(sel, "pc"), ["pc/test/t2.test.ts"]);
+    });
+
+    it("runs the whole package when the path is named by a config file, or nothing says which file reads it", () => {
+        assert.equal(
+            run(["pa/test/corpus/k.json"], [ref("pa/test/corpus", "pc/vitest.config.ts")]).get("pc").mode,
+            "all",
+        );
+        assert.equal(run(["pa/test/x.ts"], [ref("pa/", null)]).get("pc").mode, "all");
+    });
+
+    it("reads a build output only when the other package's build changed", () => {
+        const list = [ref("pa/", "pc/test/t1.test.ts", true)];
+        assert.equal(run(["pa/test/x.test.ts"], list).get("pc").mode, "none", "a test-only change builds nothing");
+        assert.deepEqual(specs(run(["pa/src/x.ts"], list), "pc"), ["pc/test/t1.test.ts"]);
+    });
+
+    it("a read that goes into the reader's build runs what depends on the reader whole", () => {
+        const sel = run(["pa/templates/page.html"], [ref("pa/templates", "pc/src/gen.ts")]);
+        assert.deepEqual(specs(sel, "pc"), ["pc/test/t3.test.ts"]);
+        assert.equal(sel.get("pd").mode, "all");
+        assert.match(sel.get("pd").reasons[0], /depends on pc/u);
+        assert.equal(
+            run(["pa/test/corpus/k.json"], [ref("pa/test/corpus", "pc/test/t1.test.ts")]).get("pd").mode,
+            "none",
+        );
+    });
+
+    it("names paths split into arguments, a sibling package from its root, and skips a Vite alias replacement", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-literals-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pa/test/corpus/k.json", "{}");
+            put("pa/test/conformance/fixtures/x.gml", "");
+            put("pa/scripts/gen.mjs", 'import "./lib.mjs";\n');
+            put("pa/scripts/lib.mjs", 'readFileSync("../../pd/data/big.txt");\n');
+            put("pd/data/big.txt", "");
+            put(
+                "pc/test/t.test.ts",
+                [
+                    'const A = join(__dirname, "..", "..", "pa", "test", "conformance", "fixtures");',
+                    'const B = resolve(pkgRoot, "..", "pa", "test", "corpus");',
+                    'const C = { replacement: resolve(__dirname, "../../pa/$1.ts") };',
+                    'execFileSync("node", ["../../pa/scripts/gen.mjs"]);',
+                    "// see ../../pa/test/corpus/k.json.",
+                ].join("\n"),
+            );
+            const index = { files: new Set(), has: (p) => existsSync(join(fixture, p)) };
+            const { paths, runs } = literalPaths(fixture, "pc/test/t.test.ts", index);
+            assert.ok(paths.has("pa/test/conformance/fixtures"), [...paths].join(" "));
+            assert.ok(paths.has("pa/test/corpus"));
+            assert.ok(paths.has("pa/test/corpus/k.json"), "a trailing full stop is not part of the path");
+            assert.ok(![...paths].some((p) => p === "pa" || p === "pa/"), "the alias replacement names nothing");
+            assert.deepEqual([...runs], ["pa/scripts/gen.mjs"]);
+
+            const roots = new Map([
+                ["pa", "pa"],
+                ["pc", "pc"],
+                ["pd", "pd"],
+            ]);
+            const g = { package: "pc", config: null, projects: {}, imports: { "pc/test/t.test.ts": [] }, opaque: [] };
+            const refs = testRefs(fixture, roots, new Map([["pc", [g]]]), new Map());
+            assert.ok(
+                refs
+                    .get("pc")
+                    .some((r) => r.target === "pd" && r.prefix === "pd/data/big" && r.holder === "pc/test/t.test.ts"),
+                "what a script the test runs reads (through its imports) is read by the test",
+            );
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 });

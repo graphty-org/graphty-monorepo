@@ -203,17 +203,19 @@ Hashes are the first 16 hex of sha256. Signatures group failures for issues; exo
 
 ### 4.4 Quarantine lives in git, read from the base
 
-An automatic quarantine exists (`tools/test-quarantine.mjs`: it adds a test that failed and then passed on the
-same inputs, and lets a quarantined test's failure through in every gate and CI run), but it is OFF pending the
-owner's decision and runs only with `GRAPHTY_TEST_QUARANTINE=1`. Entries are added only with the owner's yes;
-this section describes how land checks read the list.
+Owner's decision, 2026-10-22: the quarantine is automatic and on by default (`tools/test-quarantine.mjs`,
+off only with `GRAPHTY_TEST_QUARANTINE=0`). The gate and CI retry a shard's failed test files once; a test that
+failed and then passed on the same inputs is quarantined with its own `priority:high` issue, and its failures are
+let through, loudly, in every gate and CI run. An entry leaves when its issue closes, after 20 consecutive passing
+gate runs, or after 14 days. The gate holds a new entry locally at once; the pipeline round commits it into
+`tools/test-quarantine.json` with `node tools/test-quarantine.mjs write`. This section describes how land checks
+read the list.
 
 `tools/test-quarantine.json` holds entries of test, family, issue, expiry and reason. The gate reads
 it **from the base, never from the tree under test** (`git show
 <land commit>^1:tools/test-quarantine.json`), so a branch that breaks a test cannot quarantine it in the same landing, and
-`land.mjs` refuses a branch that changes the file together with anything else. That the owner said
-yes is a process rule (the pipeline round lands an entry only after the owner's answer); no code can
-check it, and this design does not pretend to.
+`land.mjs` refuses a branch that changes the file together with anything else. Entries come only from
+the gate's own detection (`write`), never by hand; that is a process rule no code can check.
 
 `ci-cd-plan.md` 9.3 governs it: an issue, 14 days at most, never for GPU correctness tests (the
 `webgpu-graph-algorithms*` families), the visual gate, or a test guarding against silent CPU-for-GPU
@@ -443,6 +445,6 @@ Each phase lands alone and is useful alone.
   "a second service that can fall behind" let Anthropic's regressions through. Here the run records
   itself, and history only adds tests until drops are measured in shadow, with verification behind.
   That section gets a pointer here when phase 3 lands.
-- **Unchanged:** no automatic retries; the release train is the full run; quarantine only with the
-  owner's yes; a failure is explained before it is called flaky; master gets nothing with a known
-  error.
+- **Unchanged:** the release train is the full run; a failure is explained before it is called flaky;
+  master gets nothing with a known error. (Since 2026-10-22 the gate and CI retry failed test files once
+  and quarantine flaky tests automatically, by the owner's decision; see 4.4.)

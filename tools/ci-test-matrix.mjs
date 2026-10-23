@@ -358,7 +358,7 @@ export function groupEntry(name, members) {
 /**
  * A shard's command as CI's test job runs it: through the quarantine wrapper (tools/test-quarantine.mjs), as
  * the pre-push gate runs it, so a flaky or quarantined test fails neither (the checkout's
- * tools/test-quarantine.json; the failed test files are run once more). Off unless GRAPHTY_TEST_QUARANTINE=1,
+ * tools/test-quarantine.json; the failed test files are run once more). On unless GRAPHTY_TEST_QUARANTINE=0,
  * which CI does not set: then the wrapper only runs the command.
  * @param shard a SHARDS entry
  * @returns a shell command

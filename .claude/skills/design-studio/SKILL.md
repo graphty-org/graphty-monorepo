@@ -24,7 +24,10 @@ file and the workflow are what the next launch reads.
 ## Where things live
 
 All studio work happens in the studio worktree (today `.worktrees/design-studio-tier1`, branch
-`design/studio-tier1`), never in the main checkout. Inside it, `design/ui/studio/` holds:
+`design/studio-tier1`), never in the main checkout. The studio reads earlier rounds' screenshots, so create
+its worktree with `./tools/worktree-new.sh <branch> <base> --full-images ...`; an ordinary worktree has the
+`design/**` images only as Git LFS pointer files (fix one with `git lfs pull --include "design/**"`). Inside
+it, `design/ui/studio/` holds:
 
 | Path                              | What it is                                                                                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

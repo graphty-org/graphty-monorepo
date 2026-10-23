@@ -206,11 +206,8 @@ const css = `
 .cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
     color: var(--cm-text-disabled);
 }
-/* A select that cannot change opens no list: no caret, and its edge in the disabled ink, so it reads
-   as a value that is fixed, not as a box to open. */
-.cm-select.cm-input-wrapper:is([data-disabled], :has(:disabled)) .cm-field-caret {
-    visibility: hidden;
-}
+/* A disabled select keeps its caret, dimmed with its text (Figma, spec 6.4), and draws its edge in
+   the disabled ink like every disabled field. */
 .cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)),
 .cm-select.cm-field-outlined.cm-input-wrapper:is([data-disabled], :has(:disabled)):hover:not(:focus-within) {
     border-color: var(--cm-border-disabled);

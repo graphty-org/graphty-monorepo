@@ -541,6 +541,33 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         expectMeasured(part(container, ".cm-field-caret"), { color: "#0000004d" });
     });
 
+    // Figma keeps the caret on a disabled select, dimmed with its text. A color check alone passed
+    // while a rule hid the caret, so this asks whether the caret is drawn at all.
+    it.each([
+        ["Select", <Select key="s" aria-label="Device" data={["No device"]} defaultValue="No device" disabled />],
+        ["NativeSelect", <NativeSelect key="n" aria-label="Device" data={["No device"]} disabled />],
+        [
+            "PanelField kind=select",
+            <PanelField
+                key="p"
+                label="Layout"
+                kind="select"
+                data={["Force", "Radial"]}
+                value="Radial"
+                onChange={() => undefined}
+                disabled
+            />,
+        ],
+    ])("disabled %s still draws its caret", async (_name, ui) => {
+        const { container } = await renderFigma(ui);
+        const caret = part(container, ".cm-field-caret");
+        expect(caret.checkVisibility({ visibilityProperty: true, opacityProperty: true })).toBe(true);
+        const box = caret.getBoundingClientRect();
+        expect(box.width).toBeGreaterThan(0);
+        expect(box.height).toBeGreaterThan(0);
+        expectMeasured(caret, { color: "#0000004d" });
+    });
+
     it("AA option: the trigger border becomes the 3:1 field edge", async () => {
         const { container } = await renderFigma(
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" />,
@@ -562,9 +589,8 @@ describe.skipIf(!available)("6.4 select trigger", () => {
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" disabled />,
             { highContrast: true },
         );
-        // A select that cannot change reads as a fixed value, not a box to open: no caret and a
-        // disabled edge (3650da1d89), even in the AA option; a disabled control is exempt from the
-        // 3:1 edge (WCAG 1.4.11).
+        // A disabled field draws its edge in the disabled ink (the shared field rules), even in the AA
+        // option; a disabled control is exempt from the 3:1 edge (WCAG 1.4.11).
         expectMeasured(field(container), { borderTopColor: "#e6e6e6", outlineColor: "#00000000" });
     });
 

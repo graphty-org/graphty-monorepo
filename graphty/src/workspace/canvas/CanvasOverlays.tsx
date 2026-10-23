@@ -22,9 +22,10 @@ const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", faile
 
 /**
  * The element's events after which the legend or the node count may read differently: a filter
- * step changes what the key counts.
+ * step changes what the key counts. `style:batch-changed` closes a repaint once, however many
+ * edits it carried (a grouping run adds a layer per group).
  */
-const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed", "visibility:changed"] as const;
+const REDRAW_EVENTS = ["style:batch-changed", "run:changed", "project:changed", "visibility:changed"] as const;
 
 /** What the canvas draws from, read from the session. */
 interface CanvasReading {
@@ -67,23 +68,8 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             }
         };
         read();
-        // One pass that paints many edits (a grouping run adds a layer per group) tells each edit
-        // in the same task; the legend is read once, after the last of them.
-        let queued = false;
-        const readSoon = (): void => {
-            if (queued) {
-                return;
-            }
-            queued = true;
-            queueMicrotask(() => {
-                queued = false;
-                if (live) {
-                    read();
-                }
-            });
-        };
         const offs = [
-            ...REDRAW_EVENTS.map((event) => session.on(event, readSoon)),
+            ...REDRAW_EVENTS.map((event) => session.on(event, read)),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
                 if (nodes.length + edges.length > 0) {

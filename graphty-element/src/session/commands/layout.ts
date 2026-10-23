@@ -21,11 +21,12 @@
  * coordinates back. See design sections 3.2, 4.7, 6.4 and 11.4.
  */
 
-import { layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
-import type { LayoutId, Scope } from "../../catalog/types";
+import { layoutAlias, layoutDescriptor, layoutIdForEngine } from "../../catalog/layouts";
+import type { LayoutId, NodeId, Scope } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { ExemptDefinition, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { LayoutChoice } from "../project/state";
+import type { PositionEntry } from "../types";
 
 /** `layout.set`: choose the layout that draws the graph. */
 export interface LayoutSetCommand {
@@ -104,9 +105,21 @@ export interface LayoutService {
     immersive(mode: "vr" | "ar" | null): Promise<void>;
 }
 
-/** Which layout suits the graph the session holds now: what `data.import` with a recommended layout asks. */
+/**
+ * Which layout suits the graph the session holds now: what `data.import` with a recommended layout
+ * asks. `options` are the layout options the advice comes with. `unplaced` names the nodes the
+ * data arrived without a coordinate for when it placed the others, and `placed` where each placed
+ * node is now: the import then keeps every placed node where the data put it, in the unit the
+ * fixed layout would draw it in, and runs the advised layout over the unplaced ones only.
+ */
 export type LayoutAdvice = () =>
-    | { readonly id: LayoutId; readonly engine: string; readonly options?: Readonly<Record<string, unknown>> }
+    | {
+          readonly id: LayoutId;
+          readonly engine: string;
+          readonly options?: Readonly<Record<string, unknown>>;
+          readonly unplaced?: readonly NodeId[];
+          readonly placed?: readonly PositionEntry[];
+      }
     | undefined;
 
 /** The layout a graph is drawn with before one is chosen: the element's own default. */
@@ -124,6 +137,15 @@ export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({
  * @returns The new choice, frozen.
  */
 function choiceOf(command: LayoutSetCommand, current: LayoutChoice | null): LayoutChoice {
+    // A deprecated name is the layout and engine it stands for: "force-2d" is force drawn by arf.
+    // An engine the caller named stays, unless it is the deprecated name itself (`setLayout`
+    // passes the name as both).
+    const alias = layoutAlias(command.id);
+    if (alias !== undefined) {
+        const named = command.engine === undefined || command.engine === command.id ? {} : { engine: command.engine };
+        return choiceOf({ ...command, id: alias.id, engine: alias.engine, ...named }, current);
+    }
+
     // 1.x callers name an engine where an id belongs: "ngraph" is the engine behind "force".
     const known = layoutDescriptor(command.id);
     const id = known === undefined ? (layoutIdForEngine(command.id) ?? command.id) : command.id;

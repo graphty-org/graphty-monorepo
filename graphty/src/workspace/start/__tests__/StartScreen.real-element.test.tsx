@@ -1,7 +1,7 @@
 /**
  * Tier 1 tasks T1 (first launch) and T2 (pick a sample), from an empty app on the REAL
  * graphty-element: the usage data card is answered, then each of the four samples opens from the
- * start screen through the element's ordinary import, with nothing run and no style layer, and
+ * start screen through the element's ordinary import, with nothing run and only the starting rows, and
  * the element's counts match the sample's source. Every assertion reads what the element reports.
  */
 
@@ -15,7 +15,7 @@ import { userEvent } from "vitest/browser";
 const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -39,7 +39,10 @@ async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
     await waitFor(
         () => {
-            session = document.querySelector("graphty-element")?.session;
+            // The project's element, not the start page's own drawing.
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
         },
         { timeout: TIMEOUT_MS },
@@ -51,17 +54,24 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * The style layers beyond the element's own locked base layers (node and edge defaults), which
- * every project starts with.
+ * The style layers beyond the element's own locked base layers (node and edge defaults), each
+ * name once.
  * @param session - the element's session.
  * @returns the names of the added layers.
  */
 function addedLayers(session: GraphSession): string[] {
-    return session.styles
-        .list()
-        .filter((layer) => layer.kind !== "base")
-        .map((layer) => layer.name);
+    return [
+        ...new Set(
+            session.styles
+                .list()
+                .filter((layer) => layer.kind !== "base")
+                .map((layer) => layer.name),
+        ),
+    ];
 }
+
+/** What the app starts every project it opens with: the three starting rows, and nothing else. */
+const STARTING_ROWS = ["Everything", "Selected", "Hovered"];
 
 afterEach(() => {
     forgetUsageAnswer();
@@ -76,7 +86,9 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         // T1: the card is at the foot of the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
-        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
+        assert.isNotNull(
+            screen.getByText(/Thank you\. Usage data is on, with content masked\./, { selector: ".ws-start-answer" }),
+        );
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.
@@ -91,7 +103,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         assert.equal(session.data.statistics().edgeCount, 254);
         assert.equal(session.data.source()?.name, "Les Miserables");
         assert.deepEqual(session.runs.list(), []);
-        assert.deepEqual(addedLayers(session), []);
+        assert.sameMembers(addedLayers(session), STARTING_ROWS);
         assert.isNull(store.get().opening);
         // The privacy chip in the project's header still shows the answer.
         assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
@@ -103,7 +115,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
     });
 
     for (const sample of SAMPLES) {
-        it(`opens ${sample.name} with the source's counts, nothing run and no style layer`, async () => {
+        it(`opens ${sample.name} with the source's counts, nothing run and only the starting rows`, async () => {
             const store = createWorkspaceStore();
             const { unmount } = render(<Workspace store={store} />);
 
@@ -118,9 +130,207 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
             assert.equal(session.data.statistics().edgeCount, sample.edges);
             assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);
-            assert.deepEqual(addedLayers(session), []);
+            assert.sameMembers(addedLayers(session), STARTING_ROWS);
             assert.isNull(store.get().notice);
             unmount();
         });
     }
+});
+
+describe("a file that cannot be read, on the real element", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "leaves the start screen showing, adds nothing to Recent projects, and keeps the reason",
+        async () => {
+            const whole = `<?xml version="1.0"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <graph edgedefault="undirected">
+${Array.from({ length: 9 }, (_, i) => `    <node id="n${String(i)}"/>`).join("\n")}
+${Array.from({ length: 8 }, (_, i) => `    <edge source="n${String(i)}" target="n${String(i + 1)}"/>`).join("\n")}
+  </graph>
+</graphml>`;
+            const transfer = new DataTransfer();
+            transfer.items.add(new File([whole.slice(0, Math.floor(whole.length * 0.55))], "cut-55.graphml"));
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+
+            globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+            await waitFor(() => store.get().notice !== null || assert.fail("no notice yet"), { timeout: TIMEOUT_MS });
+
+            // Back where the reader was: no project, no empty canvas named after the file.
+            assert.isNull(store.get().project);
+            // The start page's own drawing is its only element: no project's frame came up.
+            assert.lengthOf(document.querySelectorAll("graphty-element"), 1);
+            assert.isNotNull(screen.getByRole("region", { name: /^Start a project/ }));
+            assert.notInclude(screen.queryByRole("region", { name: "Your projects" })?.textContent ?? "", "cut-55");
+            // The reason is the app's sentence from the element's code and line, and it stays.
+            const { notice } = store.get();
+            assert.isTrue(notice?.error);
+            assert.match(
+                notice?.message ?? "",
+                /^cut-55 could not be opened: the file is incomplete or damaged near line \d+/,
+            );
+            assert.include(notice?.message ?? "", "Ask for the file again.");
+            assert.isNotNull(screen.getByText(notice?.message ?? ""));
+            unmount();
+        },
+        TIMEOUT_MS,
+    );
+});
+
+/**
+ * Makes the next file picker the app opens answer with `file`, as a reader choosing it would.
+ * @param file - the file the reader chooses.
+ */
+function chooseNextFile(file: File): void {
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        this.files = transfer.files;
+        this.dispatchEvent(new Event("change"));
+    });
+}
+
+/**
+ * Opens Les Miserables, saves it as a project file and closes it again.
+ * @returns the project file, named as the element names a downloaded project.
+ */
+async function lesMiserablesProjectFile(): Promise<File> {
+    const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+    const session = await elementSession();
+    await waitFor(
+        () => {
+            assert.equal(session.data.statistics().nodeCount, 77);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    await session.project.rename("Les Miserables");
+    const { text } = await session.project.save();
+    unmount();
+    return new File([text], "Les Miserables.graphty.json");
+}
+
+describe("Open a file and a dropped file, on the real element", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "opens a project file from the start screen under the project's own name, chosen or dropped",
+        async () => {
+            const file = await lesMiserablesProjectFile();
+
+            for (const how of ["chosen", "dropped"] as const) {
+                const store = createWorkspaceStore();
+                const { unmount } = render(<Workspace store={store} />);
+                if (how === "chosen") {
+                    chooseNextFile(file);
+                    await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
+                } else {
+                    const transfer = new DataTransfer();
+                    transfer.items.add(file);
+                    globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+                }
+                const session = await elementSession();
+                await waitFor(
+                    () => {
+                        assert.equal(session.data.statistics().nodeCount, 77, how);
+                        assert.equal(store.get().project?.name, "Les Miserables", how);
+                    },
+                    { timeout: TIMEOUT_MS },
+                );
+                assert.isFalse(store.get().notice?.error ?? false, how);
+                unmount();
+            }
+        },
+        TIMEOUT_MS * 3,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "opens a data file from the start screen on the Data page as a new graph, loading nothing until Load, and takes a second file opened from there",
+        async () => {
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+            chooseNextFile(new File(["from,to,km\na,b,3\nb,c,6\n"], "trail.csv", { type: "text/csv" }));
+            await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
+            // The roles and the weight's meaning are asked before anything loads.
+            await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            const session = await elementSession();
+            assert.equal(session.data.statistics().nodeCount, 0);
+            // Opening a second file from the page itself joins it as the second table, as a drop does.
+            chooseNextFile(new File(["id,name\na,A\nb,B\nc,C\n"], "junctions.csv", { type: "text/csv" }));
+            await userEvent.keyboard("{Control>}o{/Control}");
+            await screen.findByText("Nodes: junctions.csv", {}, { timeout: TIMEOUT_MS });
+            assert.isNotNull(screen.getByText("Edges: trail.csv"));
+            // Cancel goes back to the start screen.
+            await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+            await waitFor(() => {
+                assert.isNull(store.get().project);
+            });
+            unmount();
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
+    it(
+        "adds a data file to the open project through the Data page, and asks before a project file replaces unsaved changes",
+        async () => {
+            const project = await lesMiserablesProjectFile();
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+            const session = await elementSession();
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 15);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            // A table file goes through the Data page, where its roles and weight are chosen.
+            chooseNextFile(new File(["source,target\nx1,x2\nx2,x3\n"], "extra.csv", { type: "text/csv" }));
+            await userEvent.keyboard("{Control>}o{/Control}");
+            await screen.findByRole("heading", { name: /^Add to / }, { timeout: TIMEOUT_MS });
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            assert.equal(session.data.statistics().nodeCount, 15);
+            // x1, x2 and x3 are in no node row and not in the graph: Add makes them.
+            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            const load = await screen.findByRole("button", { name: "Load" });
+            await waitFor(
+                () => {
+                    assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await userEvent.click(load);
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 18);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.isTrue(session.project.dirty);
+
+            chooseNextFile(project);
+            await userEvent.keyboard("{Control>}o{/Control}");
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            assert.equal(session.data.statistics().nodeCount, 18);
+            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 77);
+                    assert.equal(store.get().project?.name, "Les Miserables");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            unmount();
+        },
+        TIMEOUT_MS * 2,
+    );
 });

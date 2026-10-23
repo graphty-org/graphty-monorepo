@@ -1,0 +1,67 @@
+{
+ "start": {
+  "runs": [
+   "louvain Louvain (label Communities)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "shaded-icospheres_1 Shaded icospheres",
+   "plain-lines_1 Plain lines",
+   "fade-what-the-focused-node-is-not-linked-to_1 Fade what the focused node is not linked to",
+   "fade-the-links-the-focused-node-does-not-have_1 Fade the links the focused node does not have",
+   "draw-the-focused-node-s-links-darker_1 Draw the focused node's links darker",
+   "highlight-the-focused-node_1 Highlight the focused node",
+   "name-the-pointed-at-node_1 Name the pointed-at node",
+   "no-name-on-the-clicked-node-which-its-card-names_1 No name on the clicked node, which its card names",
+   "communities_1 Communities"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "Les Miserables"
+  ]
+ },
+ "end": {
+  "runs": [
+   "louvain Louvain (label Communities)"
+  ],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "layer-1_1 Layer 1",
+   "layer-1_2 Layer 1",
+   "group-6_1 Group 6",
+   "group-5_1 Group 5",
+   "group-4_1 Group 4",
+   "group-3_1 Group 3",
+   "group-2_1 Group 2",
+   "group-1_1 Group 1",
+   "layer-2_1 Layer 2",
+   "layer-2_2 Layer 2",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "Les Miserables"
+  ]
+ },
+ "gone": {
+  "layers": [
+   "shaded-icospheres_1 Shaded icospheres",
+   "plain-lines_1 Plain lines",
+   "fade-what-the-focused-node-is-not-linked-to_1 Fade what the focused node is not linked to",
+   "fade-the-links-the-focused-node-does-not-have_1 Fade the links the focused node does not have",
+   "draw-the-focused-node-s-links-darker_1 Draw the focused node's links darker",
+   "highlight-the-focused-node_1 Highlight the focused node",
+   "name-the-pointed-at-node_1 Name the pointed-at node",
+   "no-name-on-the-clicked-node-which-its-card-names_1 No name on the clicked node, which its card names",
+   "communities_1 Communities"
+  ]
+ }
+}

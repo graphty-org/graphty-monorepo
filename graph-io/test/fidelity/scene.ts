@@ -53,6 +53,7 @@ export const PROPERTIES = [
     "lineStyle",
     "arrows",
     "edgePath",
+    "selfLoops",
     "edgeLabel",
     "groups",
     "annotations",
@@ -147,7 +148,7 @@ export interface Scene {
     nodes: SceneNode[];
     edges: SceneEdge[];
     groups: SceneGroup[];
-    annotations?: { kind: "text" | "shape" | "arrow"; bbox: Box; text?: string }[];
+    annotations?: { kind: "text" | "shape" | "arrow" | "image"; bbox: Box; text?: string }[];
     background?: Color;
     /** Things this side could not read; a property listed here is not judged against this side. */
     gaps: { property: Property; reason: string }[];

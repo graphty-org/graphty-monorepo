@@ -210,6 +210,15 @@ run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJE
 # WebGPU peer fell four breaking releases behind. Needs the build above. About 3 seconds (2026-09-24).
 run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 
+# The API reference of each affected package that has one (a root `docs:api:<package>` script), built
+# as CI's Docs job builds it (npm run docs:build): graph-io's TypeDoc fails on any warning, so a missing
+# doc comment fails here and not only in CI. Needs the build above. The output is gitignored.
+for DOCS_PACKAGE in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
+    if affected "$DOCS_PACKAGE"; then
+        run_step "API docs ($DOCS_PACKAGE)" "pnpm run docs:api:$DOCS_PACKAGE"
+    fi
+done
+
 # The gzip budget of each graphty-element entry point (graphty-element/size-budgets.json), counted
 # over the entry file and every chunk it statically imports. Needs the build above.
 if affected graphty-element; then

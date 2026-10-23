@@ -585,7 +585,8 @@ export function ruleHalves(
 /**
  * A rule's two halves, with the reading applied at the root (design 4.3): a silent node half is
  * every node except under `listed`; `induced` derives the edges; `listed` takes the edge half and
- * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes.
+ * its endpoints; `clipped` takes the edge half (every edge when silent) between member nodes;
+ * `incident` takes it touching a member node.
  * @param definition - A canonical rule.
  * @param context - What the resolution reads.
  * @param seen - The sets followed so far.
@@ -607,44 +608,107 @@ function resolveRule(
 
     const halves = ruleHalves(definition, context, seen);
 
-    const n = snapshot.nodeCount;
-    const nodes = makeMask(n, halves.node === null && reading !== "listed");
-    if (halves.node !== null) {
-        for (let index = 0; index < n; index++) {
-            if (halves.node(index)) {
-                nodes[index >>> 5] |= 1 << (index & 31);
-            }
-        }
-    }
+    const nodes = ruleNodeMask(halves.node, snapshot.nodeCount, reading !== "listed");
 
     const half: NodeHalf = { nodes, constraint: null, all: false, missingNodes: 0 };
+    // A rule that holds no nodes by its own say (`nodes: "none"`) keeps its passing edges unclipped.
+    const noNodes = typeof definition.where !== "string" && holdsNoNodes(definition.where);
     if (reading === "induced" || (reading === "clipped" && halves.edge === null)) {
         return resolutionOf(half, deriveEdges(half, snapshot), context, 0);
     }
 
     const edges = makeMask(snapshot.edgeCount);
-    const test = halves.edge;
+    // `incident` with a silent edge half takes every edge touching a member node.
+    const test = reading === "incident" && halves.edge === null ? (): boolean => true : halves.edge;
     if (test !== null) {
-        const { src, dst } = snapshot.edgeList();
-        resolveCounters.edgePasses++;
-        resolveCounters.edgeRowVisits += snapshot.edgeCount;
-        for (let edge = 0; edge < snapshot.edgeCount; edge++) {
-            if (!test(edge)) {
-                continue;
-            }
-
-            if (reading === "listed") {
-                addEdgeRow(edge, snapshot, nodes, edges);
-            } else if (
-                (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0 &&
-                (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0
-            ) {
-                edges[edge >>> 5] |= 1 << (edge & 31);
-            }
-        }
+        fillRuleEdges(test, reading, noNodes, snapshot, nodes, edges);
     }
 
     return resolutionOf(half, edges, context, 0);
+}
+
+/**
+ * A rule's node mask: every node passing the node half, or every node (when `fillSilent`) for a
+ * silent one.
+ * @param test - The node half, or null when the rule says nothing about nodes.
+ * @param n - The node count.
+ * @param fillSilent - Whether a silent node half holds every node.
+ * @returns The node mask.
+ */
+function ruleNodeMask(test: CompiledHalves["node"], n: number, fillSilent: boolean): U32 {
+    const nodes = makeMask(n, test === null && fillSilent);
+    if (test === null) {
+        return nodes;
+    }
+
+    for (let index = 0; index < n; index++) {
+        if (test(index)) {
+            nodes[index >>> 5] |= 1 << (index & 31);
+        }
+    }
+
+    return nodes;
+}
+
+/**
+ * Set every edge a rule's edge half passes, read the way the rule's reading says, in `edges`.
+ * @param test - The edge half.
+ * @param reading - The rule's reading.
+ * @param noNodes - Whether the rule holds no nodes by its own say, so passing edges are not clipped.
+ * @param snapshot - The context snapshot.
+ * @param nodes - The rule's node mask (grown by `listed`).
+ * @param edges - The edge mask to fill.
+ */
+function fillRuleEdges(
+    test: (edge: number) => boolean,
+    reading: Extract<SetDefinition, { kind: "rule" }>["reading"],
+    noNodes: boolean,
+    snapshot: GraphSnapshot,
+    nodes: U32,
+    edges: U32,
+): void {
+    const { src, dst } = snapshot.edgeList();
+    resolveCounters.edgePasses++;
+    resolveCounters.edgeRowVisits += snapshot.edgeCount;
+    const incident = reading === "incident";
+    for (let edge = 0; edge < snapshot.edgeCount; edge++) {
+        if (!test(edge)) {
+            continue;
+        }
+
+        if (reading === "listed") {
+            addEdgeRow(edge, snapshot, nodes, edges);
+            continue;
+        }
+
+        const srcIn = (nodes[src[edge] >>> 5] & (1 << (src[edge] & 31))) !== 0;
+        const dstIn = (nodes[dst[edge] >>> 5] & (1 << (dst[edge] & 31))) !== 0;
+        const touches = incident ? srcIn || dstIn : srcIn && dstIn;
+        if (noNodes || touches) {
+            edges[edge >>> 5] |= 1 << (edge & 31);
+        }
+    }
+}
+
+/**
+ * Whether a rule holds no nodes because it says so: a value leaf with `nodes: "none"`, an `all`
+ * holding one, or an `any` whose every member holds none.
+ * @param tree - The rule.
+ * @returns True when it holds no nodes by its own say.
+ */
+function holdsNoNodes(tree: RuleTree): boolean {
+    switch (tree.kind) {
+        case "range":
+        case "categories":
+        case "text":
+            return tree.nodes === "none";
+        case "all":
+            return tree.of.some(holdsNoNodes);
+        case "any":
+            return tree.of.length > 0 && tree.of.every(holdsNoNodes);
+        default:
+            return false;
+    }
 }
 
 /**

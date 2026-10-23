@@ -50,7 +50,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, makeMask, type U8 } from "@graphty/graph-format";
 
-import type { EdgeId, FieldDescriptor, NodeId, Path, Scope } from "../../catalog/types";
+import type { EdgeId, FieldDescriptor, FilterStep, NodeId, Path, Scope } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
@@ -96,6 +96,7 @@ import {
     type ScopeLeaf,
     type TimeWindow,
 } from "./filter";
+import { assertSteps, combinedRule } from "./steps";
 
 // ---------------------------------------------------------------------------------------------
 // What visibility answers with
@@ -251,6 +252,27 @@ export interface VisibilityApi {
      */
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     /**
+     * The filter steps, in order. The steps that are on combine with {@link VisibilityApi.filter}
+     * by AND, so each narrows what the step before it left; a step that is off keeps its rule and
+     * hides nothing. Empty when there are none.
+     */
+    readonly steps: readonly FilterStep[];
+    /**
+     * Replace the filter steps, or clear them with an empty list: one undoable step, on the same
+     * terms as {@link VisibilityApi.set}. To add, edit, switch or remove one step, pass the list
+     * with that one change; the history step's fact names it (`visibility.step-add`,
+     * `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`,
+     * `visibility.step-remove`, each with the step's `id`).
+     *
+     * `plan({ op: "visibility.steps", steps })` answers what each step that is on would leave,
+     * without doing it.
+     * @param steps - The steps, each `{ id, on, rule }` with a unique id.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns The run, which resolves with the counts.
+     * @throws A `GraphtyError` when a step is malformed or its rule needs something this session lacks.
+     */
+    setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
+    /**
      * Whether hidden nodes should still be drawn faintly instead of vanishing.
      *
      * A reader who hides nine tenths of a graph usually still wants to see the shape of what they
@@ -277,6 +299,28 @@ export interface SessionVisibilityApi extends VisibilityApi {
      * masks' `version`, one per membership, so nothing holding one can change what is visible.
      */
     readonly masks: ScopeVisibilitySource;
+    /** The one rule the masks evaluate: the filter AND every step that is on, or null. */
+    readonly rule: RuleTree | null;
+    /**
+     * What a steps list would leave visible, without recording it: the counts before the first
+     * step (the filter and the window alone), then after each step that is on, in order.
+     * @param steps - The steps.
+     * @returns The counts.
+     * @throws A `GraphtyError` when a step is malformed.
+     */
+    previewSteps(steps: readonly FilterStep[]): StepCounts;
+}
+
+/** Visible nodes and edges. */
+interface Counts {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/** What a steps list would leave: before any step, and after each step that is on. */
+export interface StepCounts {
+    readonly start: Counts;
+    readonly steps: readonly (Counts & { readonly id: string })[];
 }
 
 /** Everything the visibility model is built from. */
@@ -539,6 +583,10 @@ function kindOf(was: VisibilityState, now: VisibilityState, otherwise: string): 
         return now.filter?.kind ?? "none";
     }
 
+    if (was.steps !== now.steps) {
+        return now.steps.some((step) => step.on) ? "steps" : "none";
+    }
+
     if (was.window !== now.window) {
         return now.window === null ? "none" : "window";
     }
@@ -589,6 +637,13 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         return frame;
     };
+
+    /**
+     * The rule the slice calls for now: the filter AND every step that is on.
+     * @returns The rule, or null.
+     */
+    const ruleNow = (): RuleTree | null =>
+        combinedRule(dispatcher.state.visibility.filter, dispatcher.state.visibility.steps);
 
     // The spaces are read through the live frame rather than captured, so one mask object spans
     // every snapshot this session ever holds and its id cache still notices when the ids move.
@@ -733,7 +788,8 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
      * @returns The tag.
      */
     const wantedTag = (): MaskTag => {
-        const { filter, window } = dispatcher.state.visibility;
+        const { window } = dispatcher.state.visibility;
+        const filter = ruleNow();
 
         return { token: dispatcher.state.graph.token, filter, window, inputs: inputsFor(filter, window) };
     };
@@ -909,7 +965,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
     // same snapshot that is synchronous, before any public event; after a freeze it waits for the
     // notifier's frame, unless a read brought the masks up to date first.
     const filterWatch: SetWatch<boolean> = {
-        signature: () => signatureOf(dispatcher.state.visibility.filter),
+        signature: () => signatureOf(ruleNow()),
         resolve: (): boolean => {
             const before = shown;
             upToDate();
@@ -920,7 +976,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
             if (changed) {
                 sources.onChange?.({
                     ...resultOf(),
-                    filterKind: dispatcher.state.visibility.filter?.kind ?? "none",
+                    filterKind: ruleNow()?.kind ?? "none",
                     cause: dispatcher.lane.passCause,
                 });
             }
@@ -939,6 +995,47 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         if (change.slices.includes("visibility")) {
             sources.onChange?.({ ...resultOf(), filterKind: lastKind, cause: change.cause });
         }
+    };
+
+    /**
+     * Check a steps list the way {@link VisibilityApi.set} checks a filter, and admit each rule.
+     * @param steps - The steps as given.
+     * @returns The steps to hold, frozen.
+     */
+    const admitSteps = (steps: readonly FilterStep[]): readonly FilterStep[] => {
+        assertSteps(steps);
+
+        return Object.freeze(
+            steps.map((step) => {
+                const rule = sources.admit === undefined ? step.rule : sources.admit(step.rule);
+                assertVisibility(rule, null, sources.dependencies);
+
+                return Object.freeze({ id: step.id, on: step.on, rule });
+            }),
+        );
+    };
+
+    /**
+     * How many nodes and edges a rule and a window leave, in masks of their own: the live pair is
+     * not touched.
+     * @param active - The frame to count in.
+     * @param rule - The rule, or null.
+     * @param window - The window, or null.
+     * @returns The counts.
+     */
+    const countOf = (active: VisibilityFrame, rule: RuleTree | null, window: TimeWindow | null): Counts => {
+        const { graph } = active;
+        if (rule === null && window === null) {
+            return Object.freeze({ nodes: graph.nodeCount, edges: graph.edgeCount });
+        }
+
+        const nodes = new ElementMask<NodeId>(() => active.nodeSpace, Math.max(1, graph.nodeCount));
+        const edges = new ElementMask<EdgeId>(() => active.edgeSpace, Math.max(1, graph.edgeCount));
+        nodes.grow(graph.nodeCount);
+        edges.grow(graph.edgeCount);
+        runPass({ compiled: compileVisibility(graph, rule, window, passSources(graph)), edges, graph, nodes });
+
+        return Object.freeze({ nodes: nodes.size, edges: edges.size });
     };
 
     /**
@@ -1121,7 +1218,7 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
             return edit(
                 { op: "visibility.set", filter: admitted },
-                admitted,
+                combinedRule(admitted, dispatcher.state.visibility.steps),
                 dispatcher.state.visibility.window,
                 options,
             );
@@ -1130,7 +1227,48 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
         setWindow(window: TimeWindow | null, options: RunOptions = {}): Run<FilterResult> {
             assertVisibility(null, window);
 
-            return edit({ op: "visibility.window", window }, dispatcher.state.visibility.filter, window, options);
+            return edit({ op: "visibility.window", window }, ruleNow(), window, options);
+        },
+
+        get steps(): readonly FilterStep[] {
+            return dispatcher.state.visibility.steps;
+        },
+
+        setSteps(steps: readonly FilterStep[], options: RunOptions = {}): Run<FilterResult> {
+            const admitted = admitSteps(steps);
+
+            return edit(
+                { op: "visibility.steps", steps: admitted },
+                combinedRule(dispatcher.state.visibility.filter, admitted),
+                dispatcher.state.visibility.window,
+                options,
+            );
+        },
+
+        get rule(): RuleTree | null {
+            return ruleNow();
+        },
+
+        previewSteps(steps: readonly FilterStep[]): StepCounts {
+            const admitted = admitSteps(steps);
+            const active = upToDate();
+            const { filter, window } = dispatcher.state.visibility;
+            const rules: RuleTree[] = filter === null ? [] : [filter];
+            const start = countOf(active, filter, window);
+
+            return Object.freeze({
+                start,
+                steps: Object.freeze(
+                    admitted
+                        .filter((step) => step.on)
+                        .map((step) => {
+                            rules.push(step.rule);
+                            const rule: RuleTree = rules.length === 1 ? rules[0] : { kind: "all", of: [...rules] };
+
+                            return Object.freeze({ id: step.id, ...countOf(active, rule, window) });
+                        }),
+                ),
+            });
         },
 
         get showContext(): boolean {

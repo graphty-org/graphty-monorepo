@@ -75,11 +75,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 18 jobs", () => {
+    it("runs every shard exactly once on a full run, in 25 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 18);
+        assert.equal(include.length, 25);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -114,6 +114,20 @@ describe("the test matrix", () => {
         assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
+    });
+
+    // A shard with a job of its own uploads its report through the group's steps, under the same
+    // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
+    it("uploads coverage for every shard with a job of its own that writes it", () => {
+        const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
+        // the five graphty parts keep their reports apart
+        for (const n of [1, 2, 3, 4, 5]) {
+            assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
+        }
+        assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
+        assert.equal(own["graphty-storybook"], undefined);
+        assert.equal(own["graphty-element-default"], undefined);
+        assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -414,6 +428,25 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
+        const prepush = code(tool("prepush.sh"));
+        const start = prepush.indexOf("for DOCS_PACKAGE in");
+        assert.ok(start > prepush.indexOf('run_step "Build"'), "after the build");
+        const loop = prepush.slice(start, prepush.indexOf("\ndone\n", start) + 6);
+        const run = (list) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$2"; }\n${loop}`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            ).stdout;
+        assert.equal(run("graph-io,graph-format,layout"), "pnpm run docs:api:layout\npnpm run docs:api:graph-io\n");
+        assert.equal(run("graph-format"), "");
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
@@ -456,11 +489,20 @@ describe("the pre-push gate matches CI", () => {
 
     describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
         const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
-        // Stubs for everything outside git: gh finds no pull request; pnpm installs nothing and says
-        // project p is affected; node's capture writes a results.json with the story status asked for;
+        // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
+        // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
+        // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
         // git passes through, except `lfs` and a forced merge-tree exit code.
         const STUBS = {
-            gh: "#!/bin/sh\nexit 0\n",
+            gh: `#!/bin/bash
+[ -n "$STUB_GH_DIR" ] || exit 0
+n=$(( $(cat "$STUB_GH_DIR/calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_GH_DIR/calls"
+head="$STUB_NEW_HEAD"
+case "$*" in
+    *@tsv*) [ "$n" -le "$STUB_OLD_TIMES" ] && head="$STUB_OLD_HEAD"; printf 'open\to/r\to/r\t%s\n' "$head" ;;
+    *) echo "$head" ;;
+esac
+`,
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
@@ -594,6 +636,37 @@ exec ${realGit} "$@"
                 assert.match(stuck.stderr, /capture failed: p/);
                 const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
                 assert.equal(status.state, "failed");
+            });
+        });
+
+        it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
+            sandbox(({ run, head, origin, main, local }) => {
+                const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
+                // GitHub's merge ref of the new head, as it builds it once it has seen the push.
+                const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
+                git("push", "-q", origin, `${merge}:refs/pull/7/merge`);
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const old = git("rev-parse", "master");
+                const r = run(
+                    {
+                        STUB_STATUS: "changed",
+                        STUB_GH_DIR: gh,
+                        STUB_OLD_HEAD: old,
+                        STUB_NEW_HEAD: head,
+                        STUB_OLD_TIMES: "2",
+                        VISUAL_PREVIEW_POLL: "0",
+                    },
+                    "7",
+                    "--expect",
+                    head,
+                );
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                assert.match(r.stdout, new RegExp(`waiting for GitHub to list ${head.slice(0, 10)} as the head of #7`));
+                // Two answers with the old head, one with the new, and the check that it did not move.
+                assert.equal(readFileSync(join(gh, "calls"), "utf8").trim(), "4");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual([status.state, status.head], ["done", head]);
             });
         });
 
@@ -835,7 +908,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);

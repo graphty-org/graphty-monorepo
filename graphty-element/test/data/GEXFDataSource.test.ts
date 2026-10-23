@@ -288,21 +288,23 @@ describe("GEXFDataSource", () => {
         assert.strictEqual(edges[2].weight, 16777217);
     });
 
-    test("keeps what a document read before it broke off, and counts the break as an error", async () => {
+    test("refuses a document that broke off, yielding nothing it read before the break", async () => {
         const xml =
             '<?xml version="1.0"?><gexf version="1.3"><graph>' +
             '<nodes><node id="a"/><node id="b"></nodes></graph></gexf>';
         const source = new GEXFDataSource({ data: xml });
         const nodes = [];
-        for await (const chunk of source.getData()) {
-            nodes.push(...chunk.nodes);
+        let thrown: unknown;
+        try {
+            for await (const chunk of source.getData()) {
+                nodes.push(...chunk.nodes);
+            }
+        } catch (error) {
+            thrown = error;
         }
 
-        assert.deepEqual(
-            nodes.map((node) => node.id),
-            ["a", "b"],
-        );
-        assert.strictEqual(source.getErrorAggregator().getErrorCount(), 1);
+        assert.strictEqual((thrown as { code?: string } | undefined)?.code, "E_PARSE_FAILED");
+        assert.deepEqual(nodes, []);
     });
 
     describe("dynamic graphs", () => {
@@ -423,5 +425,20 @@ describe("GEXFDataSource", () => {
             }
             assert.equal(nodes[0].score, 2);
         });
+    });
+
+    test("draws a file under the Gephi Preview settings given as gephiPreview", async () => {
+        const xml = `<gexf xmlns="http://gexf.net/1.3" version="1.3"><graph defaultedgetype="directed">
+            <nodes><node id="a"/><node id="b"/></nodes><edges><edge id="e" source="a" target="b"/></edges></graph></gexf>`;
+        const edgeStyle = async (config: Record<string, unknown>): Promise<string> => {
+            const session = createGraphSession();
+            await session.data.import({ type: "gexf", config: { data: xml, ...config } }, { styles: "file" });
+            await session.styles.settled();
+            const [edge] = session.data.edges();
+            return JSON.stringify(session.styles.explain({ edge: edge.id }).merged).toLowerCase();
+        };
+        // Gephi's default draws the edge in its end nodes' mixed color (both black); edge.color=#ff0000 draws it red
+        assert.notInclude(await edgeStyle({}), "#ff0000");
+        assert.include(await edgeStyle({ gephiPreview: { "edge.color": "#ff0000" } }), "#ff0000");
     });
 });

@@ -1,0 +1,31 @@
+{
+    "about": "The specimen sheet layout every generator places elements by (sheet_layout.py, sheet-layout.mjs). Units are sheet pixels, y down, origin top left; a format that stores y up or other units converts when it writes. The four anchor-* nodes sit in the corners so every program's fit-to-canvas frames the sheet alike; specimens fill a grid of cells inside 'area', row by row; each specimen's caption node cap-<specimen id> sits 'captionDy' below the specimen; an edge specimen runs from 'edgeHalfSpan' left of its cell center to 'edgeHalfSpan' right of it.",
+    "canvas": { "width": 1200, "height": 900 },
+    "anchors": {
+        "size": 6,
+        "nodes": {
+            "anchor-nw": [20, 20],
+            "anchor-ne": [1180, 20],
+            "anchor-sw": [20, 880],
+            "anchor-se": [1180, 880]
+        }
+    },
+    "area": { "x0": 40, "y0": 40, "x1": 1160, "y1": 860 },
+    "columns": 10,
+    "maxSpecimens": 60,
+    "specimenDy": -14,
+    "captionDy": 40,
+    "captionFontSize": 9,
+    "edgeHalfSpan": 38,
+    "neutral": {
+        "fill": "#c8c8c8",
+        "border": "#505050",
+        "borderWidth": 1,
+        "size": 36,
+        "edgeColor": "#505050",
+        "edgeWidth": 1.5,
+        "labelColor": "#000000",
+        "fontSize": 10,
+        "fontFamily": "DejaVu Sans"
+    }
+}

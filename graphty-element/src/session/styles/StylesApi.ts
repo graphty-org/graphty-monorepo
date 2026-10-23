@@ -75,6 +75,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
+
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
     AttributeDescriptor,
@@ -129,7 +131,9 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
+import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
+import type { Resolution } from "../sets/resolve";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
@@ -1588,6 +1592,28 @@ interface ImportedLayer {
     readonly compiled: CompiledLayer;
 }
 
+/** The dense indices of each resolution's bitmaps, built once for the resolution the cache holds. */
+const indicesOfResolution = new WeakMap<Resolution, AgreementElements>();
+
+/**
+ * The dense indices a resolution's bitmaps hold.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it covers.
+ * @returns Its nodes and edges, as indices into that snapshot.
+ */
+function indicesBehind(resolution: Resolution, graph: GraphSnapshot): AgreementElements {
+    let elements = indicesOfResolution.get(resolution);
+    if (elements === undefined) {
+        elements = {
+            nodes: maskToIndices(resolution.nodes, graph.nodeCount),
+            edges: maskToIndices(resolution.edges, graph.edgeCount),
+        };
+        indicesOfResolution.set(resolution, elements);
+    }
+
+    return elements;
+}
+
 /**
  * The dense indices of the ids a scope resolved to, skipping any the session no longer holds.
  * @param ids - The ids.
@@ -2347,6 +2373,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const elementsOf = (scope: Scope): AgreementElements => {
         const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+        // The bitmaps behind the scope are already in dense index order: read them, rather than
+        // spell every element as an id and look each id up again. A legend reads this once per
+        // layer on every style change, and on the airline routes (36,906 edges, 31 layers) the
+        // id round trip held the page for a minute after a Louvain run.
+        const behind = resolutionBehind(resolved);
+        if (behind !== undefined) {
+            return indicesBehind(behind.resolution, behind.graph);
+        }
 
         return {
             nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),

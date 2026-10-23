@@ -1,0 +1,34 @@
+# Dependabot version updates. Every pull request targets `golden`, not master: a dependency bump
+# lands like any other branch, through `node tools/land.mjs land <branch>` and the pre-push gate,
+# and its screenshots are reviewed on the cut (CLAUDE.md, "Landing changes (golden-local)").
+# The pipeline-round skill lands open dependabot/* branches and closes their pull requests.
+#
+# Security updates ignore `target-branch` and always open against master (a GitHub rule); the
+# pipeline-round skill lands and closes those the same way.
+version: 2
+updates:
+    - package-ecosystem: npm
+      directory: "/"
+      target-branch: golden
+      schedule:
+          interval: weekly
+          day: monday
+      labels: ["dependencies"]
+      commit-message:
+          prefix: "chore(deps)"
+      groups:
+          npm-minor-and-patch:
+              update-types: ["minor", "patch"]
+
+    - package-ecosystem: github-actions
+      directories: ["/", "/.github/actions/*"]
+      target-branch: golden
+      schedule:
+          interval: weekly
+          day: monday
+      labels: ["dependencies"]
+      commit-message:
+          prefix: "chore(deps)"
+      groups:
+          actions-minor-and-patch:
+              update-types: ["minor", "patch"]

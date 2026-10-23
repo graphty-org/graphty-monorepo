@@ -483,6 +483,21 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("borderWidth", 0);
     }
+    readNodeSize(g, writer, put, at);
+    if (v === "ogdf") {
+        readOgdfLabelOffset(g.label, put, at);
+    }
+    readNodeShape(g, writer, put, at);
+}
+
+/**
+ * Reads a node's size from its `graphics` record.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeSize(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     if (writer.tool === "gephi") {
         // Gephi's w is a node's size, a radius: its disc is twice as wide, and its h is never read
         const size = g.w === undefined ? null : canonNumber(g.w, at("width"));
@@ -492,9 +507,17 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
         put("height", g.h === undefined ? null : canonNumber(g.h, at("height")));
     }
-    if (v === "ogdf") {
-        readOgdfLabelOffset(g.label, put, at);
-    }
+}
+
+/**
+ * Reads a node's shape from its `graphics` record, in the writer's vocabulary.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const v = writer.vocabulary;
     if (v === "ogdf" && typeof g.type === "string") {
         readOgdfShape(g.type, writer, put, at);
     } else if (v === "cytoscape" && g.type !== undefined) {
@@ -719,6 +742,21 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("visible", false);
     }
+    readEdgeArrows(g, writer, put, at);
+    if (v === "yed") {
+        readYedCurve(g, put);
+    }
+}
+
+/**
+ * Reads an edge's arrows from its `graphics` record: `arrow` names the ends that have one, and `sourceArrow` and
+ * `targetArrow` (or their snake-case spellings) name each end's arrow.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     if (typeof g.arrow === "string") {
         const ends = ARROW_ENDS.get(g.arrow.trim().toLowerCase());
         if (ends === undefined) {
@@ -738,13 +776,10 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         }
         put(
             property,
-            v === "cytoscape" && cytoscapeArrow !== undefined
+            writer.vocabulary === "cytoscape" && cytoscapeArrow !== undefined
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
-    }
-    if (v === "yed") {
-        readYedCurve(g, put);
     }
 }
 
@@ -781,7 +816,8 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         ["target", g.targetArrow, ends[1]],
         ["source", g.sourceArrow, ends[0]],
     ] as const) {
-        const arrow = on ? graphvizArrowValue(typeof raw === "string" ? raw : "normal", at(`${end}Arrow`)) : null;
+        const name = typeof raw === "string" ? raw : "normal";
+        const arrow = on ? graphvizArrowValue(name, at(`${end}Arrow`)) : null;
         put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
         if (arrow?.side !== null && arrow?.side !== undefined) {
             put(`${end}ArrowSide`, arrow.side);

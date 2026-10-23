@@ -399,7 +399,7 @@ function readLabelAlign(
         const body = isHtmlString(raw) ? raw.slice(1, -1) : raw;
         const last = /<br\b[^>]*>(?![\s\S]*<br\b)/i.exec(body);
         const tail = last === null ? "" : body.slice(last.index + last[0].length);
-        if (tail.replace(/<[^>]*>/g, "").trim() !== "") {
+        if (stripTags(tail).trim() !== "") {
             aligns.add("center");
         }
         const [only] = aligns;
@@ -415,6 +415,26 @@ function readLabelAlign(
     if (align !== null) {
         put("labelTextAlign", align);
     }
+}
+
+/**
+ * Text with its tags (`<` to the next `>`) dropped; a `<` with no `>` after it, and the rest, kept.
+ * @param text - the text
+ * @returns the text without tags
+ */
+function stripTags(text: string): string {
+    let out = "";
+    let i = 0;
+    while (i < text.length) {
+        const open = text.indexOf("<", i);
+        const close = open < 0 ? -1 : text.indexOf(">", open + 1);
+        if (close < 0) {
+            return out + text.slice(i);
+        }
+        out += text.slice(i, open);
+        i = close + 1;
+    }
+    return out;
 }
 
 /**
@@ -442,14 +462,8 @@ function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | n
             runs.push(run);
         }
     }
-    // the label's blanks at its ends are trimmed, as htmlLabelText trims them
-    while (runs.length > 0 && String(runs[0].text).trim() === "") {
-        runs.shift();
-    }
-    while (runs.length > 0 && String(runs.at(-1)?.text).trim() === "") {
-        runs.pop();
-    }
-    if (runs.length === 0 || runs.every((r) => Object.keys(r).length === 1)) {
+    trimBlankRuns(runs);
+    if (runs.every((r) => Object.keys(r).length === 1)) {
         return;
     }
     if (runs.length === 1) {
@@ -460,9 +474,24 @@ function readHtmlRuns(raw: string, html: ReadonlySet<string>, scheme: string | n
         return;
     }
     runs[0].text = String(runs[0].text).trimStart();
-    const end = runs[runs.length - 1];
-    end.text = String(end.text).trimEnd();
+    const end = runs.at(-1);
+    if (end !== undefined) {
+        end.text = String(end.text).trimEnd();
+    }
     put("labelRuns", JSON.stringify(runs));
+}
+
+/**
+ * Drops the blank runs at a label's ends, as htmlLabelText trims its blanks.
+ * @param runs - the runs, trimmed in place
+ */
+function trimBlankRuns(runs: Record<string, StyleValue>[]): void {
+    while (runs.length > 0 && String(runs[0].text).trim() === "") {
+        runs.shift();
+    }
+    while (runs.length > 0 && String(runs.at(-1)?.text).trim() === "") {
+        runs.pop();
+    }
 }
 
 /** The label property a run's own font field sets when the whole label is one run. */
@@ -491,30 +520,99 @@ function htmlRunFont(tags: readonly string[], scheme: string | null, site: Canon
         } else if (name === "i") {
             out.italic = true;
         } else if (name === "font") {
-            for (const m of tag.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
-                const value = m[2] ?? m[3];
-                const attr = m[1].toLowerCase();
-                if (attr === "face" && value.trim() !== "" && value.length <= MAX_STYLE_VALUE_LENGTH) {
-                    const drawn = graphvizFont(value);
-                    out.font = drawn.family;
-                    if (drawn.bold) {
-                        out.weight = "bold";
-                    }
-                    if (drawn.italic) {
-                        out.italic = true;
-                    }
-                } else if (attr === "point-size" && Number(value) > 0) {
-                    out.size = Number(value);
-                } else if (attr === "color") {
-                    const c = canonColor(value, "graphviz", site, { scheme, use: "text" });
-                    if (c !== null) {
-                        out.color = c.color;
-                    }
-                }
+            for (const [attr, value] of tagAttributes(tag)) {
+                readFontAttribute(attr.toLowerCase(), value, scheme, site, out);
             }
         }
     }
     return out;
+}
+
+/**
+ * Reads one attribute of a `FONT` tag into a run's font fields: its face, point size or color.
+ * @param attr - the attribute's name, lowercase
+ * @param value - its value
+ * @param scheme - the element's color scheme
+ * @param site - where a bad color is noted
+ * @param out - the run's font fields, set
+ */
+function readFontAttribute(
+    attr: string,
+    value: string,
+    scheme: string | null,
+    site: CanonSite,
+    out: Record<string, StyleValue>,
+): void {
+    if (attr === "face" && value.trim() !== "" && value.length <= MAX_STYLE_VALUE_LENGTH) {
+        const drawn = graphvizFont(value);
+        out.font = drawn.family;
+        if (drawn.bold) {
+            out.weight = "bold";
+        }
+        if (drawn.italic) {
+            out.italic = true;
+        }
+    } else if (attr === "point-size" && Number(value) > 0) {
+        out.size = Number(value);
+    } else if (attr === "color") {
+        const c = canonColor(value, "graphviz", site, { scheme, use: "text" });
+        if (c !== null) {
+            out.color = c.color;
+        }
+    }
+}
+
+/** Whether a character can be part of an HTML attribute's name (a word character or `-`). */
+const ATTRIBUTE_NAME_CHAR = /^[\w-]$/;
+
+/**
+ * The quoted attributes of a tag, `name = "value"` or `name = 'value'`, in order; an unquoted or unclosed value is
+ * skipped. Scans the tag once (an attribute regex would backtrack on a long name with no `=`).
+ * @param tag - the tag
+ * @returns each attribute's name and value
+ */
+function tagAttributes(tag: string): [string, string][] {
+    const attributes: [string, string][] = [];
+    let i = 0;
+    while (i < tag.length) {
+        if (!ATTRIBUTE_NAME_CHAR.test(tag[i])) {
+            i++;
+            continue;
+        }
+        let end = i;
+        while (end < tag.length && ATTRIBUTE_NAME_CHAR.test(tag[end])) {
+            end++;
+        }
+        const value = quotedValueAt(tag, end);
+        if (value !== null) {
+            attributes.push([tag.slice(i, end), value.text]);
+        }
+        i = value === null ? end : value.next;
+    }
+    return attributes;
+}
+
+/**
+ * The quoted value of an attribute whose name ends at `at`: blanks, `=`, blanks, then text between matching quotes.
+ * @param tag - the tag
+ * @param at - where the name ends
+ * @returns the value and where reading goes on after its closing quote, or null when there is none
+ */
+function quotedValueAt(tag: string, at: number): { text: string; next: number } | null {
+    let i = at;
+    while (i < tag.length && /\s/.test(tag[i])) {
+        i++;
+    }
+    if (tag[i] !== "=") {
+        return null;
+    }
+    i++;
+    while (i < tag.length && /\s/.test(tag[i])) {
+        i++;
+    }
+    const quote = tag[i];
+    const close = quote === '"' || quote === "'" ? tag.indexOf(quote, i + 1) : -1;
+    return close < 0 ? null : { text: tag.slice(i + 1, close), next: close + 1 };
 }
 
 /**
@@ -659,6 +757,29 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
     // label: a node shows its name unless it has a label (the tool-default rule); a cluster and a point show none
     const label = n.point ? null : get(LABEL_ATTRIBUTE);
     const shown = label === null ? cx.name : labelText(label, names, cx.html, RECORD.has(shape), at("label"));
+    readNodeLabel(n, label, shown, names);
+    // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not; an HTML label
+    // with no words (a table holding an IMG) still draws its cells
+    const htmlLabel = label !== null && (isHtmlString(label) || cx.html.has(`<${label}>`));
+    if (shape === "plain" && shown === "" && !htmlLabel) {
+        put("visible", false);
+    }
+    if (cx.cluster) {
+        readClusterBox(get, put);
+    } else {
+        readNodeSize(n, label, shown, htmlLabel, names);
+    }
+}
+
+/**
+ * Reads a node's label, its alignment and runs, and where it sits.
+ * @param n - the node
+ * @param label - its label, or null when it has none
+ * @param shown - the text it shows
+ * @param names - what the label's escapes stand for
+ */
+function readNodeLabel(n: NodeRead, label: string | null, shown: string, names: DotEscapeNames): void {
+    const { get, cx, put, at, shape } = n;
     // a cluster has no label of its own unless one is given, so an empty one is none
     if (label !== null && !(cx.cluster && label === "")) {
         put("label", shown);
@@ -673,22 +794,31 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
         const position = nodeLabelPosition(get);
         put("labelPosition", position === "center" ? null : position);
     }
-    // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not; an HTML label
-    // with no words (a table holding an IMG) still draws its cells
-    const htmlLabel = label !== null && (isHtmlString(label) || cx.html.has(`<${label}>`));
-    if (shape === "plain" && shown === "" && !htmlLabel) {
-        put("visible", false);
-    }
-    if (cx.cluster) {
-        readClusterBox(get, put);
-    } else {
-        readSize(get, shape, n.point, put, at);
-        if (RECORD.has(shape) && label !== null && !htmlLabel) {
-            readRecord(n, label, names);
-        } else if (!n.point) {
-            readLabelFit(get, shape, label, shown, put);
-            readQuantum(n, label);
-        }
+}
+
+/**
+ * Reads the size of a node that is not a cluster and how it grows to hold its label (a record's fields, or its
+ * label's fit).
+ * @param n - the node
+ * @param label - its label, or null when it has none
+ * @param shown - the text it shows
+ * @param htmlLabel - whether the label is HTML-like
+ * @param names - what the label's escapes stand for
+ */
+function readNodeSize(
+    n: NodeRead,
+    label: string | null,
+    shown: string,
+    htmlLabel: boolean,
+    names: DotEscapeNames,
+): void {
+    const { get, put, at, shape } = n;
+    readSize(get, shape, n.point, put, at);
+    if (RECORD.has(shape) && label !== null && !htmlLabel) {
+        readRecord(n, label, names);
+    } else if (!n.point) {
+        readLabelFit(get, shape, label, shown, put);
+        readQuantum(n, label);
     }
 }
 
@@ -945,7 +1075,7 @@ function readNodeBands(n: NodeRead): void {
     const striped = n.tokens.includes("striped") && (n.cx.cluster || BOX_LIKE.has(n.shape));
     const wedged = !n.cx.cluster && n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape);
     const list = nonEmpty(n.get("fillcolor")) ?? n.color;
-    if ((!striped && !wedged) || list === null || !list.includes(":")) {
+    if ((!striped && !wedged) || !list?.includes(":")) {
         return;
     }
     const bands = colorBands(list, n.scheme, "fill", n.at(striped ? "stripeColors" : "pieColors"));
@@ -997,8 +1127,8 @@ function colorBands(
         return size > 0 ? [{ color: p.color, size: num6(size) }] : [];
     });
     // every color sized and short of the whole: Graphviz gives what is left to the last one (emit.c parseSegs)
-    if (bands.length > 0 && unsized === 0 && used < 1) {
-        const last = bands[bands.length - 1];
+    const last = bands.at(-1);
+    if (last !== undefined && unsized === 0 && used < 1) {
         last.size = num6(last.size + 1 - used);
     }
     return bands;
@@ -1074,7 +1204,7 @@ export const PERIPHERY_GAP = 4;
 function readNodeRings(n: NodeRead): void {
     const raw = nonEmpty(n.get("peripheries"));
     const count = raw === null ? (SHAPE_PERIPHERIES.get(n.shape) ?? 1) : Math.trunc(Number(raw));
-    if (!(count > 1) || NO_OUTLINE.has(n.shape)) {
+    if (Number.isNaN(count) || count <= 1 || NO_OUTLINE.has(n.shape)) {
         return;
     }
     const c =
@@ -1359,14 +1489,18 @@ function glyphOf(
         const v = get(property);
         return typeof v === "string" ? v.trim() : null;
     };
+    const outline = text("shapePoints");
+    if (outline === null) {
+        return undefined;
+    }
+    // a glyph with another number of corners cannot match: skip writing its texts, which is most of the work
+    const corners = outline === "" ? 0 : outline.split(/\s+/).length;
     for (const name of GRAPHVIZ_GLYPH_SHAPES) {
+        if (graphvizGlyph(name, width, height)?.outline.length !== corners) {
+            continue;
+        }
         const g = glyphTexts(name, width, height);
-        if (
-            g !== null &&
-            g.outline === text("shapePoints") &&
-            g.parts === text("shapeParts") &&
-            g.lines === text("shapeLines")
-        ) {
+        if (g !== null && g.outline === outline && g.parts === text("shapeParts") && g.lines === text("shapeLines")) {
             return { name, unstroked: g.unstroked };
         }
     }
@@ -1706,7 +1840,7 @@ export function graphvizRouteBends(
     source: BendPoint,
     target: BendPoint,
     splines: readonly (readonly BendPoint[])[],
-    tips: { readonly start: BendPoint | null; readonly end: BendPoint | null } = { start: null, end: null },
+    tips?: { readonly start: BendPoint | null; readonly end: BendPoint | null },
 ): string | null {
     const points: BendPoint[] = [];
     for (const controls of splines) {
@@ -1719,11 +1853,13 @@ export function graphvizRouteBends(
     // a tip where the spline already ends adds no point
     const apart = (a: BendPoint, b: BendPoint | undefined): boolean =>
         b === undefined || Math.hypot(a[0] - b[0], a[1] - b[1]) > 1e-6;
-    if (tips.start !== null && apart(tips.start, points[0])) {
-        points.unshift(tips.start);
+    const start = tips?.start ?? null;
+    const end = tips?.end ?? null;
+    if (start !== null && apart(start, points[0])) {
+        points.unshift(start);
     }
-    if (tips.end !== null && apart(tips.end, points.at(-1))) {
-        points.push(tips.end);
+    if (end !== null && apart(end, points.at(-1))) {
+        points.push(end);
     }
     const [dx, dy] = [target[0] - source[0], target[1] - source[1]];
     const length = Math.hypot(dx, dy);
@@ -1771,18 +1907,8 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     // with none of these the tool-default rule draws the arrow of the graph's kind
     if (dirRaw !== null || head !== null || tail !== null) {
         const dir = (dirRaw ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
-        const forward = dir === "forward" || dir === "both";
-        const back = dir === "back" || dir === "both";
-        for (const [end, raw, on] of [
-            ["target", head, forward],
-            ["source", tail, back],
-        ] as const) {
-            const arrow = on ? graphvizArrowValue(raw ?? "normal", at(`${end}Arrow`)) : null;
-            put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
-            if (arrow?.side !== null && arrow?.side !== undefined) {
-                put(`${end}ArrowSide`, arrow.side);
-            }
-        }
+        readEdgeArrow("target", head, dir === "forward" || dir === "both", put, at);
+        readEdgeArrow("source", tail, dir === "back" || dir === "both", put, at);
     }
     const size = get("arrowsize");
     if (size !== null) {
@@ -1792,6 +1918,22 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     const fill = nonEmpty(get("fillcolor"));
     for (const property of ["targetArrowColor", "sourceArrowColor"]) {
         readColor(fill, get("colorscheme"), "fill", property, null, put, at);
+    }
+}
+
+/**
+ * Reads one end's arrow: its shape, or none when the edge's direction draws no arrow there, and the side it keeps.
+ * @param end - which end
+ * @param raw - its `arrowhead` or `arrowtail`, or null
+ * @param on - whether the edge's direction draws an arrow there
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeArrow(end: "target" | "source", raw: string | null, on: boolean, put: Put, at: At): void {
+    const arrow = on ? graphvizArrowValue(raw ?? "normal", at(`${end}Arrow`)) : null;
+    put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
+    if (arrow?.side !== null && arrow?.side !== undefined) {
+        put(`${end}ArrowSide`, arrow.side);
     }
 }
 
@@ -1994,6 +2136,34 @@ function styleColumns(table: GraphSnapshot["nodes"], attributes: readonly string
 }
 
 /**
+ * The graph's own styles: its `bgcolor` as its background.
+ * @param snapshot - the graph
+ * @param notes - where a bad color is noted
+ * @returns the graph's values
+ */
+function graphBackground(snapshot: GraphSnapshot, notes: StyleNotes): Record<string, StyleValue> {
+    const graph: Record<string, StyleValue> = {};
+    const bg = nonEmpty(cellText(snapshot.graph, "bgcolor", 0));
+    if (!snapshot.graph.has("bgcolor") || bg === null) {
+        return graph;
+    }
+    readColor(
+        bg,
+        cellText(snapshot.graph, "colorscheme", 0),
+        "fill",
+        "background",
+        null,
+        (p, v) => {
+            if (v !== null) {
+                graph[p] = v;
+            }
+        },
+        (property) => ({ notes, target: "graph", property }),
+    );
+    return graph;
+}
+
+/**
  * The styles of a DOT file, read the way Graphviz draws it, with Graphviz's defaults beneath: an unfilled black
  * ellipse 54 x 36 labeled with its name, black edges with a target arrow in a directed graph. A file graphty wrote
  * gives back its `graphty.styles` block.
@@ -2061,23 +2231,7 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             edge.put(e, p, v);
         });
     }
-    const graph: Record<string, StyleValue> = {};
-    const bg = nonEmpty(cellText(snapshot.graph, "bgcolor", 0));
-    if (snapshot.graph.has("bgcolor") && bg !== null) {
-        readColor(
-            bg,
-            cellText(snapshot.graph, "colorscheme", 0),
-            "fill",
-            "background",
-            null,
-            (p, v) => {
-                if (v !== null) {
-                    graph[p] = v;
-                }
-            },
-            (property) => ({ notes, target: "graph", property }),
-        );
-    }
+    const graph = graphBackground(snapshot, notes);
     const blockText = cellText(snapshot.graph, STYLE_BLOCK_NAME, 0);
     if (blockText !== null) {
         exactFromBlock(snapshot, blockText, { node: node.values, edge: edge.values }, cx);
@@ -2465,21 +2619,9 @@ function writeNodeShape(
     };
     const glyph = shape === "polygon" ? glyphOf(get, size("width"), size("height")) : undefined;
     if (glyph !== undefined) {
-        out.set("shape", glyph.name);
-        // an underline's line is drawn in its pen, which draws no outline round it
-        const line = get("shapeLineWidth");
-        if (glyph.unstroked && typeof line === "number") {
-            out.set("penwidth", line);
-        }
-        return glyph.name;
+        return writeGlyph(get, glyph, out);
     }
-    // pieces and lines of no Graphviz shape: Graphviz has no attribute for them
-    for (const property of ["shapeParts", "shapeLines", "shapeLineWidth"]) {
-        const v = get(property);
-        if (v !== null && v !== undefined) {
-            approximate(property, v);
-        }
-    }
+    approximateShapeLines(get, approximate);
     const polygon = shape === "polygon" ? writePolygon(get("shapePoints"), approximate, out) : null;
     if (polygon !== null) {
         // Graphviz draws its polygon's corners where it lays them, which read back unstretched
@@ -2491,6 +2633,37 @@ function writeNodeShape(
     const gvShape = spelled(SHAPES, shape, shape === "vee" ? "invtriangle" : "box", "shape", approximate);
     out.set("shape", gvShape);
     return gvShape;
+}
+
+/**
+ * A glyph's shape attribute, and its line's width as its pen's when it draws no outline.
+ * @param get - the node's values
+ * @param glyph - the glyph
+ * @param out - the attributes, added to
+ * @returns the Graphviz shape written
+ */
+function writeGlyph(get: Get, glyph: NonNullable<ReturnType<typeof glyphOf>>, out: Map<string, Written>): string {
+    out.set("shape", glyph.name);
+    // an underline's line is drawn in its pen, which draws no outline round it
+    const line = get("shapeLineWidth");
+    if (glyph.unstroked && typeof line === "number") {
+        out.set("penwidth", line);
+    }
+    return glyph.name;
+}
+
+/**
+ * Notes a node's pieces and lines of no Graphviz shape as approximated: Graphviz has no attribute for them.
+ * @param get - the node's values
+ * @param approximate - records approximations
+ */
+function approximateShapeLines(get: Get, approximate: Approximate): void {
+    for (const property of ["shapeParts", "shapeLines", "shapeLineWidth"]) {
+        const v = get(property);
+        if (v !== null && v !== undefined) {
+            approximate(property, v);
+        }
+    }
 }
 
 /**
@@ -2875,19 +3048,35 @@ function attributeColumns(
         if (w.read.has(LABEL_ATTRIBUTE) && attrs.get(LABEL_ATTRIBUTE) === "" && get(i)("label") === null) {
             w.approximate("label", "");
         }
-        for (const [name, value] of attrs) {
-            let col = columns.get(name);
-            if (col === undefined) {
-                col = new Array<Written | null>(n).fill(null);
-                columns.set(name, col);
-            }
-            col[i] = value;
-        }
+        setColumnValues(columns, attrs, i, n);
     }
     if (target === "node") {
         stopInheritance(snapshot, w.cx, columns, input.rules.styles.graph.background);
     }
     return columns;
+}
+
+/**
+ * Puts one element's attributes into the columns, adding a column for an attribute not seen before.
+ * @param columns - the columns, by name
+ * @param attrs - the element's attributes
+ * @param i - the element
+ * @param n - how many elements there are
+ */
+function setColumnValues(
+    columns: Map<string, (Written | null)[]>,
+    attrs: ReadonlyMap<string, Written>,
+    i: number,
+    n: number,
+): void {
+    for (const [name, value] of attrs) {
+        let col = columns.get(name);
+        if (col === undefined) {
+            col = new Array<Written | null>(n).fill(null);
+            columns.set(name, col);
+        }
+        col[i] = value;
+    }
 }
 
 /** What a cluster draws when neither it nor a graph around it sets the attribute: Graphviz's defaults. */

@@ -53,7 +53,7 @@ export const CYJS_FACE_PROPERTIES: readonly [string, CyjsPropertySpec][] = [
  * @returns the number and its unit in lower case, or null
  */
 function measure(word: string | null | undefined): [number, string] | null {
-    const m = /^\s*(-?\d*\.?\d+(?:e[+-]?\d+)?)\s*([a-z%]*)\s*$/i.exec(word ?? "");
+    const m = /^(-?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?)\s*([a-z%]*)$/i.exec((word ?? "").trim());
     return m === null ? null : [Number(m[1]), m[2].toLowerCase()];
 }
 
@@ -157,7 +157,7 @@ function pieces(
         // a slice's size is a percentage, written with or without its sign
         const m = measure(words.get(`${prefix}S${String(k)}`)?.[i]);
         const size = m !== null && (m[1] === "%" || m[1] === "") ? r6(m[0] / 100) : null;
-        if (size === null || !(size > 0)) {
+        if (size === null || size <= 0) {
             continue;
         }
         colors.push(words.get(`${prefix}C${String(k)}`)?.[i] ?? "#000000");
@@ -175,6 +175,18 @@ function pieces(
     };
 }
 
+/** One element's parts, and where its values go. */
+interface FaceElement {
+    /** a part's word for this element, or null */
+    readonly word: (part: string) => string | null;
+    /** sets one of this element's values */
+    readonly put: (property: string, value: StyleValue) => void;
+    /** the node's width, Cytoscape.js's default 30 unset */
+    readonly w: number;
+    /** the node's height, Cytoscape.js's default 30 unset */
+    readonly h: number;
+}
+
 /**
  * Combines the parts of what is drawn over a node's face into the neutral properties, per element.
  * @param n - the element count
@@ -188,111 +200,173 @@ export function combineFace(
 ): void {
     const col = (property: string): (StyleValue | null)[] =>
         (values[property] ??= new Array<StyleValue | null>(n).fill(null));
-    const word = (part: string, i: number): string | null => words.get(part)?.[i] ?? null;
     const num = (property: string, i: number): number | null => {
         const v = values[property]?.[i];
         return typeof v === "number" ? v : null;
     };
     for (let i = 0; i < n; i++) {
-        // Cytoscape.js's default node is 30 x 30
-        const w = num("width", i) ?? 30;
-        const h = num("height", i) ?? 30;
-        // a percentage is of the node's padding box (`-relative-to: include-padding`, the default), its padding on both
-        // sides taken in, or of its inner box (`inner`) (cytoscape.js 3.34.3 drawInscribedImage: `nodeTW`)
-        const pad = paddingPixels(word("_padding", i));
-        const of = (rel: string | null, side: number): number => (rel === "inner" ? side : side + 2 * pad);
-        const image = firstImage(word("_bgImage", i));
-        if (image !== null) {
-            col("image")[i] = image;
-            const fit = word("_bgFit", i) ?? "none";
-            col("imageFit")[i] = ["none", "contain", "cover"].includes(fit) ? fit : "none";
-            // a repeated picture is tiled at its own size whatever its width and height say (Cytoscape.js 3.34
-            // `drawInscribedImage`: a canvas pattern of the picture as loaded)
-            const tiled = ["repeat", "repeat-x", "repeat-y"].includes(word("_bgRepeat", i) ?? "");
-            const bw = tiled ? null : length(word("_bgWidth", i), of(word("_bgWidthRel", i), w));
-            const bh = tiled ? null : length(word("_bgHeight", i), of(word("_bgHeightRel", i), h));
-            if (bw !== null) {
-                col("imageWidth")[i] = bw;
-            }
-            if (bh !== null) {
-                col("imageHeight")[i] = bh;
-            }
-            // a side left `auto` is the picture's own (Cytoscape.js's `auto`: "uses the width of the image"), not in
-            // proportion to the side given
-            if ((bw === null) !== (bh === null)) {
-                col("imageAutoSize")[i] = "natural";
-            }
-            const px = fraction(word("_bgPosX", i));
-            const py = fraction(word("_bgPosY", i));
-            if (px !== null && px >= 0) {
-                col("imagePositionX")[i] = px;
-            }
-            if (py !== null && py >= 0) {
-                col("imagePositionY")[i] = py;
-            }
-            const ox = length(word("_bgOffX", i), w);
-            const oy = length(word("_bgOffY", i), h);
-            if (ox !== null) {
-                col("imageOffsetX")[i] = ox;
-            }
-            if (oy !== null) {
-                col("imageOffsetY")[i] = oy;
-            }
-            const repeat = word("_bgRepeat", i);
-            if (repeat !== null && ["repeat", "repeat-x", "repeat-y", "no-repeat"].includes(repeat)) {
-                col("imageRepeat")[i] = repeat;
-            }
-            const clip = word("_bgClip", i);
-            if (clip !== null) {
-                col("imageClip")[i] = clip === "none" ? "none" : "node";
-            }
-            const smooth = word("_bgSmooth", i);
-            if (smooth === "yes" || smooth === "no") {
-                col("imageSmoothing")[i] = smooth === "yes";
-            }
-            const opacity = Number(word("_bgOpacity", i) ?? Number.NaN);
-            if (Number.isFinite(opacity)) {
-                col("imageOpacity")[i] = Math.max(0, Math.min(1, opacity));
-            }
-        }
+        const el: FaceElement = {
+            word: (part) => words.get(part)?.[i] ?? null,
+            put: (property, value) => {
+                col(property)[i] = value;
+            },
+            // Cytoscape.js's default node is 30 x 30
+            w: num("width", i) ?? 30,
+            h: num("height", i) ?? 30,
+        };
+        faceImage(el);
         const pie = pieces(words, "_pie", i);
         if (pie !== null) {
-            col("pieColors")[i] = pie.colors;
-            col("pieSizes")[i] = pie.sizes;
-            if (pie.opacities !== null) {
-                col("pieOpacities")[i] = pie.opacities;
-            }
-            const size = word("_pieSize", i);
-            // in pixels, the pie's diameter; as a fraction, of the node's shorter side
-            const px = measure(size)?.[1] === "px" ? length(size, null) : null;
-            const r = px === null ? fraction(size) : px / Math.min(w, h);
-            if (r !== null) {
-                col("pieRadius")[i] = r6(r);
-            }
-            const hole = fraction(word("_pieHole", i));
-            if (hole !== null && hole >= 0 && hole <= 1) {
-                col("pieHole")[i] = hole;
-            }
-            const start = degrees(word("_pieStart", i));
-            if (start !== null) {
-                col("pieRotation")[i] = start;
-            }
+            facePie(el, pie);
         }
         const stripe = pieces(words, "_stripe", i);
         if (stripe !== null) {
-            col("stripeColors")[i] = stripe.colors;
-            col("stripeSizes")[i] = stripe.sizes;
-            if (stripe.opacities !== null) {
-                col("stripeOpacities")[i] = stripe.opacities;
-            }
-            // Cytoscape.js turns its stripes a quarter for `righward` (its spelling); anything else is `vertical`
-            if (word("_stripeDir", i) === "righward") {
-                col("stripeDirection")[i] = "right";
-            }
-            const size = fraction(word("_stripeSize", i));
-            if (size !== null && size >= 0) {
-                col("stripeSize")[i] = size;
-            }
+            faceStripes(el, stripe);
         }
+    }
+}
+
+/**
+ * An element's background image: the picture, how it fits, its size, place and look.
+ * @param el - the element
+ */
+function faceImage(el: FaceElement): void {
+    const image = firstImage(el.word("_bgImage"));
+    if (image === null) {
+        return;
+    }
+    el.put("image", image);
+    const fit = el.word("_bgFit") ?? "none";
+    el.put("imageFit", ["none", "contain", "cover"].includes(fit) ? fit : "none");
+    imageSize(el);
+    imagePlace(el);
+    imageLook(el);
+}
+
+/**
+ * A background image's width and height. A percentage is of the node's padding box (`-relative-to: include-padding`,
+ * the default), its padding on both sides taken in, or of its inner box (`inner`) (cytoscape.js 3.34.3
+ * drawInscribedImage: `nodeTW`).
+ * @param el - the element
+ */
+function imageSize(el: FaceElement): void {
+    const pad = paddingPixels(el.word("_padding"));
+    const of = (rel: string | null, side: number): number => (rel === "inner" ? side : side + 2 * pad);
+    // a repeated picture is tiled at its own size whatever its width and height say (Cytoscape.js 3.34
+    // `drawInscribedImage`: a canvas pattern of the picture as loaded)
+    const tiled = ["repeat", "repeat-x", "repeat-y"].includes(el.word("_bgRepeat") ?? "");
+    const bw = tiled ? null : length(el.word("_bgWidth"), of(el.word("_bgWidthRel"), el.w));
+    const bh = tiled ? null : length(el.word("_bgHeight"), of(el.word("_bgHeightRel"), el.h));
+    if (bw !== null) {
+        el.put("imageWidth", bw);
+    }
+    if (bh !== null) {
+        el.put("imageHeight", bh);
+    }
+    // a side left `auto` is the picture's own (Cytoscape.js's `auto`: "uses the width of the image"), not in
+    // proportion to the side given
+    if ((bw === null) !== (bh === null)) {
+        el.put("imageAutoSize", "natural");
+    }
+}
+
+/**
+ * A background image's position and offset.
+ * @param el - the element
+ */
+function imagePlace(el: FaceElement): void {
+    const px = fraction(el.word("_bgPosX"));
+    const py = fraction(el.word("_bgPosY"));
+    if (px !== null && px >= 0) {
+        el.put("imagePositionX", px);
+    }
+    if (py !== null && py >= 0) {
+        el.put("imagePositionY", py);
+    }
+    const ox = length(el.word("_bgOffX"), el.w);
+    const oy = length(el.word("_bgOffY"), el.h);
+    if (ox !== null) {
+        el.put("imageOffsetX", ox);
+    }
+    if (oy !== null) {
+        el.put("imageOffsetY", oy);
+    }
+}
+
+/**
+ * A background image's repeat, clip, smoothing and opacity.
+ * @param el - the element
+ */
+function imageLook(el: FaceElement): void {
+    const repeat = el.word("_bgRepeat");
+    if (repeat !== null && ["repeat", "repeat-x", "repeat-y", "no-repeat"].includes(repeat)) {
+        el.put("imageRepeat", repeat);
+    }
+    const clip = el.word("_bgClip");
+    if (clip !== null) {
+        el.put("imageClip", clip === "none" ? "none" : "node");
+    }
+    const smooth = el.word("_bgSmooth");
+    if (smooth === "yes" || smooth === "no") {
+        el.put("imageSmoothing", smooth === "yes");
+    }
+    const opacity = Number(el.word("_bgOpacity") ?? Number.NaN);
+    if (Number.isFinite(opacity)) {
+        el.put("imageOpacity", Math.max(0, Math.min(1, opacity)));
+    }
+}
+
+/**
+ * An element's pie: its slices, radius, hole and start angle.
+ * @param el - the element
+ * @param pie - its slices
+ * @param pie.colors - the slices' colors
+ * @param pie.sizes - the slices' sizes
+ * @param pie.opacities - the slices' opacities, or null when all are 1
+ */
+function facePie(el: FaceElement, pie: { colors: string; sizes: string; opacities: string | null }): void {
+    el.put("pieColors", pie.colors);
+    el.put("pieSizes", pie.sizes);
+    if (pie.opacities !== null) {
+        el.put("pieOpacities", pie.opacities);
+    }
+    const size = el.word("_pieSize");
+    // in pixels, the pie's diameter; as a fraction, of the node's shorter side
+    const px = measure(size)?.[1] === "px" ? length(size, null) : null;
+    const r = px === null ? fraction(size) : px / Math.min(el.w, el.h);
+    if (r !== null) {
+        el.put("pieRadius", r6(r));
+    }
+    const hole = fraction(el.word("_pieHole"));
+    if (hole !== null && hole >= 0 && hole <= 1) {
+        el.put("pieHole", hole);
+    }
+    const start = degrees(el.word("_pieStart"));
+    if (start !== null) {
+        el.put("pieRotation", start);
+    }
+}
+
+/**
+ * An element's stripes: their bands, direction and size.
+ * @param el - the element
+ * @param stripe - its bands
+ * @param stripe.colors - the bands' colors
+ * @param stripe.sizes - the bands' sizes
+ * @param stripe.opacities - the bands' opacities, or null when all are 1
+ */
+function faceStripes(el: FaceElement, stripe: { colors: string; sizes: string; opacities: string | null }): void {
+    el.put("stripeColors", stripe.colors);
+    el.put("stripeSizes", stripe.sizes);
+    if (stripe.opacities !== null) {
+        el.put("stripeOpacities", stripe.opacities);
+    }
+    // Cytoscape.js turns its stripes a quarter for `righward` (its spelling); anything else is `vertical`
+    if (el.word("_stripeDir") === "righward") {
+        el.put("stripeDirection", "right");
+    }
+    const size = fraction(el.word("_stripeSize"));
+    if (size !== null && size >= 0) {
+        el.put("stripeSize", size);
     }
 }

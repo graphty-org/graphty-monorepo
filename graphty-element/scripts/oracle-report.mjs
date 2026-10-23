@@ -61,6 +61,13 @@ const AREA_PROPERTIES = [
 
 const esc = (s) =>
     String(s).replaceAll(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+/** A verdict as words: "--" when none, the pass text, or "<count> <fail text>". */
+function verdictText(verdict, passText, failText) {
+    if (!verdict) {
+        return "--";
+    }
+    return verdict.pass ? passText : `${verdict.failing} ${failText}`;
+}
 const pct = (r) => (r === null || r === undefined ? "--" : `${(r * 100).toFixed(1)}%`);
 const tone = (r) => {
     if (r === null || r === undefined) {
@@ -221,7 +228,7 @@ Fit graphty to oracle: ${fitText}.</p>
 <figure><img src="${esc(id)}.graphty.png" alt="graphty's canvas"><figcaption>graphty-element canvas</figcaption></figure>
 <figure>${existsSync(join(out, `${id}.overlay.png`)) ? `<img src="${esc(id)}.overlay.png" alt="overlay">` : "no raster oracle"}<figcaption>overlay: the rasterized oracle aligned into graphty's frame at 50%</figcaption></figure>
 </div>
-<p>Verdict: ${r.verdict ? (r.verdict.pass ? "every element passes" : `${r.verdict.failing} elements fail a property`) : "--"}${r.standIn ? "; the oracle is a stand-in, scored apart" : ""}.</p>
+<p>Verdict: ${verdictText(r.verdict, "every element passes", "elements fail a property")}${r.standIn ? "; the oracle is a stand-in, scored apart" : ""}.</p>
 <h2>Properties</h2>
 <div class="scroll"><table><tr><th>property</th><th>judged</th><th>pass</th><th>tolerance</th><th>worst elements</th></tr>
 ${props}</table></div>
@@ -273,15 +280,13 @@ const columns = [
 ];
 // a stand-in oracle (another program's drawing, or a raster) says how close graphty is to that program, not to the
 // file's own: its rows are a table of their own
-const rowsOf = (list) =>
-    list
-        .map(
-            (r) =>
-                `<tr><td><a href="${esc(r.sample)}.html">${esc(r.sample)}</a></td><td>${esc(r.oracleMeta?.program ?? "")}</td><td class="${r.verdict?.pass ? "ok" : "bad"}">${r.verdict ? (r.verdict.pass ? "pass" : `${r.verdict.failing} failing`) : "--"}</td>${columns
-                    .map((c) => `<td class="${tone(r.properties[c]?.passRate)}">${pct(r.properties[c]?.passRate)}</td>`)
-                    .join("")}</tr>`,
-        )
-        .join("\n");
+const rateCell = (rate) => `<td class="${tone(rate)}">${pct(rate)}</td>`;
+const rowOf = (r) => {
+    const verdictClass = r.verdict?.pass ? "ok" : "bad";
+    const rates = columns.map((c) => rateCell(r.properties[c]?.passRate)).join("");
+    return `<tr><td><a href="${esc(r.sample)}.html">${esc(r.sample)}</a></td><td>${esc(r.oracleMeta?.program ?? "")}</td><td class="${verdictClass}">${verdictText(r.verdict, "pass", "failing")}</td>${rates}</tr>`;
+};
+const rowsOf = (list) => list.map(rowOf).join("\n");
 const header = columns.map((c) => `<th class="mono">${esc(c)}</th>`).join("");
 const byId = new Map(reports.map((r) => [r.sample, r]));
 const ledger = existsSync(join(oracles, "ISSUES.md")) ? readFileSync(join(oracles, "ISSUES.md"), "utf8") : "";

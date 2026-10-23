@@ -30,6 +30,7 @@ import {
     type RingPiece,
     sineWavePeriod,
     type WaveShape,
+    WHOLE_PERIOD,
     zigzagPeriod,
     type ZigzagPiece,
     zigzagPieceKey,
@@ -175,6 +176,18 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
         connected: false,
     },
 };
+
+/** How a pattern element is drawn, beyond its pattern and line ({@link PatternedLineRenderer.createPatternElement}). */
+export interface PatternElementOptions {
+    /** A specific shape type, for alternating patterns. */
+    readonly shapeType?: PatternShapeType;
+    /** Draw flat in the XY plane with a StandardMaterial rather than billboarded. */
+    readonly is2DMode?: boolean;
+    /** A sinewave's or zigzag's own swing and period, in world units. */
+    readonly wave?: WaveShape;
+    /** How much of its period a zigzag element with a wave of its own draws, and its caps. */
+    readonly piece?: ZigzagPiece;
+}
 
 /** A flat polygon in a glyph's own plane: `[along, across]` points, in units of the line's width. */
 type GlyphPolygon = readonly (readonly [number, number])[];
@@ -348,11 +361,12 @@ export class PatternedLineRenderer {
      * @param color - Line color
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
-     * @param shapeType - Optional specific shape type for alternating patterns
-     * @param is2DMode - Draw flat in the XY plane with a StandardMaterial rather than billboarded
-     * @param wave - A sinewave's or zigzag's own swing and period, in world units: given, one element
-     *   is one period of {@link PatternedLineRenderer.waveGeometry}, `width` thick
-     * @param piece - How much of its period a zigzag element with a wave of its own draws (the last
+     * @param options - How the element is drawn, beyond its pattern and line:
+     *   `shapeType`, a specific shape type for alternating patterns;
+     *   `is2DMode`, draw flat in the XY plane with a StandardMaterial rather than billboarded;
+     *   `wave`, a sinewave's or zigzag's own swing and period, in world units: given, one element
+     *   is one period of {@link PatternedLineRenderer.waveGeometry}, `width` thick;
+     *   `piece`, how much of its period a zigzag element with a wave of its own draws (the last
      *   stops at its last turn) and whether it is capped where the line starts or ends
      * @returns The element; place it with `ArrowCap.place`
      */
@@ -362,11 +376,9 @@ export class PatternedLineRenderer {
         color: string,
         opacity: number,
         scene: Scene,
-        shapeType?: PatternShapeType,
-        is2DMode?: boolean,
-        wave?: WaveShape,
-        piece: ZigzagPiece = { stretch: "period" },
+        options: PatternElementOptions = {},
     ): ArrowCap {
+        const { shapeType, is2DMode, wave, piece = WHOLE_PERIOD } = options;
         const patternDef = PATTERN_DEFINITIONS[pattern];
         const shape = shapeType ?? this.getDefaultShapeType(pattern);
 
@@ -375,9 +387,8 @@ export class PatternedLineRenderer {
         // of its key. A discrete shape is one normalized geometry drawn at a per-slot scale.
         const scale = patternDef.connected ? 1 : width / this.getGeometryDiameter(pattern, shapeType);
         const waved = patternDef.connected && wave !== undefined;
-        const builtWidth = patternDef.connected
-            ? `${String(width)}${waved ? `~${String(wave.amplitude)}~${String(wave.period)}~${zigzagPieceKey(piece)}` : ""}`
-            : "";
+        const waveKey = waved ? `~${String(wave.amplitude)}~${String(wave.period)}~${zigzagPieceKey(piece)}` : "";
+        const builtWidth = patternDef.connected ? `${String(width)}${waveKey}` : "";
         const geometry = (): VertexData => {
             if (waved) {
                 return this.waveGeometry(pattern, width, wave, piece);
@@ -446,7 +457,7 @@ export class PatternedLineRenderer {
         pattern: PatternType,
         width: number,
         wave: WaveShape,
-        piece: ZigzagPiece = { stretch: "period" },
+        piece: ZigzagPiece = WHOLE_PERIOD,
     ): VertexData {
         return this.pieceGeometry(this.wavePiece(pattern, width, wave, piece));
     }
@@ -463,7 +474,7 @@ export class PatternedLineRenderer {
         pattern: PatternType,
         width: number,
         wave: WaveShape,
-        piece: ZigzagPiece = { stretch: "period" },
+        piece: ZigzagPiece = WHOLE_PERIOD,
     ): RingPiece {
         return pattern === "sinewave"
             ? sineWavePeriod(wave.amplitude, wave.period, width)

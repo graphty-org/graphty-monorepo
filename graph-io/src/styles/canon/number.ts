@@ -94,7 +94,7 @@ export function canonSigned(raw: unknown, site: CanonSite): number | null {
     if (value === null) {
         return null;
     }
-    if (!(Math.abs(value) <= MAX_STYLE_NUMBER)) {
+    if (Math.abs(value) > MAX_STYLE_NUMBER) {
         noteAt(site, STYLE_ISSUE.BAD_VALUE, typeof raw === "string" ? raw : String(raw));
         return null;
     }

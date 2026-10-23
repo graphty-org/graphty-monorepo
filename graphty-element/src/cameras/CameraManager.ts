@@ -1,6 +1,7 @@
 // CameraManager.ts
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
+import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import type { FramingSpot } from "./OrbitCameraController";
 import type { XRPivotCameraController } from "./XRPivotCameraController";
@@ -13,9 +14,11 @@ const GLIDE = 0.2;
  * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
  * @param from - The point, moved in place.
  * @param to - The target.
+ * @param frames - How many nominal 60 Hz frames this pass stands for, so the glide takes the same
+ *   time however slowly frames are drawn; 1 by default.
  * @returns Whether the point moved.
  */
-export function glideTowards(from: Vector3, to: Vector3): boolean {
+export function glideTowards(from: Vector3, to: Vector3, frames = 1): boolean {
     if (from.equals(to)) {
         return false;
     }
@@ -23,7 +26,7 @@ export function glideTowards(from: Vector3, to: Vector3): boolean {
     if (Vector3.DistanceSquared(from, to) < 1e-6) {
         from.copyFrom(to);
     } else {
-        Vector3.LerpToRef(from, to, GLIDE, from);
+        Vector3.LerpToRef(from, to, 1 - (1 - GLIDE) ** Math.max(1, frames), from);
     }
 
     return true;
@@ -32,16 +35,22 @@ export function glideTowards(from: Vector3, to: Vector3): boolean {
 export interface CameraController {
     camera: Camera;
     zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void;
+    /** Margins of the canvas something else covers, in CSS pixels, that every fit keeps clear. */
+    viewInsets?: ViewInsets;
     /**
      * Called when the canvas resizes. Allows camera controllers to update
      * their projection to match the new aspect ratio.
      */
     onResize?(): void;
+    /** Take new insets without moving what is drawn; absent, the insets are assigned. */
+    setViewInsets?(insets: ViewInsets): void;
+    /** Told each time the reader's own input moves this camera; set by {@link CameraManager}. */
+    onReaderMove?: () => void;
     /**
      * Called each frame with the point the camera should pivot on, while there is one: the
      * controller glides its pivot there.
      */
-    followPoint?(point: Vector3): boolean;
+    followPoint?(point: Vector3, frames?: number): boolean;
     /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
     fitInsets?: FitInsets;
     /** What a 3D fit fits into view; see `camera.fitBounds`. */
@@ -54,6 +63,8 @@ interface InputHandler {
     enable(): void;
     disable(): void;
     update(): void;
+    /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
+    zoomToPointer?: boolean;
     /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
     readonly busy?: boolean;
 }
@@ -85,6 +96,9 @@ export class CameraManager {
     private readonly controllers = new Map<CameraKey, CameraController>();
     private readonly inputs = new Map<CameraKey, InputHandler>();
 
+    /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
+    public onReaderMove: (() => void) | null = null;
+
     /**
      * Creates a new CameraManager instance.
      * @param scene - The Babylon.js scene to manage cameras for
@@ -102,6 +116,9 @@ export class CameraManager {
     public registerCamera(key: CameraKey, controller: CameraController, inputHandler: InputHandler): void {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
+        controller.onReaderMove = () => {
+            this.onReaderMove?.();
+        };
     }
 
     /**
@@ -144,20 +161,36 @@ export class CameraManager {
     }
 
     /**
+     * Give every camera the margins of the canvas something else covers. Each fit from now on
+     * keeps the graph out of them; nothing drawn moves until then.
+     * @param insets - CSS pixels per side.
+     */
+    public setViewInsets(insets: ViewInsets): void {
+        for (const controller of this.controllers.values()) {
+            if (controller.setViewInsets) {
+                controller.setViewInsets(insets);
+            } else {
+                controller.viewInsets = insets;
+            }
+        }
+    }
+
+    /**
      * Make a point the camera's pivot, called each frame while there is one. In VR and AR the
      * reader's turns and zooms happen about it and nothing moves; otherwise the active camera
      * glides its pivot to it.
      * @param point - The point, in world space.
+     * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
      * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3): boolean {
+    public followPoint(point: Vector3, frames = 1): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
             return false;
         }
 
-        return this.activeCameraController?.followPoint?.(point) ?? false;
+        return this.activeCameraController?.followPoint?.(point, frames) ?? false;
     }
 
     /**
@@ -167,6 +200,19 @@ export class CameraManager {
     public setFitInsets(insets: FitInsets): void {
         for (const controller of this.controllers.values()) {
             controller.fitInsets = insets;
+        }
+    }
+
+    /**
+     * Make every camera's wheel zoom toward the point under the pointer, or toward the view's
+     * center.
+     * @param on - True to zoom toward the pointer.
+     */
+    public setZoomToPointer(on: boolean): void {
+        for (const input of this.inputs.values()) {
+            if ("zoomToPointer" in input) {
+                input.zoomToPointer = on;
+            }
         }
     }
 

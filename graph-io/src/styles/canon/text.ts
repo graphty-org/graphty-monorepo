@@ -202,21 +202,7 @@ const FONT_TAGS = /^<(\/?)(b|i|u|o|s|sub|sup|font)\b/i;
  */
 export function htmlLabelSpans(html: string): HtmlLabelSpan[] {
     const body = html.startsWith("<") && html.endsWith(">") ? html.slice(1, -1) : html;
-    const spans: HtmlLabelSpan[] = [];
-    let tags: string[] = [];
-    let out = "";
-    const emit = (text: string): void => {
-        out += text;
-        const last = spans.at(-1);
-        if (last?.tags === tags) {
-            spans[spans.length - 1] = { text: last.text + text, tags };
-        } else if (text !== "") {
-            spans.push({ text, tags });
-        }
-    };
-    // the open tables and cells, innermost last: text is drawn outside every table or inside a cell
-    const open: ("table" | "td")[] = [];
-    const lineHasText = (): boolean => out.slice(out.lastIndexOf("\n") + 1).trim() !== "";
+    const s: SpanState = { spans: [], tags: [], out: "", open: [] };
     let i = 0;
     while (i < body.length) {
         const c = body[i];
@@ -225,38 +211,109 @@ export function htmlLabelSpans(html: string): HtmlLabelSpan[] {
             if (close < 0) {
                 break;
             }
-            const tag = /^<(\/?)(br|table|tr|td)\b/i.exec(body.slice(i, i + 7));
-            const name = tag?.[2].toLowerCase();
-            const font = FONT_TAGS.exec(body.slice(i, i + 6));
-            if (name === "br" || (name === "tr" && tag?.[1] === "" && lineHasText())) {
-                emit("\n");
-            } else if ((name === "table" || name === "td") && tag?.[1] === "/") {
-                open.pop();
-            } else if (name === "table" || name === "td") {
-                if (name === "td" && lineHasText()) {
-                    emit(" ");
-                }
-                open.push(name);
-            } else if (font !== null && font[1] === "/") {
-                let at = tags.length - 1;
-                while (at >= 0 && /^<(\w+)/.exec(tags[at])?.[1].toLowerCase() !== font[2].toLowerCase()) {
-                    at--;
-                }
-                tags = at < 0 ? tags : [...tags.slice(0, at), ...tags.slice(at + 1)];
-            } else if (font !== null && body[close - 1] !== "/") {
-                tags = [...tags, body.slice(i, close + 1)];
-            }
+            readTag(s, body, i, close);
             i = close + 1;
-        } else if (c === "&") {
-            const [text, next] = entityAt(body, i);
-            emit(open.at(-1) === "table" ? "" : text);
-            i = next;
         } else {
-            emit(open.at(-1) === "table" ? "" : c);
-            i++;
+            const [text, next]: [string, number] = c === "&" ? entityAt(body, i) : [c, i + 1];
+            emitSpan(s, s.open.at(-1) === "table" ? "" : text);
+            i = next;
         }
     }
-    return spans;
+    return s.spans;
+}
+
+/** What {@link htmlLabelSpans} has read so far. */
+interface SpanState {
+    /** the pieces so far */
+    spans: HtmlLabelSpan[];
+    /** the font tags open now; a new array whenever they change, so a piece's tags are compared by identity */
+    tags: string[];
+    /** the text so far */
+    out: string;
+    /** the open tables and cells, innermost last: text is drawn outside every table or inside a cell */
+    open: ("table" | "td")[];
+}
+
+/**
+ * Adds text to the last piece when its tags are the ones open, else as a new piece.
+ * @param s - the reading so far, changed in place
+ * @param text - the text
+ */
+function emitSpan(s: SpanState, text: string): void {
+    s.out += text;
+    const last = s.spans.at(-1);
+    if (last?.tags === s.tags) {
+        s.spans[s.spans.length - 1] = { text: last.text + text, tags: s.tags };
+    } else if (text !== "") {
+        s.spans.push({ text, tags: s.tags });
+    }
+}
+
+/**
+ * Whether the line being read has text on it.
+ * @param s - the reading so far
+ * @returns whether it has
+ */
+function lineHasText(s: SpanState): boolean {
+    return s.out.slice(s.out.lastIndexOf("\n") + 1).trim() !== "";
+}
+
+/**
+ * One tag of an HTML-like label: a line break, a table, row or cell, or a font tag.
+ * @param s - the reading so far, changed in place
+ * @param body - the label
+ * @param i - the offset of the tag's `<`
+ * @param close - the offset of its `>`
+ */
+function readTag(s: SpanState, body: string, i: number, close: number): void {
+    const tag = /^<(\/?)(br|table|tr|td)\b/i.exec(body.slice(i, i + 7));
+    if (tag !== null) {
+        layoutTag(s, tag[2].toLowerCase(), tag[1] === "/");
+        return;
+    }
+    const font = FONT_TAGS.exec(body.slice(i, i + 6));
+    if (font !== null && font[1] === "/") {
+        s.tags = withoutLastTag(s.tags, font[2]);
+    } else if (font !== null && body[close - 1] !== "/") {
+        s.tags = [...s.tags, body.slice(i, close + 1)];
+    }
+}
+
+/**
+ * A line break, table, row or cell tag: a break and a row with text before it start a line, a cell with text before
+ * it on its line a space.
+ * @param s - the reading so far, changed in place
+ * @param name - `br`, `table`, `tr` or `td`, in lower case
+ * @param closing - whether it is a closing tag
+ */
+function layoutTag(s: SpanState, name: string, closing: boolean): void {
+    if (name === "br" || name === "tr") {
+        if (name === "br" || (!closing && lineHasText(s))) {
+            emitSpan(s, "\n");
+        }
+    } else if (closing) {
+        s.open.pop();
+    } else {
+        if (name === "td" && lineHasText(s)) {
+            emitSpan(s, " ");
+        }
+        s.open.push(name === "td" ? "td" : "table");
+    }
+}
+
+/**
+ * The open font tags without the innermost one a closing tag closes.
+ * @param tags - the open tags
+ * @param name - the closing tag's name
+ * @returns the tags left open (the same array when none matched)
+ */
+function withoutLastTag(tags: string[], name: string): string[] {
+    const lower = name.toLowerCase();
+    let at = tags.length - 1;
+    while (at >= 0 && /^<(\w+)/.exec(tags[at])?.[1].toLowerCase() !== lower) {
+        at--;
+    }
+    return at < 0 ? tags : [...tags.slice(0, at), ...tags.slice(at + 1)];
 }
 
 /**

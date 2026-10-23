@@ -93,7 +93,11 @@ export function resolvePajekDraw(option: unknown): PajekDraw | null {
         if (v === undefined) {
             return fallback;
         }
-        return typeof v === "number" && Number.isFinite(v) && (positive ? v > 0 : v >= 0) ? v : bad(v);
+        if (typeof v !== "number" || !Number.isFinite(v)) {
+            return bad(v);
+        }
+        const inRange = positive ? v > 0 : v >= 0;
+        return inRange ? v : bad(v);
     };
     const ini = new Map<string, string>();
     for (const [name, value] of Object.entries(o.ini ?? {})) {
@@ -248,30 +252,9 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
     const n = snapshot.nodeCount;
     const width = column(node, "width", n);
     const height = column(node, "height", n);
-    // Options / Size / of Vertices s scales each axis by f = s / 8: an axis the file sizes (x_fact, y_fact) by f, and
-    // an axis it does not by f squared, each on its own (`pajek-specimen-node-sizes-opacity-p2` at 16; probed at 4, 16
-    // and 24: `x_fact 1.8 y_fact 1.8` 18, 72, 108 across; no parameters 5, 80, 180; `x_fact 2` alone 20 x 5, 80 x 80,
-    // 120 x 180)
-    const size = iniNumber(draw, "Form8.SizeofVertices");
-    if (size !== null && size !== SIZE_OF_VERTICES) {
-        const f = size / SIZE_OF_VERTICES;
-        const scaled = (v: StyleValue | null): number => (typeof v === "number" ? v * f : VERTEX_SIZE * f * f);
-        for (let i = 0; i < n; i++) {
-            width[i] = scaled(width[i]);
-            height[i] = scaled(height[i]);
-        }
-    }
+    scaleVertexSizes(draw, width, height);
     sizeByVectors(draw, snapshot, width, height);
-    const partition = objectValues(snapshot, "partition", draw.partition);
-    if (partition !== null) {
-        const fill = column(node, "fill", n);
-        for (let i = 0; i < n; i++) {
-            const k = partition(i);
-            if (k !== null) {
-                fill[i] = PARTITION_COLORS[Math.abs(k) % PARTITION_COLORS.length];
-            }
-        }
-    }
+    colorByPartition(draw, snapshot, node);
     // SVG Opacity of Vertices: Pajek writes it as the vertex's opacity and its stroke-opacity both, so the fill is
     // drawn at it and the border at its square (`pajek-specimen-node-sizes-opacity-p3`: 0.5 fills at 0.5, strokes at
     // 0.25); the label is drawn opaque
@@ -287,6 +270,63 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
     if (flag(draw, "Form10.effect3d")) {
         effect3d(snapshot, node);
     }
+    markVertices(draw, node, n);
+    for (const property of ["width", "height"]) {
+        if (node[property].every((v) => v === null)) {
+            Reflect.deleteProperty(node, property);
+        }
+    }
+}
+
+/**
+ * Options / Size / of Vertices s scales each axis by f = s / 8: an axis the file sizes (x_fact, y_fact) by f, and
+ * an axis it does not by f squared, each on its own (`pajek-specimen-node-sizes-opacity-p2` at 16; probed at 4, 16
+ * and 24: `x_fact 1.8 y_fact 1.8` 18, 72, 108 across; no parameters 5, 80, 180; `x_fact 2` alone 20 x 5, 80 x 80,
+ * 120 x 180).
+ * @param draw - the settings
+ * @param width - the vertices' widths, changed in place
+ * @param height - the vertices' heights, changed in place
+ */
+function scaleVertexSizes(draw: PajekDraw, width: (StyleValue | null)[], height: (StyleValue | null)[]): void {
+    const size = iniNumber(draw, "Form8.SizeofVertices");
+    if (size === null || size === SIZE_OF_VERTICES) {
+        return;
+    }
+    const f = size / SIZE_OF_VERTICES;
+    const scaled = (v: StyleValue | null): number => (typeof v === "number" ? v * f : VERTEX_SIZE * f * f);
+    for (let i = 0; i < width.length; i++) {
+        width[i] = scaled(width[i]);
+        height[i] = scaled(height[i]);
+    }
+}
+
+/**
+ * Draw > Network + Partition: fills each vertex in its class's color.
+ * @param draw - the settings
+ * @param snapshot - the graph
+ * @param node - the vertices' values, changed in place
+ */
+function colorByPartition(draw: PajekDraw, snapshot: GraphSnapshot, node: Values): void {
+    const partition = objectValues(snapshot, "partition", draw.partition);
+    if (partition === null) {
+        return;
+    }
+    const fill = column(node, "fill", snapshot.nodeCount);
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const k = partition(i);
+        if (k !== null) {
+            fill[i] = PARTITION_COLORS[Math.abs(k) % PARTITION_COLORS.length];
+        }
+    }
+}
+
+/**
+ * Options / Mark Vertices Using: 2 labels each vertex with its number, 3 and 4 with nothing.
+ * @param draw - the settings
+ * @param node - the vertices' values, changed in place
+ * @param n - the vertex count
+ */
+function markVertices(draw: PajekDraw, node: Values, n: number): void {
     const mark = iniNumber(draw, "Form8.MarkVerticesUsing");
     if (mark === 2) {
         // ponytail: a vertex's number is its place in the file, as in every file Pajek writes
@@ -295,11 +335,6 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
         });
     } else if (mark === 3 || mark === 4) {
         column(node, "label", n).fill("");
-    }
-    for (const property of ["width", "height"]) {
-        if (node[property].every((v) => v === null)) {
-            Reflect.deleteProperty(node, property);
-        }
     }
 }
 

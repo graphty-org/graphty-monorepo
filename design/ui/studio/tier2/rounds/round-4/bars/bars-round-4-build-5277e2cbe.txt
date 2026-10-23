@@ -1,0 +1,125 @@
+build 5277e2cbe1bd graphty@0.8.64, tier 1 in the dark scheme
+ok   start screen
+ok   loaded Graph place
+ok   Analyze open
+ok   a finished run row
+ok   Style tab with a label line
+ok   find box with results open
+MISS a node's Values with its neighbors: locator.click: Timeout 30000ms exceeded.
+ok   Export Image
+ok   Export Data
+ok   Data page
+ok   Save as
+ok   refusal of a broken file
+ok   bar 7: 290 runs
+ok   the step editor at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/02.png)
+ok   Data place with a filter step on, and the header chip at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/03.png)
+ok   Data place with a filter step off at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/04.png)
+ok   Escape from the step editor at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/05.png)
+ok   deleting a filter step at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/06.png)
+ok   the Notes place, empty at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/08.png)
+ok   saving a note at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/09.png)
+ok   the Notes place with two notes at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/10.png)
+ok   Load (adding a table) at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/12.png)
+ok   returning rest screen at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/13.png)
+ok   Escape from the Path popover at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/15.png)
+ok   the Path popover at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/16.png)
+ok   a path run's Values at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/17.png)
+ok   the neighbor list with Hops and Follow at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/18.png)
+ok   Filter to neighbors at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/19.png)
+ok   an edge's inspector at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/20.png)
+ok   Select endpoints at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/21.png)
+ok   the find box with a rule hint at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/22.png)
+ok   the find box with a refused rule at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/23.png)
+ok   Escape in the find box at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/returning-1440x900/24.png)
+ok   the Data page titled "Replace: ..." at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/replace-1440x900/02.png)
+ok   Load (a replacement) at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/replace-1440x900/03.png)
+ok   an out-of-date run with its state bar at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/replace-1440x900/04.png)
+ok   Rerun at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/replace-1440x900/05.png)
+ok   the Data page with two tables and an unmatched row at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/two-tables-1440x900/03.png)
+ok   Load (two tables) at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/two-tables-1440x900/04.png)
+ok   Color chosen from Add to Line on a rule selection at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/focus-and-scroll-1440x900/02.png)
+ok   the find list after ArrowDown past its visible rows at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/focus-and-scroll-1440x900/03.png)
+MISS Enter on Shortest path, found by typing 'shortest path' in the Analyze list at 1440x900: expected on screen, not there: "role=button:Find path" (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/focus-and-scroll-1440x900/04.png)
+ok   long names: the Data place at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/long-names-1440x900/03.png)
+ok   long names: a node's inspector at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/long-names-1440x900/04.png)
+ok   long names: the find box at 1440x900 (design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/sessions/long-names-1440x900/05.png)
+
+planted cases, each check's claim beside its result:
+  a clipped name: caught on "the Notes place, empty at 1440x900", span: "Planted cut Northern Regional Distribution Center 01"
+  an E_BAD_SELECTOR string: caught on "the Notes place, empty at 1440x900", p: code E_BAD_SELECTOR
+  an image with no text alternative: caught by axe on "the Notes place, empty at 1440x900"
+  two buttons called Planted twin: caught on "the Notes place, empty at 1440x900"
+  focus dropped to the page: caught on "the Notes place, empty at 1440x900"
+  focus dropped to the page: caught after "Color chosen from Add to Line on a rule selection at 1440x900"
+  the active option scrolled out of view: caught on "the find list after ArrowDown past its visible rows at 1440x900"
+  a clipped name: caught on "the Notes place, empty at 1280x800", span: "Planted cut Northern Regional Distribution Center 01"
+  an E_BAD_SELECTOR string: caught on "the Notes place, empty at 1280x800", p: code E_BAD_SELECTOR
+
+bar 7 (a): 290 runs, 0 did not finish; 0 wrong readings
+
+bar 8 (axe), per screen: serious or critical / all violations
+  start screen with the usage card: 0 / 0
+  start screen: 0 / 0
+  loaded Graph place: 0 / 0
+  Analyze open: 0 / 0
+  a finished run row: 0 / 0
+  Style tab with a label line: 0 / 0
+  find box with results open: 1 / 1  (scrollable-region-focusable serious x1)
+  Export Image: 0 / 0
+  Export Data: 0 / 0
+  Data page: 0 / 0
+  Save as: 0 / 0
+  refusal of a broken file: 0 / 0
+  the step editor: 0 / 0
+  Data place with a filter step on, and the header chip: 0 / 0
+  Data place with a filter step off: 0 / 0
+  the Notes place, empty: 0 / 0
+  the Notes place with two notes: 0 / 0
+  the Path popover: 0 / 0
+  a path run's Values: 0 / 0
+  the neighbor list with Hops and Follow: 0 / 0
+  an edge's inspector: 0 / 0
+  the find box with a rule hint: 0 / 0
+  the find box with a refused rule: 0 / 0
+  the Data page titled "Replace: ...": 0 / 0
+  an out-of-date run with its state bar: 0 / 0
+  the Data page with two tables and an unmatched row: 0 / 0
+bar 8, controls sharing an accessible name (tier 2 screens):
+  none
+bar 8, focus fallen to the page after:
+  kept adding a filter step
+  kept ticking a filter step
+  kept Escape from the step editor
+  kept deleting a filter step
+  kept saving a note
+  kept Load (adding a table)
+  kept Escape from the Path popover
+  kept Find path
+  kept Filter to neighbors
+  kept Select endpoints
+  kept Escape in the find box
+  kept Load (a replacement)
+  kept Rerun
+  kept Load (two tables)
+  kept Color chosen from Add to Line on a rule selection
+bar 8, the find list's active option after ArrowDown:
+  in view the find list after ArrowDown past its visible rows: "Eli -> Farah"
+bar 8, axe hits excused by the scroll check:
+  find box with results open: scrollable-region-focusable on .cm-scroll-viewport
+
+bar 9 (a): 37 app words at rest (target <= 50); 14 data words and numbers left out
+  Local only Graph Data Notes Settings Graph Selection Everything Analyze in the toolbar Shift+A to add results here Graph From Style Values Overview Nodes Edges Direction Undirected from the file Density Components Edges per node to mean
+bar 9 (b): app words on tier 2's screens (limit: round 1's count, bars-limits.json)
+  returning rest screen: 48 (limit 49)  of nodes of edges Local only Graph Data Notes Settings Graph Selection PageRank Everything Color PageRank on nodes Graph From files notes Style Values Overview Nodes showing of Edges showing of Full graph Nodes Edges Direction Directed Loaded Density Components Largest component nodes Edges per node to mean
+  a path run's inspector: 59 (limit 63)  Local only Graph Data Notes Settings Graph Selection Shortest path hops PageRank Everything Shortest path Color PageRank on nodes Shortest path Path ran Oct AM Style Values Summary Path nodes edges Nodes in order Made with Analysis Shortest path Ran Oct AM From To Follow All Weight None Each edge counts as has no meaning set Advanced run settings
+  the neighbor list with Hops and Follow: 32 (limit 33)  Local only Graph Data Notes Settings Graph Selection Shortest path hops PageRank Everything Shortest path Color PageRank on nodes Neighborhood Back to and connections Hops Follow Out In All Filter to neighbors
+  an edge's inspector: 29 (limit 27)  of nodes Local only Graph Data Notes Settings Graph Selection Shortest path hops PageRank Everything Shortest path full graph Color PageRank on nodes Edge Style Values Summary From To
+
+bar 10, text cut off with no way to read it whole (screen: element "text"):
+  none
+  (12 more cut but readable whole by a title, an accessible name, a tooltip or a copy on screen: bars.json)
+bar 10, visible codes and field paths (screen: element kind text):
+  none
+
+design/ui/studio/tmp/t2r4-12/r4-5277e2cbe/bars.json

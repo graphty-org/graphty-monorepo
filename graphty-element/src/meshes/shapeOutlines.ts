@@ -9,6 +9,16 @@
 /** A point in the plane a flat shape is drawn in. */
 export type Point2 = readonly [number, number];
 
+/**
+ * Whether a number is above zero: false for zero, a negative number and NaN, so a width or a size a style left
+ * unreadable draws nothing.
+ * @param x - The number.
+ * @returns Whether it is positive.
+ */
+export function isPositive(x: number): boolean {
+    return x > 0;
+}
+
 /** One piece of a border ring: its inner edge and its outer edge, point for point. */
 export interface RingPiece {
     readonly inner: readonly Point2[];
@@ -157,7 +167,7 @@ function pajekFigure(path: string): Point2[] {
  */
 function arcPoints(from: Point2, rx: number, ry: number, sameFlags: boolean, sweep: boolean, to: Point2): Point2[] {
     const [dx, dy] = [(from[0] - to[0]) / 2, (from[1] - to[1]) / 2];
-    const grow = Math.max(1, Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2));
+    const grow = Math.max(1, Math.hypot(dx / rx, dy / ry));
     const [a, b] = [rx * grow, ry * grow];
     const square = (a * a * b * b - a * a * dy * dy - b * b * dx * dx) / (a * a * dy * dy + b * b * dx * dx);
     const k = Math.sqrt(Math.max(0, square)) * (sameFlags ? -1 : 1);
@@ -422,7 +432,7 @@ export function isFlatShape(shape: string): boolean {
  * @returns The rounded outline, counter-clockwise.
  */
 export function roundCorners(corners: readonly Point2[], radius: number): Point2[] {
-    if (!(radius > 0)) {
+    if (!isPositive(radius)) {
         return [...corners];
     }
 
@@ -1041,6 +1051,9 @@ export interface ZigzagPiece {
     readonly endCap?: boolean;
 }
 
+/** A piece that draws its whole period, capped at neither end: the default piece. */
+export const WHOLE_PERIOD: ZigzagPiece = Object.freeze({ stretch: "period" });
+
 /**
  * A zigzag piece's own name, which tells pieces drawn alike from pieces drawn otherwise.
  * @param piece - The piece.
@@ -1064,7 +1077,7 @@ export function zigzagPeriod(
     amplitude: number,
     period: number,
     width: number,
-    piece: ZigzagPiece = { stretch: "period" },
+    piece: ZigzagPiece = WHOLE_PERIOD,
 ): RingPiece {
     const line: Point2[] = [
         [0, 0],
@@ -1182,7 +1195,7 @@ export function wavedRing(
     style: string,
     wave: WaveShape,
 ): RingPiece[] | null {
-    if ((style !== "zigzag" && style !== "sinewave") || !(wave.period > 0)) {
+    if ((style !== "zigzag" && style !== "sinewave") || !isPositive(wave.period)) {
         return null;
     }
 
@@ -1259,7 +1272,7 @@ function arrowChainRing(middle: readonly Point2[], width: number): RingPiece[] {
     ];
     const lengths = cumulativeLengths(middle);
     const perimeter = lengths.at(-1) ?? 0;
-    if (!(w > 0)) {
+    if (!isPositive(w)) {
         return [];
     }
 

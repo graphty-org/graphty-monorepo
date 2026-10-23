@@ -2,6 +2,7 @@ import { Color3 } from "@babylonjs/core";
 
 import { colorToHex } from "../config/common";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
+import { cssWords } from "./nodeDecoration";
 
 /**
  * How many pieces a line painted in a gradient is drawn as, each in the color of the gradient at
@@ -33,13 +34,10 @@ function hexOf(text: string): string | null {
  * @returns The colors.
  */
 export function gradientColorList(text: string | undefined): string[] {
-    return (text ?? "")
-        .trim()
-        .split(/\s+(?![^(]*\))/)
-        .flatMap((c) => {
-            const hex = c === "" ? null : hexOf(c);
-            return hex === null ? [] : [hex];
-        });
+    return cssWords(text).flatMap((c) => {
+        const hex = hexOf(c);
+        return hex === null ? [] : [hex];
+    });
 }
 
 /**

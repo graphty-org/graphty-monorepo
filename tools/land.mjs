@@ -1,14 +1,21 @@
 #!/usr/bin/env node
 // Lands finished branches on `golden`, the integration branch, and ships golden to master through one
-// standing pull request. Design: design/ci/golden-local.md.
+// standing pull request. Design: design/ci/golden-local.md, with the landing, verification and cut of
+// design/ci/fast-pipeline.md (sections 4.2, 4.3, 4.5).
 //
 //   node tools/land.mjs land <branch> [--dry-run]   merge <branch> into golden, gate it, push it
 //   node tools/land.mjs land <b1> <b2> ... [--dry-run]   land several branches in one gate run
 //   node tools/land.mjs revert <branch>             take a landed branch back out of golden
 //   node tools/land.mjs cut [<commit>]              point golden-cut at a known-good golden commit, open its pull request
+//   node tools/land.mjs cut-fix <branch>            merge a fix the cut needs into golden-cut, push it, then land it on golden
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
-//   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview
-//   --priority (land, revert, cut)                  wait ahead of every ordinary landing: only for fixes that
+//   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
+//   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
+//   --allow-copies <sha>[,<sha>...] (land, one branch)  land despite these listed copies of golden commits (sha
+//                                                   prefixes of 7+ characters); the land commit names each one
+//   node tools/land.mjs sync [--branch <b>] [--dry-run] [--if-due] [--active-days N]
+//                                                   merge golden into every branch in progress (tools/branch-sync.mjs)
+//   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
 //
 // Every run executes one copy of this tool, the live copy in <main checkout>/.worktrees/land-live (put a new
@@ -16,24 +23,38 @@
 // copy with the same arguments and passes its exit code through. Without a live copy it runs itself and says so.
 //
 // Golden is the local branch `golden` in the worktree <main checkout>/.worktrees/golden-local (made on
-// first use), pushed to `golden` on GitHub after every landing. One landing, revert or ship runs at a
-// time (a lock in <main checkout>/tmp/golden/); the others wait and say who holds it.
+// first use), pushed to `golden` on GitHub after every landing. One landing or revert runs at a time
+// (a lock in <main checkout>/tmp/golden/); the others wait and say who holds it. `ship` takes no lock: it
+// only marks the cut pull request ready, and refuses while a cut is pushing golden-cut.
 //
-// A landing first merges origin/golden (the owner's screenshot accept commits) and origin/master
-// (release merges, the merged golden pull request) into golden, then merges <branch> with --no-ff as
-// "land: <branch>", then pushes through tools/push-queue.sh, which runs the full pre-push gate. A
-// failure puts golden back as it was before the sync: nothing unpushed stays on it. When GitHub's
-// golden moved during the gate (the owner's accept commits), it is merged and pushed again. After a push
-// the standing draft pull request golden -> master is created if needed, its description lists the
-// landed branches and the issues their commits name, and tools/visual-preview.sh captures it in the
-// background for the review page.
+// A landing merges, in a check worktree (.worktrees/land-check-<n>) and without the landing lock, golden,
+// origin/golden (the owner's screenshot accept commits) and origin/master (release merges, the merged
+// cut) and then <branch> with --no-ff as "land: <branch>", and runs the gate on that commit through
+// tools/push-queue.sh as a dry-run push: nothing is sent. Then it takes the lock, and when that commit
+// still holds everything GitHub's golden has, golden fast-forwards to it and is pushed; the push finds
+// the check's pass on the identical files (tools/prepush-inputs.mjs) and takes no gate slot. When golden
+// moved, the check runs again (reusing every pass whose inputs did not change); after three tries the
+// landing holds the lock through its check. A failure leaves golden as it was. After a push the standing
+// draft pull request golden -> master is created if needed, its description lists the landed branches
+// and the issues their commits name, tools/visual-preview.sh captures it in the background for the
+// review page, and tools/verify.mjs verifies the new tip in full (the gate with every shard, the GPU,
+// the screenshots, SonarQube) beside later landings. `--dry-run` merges under the lock and sends nothing.
 //
 // What ships is a cut, not golden's tip: `cut` points the branch golden-cut on GitHub at the newest
-// first-parent golden commit whose local screenshot preview finished with no unstable or failed images
-// (else the commit given, else it refuses), pushes it through the push queue from the worktree
+// verified (golden-verified) first-parent golden commit whose local screenshot preview finished with no
+// unstable or failed images (else the commit given, else it refuses), pushes it through the push queue from the worktree
 // <main checkout>/.worktrees/golden-cut, opens or refreshes the draft pull request golden-cut -> master
 // and starts its preview. The owner's approvals that ship are made on that pull request, and `ship`
-// marks it ready with auto-merge. The golden pull request stays open as an early look at golden's tip.
+// marks it ready with auto-merge, once the cut's head is verified (a cut-fix starts golden-cut's own
+// verification). The golden pull request stays open as an early look at golden's tip.
+//
+// Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
+// (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
+// cut needs starts from origin/golden-cut and goes in with `cut-fix`: merged into golden-cut, pushed, then
+// landed on golden the normal way, so both hold the same commits. Merged branches stay, on GitHub and here,
+// as history; `prune-branches --yes` deletes them from GitHub only when someone runs it by hand.
+// `--allow-copies <sha>,...` accepts exactly the listed copies (any other copy, or a listed sha that is not a
+// copy, still refuses) and records them in the land commit's message.
 //
 // Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
 // and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
@@ -46,6 +67,7 @@
 // conflicts and gate failures kept some out.
 import { spawn, spawnSync } from "node:child_process";
 import {
+    appendFileSync,
     closeSync,
     copyFileSync,
     existsSync,
@@ -58,17 +80,23 @@ import {
     renameSync,
     rmSync,
     statSync,
+    symlinkSync,
     writeFileSync,
 } from "node:fs";
 import { constants as osConstants, hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
+import { ACTIVE_DAYS, defaultCheck, moveGoldenGood, syncCommand } from "./branch-sync.mjs";
+import { logWait } from "./wait-log.mjs";
+
 export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
 export const CUT = "golden-cut";
 export const CUT_TITLE = "chore: ship a golden cut into master";
-const ACCEPT_SUBJECT = /: accept visual baselines for #\d+$/;
+// The newest golden commit verification passed (tools/verify.mjs), on GitHub as a branch.
+export const VERIFIED = "golden-verified";
 const BROKEN = new Set(["failed", "unstable"]);
 const LAND_SUBJECT = /^land: (\S+)$/;
 // git 2.43+ names a revert of a revert "Reapply"; older versions nest the quotes.
@@ -150,16 +178,23 @@ function stale(dir, owner) {
 /**
  * Takes the exclusive lock, waiting while another process holds it. Waiters queue in the order they
  * asked, each with a ticket file in `<dir>.queue/`, and only the oldest live ticket tries the lock.
- * ponytail: one lock for every landing, revert and ship; per-branch locks only if landings must overlap.
+ * ponytail: one lock for every landing and revert; per-branch locks only if landings must overlap.
  * @param dir the lock directory (made with mkdir, which is atomic)
  * @param info what to record about this holder (the command and branch)
  * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
  * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes;
- * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder)
+ * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder); `waitLog` records
+ * the wait and the hold (tools/wait-log.mjs, by default)
  * @returns a function that releases it
  */
 export async function acquireLock(dir, info, opts = {}) {
     const pollMs = opts.pollMs ?? 15_000;
+    const waitLog = opts.waitLog ?? logWait;
+    // "lock" is the landing lock, "cut-lock" the cut's.
+    const kind = basename(dir) === "lock" ? "land-lock" : basename(dir);
+    const waiter = [info.command, info.branch].filter(Boolean).join(" ");
+    const heldBy = new Set();
+    const start = Date.now();
     const tell = waitReporter(opts);
     mkdirSync(dirname(dir), { recursive: true });
     const ticket = enqueue(dir, info, opts.priority);
@@ -167,12 +202,20 @@ export async function acquireLock(dir, info, opts = {}) {
         for (;;) {
             const position = queuePosition(ticket.file);
             const release = position === 1 ? tryLock(dir, info) : null;
-            if (release) return release;
+            if (release) {
+                const taken = Date.now();
+                waitLog({ kind, start, end: taken, waiter, heldBy: [...heldBy] });
+                return () => {
+                    release();
+                    waitLog({ kind: `${kind}-held`, start: taken, waiter });
+                };
+            }
             const owner = readLock(dir);
             if (owner && stale(dir, owner)) {
                 removeStaleLock(dir, owner);
                 continue;
             }
+            if (owner?.pid) heldBy.add(describeOwner(owner));
             tell(owner, position);
             await new Promise((r) => setTimeout(r, pollMs));
         }
@@ -262,7 +305,7 @@ function queuePosition(file) {
  * @param info what to record about this holder
  * @returns a function that releases it, or null when it is held
  */
-function tryLock(dir, info) {
+export function tryLock(dir, info) {
     try {
         mkdirSync(dir);
     } catch (e) {
@@ -444,8 +487,7 @@ function hooksDir(ctx) {
     return dir;
 }
 
-const commitGit = (ctx, args, opts) =>
-    git(ctx, ctx.golden, [...(ctx.hooks ? ["-c", `core.hooksPath=${ctx.hooks}`] : []), ...args], opts);
+const commitGit = (ctx, args, opts) => git(ctx, ctx.golden, withHooks(ctx, args), opts);
 
 /**
  * Makes the golden worktree when it does not exist, from origin/golden when GitHub has it, else
@@ -476,7 +518,13 @@ function defaultAddWorktree(ctx, base) {
 
 // The lockfile golden's node_modules were installed from, so a landing installs only when it changed.
 const lockBlob = (ctx) => git(ctx, ctx.golden, ["rev-parse", "-q", "--verify", "HEAD:pnpm-lock.yaml"], { ok: true });
-const installedFile = (ctx) => join(ctx.main, "tmp/golden/installed-lockfile");
+// golden's marker keeps its old name; each scratch worktree (landing checks, verification) has its own.
+const installedFile = (ctx) =>
+    join(
+        ctx.main,
+        "tmp/golden",
+        ctx.golden.endsWith("golden-local") ? "installed-lockfile" : `installed-lockfile-${basename(ctx.golden)}`,
+    );
 function markInstalled(ctx) {
     const blob = lockBlob(ctx);
     if (blob.status === 0) writeFileSync(installedFile(ctx), `${blob.stdout}\n`);
@@ -486,8 +534,8 @@ function installIfNeeded(ctx) {
     if (blob.status !== 0) return;
     const installed = existsSync(installedFile(ctx)) ? readFileSync(installedFile(ctx), "utf8").trim() : "";
     if (installed === blob.stdout) return;
-    console.log("land: pnpm-lock.yaml changed; pnpm install --frozen-lockfile");
-    ctx.install(ctx);
+    console.log(`land: pnpm-lock.yaml changed; pnpm install --frozen-lockfile in ${ctx.golden}`);
+    (ctx.install ?? defaultInstall)(ctx);
     markInstalled(ctx);
 }
 function defaultInstall(ctx, cwd = ctx.golden) {
@@ -564,12 +612,25 @@ const conflicted = (ctx) =>
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
  * @param [refspec] what to push (golden to golden)
+ * @param [dryRun] run the gate and send nothing (a landing's check)
  * @returns `{ code, output }`
  */
-function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`) {
-    // Measured from master: everything on golden that master does not have yet is this push's change.
-    const env = { ...ctx.env, PUSH_BASE_REF: "origin/master" };
-    const child = spawn(join(cwd, "tools/push-queue.sh"), ["git", "push", "origin", refspec], {
+function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
+    // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
+    // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured
+    // from master, as CI measures it.
+    const dst = refspec.split(":").pop().replace("refs/heads/", "");
+    // The test ledger's kind (tools/test-ledger.mjs): a golden push is a land check, which may excuse a failure
+    // golden's tip has too; set only in the gate child's environment, so nothing else inherits it.
+    const kind = dst === CUT ? "cut" : "land-check";
+    const env = {
+        ...ctx.env,
+        PUSH_BASE_REF: dst === GOLDEN ? `origin/${GOLDEN}` : "origin/master",
+        PREPUSH_SELECT_BASE: `origin/${dst}`,
+    };
+    Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
+    const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
+    const child = spawn(join(cwd, "tools/push-queue.sh"), args, {
         cwd,
         env,
         stdio: ["ignore", "pipe", "pipe"],
@@ -582,23 +643,33 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`) {
     };
     child.stdout.on("data", copy(process.stdout));
     child.stderr.on("data", copy(process.stderr));
-    return new Promise((resolve) => child.on("close", (code) => resolve({ code: code ?? 1, output })));
+    return new Promise((resolve) =>
+        child.on("close", (code) => {
+            // The shards the gate excused, again at the end where the summary follows.
+            const known = output.split("\n").map((l) => l.trim());
+            for (const l of known.filter((k) => k.startsWith("[KNOWN]"))) console.log(`land: ${l}`);
+            resolve({ code: code ?? 1, output });
+        }),
+    );
 }
 
 function defaultGh(ctx, args) {
-    const r = spawnSync("gh", args, { cwd: ctx.golden, env: ctx.env, encoding: "utf8" });
-    if (r.status !== 0) throw new Error(`gh ${args.slice(0, 2).join(" ")} failed: ${r.stderr?.trim() || r.error}`);
+    const r = spawnSync("gh", args, { cwd: ctx.main, env: ctx.env, encoding: "utf8" });
+    // A GraphQL answer with errors (one asked-for issue does not exist) still carries the rest.
+    if (r.status !== 0 && !r.stdout?.startsWith('{"data":{'))
+        throw new Error(`gh ${args.slice(0, 2).join(" ")} failed: ${r.stderr?.trim() || r.error}`);
     return r.stdout.trim();
 }
 
 /**
  * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it.
+ * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
  * @param [cwd] the worktree holding its head (golden's)
  */
-function defaultPreview(ctx, pr, cwd = ctx.golden) {
+export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     const head = git(ctx, cwd, ["rev-parse", "HEAD"]);
     const done = join(ctx.main, `tmp/visual-review/local/${pr}/status.json`);
     try {
@@ -612,7 +683,7 @@ function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr)], {
+    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
         cwd,
         env: ctx.env,
         detached: true,
@@ -709,55 +780,66 @@ function gateLog(ctx, sha, output) {
 }
 
 /**
- * Whether a failed push was GitHub refusing it because golden moved there (the owner's Finish pushes
- * accept commits to golden), rather than the gate refusing it.
+ * Whether a failed push was GitHub refusing it because the branch moved there (the owner's Finish pushes
+ * accept commits to golden or golden-cut), rather than the gate refusing it.
  * @param ctx the run's context
  * @param output what the push printed
- * @returns true when origin/golden has commits golden does not
+ * @param [wt] the worktree and branch pushed (golden's)
+ * @returns true when origin has commits of the branch that the worktree does not
  */
-function goldenMoved(ctx, output) {
+function goldenMoved(ctx, output, wt = goldenTree(ctx)) {
     if (!/\[(remote )?rejected\]|non-fast-forward|fetch first/.test(output)) return false;
-    git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
-    const ref = `origin/${GOLDEN}`;
-    if (hasRef(ctx, ctx.golden, ref).status !== 0) return false;
-    return git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status !== 0;
+    git(ctx, wt.dir, ["fetch", "-q", "origin"], { ok: true });
+    const ref = `origin/${wt.branch}`;
+    if (hasRef(ctx, wt.dir, ref).status !== 0) return false;
+    return git(ctx, wt.dir, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status !== 0;
 }
 
+const goldenTree = (ctx) => ({ dir: ctx.golden, branch: GOLDEN });
+const withHooks = (ctx, args) => [...(ctx.hooks ? ["-c", `core.hooksPath=${ctx.hooks}`] : []), ...args];
+
 /**
- * Pushes golden through the gate. When GitHub's golden moved during the gate, merges it and pushes
- * again (the gate skips the shards it already passed). On a failure golden is reset to `before` (it
- * was never pushed).
+ * Pushes golden (or golden-cut) through the gate. When the branch moved on GitHub during the gate, merges
+ * it and pushes again (the gate skips the shards it already passed). On a failure the worktree is reset
+ * to `before` (it was never pushed).
  * @param ctx the run's context
- * @param before golden's commit to go back to on a failure
+ * @param before the commit to go back to on a failure
  * @param [rollback] where an interrupted push puts golden back (`before`)
- * @returns `{ code, sha, log }`: code 0 pushed, 3 the gate refused it (`log` names its log), 4 golden moved
+ * @param [wt] the worktree and branch to push (golden's)
+ * @returns `{ code, sha, log }`: code 0 pushed, 3 the gate refused it (`log` names its log), 4 the branch moved
  */
-async function pushGolden(ctx, before, rollback = before) {
-    ctx.rollback = rollback;
+async function pushGolden(ctx, before, rollback = before, wt = goldenTree(ctx)) {
+    const isGolden = wt.dir === ctx.golden;
+    if (isGolden) ctx.rollback = rollback;
     for (let tries = 1; ; tries++) {
-        const sha = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
-        const { code, output } = await ctx.push(ctx);
+        const sha = git(ctx, wt.dir, ["rev-parse", "HEAD"]);
+        const { code, output } = isGolden
+            ? await ctx.push(ctx)
+            : await ctx.push(ctx, wt.dir, `HEAD:refs/heads/${wt.branch}`);
         if (code === 0) {
             ctx.rollback = null;
             return { code, sha };
         }
-        const moved = goldenMoved(ctx, output);
+        const moved = goldenMoved(ctx, output, wt);
         if (moved && tries < 3) {
-            console.log("land: golden moved on GitHub during the gate; merging origin/golden and pushing again");
-            if (commitGit(ctx, ["merge", "--no-edit", `origin/${GOLDEN}`], { ok: true }).status === 0) continue;
-            git(ctx, ctx.golden, ["merge", "--abort"], { ok: true });
+            console.log(
+                `land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`,
+            );
+            const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
+            if (git(ctx, wt.dir, args, { ok: true }).status === 0) continue;
+            git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
         }
         ctx.rollback = null;
-        git(ctx, ctx.golden, ["reset", "-q", "--hard", before]);
+        git(ctx, wt.dir, ["reset", "-q", "--hard", before]);
         if (moved) {
             console.error(
-                `land: golden moved on GitHub and could not be merged and pushed again; golden is back at ${before.slice(0, 10)}.\n` +
+                `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
                     "Nothing is wrong with the branch: land it again.",
             );
             return { code: 4, sha };
         }
         const log = gateLog(ctx, sha, output);
-        console.error(`land: the gate refused golden; golden is back at ${before.slice(0, 10)}.`);
+        console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
         console.error(`land: gate log: ${log}`);
         return { code: 3, sha, log };
     }
@@ -771,16 +853,18 @@ async function pushGolden(ctx, before, rollback = before) {
  */
 async function publish(ctx, before) {
     const r = await pushGolden(ctx, before);
-    if (r.code === 0) announce(ctx, r.sha);
+    if (r.code === 0) await announce(ctx, r.sha);
     return r.code;
 }
 
 /**
- * After a push: refreshes the golden pull request's description and starts its preview.
+ * After a push: refreshes the golden pull request's description, starts its preview and asks for its
+ * verification. A landing's check (`ctx.checking`) pushed nothing, so it announces nothing.
  * @param ctx the run's context
  * @param sha the commit golden was pushed at
  */
-function announce(ctx, sha) {
+async function announce(ctx, sha) {
+    if (ctx.checking) return;
     let pr = null;
     try {
         pr = refreshPr(ctx);
@@ -789,8 +873,36 @@ function announce(ctx, sha) {
     }
     if (pr) ctx.preview(ctx, pr);
     else console.error("land: the golden pull request was not updated; the next land or revert updates it");
+    try {
+        moveGoldenGood(ctx);
+    } catch (e) {
+        console.error(`land: golden-good was not moved: ${e.message.split("\n")[0]}`);
+    }
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: golden is ${sha.slice(0, 10)} on GitHub${where}.`);
+    await requestVerify(ctx, sha, GOLDEN);
+}
+
+/**
+ * Asks tools/verify.mjs to verify a pushed commit (it starts a run when none is live). Never fails the
+ * landing: the pipeline round starts a run that was not started.
+ * @param ctx the run's context
+ * @param sha the pushed commit
+ * @param branch golden or golden-cut
+ */
+async function requestVerify(ctx, sha, branch) {
+    try {
+        await ctx.verify(ctx, sha, branch);
+    } catch (e) {
+        console.error(
+            `land: verification of ${sha.slice(0, 10)} was not started (${e.message}); the pipeline round starts it`,
+        );
+    }
+}
+
+async function defaultVerify(ctx, sha, branch) {
+    const { requestVerification, verifyContext } = await import("./verify.mjs");
+    console.log(`land: ${await requestVerification(verifyContext(ctx.main, { env: ctx.env, branch }), sha)}`);
 }
 
 // ---------------------------------------------------------------- commands
@@ -799,7 +911,8 @@ function announce(ctx, sha) {
  * Lands a branch on golden.
  * @param ctx the run's context
  * @param branch the branch to land
- * @param [opts] `dryRun`: merge, report, undo; no push, no GitHub
+ * @param [opts] `dryRun`: merge, report, undo; no push, no GitHub; `allowCopies`: sha prefixes of copies
+ *   of golden commits to land anyway
  * @returns the exit code
  */
 export async function land(ctx, branch, opts = {}) {
@@ -816,7 +929,12 @@ export async function land(ctx, branch, opts = {}) {
         console.log(`land: ${branch} is already on golden; nothing to land.`);
         return 0;
     }
-    const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref);
+    const { refusal, allowed } = screenCopies(ctx, branch, ref, opts.allowCopies ?? []);
+    if (refusal) {
+        git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+        return fail(refusal);
+    }
+    const merged = reapply(ctx, branch, ref) || mergeBranch(ctx, branch, ref, allowed);
     if (merged !== 0) {
         git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
         return merged;
@@ -833,7 +951,58 @@ export async function land(ctx, branch, opts = {}) {
 }
 
 const branchRef = (ctx, branch) =>
-    [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find((r) => hasRef(ctx, ctx.golden, r).status === 0);
+    [`refs/heads/${branch}`, `refs/remotes/origin/${branch}`].find((r) => hasRef(ctx, ctx.main, r).status === 0);
+
+/**
+ * The commits of a branch that golden already has under other ids: `git cherry` marks a commit "-" when
+ * golden holds one with the same patch, which only a copy (a cherry-pick or a rebase) makes.
+ * @param ctx the run's context
+ * @param ref the branch's ref
+ * @returns "<sha10> <subject>" lines, empty when there are none
+ */
+export function copiedCommits(ctx, ref) {
+    return copiedShas(ctx, ref).map((sha) => describeCommit(ctx, sha));
+}
+
+const copiedShas = (ctx, ref) =>
+    git(ctx, ctx.golden, ["cherry", "HEAD", ref])
+        .split("\n")
+        .filter((l) => l.startsWith("- "))
+        .map((l) => l.slice(2));
+const describeCommit = (ctx, sha) => git(ctx, ctx.golden, ["log", "-1", "--format=%h %s", "--abbrev=10", sha]);
+
+/**
+ * Checks a branch's copies of golden commits against the ones `--allow-copies` accepted.
+ * @param ctx the run's context
+ * @param branch the branch
+ * @param ref its ref
+ * @param allow the accepted sha prefixes (7+ characters each)
+ * @returns `{ refusal }` when anything is not accepted (a copy not listed, a listed sha that is no copy),
+ *   else `{ allowed }`: the accepted copies as "<sha10> <subject>" lines
+ */
+export function screenCopies(ctx, branch, ref, allow) {
+    const short = allow.filter((p) => !/^[0-9a-f]{7,40}$/i.test(p));
+    if (short.length)
+        return { refusal: `--allow-copies takes sha prefixes of 7 to 40 hex characters: ${short.join(", ")}` };
+    const shas = copiedShas(ctx, ref);
+    const listed = (sha) => allow.some((p) => sha.startsWith(p.toLowerCase()));
+    const notCopies = allow.filter((p) => !shas.some((sha) => sha.startsWith(p.toLowerCase())));
+    if (notCopies.length) {
+        return {
+            refusal:
+                `--allow-copies names commits that are not copies of golden commits on ${branch}: ` +
+                `${notCopies.join(", ")}\nNothing was landed; list only the copies the refusal names.`,
+        };
+    }
+    const refused = shas.filter((sha) => !listed(sha)).map((sha) => describeCommit(ctx, sha));
+    if (refused.length) return { refusal: copyRefusal(branch, refused) };
+    return { allowed: shas.map((sha) => describeCommit(ctx, sha)) };
+}
+
+const copyRefusal = (branch, copies) =>
+    `${branch} holds copies of commits golden already has (a cherry-pick or a rebase), so it is not landed:\n  ` +
+    `${copies.join("\n  ")}\nNever copy, always merge: start again from the original branch, or merge it.\n` +
+    `If the copies were made on purpose, land it alone with --allow-copies <sha>[,<sha>...] naming each one.`;
 const goldenHead = (ctx) => git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
 
 /**
@@ -847,6 +1016,18 @@ const goldenHead = (ctx) => git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
  *   failure did, 5 both; 1 and 4 as for one branch
  */
 export async function landMany(ctx, branches, opts = {}) {
+    const run = await landRun(ctx, branches, opts);
+    return typeof run === "number" ? run : summarize(run, branches);
+}
+
+/**
+ * landMany without its summary: the landing's state, for landShort to finish.
+ * @param ctx the run's context (in a landing's check, `golden` is the check's worktree and a push sends nothing)
+ * @param branches the branches, in landing order
+ * @param [opts] `dryRun`
+ * @returns the run (`outcomes`, `pushed`, `stopped`), or an exit code when it stopped before merging
+ */
+async function landRun(ctx, branches, opts = {}) {
     const refs = new Map();
     for (const b of branches) {
         const ref = branchRef(ctx, b);
@@ -865,9 +1046,142 @@ export async function landMany(ctx, branches, opts = {}) {
         console.log(`land: dry run -- would push to golden:\n${log}\n${what}`);
     }
     if (!opts.dryRun && merged.length) await landGroup(ctx, run, merged, before);
-    if (run.pushed) announce(ctx, goldenHead(ctx));
+    if (run.pushed) await announce(ctx, goldenHead(ctx));
     else git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
+    return run;
+}
+
+// ---------------------------------------------------------------- the short lock (fast-pipeline 4.2)
+
+const ATTEMPTS = 3;
+const CHECK_SLOTS = 4;
+const MOVED = "moved";
+
+/**
+ * Lands branches with the landing lock held only to confirm golden and push. First, without the lock, the
+ * branches are merged with golden as it is now in a check worktree and the gate runs on that commit (a
+ * dry-run push: nothing is sent; passes are kept by input key, tools/prepush-inputs.mjs). Then, under the
+ * lock, golden fast-forwards to exactly that commit when it still contains GitHub's golden, and is pushed:
+ * the push finds the check's pass on the identical files and takes no gate slot. When golden moved, the
+ * lock is released and the check runs again on the new golden, reusing every shard whose inputs did not
+ * change; after three such tries the landing holds the lock through its check.
+ * @param ctx the run's context
+ * @param branches the branches, in landing order
+ * @param lockOptions the lock's options
+ * @returns the exit code, as landMany's
+ */
+async function landShort(ctx, branches, lockOptions) {
+    const info = { command: "land", branch: branches.join(" ") };
+    const locked = () => underLock(ctx, info, lockOptions, () => landMany(ctx, branches));
+    if (!existsSync(ctx.golden) || hasRef(ctx, ctx.main, `origin/${GOLDEN}`).status !== 0) return locked();
+    for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+        const checked = await checkLanding(ctx, branches, lockOptions);
+        if (!checked.commit) return checked.code;
+        const code = await underLock(ctx, info, lockOptions, () => publishChecked(ctx, branches, checked));
+        if (code !== MOVED) return code;
+        console.log(
+            `land: golden moved during the check (try ${attempt} of ${ATTEMPTS}); checking again on the new golden`,
+        );
+    }
+    console.log(`land: golden moved during ${ATTEMPTS} checks; this landing holds the lock through its check`);
+    return locked();
+}
+
+/**
+ * The landing's check, without the lock: the branches merged onto origin/golden (and origin/master) in a
+ * check worktree, as their landing would merge them, and the gate run on the result without sending it.
+ * @param ctx the run's context
+ * @param branches the branches
+ * @param lockOptions the lock's options (`pollMs` for the check slots)
+ * @returns `{ commit, run }` when some branches passed, else `{ code }` (the summary is printed)
+ */
+async function checkLanding(ctx, branches, lockOptions) {
+    const slot = await takeCheckSlot(ctx, lockOptions);
+    const check = { ...ctx, golden: slot.dir, checking: true, push: (c) => ctx.check(c, c.golden) };
+    try {
+        git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+        // From local golden, which a hand-made merge (exit 4) leaves ahead of GitHub's; the sync merges GitHub's.
+        prepareScratch(check, slot.dir, GOLDEN);
+        check.hooks = hooksDir(ctx); // golden's own hooks, as a landing under the lock uses
+        console.log(`land: checking ${branches.join(", ")} on golden in ${slot.dir}, without the landing lock`);
+        const run = await landRun(check, branches);
+        if (typeof run === "number") return { code: run };
+        if (!run.pushed) return { code: summarize(run, branches) };
+        return { commit: goldenHead(check), run };
+    } finally {
+        if (check.hooks) rmSync(check.hooks, { recursive: true, force: true });
+        slot.release();
+    }
+}
+
+/**
+ * Under the lock: golden fast-forwards to the checked commit and is pushed, when that commit still holds
+ * everything GitHub's golden has (compare and swap); else nothing changes.
+ * @param ctx the run's context
+ * @param branches the branches
+ * @param checked checkLanding's `{ commit, run }`
+ * @returns the exit code, or MOVED
+ */
+async function publishChecked(ctx, branches, checked) {
+    const { commit, run } = checked;
+    git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    const start = goldenHead(ctx);
+    if (!isAncestor(ctx, `origin/${GOLDEN}`, commit) || !isAncestor(ctx, start, commit)) return MOVED;
+    git(ctx, ctx.golden, ["merge", "-q", "--ff-only", commit]);
+    installIfNeeded(ctx);
+    const r = await pushGolden(ctx, start);
+    if (r.code === 0) {
+        await announce(ctx, r.sha);
+    } else {
+        run.stopped = r.code === 3 ? 0 : r.code;
+        const state = r.code === 3 ? `gate failure, log: ${r.log}` : "not tried (the landing stopped)";
+        for (const [b, o] of run.outcomes) if (o.state === "landed") run.outcomes.set(b, { state });
+    }
     return summarize(run, branches);
+}
+
+const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancestor", a, b], { ok: true }).status === 0;
+
+/**
+ * One of CHECK_SLOTS check worktrees (<main checkout>/.worktrees/land-check-<n>), each with its own lock
+ * in tmp/golden/check-slot-<n>, so landings check side by side and each worktree keeps its install.
+ * @param ctx the run's context
+ * @param [opts] `pollMs` between looks when every slot is taken
+ * @returns `{ dir, release }`
+ */
+async function takeCheckSlot(ctx, opts = {}) {
+    mkdirSync(join(ctx.main, "tmp/golden"), { recursive: true });
+    for (;;) {
+        for (let n = 1; n <= CHECK_SLOTS; n++) {
+            const lock = join(ctx.main, `tmp/golden/check-slot-${n}`);
+            const owner = readLock(lock);
+            if (owner && stale(lock, owner)) removeStaleLock(lock, owner);
+            const release = tryLock(lock, { command: "land check" });
+            if (release) return { dir: join(ctx.main, `.worktrees/land-check-${n}`), release };
+        }
+        await new Promise((r) => setTimeout(r, opts.pollMs ?? 15_000));
+    }
+}
+
+/**
+ * Puts a tool's own scratch worktree (a landing check, verification, a bisect point) at a commit:
+ * makes it, detached, with the main checkout's .env linked in, or resets and cleans it (ignored files,
+ * node_modules among them, stay); installs when its lockfile changed.
+ * @param ctx the run's context
+ * @param dir the worktree
+ * @param ref the commit
+ */
+export function prepareScratch(ctx, dir, ref) {
+    const wt = { ...ctx, golden: dir };
+    if (existsSync(dir)) {
+        git(ctx, dir, ["reset", "-q", "--hard", ref]);
+        git(ctx, dir, ["clean", "-fdq"]);
+    } else {
+        git(ctx, ctx.main, ["worktree", "add", "-q", "--detach", dir, ref]);
+        if (existsSync(join(ctx.main, ".env"))) symlinkSync(join(ctx.main, ".env"), join(dir, ".env"));
+        rmSync(installedFile(wt), { force: true });
+    }
+    installIfNeeded(wt);
 }
 
 /**
@@ -884,6 +1198,12 @@ function mergeEach(ctx, run, list) {
         const pre = goldenHead(ctx);
         if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status === 0) {
             run.outcomes.set(b, { state: "already on golden" });
+            continue;
+        }
+        const copies = copiedCommits(ctx, ref);
+        if (copies.length) {
+            console.error(`land: ${copyRefusal(b, copies)}`);
+            run.outcomes.set(b, { state: "refused (copies of golden commits)" });
             continue;
         }
         const code = reapply(ctx, b, ref) || mergeBranch(ctx, b, ref);
@@ -989,8 +1309,17 @@ function reapply(ctx, branch, ref) {
     return gitStep(ctx, branch, "revert", ["--no-edit", old.reverted]);
 }
 
-const mergeBranch = (ctx, branch, ref) =>
-    gitStep(ctx, branch, "merge", ["--no-ff", "--no-edit", "-m", `land: ${branch}`, ref]);
+const mergeBranch = (ctx, branch, ref, allowed = []) =>
+    gitStep(ctx, branch, "merge", [
+        "--no-ff",
+        "--no-edit",
+        "-m",
+        `land: ${branch}`,
+        ...(allowed.length
+            ? ["-m", `Copies of golden commits landed on purpose (--allow-copies):\n${allowed.join("\n")}`]
+            : []),
+        ref,
+    ]);
 
 /**
  * Runs a merge or revert on golden; on a failure reports a conflict, or git's own message when nothing
@@ -1063,12 +1392,18 @@ export async function revert(ctx, branch) {
  * @returns the exit code
  */
 export async function ship(ctx) {
+    const cutting = readLock(ctx.cutLock);
+    if (cutting && !stale(ctx.cutLock, cutting)) {
+        return fail(`a cut is pushing ${CUT} now (${describeOwner(cutting)}); ship after it`);
+    }
     git(ctx, ctx.main, ["fetch", "-q", "origin"]);
     updateMainCheckout(ctx);
     const pr = goldenPr(ctx, CUT);
     if (!pr) return fail(`there is no open ${CUT} pull request; make one with node tools/land.mjs cut`);
     const moved = cutMoved(ctx, pr);
     if (moved) return fail(`#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it`);
+    const unverified = cutUnverified(ctx, pr.headRefOid);
+    if (unverified) return fail(`#${pr.number} ${unverified}`);
     ctx.gh(ctx, ["pr", "ready", String(pr.number)]);
     ctx.gh(ctx, ["pr", "merge", String(pr.number), "--auto", "--merge"]);
     console.log(
@@ -1083,7 +1418,7 @@ export async function ship(ctx) {
 
 /**
  * Whether the cut pull request's head moved since its last finished preview: anything between the
- * preview's head and the pull request's head other than the owner's accept commits.
+ * preview's head and the pull request's head other than a Finish's own commits (finishCommit).
  * @param ctx the run's context
  * @param pr the cut pull request (`number`, `headRefOid`)
  * @returns what is wrong, or null when the preview is of this head
@@ -1096,9 +1431,60 @@ function cutMoved(ctx, pr) {
     if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", status.head, head], { ok: true }).status !== 0) {
         return `moved from ${status.head.slice(0, 10)} (its preview) to ${head.slice(0, 10)}`;
     }
-    const subjects = git(ctx, ctx.main, ["log", "--format=%s", `${status.head}..${head}`]).split("\n");
-    const other = subjects.filter((s) => s && !ACCEPT_SUBJECT.test(s));
-    return other.length ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.join("; ")}` : null;
+    const other = commitsSince(ctx, status.head, head).filter((c) => !finishCommit(ctx, c));
+    return other.length
+        ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.map((c) => c.subject).join("; ")}`
+        : null;
+}
+
+/**
+ * Whether the cut's head is verified: on golden-verified, or golden-cut's own verification passed it
+ * (after a cut-fix), give or take a Finish's own commits after it.
+ * @param ctx the run's context
+ * @param head the cut pull request's head
+ * @returns what is wrong, or null when it is verified
+ */
+function cutUnverified(ctx, head) {
+    const cutVerified = readJson(join(ctx.main, `tmp/golden/verify-${CUT}.json`))?.verified;
+    for (const v of [`origin/${VERIFIED}`, cutVerified]) {
+        if (!v || hasRef(ctx, ctx.main, v).status !== 0) continue;
+        const base = git(ctx, ctx.main, ["merge-base", head, v], { ok: true }).stdout;
+        if (base && commitsSince(ctx, base, head).every((c) => finishCommit(ctx, c))) return null;
+    }
+    return `is not verified yet at ${head.slice(0, 10)} (node tools/verify.mjs status --branch ${CUT}); ship once it is`;
+}
+
+/**
+ * The commits of `from..to`, each with its parents, subject and the files it changed.
+ * @param ctx the run's context
+ * @param from the older commit
+ * @param to the newer one
+ * @returns `[{ parents, subject, files }]`
+ */
+function commitsSince(ctx, from, to) {
+    const log = git(ctx, ctx.main, ["log", "--format=%x01%P%x00%s", "--name-only", `${from}..${to}`]);
+    return log
+        .split("\x01")
+        .filter(Boolean)
+        .map((record) => {
+            const [first, ...files] = record.split("\n");
+            const [parents, subject] = first.split("\0");
+            return { parents: parents.split(" "), subject, files: files.filter(Boolean) };
+        });
+}
+
+/**
+ * Whether a commit is one a screenshot Finish makes (its accept, approval or signing commit): one
+ * parent, and nothing changed outside the baselines and approvals directories of
+ * visual-review.config.json. Such a commit changes no capture, so a preview stays current across it.
+ * @param ctx the run's context
+ * @param commit as commitsSince returns it
+ * @returns true when it is
+ */
+function finishCommit(ctx, commit) {
+    const config = readJson(join(ctx.main, "visual-review.config.json")) ?? {};
+    const dirs = [config.baselines ?? "visual-baselines", config.approvals ?? "visual-review-approvals"];
+    return commit.parents.length === 1 && commit.files.every((f) => dirs.some((d) => f.startsWith(`${d}/`)));
 }
 
 function readJson(file) {
@@ -1125,18 +1511,20 @@ export function stablePreview(dir, status) {
 }
 
 /**
- * The newest first-parent golden commit master does not have whose local preview is stable.
+ * The newest verified first-parent golden commit master does not have whose local preview is stable:
+ * only commits up to golden-verified, the newest one verification passed (tools/verify.mjs).
  * @param ctx the run's context
  * @returns its sha, or null
  */
 export function newestStableCut(ctx) {
+    if (hasRef(ctx, ctx.main, `origin/${VERIFIED}`).status !== 0) return null;
     const root = join(ctx.main, "tmp/visual-review/local");
     const stable = new Set();
     for (const name of existsSync(root) ? readdirSync(root) : []) {
         const status = readJson(join(root, name, "status.json"));
         if (stablePreview(join(root, name), status)) stable.add(status.head);
     }
-    const line = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/master..origin/${GOLDEN}`]);
+    const line = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/master..origin/${VERIFIED}`]);
     return line.split("\n").find((sha) => stable.has(sha)) ?? null;
 }
 
@@ -1156,12 +1544,12 @@ function pickCut(ctx, given) {
         console.log(`land: cutting the commit given, ${given}`);
     } else {
         sha = newestStableCut(ctx);
-        if (sha) console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
+        if (sha) console.log(`land: the newest verified golden commit with a stable preview is ${sha.slice(0, 10)}`);
     }
     if (!sha) {
         return {
             error:
-                "no golden commit since master has a finished screenshot preview without unstable or failed images.\n" +
+                "no verified golden commit since master has a finished screenshot preview without unstable or failed images.\n" +
                 "Give a known-good commit: node tools/land.mjs cut <commit>",
         };
     }
@@ -1239,6 +1627,88 @@ export async function cut(ctx, given) {
     if (pr) ctx.preview(ctx, pr, ctx.cut);
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${where}.`);
+    // A verified commit passes at once; a named one gets the full verification ship waits for.
+    await requestVerify(ctx, sha, CUT);
+    return 0;
+}
+
+/**
+ * Why a branch cannot go into the cut: it would bring commits of golden or master that golden-cut does
+ * not have. A cut fix starts from origin/golden-cut and holds only its own commits.
+ * @param ctx the run's context
+ * @param ref the branch's ref
+ * @returns the reason, or null when only its own commits would go in
+ */
+function notOnCut(ctx, ref) {
+    const count = (...not) => Number(git(ctx, ctx.main, ["rev-list", "--count", ref, `^origin/${CUT}`, ...not]));
+    const extra = count() - count(`^origin/${GOLDEN}`, "^origin/master");
+    if (extra === 0) return null;
+    return (
+        `it would bring ${extra} commits of golden or master that ${CUT} does not have.\n` +
+        `A fix for the cut starts from the cut: ./tools/worktree-new.sh <branch> origin/${CUT}`
+    );
+}
+
+/**
+ * Merges a fix the cut needs into golden-cut and pushes it through the gate (measured from master), then
+ * refreshes the cut pull request and starts its preview of the pushed head. The caller then lands the same
+ * branch on golden, so both branches hold the same commits.
+ * @param ctx the run's context
+ * @param branch the fix, started from origin/golden-cut
+ * @returns the exit code: 0 done (or already on golden-cut), 1 refused, 2 a conflict, 3 the gate refused it
+ */
+export async function cutFix(ctx, branch) {
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+    const ref = branchRef(ctx, branch);
+    if (!ref) return fail(`no branch ${branch} here or on origin`);
+    const cutRef = `origin/${CUT}`;
+    if (hasRef(ctx, ctx.main, cutRef).status !== 0) return fail(`there is no ${CUT} on GitHub; cut first`);
+    if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", ref, cutRef], { ok: true }).status === 0) {
+        console.log(`land: ${branch} is already on ${CUT}`);
+        return 0;
+    }
+    const why = notOnCut(ctx, ref);
+    if (why) return fail(`${branch} cannot go into the cut: ${why}`);
+    const before = git(ctx, ctx.main, ["rev-parse", cutRef]);
+    const moved = cutWorktree(ctx, before);
+    if (moved) return fail(moved);
+    mkdirSync(join(ctx.main, "tmp/golden"), { recursive: true });
+    ctx.hooks = hooksDir(ctx);
+    try {
+        const merge = withHooks(ctx, ["merge", "--no-ff", "--no-edit", "-m", `land: ${branch}`, ref]);
+        const r = git(ctx, ctx.cut, merge, { ok: true });
+        if (r.status !== 0) {
+            const files = git(ctx, ctx.cut, ["diff", "--name-only", "--diff-filter=U"], { ok: true }).stdout;
+            git(ctx, ctx.cut, ["merge", "--abort"], { ok: true });
+            git(ctx, ctx.cut, ["reset", "-q", "--hard", before]);
+            console.error(`land: ${branch} does not merge into ${CUT}:\n${files || r.stderr || r.stdout}`);
+            return files ? 2 : 1;
+        }
+        const pushed = await pushGolden(ctx, before, before, { dir: ctx.cut, branch: CUT });
+        if (pushed.code !== 0) return pushed.code;
+    } finally {
+        rmSync(ctx.hooks, { recursive: true, force: true });
+        ctx.hooks = null;
+    }
+    const head = git(ctx, ctx.cut, ["rev-parse", "HEAD"]);
+    try {
+        const intro = [
+            `A cut of \`golden\` at ${before.slice(0, 10)}, with fixes. Approvals that ship are made here.`,
+            "",
+        ];
+        const pr = upsertPr(
+            ctx,
+            CUT,
+            CUT_TITLE,
+            prBody(landedBranches(ctx, ctx.main, "origin/master", head), intro),
+            true,
+        );
+        if (pr) ctx.preview(ctx, pr, ctx.cut);
+    } catch (e) {
+        console.error(`land: the cut pull request was not updated: ${e.message}`);
+    }
+    await requestVerify(ctx, head, CUT);
+    console.log(`land: ${branch} is on ${CUT} (${head.slice(0, 10)}); now landing it on golden`);
     return 0;
 }
 
@@ -1248,7 +1718,7 @@ export async function cut(ctx, given) {
  * @param ctx the run's context
  * @returns the exit code
  */
-export function status(ctx) {
+export async function status(ctx) {
     if (!existsSync(ctx.golden)) return fail(`no golden worktree yet (${ctx.golden}); the first landing makes it`);
     git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
     updateMainCheckout(ctx);
@@ -1265,6 +1735,11 @@ export function status(ctx) {
     console.log(landed.length ? "landed, not on master yet:" : "nothing landed that master does not have");
     for (const e of landed) console.log(`  ${e.branch} ${e.sha.slice(0, 10)}${e.reverted ? " (reverted)" : ""}`);
     console.log(prLine(ctx));
+    const { describe, verifyContext } = await import("./verify.mjs");
+    for (const branch of [GOLDEN, CUT]) {
+        const v = verifyContext(ctx.main, { env: ctx.env, branch });
+        if (branch === GOLDEN || existsSync(v.stateFile)) console.log(describe(v));
+    }
     const owner = readLock(ctx.lock);
     console.log(owner ? `lock: held by ${describeOwner(owner)}` : "lock: free");
     const logs = existsSync(join(ctx.main, "tmp/golden"))
@@ -1277,7 +1752,158 @@ export function status(ctx) {
         console.log(
             `newest preview log ${newest}:\n${readFileSync(newest, "utf8").trimEnd().split("\n").slice(-10).join("\n")}`,
         );
+    console.log(openWork(ctx));
     return 0;
+}
+
+/**
+ * Every branch on GitHub that golden does not hold, as a table: its issue, the owner its progress note
+ * names, its last commit, whether a `ready` marker names its tip, and its worktree here. The issues come
+ * from one GraphQL query.
+ * @param ctx the run's context
+ * @returns the table
+ */
+export function openWork(ctx) {
+    const refs = git(ctx, ctx.main, [
+        "for-each-ref",
+        `--no-merged=origin/${GOLDEN}`,
+        "--sort=-committerdate",
+        "--format=%(refname:lstrip=3)%00%(objectname)%00%(committerdate:short)%00%(committerdate:unix)",
+        "refs/remotes/origin",
+    ]);
+    const branches = refs
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split("\0"))
+        .filter(([b]) => b !== "HEAD");
+    if (!branches.length) return "open work: none (every branch on GitHub is on golden)";
+    const set = new Map(
+        git(ctx, ctx.main, ["config", "--get-regexp", String.raw`^branch\..*\.issue$`], { ok: true })
+            .stdout.split("\n")
+            .filter(Boolean)
+            .map((l) => /^branch\.(.+)\.issue (\d+)$/.exec(l))
+            .filter(Boolean)
+            .map(([, b, n]) => [b, Number(n)]),
+    );
+    const trees = worktrees(ctx);
+    const issueOf = (b) => set.get(b) ?? issueInName(b);
+    let issues = new Map();
+    let error = "";
+    try {
+        issues = readIssues(
+            (args) => ctx.gh(ctx, args),
+            branches.map(([b]) => issueOf(b)),
+        );
+    } catch (e) {
+        error = `\n(issues unknown: ${e.message})`;
+    }
+    const rows = branches.map(([b, sha, date]) => {
+        const n = issueOf(b);
+        const issue = issues.get(n);
+        const note = findNote(issue, b);
+        const fields = note ? parseNote(note.body) : {};
+        const ready = issue?.comments.some((c) => {
+            const m = /^pipeline-round: ready (\S+) ([0-9a-f]{7,40})\b/.exec(c.body);
+            return m?.[1] === b && sha.startsWith(m[2]);
+        });
+        const owner = fields.owner ?? "-";
+        return [b, n ? `#${n}` : "-", owner, date, ready ? "yes" : "no", trees.get(b) ?? "-", fields.sync ?? "-"];
+    });
+    const head = ["branch", "issue", "owner", "last commit", "ready", "worktree", "sync"];
+    return `open work (branches on GitHub that golden does not have):\n${table([head, ...rows])}${error}${staleList(branches)}`;
+}
+
+/**
+ * The open branches with no commit in the sync's active window: the nightly sync skips them, and each needs
+ * its owner to land it, close it or park it. A report only; nothing is deleted.
+ * @param branches openWork's rows: name, tip, date, unix time
+ * @param [now] the time
+ * @returns the list, or "" when there are none
+ */
+export function staleList(branches, now = Date.now()) {
+    const stale = branches.filter(
+        ([b, , , unix]) => !NOT_WORK.test(b) && now - Number(unix) * 1000 >= ACTIVE_DAYS * 864e5,
+    );
+    if (!stale.length) return "";
+    const lines = stale.map(([b, , date]) => `  ${b} (last commit ${date})`);
+    return (
+        `\nstale (no commit in ${ACTIVE_DAYS}+ days, so the nightly sync skips them): land, close or park each\n` +
+        lines.join("\n")
+    );
+}
+
+const table = (rows) => {
+    const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => String(r[i]).length)));
+    return rows.map((r) => `  ${r.map((c, i) => String(c).padEnd(widths[i])).join("  ")}`.trimEnd()).join("\n");
+};
+
+/**
+ * The worktrees by the branch they have checked out.
+ * @param ctx the run's context
+ * @returns a Map from branch to its worktree's path
+ */
+function worktrees(ctx) {
+    const map = new Map();
+    let dir = null;
+    for (const line of git(ctx, ctx.main, ["worktree", "list", "--porcelain"]).split("\n")) {
+        if (line.startsWith("worktree ")) dir = line.slice(9);
+        if (line.startsWith("branch refs/heads/")) map.set(line.slice(18), dir);
+    }
+    return map;
+}
+
+// Branches that are not work in progress, never pruned and never synced: the integration and release
+// branches, revert pull requests, Dependabot.
+export const NOT_WORK = /^(HEAD|master|golden|golden-cut|gh-pages)$|^(release|revert)\b|^dependabot\//;
+
+/**
+ * The branches on GitHub that golden already holds, and with `yes`, deletes them there. Run by hand only:
+ * merged branches are history and stay unless someone asks. Worktrees and local branches are never
+ * touched. A branch with no commits of its own (its tip on the first-parent line of golden, golden-cut or
+ * master: it was just made) is left alone while it has a worktree here. Before deleting, every branch's
+ * name and tip go into tmp/pruned-branches.log in the main checkout, so any of them can be restored.
+ * @param ctx the run's context
+ * @param [opts] `yes: true` deletes; otherwise it only lists
+ * @returns the branches listed (or deleted)
+ */
+export function pruneBranches(ctx, opts = {}) {
+    git(ctx, ctx.main, ["fetch", "-q", "--prune", "origin"], { ok: true });
+    const trees = worktrees(ctx);
+    // The branches the local tools run from (tools/live-tools.json) stay, wherever they point.
+    const live = new Set(
+        Object.values(readJson(join(ctx.main, "tools/live-tools.json")) ?? {}).map((t) => join(ctx.main, t.worktree)),
+    );
+    const merged = git(ctx, ctx.main, ["branch", "-r", "--format=%(refname:lstrip=3)", "--merged", `origin/${GOLDEN}`])
+        .split("\n")
+        .filter((b) => b && !NOT_WORK.test(b) && !live.has(trees.get(b)));
+    const lines = new Set();
+    for (const base of [GOLDEN, CUT, "master"]) {
+        const r = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/${base}`], { ok: true });
+        for (const sha of r.stdout.split("\n")) lines.add(sha);
+    }
+    const tips = merged.map((b) => [b, git(ctx, ctx.main, ["rev-parse", `refs/remotes/origin/${b}`])]);
+    const gone = tips.filter(([b, sha]) => !lines.has(sha) || !trees.has(b));
+    if (!gone.length) {
+        console.log("land: no branch on GitHub to prune");
+        return [];
+    }
+    const list = gone.map(([b, sha]) => `  ${b} ${sha.slice(0, 10)}`).join("\n");
+    if (!opts.yes) {
+        console.log(`land: dry run -- would delete from GitHub (already on golden):\n${list}\nDelete them: --yes`);
+        return gone.map(([b]) => b);
+    }
+    const log = join(ctx.main, "tmp/pruned-branches.log");
+    mkdirSync(dirname(log), { recursive: true });
+    const now = new Date().toISOString();
+    appendFileSync(log, gone.map(([b, sha]) => `${now} ${b} ${sha}\n`).join(""));
+    // No gate for a deletion: it carries no code. A hundred at a time keeps each push small.
+    for (let i = 0; i < gone.length; i += 100) {
+        const names = gone.slice(i, i + 100).map(([b]) => b);
+        const r = git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", "--delete", ...names], { ok: true });
+        if (r.status !== 0) throw new Error(`git push --delete failed: ${r.stderr}`);
+    }
+    console.log(`land: deleted from GitHub (names and tips in ${log}):\n${list}`);
+    return gone.map(([b]) => b);
 }
 
 function prLine(ctx) {
@@ -1329,18 +1955,23 @@ export function context(cwd, overrides = {}) {
         lock: join(main, "tmp/golden/lock"),
         cutLock: join(main, "tmp/golden/cut-lock"),
         push: defaultPush,
+        // A landing's check: the gate on golden's next commit in a check worktree, sending nothing.
+        check: (c, cwd) => defaultPush(c, cwd, `HEAD:refs/heads/${GOLDEN}`, true),
+        verify: defaultVerify,
         gh: defaultGh,
         preview: defaultPreview,
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
+        syncCheck: defaultCheck,
         ...base,
     };
 }
 
 const USAGE =
-    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] | ship | status" +
-    " (land, revert and cut also take --priority)";
+    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
+    " cut-fix <branch> | ship | status | prune-branches [--yes] |" +
+    " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
 
 /**
  * Runs one command under the lock.
@@ -1349,15 +1980,44 @@ const USAGE =
  * @returns the exit code
  */
 export async function main(argv, ctx = context(process.cwd())) {
-    const [command, ...branches] = argv.filter((a) => !a.startsWith("--"));
+    const at = argv.findIndex((a) => a === "--allow-copies" || a.startsWith("--allow-copies="));
+    const inline = at >= 0 && argv[at].includes("=");
+    let allowArg = null;
+    if (inline) allowArg = argv[at].split("=")[1];
+    else if (at >= 0) allowArg = argv[at + 1];
+    const allowCopies = allowArg?.split(",").filter(Boolean) ?? [];
+    const positional = at >= 0 && !inline ? argv.filter((_, i) => i !== at + 1) : argv;
+    const [command, ...branches] = positional.filter((a) => !a.startsWith("--"));
+    if (command === "sync") return syncCommand(ctx, argv);
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
-    const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") && command !== "ship" };
-    if (command === "status") return status(ctx);
-    if (command === "cut") return cutLocked(ctx, branch, lockOptions);
-    if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
-    const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
+    const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") };
+    const unlocked = UNLOCKED[command];
+    if (unlocked) return unlocked(ctx, branch, argv, lockOptions);
+    if (!["land", "revert"].includes(command) || !branch) return fail(USAGE);
+    if (at >= 0 && (command !== "land" || branches.length !== 1 || !allowCopies.length)) {
+        return fail("--allow-copies takes a comma-separated list of shas and lands exactly one branch");
+    }
+    // ponytail: --allow-copies (rare, by hand) lands under the lock the old way instead of in the short-lock check.
+    if (command === "land" && !dryRun && !allowCopies.length) return landShort(ctx, branches, lockOptions);
+    return underLock(ctx, { command, branch: branches.join(" ") }, lockOptions, () => {
+        if (command === "revert") return revert(ctx, branch);
+        return branches.length > 1 ? landMany(ctx, branches, { dryRun }) : land(ctx, branch, { dryRun, allowCopies });
+    });
+}
+
+/**
+ * Runs work on golden under the landing lock: the golden worktree made if needed and refused when it
+ * has uncommitted changes, golden put back and the lock freed on any exit or signal.
+ * @param ctx the run's context
+ * @param info what the lock records about this holder
+ * @param lockOptions the lock's options
+ * @param work the work, a function returning the exit code
+ * @returns the exit code
+ */
+async function underLock(ctx, info, lockOptions, work) {
+    const release = await acquireLock(ctx.lock, info, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
     const onTerm = onSignal(ctx, "SIGTERM", 143);
     ctx.release = () => {
@@ -1373,20 +2033,50 @@ export async function main(argv, ctx = context(process.cwd())) {
             return fail(`the golden worktree ${ctx.golden} has uncommitted changes; nothing was done`);
         }
         ctx.hooks = hooksDir(ctx);
-        if (command === "land" && branches.length > 1) return await landMany(ctx, branches, { dryRun });
-        if (command === "land") return await land(ctx, branch, { dryRun });
-        if (command === "revert") return await revert(ctx, branch);
-        return await ship(ctx);
+        return await work();
     } finally {
         cleanup(ctx);
     }
 }
 
-// The cut under its own lock: its push runs the gate without holding up landings.
-async function cutLocked(ctx, given, lockOptions) {
-    const release = await acquireLock(ctx.cutLock, { command: "cut", branch: given ?? "" }, lockOptions);
+// The commands that do not take the landing lock (cut and cut-fix take the cut's own). Ship only marks the
+// cut pull request ready: it never waits behind a landing's gate.
+const UNLOCKED = {
+    status: (ctx) => status(ctx),
+    ship: (ctx) => ship(ctx),
+    cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
+    "cut-fix": cutFixThenLand,
+    "prune-branches": (ctx, _branch, argv) => {
+        try {
+            pruneBranches(ctx, { yes: argv.includes("--yes") });
+            return 0;
+        } catch (e) {
+            return fail(e.message);
+        }
+    },
+};
+
+/**
+ * `cut-fix`: the fix into golden-cut under the cut's lock, then the same branch onto golden.
+ * @param ctx the run's context
+ * @param branch the fix
+ * @param argv the command line (for --priority)
+ * @param lockOptions the lock's options
+ * @returns the exit code
+ */
+async function cutFixThenLand(ctx, branch, argv, lockOptions) {
+    if (!branch) return fail(USAGE);
+    const code = await cutLocked(ctx, branch, lockOptions, cutFix);
+    // The same branch, the same commits, on golden: a landing like any other.
+    return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
+}
+
+// The cut (or a cut fix) under its own lock: its push runs the gate without holding up landings.
+async function cutLocked(ctx, given, lockOptions, run = cut) {
+    const command = run === cut ? "cut" : "cut-fix";
+    const release = await acquireLock(ctx.cutLock, { command, branch: given ?? "" }, lockOptions);
     try {
-        return await cut(ctx, given);
+        return await run(ctx, given);
     } finally {
         release();
     }
@@ -1431,15 +2121,21 @@ export function liveCopy(env = process.env) {
  * Hands the run to the live copy, so every session runs the same version of this tool whichever
  * checkout's copy it called: the live copy runs with the same arguments, environment and working
  * directory, and its exit code is passed through. It does not hand off when this file is the live copy,
- * or when it was itself started by a hand-off (LAND_LIVE_COPY is set), so it never loops.
+ * or when it was itself started by a hand-off (LAND_LIVE_COPY is set), so it never loops. The live copy
+ * removes the mark from its environment once read, so the commands it runs (the pre-push gate, whose
+ * tests run this tool) start as fresh sessions would.
  * @param argv the arguments after the script
  * @param [env] the environment
+ * @param [self] the script that is running (tools/verify.mjs hands off to the live copy's verify.mjs)
  * @returns the live copy's exit code, or null when this copy should run itself
  */
-export async function handOff(argv, env = process.env) {
-    if (env[LIVE_MARK]) return null;
-    const self = fileURLToPath(import.meta.url);
-    const live = liveCopy(env);
+export async function handOff(argv, env = process.env, self = fileURLToPath(import.meta.url)) {
+    if (env[LIVE_MARK]) {
+        delete env[LIVE_MARK];
+        return null;
+    }
+    const landLive = liveCopy(env);
+    const live = landLive && join(dirname(landLive), basename(self));
     if (!live || !existsSync(live)) {
         console.error(`land: no live copy at ${live ?? ".worktrees/land-live"}; running ${self} instead`);
         return null;
@@ -1460,5 +2156,10 @@ export async function handOff(argv, env = process.env) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const argv = process.argv.slice(2);
-    process.exitCode = (await handOff(argv)) ?? (await main(argv));
+    // Not a top-level await: land.mjs must finish loading before main runs, or the dynamic import of
+    // verify.mjs (which imports land.mjs) waits on it forever and node exits with nothing done.
+    const run = async () => {
+        process.exitCode = (await handOff(argv)) ?? (await main(argv));
+    };
+    run(); // NOSONAR(S7785): a top-level await here deadlocks the import of verify.mjs
 }

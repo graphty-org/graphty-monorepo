@@ -623,7 +623,10 @@ export function crossingOf(inside: Xyz, outside: Xyz, isOutside: (x: number, y: 
  *     nearer the end than that.
  */
 export function cutFromEnd(path: readonly Xyz[], length: number): { at: Xyz; keep: number } | null {
-    const end = path[path.length - 1];
+    const end = path.at(-1);
+    if (end === undefined) {
+        return null;
+    }
     const far = (x: number, y: number, z: number): boolean => Math.hypot(x - end.x, y - end.y, z - end.z) >= length;
     for (let i = path.length - 2; i >= 0; i--) {
         if (far(path[i].x, path[i].y, path[i].z)) {

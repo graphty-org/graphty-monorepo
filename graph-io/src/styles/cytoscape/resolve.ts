@@ -626,7 +626,12 @@ function labelDress(
     const vp = (name: string): string => `${target === "node" ? "NODE" : "EDGE"}_LABEL_${name}`;
     const columns: Record<string, (StyleValue | null)[]> = {};
     const put = (property: string, i: number, v: StyleValue | null): void => {
-        (columns[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = v;
+        let column = columns[property];
+        if (column === undefined) {
+            column = new Array<StyleValue | null>(n).fill(null);
+            columns[property] = column;
+        }
+        column[i] = v;
     };
     for (let i = 0; i < n; i++) {
         labelBox(vp, one, i, put);
@@ -760,7 +765,8 @@ function autorotate(
     } else if (a <= -90) {
         upright = a + 180;
     }
-    const column = (out.labelRotation ??= new Array<StyleValue | null>(n).fill(null)) as (StyleValue | null)[];
+    out.labelRotation ??= new Array<StyleValue | null>(n).fill(null);
+    const column = out.labelRotation as (StyleValue | null)[];
     const own = column[e];
     column[e] = num6((((upright + (typeof own === "number" ? own : 0)) % 360) + 360) % 360);
 }
@@ -893,31 +899,9 @@ function straightenBendless(
     const bent = (i: number): boolean => one(EDGE_BEND_VP, bendParser, "curved", i) === true;
     const haystack = (i: number): boolean =>
         String(one(EDGE_STACKING_VP, rawText, "fanned", i) ?? "").toUpperCase() === "HAYSTACK";
-    const fanned = new Set<number>();
     // each fanned edge's place in its pair's walk (1 for the first fanned)
-    const place = new Map<number, number>();
-    if (ends !== undefined) {
-        // desktop walks a node pair's edges newest first (its adjacency lists take each new edge at the head)
-        const first = new Map<string, { f: number; k: number }>();
-        const created = ends.created?.edge;
-        const walk = Array.from({ length: curved.length }, (_, i) => i);
-        walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
-        for (const i of walk) {
-            const [s, t] = [ends.source[i], ends.target[i]];
-            if (s === t || haystack(i)) {
-                continue;
-            }
-            const key = s < t ? `${s},${t}` : `${t},${s}`;
-            const f = first.get(key);
-            if (f === undefined) {
-                first.set(key, { f: i, k: 0 });
-            } else if (!bent(f.f)) {
-                f.k++;
-                fanned.add(i);
-                place.set(i, f.k);
-            }
-        }
-    }
+    const place = ends === undefined ? new Map<number, number>() : fanPlaces(ends, curved.length, bent, haystack);
+    const fanned = new Set(place.keys());
     const rounds = (i: number): boolean => fanned.has(i) || bent(i);
     const rounded = curved.map((c, i) => {
         if (c === null) {
@@ -942,6 +926,53 @@ function straightenBendless(
         return size * density;
     });
     fanAnchors(out, ends, place);
+}
+
+/**
+ * The edges desktop fans, each with its place in its node pair's walk (1 for the first fanned). Desktop walks a node
+ * pair's edges newest first (its adjacency lists take each new edge at the head); the first it meets is drawn
+ * straight, and each later one fanned unless that first one has bends. Loops and haystack edges are left out.
+ * @param ends - each edge's source and target node index, and the order they were created in
+ * @param count - the edge count
+ * @param bent - whether an edge has bends of its own
+ * @param haystack - whether an edge is a haystack edge
+ * @returns each fanned edge's place, in walk order
+ */
+function fanPlaces(
+    ends: NonNullable<CytoscapeElements["ends"]>,
+    count: number,
+    bent: (i: number) => boolean,
+    haystack: (i: number) => boolean,
+): Map<number, number> {
+    const place = new Map<number, number>();
+    const first = new Map<string, { f: number; k: number }>();
+    for (const i of newestFirst(count, ends.created?.edge)) {
+        const [s, t] = [ends.source[i], ends.target[i]];
+        if (s === t || haystack(i)) {
+            continue;
+        }
+        const key = `${Math.min(s, t)},${Math.max(s, t)}`;
+        const f = first.get(key);
+        if (f === undefined) {
+            first.set(key, { f: i, k: 0 });
+        } else if (!bent(f.f)) {
+            f.k++;
+            place.set(i, f.k);
+        }
+    }
+    return place;
+}
+
+/**
+ * The edges newest first: by the order they were created in when it is known, else last index first.
+ * @param count - the edge count
+ * @param created - each edge's place in the creation order, when known
+ * @returns the edge indices in that order
+ */
+function newestFirst(count: number, created: ArrayLike<number> | undefined): number[] {
+    const walk = Array.from({ length: count }, (_, i) => i);
+    walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
+    return walk;
 }
 
 /**

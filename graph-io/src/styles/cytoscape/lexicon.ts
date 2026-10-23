@@ -553,7 +553,7 @@ export function cytoscapeLabelPlace(raw: unknown, site: CanonSite): CytoscapeLab
             : ["HORIZONTAL_ANCHOR", "VERTICAL_ANCHOR", "HORIZONTAL_ALIGN", "VERTICAL_ALIGN"].map((k) =>
                   CX2_SIDE.get(word(k)),
               );
-        if (sides.some((v) => v === undefined)) {
+        if (sides.includes(undefined)) {
             noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, JSON.stringify(raw).slice(0, 64));
             return null;
         }

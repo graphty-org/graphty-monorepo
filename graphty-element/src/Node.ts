@@ -17,6 +17,7 @@ import isEqual from "lodash/isEqual.js";
 
 import type { Rgba } from "./catalog/types";
 import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import { drawnText } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
 import type { Graph } from "./Graph";
@@ -43,6 +44,7 @@ import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
+import { toColorValue } from "./session/styles/channels";
 
 export type NodeIdType = string | number;
 
@@ -63,7 +65,7 @@ const logger = GraphtyLogger.getLogger(["graphty", "node"]);
  * The prefix of the cached source meshes selection halos are instances of. There is one source
  * per node mesh source -- the halo is the node's own geometry -- keyed by the node's cache key.
  */
-const SELECTION_HALO_MESH = "graphty-selection-halo";
+export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";
@@ -176,16 +178,16 @@ export function nodeRebuildsFor(node: Node, paint: NodePaint): boolean {
 }
 
 /**
- * Dispose what a node's rebuild replaces -- its mesh, the label parented to it and its drag
- * handler -- ahead of the rebuild. A repaint of many nodes disposes every one of them first, inside
- * the bulk teardown, and only then builds the new meshes: built in between, the new meshes would
- * fill the scene lists the teardown emptied, and each later dispose would search them (#2749).
+ * Dispose what a node's rebuild replaces -- its mesh and the label parented to it -- ahead of the
+ * rebuild. The drag handler is kept: it lives as long as the node, reads `node.mesh` whenever it
+ * acts, and holds the hover, which a dispose would end while the pointer is still on the node.
+ * A repaint of many nodes disposes every one of them first, inside the bulk teardown, and only
+ * then builds the new meshes: built in between, the new meshes would fill the scene lists the
+ * teardown emptied, and each later dispose would search them (#2749).
  * The rebuild then finds the mesh disposed and builds a new one, as it does after a 2D/3D switch.
  * @param node - A node {@link nodeRebuildsFor} said is rebuilt.
  */
 export function releaseNodeMesh(node: Node): void {
-    node.dragHandler?.dispose();
-    node.dragHandler = undefined;
     node.label?.dispose();
     node.label = undefined;
     if (!node.mesh.isDisposed()) {
@@ -222,6 +224,46 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  * no single radius that describes where its surface is.
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
+
+type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
+
+/**
+ * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
+ * or a gradient's first color as a fallback.
+ * @param color - The style's background color.
+ * @returns The color, or undefined for none.
+ */
+function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
+    if (!color) {
+        return undefined;
+    }
+    if (typeof color === "string") {
+        return color;
+    }
+    if (color.colorType === "solid") {
+        return color.value;
+    }
+    if (color.colorType === "gradient") {
+        return color.colors[0];
+    }
+    return undefined;
+}
+
+/**
+ * A label's borders with a color each, the only ones the label renderer can draw.
+ * @param borders - The style's borders.
+ * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
+ */
+function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
+    const valid = (borders ?? [])
+        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
+        .map((border) => ({
+            width: border.width,
+            color: border.color,
+            spacing: border.spacing,
+        }));
+    return valid.length > 0 ? valid : undefined;
+}
 
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
@@ -381,6 +423,8 @@ export class Node {
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
 
+    /** The mesh scale {@link Node.roundRadius} was last measured at. */
+    private roundRadiusScale = 1;
     /** What {@link Node.drawnRadius} last measured, and the mesh and scaling it measured. */
     private drawnRadiusMesh: AbstractMesh | null = null;
     private drawnRadiusScale = 0;
@@ -399,6 +443,9 @@ export class Node {
      * that possible needs the state the mesh is actually in.
      */
     private renderState: NodeRenderState = "visible";
+
+    /** Whether the style stack hid this node (`node.visible` false), which only stops drawing it. */
+    private styleHidden = false;
 
     /**
      * Whether this node is in the session's selection.
@@ -553,11 +600,14 @@ export class Node {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
-        if (this.roundRadiusMesh === this.mesh) {
+        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
+        // camera turns, and its edges must stop at the surface it is drawn with.
+        if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
             return this.roundRadiusValue;
         }
 
         this.roundRadiusMesh = this.mesh;
+        this.roundRadiusScale = this.mesh.scaling.x;
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;
@@ -591,8 +641,15 @@ export class Node {
         }
 
         const extent = this.mesh.getBoundingInfo().boundingBox.extendSize[axis] * Math.abs(this.mesh.scaling[axis]);
+        // A border in screen pixels (`border.screenWidth`) is not counted: its reach in the scene
+        // depends on the zoom, so counting it made the box depend on the camera that frames it.
+        // The first framing measured the ring built for the camera before it, the ring was then
+        // rebuilt for the new zoom, and whether a second framing came along to measure that one
+        // decided the zoom: the same file drew two pictures. The cameras' fit padding covers the
+        // few pixels.
+        const reach = typeof this.borderBuilt?.scale === "number" ? 0 : this.borderReach;
 
-        return (extent + this.borderReach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
+        return (extent + reach) / NodeMesh.extentPerSize(this.drawnStyle?.shape);
     }
 
     /**
@@ -1080,6 +1137,11 @@ export class Node {
         this.applyInstanceColor(color);
         NodeEffects.applyOutlineEffect(this.mesh, style.effect, this.context.getMeshCache());
         NodeEffects.applyGlowEffect(this.mesh, style.effect);
+        const hidden = style.visible === false;
+        if (hidden !== this.styleHidden) {
+            this.styleHidden = hidden;
+            this.applyRenderState();
+        }
     }
 
     /**
@@ -1371,11 +1433,8 @@ export class Node {
             this.showTooltip();
         }
 
-        // Dispose old drag handler before creating new one to prevent duplicate event listeners
-        if (this.dragHandler) {
-            this.dragHandler.dispose();
-        }
-
+        // The new mesh is made pickable and clickable; the drag handler carries over (see
+        // NodeBehavior.addDefaultBehaviors).
         NodeBehavior.addDefaultBehaviors(this, this.opts);
 
         // The mesh above is a NEW instance, so everything that lives ON an instance rather than
@@ -1487,7 +1546,9 @@ export class Node {
      * @returns The render state.
      */
     getRenderState(): NodeRenderState {
-        return this.renderState;
+        // A node a style hides is drawn as a filtered-out one would be, minus the context point:
+        // it is still in the graph, so it is no one's context.
+        return this.styleHidden && this.renderState === "visible" ? "hidden" : this.renderState;
     }
 
     /**
@@ -1548,7 +1609,8 @@ export class Node {
             return;
         }
 
-        const drawn = this.renderState === "visible";
+        const state = this.getRenderState();
+        const drawn = state === "visible";
 
         if (!this.mesh.isDisposed()) {
             this.mesh.setEnabled(drawn);
@@ -1570,7 +1632,7 @@ export class Node {
             this.hideTooltip();
         }
 
-        this.showOverlay("context", this.renderState === "context");
+        this.showOverlay("context", state === "context");
         // A hidden node draws no halo: the selection is still the selection, but there is nothing
         // on screen for it to ring.
         this.syncHalo();
@@ -1594,7 +1656,9 @@ export class Node {
      * ONE HALO, TWO SOURCES. The selection draws one on a selected node, in the configured
      * selection style; a layer draws one on any node through the `node.halo*` channels. A
      * node with both shows one halo: each value the layer set wins and the selection style gives
-     * the rest, and a layer's `node.halo: false` takes the halo off even a selected node.
+     * the rest, and a layer's `node.halo: false` takes the halo off even a selected node. With
+     * the starting rows on, the Selected row draws the selection's halo as a style instead, so
+     * the selection itself draws none and a node never carries two.
      * @returns The colour, scale and opacity, or null.
      */
     private haloLook(): GraphSelectionStyleConfig | null {
@@ -1603,15 +1667,16 @@ export class Node {
         const scale = layer?.scale !== undefined && layer.scale > 0 ? layer.scale : undefined;
         const opacity = layer?.opacity;
         const lookSet = color !== undefined || scale !== undefined || opacity !== undefined;
+        const selectionDraws = this.selected && this.context.getStyles().config.graph.startingRows !== true;
 
-        if (!(layer?.enabled ?? (lookSet || this.selected))) {
+        if (!(layer?.enabled ?? (lookSet || selectionDraws))) {
             return null;
         }
 
         const base = this.selectionStyle();
 
         return lookSet
-            ? { color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
+            ? { ...base, color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
             : base;
     }
 
@@ -1655,10 +1720,7 @@ export class Node {
         // painted over the whole node instead of around it. The halo's OWN look: a layer's
         // halo is drawn even while the selection's own halo is hidden at opacity 0.
         if (!wanted || (kind === "halo" && look.opacity === 0)) {
-            if (existing && !existing.isDisposed()) {
-                existing.setEnabled(false);
-            }
-
+            this.hideOverlay(kind, existing);
             return;
         }
 
@@ -1680,22 +1742,58 @@ export class Node {
             // one selected node and for forty thousand. Minting a source mesh per appearance
             // instead would leave one behind in the cache for every colour a colour picker
             // passed through.
-            Node.paintHalo(overlay, selection);
-        } else {
-            this.contextPoint = overlay;
-        }
-
-        if (kind === "halo") {
+            Node.paintHalo(overlay, look);
+            this.ringLabel(look.scale);
             // The node's own geometry, scaled about its centre: every point of the node's surface
             // moves out by the configured multiplier, so a box gets a box, a cylinder a
             // cylinder, and a node drawn wider than tall a halo wider than tall.
             overlay.scaling.copyFrom(this.mesh.scaling).scaleInPlace(selection.scale);
         } else {
+            this.contextPoint = overlay;
             overlay.scaling.setAll(Math.max(this.size, MIN_OVERLAY_SIZE) * CONTEXT_POINT_SCALE);
         }
 
         overlay.position.copyFrom(this.mesh.position);
         overlay.setEnabled(true);
+    }
+
+    /**
+     * Stop drawing one of this node's overlays, keeping it for the next time it is wanted.
+     * @param kind - Which overlay.
+     * @param existing - The overlay, when one was built.
+     */
+    private hideOverlay(kind: "halo" | "context", existing: AbstractMesh | null): void {
+        if (existing && !existing.isDisposed()) {
+            existing.setEnabled(false);
+        }
+
+        if (kind === "halo") {
+            this.ringLabel(null);
+        }
+    }
+
+    /**
+     * Keep the label clear of the halo as it keeps clear of the node, and have the label overlap
+     * pass look again: the label moved with no node moving.
+     * @param scale - The halo's size over the node's, or null when no halo is drawn.
+     */
+    private ringLabel(scale: number | null): void {
+        const { label } = this;
+        if (label?.setRing(scale) === true) {
+            LabelDeclutter.track(this.mesh.getScene(), this.context, this);
+        }
+    }
+
+    /**
+     * The colour this node is drawn in now, as `#rrggbb` (with `aa` when not opaque): what the
+     * last paint of the style stack gave it, after hidden rows, runs, notes and data changes have
+     * repainted it. Null before its first paint. A read for tests and tools that must check what
+     * was drawn rather than what the stack would explain.
+     * @returns The drawn colour, or null.
+     * @since 3.26.0
+     */
+    get drawnFill(): string | null {
+        return toColorValue(this.drawnColor)?.hex ?? null;
     }
 
     /**
@@ -1816,7 +1914,7 @@ export class Node {
     /**
      * Bring the shared halo material into line with the configured appearance.
      * @param overlay - Any halo instance; its material is the shared one.
-     * @param selection - The configured colour and opacity.
+     * @param selection - The colour and opacity to draw it in.
      */
     private static paintHalo(overlay: AbstractMesh, selection: GraphSelectionStyleConfig): void {
         const { material } = overlay;
@@ -2072,7 +2170,7 @@ export class Node {
     private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
         // the further texts first: the label's own early return must not skip them
         this.syncShapeTexts(o, rebuild);
-        const wanted = o.label?.enabled === true ? o.label : undefined;
+        const wanted = drawnText(o.label);
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
         if (!rebuild && text === this.drawnLabelText && isEqual(wanted, this.drawnLabelStyle)) {
@@ -2148,7 +2246,7 @@ export class Node {
      * @param o - The resolved style.
      */
     private syncTooltip(o: NodeStyleConfig): void {
-        const wanted = o.tooltip?.enabled === true ? o.tooltip : undefined;
+        const wanted = drawnText(o.tooltip);
 
         if (isEqual(wanted, this.wantedTooltip)) {
             return;
@@ -2213,7 +2311,18 @@ export class Node {
         LabelDeclutter.track(scene, this.context, this);
         // Its animation starts on the first frame at rest with no style paint left to draw.
         oweLabelAnimations(scene);
-        return new RichTextLabel(scene, labelOptions);
+        const label = new RichTextLabel(scene, labelOptions);
+        // The plane is pickable either way (Babylon's default), so unset it takes a click and
+        // answers no node; `pickable` makes `pickNodeId` read this node's id off it.
+        if (styleConfig.label?.pickable === true && label.labelMesh) {
+            label.labelMesh.metadata = { nodeId: this.id };
+        }
+
+        if (this.halo?.isEnabled() === true) {
+            label.setRing(this.haloLook()?.scale ?? null);
+        }
+
+        return label;
     }
 
     private extractLabelText(labelConfig?: Record<string, unknown>): string {
@@ -2272,18 +2381,7 @@ export class Node {
         }
         const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
-        // Transform backgroundColor to string if it's an advanced color style
-        let backgroundColor: string | undefined = undefined;
-        if (labelStyle.backgroundColor) {
-            if (typeof labelStyle.backgroundColor === "string") {
-                ({ backgroundColor } = labelStyle);
-            } else if (labelStyle.backgroundColor.colorType === "solid") {
-                ({ value: backgroundColor } = labelStyle.backgroundColor);
-            } else if (labelStyle.backgroundColor.colorType === "gradient") {
-                // For gradients, use the first color as a fallback
-                [backgroundColor] = labelStyle.backgroundColor.colors;
-            }
-        }
+        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
 
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
@@ -2296,22 +2394,7 @@ export class Node {
             }
         }
 
-        // Transform borders to ensure colors are strings
-        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
-        if (labelStyle.borders && labelStyle.borders.length > 0) {
-            const validBorders = labelStyle.borders
-                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-                .map((border) => ({
-                    width: border.width,
-                    color: border.color,
-                    spacing: border.spacing,
-                }));
-            // Only set borders if we have valid borders, otherwise leave it undefined
-            // so the default empty array is used
-            if (validBorders.length > 0) {
-                borders = validBorders;
-            }
-        }
+        const borders = labelBorders(labelStyle.borders);
 
         // Create label options by spreading the entire labelStyle object
         const labelOptions: RichTextLabelOptions = {

@@ -2055,21 +2055,79 @@ function combineDashes(
               ];
     for (const [style, width, fallback, pattern, own] of lines) {
         const col = values[style];
-        for (let i = 0; i < n && col !== undefined; i++) {
-            if (col[i] !== "dashed") {
-                continue;
-            }
-            const w = values[width]?.[i];
-            const dashes = ((own ? words.get("_dashPattern")?.[i] : null) ?? pattern)
-                .split(/[\s,[\]]+/)
-                .filter((t) => t !== "")
-                .map(Number.parseFloat);
-            if (dashes.length > 0 && dashes.every((d) => Number.isFinite(d))) {
-                const cap = (own ? words.get("_dashCap")?.[i] : null) ?? "butt";
-                col[i] = cyjsDashLook(dashes, typeof w === "number" ? w : fallback, cap);
-            }
+        if (col !== undefined) {
+            dashColumn(col, n, values[width], { fallback, pattern }, own ? words : null);
         }
     }
+}
+
+/**
+ * One line style's dashed lines as the lines they look like.
+ * @param col - the line styles; changed in place
+ * @param n - the element count
+ * @param widths - the lines' widths, when set
+ * @param drawn - what Cytoscape.js draws when they are not set: the width and the dash pattern
+ * @param drawn.fallback - the width
+ * @param drawn.pattern - the dash pattern
+ * @param words - the parts by internal name, or null for an outline, which has no pattern or cap of its own
+ */
+function dashColumn(
+    col: (StyleValue | null)[],
+    n: number,
+    widths: readonly (StyleValue | null)[] | undefined,
+    drawn: { fallback: number; pattern: string },
+    words: ReadonlyMap<string, (string | null)[]> | null,
+): void {
+    for (let i = 0; i < n; i++) {
+        if (col[i] !== "dashed") {
+            continue;
+        }
+        const w = widths?.[i];
+        const look = dashedLook(words, i, drawn.pattern, typeof w === "number" ? w : drawn.fallback);
+        if (look !== null) {
+            col[i] = look;
+        }
+    }
+}
+
+/**
+ * One dashed line's look, from its dash pattern (its own `line-dash-pattern` when it has one) and cap.
+ * @param words - the parts by internal name, or null for an outline, which has no pattern or cap of its own
+ * @param i - the element
+ * @param pattern - the pattern Cytoscape.js draws when none is given
+ * @param width - the line's width
+ * @returns the line style, or null when the pattern is not a list of numbers
+ */
+function dashedLook(
+    words: ReadonlyMap<string, (string | null)[]> | null,
+    i: number,
+    pattern: string,
+    width: number,
+): string | null {
+    const dashes = (words?.get("_dashPattern")?.[i] ?? pattern)
+        .split(/[\s,[\]]+/)
+        .filter((t) => t !== "")
+        .map((t) => Number.parseFloat(t));
+    if (dashes.length === 0 || !dashes.every((d) => Number.isFinite(d))) {
+        return null;
+    }
+    return cyjsDashLook(dashes, width, words?.get("_dashCap")?.[i] ?? "butt");
+}
+
+/**
+ * A property's values, created (all null) when it has none yet.
+ * @param values - the values by property; changed in place
+ * @param property - the property
+ * @param n - the element count
+ * @returns its values
+ */
+function columnOf(values: Record<string, (StyleValue | null)[]>, property: string, n: number): (StyleValue | null)[] {
+    let column = values[property];
+    if (column === undefined) {
+        column = new Array<StyleValue | null>(n).fill(null);
+        values[property] = column;
+    }
+    return column;
 }
 
 /**
@@ -2104,9 +2162,9 @@ function combineVisibility(
         if (keptInvisible) {
             // nothing of it is drawn: its body, its border, its outline or its label
             for (const p of ["opacity", "borderOpacity", "outerBorderOpacity", "labelOpacity"]) {
-                (values[p] ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+                columnOf(values, p, n)[i] = 0;
             }
-            (values.label ??= new Array<StyleValue | null>(n).fill(null))[i] = "";
+            columnOf(values, "label", n)[i] = "";
         }
     }
     values.visible = col;
@@ -2127,18 +2185,7 @@ function combineLabelText(
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
 ): void {
-    const transform = words.get("_transform");
-    const { label } = values;
-    if (transform !== undefined && label !== undefined) {
-        for (let i = 0; i < n; i++) {
-            const text = label[i];
-            if (typeof text === "string" && transform[i] === "uppercase") {
-                label[i] = text.toUpperCase();
-            } else if (typeof text === "string" && transform[i] === "lowercase") {
-                label[i] = text.toLowerCase();
-            }
-        }
-    }
+    transformLabels(n, words.get("_transform"), values.label);
     // cytoscape.js 3.34.3 `labelJustification`: auto lines the lines up against the node, a label beside it on the
     // left to its right edge
     const justification = words.get("_justification");
@@ -2146,13 +2193,17 @@ function combineLabelText(
         combineEdgeJustification(n, justification, words.get("_wrap"), values);
     } else if (justification !== undefined) {
         const halign = words.get("_halign");
-        const AUTO: Readonly<Record<string, string>> = { left: "right", right: "left", "left-inside": "left" };
+        const AUTO: Readonly<Record<string, string>> = {
+            left: "right",
+            right: "left",
+            "left-inside": "left",
+            "right-inside": "right",
+        };
         values.labelTextAlign = justification.map((j, i) => {
             if (j === null) {
                 return null;
             }
-            const h = halign?.[i] ?? "center";
-            return j === "auto" ? (AUTO[h] ?? (h === "right-inside" ? "right" : "center")) : j;
+            return j === "auto" ? (AUTO[halign?.[i] ?? "center"] ?? "center") : j;
         });
     }
     // an edge's `autorotate` follows its line, which the routes work out (`autorotateLabels`)
@@ -2165,6 +2216,30 @@ function combineLabelText(
         const rotation = words.get(part);
         if (rotation !== undefined) {
             values[property] = rotation.map((r) => (r === null ? null : cyjsAngleDegrees(r)));
+        }
+    }
+}
+
+/**
+ * A label's `text-transform`: `uppercase` and `lowercase` change its words; anything else leaves them.
+ * @param n - the element count
+ * @param transform - each element's transform
+ * @param label - each element's label; changed in place
+ */
+function transformLabels(
+    n: number,
+    transform: readonly (string | null)[] | undefined,
+    label: (StyleValue | null)[] | undefined,
+): void {
+    if (transform === undefined || label === undefined) {
+        return;
+    }
+    for (let i = 0; i < n; i++) {
+        const text = label[i];
+        if (typeof text === "string" && transform[i] === "uppercase") {
+            label[i] = text.toUpperCase();
+        } else if (typeof text === "string" && transform[i] === "lowercase") {
+            label[i] = text.toLowerCase();
         }
     }
 }
@@ -2188,7 +2263,7 @@ function combineEdgeJustification(
     for (let i = 0; i < n; i++) {
         const shift = wrap?.[i] === "wrap" ? SHIFT[justification[i] ?? ""] : undefined;
         if (shift !== undefined) {
-            (values.labelShiftX ??= new Array<StyleValue | null>(n).fill(null))[i] = shift;
+            columnOf(values, "labelShiftX", n)[i] = shift;
         }
     }
 }
@@ -2244,18 +2319,37 @@ function combineLabelDress(
         }
         const border = bordered && labelBorder(kind, i, words, col, notes, at(whole[i]));
         if (box || border) {
-            // the box reaches this far past the words on every side (0 unset), one font size tall a line
-            // (cytoscape.js 3.34.3 `calculateLabelDimensions`), its corners rounded 2px for round-rectangle (`drawText`)
-            col("labelPadding")[i] = num("_backgroundPadding", i, 0);
-            col("labelLineHeight")[i] = 1;
-            const shape = words.get("_backgroundShape")?.[i];
-            if (shape === "round-rectangle" || shape === "roundrectangle") {
-                col("labelCornerRadius")[i] = 2;
-            } else if (shape === "circle") {
-                // a disc as tall as the box, centered on it: no neutral box has that shape
-                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: "circle", element: i });
-            }
+            labelBoxShape(kind, i, words, col, notes);
         }
+    }
+}
+
+/**
+ * A label's box or line round it, sized and shaped: it reaches `text-background-padding` past the words on every
+ * side (0 unset), one font size tall a line (cytoscape.js 3.34.3 `calculateLabelDimensions`), its corners rounded
+ * 2px for round-rectangle (`drawText`); a circle is noted.
+ * @param kind - the target
+ * @param i - the element
+ * @param words - the parts by internal name
+ * @param col - a property's values, created when absent
+ * @param notes - where problems are noted
+ */
+function labelBoxShape(
+    kind: StyleTarget,
+    i: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    col: (p: string) => (StyleValue | null)[],
+    notes: StyleNotes,
+): void {
+    const padding = words.get("_backgroundPadding")?.[i];
+    col("labelPadding")[i] = padding === null || padding === undefined ? 0 : Number(padding);
+    col("labelLineHeight")[i] = 1;
+    const shape = words.get("_backgroundShape")?.[i];
+    if (shape === "round-rectangle" || shape === "roundrectangle") {
+        col("labelCornerRadius")[i] = 2;
+    } else if (shape === "circle") {
+        // a disc as tall as the box, centered on it: no neutral box has that shape
+        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: "circle", element: i });
     }
 }
 
@@ -2321,7 +2415,7 @@ function cyjsAngleDegrees(text: string): number | null {
     if (t === "none" || t === "autorotate") {
         return 0;
     }
-    const m = /^(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(deg|rad)?$/i.exec(t);
+    const m = /^(-?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(deg|rad)?$/i.exec(t);
     if (m === null) {
         return null;
     }
@@ -2418,7 +2512,7 @@ function combineBackgroundGradient(
             col("fillGradientColors")[i] = colors.join(" ");
         }
         const placed = gradientStops(positions?.[i] ?? "");
-        if (placed !== undefined && placed.split(" ").length === colors.length) {
+        if (placed?.split(" ").length === colors.length) {
             col("fillGradientStops")[i] = placed;
         }
         if (radial) {
@@ -2470,78 +2564,131 @@ function edgeRoutes(
             nodeAt.set(el, k);
         }
     });
-    const geometry = (core: number): CyjsRouteNode | null => {
-        const el = graph.nodes[core];
-        const k = nodeAt.get(el);
-        const pos = el.json.position;
-        if (k === undefined || !isObject(pos) || typeof pos.x !== "number" || typeof pos.y !== "number") {
-            return null;
-        }
-        const num = (p: string, fallback: number): number => {
-            const v = nodes.values[p]?.[k];
-            return typeof v === "number" ? v : fallback;
-        };
-        const [w, h, bw] = [num("width", 30), num("height", 30), num("borderWidth", 0)];
-        return {
-            center: [pos.x, pos.y],
-            size: [w + bw, h + bw],
-            box: [w, h],
-            ellipse: (nodes.values.shape?.[k] ?? "ellipse") === "ellipse",
-        };
-    };
-    const rotations = drawnColumn(read, "text-rotation", TEXT_PART);
-    const endRotations: readonly (readonly [string, (StyleValue | null | undefined)[]])[] = [
+    const geometry = (core: number): CyjsRouteNode | null => routeNode(graph.nodes[core], nodeAt, nodes);
+    // an end label's autorotate turns it as the main label's does (cytoscape.js 3.34.3 `calculateLabelAngle`)
+    const turned: readonly (readonly [string, (StyleValue | null | undefined)[]])[] = [
+        ["labelRotation", drawnColumn(read, "text-rotation", TEXT_PART)],
         ["sourceLabelRotation", drawnColumn(read, "source-text-rotation", TEXT_PART)],
         ["targetLabelRotation", drawnColumn(read, "target-text-rotation", TEXT_PART)],
     ];
     const ends = [drawnColumn(read, "source-endpoint", TEXT_PART), drawnColumn(read, "target-endpoint", TEXT_PART)];
     const loops = new Map<string, number>();
+    const n = read.order.length;
     let routed: (StyleValue | null)[] | null = null;
-    for (let k = 0; k < read.order.length; k++) {
+    for (let k = 0; k < n; k++) {
         const e = read.order[k];
-        const loop = e >= 0 && graph.source[e] === graph.target[e];
-        const src = e >= 0 ? geometry(graph.source[e]) : null;
-        const tgt = loop || e < 0 ? src : geometry(graph.target[e]);
-        if (src === null || tgt === null) {
+        const between = edgeNodes(graph, e, geometry);
+        if (between === null) {
             continue;
         }
-        if (rotations[k] === "autorotate" && !loop) {
-            (values.labelRotation ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = lineDegrees(
-                src.center,
-                tgt.center,
-            );
-        }
-        // an end label's autorotate turns it as the main label's does (cytoscape.js 3.34.3 `calculateLabelAngle`)
-        for (const [property, column] of endRotations) {
-            if (column[k] === "autorotate" && !loop) {
-                (values[property] ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = lineDegrees(
-                    src.center,
-                    tgt.center,
-                );
-            }
+        const { src, tgt, loop } = between;
+        if (!loop) {
+            autorotateLabels(values, turned, k, n, lineDegrees(src.center, tgt.center));
         }
         const edge = routeSettings(words, k, curves[k]);
-        let index = 0;
-        if (loop) {
-            const key = `${String(graph.source[e])} ${String(edge.loopDirection)} ${String(edge.loopSweep)}`;
-            index = loops.get(key) ?? 0;
-            loops.set(key, index + 1);
-        }
-        const bends = cyjsRoute(edge, src, tgt, index);
+        const bends = cyjsRoute(edge, src, tgt, loop ? nextLoopIndex(loops, graph.source[e], edge) : 0);
         if (bends !== null) {
-            routed ??= values.bends ?? new Array<StyleValue | null>(read.order.length).fill(null);
+            routed ??= values.bends ?? new Array<StyleValue | null>(n).fill(null);
             routed[k] = bends;
-            (values.curved ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = false;
+            columnOf(values, "curved", n)[k] = false;
         }
         if (!loop) {
             edgePorts(edge.curveStyle, [ends[0][k], ends[1][k]], [src, tgt], (p, port) => {
-                (values[p] ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = port;
+                columnOf(values, p, n)[k] = port;
             });
         }
     }
     if (routed !== null) {
         values.bends = routed;
     }
+}
+
+/**
+ * A node's geometry as the routes measure it: its center, its outer size (its border taken in), its box and whether
+ * it is an ellipse.
+ * @param el - the node
+ * @param nodeAt - each node's output index
+ * @param nodes - the nodes' values
+ * @returns the geometry, or null when the node has no position
+ */
+function routeNode(
+    el: CyjsElement,
+    nodeAt: ReadonlyMap<CyjsElement, number>,
+    nodes: CyjsTargetStyles,
+): CyjsRouteNode | null {
+    const k = nodeAt.get(el);
+    const pos = el.json.position;
+    if (k === undefined || !isObject(pos) || typeof pos.x !== "number" || typeof pos.y !== "number") {
+        return null;
+    }
+    const num = (p: string, fallback: number): number => {
+        const v = nodes.values[p]?.[k];
+        return typeof v === "number" ? v : fallback;
+    };
+    const [w, h, bw] = [num("width", 30), num("height", 30), num("borderWidth", 0)];
+    return {
+        center: [pos.x, pos.y],
+        size: [w + bw, h + bw],
+        box: [w, h],
+        ellipse: (nodes.values.shape?.[k] ?? "ellipse") === "ellipse",
+    };
+}
+
+/**
+ * An edge's two nodes' geometry, and whether it is a loop.
+ * @param graph - the core's elements
+ * @param e - the edge's core index, below 0 for none
+ * @param geometry - a node's geometry
+ * @returns the source's and the target's geometry, or null when either is not known
+ */
+function edgeNodes(
+    graph: CyjsGraph,
+    e: number,
+    geometry: (core: number) => CyjsRouteNode | null,
+): { src: CyjsRouteNode; tgt: CyjsRouteNode; loop: boolean } | null {
+    if (e < 0) {
+        return null;
+    }
+    const loop = graph.source[e] === graph.target[e];
+    const src = geometry(graph.source[e]);
+    const tgt = loop ? src : geometry(graph.target[e]);
+    return src === null || tgt === null ? null : { src, tgt, loop };
+}
+
+/**
+ * Turns each of an edge's labels set to `autorotate` along its line.
+ * @param values - the edges' values; changed in place
+ * @param turned - each label's rotation property and its `text-rotation` words
+ * @param k - the edge's output index
+ * @param n - the edge count
+ * @param degrees - the line's turn
+ */
+function autorotateLabels(
+    values: Record<string, (StyleValue | null)[]>,
+    turned: readonly (readonly [string, (StyleValue | null | undefined)[]])[],
+    k: number,
+    n: number,
+    degrees: number,
+): void {
+    for (const [property, column] of turned) {
+        if (column[k] === "autorotate") {
+            columnOf(values, property, n)[k] = degrees;
+        }
+    }
+}
+
+/**
+ * A loop's place among the loops drawn before it on the same node in the same direction and sweep, which fans them.
+ * @param loops - how many loops each node, direction and sweep has so far; changed in place
+ * @param source - the loop's node
+ * @param edge - the loop's settings
+ * @returns its place, from 0
+ */
+function nextLoopIndex(loops: Map<string, number>, source: number, edge: CyjsRouteEdge): number {
+    const key = `${String(source)} ${String(edge.loopDirection)} ${String(edge.loopSweep)}`;
+    const index = loops.get(key) ?? 0;
+    loops.set(key, index + 1);
+    return index;
 }
 
 /**
@@ -2589,8 +2736,8 @@ function endpointPort(text: string, node: CyjsRouteNode): string | null {
     const [w, h] = node.size;
     const r6 = (v: number): string => String(Math.round(v * 1e6) / 1e6 + 0);
     const fraction = (part: string, size: number): number | null => {
-        const m = /^(-?(?:\d+\.?\d*|\.\d+))(%|px)?$/.exec(part);
-        if (m === null || !(size > 0)) {
+        const m = /^(-?(?:\d+(?:\.\d*)?|\.\d+))(%|px)?$/.exec(part);
+        if (m === null || Number.isNaN(size) || size <= 0) {
             return null;
         }
         const px = m[2] === "%" ? (Number(m[1]) / 100) * size : Number(m[1]);
@@ -2600,7 +2747,7 @@ function endpointPort(text: string, node: CyjsRouteNode): string | null {
         const [x, y] = [fraction(parts[0], w), fraction(parts[1], h)];
         return x === null || y === null ? null : `${r6(x)},${r6(-y)}`;
     }
-    const m = /^(-?(?:\d+\.?\d*|\.\d+))(deg|rad)$/.exec(t);
+    const m = /^(-?(?:\d+(?:\.\d*)?|\.\d+))(deg|rad)$/.exec(t);
     if (m === null) {
         return null;
     }
@@ -2677,7 +2824,8 @@ function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (St
             col("labelPaddingY")[k] = pad;
             ["width", "height"].forEach((p, a) => {
                 const v = values[p]?.[k];
-                col(p)[k] = fitted[a] ? 0 : (typeof v === "number" ? v : 30) + 2 * pad;
+                const side = typeof v === "number" ? v : 30;
+                col(p)[k] = fitted[a] ? 0 : side + 2 * pad;
             });
             continue;
         }
@@ -2878,7 +3026,7 @@ function combineArrowFills(
             if (open !== undefined) {
                 shapes[i] = open;
             } else if (!String(shape).includes("open")) {
-                const property = p.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`).replace("-arrow", "-arrow-fill");
+                const property = p.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`).replace("-arrow", "-arrow-fill");
                 notes.add(STYLE_ISSUE.NOT_CARRIED, "edge", property, { sample: `hollow ${String(shape)}`, element: i });
             }
         }

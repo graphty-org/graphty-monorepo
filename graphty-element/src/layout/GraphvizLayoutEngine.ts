@@ -173,6 +173,26 @@ export function graphvizAttributes(
     return out;
 }
 
+/** twopi's default ring spacing (1 inch) per inch of Graphviz's default node width (0.75 inch). */
+const TWOPI_RANKSEP_PER_INCH = 4 / 3;
+
+/**
+ * The widest drawn node, in scene units (inches to Graphviz).
+ * @param sizes - the drawn size of each node; NaN for a row no node answers
+ * @returns the widest, 1 when no row has a size
+ */
+function widest(sizes: ArrayLike<number> | undefined): number {
+    let max = 0;
+    for (let i = 0; i < (sizes?.length ?? 0); i++) {
+        const size = sizes?.[i] ?? Number.NaN;
+        if (Number.isFinite(size) && size > max) {
+            max = size;
+        }
+    }
+
+    return max > 0 ? max : 1;
+}
+
 /**
  * Lay a graph out with one Graphviz engine in a Worker.
  * @param engine - the engine
@@ -210,7 +230,13 @@ async function computeWith(
     const scale = options.scale as number;
     const sizes = input.nodeSizes?.().map((size) => size / scale);
     const extents = input.nodeExtents?.().map((size) => size / scale);
-    const dot = toDot(input.stored, attributes, sizes, extents, skip);
+    // twopi spaces its rings `ranksep` apart (1 inch by default) whatever the nodes' size, which
+    // fits Graphviz's 0.75-inch default node; scale it to the widest node the element draws.
+    if (engine === "twopi" && attributes.ranksep === undefined) {
+        attributes.ranksep = String(TWOPI_RANKSEP_PER_INCH * widest(sizes));
+    }
+
+    const dot = toDot(input.stored, attributes, sizes, extents, skip, engine === "patchwork");
     const { probeGraphviz, runGraphviz } = await import("./graphviz/host");
     if (!(await probeGraphviz())) {
         throw graphvizError("graphviz.unavailable", { engine });

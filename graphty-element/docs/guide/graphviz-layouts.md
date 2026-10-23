@@ -63,7 +63,10 @@ those graph attributes to Graphviz as they are. The typed options win over the s
 
 Each node is given to Graphviz as a circle as wide as graphty-element draws it (one scene unit is
 one inch to Graphviz), with no label. Edge routes are not used: graphty-element draws its own
-edges between the placed nodes.
+edges between the placed nodes. Two engines do not space nodes by their width, so graphty-element
+sizes what they do read: patchwork gets each node an `area` whose cell fits the drawn node, and
+twopi's rings are `ranksep` apart scaled to the widest drawn node, unless `attributes` sets
+`ranksep`.
 
 ## DOT files
 

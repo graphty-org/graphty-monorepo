@@ -1382,7 +1382,7 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     let scene: number;
     if (nodeMedian !== null) {
         scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
-    } else if (labelMedian !== null && sides.some((side) => side === 0)) {
+    } else if (labelMedian !== null && sides.includes(0)) {
         scene = labelLetterHeight(labelBase) / labelMedian;
     } else {
         scene = (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);

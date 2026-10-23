@@ -37,8 +37,11 @@ const SAFETY_ROUNDS = A.safetyRounds || 6;
 const START_ROUND = A.startRound || 1;
 const SKIP_PREPARE = !!A.skipPrepare;
 const MAX_SESSIONS = A.maxSessions || 56;
-// Never above 4: in tier 2 round 1 more than four sessions ran at once (load about 158) and clicks timed out.
-const SLOTS = Math.min(A.browserSlots || 4, 4);
+// Browser-driving agents alive at once. Study browsers draw on the GPU (real.mjs), where an idle graphty
+// page costs 27-51% CPU instead of SwiftShader's 550-690%: eight GPU sessions used 6.8 GB and about
+// 110% of one core idle (2026-10-21). In tier 2 round 1, more than four SOFTWARE-drawn sessions at once
+// (load about 158) timed clicks out; the gate (with-browser.sh) holds the real cap, 16 at most.
+const SLOTS = Math.min(A.browserSlots || 8, 16);
 // Tier 3 ran five dry-run passes over about three days with no session; the bar held after pass 2 or 3.
 const DRY_RUN_PASSES = A.dryRunPasses || 2;
 const MAX_DECISIONS = A.maxDecisions || 15;
@@ -46,6 +49,10 @@ const USERS = A.users || "returning"; // 'returning' or 'first-time': how partic
 const FOCUS = A.focus || `the ${NAME} study described in ${T}/criteria.md`;
 const SERVER = A.serverName || `design-studio-tier${TIER}`;
 const BUILDS = A.buildsDir || ROOT + "/.study-builds";
+// Pilot, dry-run, readiness and tool-check walks write their screenshots and step files here, in the
+// main checkout's tmp/ (git ignores it); only their report.md stays in the studio's files. On
+// 2026-10-21 golden held 83,000 walk screenshots (9.9 GB in Git LFS) committed with the reports.
+const WALKS = A.walksDir || `${ROOT}/tmp/design-studio/tier${TIER}`;
 const READING = (A.reading || [`${SD}/report.md`]).join(", ");
 const LAND = A.land !== false;
 // Land every fix pass on master (golden-local): tier 3's 526 fix commits stayed on the studio branch,
@@ -64,7 +71,7 @@ const REJECTED = `${T}/rejected-fixes.md`;
 const RULES = `
 RULES FOR EVERY AGENT:
 - Plain ASCII only (-- not em dashes, straight quotes). American spelling. Write for a stranger: no internal IDs or process narration in documents.
-- Work only in the studio worktree ${ST} (branch ${BRANCH}). Never run git stash (not even git stash list), checkout, switch, reset, restore or rebase anywhere: a subagent's permission prompt is never answered and the run hangs. Never touch the main checkout ${ROOT} except reading; never force-push. If a command hangs for a minute, stop it and move on.
+- Work only in the studio worktree ${ST} (branch ${BRANCH}). Never run git stash (not even git stash list), checkout, switch, reset, restore or rebase anywhere: a subagent's permission prompt is never answered and the run hangs. Never touch the main checkout ${ROOT} except reading, and writing walk screenshots and step files under ${WALKS}; never force-push. If a command hangs for a minute, stop it and move on.
 - Commits: plain signed git commit that runs the real pre-commit and commit-msg hooks but not the interactive prepare-commit-msg: t=${ST}/tmp/<your task>/hooks; rm -rf "$t"; mkdir -p "$t"; cp -r ${ST}/.husky/. "$t"; rm -f "$t/prepare-commit-msg"; git -c core.hooksPath="$t/_" commit ... (never mktemp into /tmp: the newest /tmp/tmp.* is often another process's file) (husky's .husky/_/h runs the script one folder ABOVE its own, so copying only .husky/_ silently skips every hook); never --no-verify, HUSKY=0 or core.hooksPath=/dev/null; conventional message; no Co-Authored-By, Claude-Session or "Generated with" lines; stage only your own files (other agents commit in the same worktree).
 - Studies run ONLY on the frozen build named on the first line of ${T}/criteria.md (real.mjs serves it with REAL_DIST=<that dir>; see ${SD}/tool/README.md). Never change a frozen build. Browsers only through ${SD}/tool/with-browser.sh (${SLOTS} machine-wide); one browser per agent; always --end a session you started.
 - Architecture (${ROOT}/CLAUDE.md "Architectural Principles"): graphty-element owns all graph functionality and returns neutral facts ({ code, params }), never English; the app owns all words, grouping and order; shared UI is fixed in compact-mantine, never with a bespoke control. Never work around an element defect in the app. Node and edge appearance only through style layers. graphty-element offers choices with neutral defaults; consumers make them.
@@ -299,7 +306,8 @@ async function freezeBuild(tag, phaseName, withGolden) {
 // browser slot was free, and a skipped route reads as a clean one.
 // touched: after a fix pass, the routes the fixes touched. The re-pilot then walks only the success
 // path plus those routes: tier 3's full re-walks kept finding friction the session-ready bar does not need.
-async function pilotAll(tag, phaseName, prevRound, sameAs, touched) {
+const id0 = () => "<task id>";
+async function pilotAll(tag, phaseName, prevRound, sameAs, touched, prevPilots) {
     const pastTurns = prevRound
         ? "the wrong turns participants took on this task in " +
           prevRound +
@@ -326,14 +334,59 @@ async function pilotAll(tag, phaseName, prevRound, sameAs, touched) {
     const walks = touched
         ? ` THIS IS A TARGETED RE-PILOT after a fix pass. Instead of the three walks below, walk ONLY (1) the success path by pointer and (2) each of these routes the fixes touched that belongs to this task, each its own session: ${JSON.stringify(touched)}. Report only what crashes, blocks the task, or gives a wrong result that would spoil its grading.`
         : "";
-    const pilot = (id, k) =>
+    // Every walk saves its route (route.jsonl). A walk an earlier pass already made is replayed, not
+    // re-walked by hand: the replay runs every step that still matches with no model, and stops,
+    // session open, where the build now differs (tool/README.md, "Replaying a route").
+    const replayNote = ` SPEED: where an earlier pass walked the same route (a folder with route.jsonl under ${WALKS}/*/pilot/${id0()}/, newest first), start that walk with \`node ${SD}/tool/real.mjs --replay <that walk folder> <your new walk folder>\` instead of stepping by hand: it replays every step whose screen still matches and stops at the first that differs, leaving the session open on that screen for you to look at and carry on by hand (exit 5); exit 0 means the whole route matched and the session is ended. Batch the steps you are sure of into one --step (one screenshot), and look at every screenshot where something is new.`;
+    // The note on an earlier pass's walks that were already replayed on this build, or "".
+    const rewalkNote = (id, rewalked) =>
+        rewalked
+            ? " The earlier pass's walks of this task were already replayed on this build (" +
+              `${WALKS}/${tag}/pilot/${id}/rewalk.json): these matched every check point to the end, so the earlier pass's findings for them stand and you need not walk them again: ${JSON.stringify(rewalked.matched)}; these DIVERGED, each kept as <walk>-diverged: ${JSON.stringify(rewalked.diverged)}. Walk each diverged one again with --replay of its earlier folder into <walk> (it stops, open, where the build differs) and carry on by hand; then the success path's and touched routes' verdicts come from those walks plus the matched ones.`
+            : "";
+    const pilot = (id, k, rewalked) =>
         slot(() =>
             agent(
-                `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md, its success path in ${T}/answers.md and the binding decisions in ${DECIDED}; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way.${walks} Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects (where ${DECIDED} settles a behavior, check against it and do not report the decided behavior as a defect). A dry run that passes on the answer key's route is necessary but not sufficient. Walk EVERY route: no free browser slot is a reason to wait for with-browser.sh, never to skip; list anything you did not walk in "skipped". Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), skipped, every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.${k ? " (An earlier attempt left routes unwalked: walk all of them now.)" : ""}`,
+                `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md, its success path in ${T}/answers.md and the binding decisions in ${DECIDED}; walk it with real.mjs (REAL_DIST set; sessions under ${WALKS}/${tag}/pilot/${id}/, never in the studio's files: real.mjs refuses a walk folder there), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way.${walks}${replayNote.replace(id0(), id)}${rewalkNote(id, rewalked)} Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects (where ${DECIDED} settles a behavior, check against it and do not report the decided behavior as a defect). A dry run that passes on the answer key's route is necessary but not sufficient. Walk EVERY route: no free browser slot is a reason to wait for with-browser.sh, never to skip; list anything you did not walk in "skipped". Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths as plain text under ${WALKS}, not image links: the screenshots stay out of git). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), skipped, every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.${k ? " (An earlier attempt left routes unwalked: walk all of them now.)" : ""}`,
                 { label: `${tag} pilot: ${id}${k ? " again" : ""}`, phase: phaseName, schema: PILOT },
             ),
         );
-    const res = await parallel(idList.map((id) => () => pilot(id, 0)));
+    // A targeted re-pilot first replays the earlier pass's walks of each task with no model
+    // (real.mjs --rewalk). A task whose every route matched keeps the earlier pass's result; only a
+    // task with a diverged route gets a pilot agent, which carries on from where the build differs.
+    const rewalkTask = (id) =>
+        slot(() =>
+            agent(
+                `Run exactly this one command and change nothing: cd ${T} && REAL_DIST=<the frozen build dir from the first line of ${T}/criteria.md> REAL_REWALK_PARALLEL=2 node ${SD}/tool/real.mjs --rewalk ${WALKS}/${sameAs}/pilot/${id} ${WALKS}/${tag}/pilot/${id} (called directly, never through with-browser.sh: its sessions take their own slots). Then read ${WALKS}/${tag}/pilot/${id}/rewalk.json if it exists. Return ran (true if rewalk.json exists), matched (the walks with no "diverged") and diverged (the walks with one, each as "<walk>: step <n>: <why, 200 chars>").`,
+                {
+                    label: `${tag} rewalk: ${id}`,
+                    phase: phaseName,
+                    effort: "low",
+                    schema: {
+                        type: "object",
+                        properties: {
+                            ran: { type: "boolean" },
+                            matched: { type: "array", items: { type: "string" } },
+                            diverged: { type: "array", items: { type: "string" } },
+                        },
+                        required: ["ran"],
+                    },
+                },
+            ),
+        );
+    const earlier = (id) => (prevPilots || []).find((p) => p && p.task === id);
+    const res = await parallel(
+        idList.map((id) => async () => {
+            if (!touched || !sameAs) return pilot(id, 0);
+            const rw = await rewalkTask(id);
+            if (!rw?.ran || !(rw.matched || []).length) return pilot(id, 0);
+            if (!(rw.diverged || []).length && earlier(id)) {
+                log(`${tag}: ${id}: every earlier route replayed unchanged; the earlier pass's result stands`);
+                return { ...earlier(id), skipped: [] };
+            }
+            return pilot(id, 0, rw);
+        }),
+    );
     const incomplete = (i) => !res[i] || (res[i].skipped || []).length > 0;
     for (let k = 1; k <= 2; k++) {
         const redo = idList.map((id, i) => i).filter(incomplete);
@@ -386,7 +439,7 @@ async function fixGroup(g, tag, phaseName) {
     const ids = g.items.map((u) => u.id).join(", ");
     const chk = await slot(() =>
         agent(
-            `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path.`,
+            `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Where the latest pilot walked a route (a folder with route.jsonl under ${T}/rounds/*/pilot/), start it with \`node ${SD}/tool/real.mjs --replay <that walk folder> <your session folder>\`: it replays, with no model, every step whose screen still matches and stops, session open, at the first that differs (exit 5) -- that is where the fix shows; look there and carry on by hand. Batch steps you are sure of into one --step. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path.`,
             { label: `${tag}: re-walk ${ids}`.slice(0, 80), phase: phaseName, schema: CHECK },
         ),
     );
@@ -541,7 +594,7 @@ async function dryRun(tag, phaseName, pilots, prevRound) {
         build = await freezeBuild(`${tag}d${d}`, phaseName);
         log(`${tag}: dry-run build ${d}: ${build?.url || "not served"} (commit ${build?.sha || "?"})`);
         const touched = [...new Set(units.flatMap((u) => u.routes || u.tasks || []))];
-        pilots = await pilotAll(`${tag}d${d}`, phaseName, prevRound, tag, touched);
+        pilots = await pilotAll(`${tag}d${d}`, phaseName, prevRound, tag, touched, pilots);
     }
 }
 
@@ -553,19 +606,20 @@ async function dryRun(tag, phaseName, pilots, prevRound) {
 const TOOL_CHECK = (
     RD,
 ) => `Check mechanically, on the frozen build, before any session (read ${SD}/tool/README.md first):
-1. The browser gate: start six sessions at once through ${SD}/tool/with-browser.sh; a one-second poll never shows more than ${SLOTS} studio browsers alive; the gate refuses BROWSER_SLOTS above 4; every session is ended afterwards.
+1. The browser gate: start ${SLOTS + 2} sessions at once (real.mjs --start, which takes its own slot through ${SD}/tool/with-browser.sh); a one-second poll never shows more than ${SLOTS} studio browsers alive (count the real.mjs --serve and --warm processes); the gate refuses BROWSER_SLOTS above 16; every session is ended afterwards.
 2. The matcher: a click on a name that matches more than one control is refused with the candidate list, never resolved to the first match.
 3. File drop: a file dropped on the start screen opens in the app (a real file chooser or setInputFiles, not synthetic events); where the tool cannot deliver it, it prints that the drop was not delivered.
 4. The tool walks each task's commonest detours (the dry-run reports under ${T}/rounds/*/pilot/) without a tool error.
 5. Participants cannot reach facilitator files: \`node ${SD}/tool/real.mjs --brief ${RD}/sessions/<id>\` for one planned session prints a briefing outside the studio's files (under ${ST}/tmp/studio-sessions/) holding only that participant's persona, history, prompt and start command: no answer key, facilitator notes, follow-up prompt, avoided-words list or criteria; \`--start ${RD}/sessions/<id>\` is refused; and the --prove checks "a participant transcript that opens tasks.md voids the session, by name" and "an end copies the session into the round's folder" pass.
-6. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that EXISTS, FAILS on a planted failure of its own, and runs on the frozen build. A script that reads zero items fails.`;
+6. Every bar in ${T}/criteria.md that is scored by a script (or a check, count or lister) names a script that EXISTS, FAILS on a planted failure of its own, and runs on the frozen build. A script that reads zero items fails.
+7. The fast paths: every session started for these checks names a GPU renderer in its session.json ("renderer", not SwiftShader); a second --start of the frozen build after the first took over a warm browser (its session.log says "took over warm browser"); \`real.mjs --replay\` of one pilot walk that holds a route.jsonl (under ${WALKS}/*/pilot/) runs on the frozen build and either matches to the end or stops at a named step with the session left open (then --end it); and the --prove checks "a batch stops at its first miss", "a replay of an unchanged route matches every check point", "a replay stops at the first step whose check points differ", "a rewalk replays every route" and "the next start of the same build takes over the warm browser" pass; \`node --test ${SD}/tool/with-browser.test.mjs\` passes.`;
 async function toolDryRun(tag, RD, phaseName) {
     for (let k = 1; k <= 2; k++) {
         const c = await slot(() =>
             agent(
                 `${RULES}
 TOOL DRY RUN ${k} before the ${NAME} ${tag} sessions. ${TOOL_CHECK(RD)}
-Change nothing. Write ${RD}/tool-dry-run-${k}.md. Return ok (all pass), every problem, and a summary.`,
+Start every session these checks need under ${WALKS}/${tag}/tool-check-${k}/, never in the studio's files. Change nothing. Write ${RD}/tool-dry-run-${k}.md. Return ok (all pass), every problem, and a summary.`,
                 {
                     label: `${tag}: tool dry run ${k}`,
                     phase: phaseName,
@@ -596,7 +650,7 @@ Change nothing. Write ${RD}/tool-dry-run-${k}.md. Return ok (all pass), every pr
 
 const commitDocs = (msg, label, phaseName) =>
     agent(
-        `${RULES}\nCommit the studio documents (${SD.replace(ST + "/", "")}/ except tmp/) as one signed commit "${msg}". Stage only that directory.`,
+        `${RULES}\nCommit the studio documents (${SD.replace(ST + "/", "")}/ except tmp/) as one signed commit "${msg}". Stage only that directory, and never a walk's screenshots or step files (they belong under ${WALKS}; .gitignore keeps them out of the pilot and dry-run folders).`,
         { label, phase: phaseName, effort: "low" },
     );
 
@@ -869,7 +923,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
     await landPass(`round ${r} fixes`, "Round");
     build = await freezeBuild(`r${r + 1}`, "Round", true);
     log(
-        `${NAME} build for round ${r + 1}: ${build?.url || "not served"} (commit ${build?.sha || "?"}); pilot screenshots in ${T}/rounds/r${r + 1}/pilot/`,
+        `${NAME} build for round ${r + 1}: ${build?.url || "not served"} (commit ${build?.sha || "?"}); pilot screenshots in ${WALKS}/r${r + 1}/pilot/`,
     );
     const dr = await dryRun(`r${r + 1}`, "Round", await pilotAll(`r${r + 1}`, "Round", RD), RD);
     await parallel(

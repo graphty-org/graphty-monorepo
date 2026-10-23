@@ -30,7 +30,7 @@ import {
     type PatternShapeType,
     type PatternType,
 } from "./PatternedLineRenderer";
-import { type WaveShape, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
+import { type WaveShape, WHOLE_PERIOD, type ZigzagPiece, zigzagPieceKey } from "./shapeOutlines";
 
 /**
  * Centre-to-centre distance between two consecutive elements of a discrete pattern.
@@ -660,7 +660,7 @@ export class PatternedLineMesh {
      * @param piece - How much of its period a wave's element draws, and its caps
      * @returns The element: a slot in its shape's batch
      */
-    private createPatternElement(meshIndex: number, piece: ZigzagPiece = { stretch: "period" }): ArrowCap {
+    private createPatternElement(meshIndex: number, piece: ZigzagPiece = WHOLE_PERIOD): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
         // Phase 3: For multi-shape patterns, determine which shape to use based on index
@@ -679,10 +679,7 @@ export class PatternedLineMesh {
             this.color,
             this.opacity,
             this.scene,
-            shapeType,
-            this.is2DMode,
-            this.wave,
-            piece,
+            { shapeType, is2DMode: this.is2DMode, wave: this.wave, piece },
         );
     }
 }

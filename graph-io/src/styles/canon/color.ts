@@ -405,8 +405,32 @@ function cssColor(text: string): { hex: StyleColor; alpha: number } | null {
     return hexColor(text, false) ?? cssFunction(text);
 }
 
-/** sigma.js's `rgb()` / `rgba()` reader: integer channels, no space before the `)` (sigma/utils parseColor). */
-const SIGMA_RGBA = /^\s*rgba?\s*\(\s*(\d*)\s*,\s*(\d*)\s*,\s*(\d*)(?:\s*,\s*(.*)?)?\)\s*$/;
+/**
+ * sigma.js's `rgb()` / `rgba()` reader (sigma/utils parseColor, the regex
+ * `^\s*rgba?\s*\(\s*(\d*)\s*,\s*(\d*)\s*,\s*(\d*)(?:\s*,\s*(.*)?)?\)\s*$`), read without backtracking: integer
+ * channels, no space before the `)` unless an alpha follows, the alpha on one line.
+ * @param text - the value
+ * @returns the three channels' digits and the alpha's text (empty when none), or null
+ */
+function sigmaRgba(text: string): [string, string, string, string] | null {
+    const t = text.trim();
+    const head = /^rgba?\s*\(/.exec(t);
+    if (head === null || !t.endsWith(")")) {
+        return null;
+    }
+    const parts = t.slice(head[0].length, -1).split(",");
+    if (parts.length < 3) {
+        return null;
+    }
+    const alpha = parts.slice(3).join(",").trimStart();
+    // the third channel runs up to the `)` when no alpha follows it
+    const third = parts.length > 3 ? parts[2].trim() : parts[2].trimStart();
+    const channels = [parts[0].trim(), parts[1].trim(), third];
+    if (!channels.every((c) => /^\d*$/.test(c)) || /[\n\r\u2028\u2029]/.test(alpha)) {
+        return null;
+    }
+    return [channels[0], channels[1], channels[2], alpha];
+}
 
 /**
  * A color as sigma.js 4.0.1 reads it (sigma/utils parseColor), untrimmed: `transparent`, the 148 HTML color names in
@@ -436,12 +460,12 @@ function sigmaColor(text: string): { color: StyleColor; alpha: number; read: boo
             a = Number.parseInt(text.slice(7, 9), 16) / 255;
         }
     } else {
-        const m = SIGMA_RGBA.exec(text);
+        const m = sigmaRgba(text);
         if (m !== null) {
             read = true;
-            rgb = [Number(m[1]), Number(m[2]), Number(m[3])];
-            if (m[4]) {
-                a = Number(m[4]);
+            rgb = [Number(m[0]), Number(m[1]), Number(m[2])];
+            if (m[3]) {
+                a = Number(m[3]);
             }
         }
     }
@@ -573,16 +597,7 @@ export function canonColor(
         return graphvizCanon(text, dialect === "x11" ? "x11" : "graphviz", site, options);
     }
     if (dialect === "graphology") {
-        if (typeof raw !== "string") {
-            // sigma throws while drawing a color that is not a string
-            noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
-            return null;
-        }
-        const c = sigmaColor(text);
-        if (!c.read) {
-            noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
-        }
-        return { color: c.color, alpha: c.alpha };
+        return graphologyColor(raw, text, site);
     }
     const c = textColor(text.trim(), dialect);
     if (c === null) {
@@ -590,6 +605,26 @@ export function canonColor(
         return null;
     }
     return { color: c.hex, alpha: c.alpha };
+}
+
+/**
+ * A graphology color as sigma.js draws it; a value that is not a string is no color, as sigma throws drawing it.
+ * @param raw - the file's value
+ * @param text - the value as text
+ * @param site - where it was read
+ * @returns the color and its alpha, or null
+ */
+function graphologyColor(raw: unknown, text: string, site: CanonSite): CanonColor | null {
+    if (typeof raw !== "string") {
+        // sigma throws while drawing a color that is not a string
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
+        return null;
+    }
+    const c = sigmaColor(text);
+    if (!c.read) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
+    }
+    return { color: c.color, alpha: c.alpha };
 }
 
 /**

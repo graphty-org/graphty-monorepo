@@ -20,6 +20,7 @@ import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh, sceneLighting } from "./NodeLighting";
 import {
     bodilessSlab,
     fitNodeMesh,
@@ -331,6 +332,9 @@ export class NodeMesh {
 
             const material = this.createMaterial(createOptions, options.is2D, scene);
             mesh.material = material;
+            if (isNodeMaterial(material)) {
+                outlineNodeMesh(mesh, sceneLighting(scene));
+            }
 
             if (
                 createOptions.texture?.color &&
@@ -717,15 +721,18 @@ export class NodeMesh {
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
-            const outline =
-                own !== undefined && isFlatShape(own)
-                    ? flatShapeOutline(
-                          own,
-                          (sized.x ?? sized.across) + 2 * pad,
-                          (sized.y ?? sized.across) + 2 * pad,
-                          corner,
-                      )
-                    : offsetOutline(flat ? this.flatOutline(shape, sized) : this.solidOutline(fill), pad);
+            let outline: Point2[];
+            if (own !== undefined && isFlatShape(own)) {
+                outline = flatShapeOutline(
+                    own,
+                    (sized.x ?? sized.across) + 2 * pad,
+                    (sized.y ?? sized.across) + 2 * pad,
+                    corner,
+                );
+            } else {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                outline = offsetOutline(nodeOutline, pad);
+            }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
             const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
@@ -985,6 +992,7 @@ export class NodeMesh {
                 mat.emissiveTexture = gradientTexture;
             } else {
                 mat.diffuseTexture = gradientTexture;
+                lightNodeMaterial(mat, sceneLighting(scene));
             }
         } else if (color3) {
             if (unlit) {
@@ -992,8 +1000,9 @@ export class NodeMesh {
                 mat.emissiveColor = color3;
             } else {
                 mat.diffuseColor = color3;
-                // Add emissive for minimum brightness on shadowed surfaces
-                mat.emissiveColor = color3.scale(0.2);
+                // The emissive floor (minimum brightness on shadowed surfaces), the studio rim, or
+                // flat: whatever the scene's lighting asks of a node material.
+                lightNodeMaterial(mat, sceneLighting(scene));
 
                 // THE COLOUR ABOVE IS USUALLY NEUTRAL WHITE, because nodes that differ only in
                 // colour share this material and carry their own colour in a per-instance buffer

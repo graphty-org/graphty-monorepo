@@ -518,8 +518,7 @@ function heads(
     if (shape === "none") {
         return {};
     }
-    const n = num(type);
-    const k = n === null ? ARROW_ORDER.indexOf(shape) : n;
+    const k = num(type) ?? ARROW_ORDER.indexOf(shape);
     const length = ARROW_LENGTHS[k] ?? ARROW_LENGTHS[1];
     return { [`${end}HeadLength`]: length * size, [`${end}HeadWidth`]: ARROW_WIDTH * size };
 }

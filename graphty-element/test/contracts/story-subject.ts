@@ -197,8 +197,13 @@ function written(story: StoryDeclaration, fileChannels: readonly string[]): { wo
         found.add("color");
     }
 
-    // A label style's gradient fills the panel behind its words: it is that label's background (`labelBackground`).
-    if (found.has("gradient") && found.has("label")) {
+    // A label style's gradient fills the panel behind its words: it is that label's background
+    // (`labelBackground`), so it shows "background" the way a hex in its `background` field does.
+    // `Styles/Label::BackgroundGradient` paints one with no field of that name.
+    if (
+        story.labelFields.some((field) => words(field).includes("gradient")) ||
+        (found.has("gradient") && found.has("label"))
+    ) {
         found.add("background");
     }
 

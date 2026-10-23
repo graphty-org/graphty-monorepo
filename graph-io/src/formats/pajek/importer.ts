@@ -1066,6 +1066,58 @@ class PajekParser {
      */
     private vertexLine(text: string, line: number): void {
         const tokens = this.tokens(text, "node", line);
+        const { k, pos } = this.vertexNumber(tokens, line);
+        // parse everything before writing anything
+        let i = 1;
+        let label: string | null = null;
+        if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
+            label = this.labelOf(tokens[1], k, line);
+            i = 2;
+        }
+        const { xyz, dims, next } = this.vertexCoordinates(tokens, i, k);
+        i = next;
+        this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
+        let shape: string | null = null;
+        if (i < tokens.length && isShapeKeyword(tokens[i])) {
+            shape = tokens[i].toLowerCase();
+            i++;
+        }
+        const extras = this.extras(tokens, i, "node", line);
+        shape = extras.shape ?? shape;
+        const restored = this.restoredId(extras);
+        this.createNodes();
+        // write
+        const repeated = this.markVertexSeen(pos, k, line);
+        const index = this.vertexIndex(pos, k, label, restored, repeated, line);
+        if (shape === null && dims > 0 && extras.keys.length > 0 && VOIDING_KEYS.has(extras.keys[0])) {
+            this.voided.push(index);
+        }
+        if (label !== null) {
+            this.labelHandle = this.nodeHandle(this.labelHandle, LABEL_DECL, line);
+            this.sink.setNodeValue(this.labelHandle, index, label);
+        }
+        if (dims > 0) {
+            this.writePosition(index, dims, xyz, k, line);
+        }
+        if (shape !== null) {
+            this.writeShape(index, shape, line);
+        }
+        for (let p = 0; p < extras.keys.length; p++) {
+            this.writeParameter("node", extras.keys[p], index, extras.values[p]);
+        }
+        if (extras.spells !== null) {
+            this.nodeSpellsHandle = this.nodeHandle(this.nodeSpellsHandle, spellsDecl(), line);
+            this.sink.setNodeValue(this.nodeSpellsHandle, index, extras.spells);
+        }
+    }
+
+    /**
+     * A vertex line's number, checked: it starts the line and is in the declared range.
+     * @param tokens - the line's tokens
+     * @param line - the line number
+     * @returns the vertex number and its position
+     */
+    private vertexNumber(tokens: readonly string[], line: number): { k: number; pos: number } {
         if (!isVertexNumber(tokens[0])) {
             this.report.counts.skippedNodes++;
             throw new LineError(
@@ -1088,28 +1140,30 @@ class PajekParser {
                 `vertex ${k} is outside ${this.base}..${this.base + this.vertexCount - 1}`,
             );
         }
-        // parse everything before writing anything
-        let i = 1;
-        let label: string | null = null;
-        if (tokens.length > 1 && !startsWithCoordinates(text, tokens)) {
-            label = this.labelOf(tokens[1], k, line);
-            i = 2;
-        }
-        let x = 0;
-        let y = 0;
-        let z = 0;
-        let dims = 0;
+        return { k, pos };
+    }
+
+    /**
+     * A vertex line's coordinates: two or three numbers, or none; a single one is an error.
+     * @param tokens - the line's tokens
+     * @param i - where the coordinates would start
+     * @param k - the vertex number
+     * @returns x, y and z (0 when absent), how many were read, and the index after them
+     */
+    private vertexCoordinates(
+        tokens: readonly string[],
+        i: number,
+        k: number,
+    ): { xyz: [number, number, number]; dims: number; next: number } {
         if (i + 1 < tokens.length && isNumericText(tokens[i]) && isNumericText(tokens[i + 1])) {
-            x = Number(tokens[i]);
-            y = Number(tokens[i + 1]);
-            i += 2;
-            dims = 2;
-            if (i < tokens.length && isNumericText(tokens[i])) {
-                z = Number(tokens[i]);
-                i++;
-                dims = 3;
+            const x = Number(tokens[i]);
+            const y = Number(tokens[i + 1]);
+            if (i + 2 < tokens.length && isNumericText(tokens[i + 2])) {
+                return { xyz: [x, y, Number(tokens[i + 2])], dims: 3, next: i + 3 };
             }
-        } else if (i < tokens.length && isNumericText(tokens[i])) {
+            return { xyz: [x, y, 0], dims: 2, next: i + 2 };
+        }
+        if (i < tokens.length && isNumericText(tokens[i])) {
             this.report.counts.skippedNodes++;
             throw new LineError(
                 "parse-error",
@@ -1117,39 +1171,60 @@ class PajekParser {
                 `vertex ${k}: a single coordinate "${tokens[i]}"; coordinates are x y [z]`,
             );
         }
-        this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
-        let shape: string | null = null;
-        if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
-            i++;
-        }
-        const extras = this.extras(tokens, i, "node", line);
-        shape = extras.shape ?? shape;
-        const restored = this.restoredId(extras);
-        this.createNodes();
-        // write
-        const repeated = this.seen[pos] !== 0;
-        if (repeated) {
+        return { xyz: [0, 0, 0], dims: 0, next: i };
+    }
+
+    /**
+     * Marks a vertex's position as having a line, warning when it already had one.
+     * @param pos - the vertex's position
+     * @param k - the vertex number
+     * @param line - the line number
+     * @returns whether the vertex already had a line
+     */
+    private markVertexSeen(pos: number, k: number, line: number): boolean {
+        if (this.seen[pos] !== 0) {
             this.report.warning(
                 "merged",
                 PAJEK_ISSUE.DUPLICATE_NODE,
                 `vertex ${k} has more than one line; the later values overwrite`,
                 { line, element: String(k) },
             );
-        } else {
-            this.seen[pos] = 1;
-            this.seenCount++;
+            return true;
         }
-        let index: number;
-        if (this.idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
-            index = this.deferredNode(this.idOfPos, pos, k, label, line, "label");
-        } else if (this.idOfPos !== null && this.idOfPos[pos] === undefined) {
+        this.seen[pos] = 1;
+        this.seenCount++;
+        return false;
+    }
+
+    /**
+     * The node index a vertex line writes to, creating the node when its id is deferred to its line.
+     * @param pos - the vertex's position
+     * @param k - the vertex number
+     * @param label - the line's label, or null
+     * @param restored - the original id the line carries, or null
+     * @param repeated - whether the vertex already had a line
+     * @param line - the line number
+     * @returns the node index
+     */
+    private vertexIndex(
+        pos: number,
+        k: number,
+        label: string | null,
+        restored: string | null,
+        repeated: boolean,
+        line: number,
+    ): number {
+        const { idOfPos } = this;
+        if (idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
+            return this.deferredNode(idOfPos, pos, k, label, line, "label");
+        }
+        if (idOfPos !== null && idOfPos[pos] === undefined) {
             // restore mode: the earlier positions without a line yet get their numbers first, so the
             // index order is the vertex number order whatever the line order (the identity id map
             // of an ordered file); then this vertex with its original id, or its number
             for (let p = this.filledBelow; p < pos; p++) {
-                if (this.idOfPos[p] === undefined) {
-                    this.numberedNode(this.idOfPos, p);
+                if (idOfPos[p] === undefined) {
+                    this.numberedNode(idOfPos, p);
                 }
             }
             // after the loop on purpose: a throw part-way leaves the mark at its smaller, still
@@ -1157,52 +1232,47 @@ class PajekParser {
             if (pos > this.filledBelow) {
                 this.filledBelow = pos;
             }
-            index = this.deferredNode(this.idOfPos, pos, k, restored, line, "originalId");
-        } else {
-            index = this.indexOfPos[pos];
-            if (restored !== null && !repeated) {
-                // an out-of-order line: the vertex already exists under its number
-                this.report.warning(
-                    "coercion",
-                    PAJEK_ISSUE.ORIGINAL_ID_UNRESTORED,
-                    `vertex ${k} carries ${ORIGINAL_ID_KEY} ${JSON.stringify(restored)} but a later vertex's line came first and created it under its number; the original id is not restored`,
-                    { line, element: String(k) },
-                );
-            }
+            return this.deferredNode(idOfPos, pos, k, restored, line, "originalId");
         }
-        const { sink } = this;
-        if (shape === null && dims > 0 && extras.keys.length > 0 && VOIDING_KEYS.has(extras.keys[0])) {
-            this.voided.push(index);
+        if (restored !== null && !repeated) {
+            // an out-of-order line: the vertex already exists under its number
+            this.report.warning(
+                "coercion",
+                PAJEK_ISSUE.ORIGINAL_ID_UNRESTORED,
+                `vertex ${k} carries ${ORIGINAL_ID_KEY} ${JSON.stringify(restored)} but a later vertex's line came first and created it under its number; the original id is not restored`,
+                { line, element: String(k) },
+            );
         }
-        if (label !== null) {
-            if (this.labelHandle === INVALID_INDEX) {
-                this.labelHandle = declareResolved(sink, "node", LABEL_DECL, this.report, { line }).handle;
-            }
-            sink.setNodeValue(this.labelHandle, index, label);
+        return this.indexOfPos[pos];
+    }
+
+    /**
+     * A node column's handle, declared on first use.
+     * @param handle - the handle so far, or INVALID_INDEX
+     * @param decl - the column's declaration
+     * @param line - the line number
+     * @returns the handle
+     */
+    private nodeHandle(handle: ColumnHandle, decl: Parameters<typeof declareResolved>[2], line: number): ColumnHandle {
+        return handle === INVALID_INDEX
+            ? declareResolved(this.sink, "node", decl, this.report, { line }).handle
+            : handle;
+    }
+
+    /**
+     * Writes a vertex's shape keyword: to the shape column, or to an earlier `shape "<text>"` parameter's column.
+     * @param index - the node index
+     * @param shape - the keyword
+     * @param line - the line number
+     */
+    private writeShape(index: number, shape: string, line: number): void {
+        if (this.shapeHandle === INVALID_INDEX && this.nodeParams.has(SHAPE_COLUMN)) {
+            // an earlier `shape "<text>"` parameter owns the column: the keyword is written there
+            this.writeParameter("node", SHAPE_COLUMN, index, shape);
+            return;
         }
-        if (dims > 0) {
-            this.writePosition(index, dims, [x, y, z], k, line);
-        }
-        if (shape !== null) {
-            if (this.shapeHandle === INVALID_INDEX && this.nodeParams.has(SHAPE_COLUMN)) {
-                // an earlier `shape "<text>"` parameter owns the column: the keyword is written there
-                this.writeParameter("node", SHAPE_COLUMN, index, shape);
-            } else {
-                if (this.shapeHandle === INVALID_INDEX) {
-                    this.shapeHandle = declareResolved(sink, "node", SHAPE_DECL, this.report, { line }).handle;
-                }
-                sink.setNodeValue(this.shapeHandle, index, shape);
-            }
-        }
-        for (let p = 0; p < extras.keys.length; p++) {
-            this.writeParameter("node", extras.keys[p], index, extras.values[p]);
-        }
-        if (extras.spells !== null) {
-            if (this.nodeSpellsHandle === INVALID_INDEX) {
-                this.nodeSpellsHandle = declareResolved(sink, "node", spellsDecl(), this.report, { line }).handle;
-            }
-            sink.setNodeValue(this.nodeSpellsHandle, index, extras.spells);
-        }
+        this.shapeHandle = this.nodeHandle(this.shapeHandle, SHAPE_DECL, line);
+        this.sink.setNodeValue(this.shapeHandle, index, shape);
     }
 
     /**
@@ -2041,8 +2111,9 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         };
         const close = (p: PajekParser): void => {
             p.finish();
-            if (draw !== null || p.voided.length > 0) {
-                reports[reports.length - 1].keepForStyles({
+            const last = reports.at(-1);
+            if (last !== undefined && (draw !== null || p.voided.length > 0)) {
+                last.keepForStyles({
                     block: p.keptBlock,
                     pajekDraw: draw ?? undefined,
                     voided: p.voided,

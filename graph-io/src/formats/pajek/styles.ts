@@ -1120,24 +1120,27 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
                 readVertex(get, put, at, place(i));
                 keywords[i] = get(SHAPE_COLUMN);
             } else {
-                // a loop on a placed node: an unplaced one is laid out by graphty, which draws its own loop, and a
-                // file graphty wrote keeps its routes in its block
-                const run = runOf(i);
-                const loop =
-                    run !== null && block === null && snapshot.edgeSource(i) === snapshot.edgeTarget(i)
-                        ? (controls: LoopControls): void => {
-                              loops.set(i, controls);
-                          }
-                        : null;
-                readLine(get, put, at, directed[i], labels, run, loop);
-                if (directed[i] && loop === null && run !== null) {
-                    readArcEnd(get, put, run, targetSize(snapshot.edgeTarget(i)));
-                }
-                readLineValue(lineValue(i), get, put, directed[i]);
-                readHooks(get, put, keywords[snapshot.edgeSource(i)], keywords[snapshot.edgeTarget(i)]);
+                readEdge(i, get, put, at);
             }
         }
         return out.values;
+    };
+    const readEdge = (i: number, get: Param, put: Put, at: At): void => {
+        // a loop on a placed node: an unplaced one is laid out by graphty, which draws its own loop, and a
+        // file graphty wrote keeps its routes in its block
+        const run = runOf(i);
+        const loop =
+            run !== null && block === null && snapshot.edgeSource(i) === snapshot.edgeTarget(i)
+                ? (controls: LoopControls): void => {
+                      loops.set(i, controls);
+                  }
+                : null;
+        readLine(get, put, at, directed[i], labels, run, loop);
+        if (directed[i] && loop === null && run !== null) {
+            readArcEnd(get, put, run, targetSize(snapshot.edgeTarget(i)));
+        }
+        readLineValue(lineValue(i), get, put, directed[i]);
+        readHooks(get, put, keywords[snapshot.edgeSource(i)], keywords[snapshot.edgeTarget(i)]);
     };
     const directed = directedEdges(snapshot);
     const keywords: unknown[] = [];
@@ -1404,31 +1407,8 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
     if (q !== null && q !== PAJEK_DIAMOND_Q) {
         out.set("q", q);
     }
-    const colors = [
-        ["fill", "ic"],
-        ["borderColor", "bc"],
-        ["labelColor", "lc"],
-    ] as const;
-    const numbers = [
-        ["width", "x_fact", PAJEK_VERTEX_SIZE],
-        ["height", "y_fact", PAJEK_VERTEX_SIZE],
-        ["labelSize", "fos", 1],
-    ] as const;
-    for (const [property, key] of colors) {
-        const v = get(property);
-        if (typeof v === "string" && v !== pajekDefault("node", property)) {
-            out.set(key, pajekColorText(v));
-        }
-    }
-    // a man's or a woman's box is the figure's, which reaches past the size its x_fact and y_fact give (readSize)
-    const figure = PAJEK_FIGURES.get(String(get("shape")));
-    for (const [property, key, per] of numbers) {
-        const v = get(property);
-        const over = figure === undefined || key === "fos" ? 1 : figure[key === "x_fact" ? 0 : 1];
-        if (typeof v === "number" && (over !== 1 || v !== pajekDefault("node", property))) {
-            out.set(key, Number((v / (per * over)).toPrecision(15)));
-        }
-    }
+    vertexColorParams(get, out);
+    vertexSizeParams(get, out);
     const bw = get("borderWidth");
     if (typeof bw === "number" && bw !== pajekDefault("node", "borderWidth")) {
         out.set("bw", bw);
@@ -1436,6 +1416,50 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
     fontParam(get, out, pajekDefault("node", "labelFont"));
     labelPositionParams(get, out, approximate);
     return out;
+}
+
+/**
+ * A vertex's colors as parameters (`ic`, `bc`, `lc`), leaving out Pajek's defaults.
+ * @param get - the vertex's values
+ * @param out - receives the parameters
+ */
+function vertexColorParams(get: Get, out: Map<string, Written>): void {
+    const colors = [
+        ["fill", "ic"],
+        ["borderColor", "bc"],
+        ["labelColor", "lc"],
+    ] as const;
+    for (const [property, key] of colors) {
+        const v = get(property);
+        if (typeof v === "string" && v !== pajekDefault("node", property)) {
+            out.set(key, pajekColorText(v));
+        }
+    }
+}
+
+/**
+ * A vertex's sizes as parameters (`x_fact`, `y_fact`, `fos`), leaving out Pajek's defaults.
+ * @param get - the vertex's values
+ * @param out - receives the parameters
+ */
+function vertexSizeParams(get: Get, out: Map<string, Written>): void {
+    const numbers = [
+        ["width", "x_fact", PAJEK_VERTEX_SIZE],
+        ["height", "y_fact", PAJEK_VERTEX_SIZE],
+        ["labelSize", "fos", 1],
+    ] as const;
+    // a man's or a woman's box is the figure's, which reaches past the size its x_fact and y_fact give (readSize)
+    const figure = PAJEK_FIGURES.get(String(get("shape")));
+    for (const [property, key, per] of numbers) {
+        const v = get(property);
+        let over = 1;
+        if (figure !== undefined && key !== "fos") {
+            over = figure[key === "x_fact" ? 0 : 1];
+        }
+        if (typeof v === "number" && (over !== 1 || v !== pajekDefault("node", property))) {
+            out.set(key, Number((v / (per * over)).toPrecision(15)));
+        }
+    }
 }
 
 /**

@@ -501,7 +501,8 @@ function fontOut(
     // desktop reads the face from the name alone: bold and italic go on it as a Java face suffix, as desktop itself
     // writes them (`SansSerif.bold,bold,12`); the style word after it is not read (`FontVisualProperty`)
     const style = javaFontStyle(bold, it);
-    return `${java}${style === "plain" ? "" : `.${style}`},${bold ? "bold" : "plain"},12`;
+    const face = style === "plain" ? java : `${java}.${style}`;
+    return `${face},${bold ? "bold" : "plain"},12`;
 }
 
 /**

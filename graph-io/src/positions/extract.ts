@@ -283,16 +283,27 @@ function readRows(n: number, spelling: Spelling, notes: NoteCollector<PositionNo
     if (spelling.extra.zeroUnplaced === true) {
         dropZeroPile(values);
     }
-    if (spelling.extra.originUnplaced === true && values.some((v) => !Number.isNaN(v))) {
-        for (let i = 0; i < values.length; i += 3) {
-            if (Number.isNaN(values[i])) {
-                values.fill(0, i, i + 3);
-            }
-        }
+    if (spelling.extra.originUnplaced === true) {
+        placeUnplacedAtOrigin(values);
     }
     const realZ = spelling.extra.sourceDims === 3 && !constantZ(values);
     convertRows(values, spelling.extra, spelling.size, realZ, notes);
     return { values, realZ };
+}
+
+/**
+ * Put every unplaced row at the origin, when at least one row is placed.
+ * @param values - the coordinates, three per row; NaN rows are unplaced
+ */
+function placeUnplacedAtOrigin(values: Float64Array): void {
+    if (!values.some((v) => !Number.isNaN(v))) {
+        return;
+    }
+    for (let i = 0; i < values.length; i += 3) {
+        if (Number.isNaN(values[i])) {
+            values.fill(0, i, i + 3);
+        }
+    }
 }
 
 /**

@@ -165,78 +165,170 @@ export function readCytoscapeCharts(
         if (chart === null) {
             continue;
         }
-        const { options } = chart;
-        const colors = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
-        const columns = Array.isArray(options.cy_dataColumns) ? options.cy_dataColumns.map(String) : [];
-        const values = valuesOf(columns, (c) => value(c, i));
-        if (chart.kind !== "PieChart" && chart.kind !== "RingChart") {
-            const [w, h] = [out.width?.[i], out.height?.[i]];
-            const own = Number(graphicOf(`NODE_CUSTOMGRAPHICS_SIZE_${String(slot + 1)}`, i));
-            const side = typeof w === "number" && typeof h === "number" ? Math.min(w, h) : null;
-            const disc = side === null ? null : CHART_ACROSS * (sizeSync || !(own > 0) ? side : own);
-            const set = plotChart(
-                chart.kind,
-                options,
-                values,
-                colors,
-                disc === null || side === null ? null : { disc, side },
-            );
-            for (const [property, v] of Object.entries(set)) {
-                col(property)[i] = v;
-            }
-            continue;
-        }
-        const total = values.reduce((sum, v) => sum + (Number.isFinite(v) && v > 0 ? v : 0), 0);
-        const slices = values.flatMap((v, k) =>
-            Number.isFinite(v) && v > 0 && colors[k] !== undefined
-                ? [{ color: colors[k].toLowerCase(), size: v / total }]
-                : [],
-        );
-        if (slices.length === 0) {
-            continue;
-        }
-        const start = Number(options.cy_startAngle ?? 0);
-        // counter-clockwise from `start` past 3 o'clock is clockwise from 12 o'clock at 90 - start, slices reversed
-        const reversed = [...slices].reverse();
-        col("pieColors")[i] = reversed.map((s) => s.color).join(" ");
-        col("pieSizes")[i] = reversed.map((s) => String(num6(s.size))).join(" ");
-        // fitted to the node, or with `nodeCustomGraphicsSizeSync` off at the slot's own size
-        const own = Number(graphicOf(`NODE_CUSTOMGRAPHICS_SIZE_${String(slot + 1)}`, i));
         const [w, h] = [out.width?.[i], out.height?.[i]];
-        const side = typeof w === "number" && typeof h === "number" ? Math.min(w, h) : null;
-        const fitted = sizeSync || !(own > 0) || side === null || side <= 0;
-        col("pieRadius")[i] = fitted ? CHART_ACROSS : num6((CHART_ACROSS * own) / side);
-        // as Cytoscape 3.10.5 draws a chart's position (measured from its SVG export of the specimen sheets, every
-        // anchor pair they hold, fitted and at a size of its own): the node anchor scales by the drawn disc and the
-        // chart anchor by the node, so on a 60 node NW,NW moves a fitted 54 disc 3 px down and right and a 21.6 disc
-        // 19 px, C,NW puts either one's center 30 px down and right, and E,W puts a fitted disc 57 px right; then
-        // the position's offsets (y down)
-        const at = positionOf(graphicOf(`NODE_CUSTOMGRAPHICS_POSITION_${String(slot + 1)}`, i));
-        if (at !== null && typeof w === "number" && typeof h === "number") {
-            const disc = CHART_ACROSS * (fitted ? Math.min(w, h) : own);
-            const dx = (at.node[0] * disc) / 2 - (at.chart[0] * w) / 2 + at.x;
-            const dy = (at.node[1] * disc) / 2 - (at.chart[1] * h) / 2 + at.y;
-            if (dx !== 0 || dy !== 0) {
-                col("pieOffsetX")[i] = num6(dx);
-                col("pieOffsetY")[i] = num6(dy);
-            }
-        }
-        col("pieRotation")[i] = num6((((90 - (Number.isFinite(start) ? start : 0)) % 360) + 360) % 360);
-        const texts = pieItemLabels(options, values, colors, (c) => value(c, i), {
-            start: Number.isFinite(start) ? start : 0,
-            radius: (CHART_ACROSS * (fitted || side === null ? 1 : own / side) * (side ?? 0)) / 2,
-            dx: Number(out.pieOffsetX?.[i] ?? 0),
-            dy: Number(out.pieOffsetY?.[i] ?? 0),
-            w: typeof w === "number" ? w : null,
-            h: typeof h === "number" ? h : null,
-        });
-        if (texts !== null && (out.shapeTexts?.[i] ?? null) === null) {
-            col("shapeTexts")[i] = texts;
-        }
-        if (chart.ring) {
-            const hole = Number(options.cy_holeSize ?? RING_HOLE);
-            col("pieHole")[i] = Number.isFinite(hole) ? Math.max(0, Math.min(1, hole)) : RING_HOLE;
-        }
+        chartOnNode(
+            chart,
+            {
+                put: (property, v) => {
+                    col(property)[i] = v;
+                },
+                get: (property) => out[property]?.[i],
+                graphic: (name) => graphicOf(`${name}_${String(slot + 1)}`, i),
+                value: (column) => value(column, i),
+                w: typeof w === "number" ? w : null,
+                h: typeof h === "number" ? h : null,
+            },
+            sizeSync,
+        );
+    }
+}
+
+/** A node with a chart: what it reads, and where its values go. */
+interface ChartNode {
+    /** sets one of the node's values */
+    readonly put: (property: string, v: StyleValue) => void;
+    /** one of the node's values as set so far */
+    readonly get: (property: string) => StyleValue | null | undefined;
+    /** the node's value of one of its chart slot's custom graphics properties, by name without the slot number */
+    readonly graphic: (name: string) => unknown;
+    /** the node's value of a data column */
+    readonly value: (column: string) => unknown;
+    /** the node's width, or null when it is not a number */
+    readonly w: number | null;
+    /** the node's height, or null when it is not a number */
+    readonly h: number | null;
+}
+
+/**
+ * A node's shorter side, when its width and height are known.
+ * @param node - the node
+ * @returns the side, or null
+ */
+function shorterSide(node: ChartNode): number | null {
+    return node.w !== null && node.h !== null ? Math.min(node.w, node.h) : null;
+}
+
+/**
+ * Sets a node's `pie*` or `chart*` properties from its chart.
+ * @param chart - the chart
+ * @param chart.kind - its class
+ * @param chart.ring - whether it is a ring
+ * @param chart.options - its options
+ * @param node - the node
+ * @param sizeSync - whether charts are fitted to their node
+ */
+function chartOnNode(
+    chart: { kind: ChartKind; ring: boolean; options: ChartOptions },
+    node: ChartNode,
+    sizeSync: boolean,
+): void {
+    const { options } = chart;
+    const colors = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
+    const columns = Array.isArray(options.cy_dataColumns) ? options.cy_dataColumns.map(String) : [];
+    const values = valuesOf(columns, node.value);
+    if (chart.kind === "PieChart" || chart.kind === "RingChart") {
+        pieOnNode(chart.ring, options, values, colors, node, sizeSync);
+        return;
+    }
+    const own = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
+    const side = shorterSide(node);
+    const ownSize = own > 0;
+    const fitted = sizeSync || !ownSize;
+    const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : own), side };
+    for (const [property, v] of Object.entries(plotChart(chart.kind, options, values, colors, box))) {
+        node.put(property, v);
+    }
+}
+
+/**
+ * Each slice of a pie: a value above 0 with a color, its share of the values above 0.
+ * @param values - the node's values
+ * @param colors - the chart's colors
+ * @returns the slices in order
+ */
+function pieSlices(values: readonly number[], colors: readonly string[]): { color: string; size: number }[] {
+    const total = values.reduce((sum, v) => sum + (Number.isFinite(v) && v > 0 ? v : 0), 0);
+    return values.flatMap((v, k) =>
+        Number.isFinite(v) && v > 0 && colors[k] !== undefined
+            ? [{ color: colors[k].toLowerCase(), size: v / total }]
+            : [],
+    );
+}
+
+/**
+ * Sets a node's `pie*` properties from a pie or ring chart.
+ * @param ring - whether it is a ring
+ * @param options - the chart's options
+ * @param values - the node's values
+ * @param colors - the chart's colors
+ * @param node - the node
+ * @param sizeSync - whether charts are fitted to their node
+ */
+function pieOnNode(
+    ring: boolean,
+    options: ChartOptions,
+    values: readonly number[],
+    colors: readonly string[],
+    node: ChartNode,
+    sizeSync: boolean,
+): void {
+    const slices = pieSlices(values, colors);
+    if (slices.length === 0) {
+        return;
+    }
+    const start = Number(options.cy_startAngle ?? 0);
+    const from = Number.isFinite(start) ? start : 0;
+    // counter-clockwise from `start` past 3 o'clock is clockwise from 12 o'clock at 90 - start, slices reversed
+    const reversed = [...slices].reverse();
+    node.put("pieColors", reversed.map((s) => s.color).join(" "));
+    node.put("pieSizes", reversed.map((s) => String(num6(s.size))).join(" "));
+    // fitted to the node, or with `nodeCustomGraphicsSizeSync` off at the slot's own size
+    const own = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
+    const side = shorterSide(node);
+    const ownSize = own > 0;
+    const fitted = sizeSync || !ownSize || side === null || side <= 0;
+    node.put("pieRadius", fitted ? CHART_ACROSS : num6((CHART_ACROSS * own) / side));
+    pieOffset(node, fitted, own);
+    node.put("pieRotation", num6((((90 - from) % 360) + 360) % 360));
+    const texts = pieItemLabels(options, values, colors, node.value, {
+        start: from,
+        radius: (CHART_ACROSS * (fitted || side === null ? 1 : own / side) * (side ?? 0)) / 2,
+        dx: Number(node.get("pieOffsetX") ?? 0),
+        dy: Number(node.get("pieOffsetY") ?? 0),
+        w: node.w,
+        h: node.h,
+    });
+    if (texts !== null && (node.get("shapeTexts") ?? null) === null) {
+        node.put("shapeTexts", texts);
+    }
+    if (ring) {
+        const hole = Number(options.cy_holeSize ?? RING_HOLE);
+        node.put("pieHole", Number.isFinite(hole) ? Math.max(0, Math.min(1, hole)) : RING_HOLE);
+    }
+}
+
+/**
+ * A pie's offset from its node's center, as Cytoscape 3.10.5 draws a chart's position (measured from its SVG export
+ * of the specimen sheets, every anchor pair they hold, fitted and at a size of its own): the node anchor scales by
+ * the drawn disc and the chart anchor by the node, so on a 60 node NW,NW moves a fitted 54 disc 3 px down and right
+ * and a 21.6 disc 19 px, C,NW puts either one's center 30 px down and right, and E,W puts a fitted disc 57 px right;
+ * then the position's offsets (y down).
+ * @param node - the node
+ * @param fitted - whether the pie is fitted to the node
+ * @param own - the slot's own size
+ */
+function pieOffset(node: ChartNode, fitted: boolean, own: number): void {
+    const at = positionOf(node.graphic("NODE_CUSTOMGRAPHICS_POSITION"));
+    const { w, h } = node;
+    if (at === null || w === null || h === null) {
+        return;
+    }
+    const disc = CHART_ACROSS * (fitted ? Math.min(w, h) : own);
+    const dx = (at.node[0] * disc) / 2 - (at.chart[0] * w) / 2 + at.x;
+    const dy = (at.node[1] * disc) / 2 - (at.chart[1] * h) / 2 + at.y;
+    if (dx !== 0 || dy !== 0) {
+        node.put("pieOffsetX", num6(dx));
+        node.put("pieOffsetY", num6(dy));
     }
 }
 
@@ -300,7 +392,12 @@ function pieItemLabels(
 ): string | null {
     const labels = itemLabelsOf(options, value);
     const { w, h } = at;
-    if (labels === null || w === null || h === null || !(w > 0 && h > 0) || !(at.radius > 0)) {
+    if (labels === null || w === null || h === null) {
+        return null;
+    }
+    // a size that is not a number, like one of 0, draws nothing
+    const drawn = w > 0 && h > 0 && at.radius > 0;
+    if (!drawn) {
         return null;
     }
     const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && colors[k] !== undefined);
@@ -391,7 +488,10 @@ function mix(a: string, b: string, t: number): string {
  */
 function scaleColor(colors: readonly string[], v: number, range: readonly [number, number]): string {
     const [up, zero, down] = [colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]];
-    return v >= 0 ? mix(zero, up, range[1] > 0 ? v / range[1] : 0) : mix(zero, down, range[0] < 0 ? v / range[0] : 0);
+    if (v >= 0) {
+        return mix(zero, up, range[1] > 0 ? v / range[1] : 0);
+    }
+    return mix(zero, down, range[0] < 0 ? v / range[0] : 0);
 }
 
 /**
@@ -411,7 +511,97 @@ function boxStats(values: readonly number[]): number[] {
     const [q1, q3] = [median(v.slice(0, half)), median(v.slice(v.length - half))];
     const reach = 1.5 * (q3 - q1);
     const inside = v.filter((x) => x >= q1 - reach && x <= q3 + reach);
-    return [inside[0], q1, median(v), q3, inside[inside.length - 1]];
+    // never empty: the middle values lie between the quartiles
+    return [inside[0], q1, median(v), q3, inside.at(-1) ?? q3];
+}
+
+/**
+ * How large a chart's plot is drawn: inside the disc a pie fills, as a share of the node.
+ * @param kind - the chart's class
+ * @param box - the pie's width and the node's shorter side, or null when the node's size is unknown
+ * @returns `chartSize`, or nothing when the node's size is unknown
+ */
+function plotSize(
+    kind: Exclude<ChartKind, "PieChart" | "RingChart">,
+    box: { disc: number; side: number } | null,
+): Record<string, StyleValue> {
+    const sized = box !== null && box.side > 0;
+    if (!sized) {
+        return {};
+    }
+    // ponytail: the insets are measured on 60 nodes only; whether they scale with the node is not known
+    const inset = CHART_INSET + (kind === "HeatMapChart" ? HEAT_MAP_INSET : PLOT_INSET);
+    return { chartSize: num6(Math.max(0, box.disc - inset) / box.side) };
+}
+
+/**
+ * The outline Cytoscape draws round each bar and box.
+ * @param options - the chart's options
+ * @returns `chartBorderColor` and `chartBorderWidth`
+ */
+function chartOutline(options: ChartOptions): Record<string, StyleValue> {
+    const color = typeof options.cy_borderColor === "string" ? options.cy_borderColor : BAR_OUTLINE.color;
+    return {
+        chartBorderColor: color.toLowerCase(),
+        chartBorderWidth: num6(CHART_UNIT * (Number(options.cy_borderWidth ?? BAR_OUTLINE.width) || 0)),
+    };
+}
+
+/**
+ * A bar chart's own properties: grouped, stacked, up and down (the first color up, the last down) or heat strips
+ * (each bar colored on the three-color scale).
+ * @param options - its options
+ * @param finite - the node's values that are numbers
+ * @param colors - its colors
+ * @param range - its range
+ * @param horizontal - whether its orientation is horizontal
+ * @returns the properties
+ */
+function barChart(
+    options: ChartOptions,
+    finite: readonly number[],
+    colors: readonly string[],
+    range: readonly [number, number],
+    horizontal: boolean,
+): Record<string, StyleValue> {
+    const type = typeof options.cy_type === "string" ? options.cy_type : "GROUPED";
+    const stacked = type === "STACKED";
+    return {
+        chartKind: stacked ? "stacked-bar" : "bar",
+        chartValues: finite.join(" "),
+        chartColors: finite.map((v, k) => barColor(type, colors, v, k, range)).join(" "),
+        chartMin: range[0],
+        chartMax: range[1],
+        // Cytoscape lays a stacked bar's values across the node when its orientation says up
+        chartHorizontal: stacked ? !horizontal : horizontal,
+        chartMargin: BAR_MARGIN,
+        chartGap: num6(Math.max(0, Math.min(1, Number(options.cy_separation ?? 0) || 0))),
+    };
+}
+
+/**
+ * One bar's color.
+ * @param type - the bar chart's type
+ * @param colors - its colors
+ * @param v - the bar's value
+ * @param k - the bar's place
+ * @param range - the chart's range
+ * @returns the color
+ */
+function barColor(
+    type: string,
+    colors: readonly string[],
+    v: number,
+    k: number,
+    range: readonly [number, number],
+): string {
+    if (type === "HEAT_STRIPS") {
+        return scaleColor(colors, v, range);
+    }
+    if (type === "UP_DOWN") {
+        return colors[v >= 0 ? 0 : colors.length - 1].toLowerCase();
+    }
+    return colors[Math.min(k, colors.length - 1)].toLowerCase();
 }
 
 /**
@@ -446,53 +636,18 @@ function plotChart(
     auto[1] += RANGE_HEADROOM * (auto[1] - auto[0]);
     const range: [number, number] = global ? [given[0], given[1]] : auto;
     const horizontal = options.cy_orientation === "HORIZONTAL";
-    const type = typeof options.cy_type === "string" ? options.cy_type : "GROUPED";
-    const lower = (c: string): string => c.toLowerCase();
-    const out: Record<string, StyleValue> = {};
-    // the plot inside the disc a pie fills, as a share of the node
-    if (box !== null && box.side > 0) {
-        // ponytail: the insets are measured on 60 nodes only; whether they scale with the node is not known
-        const inset = CHART_INSET + (kind === "HeatMapChart" ? HEAT_MAP_INSET : PLOT_INSET);
-        out.chartSize = num6(Math.max(0, box.disc - inset) / box.side);
-    }
-    const outline = {
-        chartBorderColor: lower(
-            typeof options.cy_borderColor === "string" ? options.cy_borderColor : BAR_OUTLINE.color,
-        ),
-        chartBorderWidth: num6(CHART_UNIT * (Number(options.cy_borderWidth ?? BAR_OUTLINE.width) || 0)),
-    };
+    const out: Record<string, StyleValue> = plotSize(kind, box);
+    const outline = chartOutline(options);
     switch (kind) {
-        case "BarChart": {
-            const stacked = type === "STACKED";
-            const each = (v: number, k: number): string => {
-                if (type === "HEAT_STRIPS") {
-                    return scaleColor(colors, v, range);
-                }
-                return lower(
-                    type === "UP_DOWN"
-                        ? colors[v >= 0 ? 0 : colors.length - 1]
-                        : colors[Math.min(k, colors.length - 1)],
-                );
-            };
-            Object.assign(out, outline, {
-                chartKind: stacked ? "stacked-bar" : "bar",
-                chartValues: finite.join(" "),
-                chartColors: finite.map(each).join(" "),
-                chartMin: range[0],
-                chartMax: range[1],
-                // Cytoscape lays a stacked bar's values across the node when its orientation says up
-                chartHorizontal: stacked ? !horizontal : horizontal,
-                chartMargin: BAR_MARGIN,
-                chartGap: num6(Math.max(0, Math.min(1, Number(options.cy_separation ?? 0) || 0))),
-            });
+        case "BarChart":
+            Object.assign(out, outline, barChart(options, finite, colors, range, horizontal));
             break;
-        }
         case "LineChart":
             // drawn up the node whatever its orientation, with headroom above its range
             Object.assign(out, {
                 chartKind: "line",
                 chartValues: finite.join(" "),
-                chartColors: lower(colors[0]),
+                chartColors: colors[0].toLowerCase(),
                 chartMin: range[0],
                 chartMax: num6(range[1] + (global ? RANGE_HEADROOM * (range[1] - range[0]) : 0)),
                 chartMargin: LINE_MARGIN,
@@ -503,7 +658,7 @@ function plotChart(
             Object.assign(out, outline, {
                 chartKind: "box",
                 chartValues: boxStats(finite).map(num6).join(" "),
-                chartColors: `${lower(colors[0])} #000000`,
+                chartColors: `${colors[0].toLowerCase()} #000000`,
                 chartMin: range[0],
                 chartMax: range[1],
                 chartHorizontal: horizontal,

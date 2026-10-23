@@ -576,7 +576,7 @@ describe("PanelField", () => {
             expect(fieldInput()).toHaveValue("2");
         });
 
-        it("Escape reverts the typed text and leaves the field", async () => {
+        it("Escape reverts the typed text and keeps focus in the field", async () => {
             const onChange = vi.fn();
             const user = userEvent.setup();
             renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
@@ -585,7 +585,8 @@ describe("PanelField", () => {
             await user.keyboard("{Escape}");
             expect(onChange).not.toHaveBeenCalled();
             expect(fieldInput()).toHaveValue("2");
-            expect(fieldInput()).not.toHaveFocus();
+            // Focus never falls to the page: the field keeps it, its value selected.
+            expect(fieldInput()).toHaveFocus();
         });
 
         it("Shift+ArrowUp steps ten, clamped to max", async () => {

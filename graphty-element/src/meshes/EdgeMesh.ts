@@ -557,7 +557,9 @@ void main() {
         const breadth = options.breadth ?? 1;
         const { side } = options;
         // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
-        const widthKey = `${breadth === 1 ? "" : `|w${String(breadth)}`}${side === undefined ? "" : `|${side}`}`;
+        const breadthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
+        const sideKey = side === undefined ? "" : `|${side}`;
+        const widthKey = `${breadthKey}${sideKey}`;
 
         // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
         // texture, so it is a batch per picture and is laid in the XY plane turned along its line in

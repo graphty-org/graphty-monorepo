@@ -167,6 +167,53 @@ function schemeColor(name: string, scheme: string): string | undefined {
 }
 
 /**
+ * A color list whose first color is a bare SVG name, as Graphviz's SVG output draws it for a pen: no outline, black
+ * text.
+ * @param use - `line` or `text`
+ * @returns the color
+ */
+function svgPenList(use: GraphvizColorUse): GraphvizColor {
+    return use === "line"
+        ? { hex: "#fffffe", alpha: 0, unknown: false, list: null }
+        : { hex: "#000000", alpha: 1, unknown: false, list: null };
+}
+
+/**
+ * A color list entry without its `;fraction`.
+ * @param text - the entry
+ * @returns the color part
+ */
+function beforeSemicolon(text: string): string {
+    const semi = text.indexOf(";");
+    return semi >= 0 ? text.slice(0, semi) : text;
+}
+
+/**
+ * One Graphviz color, read from its scheme (X11 when none), a bare SVG name first when `svgNames` says so.
+ * @param raw - the whole value
+ * @param text - the color, without the list after it
+ * @param scheme - the object's `colorscheme`, or null
+ * @param svgNames - whether a bare SVG name is drawn as SVG's color
+ * @returns the color, or null when it is unknown
+ */
+function resolveColorText(
+    raw: string,
+    text: string,
+    scheme: string | null,
+    svgNames: boolean,
+): { hex: string; alpha: number } | null {
+    const svgName = svgNames && raw.startsWith(text) ? CSS_COLORS.get(text.toLowerCase()) : undefined;
+    if (svgName !== undefined) {
+        return { hex: svgName, alpha: 1 };
+    }
+    if (text === "") {
+        return null;
+    }
+    const sc = scheme === null || scheme.trim() === "" ? "x11" : scheme.toLowerCase();
+    return resolveOne(text, sc);
+}
+
+/**
  * Resolves a Graphviz color value the way Graphviz draws it for a use; an unknown color is black.
  * @param raw - the value, at most 256 characters
  * @param scheme - the object's `colorscheme`, or null
@@ -189,26 +236,14 @@ export function graphvizColor(
     if (colon >= 0) {
         text = text.slice(0, colon);
         if (svgNames && pen && raw.startsWith(text) && CSS_COLORS.has(text.toLowerCase())) {
-            return use === "line"
-                ? { hex: "#fffffe", alpha: 0, unknown: false, list: null }
-                : { hex: "#000000", alpha: 1, unknown: false, list: null };
+            return svgPenList(use);
         }
         if (!pen) {
-            const semi = text.indexOf(";");
-            if (semi >= 0) {
-                text = text.slice(0, semi);
-            }
+            text = beforeSemicolon(text);
             list = use === "fill" ? "gradient" : "lines";
         }
     }
-    const sc = scheme === null || scheme.trim() === "" ? "x11" : scheme.toLowerCase();
-    const svgName = svgNames && raw.startsWith(text) ? CSS_COLORS.get(text.toLowerCase()) : undefined;
-    let resolved: { hex: string; alpha: number } | null = null;
-    if (svgName !== undefined) {
-        resolved = { hex: svgName, alpha: 1 };
-    } else if (text !== "") {
-        resolved = resolveOne(text, sc);
-    }
+    const resolved = resolveColorText(raw, text, scheme, svgNames);
     return resolved === null
         ? { hex: "#000000", alpha: 1, unknown: true, list }
         : { hex: resolved.hex, alpha: resolved.alpha, unknown: false, list };

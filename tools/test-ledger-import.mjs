@@ -129,16 +129,9 @@ export async function importHistory(main, env = process.env) {
             exonerations: [],
         });
     };
-    for (const line of (existsSync(join(main, "tmp/push-log.jsonl"))
-        ? readFileSync(join(main, "tmp/push-log.jsonl"), "utf8")
-        : ""
-    ).split("\n")) {
-        const e = readJsonText(line);
-        if (!e?.sha) continue;
-        const gate = existsSync(e.gateLog ?? "") ? readFileSync(e.gateLog, "utf8").split("\n") : [];
-        const base = { kind: importKind(e.cwd), branch: e.branch, commit: e.sha, at: e.startedAt ?? e.at };
-        for (const l of new Set([...(e.gate ?? []), ...gate])) importLine(l, base, { add, shardOf, main });
-    }
+    const log = join(main, "tmp/push-log.jsonl");
+    const entries = (existsSync(log) ? readFileSync(log, "utf8") : "").split("\n").map(readJsonText);
+    entries.filter((e) => e?.sha).forEach((e) => importGate(e, { add, shardOf, main }));
     for (const f of list(join(main, "tmp/prepush-passes/shard"))) {
         const p = readJson(join(main, "tmp/prepush-passes/shard", f));
         if (p?.sha)
@@ -165,6 +158,17 @@ export async function importHistory(main, env = process.env) {
         results: [...recs.values()].reduce((n, r) => n + r.files.reduce((m, f) => m + f[1] + f[2], 0), 0),
         failures: [...recs.values()].reduce((n, r) => n + r.failures.length, 0),
     };
+}
+
+/**
+ * One gate of the push log: its saved lines and, when it is still on disk, its whole log.
+ * @param e the push log entry
+ * @param io as importLine's
+ */
+function importGate(e, io) {
+    const gate = existsSync(e.gateLog ?? "") ? readFileSync(e.gateLog, "utf8").split("\n") : [];
+    const base = { kind: importKind(e.cwd), branch: e.branch, commit: e.sha, at: e.startedAt ?? e.at };
+    for (const l of new Set([...(e.gate ?? []), ...gate])) importLine(l, base, io);
 }
 
 /**

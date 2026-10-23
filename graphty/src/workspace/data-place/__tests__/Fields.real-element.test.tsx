@@ -246,8 +246,8 @@ describe("Data > Fields as a + list on the real element", () => {
         second.unmount();
     });
 
-    it("reads a city column narrowed by a country column as a place name", async () => {
-        await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
+    it("reads a city column narrowed by a country column as a place name, and its minus stops it", async () => {
+        const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();
         await waitFor(
             () => {
@@ -259,5 +259,13 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(shown(section, "Location column"), "city");
         assert.equal(shown(section, "Place type"), "City");
         assert.equal(shown(section, "Within"), "country");
+
+        // The minus tells the element no location, so it stops finding one.
+        await userEvent.click(section.getByRole("button", { name: "Remove node location" }));
+        await waitFor(() => {
+            assert.equal(session.config.data.knownFields.nodeLocationRole, "none");
+            assert.equal(session.layout.locationColumns().from, "none");
+            assert.notInclude(entries(section, "nodes"), "location");
+        });
     });
 });

@@ -436,6 +436,16 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    // The DOCS_API_PACKAGES line and the docs site functions, cut out of prepush.sh to run alone.
+    const docsSetup = (prepush) => {
+        const fn = (name) => {
+            const at = prepush.indexOf(`\n${name}() {\n`);
+            assert.ok(at > 0, `${name} is in tools/prepush.sh`);
+            return prepush.slice(at, prepush.indexOf("\n}\n", at) + 3);
+        };
+        return prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0] + fn("docs_site_affected") + fn("docs_site_step");
+    };
+
     it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
         const prepush = code(tool("prepush.sh"));
         const start = prepush.indexOf("for DOCS_PACKAGE in");
@@ -447,12 +457,59 @@ describe("the pre-push gate matches CI", () => {
                 [
                     "-c",
                     `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
-                        `run_step() { echo "$2"; }\n${loop}`,
+                        `run_step() { echo "$2"; }\n${prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0]}${loop}`,
                 ],
                 { cwd: new URL("..", import.meta.url), encoding: "utf8" },
             ).stdout;
         assert.equal(run("graph-io,graph-format,layout"), "pnpm run docs:api:layout\npnpm run docs:api:graph-io\n");
         assert.equal(run("graph-format"), "");
+    });
+
+    it("builds the docs site as CI's Docs job does when a package with an API reference or the docs change", () => {
+        // A doc comment that split a code span across two lines left a bare `<value>` tag in a TypeDoc
+        // page; only VitePress's Vue compiler rejects that, and it failed CI's Docs job (2026-10-22).
+        const prepush = code(tool("prepush.sh"));
+        // git is stubbed: it records the pathspec it was asked about and answers "changed" when CHANGED is set.
+        const run = (list, changed) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\nBASE=base\nCHANGED=${changed ? 1 : ""}\n` +
+                        `affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$1: $2"; }\n` +
+                        `git() { echo "git $*" >&2; [ -z "$CHANGED" ]; }\n${docsSetup(prepush)}docs_site_step`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            );
+        const site = "node tools/sanitize-api-docs.js && pnpm exec vitepress build docs\n";
+        // An affected package with an API reference: only the other packages' pages are generated here.
+        assert.equal(
+            run("graphty-element,graph-format", false).stdout,
+            "Docs site (VitePress build): pnpm run docs:content && pnpm run docs:api:algorithms && " +
+                "pnpm run docs:api:layout && pnpm run docs:api:cytoscape-extensions && pnpm run docs:api:graph-io && " +
+                site,
+        );
+        // Only docs changed (no package affected): every package's pages, as CI generates them.
+        const docsOnly = run("", true);
+        assert.match(docsOnly.stdout, /pnpm run docs:api:graphty-element && pnpm run docs:api:algorithms/);
+        assert.ok(docsOnly.stdout.endsWith(site));
+        for (const path of [
+            " docs/ ",
+            " visual-review/docs/ ",
+            " graphty-element/docs/ ",
+            " tools/copy-docs-content.js ",
+        ]) {
+            assert.ok(docsOnly.stderr.includes(path), `the docs check looks at${path}`);
+        }
+        // Neither: no step.
+        assert.equal(run("graph-format", false).stdout, "");
+        assert.equal(run("", false).stdout, "");
+        // After the API docs steps, and on the push that affects no package too.
+        const firstExit = prepush.search(/\n\s*exit "\$FAILED"/);
+        const calls = [...prepush.matchAll(/\n\s*docs_site_step\n/g)].map((m) => m.index);
+        assert.equal(calls.length, 2);
+        assert.ok(calls[0] < firstExit && calls[1] > prepush.indexOf("for DOCS_PACKAGE in"));
     });
 
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {

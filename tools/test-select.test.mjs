@@ -33,6 +33,7 @@ import {
     sourceOf,
     startAdvisory,
     testRefs,
+    useNamesRoot,
     wholePackageRule,
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
@@ -853,9 +854,28 @@ describe("misses found by mutation testing", () => {
     });
 
     it("a rule ESLint loads at run time runs the package whose eslint.config imports it", () => {
-        const sel = run(["tools/eslint-rules/story-wait-options.mjs"], ["graphty", "layout"]).packages;
-        assert.equal(sel.get("graphty").mode, "all");
-        assert.equal(sel.get("layout").mode, "none");
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-lint-rule-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("tools/eslint-rules/a-rule.mjs", "export default {};\n");
+            put(
+                "pa/eslint.config.js",
+                'import rule from "../tools/eslint-rules/a-rule.mjs";\nexport default [rule];\n',
+            );
+            put("pb/eslint.config.js", "export default [];\n");
+            execFileSync("git", ["init", "-q"], { cwd: fixture });
+            execFileSync("git", ["add", "-A"], { cwd: fixture });
+            useNamesRoot(fixture);
+            const sel = run(["tools/eslint-rules/a-rule.mjs"], ["pa", "pb"]).packages;
+            assert.equal(sel.get("pa").mode, "all");
+            assert.equal(sel.get("pb").mode, "none");
+        } finally {
+            useNamesRoot(ROOT);
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 
     it("a root file no rule, import or test accounts for runs everything; unread tools code runs nothing", () => {

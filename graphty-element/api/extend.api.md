@@ -35,6 +35,7 @@ import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
+import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -57,6 +58,7 @@ import { LayoutResult } from '@graphty/layout';
 import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
+import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
@@ -70,6 +72,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import { Quaternion } from '@babylonjs/core';
 import { QueryLanguage } from '@graphty/graph-io';
 import { Ray } from '@babylonjs/core';
@@ -459,6 +462,11 @@ export interface CameraViewInput {
     readonly aspect: number;
     readonly bounds: GraphBounds;
     readonly current: CameraState;
+    readonly facing?: {
+        readonly x: number;
+        readonly y: number;
+        readonly z: number;
+    };
     readonly fov?: number;
     readonly insets?: Required<ViewInsets>;
     // (undocumented)
@@ -1690,7 +1698,7 @@ export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "f
 export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
-export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
+export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random", "location-map"];
 
 // @public
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
@@ -2019,6 +2027,7 @@ export interface OptionBound {
 export interface OptionChoice {
     // (undocumented)
     label: string;
+    refusal?: OptionChoiceRefusal;
     // (undocumented)
     value: string;
 }

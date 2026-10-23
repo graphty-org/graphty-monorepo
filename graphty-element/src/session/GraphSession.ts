@@ -65,7 +65,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, recommendLayout } from "./layout";
+import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -1031,6 +1031,17 @@ class Session implements ElementSession {
     }
 
     /**
+     * Which layout suits the graph this session holds, locations included.
+     * @returns The recommendation.
+     */
+    recommendLayout(): LayoutRecommendation | undefined {
+        return recommendLayout(this.data.statistics(), {
+            placedNodes: this.seededNodeCount,
+            locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
+        });
+    }
+
+    /**
      * What one command would do, what it would cost, and whether it would be allowed.
      *
      * A promise, because the commands that arrive after this one have to walk the graph to
@@ -1315,8 +1326,19 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
         },
+        optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
+            const ignored = (dimension ?? choice().dimension) === "2d" && IGNORED_IN_2D_OPTIONS.has(`${id}.${option}`);
+            return Object.freeze({
+                inEffect: !ignored,
+                code: ignored ? "setting.notIn2d" : "setting.inEffect",
+                params: Object.freeze({ setting: option }),
+            });
+        },
     });
 }
+
+/** The layout options the 2D view ignores, as `<layout>.<option>`: it always draws the location map flat. */
+const IGNORED_IN_2D_OPTIONS: ReadonlySet<string> = new Set(["location-map.surface"]);
 
 function viewsOf(dispatcher: Dispatcher): SessionViews {
     const held = dispatcher.state.views;
@@ -1423,7 +1445,7 @@ function configOf(
             await dispatcher.dispatch({ op: "config.set", values });
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
-            settingEffect(key, dispatcher.state.layout?.dimension ?? "3d"),
+            settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
     });
 }
 
@@ -1443,11 +1465,11 @@ const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
 /**
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
  * @param key - The setting.
- * @param dimension - The view's dimension.
+ * @param layout - The layout as chosen: its engine and the view's dimension.
  * @returns The answer, coded.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` for a key that names no graph setting.
  */
-function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEffect {
+function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffect {
     if (!GRAPH_SETTINGS.has(key)) {
         throw new GraphtyError({
             code: "E_BAD_COMMAND",
@@ -1457,7 +1479,7 @@ function settingEffect(key: GraphSettingKey, dimension: "2d" | "3d"): SettingEff
         });
     }
 
-    const ignored = dimension === "2d" && IGNORED_IN_2D.has(key);
+    const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);
     return Object.freeze({
         inEffect: !ignored,
         code: ignored ? "setting.notIn2d" : "setting.inEffect",
@@ -1915,6 +1937,28 @@ function structureCandidate(name: string, data: SessionDataApi): Path | undefine
 }
 
 /**
+ * Whether a path names a value this session answers on one kind of element: an attribute, a
+ * run's field or a node's structure.
+ *
+ * Every attribute's path, and an edge's endpoints, are `data.` paths. Anything else is a run's or
+ * the structure's, so it is looked up without describing the attributes: that walks every record,
+ * and a run's own suggested layer is checked just after the run has moved the tick the
+ * description is cached on (3,214 nodes and 36,906 edges: over 200 ms at a 6x CPU throttle).
+ * @param data - The session's data surface.
+ * @param runs - The runs.
+ * @param path - The path.
+ * @param target - Nodes or edges.
+ * @returns Whether it is answered.
+ */
+function answersReadable(data: SessionDataApi, runs: RunsApi, path: Path, target: "node" | "edge"): boolean {
+    if (path.startsWith("data.")) {
+        return answerablePaths(data, runs, target).includes(path);
+    }
+
+    return runFieldPaths(runs, target).includes(path) || (target === "node" && structurePaths(data).includes(path));
+}
+
+/**
  * What a rule reads that nothing answers, with the readable values each unknown path may have
  * meant: those whose catalog name is the path's last name, ignoring case, else
  * the node structure value of that name.
@@ -1966,13 +2010,13 @@ function pathDirectoryOf(data: SessionDataApi, runs: RunsApi, fileStyles: () => 
         answers: (path: Path, target: "node" | "edge"): boolean => {
             const end = edgeEndPathOf(path);
             if (end !== undefined) {
-                return target === "edge" && answerablePaths(data, runs, "node").includes(end.node);
+                return target === "edge" && answersReadable(data, runs, end.node, "node");
             }
 
             return (
                 noteFieldOf(path) !== undefined ||
                 answersFileStyle(fileStyles(), path, target) ||
-                answerablePaths(data, runs, target).includes(path)
+                answersReadable(data, runs, path, target)
             );
         },
         candidates: (_path: Path, target: "node" | "edge"): readonly Path[] => answerablePaths(data, runs, target),
@@ -3285,6 +3329,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
+        onBatch: (batch) => {
+            publish(watchers, "style:batch-changed", batch);
+        },
         disposed: teardown.signal,
     });
 
@@ -3316,10 +3363,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
     // and a reader's layer selecting on the run's values), so what was prepared is forgotten and
-    // every layer kept across the change is repainted. Layers added or removed with the run are
-    // the `styles` hook's, which runs after this one.
+    // every kept layer that reads a changed run is repainted. Layers added or removed with the
+    // run are the `styles` hook's, which runs after this one.
+    //
+    // ONLY THE READERS. Repainting every kept layer repainted the element's own "Edge defaults"
+    // layer, which matches every edge, after every finished run: a community run over 36,906
+    // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
+    // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        if (![...dirty].some((id) => rendered.runs.get(id) !== target.runs.get(id))) {
+        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        if (changed.size === 0) {
             return;
         }
 
@@ -3327,10 +3380,19 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         const kept = new Set(rendered.styles);
         // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
         const stack = paintingOf(styles, target.styles);
-        // ponytail: repaints every kept layer, not only those reading the changed runs -- the
-        // cost the element paid before on every finished run; name the readers if it shows.
+        // An edge reading a value at one of its ends (`graphty.source.results.<run>...`) reads that run.
+        const readsChanged = (path: Path): boolean => {
+            const dependency = dependencyOf(edgeEndPathOf(path)?.node ?? path);
+            return "run" in dependency && changed.has(dependency.run);
+        };
+        // A layer over a set may read a run through the set's own rule, which its `reads` do not
+        // list, so it is repainted whatever run changed, as every layer was before.
         const edits = stack
-            .filter((_entry, index) => kept.has(target.styles[index]))
+            .filter(
+                (entry, index) =>
+                    kept.has(target.styles[index]) &&
+                    (entry.selector.match === "member" || entry.reads.some(readsChanged)),
+            )
             .map((entry) => ({ previous: entry, next: entry }));
 
         if (edits.length > 0) {
@@ -3477,6 +3539,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
+        nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
@@ -3495,6 +3558,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
             attributes: () => data.attributes(),
             results: () => results,
+            nodeValues: (path) => planning.nodeValues?.(path) ?? null,
         }),
         readProject,
         controller: acceleration.controller,

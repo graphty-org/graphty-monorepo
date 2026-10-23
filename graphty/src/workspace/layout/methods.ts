@@ -5,7 +5,7 @@
  */
 
 import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
-import { type GraphSession, recommendLayout } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
@@ -30,6 +30,7 @@ const LAYOUT_NAMES: Readonly<Record<string, string>> = {
     bipartite: "Two columns",
     layers: "Columns by group",
     fixed: "Keep positions",
+    "location-map": "Map",
 };
 
 /**
@@ -78,9 +79,9 @@ function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"):
 }
 
 /**
- * The element's layouts, each grouping layout's options resolved for this graph by
+ * The element's layouts, each layout with column options resolved for this graph by
  * `catalog.optionsFor`, so a partition option carries the columns that can group the nodes (a
- * run's community among them). Resolved again whenever the project, the runs or the selection
+ * run's community among them) and the map's location options the columns that fit them first. Resolved again whenever the project, the runs or the selection
  * change; the catalog's own descriptors stand in until the first answer.
  * @param session - the element's session, or null.
  * @returns the layouts.
@@ -97,13 +98,13 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
         }
         let live = true;
         void Promise.all(
-            session.catalog
-                .layouts()
-                .map(async (descriptor) =>
-                    descriptor.options.some((o) => o.type === "partition")
-                        ? { ...descriptor, options: await session.catalog.optionsFor(descriptor.id) }
-                        : descriptor,
-                ),
+            session.catalog.layouts().map(async (descriptor) =>
+                // A layout whose column options the element lists for this graph: a grouping,
+                // or the map's location columns.
+                descriptor.options.some((o) => o.type === "partition" || o.type === "attribute")
+                    ? { ...descriptor, options: await session.catalog.optionsFor(descriptor.id) }
+                    : descriptor,
+            ),
         ).then(
             (layouts) => {
                 if (live) {
@@ -188,8 +189,7 @@ interface LayoutChoice {
  * @returns the rows.
  */
 export function layoutChoices(session: GraphSession, layouts: readonly LayoutDescriptor[]): LayoutChoice[] {
-    const statistics = session.data.statistics();
-    const recommended = recommendLayout(statistics, { placedNodes: session.seededNodeCount })?.layout.id;
+    const recommended = session.recommendLayout()?.layout.id;
     return layouts.map((descriptor) => {
         const values = startingValues(session, descriptor);
         const reason = unavailable(session, descriptor, values);

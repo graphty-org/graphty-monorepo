@@ -135,6 +135,12 @@ export interface CameraViewInput {
     readonly fov?: number;
     /** Where the camera is right now, so a view can be relative to it. */
     readonly current: CameraState;
+    /**
+     * The side the drawing is meant to be seen from, as a unit direction from what is framed
+     * toward the viewer, when the active layout has one: a map or a globe is read from -z.
+     * Absent for a layout that looks the same from every side.
+     */
+    readonly facing?: { readonly x: number; readonly y: number; readonly z: number };
     /** The view's own options, resolved against the defaults its descriptor declares. */
     readonly options: Readonly<Record<string, unknown>>;
 }

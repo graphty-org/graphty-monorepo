@@ -227,6 +227,8 @@ export const CHANNEL_HOMES: Readonly<Record<Channel, Home>> = {
     "edge.fanned": NOT_PLACED,
     "edge.bendCurve": NOT_PLACED,
     "edge.arcRadius": NOT_PLACED,
+    "edge.route": NOT_PLACED,
+    "edge.arcHeight": NOT_PLACED,
     "edge.nodeGap": NOT_PLACED,
     "edge.sourcePort": NOT_PLACED,
     "edge.targetPort": NOT_PLACED,

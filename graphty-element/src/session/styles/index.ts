@@ -97,6 +97,7 @@ export type {
     LayerReach,
     MarkSpec,
     SessionStylesApi,
+    StyleBatchChange,
     StyleChange,
     StyleFileDocument,
     StylesApi,

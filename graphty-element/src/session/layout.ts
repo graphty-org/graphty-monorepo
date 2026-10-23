@@ -68,6 +68,7 @@ export interface LayoutRecommendation {
  * | Code | Why |
  * | --- | --- |
  * | `recommend.fixed` | Every node already carries a coordinate, so the arrangement the data arrived with is kept |
+ * | `recommend.location-map` | The nodes carry geographic locations (`locations` was true), so they are drawn on a map (since 3.31.0) |
  * | `recommend.random` | The graph is larger than `largeGraphThreshold`, so it is scattered from a seed instead of settling a force simulation |
  * | `recommend.circular` | Nothing is connected, so a ring puts the nodes in a readable order where a force layout has no pull to work with |
  * | `recommend.force` | Connected nodes pulled together and unconnected ones pushed apart shows the graph's structure |
@@ -80,6 +81,7 @@ export interface LayoutRecommendation {
  */
 export type LayoutRecommendationCode =
     | "recommend.fixed"
+    | "recommend.location-map"
     | "recommend.random"
     | "recommend.circular"
     | "recommend.force"
@@ -125,6 +127,13 @@ export interface LayoutRecommendationOptions {
      * @since 3.29.0
      */
     readonly graphvizAvailable?: boolean;
+    /**
+     * Whether the nodes carry geographic locations the location map layout can read (its cost
+     * estimate is available). `GraphSession.recommendLayout()` answers this itself. Omitted counts
+     * as no.
+     * @since 3.31.0
+     */
+    readonly locations?: boolean;
 }
 
 /** The graph attributes a Graphviz file passes on to the engine that draws it. */
@@ -187,6 +196,8 @@ interface RuleInput {
     readonly placedNodes: number;
     /** The node count above which this graph counts as large. */
     readonly largeGraphThreshold: number;
+    /** Whether the nodes carry geographic locations. */
+    readonly locations: boolean;
 }
 
 /**
@@ -204,6 +215,12 @@ const LAYOUT_RULES: readonly LayoutRule[] = [
         reason:
             "Every node already carries a coordinate, so this keeps the arrangement the data " +
             "arrived with instead of computing a new one over the top of it.",
+    },
+    {
+        id: "location-map",
+        code: "recommend.location-map",
+        fires: ({ statistics, locations }) => statistics.nodeCount > 0 && locations,
+        reason: "The nodes carry geographic locations, so they are drawn where they are, on a map.",
     },
     {
         id: "random",
@@ -300,6 +317,7 @@ export function recommendLayout(
         statistics,
         placedNodes: options.placedNodes ?? 0,
         largeGraphThreshold: options.largeGraphThreshold ?? DEFAULT_LIMITS.largeGraphThreshold,
+        locations: options.locations === true,
     };
     const placesAll = statistics.nodeCount > 0 && input.placedNodes >= statistics.nodeCount;
     const engine = placesAll ? null : graphvizEngineFor(options.file);

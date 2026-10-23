@@ -75,6 +75,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
+
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
     AttributeDescriptor,
@@ -129,7 +131,9 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
+import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
+import type { Resolution } from "../sets/resolve";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
@@ -1293,6 +1297,23 @@ export interface StyleChange {
     readonly cause: HistoryCause;
 }
 
+/**
+ * Every `style:changed` one repaint published, told once after the last of them.
+ *
+ * One pass can carry many edits -- a grouping run adds a layer per group, a held undo passes
+ * several steps -- and `style:changed` tells each one. A consumer that only re-reads what the
+ * stack draws (`styles.legend()`, `styles.counts()`) listens here instead and reads once.
+ * @since 3.36.0
+ */
+export interface StyleBatchChange {
+    /** How many `style:changed` events this batch closes; at least 1. */
+    readonly edits: number;
+    /** Every layer those edits touched, each once, in the order the edits named them. */
+    readonly layers: readonly LayerId[];
+    /** What moved the stack: the cause of the batch's last edit. */
+    readonly cause: HistoryCause;
+}
+
 /** Everything the style stack is built from. */
 export interface StylesSources {
     /**
@@ -1426,6 +1447,11 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * Called once after the last {@link StylesSources.onChange} of one repaint.
+     * @param batch - The edits that pass told.
+     */
+    readonly onBatch?: (batch: StyleBatchChange) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -1605,6 +1631,28 @@ interface ImportedLayer {
     readonly spec: LayerSpec;
     /** The layer it compiled to, carrying the id it will keep. */
     readonly compiled: CompiledLayer;
+}
+
+/** The dense indices of each resolution's bitmaps, built once for the resolution the cache holds. */
+const indicesOfResolution = new WeakMap<Resolution, AgreementElements>();
+
+/**
+ * The dense indices a resolution's bitmaps hold.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it covers.
+ * @returns Its nodes and edges, as indices into that snapshot.
+ */
+function indicesBehind(resolution: Resolution, graph: GraphSnapshot): AgreementElements {
+    let elements = indicesOfResolution.get(resolution);
+    if (elements === undefined) {
+        elements = {
+            nodes: maskToIndices(resolution.nodes, graph.nodeCount),
+            edges: maskToIndices(resolution.edges, graph.edgeCount),
+        };
+        indicesOfResolution.set(resolution, elements);
+    }
+
+    return elements;
 }
 
 /**
@@ -2366,6 +2414,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const elementsOf = (scope: Scope): AgreementElements => {
         const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+        // The bitmaps behind the scope are already in dense index order: read them, rather than
+        // spell every element as an id and look each id up again. A legend reads this once per
+        // layer on every style change, and on the airline routes (36,906 edges, 31 layers) the
+        // id round trip held the page for a minute after a Louvain run.
+        const behind = resolutionBehind(resolved);
+        if (behind !== undefined) {
+            return indicesBehind(behind.resolution, behind.graph);
+        }
 
         return {
             nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
@@ -3978,6 +4034,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
+    // What one pass told, closed by a single `onBatch`.
+    let batch: StyleChange[] = [];
+    const flushBatch = (): void => {
+        const told = batch;
+        batch = [];
+        const last = told.at(-1);
+        if (last !== undefined) {
+            sources.onBatch?.({
+                edits: told.length,
+                layers: [...new Set(told.flatMap((each) => each.layers))],
+                cause: last.cause,
+            });
+        }
+    };
+
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
     // redo or a rollback -- from the stack the picture shows to the one state holds.
     dispatcher.lane.register("styles", async (rendered, target) => {
@@ -4009,8 +4080,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             styleRevision++;
-            sources.onChange?.({ ...each.change, painted, cause: "command" });
+            const change: StyleChange = { ...each.change, painted, cause: "command" };
+            batch.push(change);
+            sources.onChange?.(change);
         }
+        flushBatch();
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -4020,14 +4094,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
             styleRevision++;
-            sources.onChange?.({
+            const told: StyleChange = {
                 reason: lastPass.reason,
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
                 warnings: NO_WARNINGS,
                 cause: change.cause,
-            });
+            };
+            // The steps of one undo, redo or restore are told one after another in the same task.
+            if (batch.length === 0) {
+                queueMicrotask(flushBatch);
+            }
+            batch.push(told);
+            sources.onChange?.(told);
         }
     };
 

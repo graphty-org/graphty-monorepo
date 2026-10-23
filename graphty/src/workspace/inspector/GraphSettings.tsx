@@ -66,7 +66,8 @@ function useFocusPastHidden(
 
 /**
  * Graph settings, the right panel with no row selected (tier 3 design section 2.5): Background
- * (color or image), Lighting, Same size at any depth, Outline width, and the label rules. The view
+ * (color or image), Lighting, Same size at any depth, Outline width, the Map while the layout
+ * draws one, and the label rules. The view
  * (2D or 3D) and the layout live only in the toolbar. A setting is shown only while the element
  * says it changes the drawing in this view. The background is the project's and goes through the
  * session; the rest are the reader's view preferences, kept in the chrome store and handed to the

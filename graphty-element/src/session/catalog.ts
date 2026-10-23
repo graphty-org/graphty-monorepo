@@ -161,7 +161,7 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  * @returns The catalogue.
  */
 export function createSessionCatalog(
-    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results">,
+    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues">,
 ): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
@@ -187,6 +187,7 @@ export function createSessionCatalog(
                         resolve: source.resolve,
                         attributes: source.attributes,
                         results: source.results,
+                        nodeValues: source.nodeValues,
                     },
                     key,
                     scope,

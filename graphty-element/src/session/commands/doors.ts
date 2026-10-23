@@ -855,6 +855,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     project: READ,
     transaction: HISTORY,
     estimate: READ,
+    recommendLayout: READ,
     plan: READ,
     on: LISTEN,
     dispose: LIFECYCLE,
@@ -1282,6 +1283,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: assigns({ backgroundType: "color", color: "#101010" }, [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
+            basemapStatus: READ,
+            mapFrame: READ,
+            attributionOffset: CAMERA,
+            cameraTransitionDuration: CAMERA,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1463,6 +1468,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ backgroundType: "color", color: "#202020" }],
                 [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
             ),
+            basemapStatus: READ,
+            mapFrame: READ,
+            setAttributionOffset: CAMERA,
+            getCameraTransitionDuration: READ,
+            setCameraTransitionDuration: CAMERA,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -2978,6 +2988,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             arrangedDimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+            optionInEffect: READ,
         },
     },
     {
@@ -3289,6 +3300,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/LifecycleManager.ts",
         half: "renderer",
         whole: LIFECYCLE,
+    },
+    {
+        name: "BasemapManager",
+        file: "src/managers/BasemapManager.ts",
+        half: "renderer",
+        doors: {
+            sync: RENDER,
+            status: READ,
+            attributionOffset: CAMERA,
+            dispose: LIFECYCLE,
+        },
     },
     {
         name: "RenderManager",

@@ -74,6 +74,18 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     );
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
+    // The map's credits sit above the toolbar, which owns the bottom margin; and a reader who
+    // prefers less motion gets camera moves without the glide. View settings, written on the
+    // element; they record no step.
+    const creditOffset = viewInsets.bottom ?? 0;
+    const still = useReducedMotion();
+    useEffect(() => {
+        const element = ref.current;
+        if (element !== null && hosted !== null) {
+            element.attributionOffset = creditOffset;
+            element.cameraTransitionDuration = still ? 0 : undefined;
+        }
+    }, [hosted, creditOffset, still]);
 
     useEffect(() => {
         let disposed = false;
@@ -120,4 +132,26 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );
+}
+
+/**
+ * Whether the reader asked for less motion, following the system setting as it changes.
+ * @returns True when the system says so.
+ */
+function useReducedMotion(): boolean {
+    const query = useMemo(() => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)"), []);
+    const [still, setStill] = useState(query?.matches ?? false);
+    useEffect(() => {
+        if (query === undefined) {
+            return undefined;
+        }
+        const changed = (): void => {
+            setStill(query.matches);
+        };
+        query.addEventListener("change", changed);
+        return () => {
+            query.removeEventListener("change", changed);
+        };
+    }, [query]);
+    return still;
 }

@@ -15,6 +15,7 @@ import { drawnText } from "./config/RichTextStyle";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
+import type { LocationMapFrame } from "./layout/locationMap/place";
 import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
@@ -33,10 +34,12 @@ import {
     fanOffset,
     fanSlot,
     fileRoute,
+    greatCircleArc,
     loopTeardrop,
     parseBends,
     parsePort,
     pointFromEnd,
+    raisedArc,
     roundCorners,
     routeEnds,
     routeOutside,
@@ -83,6 +86,13 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 
 /** How far a caption sits from its cap when its own block does not say. */
 const ARROW_CAPTION_OFFSET = 0.3;
+
+/**
+ * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of its
+ * length: a quarter over a flat map, a tenth over a globe, where a long route's quarter would rise
+ * higher than the globe is wide.
+ */
+const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 
 /** Which of an edge's caps an entry of {@link Edge.drawnCaps} is: an end's, or one drawn part-way along the line. */
 /**
@@ -408,6 +418,9 @@ export class Edge {
 
     /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
     private drawnArcRadius?: number;
+
+    /** The `line.route` and `line.arcHeight` the edge was last placed with. See {@link syncContent}. */
+    private drawnRoute?: string;
 
     /** The `line.nodeGap` the edge's ends were last placed with. See {@link syncContent}. */
     private drawnNodeGap?: number;
@@ -1402,6 +1415,12 @@ export class Edge {
             rebuilt = true;
         }
 
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        if (route !== this.drawnRoute) {
+            this.drawnRoute = route;
+            rebuilt = true;
+        }
+
         if (style.line?.nodeGap !== this.drawnNodeGap) {
             this.drawnNodeGap = style.line?.nodeGap;
             rebuilt = true;
@@ -1785,6 +1804,14 @@ export class Edge {
         if (this.haloBatch && this.haloIsCurve) {
             this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
         } else if (this.haloBatch) {
+            // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
+            while (this.haloSlots.length > 1) {
+                const slot = this.haloSlots.pop();
+                if (slot !== undefined) {
+                    this.haloBatch.release(slot);
+                }
+            }
+
             this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
         }
     }
@@ -1819,6 +1846,12 @@ export class Edge {
             return loopTeardrop(src, rank, count, (dir) => Edge.reachOf(this.srcNode, dir));
         }
 
+        const { route } = this;
+        if (route !== "straight") {
+            const height = this.drawnStyle?.line?.arcHeight ?? DEFAULT_ARC_HEIGHT[route];
+            return route === "arc" ? raisedArc(src, dst, height) : greatCircleArc(src, dst, height);
+        }
+
         if (!this.curved) {
             return null;
         }
@@ -1843,6 +1876,34 @@ export class Edge {
 
         const forward = first.srcNode === this.srcNode;
         return fanArc(src, dst, forward ? src : dst, forward ? dst : src, offset);
+    }
+
+    /**
+     * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
+     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
+     * the map could not place -- else straight.
+     * @returns The route.
+     */
+    private get route(): "straight" | "arc" | "great-circle" {
+        const asked = this.drawnStyle?.line?.route;
+        if (asked !== undefined) {
+            return asked;
+        }
+
+        // Read by shape, not by class: the layout module is not imported here.
+        const engine = this.context.getLayoutManager().layoutEngine as
+            { geoFrame?: LocationMapFrame | null } | undefined;
+        const frame = engine?.geoFrame;
+        if (frame === undefined || frame === null || frame.dimensions === 2) {
+            return "straight";
+        }
+
+        // An edge to a node in the tray has no place to arc between: it goes straight.
+        if (frame.unplacedIds.has(this.srcId) || frame.unplacedIds.has(this.dstId)) {
+            return "straight";
+        }
+
+        return frame.surface === "globe" ? "great-circle" : "arc";
     }
 
     /**

@@ -89,9 +89,14 @@ export class OrbitInputController {
 
         const dx = evt.clientX - this.lastX;
         const dy = evt.clientY - this.lastY;
+        const rect = this.canvas.getBoundingClientRect();
+        const from = { x: this.lastX - rect.left, y: this.lastY - rect.top };
         this.lastX = evt.clientX;
         this.lastY = evt.clientY;
-        this.controller.rotate(dx, dy);
+        // On a globe the grabbed point stays under the pointer; elsewhere the drag turns the view.
+        if (!this.controller.dragOnSphere(from, { x: evt.clientX - rect.left, y: evt.clientY - rect.top })) {
+            this.controller.rotate(dx, dy);
+        }
     };
 
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {

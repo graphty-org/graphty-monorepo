@@ -58,6 +58,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
+import type { LayoutRecommendation } from "./layout";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -99,7 +100,7 @@ import type {
     SourcePreviewOptions,
     SourceRefreshReport,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { TimeUnit } from "./time/parse";
 import type { TimeApi, TimeField, TimeStepEvent } from "./time/TimeApi";
@@ -2738,6 +2739,15 @@ export interface SessionEventMap {
      */
     "style:changed": StyleChange;
     /**
+     * Once per repaint, after the last `style:changed` it published: how many edits it told and
+     * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,
+     * `styles.counts()`) after a change listens here, so a pass that tells 51 edits -- a grouping
+     * run adds a layer per group -- costs it one read, not 51. An undo, a redo or a restore that
+     * passes several steps closes its batch in a microtask after the last step's event.
+     * @since 3.36.0
+     */
+    "style:batch-changed": StyleBatchChange;
+    /**
      * The element tried to paint something of its own and was refused.
      *
      * THE ONLY STYLE FAILURE A CONSUMER CANNOT OTHERWISE SEE. A style edit a consumer asks for
@@ -3374,6 +3384,17 @@ export interface SessionLayout {
      * @returns Settles once the step is recorded and the layout has been rebuilt for it.
      */
     setDimension(dimension: "2d" | "3d"): Promise<void>;
+    /**
+     * Whether a layout option changes the drawing in a view, as a coded fact: the location map's
+     * `surface` is `setting.notIn2d`, because the 2D view always draws its flat map. A form shows
+     * an option not in effect disabled, with words for the code.
+     * @param id - The layout's catalogue id.
+     * @param option - The option's name.
+     * @param dimension - The view the layout would be drawn in; the view's dimension now when absent.
+     * @returns The answer; every other option is `setting.inEffect`.
+     * @since 3.31.0
+     */
+    optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
 }
 
 /**
@@ -3659,6 +3680,14 @@ export interface GraphSession {
      * @returns The estimate, which reports `available: false` with a reason rather than throwing.
      */
     estimate(command: SessionCommand): CostEstimate;
+    /**
+     * Which layout suits the graph this session holds: `recommendLayout` over its statistics, the
+     * nodes its data placed (`seededNodeCount`), and whether its nodes carry geographic locations
+     * the location map layout can read.
+     * @returns The recommendation, or undefined when the catalogue serves none.
+     * @since 3.31.0
+     */
+    recommendLayout(): LayoutRecommendation | undefined;
     /**
      * What one command would do, what it would cost, and whether it would be allowed.
      * @param command - What would be done.

@@ -15,6 +15,7 @@ import { openflightsMeta } from "./openflights/meta.js";
 import { politicalBlogsMeta } from "./political-blogs/meta.js";
 import { politicalBooksMeta } from "./political-books/meta.js";
 import { stelzlInteractomeMeta } from "./stelzl-interactome/meta.js";
+import { veniceTransitMeta } from "./venice-transit/meta.js";
 import { wikipathwaysSenescenceAutophagyMeta } from "./wikipathways-senescence-autophagy/meta.js";
 import { yeastPerturbationMeta } from "./yeast-perturbation/meta.js";
 
@@ -31,6 +32,7 @@ const SMALL = {
     "celegans-neural": celegansNeuralMeta,
     "political-blogs": politicalBlogsMeta,
     openflights: openflightsMeta,
+    "venice-transit": veniceTransitMeta,
     "yeast-perturbation": yeastPerturbationMeta,
     "stelzl-interactome": stelzlInteractomeMeta,
     "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagyMeta,

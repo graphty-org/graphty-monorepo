@@ -1,0 +1,12 @@
+{
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "composite": true,
+        "noEmit": true,
+        "noImplicitOverride": true,
+        "lib": ["ES2020", "DOM"],
+        "types": ["node", "vitest/globals"]
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts"],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+}

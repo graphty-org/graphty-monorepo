@@ -75,6 +75,7 @@ export type {
     NodeId,
     OptionBound,
     OptionChoice,
+    OptionChoiceRefusal,
     OptionDescriptor,
     OptionType,
     PaletteDescriptor,

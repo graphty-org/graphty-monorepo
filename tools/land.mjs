@@ -831,28 +831,49 @@ async function pushGolden(ctx, before, rollback = before, wt = goldenTree(ctx)) 
             return { code: 1, sha };
         }
         const moved = goldenMoved(ctx, output, wt);
-        if (moved && tries < 3) {
-            console.log(
-                `land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`,
-            );
-            const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
-            if (git(ctx, wt.dir, args, { ok: true }).status === 0) continue;
-            git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
-        }
+        if (moved && tries < 3 && mergeMoved(ctx, wt)) continue;
         ctx.rollback = null;
         git(ctx, wt.dir, ["reset", "-q", "--hard", before]);
-        if (moved) {
-            console.error(
-                `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
-                    "Nothing is wrong with the branch: land it again.",
-            );
-            return { code: 4, sha };
-        }
-        const log = gateLog(ctx, sha, output);
-        console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
-        console.error(`land: gate log: ${log}`);
-        return { code: 3, sha, log };
+        return refusedPush(ctx, wt, before, sha, output, moved);
     }
+}
+
+/**
+ * Merges the branch's GitHub copy, which moved during the gate, into the worktree.
+ * @param ctx the run's context
+ * @param wt the worktree and branch
+ * @returns whether the merge succeeded (a failed one is aborted)
+ */
+function mergeMoved(ctx, wt) {
+    console.log(`land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`);
+    const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
+    if (git(ctx, wt.dir, args, { ok: true }).status === 0) return true;
+    git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
+    return false;
+}
+
+/**
+ * Reports a push that did not go through, after the worktree was reset to `before`.
+ * @param ctx the run's context
+ * @param wt the worktree and branch
+ * @param before the commit the branch is back at
+ * @param sha the commit that was pushed
+ * @param output the push's output
+ * @param moved whether the branch moved on GitHub during the gate
+ * @returns `{ code, sha, log }`: 4 the branch moved, 3 the gate refused it (`log` names its log)
+ */
+function refusedPush(ctx, wt, before, sha, output, moved) {
+    if (moved) {
+        console.error(
+            `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
+                "Nothing is wrong with the branch: land it again.",
+        );
+        return { code: 4, sha };
+    }
+    const log = gateLog(ctx, sha, output);
+    console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
+    console.error(`land: gate log: ${log}`);
+    return { code: 3, sha, log };
 }
 
 /**

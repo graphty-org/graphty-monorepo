@@ -712,7 +712,8 @@ async function finishIntermittent(ctx) {
         s.last.culprit = null;
         s.last.reproduced = false;
         if (issues) s.last.issues = issues;
-        s.last.status = all ? "flaky" : s.last.handling ? "handling" : "failed";
+        if (all) s.last.status = "flaky";
+        else s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = s.last.status;
     });
 }

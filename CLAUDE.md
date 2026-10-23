@@ -581,7 +581,7 @@ writes this into the golden pull request's description from the landed commit me
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci.yml` | Ready (non-draft) PRs (in practice the golden pull request), dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (18 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` summarizes (`Queue Checks Pass` belongs to the retired Mergify queue: its handling is still in the file but no longer used). The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
+| `ci.yml` | Ready (non-draft) PRs (in practice the golden pull request), dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (25 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` summarizes (`Queue Checks Pass` belongs to the retired Mergify queue: its handling is still in the file but no longer used). The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
@@ -717,12 +717,14 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 33 test shards on a manual dispatch or the release train (a push
+The CI runs 37 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
-full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, babylonjs-map, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
-graphty-1, graphty-2, graphty-3, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+full run is 25 test jobs, each planned to take about 15 minutes or less (the measured durations are
+in `tools/ci-test-matrix.mjs`): `small-node` (graph-format, graph-samples, babylonjs-map, cytoscape-extensions,
+cytoscape-extensions-cytoscape-versions, layout, algorithms-default, githerd) and `small-browser`
+(algorithms-browser, graph-io-browser, remote-logger, compact-mantine, visual-review,
+webgpu-graph-algorithms-browser); every other shard has a job of its own. A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -734,7 +736,7 @@ shard. The shards:
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
-- `graphty-1`, `graphty-2`, `graphty-3` (the app's tests in three parts, each with its own coverage report), `graphty-storybook`
+- `graphty-1` through `graphty-5` (the app's tests in five parts, each with its own coverage report), `graphty-storybook`
 - `remote-logger`
 - `visual-review`
 - `githerd`

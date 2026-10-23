@@ -20,6 +20,17 @@ const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 /** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
 const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+
+/**
+ * This run's --shard (`2/3` -> `2-3`), or null when it runs every file. The gate runs the
+ * graphty-1, -2 and -3 parts side by side, and with `optimizeDeps.force` below each one rebundles
+ * the dependencies when its browser project starts. In one shared cache directory that swapped
+ * the dependency chunks out from under a part already running: its page's next dynamic import of
+ * one (Babylon's dumpTools, behind a screenshot) answered 404, the browser kept that failure for
+ * the module, and the test waiting on the picture timed out. So each part bundles into its own.
+ */
+const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
+const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -67,6 +78,8 @@ export default defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
+    // Vitest puts each project's bundle under <cacheDir>/vitest/<project hash>.
+    cacheDir: SHARD_KEY ? `node_modules/.vite/shard-${SHARD_KEY}` : "node_modules/.vite",
     optimizeDeps: {
         include: ["@mantine/hooks"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached

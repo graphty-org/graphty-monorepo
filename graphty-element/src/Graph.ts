@@ -5346,7 +5346,13 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             // One at a time: every thumbnail is drawn at the same place, seen by the same mask.
             const is2D = this.getViewMode() === "2d";
-            shot = this.#thumbnailQueue.then(async () => nodeThumbnail(this.engine, this.scene, is2D, options));
+            shot = this.#thumbnailQueue.then(async () => {
+                // Drawn by a camera of its own from a mesh built now: a frozen list of what is
+                // drawn would leave that mesh out and the picture empty. nodeThumbnail draws in
+                // the same task, while the screenshot holds the frame loop that freezes it again.
+                this.updateManager.thawActiveMeshes();
+                return nodeThumbnail(this.engine, this.scene, is2D, options);
+            });
             this.#thumbnailQueue = shot.catch(() => undefined);
             this.#thumbnails.set(key, shot);
             // A failed picture is not kept: the next call tries again.

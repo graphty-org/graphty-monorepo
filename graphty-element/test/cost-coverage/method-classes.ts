@@ -291,6 +291,7 @@ export const MUTATING: readonly string[] = [
     "UpdateManager.stepFrames",
     "UpdateManager.syncStyles",
     "UpdateManager.syncViewMasks",
+    "UpdateManager.thawActiveMeshes",
     "UpdateManager.update",
     "UpdateManager.updateConfig",
     "VisibilityApi.set",

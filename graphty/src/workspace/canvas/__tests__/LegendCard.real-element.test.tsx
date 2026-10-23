@@ -93,6 +93,34 @@ async function scene(
 }
 
 /**
+ * The scene at 900 x 700 with a long key: Degree's size ramp and a shape per community, as well as
+ * the colors.
+ * @returns the session, the element, the store and the key.
+ */
+async function longKey(): Promise<{
+    session: GraphSession;
+    element: HTMLElementTagNameMap["graphty-element"];
+    store: WorkspaceStore;
+    legend: HTMLElement;
+}> {
+    const { session, element, store } = await scene(900, 700);
+    await session.runs.start("degree");
+    const louvain = session.runs.list().find((run) => run.algorithm === "louvain");
+    assert.isDefined(louvain);
+    const group = session.results.path(louvain?.id ?? "", "group");
+    await session.styles.add({
+        name: "Shapes",
+        target: "node",
+        selector: { match: "has", path: group },
+        encode: { "node.shape": { by: group, scale: "ordinal" } },
+    });
+    await session.styles.settled();
+    const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await within(legend).findByRole("group", { name: /^Shape: / }, { timeout: TIMEOUT_MS });
+    return { session, element, store, legend };
+}
+
+/**
  * The relative luminance of a computed `rgb()` color (WCAG 2.x).
  * @param color - the computed color.
  * @returns the luminance.
@@ -236,21 +264,7 @@ describe("the canvas key on the real element", () => {
     });
 
     it("at 900 x 700 leaves the drawing at least half the canvas's width", async () => {
-        const { session, element, store } = await scene(900, 700);
-        // A long key: Degree's size ramp and a shape per community, as well as the colors.
-        await session.runs.start("degree");
-        const louvain = session.runs.list().find((run) => run.algorithm === "louvain");
-        assert.isDefined(louvain);
-        const group = session.results.path(louvain?.id ?? "", "group");
-        await session.styles.add({
-            name: "Shapes",
-            target: "node",
-            selector: { match: "has", path: group },
-            encode: { "node.shape": { by: group, scale: "ordinal" } },
-        });
-        await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: /^Shape: / }, { timeout: TIMEOUT_MS });
+        const { session, element, store } = await longKey();
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
@@ -271,7 +285,10 @@ describe("the canvas key on the real element", () => {
         const span = Math.max(...xs) - Math.min(...xs);
         assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
+    });
 
+    it("at 900 x 700 the long key scrolls: it takes focus, says what lies below and cuts no line", async () => {
+        const { legend } = await longKey();
         // It scrolls, so it takes focus, says how many entries lie below, and it stops at a line's
         // edge above that line at its foot: no line shows cut in half.
         assert.equal(legend.tabIndex, 0);

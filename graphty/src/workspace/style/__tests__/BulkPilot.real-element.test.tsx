@@ -70,6 +70,23 @@ async function openScene(): Promise<{ session: GraphSession; store: WorkspaceSto
 }
 
 /**
+ * A hand-made layer that covers every node, "Top 10 labels", put at the top of the run's folder.
+ * @param session - The session.
+ * @returns The layer.
+ */
+async function addLabelsToFolder(session: GraphSession): Promise<Layer> {
+    const folder = session.styles.tree().find((each) => each.name === "Louvain");
+    const labels = await session.styles.add({
+        name: "Top 10 labels",
+        target: "node",
+        selector: { match: "everything" },
+        set: { "node.label": "x" },
+    });
+    await session.styles.moveRow(labels.row ?? labels.id, { parent: folder?.id ?? null, index: 0 });
+    return labels;
+}
+
+/**
  * The style tree.
  * @returns The tree.
  */
@@ -170,8 +187,8 @@ async function varyByGroup(field: HTMLElement, name: string): Promise<HTMLElemen
 }
 
 describe("bulk editing a run's folder of group layers, after the first pilot", () => {
-    it("copies a varied fill and shape into every group layer, and a re-run names new groups apart", async () => {
-        const { session, runId } = await openScene();
+    it("copies a varied fill and shape into every group layer", async () => {
+        const { session } = await openScene();
         await userEvent.click(await row("Louvain"));
 
         // Fill > Vary > the run's group, with a palette to pick; Escape hands focus back to the
@@ -205,6 +222,35 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
                 assert.isTrue(binding !== undefined && "by" in binding, `${each.name} holds its own shape rule`);
             }
         });
+        // Each layer's copy is the very rule one layer would get on its own: no table of its own.
+        for (const each of folderRows(session)) {
+            const binding = session.styles.get(each.id)?.encode?.["node.color"];
+            assert.isTrue(binding !== undefined && "by" in binding && binding.map === undefined, each.name);
+        }
+    });
+
+    // Its own test, with the rules the Vary steps above write set directly: in one with them it
+    // took 16 to 17 s on a busy CI runner, past the 15 s limit (issue #3271).
+    it("lists a run's varied groups once per property in the key, each shape drawn as the node", async () => {
+        const { session } = await openScene();
+        await session.styles.updateMany(
+            folderRows(session).map((each) => {
+                const layer = session.styles.get(each.id);
+                const by = groupOf(layer)?.path ?? "";
+                // Vary replaces the group's own color, as the Fill row's Vary does.
+                const { "node.color": _ownColor, ...set } = layer?.set ?? {};
+                return {
+                    id: each.id,
+                    patch: {
+                        set,
+                        encode: {
+                            "node.color": { by, scale: "ordinal", overflow: "other" },
+                            "node.shape": { by, scale: "ordinal" },
+                        },
+                    },
+                };
+            }),
+        );
         await session.styles.settled();
         // The key lists the run's groups once per property, not once per layer.
         const legend = screen.getByRole("region", { name: "Legend" });
@@ -224,12 +270,12 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             },
             { timeout: 30_000 },
         );
+    });
 
-        // Each layer's copy is the very rule one layer would get on its own: no table of its own.
-        for (const each of folderRows(session)) {
-            const binding = session.styles.get(each.id)?.encode?.["node.color"];
-            assert.isTrue(binding !== undefined && "by" in binding && binding.map === undefined, each.name);
-        }
+    // Its own test: in one with the bulk edit above it took 16 to 17 s on a busy CI runner, past
+    // the 15 s limit (issue #3271).
+    it("a re-run names its new groups apart from the groups it keeps", async () => {
+        const { session, runId } = await openScene();
         const before = paintedGroups(session);
         const run = session.runs.get(runId);
         await session.runs.start("louvain", { ...run?.params, resolution: 2 }, { as: runId, seed: 1 });
@@ -318,14 +364,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
     it("shows what setting rows agree on, takes a color by name, and warns before covering every node", async () => {
         const { session, store } = await openScene();
         const groups = folderRows(session);
-        const folder = session.styles.tree().find((each) => each.name === "Louvain");
-        const labels = await session.styles.add({
-            name: "Top 10 labels",
-            target: "node",
-            selector: { match: "everything" },
-            set: { "node.label": "x" },
-        });
-        await session.styles.moveRow(labels.row ?? labels.id, { parent: folder?.id ?? null, index: 0 });
+        await addLabelsToFolder(session);
         await session.styles.updateMany(
             groups.slice(0, 3).map((each) => ({
                 id: each.id,
@@ -394,6 +433,16 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         await waitFor(() => {
             assert.equal(store.get().notice?.message, `Undid changing node color on ${String(groups.length)} layers.`);
         });
+    });
+
+    // Its own test: in one with the color edits above it took 15 to 17 s on a busy CI runner, past
+    // the 15 s limit (issue #3271).
+    it("varies a shape into a layer that holds every group too, and its receipt goes with the selection", async () => {
+        const { session } = await openScene();
+        const groups = folderRows(session);
+        const labels = await addLabelsToFolder(session);
+        await openFolder();
+        await userEvent.click(await row("Louvain"));
 
         // Shape, set by none: Vary copies the rule into every layer, the one holding every group too.
         // A "+" with one thing left adds it at once; with more, it opens a menu.

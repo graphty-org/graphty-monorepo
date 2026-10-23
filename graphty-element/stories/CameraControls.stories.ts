@@ -5,7 +5,7 @@ import { html } from "lit";
 import { ref } from "lit/directives/ref.js";
 
 import { Graphty } from "../src/graphty-element";
-import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, holds } from "./assertions";
+import { assertGraphLoaded, assertLayoutPlaced, assertViewMode, drawn, eventually, holds } from "./assertions";
 import { edgeData, eventWaitingDecorator, nodeData, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /**
@@ -54,22 +54,18 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     const before = where();
 
     buttons[0].click();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    const afterPreset = where();
-
-    await holds(
-        afterPreset !== before,
+    await eventually(
+        () => where() !== before,
         `Camera Controls ${story}: pressing "${buttons[0].textContent.trim()}" left the camera at ` +
             `(${before}), where it already was`,
     );
+    await scene.element.waitForStableFrame();
+    const afterPreset = where();
 
     // The last button is Reset, which must bring it back somewhere else again.
     buttons[buttons.length - 1].click();
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    await holds(
-        where() !== afterPreset,
+    await eventually(
+        () => where() !== afterPreset,
         `Camera Controls ${story}: pressing "${buttons[buttons.length - 1].textContent.trim()}" left ` +
             `the camera where the preset put it (${afterPreset})`,
     );
@@ -455,7 +451,8 @@ const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"
     await element.graph.zoomStep("in");
     await element.graph.zoomStep("in");
     await element.applyCameraView("fitToGraph");
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The picture once the camera has finished framing the graph.
+    await element.waitForStableFrame();
 
     const { width, height } = element.graph.canvas.getBoundingClientRect();
     for (const node of element.graph.getNodes()) {

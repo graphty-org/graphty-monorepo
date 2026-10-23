@@ -38,9 +38,6 @@ const EDGES = [
 /** The node each story hovers. */
 const HOVERED = "paris";
 
-/** How long to leave for the tooltip to be built and drawn. */
-const SETTLE_MS = 400;
-
 /**
  * How wide a tooltip drawn at the element's defaults is, in world units, plus a margin.
  *
@@ -155,7 +152,8 @@ async function pointTo(
         );
     }
 
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    // The tooltip built and drawn: the picture once the element has reacted to the pointer.
+    await scene.element.waitForStableFrame();
 }
 
 /**

@@ -32,7 +32,7 @@
 // not reproduced, never called a flake. A failure that needs two landings fails first at the later one,
 // which is the one named. Verification never reverts; the pipeline round does.
 
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
     closeSync,
     existsSync,
@@ -49,6 +49,11 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { acquireLock, CUT, git, GOLDEN, handOff, mainCheckout, prepareScratch } from "./land.mjs";
+import { expectedRuns } from "./shard-verdict.mjs";
+
+// The test ledger (design/ci/test-ledger.md): issues for failures on golden, known failures, the flaky bisect.
+// Without it verification works as before.
+const ledger = await import("./test-ledger.mjs").catch(() => null);
 
 export const VERIFIED_REF = "golden-verified";
 const QUIET = { pollMs: 20, waitLog: () => {}, onWait: () => {}, onQueue: () => {} };
@@ -79,6 +84,11 @@ export function verifyContext(cwd, overrides = {}) {
         spawnRun: defaultSpawnRun,
         publishRef: defaultPublishRef,
         sessionAlive: defaultSessionAlive,
+        gh: (args) => {
+            const r = spawnSync("gh", args, { cwd: main, env, encoding: "utf8" });
+            if (r.status !== 0) throw new Error(r.stderr || `gh exited ${r.status}`);
+            return r.stdout.trim();
+        },
         ...overrides,
     };
 }
@@ -206,10 +216,15 @@ function defaultSpawnRun(ctx) {
  * @returns 0
  */
 export async function run(ctx) {
+    // A missing, incomplete or corrupt ledger database is rebuilt from its record files here, never in a gate.
+    ledgerDo(ctx, (l) => l.ensure(ctx.env, ctx.main));
     for (;;) {
         git(ctx, ctx.main, ["fetch", "-q", "origin"], { ok: true });
         const job = await withState(ctx, (s) => nextJob(ctx, s));
-        if (!job) return 0;
+        if (!job) {
+            ledgerDo(ctx, (l) => console.log(l.prune(ctx.env, ctx.main)));
+            return 0;
+        }
         if (job.bisect) await bisect(ctx);
         else if (job.target) await verifyCommit(ctx, job);
     }
@@ -260,6 +275,7 @@ function base(ctx, target) {
 }
 
 async function verifyCommit(ctx, { target, from }) {
+    const started = new Date().toISOString();
     const r = await ctx.gate(ctx, target);
     if (r.code === 0) {
         if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
@@ -277,23 +293,149 @@ async function verifyCommit(ctx, { target, from }) {
         "--reverse",
         from ? `${from}..${target}` : target,
     ]).split("\n");
-    await withState(ctx, (s) => {
+    const facts = failing && ledgerDo(ctx, (l) => gateFacts(ctx, l, target, from, started, r.log));
+    const known = await withState(ctx, (s) => {
         // ponytail: a newer failure replaces the record, keeping a live claim on it; a list of failures if
         // two unrelated ones overlap often.
         const handling = s.last?.status === "handling" ? s.last.handling : undefined;
+        const again = facts && knownAgain(ctx, facts, s.last, target);
         s.last = {
             commit: target,
             from,
-            status: "bisecting",
+            status: again ? "failed-known" : "bisecting",
             at: now(),
             log: r.log,
             failing,
+            pairs: facts?.pairs,
+            issues: facts?.issues,
+            flaky: facts?.flaky,
             bisect: { candidates, points: {} },
             handling,
         };
-        if (s.run) s.run.step = "bisect";
+        if (s.run) s.run.step = again ? "failed-known" : "bisect";
+        return again;
     });
-    await bisect(ctx);
+    if (!known) await bisect(ctx);
+}
+
+/**
+ * Runs `use(ledger)` when the ledger module loaded; a ledger error is one line, never a failure.
+ * @param ctx the context
+ * @param use the function
+ * @returns what it returned, or null
+ */
+function ledgerDo(ctx, use) {
+    try {
+        return ledger ? use(ledger) : null;
+    } catch (e) {
+        console.log(`verify: ledger: ${e.message.split("\n")[0]}`);
+        return null;
+    }
+}
+
+/**
+ * What the ledger recorded of this verification's gate: its failing (test, key) pairs, an issue per signature
+ * (filed when missing, reopened when closed), and for each shard whose failing tests are all flaky, the bad
+ * threshold of its bisect (design/ci/test-ledger.md 5.1, 5.3).
+ * @param ctx the context
+ * @param l the ledger module
+ * @param target the commit
+ * @param from the last verified commit
+ * @param started when the gate started
+ * @param log the gate's log
+ * @returns `{ outcomes, failures, pairs, issues, flaky }`, or null when the ledger is unavailable
+ */
+function gateFacts(ctx, l, target, from, started, log) {
+    const { db, dir } = l.openLedger(ctx.env, ctx.main);
+    if (!db) return null;
+    const mine = "i.kind = 'verify' AND i.commit_sha = ? AND i.started_at >= ?";
+    const outcomes = db.prepare(`SELECT i.shard, i.outcome FROM invocation i WHERE ${mine}`).all(target, started);
+    const failures = db
+        .prepare(
+            `SELECT i.shard, i.variant, t.file, t.name, f.* FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv WHERE ${mine}`,
+        )
+        .all(target, started);
+    const issues = l.fileIssues(dir, failures, { commit: target, log }, ctx.gh);
+    reopen(ctx, Object.values(issues));
+    const chain = git(ctx, ctx.main, ["rev-list", "--first-parent", "-n", "200", target]).split("\n");
+    const before = from ? new Date(git(ctx, ctx.main, ["log", "-1", "--format=%cI", from])).toISOString() : undefined;
+    const flaky = {};
+    for (const shard of new Set(failures.map((f) => f.shard))) {
+        const tests = failures.filter((f) => f.shard === shard);
+        const c = tests.map((f) => l.classify(db, f.file, f.name, f.variant, chain, before));
+        if (c.every((x) => x.flaky))
+            flaky[shard] = {
+                threshold: l.badThreshold(Math.max(...c.map((x) => x.rate))),
+                tests: tests.map((f) => `${f.file}\0${f.name}`),
+            };
+    }
+    const pairs = failures.map((f) => `${f.file}\0${f.name}\0${f.key}`).sort();
+    const between = (prev) =>
+        git(ctx, ctx.main, ["rev-list", "--first-parent", `${prev}..${target}`])
+            .split("\n")
+            .filter(Boolean);
+    const passedSince = (prev) =>
+        failures.some((f) =>
+            db
+                .prepare(
+                    `SELECT 1 FROM file_run fr JOIN test tf ON tf.id = fr.test AND tf.file = ? AND tf.name = '' JOIN invocation i ON i.id = fr.inv
+                     WHERE fr.skipped = 0 AND i.dirty = 0 AND i.outcome IN ('passed', 'failed') AND i.kind IN (SELECT value FROM json_each(?))
+                     AND i.commit_sha IN (SELECT value FROM json_each(?)) AND NOT EXISTS (SELECT 1 FROM failure x JOIN test tt ON tt.id = x.test
+                     WHERE x.inv = i.id AND tt.file = tf.file AND tt.name = ?)`,
+                )
+                .get(f.file, JSON.stringify(l.OWNED), JSON.stringify(between(prev)), f.name),
+        );
+    const prev = readState(ctx).last?.commit;
+    const passed = Boolean(prev) && prev !== target && passedSince(prev);
+    db.close();
+    return { outcomes, failures, pairs, issues, flaky, prev, passed };
+}
+
+/**
+ * Whether this failure is the previous verification's again (design 5.1, "a known failure again"): every shard
+ * finished with no error, the failing (test, key) pairs are the same, each has an issue, and no tool-owned run
+ * on a commit between the two recorded any of those tests passing.
+ * @param ctx the context
+ * @param facts gateFacts()
+ * @param prev the previous result
+ * @param target the commit
+ * @returns boolean
+ */
+function knownAgain(ctx, facts, prev, target) {
+    const clean = facts.outcomes.length > 0 && facts.outcomes.every((o) => ["passed", "failed"].includes(o.outcome));
+    const same = facts.pairs.length > 0 && JSON.stringify(facts.pairs) === JSON.stringify(prev?.pairs ?? []);
+    const filed = facts.failures.every((f) => facts.issues[f.signature] > 0);
+    return clean && same && filed && prev.commit === facts.prev && prev.commit !== target && !facts.passed;
+}
+
+// Reopens mapped issues that were closed while their failure is still on golden: one GitHub call.
+function reopen(ctx, issues) {
+    if (!issues.length) return;
+    const closed = JSON.parse(
+        ctx.gh([
+            "issue",
+            "list",
+            "--state",
+            "closed",
+            "--label",
+            "bug",
+            "--search",
+            "Failing on golden in:title",
+            "--json",
+            "number",
+            "--limit",
+            "200",
+        ]),
+    );
+    for (const { number } of closed.filter((c) => issues.includes(c.number))) {
+        ctx.gh([
+            "issue",
+            "reopen",
+            String(number),
+            "--comment",
+            "Verification of golden still fails this way; reopened.",
+        ]);
+    }
 }
 
 // ---------------------------------------------------------------- bisect
@@ -352,6 +494,9 @@ function finishBisect(ctx, bad) {
         const sha = bad === null ? null : s.last.bisect.candidates[bad];
         const subject = sha ? git(ctx, ctx.main, ["log", "-1", "--format=%s", sha]) : null;
         s.last.culprit = sha ? { sha, subject, branch: LAND_SUBJECT.exec(subject)?.[1] ?? null } : null;
+        const sigs = Object.keys(s.last.issues ?? {});
+        if (sha && sigs.length)
+            ledgerDo(ctx, (l) => l.noteCulprit(l.ledgerDir(ctx.env, ctx.main), sigs, s.last.culprit, ctx.gh));
         s.last.reproduced = sha !== null;
         s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = "failed";
@@ -426,6 +571,8 @@ async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GO
     // PUSH_QUEUE_RETRY: a commit verification is asked to run again is run, not refused for its last failure.
     const env = {
         ...ctx.env,
+        TEST_LEDGER_KIND: name.startsWith("golden-bisect") ? "bisect" : "verify",
+        TEST_LEDGER_BRANCH: ctx.branch,
         PREPUSH_ALL: "1",
         PUSH_BASE_REF: "origin/master",
         PUSH_QUEUE_PRIORITY: "critical",
@@ -453,8 +600,51 @@ async function defaultCheck(ctx, commit, failing, slot) {
     const log = join(ctx.main, `tmp/golden/verify-logs/bisect-${commit.slice(0, 10)}.log`);
     const opts = { cwd: dir, env: ctx.env, log };
     if ((await runLogged("pnpm", ["exec", "nx", "run-many", "-t", "build"], opts)).code !== 0) return false;
+    const { SHARDS } = await import(pathToFileURL(join(dir, "tools/ci-test-matrix.mjs")).href);
+    const flaky = readState(ctx).last?.flaky ?? {};
     for (const shard of failing) {
-        if ((await runLogged(join(dir, "tools/run-tests.sh"), [shard], opts)).code !== 0) return false;
+        if (!(await checkShard(ctx, dir, opts, SHARDS.find((s) => s.shard === shard) ?? { shard }, flaky[shard]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * One shard at one bisect point, each run recorded as a `bisect` invocation. A shard whose failing tests are all
+ * flaky runs up to 10 times and is bad once those tests fail `plan.threshold` times (design 5.3); any other
+ * failure is bad at once.
+ * @param ctx the context
+ * @param dir the bisect worktree
+ * @param opts runLogged's options
+ * @param shard the SHARDS entry
+ * @param [plan] `{ threshold, tests }` for a flaky shard
+ * @returns true when it passed
+ */
+async function checkShard(ctx, dir, opts, shard, plan) {
+    let hits = 0;
+    for (let i = 0; i < (plan ? 10 : 1); i++) {
+        const runId = ledger?.newRunId(shard.shard) ?? "";
+        const env = { ...ctx.env, TEST_LEDGER_RUN: runId, TEST_LEDGER_KIND: "bisect", TEST_LEDGER_BRANCH: ctx.branch };
+        const startedAt = Date.now();
+        const r = await runLogged(join(dir, "tools/run-tests.sh"), [shard.shard], { ...opts, env });
+        const runs = shard["test-command"] ? expectedRuns(shard["test-command"]) : 1;
+        const facts = {
+            shard: shard.shard,
+            code: r.code,
+            log: r.output,
+            root: dir,
+            runId,
+            startedAt,
+            runs,
+            main: ctx.main,
+            env,
+        };
+        const rec = ledgerDo(ctx, (l) => l.record(facts));
+        if (r.code === 0) continue;
+        const own =
+            plan && rec?.outcome === "failed" && rec.failures.every((f) => plan.tests.includes(`${f.file}\0${f.name}`));
+        if (!own || ++hits >= plan.threshold) return false;
     }
     return true;
 }
@@ -569,6 +759,10 @@ export function describe(ctx) {
 function lastLine(l) {
     const head = `${l.status} ${short(l.commit)} at ${l.at}`;
     if (l.status === "passed") return head;
+    if (l.status === "failed-known") {
+        const issues = [...new Set(Object.values(l.issues ?? {}))].map((n) => `#${n}`).join(", ");
+        return `${head}: the same failures as the verification before (issues ${issues}), not bisected again; log ${l.log}`;
+    }
     if (l.status === "bisecting") {
         return `${head}, ${Object.keys(l.bisect.points).length} of ${l.bisect.candidates.length} points tested (${l.failing?.join(", ") ?? "whole gate"}); log ${l.log}`;
     }

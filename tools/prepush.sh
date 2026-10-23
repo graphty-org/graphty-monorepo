@@ -325,8 +325,10 @@ fi
 # gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
 # 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
 # prepush-tests.mjs stops every shard's process group itself.
+# Exit 3: every shard passed but some that failed only as on golden (tools/test-ledger.mjs); the step passes
+# and no whole-gate pass is recorded, so the next push judges those shards again.
 run_step "Tests (the CI shards of the affected packages)" \
-    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
+    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
@@ -361,7 +363,7 @@ sonar_reminder
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
-    [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
+    [ -n "$GATE_KEY" ] && [ -z "${KNOWN_FAILURES:-}" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
     PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0

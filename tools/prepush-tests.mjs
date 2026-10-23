@@ -58,7 +58,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
-import { checkShard } from "./shard-verdict.mjs";
+import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
@@ -66,6 +66,45 @@ import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
 const ROOT = process.env.PREPUSH_ROOT || join(dirname(fileURLToPath(import.meta.url)), "..");
 delete process.env.PREPUSH_ROOT;
 const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
+// The test ledger records every shard run (design/ci/test-ledger.md); without it the gate decides as before.
+const ledger = await import("./test-ledger.mjs").catch((e) => {
+    console.log(`ledger: unavailable (${e.message.split("\n")[0]}); deciding as before`);
+    return null;
+});
+
+/**
+ * Whether a failing shard may be excused as failing on golden: only in a land check (land.mjs sets
+ * TEST_LEDGER_KIND), never under PREPUSH_ALL=1 (verification), PREPUSH_EXONERATE=0, or a push to the cut or master.
+ * @param env the environment
+ * @returns boolean
+ */
+export function mayExcuse(env) {
+    const strict = env.PREPUSH_ALL === "1" || env.PREPUSH_EXONERATE === "0";
+    return (
+        env.TEST_LEDGER_KIND === "land-check" &&
+        !strict &&
+        !/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")
+    );
+}
+
+/**
+ * Records one shard run in the ledger; never throws.
+ * @param shard the shard entry
+ * @param main the main checkout
+ * @param extra record()'s other fields
+ * @returns the record, or null
+ */
+function ledgerRecord(shard, main, extra) {
+    try {
+        const runs = expectedRuns(shard["test-command"]);
+        return (
+            ledger?.record({ shard: shard.shard, root: ROOT, main, runs, selected: shard.selected, ...extra }) ?? null
+        );
+    } catch (e) {
+        console.log(`ledger: ${shard.shard} not recorded (${e.message.split("\n")[0]})`);
+        return null;
+    }
+}
 
 /**
  * The shards CI's test matrix runs for these affected projects, as plan() selects them before it
@@ -407,13 +446,14 @@ function passed(shards, main) {
     };
     const { run, skipped } = partitionByPasses(shards, before, passOf);
     for (const { shard, pass } of skipped) {
+        ledgerRecord(shard, main, { code: 0, reusedFrom: pass.ledger ?? `pass-${pass.key}` });
         const on = [pass.branch, pass.sha?.slice(0, 9)].filter(Boolean).join(" at ");
         console.log(
             `  [SKIP] ${shard.shard}: passed at ${pass.at} on ${on} with byte-identical inputs (key ${pass.key.slice(0, 12)}; PREPUSH_RERUN_ALL=1 runs it)`,
         );
     }
     const sha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
-    const record = (shard, log) => {
+    const record = (shard, log, ledgerId) => {
         const key = before.get(shard.shard);
         try {
             // A run that passed no test proves nothing about these inputs (an empty include, a filter).
@@ -428,6 +468,7 @@ function passed(shards, main) {
             store.record(kindOf(shard), key, {
                 shard: shard.shard,
                 ...files,
+                ledger: ledgerId,
                 branch,
                 sha,
                 at: new Date().toISOString(),
@@ -438,6 +479,19 @@ function passed(shards, main) {
         }
     };
     return { run, record };
+}
+
+/**
+ * Families that failed on golden most recently start first (design/ci/test-ledger.md 5.4); not in verification.
+ * @param waiting the shards, sorted in place
+ */
+function orderShards(waiting) {
+    if (process.env.PREPUSH_ALL === "1") return;
+    try {
+        ledger?.orderShards(waiting, ROOT);
+    } catch {
+        // the order is only a speed-up
+    }
 }
 
 async function main() {
@@ -507,7 +561,9 @@ async function main() {
     const warmed = new Set();
     const canStart = startRule(shards);
     const waiting = [...shards];
-    let failed = null;
+    orderShards(waiting);
+    const failed = [];
+    const known = [];
     let stopping = false;
     const started = Date.now();
     // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
@@ -527,11 +583,12 @@ async function main() {
             cmd.unshift(gate);
         }
         // Its own process group, so stopping it takes vitest, its workers and Chromium along.
+        const runId = ledger?.newRunId(shard.shard);
         const child = spawn(cmd[0], cmd.slice(1), {
             cwd: ROOT,
             detached: true,
             stdio: ["ignore", "pipe", "pipe"],
-            env: { ...process.env, ...shardEnv(shard) },
+            env: { ...process.env, ...shardEnv(shard), ...(runId ? { TEST_LEDGER_RUN: runId } : {}) },
         });
         child.stdout.pipe(out);
         child.stderr.pipe(out);
@@ -544,31 +601,44 @@ async function main() {
             // so no other shard's close ends the stage before this one's verdict.
             const settle = () => {
                 running.delete(shard.shard);
-                if (failed) {
+                const text = existsSync(log) ? readFileSync(log, "utf8") : "";
+                const facts = { code, log: text, runId, startedAt: t0, logFile: log };
+                if (stopping) {
+                    ledgerRecord(shard, main, { ...facts, cancelled: true });
                     // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
-                    if (stopping && running.size === 0) {
+                    if (running.size === 0) {
                         finish();
                     }
                     return;
                 }
-                const text = existsSync(log) ? readFileSync(log, "utf8") : "";
                 // Exit 0 alone is not a pass: a pnpm older than 10.29.1 reports a killed run as 0
                 // (tools/shard-verdict.mjs).
                 const verdict = checkShard(shard, code, text, ROOT, t0);
+                const rec = ledgerRecord(shard, main, { ...facts, exonerate: !verdict.pass && mayExcuse(process.env) });
                 results.push({ shard: shard.shard, ok: verdict.pass, secs, log });
                 if (verdict.pass) {
                     warmed.add(family(shard));
                     console.log(
-                        `  [PASS] ${shard.shard}${selectedNote(shard)} (${secs}s)${passes.record(shard, text)}`,
+                        `  [PASS] ${shard.shard}${selectedNote(shard)} (${secs}s)${passes.record(shard, text, rec?.id)}`,
                     );
                     next();
                     return;
                 }
-                failed = shard.shard;
+                if (rec?.exonerations.length) {
+                    // Every failing test fails as on golden (or is quarantined): no shard pass is recorded, and
+                    // the stage exits 3 so prepush.sh records no gate pass and the next push judges it again.
+                    known.push(shard.shard);
+                    warmed.add(family(shard));
+                    console.log(ledger.knownLines(rec).join("\n"));
+                    next();
+                    return;
+                }
+                failed.push(shard.shard);
                 process.exitCode = 1;
                 console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
                 console.log(text.split("\n").slice(-80).join("\n"));
-                stopAll();
+                // Verification (PREPUSH_ALL=1) runs every shard to the end, so one failure cannot hide another.
+                (process.env.PREPUSH_ALL === "1" ? next : stopAll)();
             };
             if (out.destroyed) {
                 settle();
@@ -622,10 +692,16 @@ async function main() {
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         advisory.report(results);
-        if (failed) {
-            keepLog(failed);
-            console.log(`Stopped after ${failed} failed (${secs}s); the other shards did not finish.`);
+        if (failed.length) {
+            failed.forEach(keepLog);
+            // push-queue.sh reads "Stopped after SIG... failed" as the machine's failure, not this push's.
+            const what = stopping ? `Stopped after ${failed[0]} failed` : `Failed: ${failed.join(", ")}`;
+            console.log(`${what} (${secs}s)${stopping ? "; the other shards did not finish" : ""}.`);
             process.exit(1);
+        }
+        if (known.length) {
+            console.log(`Every shard passed but ${known.join(", ")}, which failed only as on golden (${secs}s).`);
+            process.exit(3);
         }
         console.log(`All ${shards.length} shards passed in ${secs}s.`);
         process.exit(0);
@@ -653,7 +729,7 @@ async function main() {
 
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
-            failed ??= signal;
+            failed.push(signal);
             process.exitCode = 1;
             stopAll();
         });

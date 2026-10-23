@@ -286,7 +286,11 @@ export function defaultCheck(ctx, job) {
     if (step(lint).status !== 0) return { ok: false, what: `lint (log: ${log})` };
     const live = join(ctx.main, ".worktrees/gate-live/tools/prepush-tests.mjs");
     const runner = existsSync(live) ? live : "tools/prepush-tests.mjs";
-    const tests = step(`node '${runner}' '${JSON.stringify(projects)}' '${job.base}'`, { PREPUSH_ROOT: dir });
+    const ledger = { TEST_LEDGER_KIND: "sync", TEST_LEDGER_BRANCH: job.branch };
+    const tests = step(`node '${runner}' '${JSON.stringify(projects)}' '${job.base}'`, {
+        PREPUSH_ROOT: dir,
+        ...ledger,
+    });
     if (tests.status === 0) return { ok: true };
     return { ok: false, what: `${failedTest(tests.out)} (log: ${log})` };
 }

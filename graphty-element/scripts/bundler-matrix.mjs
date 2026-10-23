@@ -366,10 +366,10 @@ ${PAGE_SCRIPT}</script></body></html>
 }
 
 /** The codes only the GPU package's own probe produces: proof that it was loaded. */
-const PROBE_CODES = ["E_SOFTWARE_ONLY", "E_NO_WEBGPU", "E_NO_ADAPTER"];
+const PROBE_CODES = new Set(["E_SOFTWARE_ONLY", "E_NO_WEBGPU", "E_NO_ADAPTER"]);
 
 /** The states of an attached accelerator. */
-const ATTACHED = ["idle", "active"];
+const ATTACHED = new Set(["idle", "active"]);
 
 /** The origin the pages are opened at. No server listens there: every request is answered from disk. */
 const ORIGIN = "https://bundler-matrix.test";
@@ -467,7 +467,7 @@ function judge(state, auto, required) {
         ],
         present: [
             [
-                PROBE_CODES.includes(auto.status.code) || ATTACHED.includes(auto.status.state),
+                PROBE_CODES.has(auto.status.code) || ATTACHED.has(auto.status.state),
                 `auto: state ${auto.status.state} code ${auto.status.code}, expected the package's own probe answer`,
             ],
             [
@@ -475,7 +475,7 @@ function judge(state, auto, required) {
                 `auto printed ${warns} warnings and ${errs} errors, expected 1 warning`,
             ],
             [
-                ATTACHED.includes(required?.status?.state),
+                ATTACHED.has(required?.status?.state),
                 `required: state ${required?.status?.state} code ${required?.status?.code}, expected the package attached`,
             ],
         ],

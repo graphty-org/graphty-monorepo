@@ -475,7 +475,29 @@ export class SupportPoints<E> {
         });
         const was = this.lastEnds;
         this.lastEnds = now;
+        if (was.length === now.length) {
+            this.reseedChangedForces(was, now);
+        }
         return was.length !== now.length || now.some((v, i) => Math.abs(v - was[i]) > 1e-6);
+    }
+
+    /**
+     * Start again from its edge's middle every support point whose forces changed, so where a point rests depends on
+     * its forces and the nodes, not on the forces it had before (a style set and then removed draws the curve it drew
+     * before it was set).
+     * @param was - Each edge's ends and forces at the call before, flat, as {@link endsChanged} keeps them.
+     * @param now - The same, now.
+     */
+    private reseedChangedForces(was: Float64Array, now: Float64Array): void {
+        for (let j = 0; j < now.length / 10; j++) {
+            const changed = now
+                .subarray(10 * j + 4, 10 * j + 10)
+                .some((v, k) => Math.abs(v - was[10 * j + 4 + k]) > 1e-6);
+            if (changed) {
+                this.rel.set([0.5, 0], 2 * j);
+                this.velocities.set([0, 0], 2 * j);
+            }
+        }
     }
 
     /**

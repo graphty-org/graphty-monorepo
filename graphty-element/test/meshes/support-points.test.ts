@@ -78,6 +78,28 @@ describe("support points", () => {
         assert.closeTo(y3, 3 * y, 0.1);
     });
 
+    it("rest where their forces put them, whatever forces they had before", () => {
+        const support = new SupportPoints<string>();
+        const nodes = [at(0, 0), at(100, 0), at(50, 30)];
+        let forces: SupportForces = BARNES_HUT;
+        const read = (): SupportEdge => ({ src: nodes[0], dst: nodes[1], forces });
+        const rest = (): Xyz | null => {
+            for (let frame = 0; frame < 400 && support.update(() => nodes, ["e"], read, frame === 0); frame++) {
+                // stepped until the point rests
+            }
+            return support.pointOf("e");
+        };
+        const first = rest();
+        // a style sets other forces, and is then removed
+        forces = { ...BARNES_HUT, springLength: 20, repulsion: -8000 };
+        const other = rest();
+        assert.isAbove(Math.abs((other?.y ?? 0) - (first?.y ?? 0)), 1, "the other forces move the point");
+        forces = BARNES_HUT;
+        const again = rest();
+        assert.strictEqual(again?.x, first?.x);
+        assert.strictEqual(again?.y, first?.y);
+    });
+
     it("move with their edge when the nodes move, and rest once settled", () => {
         const support = new SupportPoints<string>();
         const nodes = [at(0, 0), at(100, 0), at(50, 30)];

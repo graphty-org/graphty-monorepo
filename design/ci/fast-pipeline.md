@@ -452,8 +452,9 @@ gate step or the visual job.
   every revert.
 - The owner reviews screenshots before anything is offered to master (formerly "before pushing").
 - No step waits on the owner; breaking changes only with the owner's go, grouped into one major.
-- Paid GPU testing only at release; no silent fallbacks; never blame timing; no automatic retries;
-  quarantine only with the owner's yes (`ci-cd-plan.md` sections 7, 9). A GPU lane counts as stable
+- Paid GPU testing only at release; no silent fallbacks; never blame timing; one automatic retry of
+  failed test files and automatic quarantine of flaky tests, each with an issue (owner, 2026-10-22;
+  `ci-cd-plan.md` sections 7, 9). A GPU lane counts as stable
   after three consecutive green release-train runs.
 - No nightly or fixed-interval job gates anything. Jobs that gate nothing may run on a schedule;
   the nightly Hosts run moves off the release train's hours so the two never compete for macOS

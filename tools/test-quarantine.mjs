@@ -22,8 +22,8 @@
  *  - CI (tools/ci-test-matrix.mjs, plan()) runs every shard through `run`, applying the checkout's list
  *    only: CI never files issues or writes state.
  *  - `node tools/test-quarantine.mjs write` puts the local list into this checkout's
- *    tools/test-quarantine.json; commit that file alone and land it (land.mjs refuses it mixed with other
- *    changes), so CI and every other checkout apply it too. `status` prints the list and the counts.
+ *    tools/test-quarantine.json; commit that file alone and land it, so CI and every other checkout apply it
+ *    too. `status` prints the list and the counts.
  *
  * ON by default (the owner's decision of 2026-10-22, design/ci/ci-cd-plan.md 9). GRAPHTY_TEST_QUARANTINE=0
  * switches it off, for debugging: then `run` runs the shard's command and returns its exit code, nothing more:

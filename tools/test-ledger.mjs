@@ -7,26 +7,16 @@
 // Nothing here may block or fail a push: callers import this module and call it inside try/catch, and a
 // ledger that is missing, locked or broken prints `ledger: unavailable (<why>); deciding as before`.
 //
-//   node tools/test-ledger.mjs status                  golden failures, flaky / broken tests, quarantine, health
+//   node tools/test-ledger.mjs status                  golden failures, flaky / broken tests, health
 //   node tools/test-ledger.mjs why <file>[ > <test>]   the rows behind a decision about a test or a file
 //   node tools/test-ledger.mjs sql "<select>"          a read-only query
 //   node tools/test-ledger.mjs rebuild | prune
 //
-// TEST_LEDGER_DIR replaces the directory (the tests set it). Off switches: PREPUSH_EXONERATE=0.
+// TEST_LEDGER_DIR replaces the directory (the tests set it). Off switch for excusing: PREPUSH_EXONERATE=0.
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    renameSync,
-    rmSync,
-    statSync,
-    unlinkSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
@@ -49,10 +39,11 @@ try {
 
 const READER = 1; // the schema version this code reads; a non-additive change raises min_reader_version
 const DAY = 86_400_000;
-export const EVIDENCE = ["land-check", "verify", "bisect"];
-// The kinds whose worktrees the tools own (clean, reset), counted in flaky proofs; imports keep their source's kind.
-export const OWNED = [...EVIDENCE, "cut", ...[...EVIDENCE, "cut", "detached"].map((k) => `import-${k}`)];
-const GPU_FAMILY = /^webgpu-graph-algorithms/;
+// Runs of a golden commit in a worktree the tools own; `base` is a land check's re-run on golden's tip (5.1).
+export const EVIDENCE = ["land-check", "verify", "bisect", "cut", "base"];
+// Counted in flaky proofs and `status`; imports keep their source's kind and never count in rates.
+export const OWNED = [...EVIDENCE, ...["land-check", "verify", "bisect", "cut", "detached"].map((k) => `import-${k}`)];
+const LAND_SUBJECT = /^land: (\S+)$/;
 
 const h16 = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 const git = (cwd, args) => {
@@ -71,6 +62,13 @@ const list = (d) => (existsSync(d) ? readdirSync(d) : []);
 const inList = (n) => `(${Array.from({ length: n }, () => "?").join(",")})`;
 export const familyOf = (shard) => shard.replace(/-\d+$/, "");
 const dayOf = (id) => new Date(Number(id.split("-")[0])).toISOString().slice(0, 10);
+const readJson = (p) => {
+    try {
+        return JSON.parse(readFileSync(p, "utf8"));
+    } catch {
+        return null;
+    }
+};
 
 /**
  * The ledger's directory: TEST_LEDGER_DIR, else tmp/test-ledger in the main checkout of `cwd`'s repository.
@@ -125,13 +123,18 @@ export function parseJunit(xml, pkg, into = undefined) {
     return into;
 }
 
+// Lines that say nothing about the failure: a bare error name ("AssertionError:"), Storybook's debug link, a DOM dump.
+const UNINFORMATIVE = /^\w*Error:?$|Click to debug|^Ignored nodes:|^</;
+// A wait that expired: Vitest's and Playwright's timeouts, Testing Library's findBy / waitFor, expect.poll.
+const WAIT_EXPIRED = /timed out|TimeoutError|Timeout -?\d+ms exceeded|Unable to find|expect\.poll/i;
+
 /**
- * A failure's masked first line, its key (the cleaned line, numbers kept) and its signature (numbers masked,
- * plus two stack frames outside node_modules; a timeout is `timeout` plus its file).
+ * A failure's first informative line, its key (the first two informative lines, cleaned, numbers kept) and its
+ * signature (numbers masked, plus two stack frames outside node_modules; an expired wait is `timeout` plus its file).
  * @param text the failure message and stack
  * @param file the test file
  * @param main the main checkout, whose path and worktree paths are removed
- * @returns `{ line, key, signature, status }`
+ * @returns `{ line, key, signature, status }`; status is `timeout` for an expired wait, else `fail`
  */
 export function failureHashes(text, file, main = "/nonexistent") {
     const esc = main.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -145,17 +148,20 @@ export function failureHashes(text, file, main = "/nonexistent") {
     const lines = stripVTControlCharacters(text)
         .split("\n")
         .map((l) => l.trim())
-        .filter((l) => l && !l.includes("Click to debug"));
-    const first = clean(lines[0] ?? "");
-    // a timeout carries no cause (Vitest's, Playwright's locator timeouts): never excused, grouped by file
-    const timeout = /timed out|TimeoutError|Timeout -?\d+ms exceeded/i.test(first);
+        .filter(Boolean);
+    const frame = (l) => /^(❯|at )/.test(l);
+    const said = lines
+        .filter((l) => !frame(l) && !UNINFORMATIVE.test(l))
+        .slice(0, 2)
+        .map(clean);
+    const first = said[0] ?? clean(lines[0] ?? "");
+    const timeout = said.some((l) => WAIT_EXPIRED.test(l));
     const frames = lines
-        .slice(1)
-        .filter((l) => /^(❯|at )/.test(l) && !l.includes("node_modules"))
+        .filter((l) => frame(l) && !l.includes("node_modules"))
         .slice(0, 2)
         .map((l) => mask(clean(l)));
     const signature = timeout ? h16(`timeout\0${file}`) : h16([mask(first), ...frames].join("\n"));
-    return { line: first.slice(0, 300), key: h16(first), signature, status: timeout ? "timeout" : "fail" };
+    return { line: first.slice(0, 300), key: h16(said.join("\n")), signature, status: timeout ? "timeout" : "fail" };
 }
 
 /**
@@ -195,10 +201,33 @@ export function outcomeOf(run) {
 export const newRunId = (shard) => `${Date.now()}-${process.pid}-${shard}`;
 
 /**
+ * What every record of one checkout shares; a gate computes it once, not per shard. A land commit's branch is
+ * the landed one (`land: <branch>`), so the ledger can tell failures of unrelated landings apart.
+ * @param root the checkout
+ * @param [env] the environment
+ * @returns `{ commit, tree, base, branch, dirty }`
+ */
+export function headFacts(root, env = process.env) {
+    const subject = git(root, ["log", "-1", "--format=%s"]);
+    return {
+        commit: git(root, ["rev-parse", "HEAD"]),
+        tree: git(root, ["rev-parse", "HEAD^{tree}"]),
+        base: git(root, ["rev-parse", "-q", "--verify", "HEAD^1"]) || null,
+        branch:
+            LAND_SUBJECT.exec(subject)?.[1] ||
+            env.TEST_LEDGER_BRANCH ||
+            git(root, ["symbolic-ref", "--short", "-q", "HEAD"]) ||
+            null,
+        dirty: git(root, ["status", "--porcelain"]) !== "",
+    };
+}
+
+/**
  * Records one shard run: reads the JUnit files that carry its run id, writes the record file, deletes them.
  * @param o `shard`, `code`, `log`, `root` (the checkout), `kind`, `runId`, `startedAt` (ms), `runs` (vitest
  *   runs the command makes), `selected` (file list or null), `cancelled`, `reusedFrom` (a pass's record id),
- *   `exonerate` (try exonerate() on a failure), `env`, `main` (for path cleaning)
+ *   `head` (headFacts(), else computed), `logFile`, `env`, `main` (for path cleaning), `write` (false: the caller
+ *   writes it, with its exonerations)
  * @returns the record
  */
 export function record(o) {
@@ -230,15 +259,13 @@ export function record(o) {
         text: undefined,
         message: f.text.slice(0, 2000),
     }));
+    const head = o.head ?? headFacts(o.root, env);
     const rec = {
         v: 1,
         id,
         kind: env.TEST_LEDGER_KIND || o.kind || "push",
-        branch: env.TEST_LEDGER_BRANCH || git(o.root, ["symbolic-ref", "--short", "-q", "HEAD"]) || null,
-        commit: git(o.root, ["rev-parse", "HEAD"]),
-        tree: git(o.root, ["rev-parse", "HEAD^{tree}"]),
-        base: git(o.root, ["rev-parse", "-q", "--verify", "HEAD^1"]) || null,
-        dirty: Boolean(o.dirty) || git(o.root, ["status", "--porcelain"]) !== "",
+        ...head,
+        dirty: Boolean(o.dirty) || head.dirty,
         shard: o.shard,
         family: familyOf(o.shard),
         variant: familyOf(o.shard) + (o.selected ? "+files" : ""),
@@ -252,8 +279,7 @@ export function record(o) {
         failures,
         exonerations: [],
     };
-    if (o.exonerate && outcome === "failed") rec.exonerations = exonerate(rec, o.root, env);
-    writeRecord(dir, rec);
+    if (o.write !== false) writeRecord(dir, rec);
     return rec;
 }
 
@@ -306,9 +332,8 @@ CREATE TABLE IF NOT EXISTS exoneration (inv TEXT REFERENCES invocation (id) ON D
 CREATE TABLE IF NOT EXISTS golden_issue (signature TEXT PRIMARY KEY, issue INTEGER, culprit TEXT, opened_at TEXT);`;
 
 function prepare(db) {
-    if (db.q) return db.q;
-    db.q = {
-        inv: db.prepare(`INSERT OR IGNORE INTO invocation VALUES (${inList(16).slice(1, -1)})`),
+    db.q ??= {
+        inv: db.prepare(`INSERT OR IGNORE INTO invocation VALUES ${inList(16)}`),
         test: db.prepare("INSERT OR IGNORE INTO test (file, name) VALUES (?, ?)"),
         testId: db.prepare("SELECT id FROM test WHERE file = ? AND name = ?"),
         fileRun: db.prepare("INSERT OR IGNORE INTO file_run VALUES (?, ?, ?, ?, ?, ?, ?)"),
@@ -319,14 +344,7 @@ function prepare(db) {
     return db.q;
 }
 
-/**
- * The id of a test (a file when `name` is ""), made on first use.
- * @param db the database
- * @param file the test file
- * @param [name] the test
- * @returns the id
- */
-export function testId(db, file, name = "") {
+function testId(db, file, name = "") {
     const q = prepare(db);
     q.test.run(file, name);
     return q.testId.get(file, name).id;
@@ -346,27 +364,34 @@ function insertRecord(db, r) {
     for (const e of r.exonerations) run(q.exon, r.id, testId(db, e.file, e.name), e.reason, e.evidence, e.issue);
 }
 
+// Takes the write lock only when there is something to write, so a reader of an up-to-date index never waits.
 function ingest(db, dir, from) {
     const meta = (k) => db.prepare("SELECT v FROM meta WHERE k = ?").get(k)?.v;
     const since = from ?? meta("ingested_through") ?? "";
     const days = list(join(dir, "records"))
         .filter((d) => d >= since)
         .sort();
+    const have = db.prepare("SELECT 1 FROM invocation WHERE id = ?");
+    const fresh = days.flatMap((d) =>
+        list(join(dir, "records", d))
+            .filter((n) => n.endsWith(".json.gz") && !have.get(n.slice(0, -8)))
+            .map((n) => n.slice(0, -8)),
+    );
+    const known = db.prepare("SELECT issue, culprit FROM golden_issue WHERE signature = ?");
+    const issues = list(join(dir, "issues"))
+        .filter((n) => n.endsWith(".json"))
+        .map((f) => readJson(join(dir, "issues", f)))
+        .filter((i) => {
+            const k = i && known.get(i.signature);
+            return i && (!k || k.issue !== (i.issue ?? 0) || k.culprit !== (i.culprit ?? null));
+        });
+    // A writer that began a record before midnight may rename it into yesterday's directory after this.
+    const through = days.length ? new Date(Date.parse(days.at(-1)) - DAY).toISOString().slice(0, 10) : since;
+    if (!fresh.length && !issues.length && through === meta("ingested_through")) return;
     db.exec("BEGIN IMMEDIATE");
     try {
-        const have = db.prepare("SELECT 1 FROM invocation WHERE id = ?");
-        for (const d of days) {
-            const fresh = list(join(dir, "records", d)).filter(
-                (n) => n.endsWith(".json.gz") && !have.get(n.slice(0, -8)),
-            );
-            fresh.forEach((f) => ingestOne(db, dir, f.slice(0, -8)));
-        }
-        for (const f of list(join(dir, "issues")).filter((n) => n.endsWith(".json"))) {
-            const i = readJson(join(dir, "issues", f));
-            if (i) prepare(db).issue.run(i.signature, i.issue ?? 0, i.culprit ?? null, i.opened_at ?? null);
-        }
-        // A writer that began a record before midnight may rename it into yesterday's directory after this.
-        const through = days.length ? new Date(Date.parse(days.at(-1)) - DAY).toISOString().slice(0, 10) : since;
+        fresh.forEach((id) => ingestOne(db, dir, id));
+        issues.forEach((i) => prepare(db).issue.run(i.signature, i.issue ?? 0, i.culprit ?? null, i.opened_at ?? null));
         db.prepare("INSERT OR REPLACE INTO meta VALUES ('ingested_through', ?)").run(through);
         db.exec("COMMIT");
     } catch (e) {
@@ -387,14 +412,6 @@ function ingestOne(db, dir, id) {
         console.error(`ledger: skipped record ${id}: ${e.message}`);
     }
 }
-
-const readJson = (p) => {
-    try {
-        return JSON.parse(readFileSync(p, "utf8"));
-    } catch {
-        return null;
-    }
-};
 
 function connect(path) {
     const db = new sqlite.DatabaseSync(path);
@@ -448,20 +465,21 @@ export function rebuild(env = process.env, cwd = process.cwd()) {
 }
 
 /**
- * Rebuilds the database when it is missing, incomplete or unreadable (verification calls this at its start).
+ * Rebuilds the database when it is missing, incomplete or corrupt (verification calls this at its start); a
+ * locked or busy one is left alone.
  * @param [env] the environment
  * @param [cwd] a directory of the repository
- * @returns the new database's name, or null when the current one is fine
+ * @returns the new database's name, or null when the current one is fine or only busy
  */
 export function ensure(env = process.env, cwd = process.cwd()) {
     const l = openLedger(env, cwd);
     l.db?.close();
-    return l.db ? null : rebuild(env, cwd);
+    return l.db || !/no database|not complete|malformed|not a database|corrupt/i.test(l.why) ? null : rebuild(env, cwd);
 }
 
 /**
  * At most daily: records and rows older than 120 days, databases CURRENT does not name older than a day,
- * and JUnit files older than 2 days in every worktree.
+ * temporary record files a killed writer left, and JUnit files older than 2 days in every worktree.
  * @param [env] the environment
  * @param [cwd] a directory of the repository
  * @returns one line
@@ -476,90 +494,50 @@ export function prune(env = process.env, cwd = process.cwd()) {
     let rows = 0;
     let n;
     do {
-        n = Number(
-            db
-                .prepare(
-                    "DELETE FROM invocation WHERE id IN (SELECT id FROM invocation WHERE started_at < ? LIMIT 5000)",
-                )
-                .run(cutoff).changes,
-        );
+        const del = "DELETE FROM invocation WHERE id IN (SELECT id FROM invocation WHERE started_at < ? LIMIT 5000)";
+        n = Number(db.prepare(del).run(cutoff).changes);
         rows += n;
     } while (n > 0);
-    list(join(dir, "records"))
-        .filter((d) => d < cutoff.slice(0, 10))
-        .forEach((d) => rmSync(join(dir, "records", d), { recursive: true }));
-    const current = readFileSync(join(dir, "CURRENT"), "utf8").trim();
-    const old = (p) => Date.now() - statSync(p).mtimeMs > DAY;
-    for (const f of list(dir).filter((n) => /^ledger-.*\.db(-wal|-shm)?$/.test(n) && !n.startsWith(current))) {
-        if (old(join(dir, f))) rmSync(join(dir, f), { force: true });
-    }
-    let junit = 0;
-    for (const [, wt] of git(cwd, ["worktree", "list", "--porcelain"]).matchAll(/^worktree (.+)$/gm)) {
-        const results = join(wt, "test-results");
-        for (const f of list(results).filter(
-            (n) => n.startsWith("junit-") && Date.now() - statSync(join(results, n)).mtimeMs > 2 * DAY,
-        )) {
-            unlinkSync(join(results, f));
-            junit++;
-        }
-    }
+    const junit = pruneFiles(dir, cwd, cutoff.slice(0, 10));
     db.prepare("INSERT OR REPLACE INTO meta VALUES ('last_prune', ?)").run(new Date().toISOString());
     db.close();
     return `ledger: pruned ${rows} invocation rows and ${junit} old JUnit files`;
 }
 
-// ---------------------------------------------------------------- decisions
+const olderThan = (p, days) => Date.now() - statSync(p).mtimeMs > days * DAY;
 
-const chainOf = (cwd, tip, n = 200) =>
-    git(cwd, ["rev-list", "--first-parent", "-n", String(n), tip])
-        .split("\n")
-        .filter(Boolean);
-
-/**
- * Golden's newest word on a test file: the newest evidence-kind invocation of the variant on the chain that ran it.
- * @param db the database
- * @param file the test file
- * @param variant the variant
- * @param chain golden chain commits, newest first
- * @param [kinds] the kinds that count
- * @returns `{ id, c, s, d }` or undefined
- */
-export function newestWord(db, file, variant, chain, kinds = EVIDENCE) {
-    const at = new Map(chain.map((c, i) => [c, i]));
-    const rows = db
-        .prepare(
-            `SELECT i.id, i.commit_sha c, i.started_at s, fr.dup_names d FROM file_run fr JOIN test t ON t.id = fr.test
-             JOIN invocation i ON i.id = fr.inv WHERE t.file = ? AND t.name = '' AND i.variant = ? AND i.dirty = 0
-             AND i.outcome IN ('passed', 'failed') AND i.kind IN ${inList(kinds.length)}
-             AND i.commit_sha IN (SELECT value FROM json_each(?))`,
+// prune()'s files: record days before the cutoff, temporary files and databases older than a day, JUnit older than 2.
+function pruneFiles(dir, cwd, cutoffDay) {
+    const records = join(dir, "records");
+    const days = list(records);
+    days.filter((d) => d < cutoffDay).forEach((d) => rmSync(join(records, d), { recursive: true }));
+    const temps = days
+        .filter((d) => d >= cutoffDay)
+        .flatMap((d) =>
+            list(join(records, d))
+                .filter((f) => f.startsWith("."))
+                .map((f) => join(records, d, f)),
+        );
+    const current = readFileSync(join(dir, "CURRENT"), "utf8").trim();
+    const dbs = list(dir).filter((n) => /^ledger-.*\.db(-wal|-shm)?$/.test(n) && !n.startsWith(current));
+    [...temps, ...dbs.map((n) => join(dir, n))]
+        .filter((p) => olderThan(p, 1))
+        .forEach((p) => rmSync(p, { force: true }));
+    const junit = [...git(cwd, ["worktree", "list", "--porcelain"]).matchAll(/^worktree (.+)$/gm)]
+        .flatMap(([, wt]) =>
+            list(join(wt, "test-results"))
+                .filter((n) => n.startsWith("junit-"))
+                .map((n) => join(wt, "test-results", n)),
         )
-        .all(file, variant, ...kinds, JSON.stringify(chain));
-    return rows.sort((a, b) => at.get(a.c) - at.get(b.c) || (a.s < b.s ? 1 : -1))[0];
+        .filter((p) => olderThan(p, 2));
+    junit.forEach((p) => rmSync(p, { force: true }));
+    return junit.length;
 }
 
-const failureIn = (db, inv, file, name) =>
-    db
-        .prepare("SELECT f.* FROM failure f JOIN test t ON t.id = f.test WHERE f.inv = ? AND t.file = ? AND t.name = ?")
-        .get(inv, file, name);
+const GPU_FAMILY = /^webgpu-graph-algorithms/;
 
 /**
- * The quarantine list as golden's tip holds it, never as the tree under test does, without expired entries.
- * @param root the checkout
- * @param base the commit to read it from
- * @param [today] ISO date
- * @returns the entries
- */
-export function quarantineAt(root, base, today = new Date().toISOString().slice(0, 10)) {
-    try {
-        const all = JSON.parse(git(root, ["show", `${base}:tools/test-quarantine.json`]) || "{}").quarantine ?? [];
-        return all.filter((q) => checkQuarantine([q]).length === 0 && q.expires >= today);
-    } catch {
-        return [];
-    }
-}
-
-/**
- * What is wrong with quarantine entries (design 4.4, ci-cd-plan.md 9.3).
+ * What is wrong with quarantine entries (design 4.4, ci-cd-plan.md 9.3); tools/test-quarantine.mjs checks its list.
  * @param entries the entries
  * @returns problems, empty when valid
  */
@@ -576,131 +554,152 @@ export function checkQuarantine(entries) {
     return problems;
 }
 
+// ---------------------------------------------------------------- decisions
+
+const chainOf = (cwd, tip, n = 200) =>
+    git(cwd, ["rev-list", "--first-parent", "-n", String(n), tip])
+        .split("\n")
+        .filter(Boolean);
+
 /**
- * The failures a land check may excuse (design 5.1 and 4.4): the same test failing with the same key in golden's
- * newest run of its file, with an issue, unchanged by this landing, unique in its file, not a timeout, and no
- * fix or revert since; or a quarantined test that is not broken.
- * @param rec the land check's record
- * @param root its checkout (HEAD is the land commit, HEAD^1 golden's tip)
- * @param [env] the environment
- * @returns exonerations `{ file, name, reason, evidence, issue, line }`; empty when the ledger is unavailable
+ * Golden's tip under a land check: the first commit below HEAD, on the first-parent line, that GitHub's golden
+ * already has or that is not a landing (a group lands as several `land: <branch>` commits in a row).
+ * @param root the land check's checkout
+ * @returns the commit, or null
  */
-export function exonerate(rec, root, env = process.env) {
-    const l = openLedger(env, root);
-    if (!l.db) {
-        console.log(`ledger: unavailable (${l.why}); deciding as before`);
-        return [];
+export function goldenTip(root) {
+    const golden = git(root, ["rev-parse", "-q", "--verify", "origin/golden"]);
+    const has = (sha) => spawnSync("git", ["merge-base", "--is-ancestor", sha, golden], { cwd: root }).status === 0;
+    for (const line of git(root, ["log", "--first-parent", "-n", "100", "--format=%H %s", "HEAD^1"]).split("\n")) {
+        const [sha, subject] = [line.slice(0, 40), line.slice(41)];
+        if (sha && (!LAND_SUBJECT.test(subject) || (golden && has(sha)))) return sha;
     }
-    const base = rec.base;
-    const chain = base ? chainOf(root, base) : [];
-    // Everything this landing brings golden: from GitHub's golden (a group's earlier branches too), else HEAD^1.
-    const from = git(root, ["rev-parse", "-q", "--verify", "origin/golden"]) || base || "HEAD";
-    const changed = new Set(git(root, ["diff", "--name-only", from, "HEAD"]).split("\n"));
+    return null;
+}
+
+// Whether failure `x` (on golden) is failure `f` (in the land check): the same test failing the same way, or
+// `f` an expired wait, which carries no cause, and golden failing that test at all.
+const sameFailure = (x, f) => x.file === f.file && x.name === f.name && (x.key === f.key || f.status === "timeout");
+
+/**
+ * The failures a land check may excuse (design 5.1): every failing test fails on golden's tip too, and the landing
+ * changes none of their files. Golden's tip is asked directly: first the ledger's runs of exactly that commit,
+ * then `rerun(base, files)`, which runs the failing files there (up to twice, so a wait that expires under load
+ * gets a second chance) and returns its record. Each excused failure gets its `Failing on golden` issue now.
+ * @param rec the land check's record (outcome `failed`)
+ * @param root its checkout (HEAD is the land commit)
+ * @param [opts] `env`, `rerun` (async, returns a record or null), `gh` (`(args) => stdout`)
+ * @returns exonerations `{ file, name, reason, evidence, commit, issue, line }`; empty unless every failure is excused
+ */
+export async function exonerate(rec, root, opts = {}) {
+    const { env = process.env, rerun = null, gh = defaultGh } = opts;
+    const base = goldenTip(root);
+    if (!base || rec.outcome !== "failed" || !rec.failures.length) return [];
+    const changed = new Set(git(root, ["diff", "--name-only", base, "HEAD"]).split("\n"));
     const dups = new Map(rec.files.map(([f, , , , , d]) => [f, d]));
-    const quarantine = base ? quarantineAt(root, base) : [];
-    const out = [];
-    for (const f of rec.failures) {
-        const q = quarantine.find((e) => e.file === f.file && e.name === f.name && e.family === rec.family);
-        if (q && !classify(l.db, f.file, f.name, rec.variant, chain).broken) {
-            out.push({
-                file: f.file,
-                name: f.name,
-                reason: "quarantined",
-                evidence: "tools/test-quarantine.json",
-                issue: q.issue,
-                line: f.line,
-            });
-            continue;
-        }
-        if (f.status === "timeout" || changed.has(f.file) || dups.get(f.file) > 0) continue;
-        const known = onGolden(l.db, f, rec.variant, chain, root, base);
-        if (known) out.push({ file: f.file, name: f.name, reason: "fails-on-golden", line: f.line, ...known });
+    if (rec.failures.some((f) => changed.has(f.file) || dups.get(f.file) > 0)) return [];
+    const found = new Map();
+    const take = (r, x) =>
+        rec.failures.forEach((f, i) => !found.has(i) && sameFailure(x, f) && found.set(i, { ...x, inv: r }));
+    const l = openLedger(env, root);
+    if (l.db) {
+        const sql = `SELECT f.*, t.file, t.name FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv
+            WHERE i.commit_sha = ? AND i.dirty = 0 AND i.outcome = 'failed' AND i.kind IN ${inList(EVIDENCE.length)}`;
+        l.db
+            .prepare(sql)
+            .all(base, ...EVIDENCE)
+            .forEach((x) => take(x.inv, x));
+        l.db.close();
     }
-    l.db.close();
-    return out.length === rec.failures.length ? out : [];
+    for (let tries = 0; rerun && found.size < rec.failures.length && tries < 2; tries++) {
+        const files = [...new Set(rec.failures.filter((_f, i) => !found.has(i)).map((f) => f.file))];
+        const r = await rerun(base, files);
+        if (r?.outcome !== "failed" && r?.outcome !== "passed") break; // the machine's failure: no answer
+        r.failures.forEach((x) => take(r.id, x));
+    }
+    if (found.size < rec.failures.length) return [];
+    const dir = ledgerDir(env, root);
+    const issues = fileIssues(dir, [...found.values()], { commit: base, log: rec.log }, gh);
+    return rec.failures.map((f, i) => {
+        const ev = found.get(i);
+        const issue = issues[ev.signature] ?? null;
+        return {
+            file: f.file,
+            name: f.name,
+            reason: "fails-on-golden",
+            evidence: ev.inv,
+            commit: base,
+            issue,
+            line: f.line,
+        };
+    });
+}
+
+function defaultGh(args) {
+    const r = spawnSync("gh", args, { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr || `gh exited ${r.status}`);
+    return r.stdout.trim();
 }
 
 /**
- * Whether golden's newest run of a failing test's file failed it the same way, with an issue and no fix or
- * revert of it on golden since (design 5.1, conditions 1 and 5).
- * @param db the database
- * @param f the failure
- * @param variant its variant
- * @param chain golden's chain
- * @param root the checkout
- * @param base golden's tip
- * @returns `{ evidence, commit, issue }`, or null
- */
-function onGolden(db, f, variant, chain, root, base) {
-    const ev = newestWord(db, f.file, variant, chain);
-    const was = ev && ev.d === 0 && failureIn(db, ev.id, f.file, f.name);
-    if (!was || was.key !== f.key) return null;
-    const issue = db.prepare("SELECT * FROM golden_issue WHERE signature = ? AND issue > 0").get(was.signature);
-    if (!issue) return null;
-    const since = git(root, ["log", "--format=%B", `${ev.c}..${base}`]);
-    const fixed =
-        new RegExp(String.raw`#${issue.issue}\b`).test(since) || (issue.culprit && since.includes(issue.culprit));
-    return fixed ? null : { evidence: ev.id, commit: ev.c, issue: issue.issue };
-}
-
-/**
- * The [KNOWN] / [QUARANTINED] lines for an excused shard, one per test.
+ * The [KNOWN] lines for an excused shard, one per test.
  * @param rec the record with its exonerations
  * @returns lines
  */
 export function knownLines(rec) {
     return rec.exonerations.map((e) => {
-        const why =
-            e.reason === "quarantined"
-                ? "is quarantined"
-                : `fails as on golden at ${e.commit?.slice(0, 10)} (${e.evidence})`;
-        const tag = e.reason === "quarantined" ? "QUARANTINED" : "KNOWN";
-        return `  [${tag}] ${rec.shard}: ${e.file} > ${e.name} ${why}, issue #${e.issue}; coverage not checked`;
+        const issue = e.issue ? `issue #${e.issue}` : "issue not filed yet (verification files it)";
+        const at = `${e.commit?.slice(0, 10)} (${e.evidence})`;
+        return `  [KNOWN] ${rec.shard}: ${e.file} > ${e.name} fails the same way on golden's tip ${at}, ${issue}; coverage not checked`;
     });
 }
 
 /**
- * A test's history in its variant (design 5.2): the last 100 verdicts of tool-owned kinds, flaky proofs (two
- * runs of one tree that disagree), flaky, broken (4+ golden verdicts, 80% failing) and rate rose (3x more
- * failures over its last 30 golden verdicts than in the 30 days before them).
+ * A test's history in its family (design 5.2): the last 100 verdicts of tool-owned kinds that really ran (a reused
+ * pass is not a run), flaky proofs (two runs of one tree in one run shape that disagree), flaky (2+ proofs), broken
+ * (4+ golden verdicts, 80% failing) and the failure rate over golden's own verdicts, imports left out. A pass counts
+ * only when its file skipped as many tests as the file usually does, so a file with a permanent skip still counts.
  * @param db the database
  * @param file the test file
  * @param name the test
- * @param variant the variant
+ * @param family the family
  * @param [chain] golden chain commits
  * @param [before] only verdicts before this ISO time
- * @returns `{ verdicts, fails, proofs, flaky, broken, rose, rate }`
+ * @returns `{ verdicts, fails, proofs, flaky, broken, rate }`
  */
-export function classify(db, file, name, variant, chain = [], before = "9999") {
-    const rows = db
+export function classify(db, file, name, family, chain = [], before = "9999") {
+    const all = db
         .prepare(
-            `SELECT i.tree, i.commit_sha c, i.started_at s, (f.inv IS NOT NULL) failed FROM file_run fr
+            `SELECT i.tree, i.variant v, i.kind, i.commit_sha c, fr.skipped k, (f.inv IS NOT NULL) failed FROM file_run fr
              JOIN test tf ON tf.id = fr.test AND tf.file = ? AND tf.name = '' JOIN invocation i ON i.id = fr.inv
              LEFT JOIN failure f ON f.inv = i.id AND f.test = (SELECT id FROM test WHERE file = ? AND name = ?)
-             WHERE i.variant = ? AND i.kind IN ${inList(OWNED.length)} AND i.dirty = 0 AND i.outcome IN ('passed', 'failed')
-             AND (f.inv IS NOT NULL OR fr.skipped = 0) AND i.started_at < ? ORDER BY i.started_at DESC LIMIT 100`,
+             WHERE i.family = ? AND i.kind IN ${inList(OWNED.length)} AND i.dirty = 0 AND i.reused_from IS NULL
+             AND i.outcome IN ('passed', 'failed') AND i.started_at < ? ORDER BY i.started_at DESC LIMIT 100`,
         )
-        .all(file, file, name, variant, ...OWNED, before);
+        .all(file, file, name, family, ...OWNED, before);
+    const counts = new Map();
+    all.forEach((r) => counts.set(r.k, (counts.get(r.k) ?? 0) + 1));
+    const usual = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const rows = all.filter((r) => r.failed || r.k === usual);
     const byTree = new Map();
-    rows.forEach((r) => byTree.set(r.tree, (byTree.get(r.tree) ?? 0) | (r.failed ? 1 : 2)));
+    rows.forEach((r) => byTree.set(`${r.tree}\0${r.v}`, (byTree.get(`${r.tree}\0${r.v}`) ?? 0) | (r.failed ? 1 : 2)));
     const proofs = [...byTree.values()].filter((v) => v === 3).length;
-    const fails = rows.filter((r) => r.failed).length;
-    const flaky = proofs >= 2 && proofs >= rows.length / 100;
     const onGolden = new Set(chain);
-    const golden = rows.filter((r) => onGolden.has(r.c));
-    const broken = golden.length >= 4 && golden.filter((r) => r.failed).length >= 0.8 * golden.length;
-    const rate = (rs) => (rs.length ? rs.filter((r) => r.failed).length / rs.length : 0);
-    const recent = golden.slice(0, 30);
-    const from = recent.at(-1)?.s ?? before;
-    const older = rows.filter((r) => r.s < from && Date.parse(r.s) >= Date.parse(from) - 30 * DAY);
-    const rose =
-        flaky && recent.length > 0 && older.length >= 10 && rate(recent) > 0 && rate(recent) >= 3 * rate(older);
-    return { verdicts: rows.length, fails, proofs, flaky, broken, rose, rate: rate(rows) };
+    const golden = rows.filter((r) => onGolden.has(r.c) && !r.kind.startsWith("import-"));
+    const fails = (rs) => rs.filter((r) => r.failed).length;
+    return {
+        verdicts: rows.length,
+        fails: fails(rows),
+        proofs,
+        flaky: proofs >= 2,
+        broken: golden.length >= 4 && fails(golden) >= 0.8 * golden.length,
+        rate: golden.length ? fails(golden) / golden.length : 0,
+    };
 }
 
 /**
  * The bad threshold for a flaky test re-run `n` times at a bisect point: the smallest failure count whose
- * probability under Binomial(n, rate) is 2% or less (design 5.3: at a 2% rate, 2 or more of 10).
+ * probability under Binomial(n, rate) is 2% or less (design 5.3: at a 2% rate, 2 or more of 10), at most n.
  * @param rate the test's failure rate before the range
  * @param [n] runs per point
  * @returns the count at or above which the point is bad
@@ -711,69 +710,47 @@ export function badThreshold(rate, n = 10) {
         for (let i = 0; i < k; i++) c = (c * (n - i)) / (i + 1);
         return c;
     };
-    const pmf = (k) => choose(k) * rate ** k * (1 - rate) ** (n - k);
     let tail = 1;
-    for (let k = 0; k <= n; k++) {
+    for (let k = 0; k < n; k++) {
         if (tail <= 0.02) return k;
-        tail -= pmf(k);
+        tail -= choose(k) * rate ** k * (1 - rate) ** (n - k);
     }
-    return n + 1;
+    return n;
 }
 
-/**
- * Sorts shards in place so families that failed on golden most recently start first, then the slower ones
- * (design 5.4); startRule() still decides what may start.
- * @param shards SHARDS entries
- * @param root the checkout (its golden chain is origin/golden's)
- * @param [env] the environment
- * @returns the shards
- */
-export function orderShards(shards, root, env = process.env) {
-    const l = openLedger(env, root);
-    if (!l.db) return shards;
-    const chain = chainOf(root, "origin/golden");
-    const last = new Map(
-        l.db
-            .prepare(
-                `SELECT i.family f, MAX(i.started_at) s FROM failure fl JOIN invocation i ON i.id = fl.inv LEFT JOIN exoneration e
-                 ON e.inv = fl.inv AND e.test = fl.test WHERE e.inv IS NULL AND i.commit_sha IN (SELECT value FROM json_each(?)) GROUP BY i.family`,
-            )
-            .all(JSON.stringify(chain))
-            .map((r) => [r.f, r.s]),
-    );
-    const secs = new Map();
-    for (const r of l.db
+// Golden's newest word on a file in a family (by chain position, then time): the run `status` reads.
+function newestWord(db, file, family, chain) {
+    const at = new Map(chain.map((c, i) => [c, i]));
+    const rows = db
         .prepare(
-            "SELECT family f, secs FROM invocation WHERE outcome = 'passed' AND reused_from IS NULL AND secs > 0 ORDER BY started_at DESC LIMIT 2000",
+            `SELECT i.id, i.commit_sha c, i.started_at s FROM file_run fr JOIN test t ON t.id = fr.test
+             JOIN invocation i ON i.id = fr.inv WHERE t.file = ? AND t.name = '' AND i.family = ? AND i.dirty = 0
+             AND i.outcome IN ('passed', 'failed') AND i.kind IN ${inList(OWNED.length)}
+             AND i.commit_sha IN (SELECT value FROM json_each(?))`,
         )
-        .all()) {
-        secs.set(r.f, [...(secs.get(r.f) ?? []), r.secs]);
-    }
-    const median = (f) => (secs.get(f) ?? [0]).sort((a, b) => a - b)[Math.floor((secs.get(f) ?? [0]).length / 2)];
-    l.db.close();
-    return shards.sort((a, b) => {
-        const [fa, fb] = [familyOf(a.shard), familyOf(b.shard)];
-        return (last.get(fb) ?? "").localeCompare(last.get(fa) ?? "") || median(fb) - median(fa);
-    });
+        .all(file, family, ...OWNED, JSON.stringify(chain));
+    return rows.sort((a, b) => at.get(a.c) - at.get(b.c) || (a.s < b.s ? 1 : -1))[0];
 }
 
 /**
  * The tests whose newest word on golden (origin/golden's chain, any tool-owned kind) is a failure.
  * @param db the database
  * @param chain the chain
- * @returns `[{ file, name, variant, signature, line, issue, commit }]`
+ * @returns `[{ file, name, family, signature, line, issue, commit }]`
  */
 export function goldenFailures(db, chain) {
     const cands = db
         .prepare(
-            `SELECT DISTINCT t.file, t.name, i.variant FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv
+            `SELECT DISTINCT t.file, t.name, i.family FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv
              WHERE i.commit_sha IN (SELECT value FROM json_each(?)) AND i.kind IN ${inList(OWNED.length)}`,
         )
         .all(JSON.stringify(chain), ...OWNED);
     const out = [];
     for (const c of cands) {
-        const ev = newestWord(db, c.file, c.variant, chain, OWNED);
-        const f = ev && failureIn(db, ev.id, c.file, c.name);
+        const ev = newestWord(db, c.file, c.family, chain);
+        const sql =
+            "SELECT f.* FROM failure f JOIN test t ON t.id = f.test WHERE f.inv = ? AND t.file = ? AND t.name = ?";
+        const f = ev && db.prepare(sql).get(ev.id, c.file, c.name);
         const issue = f && db.prepare("SELECT issue FROM golden_issue WHERE signature = ?").get(f.signature)?.issue;
         if (f) out.push({ ...c, signature: f.signature, key: f.key, line: f.line, issue: issue || null, commit: ev.c });
     }
@@ -782,69 +759,77 @@ export function goldenFailures(db, chain) {
 
 // ---------------------------------------------------------------- issues for failures on golden
 
+const pidAlive = (pid) => {
+    try {
+        return Boolean(pid) && process.kill(pid, 0);
+    } catch {
+        return false;
+    }
+};
+
 /**
  * Makes sure each signature has an issue: claims issues/<signature>.json with the exclusive flag, so two
- * verifications file one, and files `Failing on golden: <line>`. A claim left at issue 0 (filing failed) is
- * retried by the next verification.
+ * processes file one, and files `Failing on golden: <line>`. A claim another live process made in the last 10
+ * minutes is left to it; an older one, or one whose filing failed, is taken over.
  * @param dir the ledger directory
  * @param failures `[{ signature, line, file, name, key }]`
  * @param info `{ commit, log }`
  * @param gh `(args) => stdout`
- * @returns `{ signature: issue }`
+ * @returns `{ signature: issue }` for the signatures that have one
  */
 export function fileIssues(dir, failures, info, gh) {
     mkdirSync(join(dir, "issues"), { recursive: true });
     const out = {};
     for (const sig of new Set(failures.map((f) => f.signature))) {
         const path = join(dir, "issues", `${sig}.json`);
-        const tests = failures.filter((f) => f.signature === sig);
-        try {
-            writeFileSync(path, JSON.stringify({ signature: sig, issue: 0, opened_at: new Date().toISOString() }), {
-                flag: "wx",
-            });
-        } catch {
-            const had = readJson(path);
-            if (had?.issue > 0) {
-                out[sig] = had.issue;
-                continue;
-            }
-        }
-        try {
-            const body = [
-                `Verification of golden at ${info.commit} failed with this failure (\`node tools/test-ledger.mjs why '${tests[0].file}'\`):`,
-                "",
-                ...tests.map((t) => `- \`${t.file} > ${t.name}\` (key ${t.key}): ${t.line}`),
-                "",
-                `Log: ${info.log}`,
-                "",
-                `<!-- test-ledger signature=${sig} -->`,
-            ].join("\n");
-            const url = gh([
-                "issue",
-                "create",
-                "--title",
-                `Failing on golden: ${tests[0].line}`.slice(0, 200),
-                "--label",
-                "bug",
-                "--label",
-                "priority:high",
-                "--label",
-                "effort:medium",
-                "--body",
-                body,
-            ]);
-            const issue = Number(/\/issues\/(\d+)/.exec(url)?.[1]);
-            if (issue > 0) {
-                writeFileSync(path, JSON.stringify({ ...readJson(path), issue }));
-                out[sig] = issue;
-            }
-        } catch (e) {
-            console.error(
-                `ledger: could not file the issue for ${sig}: ${e.message.split("\n")[0]}; the next verification retries`,
-            );
-        }
+        const had = claimIssue(path, sig);
+        const issue = had === MINE ? fileIssue(path, sig, failures, info, gh) : had;
+        if (issue > 0) out[sig] = issue;
     }
     return out;
+}
+
+const MINE = "mine";
+
+// The signature's issue number; 0 when another live process claimed it in the last 10 minutes (it files it); MINE
+// when this process now holds the claim and files it.
+function claimIssue(path, sig) {
+    const claim = { signature: sig, issue: 0, opened_at: new Date().toISOString(), pid: process.pid };
+    try {
+        writeFileSync(path, JSON.stringify(claim), { flag: "wx" });
+        return MINE;
+    } catch {
+        const had = readJson(path);
+        if (had?.issue > 0) return had.issue;
+        if (Date.now() - Date.parse(had?.opened_at) < 600_000 && pidAlive(had.pid)) return 0;
+        writeFileSync(path, JSON.stringify({ ...had, ...claim }));
+        return MINE;
+    }
+}
+
+function fileIssue(path, sig, failures, info, gh) {
+    const tests = failures.filter((f) => f.signature === sig);
+    try {
+        const body = [
+            `Golden at ${info.commit} fails this way (\`node tools/test-ledger.mjs why '${tests[0].file}'\`):`,
+            "",
+            ...tests.map((t) => `- \`${t.file} > ${t.name}\` (key ${t.key}): ${t.line}`),
+            "",
+            `Log: ${info.log ?? "-"}`,
+            "",
+            `<!-- test-ledger signature=${sig} -->`,
+        ].join("\n");
+        const title = `Failing on golden: ${tests[0].line}`.slice(0, 200);
+        const labels = ["--label", "bug", "--label", "priority:high", "--label", "effort:medium"];
+        const url = gh(["issue", "create", "--title", title, ...labels, "--body", body]);
+        const issue = Math.max(Number(/\/issues\/(\d+)/.exec(url)?.[1] ?? 0), 0);
+        writeFileSync(path, JSON.stringify({ ...readJson(path), issue, pid: null }));
+        return issue;
+    } catch (e) {
+        writeFileSync(path, JSON.stringify({ ...readJson(path), pid: null }));
+        console.error(`ledger: could not file the issue for ${sig}: ${e.message.split("\n")[0]}; the next run retries`);
+        return 0;
+    }
 }
 
 /**
@@ -861,13 +846,8 @@ export function noteCulprit(dir, signatures, culprit, gh) {
         if (!i?.issue || i.culprit === culprit.sha) continue;
         writeFileSync(path, JSON.stringify({ ...i, culprit: culprit.sha }));
         try {
-            gh([
-                "issue",
-                "comment",
-                String(i.issue),
-                "--body",
-                `Verification's bisect names the culprit: ${culprit.sha} ${culprit.subject}`,
-            ]);
+            const body = `Verification's bisect names the culprit: ${culprit.sha} ${culprit.subject}`;
+            gh(["issue", "comment", String(i.issue), "--body", body]);
         } catch {
             // the issue file holds it; the comment is a courtesy
         }
@@ -881,33 +861,36 @@ function status(l, cwd) {
     const chain = chainOf(cwd, "origin/golden");
     const count = (sql, ...a) => db.prepare(sql).get(...a).n;
     const week = new Date(Date.now() - 7 * DAY).toISOString();
-    console.log(
-        `ledger: ${count("SELECT COUNT(*) n FROM invocation")} invocations, ${count("SELECT COUNT(*) n FROM failure")} failures; this week ${count("SELECT COUNT(*) n FROM exoneration e JOIN invocation i ON i.id = e.inv WHERE i.started_at > ?", week)} excused, ${count("SELECT COUNT(*) n FROM invocation WHERE outcome = 'unattributed' AND started_at > ?", week)} unattributed`,
+    const excused = count(
+        "SELECT COUNT(*) n FROM exoneration e JOIN invocation i ON i.id = e.inv WHERE i.started_at > ?",
+        week,
     );
+    const unattributed = count(
+        "SELECT COUNT(*) n FROM invocation WHERE outcome = 'unattributed' AND started_at > ?",
+        week,
+    );
+    const totals = `${count("SELECT COUNT(*) n FROM invocation")} invocations, ${count("SELECT COUNT(*) n FROM failure")} failures`;
+    console.log(`ledger: ${totals}; this week ${excused} excused, ${unattributed} unattributed`);
     const failing = goldenFailures(db, chain);
     console.log(`failing on golden (${failing.length}):`);
-    failing.forEach((f) =>
-        console.log(
-            `  ${f.variant}  ${f.file} > ${f.name}  issue ${f.issue ? "#" + f.issue : "none"}  at ${f.commit.slice(0, 10)}: ${f.line}`,
-        ),
-    );
+    for (const f of failing) {
+        const issue = f.issue ? "#" + f.issue : "none";
+        console.log(`  ${f.family}  ${f.file} > ${f.name}  issue ${issue}  at ${f.commit.slice(0, 10)}: ${f.line}`);
+    }
     const recent = new Date(Date.now() - 30 * DAY).toISOString();
     const tests = db
         .prepare(
-            "SELECT DISTINCT t.file, t.name, i.variant FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv WHERE i.started_at > ?",
+            "SELECT DISTINCT t.file, t.name, i.family FROM failure f JOIN test t ON t.id = f.test JOIN invocation i ON i.id = f.inv WHERE i.started_at > ?",
         )
         .all(recent);
-    const quarantine = quarantineAt(cwd, "origin/golden");
     for (const t of tests) {
-        const c = classify(db, t.file, t.name, t.variant, chain);
-        const label = [c.broken && "BROKEN", c.rose && "FLAKE RATE ROSE", c.flaky && !c.rose && "flaky"].find(Boolean);
-        const q = quarantine.some((e) => e.file === t.file && e.name === t.name) ? ", quarantined" : "";
+        const c = classify(db, t.file, t.name, t.family, chain);
+        const label = (c.broken && "BROKEN") || (c.flaky && "flaky");
         if (label)
             console.log(
-                `${label}: ${t.variant}  ${t.file} > ${t.name}  (${c.fails} of ${c.verdicts} failed, ${c.proofs} proofs${q})`,
+                `${label}: ${t.family}  ${t.file} > ${t.name}  (${c.fails} of ${c.verdicts} failed, ${c.proofs} proofs)`,
             );
     }
-    console.log(`quarantine: ${quarantine.length} active`);
     return 0;
 }
 
@@ -915,21 +898,21 @@ function why(l, cwd, target) {
     const [file, name = ""] = target.split(" > ");
     const rows = l.db
         .prepare(
-            `SELECT i.started_at, i.kind, i.variant, i.commit_sha, i.outcome, fr.passed, fr.failed, fr.skipped, f.line, f.key, e.reason, e.evidence
+            `SELECT i.started_at, i.kind, i.branch, i.variant, i.commit_sha, i.outcome, fr.passed, fr.failed, fr.skipped, f.line, f.key, e.reason, e.evidence
              FROM file_run fr JOIN test tf ON tf.id = fr.test AND tf.file = ? AND tf.name = '' JOIN invocation i ON i.id = fr.inv
              LEFT JOIN test tt ON tt.file = tf.file AND tt.name = ? LEFT JOIN failure f ON f.inv = i.id AND (f.test = tt.id OR ? = '')
              LEFT JOIN exoneration e ON e.inv = i.id AND e.test = f.test ORDER BY i.started_at DESC LIMIT 50`,
         )
         .all(file, name, name);
-    rows.forEach((r) =>
+    for (const r of rows) {
         console.log(
             Object.values(r)
                 .map((v) => (v === null ? "-" : String(v).slice(0, 80)))
                 .join("  "),
-        ),
-    );
+        );
+    }
     if (name)
-        for (const v of new Set(rows.map((r) => r.variant)))
+        for (const v of new Set(rows.map((r) => familyOf(r.variant.replace("+files", "")))))
             console.log(v, JSON.stringify(classify(l.db, file, name, v, chainOf(cwd, "origin/golden"))));
     return 0;
 }

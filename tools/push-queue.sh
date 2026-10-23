@@ -185,7 +185,9 @@ rc=0
 passed_gate=0
 if [ "${1:-}" = git ] && [ -n "$sha" ] && [ -f "$inputs" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
     gate_key=$(cd "$top" && node "$inputs" key 2>/dev/null) && [ -n "$gate_key" ] &&
-    gate_pass=$(cd "$top" && node "$inputs" passed gate "$gate_key" 2>/dev/null); then
+    { gate_pass=$(cd "$top" && node "$inputs" passed gate "$gate_key" 2>/dev/null) ||
+        { [ "${TEST_LEDGER_KIND:-}" = land-check ] &&
+            gate_pass=$(cd "$top" && node "$inputs" passed gate-known "$gate_key" 2>/dev/null); }; }; then
     passed_gate=1
     # The hook checks that its key is still this one, and stops rather than run the whole gate without
     # a slot (tools/prepush-source-checks.sh).

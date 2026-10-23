@@ -99,18 +99,19 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
   issue the failure classes call for, then `handled`, and `start --again` once the cause is fixed.
 - **A culprit that is not a landing** (an owner's accept commit, a sync merge of master): revert nothing; claim it,
   diagnose, and file or fix like any golden failure.
-- **`last: failed-known`:** the same tests failed the same way as the verification before, each with its `Failing on
-golden` issue (verification files one per failure and adds the culprit it names; issue-round picks them up). Nothing
-  to revert again and nothing to claim; `golden-verified` and cuts wait for the fix. Land checks meanwhile excuse those
-  tests (`[KNOWN]` in the landing's summary), so unrelated landings go through.
+- **`last: failed-known`:** the same tests failed the same way as the verification before, so verification filed a
+  `Failing on golden` issue for each (issue-round picks them up). Nothing to revert again and nothing to claim;
+  `golden-verified` and cuts wait for the fix. Land checks meanwhile re-run those tests on golden's tip and excuse them
+  (`[KNOWN]` in the landing's summary), so unrelated landings go through. After reverting a culprit, `verify.mjs
+handled` closes the issues land checks filed for its failures; a verification that still sees them reopens them.
 - **The test ledger** (`node tools/test-ledger.mjs status`, design `design/ci/test-ledger.md`): failures on golden,
-  and flaky, broken and "flake rate rose" tests. Nothing in the ledger is this round's to act on but the quarantine:
+  and flaky and broken tests. Nothing in the ledger is this round's to act on but the quarantine:
 - **The quarantine** (`node tools/test-quarantine.mjs status`): the gate quarantines a test itself when it fails and
   then passes on the same inputs, and files its issue; the entry holds at once on this machine, from its local state.
   When the status lists an entry the committed `tools/test-quarantine.json` lacks (or the state ended one), carry it
   into git: a branch of its own from `origin/golden-verified`, `node tools/test-quarantine.mjs write`, commit only that
-  file (`test(workspace): quarantine <n> flaky tests`), land it (land refuses it mixed with other changes). CI applies
-  only the committed list. Never quarantine a `webgpu-graph-algorithms*` test by hand.
+  file (`test(workspace): quarantine <n> flaky tests`) and land it alone. CI applies only the committed list. Never
+  quarantine a `webgpu-graph-algorithms*` test by hand.
 - **Lessons.** When a round resolves a failure mode `lessons.md` does not hold, add an entry there (symptom, how it was
   told apart from a real failure, the fix) on the round's next docs branch.
 

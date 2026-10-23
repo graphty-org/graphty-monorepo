@@ -18,6 +18,7 @@ import {
     failingShards,
     handled,
     nextPoints,
+    pointVerdict,
     readState,
     requestVerification,
     run,
@@ -281,7 +282,7 @@ describe("the watchdog's side", () => {
 });
 
 describe("with the test ledger", () => {
-    it("files one issue per failure, and does not bisect the same failures again", async () => {
+    it("files no issue for a failure it pins on a landing, then one when the same failures come back", async () => {
         const ledgerDir = join(dir, "ledger");
         const filed = [];
         const gh = (args) => {
@@ -314,14 +315,26 @@ describe("with the test ledger", () => {
         await requestVerification(c, culprit);
         await settle();
         assert.equal(readState(c).last.culprit.sha, culprit);
-        assert.equal(filed.length, 1);
-        assert.match(filed[0].join(" "), /Failing on golden: Error: known/);
+        assert.equal(filed.length, 0, "a culprit is reverted, not tracked");
         checked = [];
         await requestVerification(c, land("k2", { "k2.txt": "2\n" }));
         await settle();
         assert.equal(readState(c).last.status, "failed-known");
         assert.deepEqual(checked, [], "not bisected again");
-        assert.equal(filed.length, 1, "no second issue");
+        assert.equal(filed.length, 1);
+        assert.match(filed[0].join(" "), /Failing on golden: Error: known/);
+    });
+
+    it("calls a bisect point bad only when one of verification's failures fails there", () => {
+        const t = { file: "a.test.ts", name: "x", key: "k1", status: "fail" };
+        const rec = (failures) => ({ failures });
+        assert.equal(pointVerdict(0, rec([]), [t]), "pass");
+        assert.equal(pointVerdict(1, rec([{ ...t }]), [t]), "bad");
+        assert.equal(pointVerdict(1, rec([{ ...t, key: "k2" }]), [t]), "unknown", "the same test failing another way");
+        assert.equal(pointVerdict(1, rec([{ ...t, name: "y" }]), [t]), "unknown", "another test");
+        assert.equal(pointVerdict(143, rec([]), [t]), "unknown", "a killed run");
+        assert.equal(pointVerdict(1, rec([{ ...t, key: "k2" }]), [{ ...t, status: "timeout" }]), "bad");
+        assert.equal(pointVerdict(1, null, []), "bad", "nothing known: any failure");
     });
 });
 

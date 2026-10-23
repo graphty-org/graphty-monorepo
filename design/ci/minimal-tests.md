@@ -214,8 +214,8 @@ the font helper and app modules into every story, and `staticDirs` serve graph-s
 
 So a shard that runs a browser project is selected file by file only when its package is on the
 browser allow list in `tools/test-select-rules.json` (`fileLevelBrowser`), and a package goes on it
-only after mutation testing (section 5) of its browser projects finds no miss. compact-mantine joined
-on 2026-10-22 (12 broken files, no miss). Until then such a shard runs whole whenever its package is affected, as it does
+only after mutation testing (section 5) of its browser projects finds no miss. compact-mantine,
+graphty and graphty-element joined on 2026-10-22 (section 5.2). Until then such a shard runs whole whenever its package is affected, as it does
 today. The Storybook projects are judged the same way, with one extra rule already in the rules
 file: a change to `.storybook/` or to any file the preview imports runs the whole Storybook
 project.
@@ -333,6 +333,25 @@ Every miss caused by a change becomes, in the same fix, a rule in `tools/test-se
 an nx input, section 4), a mutation case that reproduces it, and an entry in
 `design/ci/test-selection-replay.md` naming the reader that was not seen. A package with a second
 miss of a kind the rules cannot express goes back to whole-package selection.
+
+### 5.2 Path-level reads and browser projects, 2026-10-22
+
+Every run broke its files together (`--batch`) and broke the files that did not select a failing
+test again alone. None found a miss.
+
+| Shards run                                              | Broken files                                                                                                                                              | Result                                                     |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| cytoscape-extensions                                    | 6 graph-io test files: the Pajek file it names, and five it does not                                                                                      | the named one selects its 1 reader; the others select none |
+| githerd                                                 | 5 visual-review test files and fixtures                                                                                                                   | its 19 tests that import visual-review's helpers           |
+| visual-review                                           | layout's `project.json` (named) and 2 layout tests                                                                                                        | 1 test; none                                               |
+| compact-mantine (all projects)                          | 12: components, a shared helper, theme styles, the font a stylesheet loads, a test harness helper, the browser setup                                      | no miss                                                    |
+| graphty-element default and mesh                        | 17: meshes, managers, session styles and sets, data and catalog code, test and story helpers, 7 graph-io files it reads by path                           | no miss                                                    |
+| graphty (all but Storybook, and Storybook)              | 14: components, a stylesheet and the font and image it loads, shared helpers, test and story helpers, the browser setup, and 3 graphty-element test files | no miss; an element test file selects 1 graphty test       |
+| graphty-element browser, interactions, xr and Storybook | 14: four source files, test and story helpers, a JSON fixture, a test, and 5 graph-io files it reads by path                                              | no miss (one test failed unbroken too: flaky)              |
+
+Selections are wide for source files that a package's barrel exports (a graphty-element mesh
+selects 376 of its 416 browser tests), and narrow for tests, helpers and data, which is where most
+landings' changes are.
 
 ## 6. Rollout
 

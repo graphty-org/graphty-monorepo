@@ -1,13 +1,13 @@
 # Test ledger: record every test result and use the history
 
-Status: Proposed, 2026-10-22, revised after an adversarial review. Issue #3282, part of the fast
+Status: Proposed, 2026-10-22, revised after two adversarial reviews (the second replaced golden's
+recorded word with a direct re-run on golden's tip, 5.1). Issue #3282, part of the fast
 pipeline (#3262, `design/ci/fast-pipeline.md`). Background research: `reports/Test result history
 tools.md`.
 
 graphty-monorepo runs tens of thousands of tests a day on one machine and remembers none of them. A
 failing landing cannot ask whether the same test already fails on golden, verification cannot ask
-whether a test has failed that way before, and the gate cannot start the shard most likely to fail
-first. The **test ledger** is a directory of small record files written by every gate, verification
+whether a test has failed that way before. The **test ledger** is a directory of small record files written by every gate, verification
 and bisect run, a SQLite index built from them, and the few decisions that read it.
 
 Words used throughout:
@@ -37,13 +37,12 @@ Words used throughout:
   package relevance", from a listener that records every CI result; "when selection lagged, bad
   merges spread failures".
 
-**What this would not have fixed.** On 2026-10-22 load-dependent timeouts and AbortErrors failed the
-graphty shards for hours, on a different test file nearly every time (Labels, GraphPlace,
-InspectorAndTable, Groups, StylePanel, KeyboardStopsEscape, VaryByLayer). Rule 5.1 excuses only the
-same test failing the same way, and never a timeout, so it would have excused almost none of them.
-That is deliberate: a timeout carries no cause, so excusing one excuses any new hang in that test.
-That class is handled by verification naming the culprit and the pipeline round reverting it. Phase 1
-replays that day's logs and JUnit through the rule as a test fixture, so this statement stays true.
+**What the record alone could not fix.** On 2026-10-22 golden sat at one commit for nine hours while 10
+land checks from 8 branches failed the graphty shards, most on load-dependent waits and on a different test
+nearly every time. Golden's recorded word on each file was always a pass: a commit reaches golden only when
+its own land check passed, and verification reuses those passes. So no rule over recorded results could
+excuse them. 5.1 therefore asks golden's tip directly, by running the failing files there, and accepts an
+expired wait when golden's tip fails the same test.
 
 ## 2. Principles
 
@@ -85,15 +84,17 @@ One entry point, `record({ shard, code, log, root, kind, startedAt })`, called f
 `test:changed` and `run-tests.sh` by hand do not record: nothing would read them, and a branch's copy
 of the module must never write the shared ledger.
 
-Kinds: `land-check` (set by `land.mjs`), `verify` and `bisect` (`verify.mjs`), `cut` (`land.mjs cut`,
-`cut-fix`), `sync` (`branch-sync.mjs`, with the synced branch), `ci` (the release train's JUnit, phase
-5), and `push` when nothing is set. A tool sets the kind only in its gate child's environment, never
-in its own `process.env`, so nothing inherits it. Only `land-check`, `verify`, `bisect` and `cut` run
-in worktrees the tools own; only they count as evidence (5.1) or toward flaky proofs (4.2).
+Kinds: `land-check` (set by `land.mjs`), `base` (a land check's re-run on golden's tip, 5.1), `verify`
+and `bisect` (`verify.mjs`), `cut` (`land.mjs cut`, `cut-fix`), `sync` (`branch-sync.mjs`, with the
+synced branch), `ci` (the release train's JUnit, phase 5), and `push` when nothing is set. A tool sets
+the kind only in its gate child's environment, never in its own `process.env`, so nothing inherits it.
+Only `land-check`, `base`, `verify`, `bisect` and `cut` run in worktrees the tools own; only they count
+as evidence (5.1) or toward flaky proofs (4.2). A land commit's record names the landed branch (from its
+`land: <branch>` subject), not `golden`.
 
-Each invocation records the commit, tree, evidence base (5.1), whether the worktree was **dirty**
-(`git status --porcelain` non-empty at the shard's start or end), whether only selected files ran,
-start time, duration and log path.
+Each invocation records the commit, tree, first parent, whether the worktree was **dirty**
+(`git status --porcelain` non-empty when the gate started; the gate asks git once, not per shard),
+whether only selected files ran, start time, duration and log path.
 
 **A shard skipped by pass reuse** (`[SKIP]`, same input key) is recorded as `passed`, with
 `reused_from` naming the source invocation and a copy of its per-file rows. Otherwise verification,
@@ -130,22 +131,25 @@ or in `TEST_LEDGER_DIR`, which the tests set to a temporary directory before imp
 - `records/<yyyy-mm-dd>/<id>.json.gz`: one per invocation: the invocation, per-file counts, every
   failure, and the exonerations the gate granted. Written under a temporary name and renamed.
 - `issues/<signature>.json`: the issue tracking a signature on golden (5.1), created with the
-  exclusive flag (`wx`) so two verifications cannot both file one.
+  exclusive flag (`wx`) and the claimant's pid, so two processes cannot both file one; a claim older than
+  10 minutes, or whose process is gone or whose filing failed, is taken over.
 - `misses/<id>.json`: a test file a landing's selection missed (5.4).
 - `CURRENT`: one line naming the database file, `ledger-<timestamp>.db`.
 
 **Reading.** `open()` opens the database `CURRENT` names (WAL, `busy_timeout` 10 s,
 `foreign_keys = ON`) and ingests every record it lacks: it reads the day directories from
 `meta.ingested_through` on, plus `issues/` and `misses/`, with `INSERT OR IGNORE`. Every reader
-ingests first, so none sees stale data and no record can fall outside a window. Every write is one
-`BEGIN IMMEDIATE` transaction.
+ingests first, so none sees stale data and no record can fall outside a window. A reader takes the
+write lock (one `BEGIN IMMEDIATE` transaction) only when there is something new to write, so readers of
+an up-to-date index never wait on each other.
 
 **Rebuilding.** `rebuild` writes a new `ledger-<timestamp>.db` from every file, marks it `complete`,
 and atomically replaces `CURRENT`. It never renames or deletes a database another process may hold
 open: old connections finish on the old file, and their records reach the new one at the next ingest.
 A database without `complete` is unavailable for decisions, so no gate ingests months of files inside
 a shard. Verification runs `rebuild` at its start when `CURRENT` is missing, incomplete or reports
-`SQLITE_CORRUPT`. `prune` deletes database files that are not `CURRENT` and older than a day.
+`SQLITE_CORRUPT`, never because it was busy. `prune` deletes database files that are not `CURRENT` and
+older than a day, and temporary record files a killed writer left.
 
 ### 3.6 Size and retention
 
@@ -169,7 +173,7 @@ All columns are plain SQL types; the module creates them with `CREATE ... IF NOT
 | `test`         | test, or file (name `''`)           | file (`<package>/<path>`), name (`suite > test`)                                                                                                    |
 | `file_run`     | invocation and file                 | passed, failed, skipped, ms, `dup_names` (testcases sharing a name)                                                                                 |
 | `failure`      | invocation and test                 | status (fail, timeout), signature, key, masked first line, first 2,000 characters of the message                                                    |
-| `exoneration`  | invocation and test                 | reason (`fails-on-golden`, `quarantined`), evidence invocation or quarantine entry, issue                                                           |
+| `exoneration`  | invocation and test                 | reason (`fails-on-golden`), the evidence invocation on golden's tip, issue                                                                          |
 | `golden_issue` | signature                           | issue, culprit, opened_at                                                                                                                           |
 | `miss`         | culprit, test file and changed file | dropped, found_at                                                                                                                                   |
 
@@ -182,139 +186,133 @@ So the gate, land and verify live copies, which go live at different times, neve
 
 LUCI calls a verdict flaky when one invocation holds a pass and a fail, which needs retries. Here
 **a test is proven flaky on a tree when two invocations of that tree in the same variant disagree:
-one recorded it failing, the other ran its file with no failure and no skips.** Both must be `passed`
-or `failed`, not dirty, and of the tool-owned kinds. The same run shape keeps an order-dependence bug
-(passes in the whole shard, fails among selected files) from looking like noise; no skips keeps a
-conditional skip from counting as a pass. Datadog, Mergify, Trunk and Meta use this rule.
+one recorded it failing, the other ran its file with no failure and its usual number of skips.** Both
+must be `passed` or `failed`, not dirty, of the tool-owned kinds, and real runs (a reused pass is a copy,
+not a run). The same run shape keeps an order-dependence bug (passes in the whole shard, fails among
+selected files) from looking like noise; the usual skip count keeps a conditional skip from counting as a
+pass while a file with a permanent `it.skip` still counts. Datadog, Mergify, Trunk and Meta use this rule.
 
 ### 4.3 Signature and key
 
-1. Strip ANSI codes, empty lines and Storybook's "Click to debug" banner; take the first line.
-2. Clean it: remove the checkout root (main checkout or `.worktrees/<name>/`), and replace `/tmp/...`
+1. Strip ANSI codes and empty lines. The **informative lines** are the rest, without stack frames, a bare
+   error name (`AssertionError:`, `Error:`), Storybook's "Click to debug" link, Testing Library's
+   "Ignored nodes:" and DOM dump lines.
+2. Clean them: remove the checkout root (main checkout or `.worktrees/<name>/`), and replace `/tmp/...`
    paths with `<tmp>`, UUIDs with `<uuid>`, hex runs of 7 or more with `<hex>`.
-3. **Key**: the cleaned line with numbers kept, hashed. "expected 3 to be 4" and "expected 0 to be 4"
-   differ.
-4. **Signature**: the cleaned line with `:line:col` dropped and other numbers as `<n>`, plus up to two
-   stack frames outside `node_modules` masked the same way; for a timeout, `timeout` plus the test
-   file. Hashed. A timeout is a Vitest "timed out" or a Playwright `TimeoutError` / "Timeout <n>ms exceeded".
+3. **Key**: the first two informative lines with numbers kept, hashed. "43 shapes, 42 drawn" and "51
+   shapes, 50 drawn" from one story differ, where their shared first line `AssertionError:` did not.
+4. **Signature**: the first informative line with `:line:col` dropped and other numbers as `<n>`, plus
+   up to two stack frames outside `node_modules` masked the same way; for an **expired wait**, `timeout`
+   plus the test file. An expired wait is a Vitest "timed out", a Playwright `TimeoutError` / "Timeout
+   <n>ms exceeded", Testing Library's "Unable to find" and `expect.poll`: all are load-dependent and carry
+   no cause. Hashed.
 
 Hashes are the first 16 hex of sha256. Signatures group failures for issues; exoneration and
-`failed-known` require the same test, variant and key.
+`failed-known` require the same test and key (an expired wait: the same test).
 
-### 4.4 Quarantine lives in git, read from the base
+### 4.4 Quarantine
 
 Owner's decision, 2026-10-22: the quarantine is automatic and on by default (`tools/test-quarantine.mjs`,
 off only with `GRAPHTY_TEST_QUARANTINE=0`). The gate and CI retry a shard's failed test files once; a test that
 failed and then passed on the same inputs is quarantined with its own `priority:high` issue, and its failures are
 let through, loudly, in every gate and CI run. An entry leaves when its issue closes, after 20 consecutive passing
 gate runs, or after 14 days. The gate holds a new entry locally at once; the pipeline round commits it into
-`tools/test-quarantine.json` with `node tools/test-quarantine.mjs write`. This section describes how land checks
-read the list.
+`tools/test-quarantine.json` with `node tools/test-quarantine.mjs write`, alone. Entries come only from the gate's
+own detection, never by hand.
 
-`tools/test-quarantine.json` holds entries of test, family, issue, expiry and reason. The gate reads
-it **from the base, never from the tree under test** (`git show
-<land commit>^1:tools/test-quarantine.json`), so a branch that breaks a test cannot quarantine it in the same landing, and
-`land.mjs` refuses a branch that changes the file together with anything else. Entries come only from
-the gate's own detection (`write`), never by hand; that is a process rule no code can check.
-
-`ci-cd-plan.md` 9.3 governs it: an issue, 14 days at most, never for GPU correctness tests (the
-`webgpu-graph-algorithms*` families), the visual gate, or a test guarding against silent CPU-for-GPU
-substitution. Tests check the shape, the limit and the families; an expired entry is ignored. A
-quarantined test still runs and records, and land checks excuse it as `quarantined`. **Verification
-and the cut never excuse a quarantined failure**, so golden-verified and the cut do not move past it.
-A quarantine ends by itself when its test turns broken (5.2).
+The ledger does not excuse quarantined tests, and `land` does not police the list: both were cut while the
+quarantine waited for the owner, and are not back yet. When they return, these rules hold (`ci-cd-plan.md` 9.3): an
+issue, 14 days at most, never a GPU correctness test (`webgpu-graph-algorithms*`), the visual gate or a test
+guarding against silent CPU-for-GPU substitution; the list read from golden's tip, never from the tree under test;
+verification and the cut never excuse a quarantined failure. `checkQuarantine()` in `tools/test-ledger.mjs` checks
+an entry's shape against them.
 
 ## 5. Decisions
 
 Every rate, flaky, broken and drop statistic counts **failure rows whatever their exoneration**: an
 excused failure is still a failure.
 
-### 5.1 Exonerate a failure already on golden
+### 5.1 Excuse a failure golden's tip has too
 
-**When.** Only in a land check, for a shard whose outcome is `failed`. The gate refuses by
-destination, not kind, whenever `PREPUSH_ALL=1` or the push goes to `golden-cut` or `master`. Branch
-pushes are never excused: golden is only a second parent in their history, and a branch can merge
-`golden-verified` instead.
+**When.** Only in a land check, for a shard whose outcome is `failed`. The gate refuses whenever
+`PREPUSH_ALL=1`, `PREPUSH_EXONERATE=0`, or the push goes to `golden-cut` or `master`. Branch pushes are
+never excused.
 
-**Evidence.** The chain is the golden chain from `<land commit>^1` (golden's tip), stored as
-`base_sha`. For a failing test T in file F, the gate takes the newest invocation (by chain position,
-then start time) of kind `land-check`, `verify` or `bisect`, reused passes included, not dirty,
-`passed` or `failed`, in T's variant, on a chain commit, that ran F. That is golden's newest word on F,
-including landings verification has not reached. T is excused (`fails-on-golden`) only when:
+**Ask golden directly.** Golden's tip is the first commit below the land commit, on the first-parent
+line, that GitHub's golden already has or that is not itself a landing (a group lands as several
+`land: <branch>` commits in a row, so an earlier branch of the group is never mistaken for golden). For
+each failing test T in file F:
 
-1. that invocation recorded T failing with the same key, and the signature has an issue file;
-2. T is not a timeout;
-3. the landing does not change F;
-4. T's name is unique in F in both runs (`dup_names` 0);
-5. no chain commit after the evidence mentions the issue number or reverts the culprit verify
-   recorded for it (`git log --format=%B <evidence>..<base>`): after a fix or revert, a failure is
-   suspect until a verification confirms it.
+1. The landing must not change F, and T's name must be unique in F (`dup_names` 0). Otherwise the shard
+   fails as it would without the ledger.
+2. A run of exactly golden's tip that failed T (kinds `land-check`, `base`, `verify`, `bisect`, `cut`;
+   not dirty) is the answer, with no re-run.
+3. Otherwise the gate runs the failing files on golden's tip: a scratch worktree beside the check
+   (`.worktrees/land-check-<n>-base`, the landing tool's `prepareScratch`), the shard's package built (nx's
+   cache makes it cheap), `run-tests.sh --command` with only those files (the whole shard when its command
+   is not a plain vitest run), no pass reuse, recorded as kind `base` on that commit. Up to two tries, so a
+   wait that expires under load gets a second chance; a run killed or broken by the machine gives no answer.
+4. T is excused when golden's tip failed T with the same key, or T's failure in the land check was an
+   expired wait and golden's tip failed T at all. A shard is excused only when every failing test is.
 
-A test golden passed, or has no record for, is never excused.
-
-**What the gate does.** When every failing test of a shard is excused, the shard does not stop the
-others and the stage may pass. `land.mjs` copies the line into its summary:
+The gate then files the signature's `Failing on golden` issue (the claim in 3.5), or finds it, and prints:
 
 ```
-  [KNOWN] graphty-2: 2 tests fail as on golden at 1a2b3c4d5e (land check 1792...-graphty-2), issue #3290; coverage not checked
+  [KNOWN] graphty-2: graphty/src/a.test.tsx > t fails the same way on golden's tip 1a2b3c4d5e (<record id>), issue #3290; coverage not checked
 ```
 
-The excused shard gets no shard pass, and `prepush-tests.mjs` exits with a distinct status so
-`prepush.sh` records no whole-gate pass: the golden push that follows runs the gate again, every other
-shard `[SKIP]`s, and the excused one is judged again. `PREPUSH_EXONERATE` joins the gate key
-(`laneEnv()` in `tools/prepush-inputs.mjs`), so `PREPUSH_EXONERATE=0` really runs a strict gate.
+A failure golden's tip does not reproduce blocks the landing as before.
+
+**What the gate does with it.** An excused shard does not stop the others, gets no shard pass, and the
+stage exits 3. `prepush.sh` then records the gate's pass as `gate-known` instead of `gate`, which only a
+push with `TEST_LEDGER_KIND=land-check` accepts (`prepush.sh` and `push-queue.sh`): the landing's own push
+of the same files fast-forwards in seconds, and no other push reuses it. `PREPUSH_EXONERATE` joins the
+gate key (`laneEnv()` in `tools/prepush-inputs.mjs`), so `PREPUSH_EXONERATE=0` really runs a strict gate.
 `golden-verified` does not move past the failure, and cuts wait for the fix.
 
-**Where the issue comes from.** When verification records a failure whose signature has no issue
-file, `verify.mjs` claims `issues/<signature>.json` with `wx` and files only if the claim succeeded,
-so verifications of golden and golden-cut at once file one issue. One issue per signature, titled
-`Failing on golden: <first line>`, labelled `bug`, `priority:high`, `effort:medium`, listing tests,
-keys, commit and log, with a `<!-- test-ledger signature=<sig> -->` marker. Verify adds the culprit
-once the bisect names it. A mapped issue closed while its signature still fails on golden is reopened
-with a comment: one GitHub call per verification, none per gate.
+**Issues.** One per signature, titled `Failing on golden: <first line>`, labelled `bug`,
+`priority:high`, `effort:medium`, listing tests, keys, commit and log, with a `<!-- test-ledger
+signature=<sig> -->` marker. Filed by a land check whose re-run reproduced the failure, and by
+verification for a failure that is not reproduced or that comes back in the next verification. Never for a
+failure the bisect pins on a landing: the pipeline round reverts it, and `verify.mjs handled` closes the
+issues land checks filed for it with a comment. A mapped issue closed while its signature still fails on
+golden is reopened.
 
-**A known failure again.** Under `PREPUSH_ALL=1`, `prepush-tests.mjs` no longer stops other shards on
-a failure, so one known failure cannot hide a new one elsewhere; land checks still fail fast. Verify
-records `failed-known` instead of bisecting only when every shard finished, none with `error`; the
-failing (test, key) pairs equal the previous verification's, each with an issue; and no tool-owned
-invocation on a commit between the two verifications recorded any of those tests passing. Otherwise
-it bisects, from the newest commit where they passed.
+**A known failure again.** Under `PREPUSH_ALL=1`, `prepush-tests.mjs` does not stop other shards on a
+failure (a failed family counts as warmed, so the rest of its package still starts), so one known failure
+cannot hide a new one elsewhere; land checks still fail fast. Verify records `failed-known` instead of
+bisecting only when every shard finished, none with `error`; the failing (test, key) pairs equal the
+previous verification's; and no tool-owned invocation that really ran on a commit between the two recorded
+any of those tests passing. A live claim on the previous failure stays a claim (`known: true` beside it).
 
-### 5.2 Flaky, rate rose, broken
+### 5.2 Flaky and broken
 
-Computed on demand from the variant's last 100 verdicts (tool-owned kinds), with no stored state.
+Computed on demand from the family's last 100 real verdicts (tool-owned kinds), with no stored state.
 
-- **Flaky:** 2 or more proofs (4.2) that are 1% or more of the verdicts (LUCI's numbers).
-- **Flake rate rose:** a flaky test failing at least 3 times as often over its last 30 golden verdicts
-  as over the 30 days before. A race added to a flaky test shows up here instead of hiding behind the
-  label. It is treated as failing, not flaky: verify bisects it (5.3) and `status` reports "flake rate
-  rose since <commit>".
+- **Flaky:** 2 or more proofs (4.2).
 - **Broken** (Trunk's monitor): 4 or more golden verdicts, 80% or more failing. Kept apart because
-  Meta found a deterministically broken test can score near zero flakiness. Never quarantined; an
-  active quarantine ends at once and verify comments on the issue.
+  Meta found a deterministically broken test can score near zero flakiness. A broken test is never
+  bisected as flaky.
+- **Rate:** the failure rate over golden's own verdicts (chain commits, imports left out), so a branch's
+  land checks failing a test it broke do not raise it.
 
-Flaky is a fact about history, not a diagnosis: the issue still goes to an agent to find the
-mechanism. `status` lists flaky tests with no quarantine and no fix; the pipeline round asks the owner
-once per test and, on a yes, lands the entry alone (4.4).
+Flaky is a fact about history, not a diagnosis: the issue still goes to an agent to find the mechanism.
 
 ### 5.3 History-aware bisect
 
-- Every bisect point is a `bisect` invocation.
+- Every bisect run is a `bisect` invocation.
+- A point is bad only when one of the failures verification saw fails there (the same test and key; for
+  an expired wait, the same test). A run that fails otherwise (another test, a killed run, a coverage
+  error) is run once more and never counted as bad, so load-dependent failures of unrelated tests do not
+  name an innocent landing.
 - For a flaky failing test, one re-run proves nothing, so verification never records "not reproduced"
-  from a single run. Each bisect point runs the shard 10 times and is bad when failures exceed the 99th
-  percentile of Binomial(10, the test's rate over the 30 days before). At a 2% old rate that is 2 or
-  more; a race raising it to 30% averages 3. Other tests run once per point.
+  from a single run. Each bisect point runs only the failing files, up to 10 times, and is bad when
+  failures reach the smallest count whose probability under Binomial(10, the test's golden rate before the
+  range) is 2% or less (at a 2% rate, 2; capped at 10). It stops as soon as the answer is settled.
 - When the culprit's land check did not run the failing file, verify writes a miss file pairing that
-  file with each file the culprit changed (`dropped` 1 when history dropped it, 5.5).
+  file with each file the culprit changed (`dropped` 1 when history dropped it, 5.4).
 
-### 5.4 Shard order
-
-The gate starts first the families whose newest unexpected, unexcused failure on golden is most recent,
-ties to the longer median duration: one query, no constants, and `why` explains it in one row.
-`startRule()` still decides what may start. Verification does not sort. Files within a shard are not
-reordered; Vitest already runs last time's failures first.
-
-### 5.5 History adds and drops tests
+### 5.4 History adds and drops tests
 
 **Adds (phase 3).** For a land check with selection on, the gate adds every test file with a miss in
 90 days from a file this change touches, and every test file in an affected package that failed on
@@ -325,8 +323,7 @@ existing `tmp/test-select/advisory.jsonl` with `ingested_through`, so a replay r
 
 **Drops (off by default).** `PREPUSH_HISTORY_DROP=shadow` (default from phase 4) logs the drop; `=1`
 applies it to land checks only. In a shard run whole, a test file is dropped when it has 20 or more
-golden verdicts in 30 days and no failure, no miss in 90 days, no exoneration or quarantine in 30
-days, no change in 14 days, is not touched by this change, and is not in a GPU family. The rest runs as
+golden verdicts in 30 days and no failure, no miss in 90 days, no exoneration in 30 days, no change in 14 days, is not touched by this change, and is not in a GPU family. The rest runs as
 selected files, never stored as a whole-shard pass.
 
 **Measuring misses.** In shadow the shard runs whole, so a would-miss is a would-drop file that failed
@@ -342,19 +339,16 @@ rule, because we have weeks of history, not years.
 Each change falls back to today's behavior if the ledger throws.
 
 - `vitest.ci-junit.mjs`: the run id in the JUnit name. 2 lines.
-- `tools/prepush-tests.mjs`: run ids; records every shard, `[SKIP]` and `cancelled` included;
-  `exonerate()`; no stop on failure under `PREPUSH_ALL=1`; the distinct exit status; sorting; history
-  files. About 70 lines.
-- `tools/prepush.sh` (no gate pass on that status) and `tools/prepush-inputs.mjs` (`PREPUSH_EXONERATE`
-  in the key). 4 lines.
-- `tools/verify.mjs`: kinds, `record()` at bisect points, issue files and reopening, the flaky bisect,
-  `failed-known`, misses, `rebuild`, `prune`. About 80 lines.
-- `tools/land.mjs`: kinds, `[KNOWN]` and `[QUARANTINED]` lines, the quarantine refusal. About 20 lines.
-  `tools/branch-sync.mjs`: kind `sync`. 2 lines.
-- **Issues, not pipeline-round steps.** Verify opens or refreshes one labelled issue per miss, broken
-  test and expired quarantine, and issue-round picks them up. The pipeline round keeps only reverting
-  the culprit verification names and asking the owner about quarantine. `Failing on golden` issues
-  close through their fix's `Fixes #N`.
+- `tools/prepush-tests.mjs`: run ids and one git call per gate; records every shard, `[SKIP]` and
+  `cancelled` included; the re-run on golden's tip and `exonerate()`; no stop on failure under
+  `PREPUSH_ALL=1`; exit 3. About 150 lines.
+- `tools/prepush.sh` and `tools/push-queue.sh` (`gate-known`), `tools/prepush-inputs.mjs`
+  (`PREPUSH_EXONERATE` in the key). 10 lines.
+- `tools/verify.mjs`: kinds, `record()` at bisect points, point verdicts, issue files, reopening and
+  closing, the flaky bisect, `failed-known`, `rebuild`, `prune`. About 150 lines.
+- `tools/land.mjs`: kinds and the `[KNOWN]` lines. `tools/branch-sync.mjs`: kind `sync`. 10 lines.
+- **Issues, not pipeline-round steps.** The pipeline round only reverts the culprit verification names and
+  runs `handled`. `Failing on golden` issues close through their fix's `Fixes #N`.
 
 The code runs from the live copies and goes live with `tools/live.sh gate` and `tools/live.sh land`,
 in either order (4.1).
@@ -362,16 +356,19 @@ in either order (4.1).
 ## 7. Failure modes
 
 - **`node:sqlite` missing, locked 10 s, or database not `complete`**: one line, `ledger: unavailable
-(<why>); deciding as before`. No exoneration (the failure blocks, as today), no ordering, no history.
-  The record is still written.
+(<why>); deciding as before`. A land check still re-runs its failures on golden's tip and decides from
+  that run alone; verification bisects as before. The record is still written.
 - **Database corrupt**: the opener reports unavailable and changes nothing; the next verification
   rebuilds and switches `CURRENT`.
-- **Issue filing fails**: the claim file stays at issue 0, nothing is excused for it, and the next
-  verification retries.
-- **A record cannot be written**: one warning; that run is missing, and its exoneration does not apply.
+- **The re-run on golden's tip cannot run** (no worktree, the build fails, the machine kills it): no
+  answer, and the failure blocks, as without the ledger.
+- **Issue filing fails**: the claim file stays at issue 0 and is taken over by the next filer; the land
+  check still excuses the failure (`issue not filed yet`), because golden's tip reproduced it and
+  verification, which never excuses, files it.
+- **A record cannot be written**: one warning; that run is missing.
 
 Recording never fails a gate and never passes one. Only `exonerate()` can turn a failure into a pass,
-and only on the evidence in 5.1.
+and only when golden's tip fails the same way (5.1).
 
 ## 8. Maintenance
 
@@ -386,36 +383,41 @@ fallback, but needs `pnpm approve-builds` here.
 
 | File                         | Holds                                                               | Budget    |
 | ---------------------------- | ------------------------------------------------------------------- | --------- |
-| `tools/test-ledger.mjs`      | open, ingest, rebuild, prune, parsing, hashes, record, queries, CLI | 600 lines |
-| `tools/test-ledger.test.mjs` | `node:test` tests in `pnpm run test:ci-workflows`                   | 500 lines |
-| `tools/test-quarantine.json` | the quarantine list, usually empty                                  | -         |
-| edits elsewhere              | section 6                                                           | 180 lines |
+| `tools/test-ledger.mjs`      | open, ingest, rebuild, prune, parsing, hashes, record, queries, CLI | 950 lines |
+| `tools/test-ledger.test.mjs` | `node:test` tests in `pnpm run test:ci-workflows`                   | 550 lines |
+| edits elsewhere              | section 6                                                           | 330 lines |
 
-**CLI** (`node tools/test-ledger.mjs`): `status` (golden failures, issues, exoneration counts, flaky,
-rate-rose and broken tests, quarantine, misses, unattributed and shadow-drop counts, health); `why
-<test or file>` (the rows behind a decision); `sql "<select>"` (read-only); `rebuild`; `prune`.
+The first budget (600 lines) was missed; the second review cut the quarantine file, the shard order and
+"flake rate rose", none of which a decision used, and the budget above is what remains, about a third of it
+JSDoc.
 
-**Tests** use JUnit fixtures from real files: parsing, cleaning and keys; each exoneration condition
-with a real land-check layout (land commit whose first parent holds the evidence); a fix landed after
-the evidence; reused passes; duplicate names; an unhandled error beside a known failure; verification
-with one known and one new failure in different shards, which must bisect; proofs by run shape; flaky,
-rate rose and broken; quarantine read from the base; the 2026-10-22 replay; two processes recording
-200 invocations each with nothing lost; deleting the database and rebuilding, after which the same
-exoneration still succeeds; and an empty stderr.
+**CLI** (`node tools/test-ledger.mjs`): `status` (golden failures, issues, exoneration counts, flaky and
+broken tests, unattributed counts); `why <test or file>` (the rows behind a decision); `sql "<select>"`
+(read-only); `rebuild`; `prune`.
+
+**Tests** use JUnit fixtures from real files: parsing, cleaning and keys (the AllNodeShapes pair must
+differ); each exoneration condition with a real land-check layout and a fake re-run (golden's tip fails the
+same way, another way, not at all twice; an expired wait on the second try; a group landing; a changed
+file; a duplicated name; golden's own failing run used with no re-run); the gate itself in a throwaway
+repository (an excused shard exits 3 and files its issue with no database at all; a failure golden's tip
+lacks blocks; same-package shards under `PREPUSH_ALL=1`); point verdicts; reused passes and permanent
+skips in rates; the threshold cap; the 2026-10-22 replay; claims; two processes recording 200 invocations
+each with nothing lost; deleting the database and rebuilding; and an empty stderr.
 
 **For a future agent.** Record files are the truth; the database is an index, and `rebuild` loses
 nothing. Never delete `tmp/test-ledger/records/` or `issues/`. The ledger never decides alone what
-reaches master. Each decision has an off switch (`PREPUSH_EXONERATE=0`, removing the sort call,
-`PREPUSH_HISTORY_DROP=0`), and `why` shows the rows it used.
+reaches master. Each decision has an off switch (`PREPUSH_EXONERATE=0`, `PREPUSH_HISTORY_DROP=0`), and
+`why` shows the rows it used. An excuse is always a run on golden's tip: `why <file>` lists the `base`
+invocation behind every `[KNOWN]`.
 
 ## 9. Import of old results, never as evidence
 
 The history already on disk was imported once (`node tools/test-ledger-import.mjs`, 2026-10-23, a one-time script to delete once its records age out): every gate in
 `tmp/push-log.jsonl` (its `[PASS]` lines, and each failed shard's kept log in `tmp/push-gate-logs/`), and every
 shard pass in `tmp/prepush-passes/shard/`. Nothing is matched by time: each record comes from one log line that
-names its shard and commit. They carry kinds `import-<kind>` (the kind read from the worktree the gate ran in),
-which count in flaky and broken statistics but are never exoneration evidence, so a decision about a landing still
-rests only on live records. A pass learns its file list from a failed run of the same shard on the same tree,
+names its shard and commit. They carry kinds `import-<kind>` (the kind read from the worktree the gate ran in;
+`.worktrees/golden-cut` is `import-cut`), which count in flaky proofs and `status` but never in rates (most
+imported passes have no per-file rows) and are never exoneration evidence. A pass learns its file list from a failed run of the same shard on the same tree,
 which ran the same files. The import is idempotent (record ids are hashes), and `prune` ages it out with the rest.
 
 ## 10. Build order
@@ -424,23 +426,24 @@ Each phase lands alone and is useful alone.
 
 1. **Recording and exoneration**: JUnit name and cleanup; the module with records, ingest, rebuild,
    prune, hashes, `status`, `why`, `sql`; recording in the gate (reused passes included) and at bisect
-   points; kinds; verification running every shard; issue files; `fails-on-golden` with `[KNOWN]`;
-   the gate-pass and gate-key changes; the 2026-10-22 replay.
-2. **Flaky and broken**: classification, rate rose, the flaky bisect, `failed-known`, the quarantine
-   file and `land.mjs`'s refusal, issues for broken tests.
-3. **Ordering and history adds**, with misses.
-4. **History drops in shadow**, switched on once 5.5's bar is met.
-5. **More sources**: the release train's JUnit as kind `ci`, and, with the owner's yes,
-   `flaky-on-golden` exoneration.
+   points; kinds; verification running every shard; issue files; the re-run on golden's tip with
+   `[KNOWN]`; `gate-known` and the gate-key change; the 2026-10-22 replay.
+2. **Flaky and broken**: classification, point verdicts, the flaky bisect, `failed-known`.
+3. **History adds**, with misses.
+4. **History drops in shadow**, switched on once 5.4's bar is met.
+5. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
+   quarantine itself is on since 2026-10-22, 4.4).
 
 ## 11. Decisions for the owner, and what this changes
 
 - **`flaky-on-golden` exoneration waits for the owner's yes.** LUCI excuses failures of tests flaky
   on the branch; doing that automatically is a quarantine in all but name, which `ci-cd-plan.md` 9.3
   reserves for the owner.
-- **Timeouts and group-wide failures are not excused.** Excusing by an issue's signature group within
-  a family would have covered days like 2026-10-22, at the price of excusing any new break in any test
-  of the group. The narrow rule is chosen; widening it later is a two-way door.
+- **Expired waits are excused only when golden's tip fails the same test.** A wait carries no cause, so a
+  new hang in such a test would be excused while golden's tip also fails it; verification, which never
+  excuses, still sees it. Group-wide excuses (by signature within a family) are not made.
+- **No quarantine file.** A quarantine is the owner's decision (`ci-cd-plan.md` 9.3); the file, its check
+  and the landing refusal come back when the owner asks for one.
 - **`design/ci/fast-pipeline.md` 5.1 changes.** It rejects past results because history is short and
   "a second service that can fall behind" let Anthropic's regressions through. Here the run records
   itself, and history only adds tests until drops are measured in shadow, with verification behind.

@@ -1676,15 +1676,7 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, out, directed, approximate)) {
         out.set("p", "Dots");
     }
-    // the arrowhead's size, which also places a Bezier arc's end (`readArcEnd`)
-    const arrowSize = get("arrowSize");
-    if (typeof arrowSize === "number" && arrowSize !== 1) {
-        out.set("s", arrowSize);
-    }
-    const position = get("arrowPosition");
-    if (typeof position === "number" && position > 0) {
-        out.set("ap", position);
-    }
+    arrowParams(get, out);
     lineLabelParams(get, out, approximate);
     const target = get("targetArrow");
     if (target !== null && target !== (directed ? "triangle" : "none")) {
@@ -1695,6 +1687,22 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
         approximate("sourceArrow", source);
     }
     return out;
+}
+
+/**
+ * A line's arrowhead parameters: its size `s`, which also places a Bezier arc's end (`readArcEnd`), and its place `ap`.
+ * @param get - the line's values
+ * @param out - the parameters, changed in place
+ */
+function arrowParams(get: Get, out: Map<string, Written>): void {
+    const arrowSize = get("arrowSize");
+    if (typeof arrowSize === "number" && arrowSize !== 1) {
+        out.set("s", arrowSize);
+    }
+    const position = get("arrowPosition");
+    if (typeof position === "number" && position > 0) {
+        out.set("ap", position);
+    }
 }
 
 /**

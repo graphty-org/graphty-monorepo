@@ -285,10 +285,9 @@ export function stepSupportPoints(
             const [px, py] = repulsionOn(root, n + j, x, y, forces);
             const [sx, sy] = springsAndGravity(x, y, ends[j], center, forces);
             const damping = DAMPING[forces.model];
-            for (let k = 0; k < 2; k++) {
-                const speed = integrate(velocities, points, 2 * j + k, k === 0 ? px + sx : py + sy, damping, unit);
-                fastest = Math.max(fastest, speed);
-            }
+            const speedX = integrate(velocities, points, 2 * j, px + sx, damping, unit);
+            const speedY = integrate(velocities, points, 2 * j + 1, py + sy, damping, unit);
+            fastest = Math.max(fastest, speedX, speedY);
         }
         moving = fastest > REST_SPEED;
         if (!moving) {

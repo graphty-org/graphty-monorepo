@@ -204,6 +204,49 @@ export async function applyFileStyles(
 }
 
 /**
+ * The layers the element accepts, each checked one by one, so a layer the element refuses is left out
+ * and the rest apply. A refused layer, or one applied by its fallback, adds a note.
+ * @param layers - The translated layers.
+ * @param service - The element's style service.
+ * @param notes - The load's notes; added to.
+ * @returns The specs to apply.
+ */
+function acceptedLayers(
+    layers: ReturnType<typeof translateFileStyles>["layers"],
+    service: UndoableContext["services"]["styles"],
+    notes: FileStyleNote[],
+): LayerSpec[] {
+    const accepted: LayerSpec[] = [];
+    for (const layer of layers) {
+        const candidates = [[layer.spec], ...(layer.fallback === undefined ? [] : [layer.fallback])];
+        const usable = candidates.find((specs) => specs.every((spec) => service?.validate?.(spec).ok ?? true));
+        if (usable === undefined) {
+            notes.push({
+                code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_REFUSED,
+                params: { property: layer.spec.name, target: layer.spec.target ?? null, count: 1, samples: [] },
+            });
+            continue;
+        }
+
+        if (usable !== candidates[0]) {
+            notes.push({
+                code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED,
+                params: {
+                    property: layer.spec.name,
+                    target: layer.spec.target ?? null,
+                    count: 1,
+                    samples: [],
+                    reason: "REFUSED",
+                },
+            });
+        }
+
+        accepted.push(...usable);
+    }
+    return accepted;
+}
+
+/**
  * Translate and apply one file's styles.
  * @param outcome - What the load left.
  * @param read - The file's styles.
@@ -249,35 +292,7 @@ async function applyRead(
     const load = { importId, namespace, format: read.format, columns };
     await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
 
-    // Checked one by one, so a layer the element refuses is left out and the rest apply.
-    const service = ctx.services.styles;
-    const accepted: LayerSpec[] = [];
-    for (const layer of translation.layers) {
-        const candidates = [[layer.spec], ...(layer.fallback === undefined ? [] : [layer.fallback])];
-        const usable = candidates.find((specs) => specs.every((spec) => service?.validate?.(spec).ok ?? true));
-        if (usable === undefined) {
-            notes.push({
-                code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_REFUSED,
-                params: { property: layer.spec.name, target: layer.spec.target ?? null, count: 1, samples: [] },
-            });
-            continue;
-        }
-
-        if (usable !== candidates[0]) {
-            notes.push({
-                code: FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED,
-                params: {
-                    property: layer.spec.name,
-                    target: layer.spec.target ?? null,
-                    count: 1,
-                    samples: [],
-                    reason: "REFUSED",
-                },
-            });
-        }
-
-        accepted.push(...usable);
-    }
+    const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
 
     const layers: LayerId[] = [];
     if (accepted.length > 0) {

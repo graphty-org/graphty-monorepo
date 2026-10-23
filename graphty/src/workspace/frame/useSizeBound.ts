@@ -20,8 +20,24 @@ export function useSizeBound(session: GraphSession | null): boolean {
             );
         };
         read();
-        const offs = [session.on("style:changed", read), session.on("project:changed", read)];
+        // A pass that paints many edits tells each in the same task: read the legend once, after.
+        let queued = false;
+        let live = true;
+        const readSoon = (): void => {
+            if (queued) {
+                return;
+            }
+            queued = true;
+            queueMicrotask(() => {
+                queued = false;
+                if (live) {
+                    read();
+                }
+            });
+        };
+        const offs = [session.on("style:changed", readSoon), session.on("project:changed", readSoon)];
         return () => {
+            live = false;
             offs.forEach((off) => {
                 off();
             });

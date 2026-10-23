@@ -67,8 +67,23 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             }
         };
         read();
+        // One pass that paints many edits (a grouping run adds a layer per group) tells each edit
+        // in the same task; the legend is read once, after the last of them.
+        let queued = false;
+        const readSoon = (): void => {
+            if (queued) {
+                return;
+            }
+            queued = true;
+            queueMicrotask(() => {
+                queued = false;
+                if (live) {
+                    read();
+                }
+            });
+        };
         const offs = [
-            ...REDRAW_EVENTS.map((event) => session.on(event, read)),
+            ...REDRAW_EVENTS.map((event) => session.on(event, readSoon)),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
                 if (nodes.length + edges.length > 0) {

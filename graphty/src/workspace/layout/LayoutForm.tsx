@@ -16,28 +16,37 @@ import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords
 /** The location map's id, whose form names the columns it read and picks the map it draws on. */
 const MAP_LAYOUT = "location-map";
 
-/** The map's Latitude and Longitude share one row, as X and Y do; Location stands apart. */
-const MAP_ROWS = [["latitude", "longitude"]] as const;
+/** The map's options that name its location columns: Data > Fields designates them instead. */
+const LOCATION_OPTIONS: ReadonlySet<string> = new Set(["location", "latitude", "longitude"]);
 
 /**
- * The column the map read for a location option it was left to find itself, from the element's
- * frame of the map it drew, or undefined when it has not drawn one.
- * @param element - the element.
- * @param option - the option.
- * @returns the column's name, or undefined.
+ * The columns the map reads: the ones its options name, else what the element says (the
+ * designated columns, or the ones it finds itself), as one line.
+ * @param session - the element's session.
+ * @param values - the layout's options.
+ * @returns the column, or the pair; empty when there is none.
  */
-function columnUsed(element: GraphtyElement | null, option: string): string | undefined {
+function locationLine(session: GraphSession, values: Readonly<Record<string, unknown>>): string {
+    const named = (name: string): string | null => (typeof values[name] === "string" ? values[name] : null);
+    const own = { location: named("location"), latitude: named("latitude"), longitude: named("longitude") };
+    const { location, latitude, longitude } =
+        own.location === null && own.latitude === null && own.longitude === null
+            ? session.layout.locationColumns()
+            : own;
+    return location ?? [latitude, longitude].filter((column) => column !== null).join(", ");
+}
+
+/**
+ * The columns the drawn map read, as {@link locationLine} writes them.
+ * @param element - the element.
+ * @returns the line, or undefined when no map is drawn.
+ */
+function drawnLine(element: GraphtyElement | null): string | undefined {
     const location = element?.mapFrame?.location;
     if (location === undefined) {
         return undefined;
     }
-    if (location.kind === "location") {
-        return option === "location" ? location.column : undefined;
-    }
-    if (option === "latitude") {
-        return location.latitude;
-    }
-    return option === "longitude" ? location.longitude : undefined;
+    return location.kind === "location" ? location.column : `${location.latitude}, ${location.longitude}`;
 }
 
 /** Props for LayoutForm. */
@@ -112,7 +121,7 @@ export function LayoutForm({
     onKeyDown,
     shapeChoice = true,
 }: Readonly<LayoutFormProps>): React.JSX.Element {
-    const { element } = useWorkspace();
+    const { element, store } = useWorkspace();
     const current = session.layout;
     const isCurrent = descriptor.id === current.id;
     const [start] = useState(() => ({
@@ -139,8 +148,18 @@ export function LayoutForm({
     const startShape = shapeOf(start.values, isCurrent ? current.arrangedDimension : undefined);
     const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
 
+    // The map's form: the columns it reads (designated in Data > Fields), the warnings about what
+    // they held, Surface offering only the flat map in 2D, and the map it draws on.
+    const isMap = descriptor.id === MAP_LAYOUT;
+    const mapDrawn = isMap && isCurrent ? element : null;
+    const reads = isMap ? locationLine(session, values) : "";
+    const read = drawnLine(mapDrawn);
     const differs =
-        !isCurrent || (engine ?? descriptor.engine) !== current.engine || !sameValues(values, current.options);
+        !isCurrent ||
+        (engine ?? descriptor.engine) !== current.engine ||
+        !sameValues(values, current.options) ||
+        // Another location designated since the map was drawn: Apply reads it.
+        (read !== undefined && read !== reads);
     const reason = unavailable(session, descriptor, values);
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
 
@@ -205,25 +224,11 @@ export function LayoutForm({
         }
     };
 
-    // The map's form: which columns "Automatic" used, the warnings about what they held, Surface
-    // offering only the flat map in 2D, and the map it draws on.
-    const isMap = descriptor.id === MAP_LAYOUT;
-    const mapDrawn = isMap && isCurrent ? element : null;
-    const warnings = mapDrawn?.mapFrame?.warnings ?? [];
-    // One note, under the field the locations were read from: Location, or Latitude for a pair.
-    const notedField = mapDrawn?.mapFrame?.location.kind === "location" ? "location" : "latitude";
-    const fieldNote = (option: OptionDescriptor): string | null => {
-        if (option.name !== notedField) {
-            return null;
-        }
-        const lines = warnings.flatMap((w) => locationFieldWords(w.code, w.params) ?? []);
-        return lines.length === 0 ? null : lines.join("; ");
-    };
-    const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => {
-        const base = optionWords(descriptor.id, option);
-        const used = isMap ? columnUsed(mapDrawn, option.name) : undefined;
-        return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
-    };
+    // One note under Location: what the columns held.
+    const mapNote = (mapDrawn?.mapFrame?.warnings ?? [])
+        .flatMap((w) => locationFieldWords(w.code, w.params) ?? [])
+        .join("; ");
+    const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => optionWords(descriptor.id, option);
     const disabledReason = (option: OptionDescriptor): string | null =>
         defaultOnly(option)
             ? null
@@ -316,12 +321,40 @@ export function LayoutForm({
                         Draws flat
                     </Text>
                 ) : null}
+                {isMap ? (
+                    <Stack gap={2}>
+                        <FieldRow>
+                            <Text size="xs">Location</Text>
+                            <Button
+                                size="compact-xs"
+                                variant="default"
+                                aria-label="Location"
+                                onClick={() => {
+                                    store.set({ page: "panels", place: "data" });
+                                }}
+                            >
+                                {reads === "" ? "none" : reads}
+                            </Button>
+                        </FieldRow>
+                        {mapNote === "" ? null : (
+                            <Text size="xs" c="dimmed">
+                                {mapNote}
+                            </Text>
+                        )}
+                    </Stack>
+                ) : null}
                 <OptionsForm
                     session={session}
                     // Shape is the dim control; Seed is drawn with Reshuffle below.
                     options={descriptor.options
-                        // The map has fields of its own, below.
-                        .filter((o) => o.name !== "dim" && o.name !== "seed" && o.name !== "map")
+                        // The map has fields of its own: its location columns above, its map below.
+                        .filter(
+                            (o) =>
+                                o.name !== "dim" &&
+                                o.name !== "seed" &&
+                                o.name !== "map" &&
+                                !(isMap && LOCATION_OPTIONS.has(o.name)),
+                        )
                         .map((o) =>
                             defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === o.default) } : o,
                         )}
@@ -332,10 +365,8 @@ export function LayoutForm({
                         edit({ ...values, [name]: value });
                     }}
                     advanced={seed}
-                    note={fieldNote}
                     disabledReason={disabledReason}
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
-                    rows={isMap ? MAP_ROWS : undefined}
                 />
                 {isMap ? (
                     <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />

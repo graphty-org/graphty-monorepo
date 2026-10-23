@@ -39,6 +39,7 @@ const SHARED_IDS = ["Same node", "Different nodes"];
  * @param props.label - the row's label
  * @param props.name - the dropdown's accessible name, when not the label
  * @param props.withNone - whether `none` is offered (false for a row that always holds a choice)
+ * @param props.repick - whether picking the choice shown again counts (it was only preselected)
  * @param props.value - the choice now, or null for none
  * @param props.choices - what it offers
  * @param props.onPick - takes the picked choice, or null for none
@@ -50,6 +51,7 @@ function PickRow({
     value,
     choices,
     withNone = true,
+    repick = false,
     onPick,
 }: Readonly<{
     label: string;
@@ -57,6 +59,7 @@ function PickRow({
     value: string | null;
     choices: readonly string[];
     withNone?: boolean;
+    repick?: boolean;
     onPick: (value: string | null) => void;
 }>): React.JSX.Element {
     const none = withNone ? [{ value: NONE, label: "none" }] : [];
@@ -77,15 +80,87 @@ function PickRow({
                         onPick(next);
                     }
                 }}
+                // The list calls onChange only for a new value; a preselected one picked again
+                // comes here.
+                onOptionSubmit={(picked) => {
+                    if (repick && picked === value) {
+                        onPick(picked);
+                    }
+                }}
             />
         </FieldRow>
     );
 }
 
 /**
+ * The location rows: the column of whole locations, or the latitude and longitude pair, the
+ * location map reads each node's place from. A pick designates it in the element
+ * (`data.knownFields`), one undo step; until one is picked, the columns the element finds itself
+ * are shown. None on a row hands the choice back to the element.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.choices - the node columns offered
+ * @param props.onFail - called when the element refuses the change
+ * @returns the rows
+ */
+function LocationRows({
+    session,
+    choices,
+    onFail,
+}: Readonly<{ session: GraphSession; choices: readonly string[]; onFail: () => void }>): React.JSX.Element {
+    const shown = session.layout.locationColumns();
+    // What the element found is only preselected: picking it designates it.
+    const repick = shown.from === "detected";
+    const designate = (location: string | null, latitude: string | null, longitude: string | null): void => {
+        session.config
+            .set({
+                data: {
+                    knownFields: {
+                        nodeLocationPath: location,
+                        nodeLatitudePath: latitude,
+                        nodeLongitudePath: longitude,
+                    },
+                },
+            })
+            .catch(onFail);
+    };
+    return (
+        <>
+            <PickRow
+                label="Location"
+                repick={repick}
+                value={shown.location}
+                choices={choices}
+                onPick={(picked) => {
+                    designate(picked, null, null);
+                }}
+            />
+            <PickRow
+                label="Latitude"
+                repick={repick}
+                value={shown.latitude}
+                choices={choices}
+                onPick={(picked) => {
+                    designate(null, picked, picked === null ? null : shown.longitude);
+                }}
+            />
+            <PickRow
+                label="Longitude"
+                repick={repick}
+                value={shown.longitude}
+                choices={choices}
+                onPick={(picked) => {
+                    designate(null, picked === null ? null : shown.latitude, picked);
+                }}
+            />
+        </>
+    );
+}
+
+/**
  * The Fields section (spec section 3.3), for the selected load: its name, then Rows are (for a
  * load of one table), then its special fields grouped under a node chip and an edge chip -- Id,
- * Label, Kind and Node time of its nodes; Source, Target, Weight (numbers only, with what it
+ * Label, Kind, Node time and Location (or Latitude and Longitude) of its nodes; Source, Target, Weight (numbers only, with what it
  * means), Edge time and the kinds of the two ends of its edges -- the shared-ids choice when an id
  * appears under two kinds, and the graph's direction. A setting row changes the element's role in
  * place (`data.setRole`); a row read when the rows load reads the load again
@@ -276,6 +351,11 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
                             <EntityChip kind="node">{formatNumber(source?.counts.nodes ?? totalNodes)}</EntityChip>
                         </div>
                         {rowsOf("nodes")}
+                        <LocationRows
+                            session={session}
+                            choices={columnChoices(attributes, source, "nodes", null)}
+                            onFail={fail}
+                        />
                     </>
                 ) : null}
                 {sides.includes("edges") ? (

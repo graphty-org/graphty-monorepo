@@ -584,6 +584,11 @@ function selectReader(dir, { file, holder }, { graphs, whole, out }) {
         stories.forEach((spec) => addSpec(out.get(dir), spec, `its Storybook config ${holder} reads ${file}`));
         return;
     }
+    const linters = known.length === 0 ? lintSpecs(dir, holder, graphs.get(dir)) : null;
+    if (linters) {
+        linters.forEach((spec) => addSpec(out.get(dir), spec, `runs ESLint, whose config ${holder} reads ${file}`));
+        return;
+    }
     if (known.length === 0) {
         whole(dir, `${holder ?? "a file of it"} reads ${file} by relative path`);
         return;
@@ -612,6 +617,22 @@ function storybookSpecs(dir, holder, gs) {
         .flatMap((g) => Object.values(g.projects))
         .filter((p) => p.setup.some((f) => f.startsWith(`${dir}/.storybook/`)));
     return projects.length > 0 ? projects.flatMap((p) => p.specs) : null;
+}
+
+/**
+ * The tests of a package that may run ESLint, when `holder` is its ESLint config (graphty's lint rules read
+ * graphty-element's build): Vitest never loads that config, only a test that runs ESLint does, and such a
+ * test reads files at run time (the rules file's opaqueTest pattern counts `new ESLint(` and `loadESLint`).
+ * @param dir the package
+ * @param holder the file that reads another package's file, or null
+ * @param gs the package's graphs
+ * @returns the test files, or null when the holder is not an ESLint config
+ */
+function lintSpecs(dir, holder, gs) {
+    if (!holder || !/^eslint\.config\.[cm]?[jt]s$/u.test(holder.slice(dir.length + 1)) || !usable(gs)) {
+        return null;
+    }
+    return gs.flatMap((g) => g.opaque ?? []);
 }
 
 const usable = (gs) => (gs && gs.length > 0 && !gs.includes(null) ? gs : null);

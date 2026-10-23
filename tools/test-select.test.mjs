@@ -919,6 +919,13 @@ describe("changes to another package's build, followed through its source", () =
         assert.ok(!p.specs.has("pb/test/one.test.ts"));
     });
 
+    it("a build output read by the ESLint config runs only the tests that read files (those that run ESLint)", () => {
+        const refs = new Map([["pb", [{ target: "pz", prefix: "pz/", holder: "pb/eslint.config.js", build: true }]]]);
+        const p = run(["pz/src/meta.ts"], refs);
+        assert.equal(p.mode, "files");
+        assert.deepEqual(specs(p), ["pb/test/data.test.ts", "pb/test/read.test.ts"]);
+    });
+
     it("finds the source of a build output from its source map, its type shim or the build's one entry", () => {
         const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-sources-"));
         const put = (path, text) => {

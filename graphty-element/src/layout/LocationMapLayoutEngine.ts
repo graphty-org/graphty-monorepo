@@ -6,7 +6,14 @@ import { Basemap } from "../config/Basemap";
 import { GraphtyError } from "../errors";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
 import type { LocationMapFrame, PlaceOptions } from "./locationMap/place";
-import { type ColumnValues, isLocationRefusal, type LocationRefusal, resolveLocation } from "./locationMap/source";
+import {
+    chosenLocation,
+    type ColumnValues,
+    isLocationRefusal,
+    type LocationChoice,
+    type LocationRefusal,
+    resolveLocation,
+} from "./locationMap/source";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /** The placement module, once loaded: a restore (undo) computes its frame from it at once. */
@@ -166,7 +173,9 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * The location map layout: every node at the place its data names, on a flat map or a globe that
  * the element draws under the graph. The location is one attribute (a decimal pair, GeoJSON, WKT,
  * ISO 6709, degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM) or a latitude and a
- * longitude attribute; with neither option set, the layout finds them by name or by their values.
+ * longitude attribute; with neither option set, it reads the columns designated in
+ * `data.knownFields` (`nodeLocationPath`, or `nodeLatitudePath` and `nodeLongitudePath`), and with
+ * none designated it finds them by name or by their values (`session.layout.locationColumns()`).
  *
  * Nodes with no usable location go to a tray below the map (or stay where they were) and are
  * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
@@ -252,7 +261,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         }
 
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.config, columns, (name) => named(columns, name));
+        const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name));
         if (isLocationRefusal(answer)) {
             throw refusalError(answer);
         }
@@ -272,7 +281,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         const n = input.graph.nodeCount;
         const ids = Array.from({ length: n }, (_, row) => input.graph.ids.idOf(row));
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.config, columns, (name) => this.#optionColumn(input, columns, name));
+        const answer = resolveLocation(this.#choice(), columns, (name) => this.#optionColumn(input, columns, name));
         if (isLocationRefusal(answer)) {
             this.geoFrame = null;
             if (n === 0) {
@@ -329,7 +338,7 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     #restoreFrame(m: typeof import("./locationMap/place")): void {
         const n = this.graph.nodeCount;
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.config, columns, (name) => named(columns, name));
+        const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name));
         if (isLocationRefusal(answer)) {
             this.geoFrame = null;
             return;
@@ -343,6 +352,16 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
             answer.filled,
         );
         this.geoFrame = placement.frame;
+    }
+
+    /**
+     * The columns to read: the layout's own options when they name any, else the ones designated
+     * in `data.knownFields` (`nodeLocationPath`, or `nodeLatitudePath` and `nodeLongitudePath`).
+     * @returns The choice; all null leaves the layout to find them.
+     */
+    #choice(): LocationChoice {
+        const known = this._nodes[0]?.parentGraph?.getStyles?.().config.data.knownFields;
+        return chosenLocation(this.config, known);
     }
 
     /**

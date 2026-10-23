@@ -547,6 +547,65 @@ describe("the location map's history and map", () => {
         assert.strictEqual(element.session.layout.id, before);
     });
 
+    it("reads the designated location columns, and finds them itself when none is designated", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.display = "block";
+        element.style.width = `${String(WIDTH)}px`;
+        element.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(element);
+        cleanups.push(() => {
+            element.remove();
+        });
+        await element.updateComplete;
+        // Each city also carries a second place, mirrored east to west, as an unnamed pair.
+        await element.session.data.addNodes(CITIES.map((c) => ({ ...c, north: c.latitude, east: -60 - c.longitude })));
+        await applied(element);
+        const { layout } = element.session;
+        assert.deepEqual(layout.locationColumns(), {
+            from: "detected",
+            location: null,
+            latitude: "latitude",
+            longitude: "longitude",
+        });
+
+        await layout.set("location-map");
+        await vi.waitFor(async () => {
+            await applied(element);
+            assert.strictEqual(element.mapFrame?.location.kind, "columns");
+        });
+        const detected = scenePositions(element);
+
+        await element.session.config.set({
+            data: { knownFields: { nodeLatitudePath: "north", nodeLongitudePath: "east" } },
+        });
+        assert.deepEqual(layout.locationColumns(), {
+            from: "designated",
+            location: null,
+            latitude: "north",
+            longitude: "east",
+        });
+        assert.deepEqual(scenePositions(element), detected, "a designation moves no node by itself");
+
+        // The same layout again reads the designated pair.
+        await layout.set("location-map");
+        await vi.waitFor(async () => {
+            await applied(element);
+            const location = element.mapFrame?.location;
+            assert.deepInclude(location, { kind: "columns", latitude: "north", longitude: "east" });
+        });
+        assert.notDeepEqual(scenePositions(element), detected, "the nodes moved to the designated places");
+
+        // A designated column no node carries is refused, as a named option is.
+        await element.session.config.set({
+            data: { knownFields: { nodeLatitudePath: null, nodeLongitudePath: null, nodeLocationPath: "nowhere" } },
+        });
+        assert.strictEqual(layout.locationColumns().from, "designated");
+        assert.strictEqual(
+            element.session.estimate({ op: "layout.set", id: "location-map" }).refusal?.code,
+            "layout.needs-location",
+        );
+    });
+
     it("falls back to the bundled world when tiles cannot be reached, says so, and credits only what it drew", async () => {
         const element = await mounted("2d");
         const states: { state: string; error?: { code: string } }[] = [];

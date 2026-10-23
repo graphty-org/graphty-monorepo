@@ -75,6 +75,7 @@ import type { NoteId, NotesApi } from "./notes/types";
 import {
     type AlgorithmRunCommand,
     estimateCommand,
+    locationColumns,
     type Plan,
     planCommand,
     type PlanningContext,
@@ -183,6 +184,7 @@ import type {
     GraphSession,
     GraphSettingKey,
     HistoryOutcome,
+    LocationColumns,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
@@ -606,7 +608,11 @@ class Session implements ElementSession {
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
-        this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
+        this.layout = layoutOf(
+            this.dispatcher,
+            (command) => this.dispatcher.dispatch(command),
+            () => locationColumns(this.planning),
+        );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
             this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
@@ -826,7 +832,11 @@ class Session implements ElementSession {
             },
             // Its layout verbs join the transaction too.
             layout: {
-                value: layoutOf(this.dispatcher, (command) => scope.dispatch(command)),
+                value: layoutOf(
+                    this.dispatcher,
+                    (command) => scope.dispatch(command),
+                    () => locationColumns(this.planning),
+                ),
             },
             transaction: {
                 value: <T>(
@@ -1292,9 +1302,14 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * The `layout` slice with its verbs.
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
+ * @param locate - The columns the location map reads unless its options name some.
  * @returns The layout surface.
  */
-function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) => Promise<unknown>): SessionLayout {
+function layoutOf(
+    dispatcher: Dispatcher,
+    dispatch: (command: SessionCommand) => Promise<unknown>,
+    locate: () => LocationColumns,
+): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
     return Object.freeze({
         get id() {
@@ -1334,6 +1349,7 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
                 params: Object.freeze({ setting: option }),
             });
         },
+        locationColumns: locate,
     });
 }
 
@@ -3540,6 +3556,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
         nodeAttributes: () => data.attributes().flatMap((a) => (a.kind === "node" ? [a.name] : [])),
+        locationDesignation: () => session.config.data.knownFields,
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 

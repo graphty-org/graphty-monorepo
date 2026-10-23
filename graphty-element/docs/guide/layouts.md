@@ -305,6 +305,15 @@ a decimal pair (latitude first, or longitude first when only that fits), GeoJSON
 degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
 should not decide.
 
+To name the location once for the whole project instead of in the layout's options, designate it
+in the data settings; the layout reads it whenever its own `location`, `latitude` and `longitude`
+are unset, and `session.layout.locationColumns()` says which columns it will read:
+
+```ts
+await session.config.set({ data: { knownFields: { nodeLocationPath: "where" } } });
+session.layout.locationColumns(); // { from: "designated", location: "where", latitude: null, longitude: null }
+```
+
 - **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
   (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe
   with great-circle arcs. The edge style `line.route` (`straight`, `arc`, `great-circle`) and

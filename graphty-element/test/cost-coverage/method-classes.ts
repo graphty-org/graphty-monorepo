@@ -654,6 +654,7 @@ export const READ_ONLY: readonly string[] = [
     "GraphContext.setRunning",
     "GraphSession.estimate",
     "GraphSession.recommendLayout",
+    "SessionLayout.locationColumns",
     "SessionLayout.optionInEffect",
     "GraphSession.find",
     "GraphSession.fingerprint",

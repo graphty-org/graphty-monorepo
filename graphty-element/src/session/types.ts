@@ -3395,6 +3395,33 @@ export interface SessionLayout {
      * @since 3.31.0
      */
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
+    /**
+     * The node columns the location map layout reads each node's location from when its own
+     * options name none: the ones designated in `data.knownFields` (`nodeLocationPath`, or
+     * `nodeLatitudePath` and `nodeLongitudePath`), else the ones it finds by name or by their
+     * values. A form shows them as the location field, preselected before the reader picks one.
+     *
+     * ```ts
+     * const { from, location, latitude, longitude } = session.layout.locationColumns();
+     * // Designate a pair; the location map reads it from its next run.
+     * await session.config.set({ data: { knownFields: { nodeLatitudePath: "lat", nodeLongitudePath: "lon" } } });
+     * ```
+     * @returns The columns; `from` is `none` when nothing reads as a location.
+     * @since 3.31.0
+     */
+    locationColumns(): LocationColumns;
+}
+
+/** Where the location map layout reads locations: one column of whole locations, or a pair. @since 3.31.0 */
+export interface LocationColumns {
+    /** `designated` in `data.knownFields`, `detected` by name or values, or `none` found. */
+    readonly from: "designated" | "detected" | "none";
+    /** The column of whole locations, or null with a pair or none. */
+    readonly location: string | null;
+    /** The latitude column of a pair, or null. */
+    readonly latitude: string | null;
+    /** The longitude column of a pair, or null. */
+    readonly longitude: string | null;
 }
 
 /**

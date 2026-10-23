@@ -45,6 +45,12 @@ const GraphKnownFields = z.strictObject({
     // How numbers in the node time column are read: epoch milliseconds, epoch seconds, or plain
     // ordered numbers. Null reads milliseconds. Strings and dates ignore it.
     nodeTimeUnit: z.enum(["ms", "s", "year", "ordinal"]).or(z.null()).optional(),
+    // Where each node's location is: one column of whole locations, or a latitude and a longitude
+    // column. The location map layout reads them when its own options name none; absent or null,
+    // it finds them by name or by their values.
+    nodeLocationPath: z.string().or(z.null()).optional(),
+    nodeLatitudePath: z.string().or(z.null()).optional(),
+    nodeLongitudePath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does

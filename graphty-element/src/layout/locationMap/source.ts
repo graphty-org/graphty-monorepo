@@ -43,6 +43,31 @@ export interface LocationChoice {
     readonly longitude: string | null;
 }
 
+/** The designation `data.knownFields` holds, as the three paths. */
+export interface LocationDesignation {
+    readonly nodeLocationPath?: string | null;
+    readonly nodeLatitudePath?: string | null;
+    readonly nodeLongitudePath?: string | null;
+}
+
+/**
+ * The columns the layout reads: its own options when they name any, else the designated ones.
+ * @param options - The layout's options.
+ * @param designated - `data.knownFields`, or undefined with none.
+ * @returns The choice.
+ */
+export function chosenLocation(options: LocationChoice, designated: LocationDesignation | undefined): LocationChoice {
+    if (options.location !== null || options.latitude !== null || options.longitude !== null) {
+        return options;
+    }
+
+    return {
+        location: designated?.nodeLocationPath ?? null,
+        latitude: designated?.nodeLatitudePath ?? null,
+        longitude: designated?.nodeLongitudePath ?? null,
+    };
+}
+
 /** Where the layout reads the locations, and what it found for itself. */
 export interface ResolvedLocation {
     readonly source: LocationSource;

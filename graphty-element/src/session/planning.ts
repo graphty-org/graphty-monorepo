@@ -33,7 +33,13 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
-import { isLocationRefusal, resolveLocation } from "../layout/locationMap/source";
+import {
+    chosenLocation,
+    type ColumnValues,
+    isLocationRefusal,
+    type LocationDesignation,
+    resolveLocation,
+} from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
@@ -63,7 +69,7 @@ import {
 import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
-import type { GraphStatistics } from "./types";
+import type { GraphStatistics, LocationColumns } from "./types";
 import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
@@ -306,6 +312,8 @@ export interface PlanningContext {
     readonly runOf?: (path: string) => string | undefined;
     /** Every node attribute's name, for a layout that looks for its input among them. */
     readonly nodeAttributes?: () => readonly string[];
+    /** The location designated in `data.knownFields`, which the location map reads unless told otherwise. */
+    readonly locationDesignation?: () => LocationDesignation;
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
@@ -843,6 +851,39 @@ function layoutRefusal(
 }
 
 /**
+ * Every node attribute with its values, for finding the location.
+ * @param context - What planning reads.
+ * @returns The columns.
+ */
+function nodeColumns(context: PlanningContext): ColumnValues[] {
+    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+}
+
+/**
+ * The columns the location map layout reads when its own options name none: the designated ones,
+ * else the ones it finds by name or by their values.
+ * @param context - What planning reads.
+ * @returns The columns and where they come from.
+ */
+export function locationColumns(context: PlanningContext): LocationColumns {
+    const none = { location: null, latitude: null, longitude: null };
+    const choice = chosenLocation(none, context.locationDesignation?.());
+    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null);
+    if (isLocationRefusal(answer)) {
+        return Object.freeze({ from: designated ? "designated" : "none", ...(designated ? choice : none) });
+    }
+
+    const { source } = answer;
+    return Object.freeze({
+        from: designated ? "designated" : "detected",
+        ...(source.kind === "location"
+            ? { ...none, location: source.column }
+            : { ...none, latitude: source.latitude, longitude: source.longitude }),
+    });
+}
+
+/**
  * Whether the location map layout refuses this graph: no column it can read locations from, or
  * half a latitude and longitude pair it cannot complete. The same answer the layout's own run
  * reaches, from the same resolver.
@@ -857,12 +898,14 @@ function locationRefusal(
     options: Readonly<Record<string, unknown>>,
 ): EstimateRefusal | undefined {
     const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
-    const columns = (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: read(name) ?? [] }));
     const option = (name: string): string | null =>
         typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
     const answer = resolveLocation(
-        { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
-        columns,
+        chosenLocation(
+            { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
+            context.locationDesignation?.(),
+        ),
+        nodeColumns(context),
         read,
     );
     return isLocationRefusal(answer)

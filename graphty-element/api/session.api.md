@@ -2682,6 +2682,14 @@ export interface LoadStyleReport {
 }
 
 // @public
+export interface LocationColumns {
+    readonly from: "designated" | "detected" | "none";
+    readonly latitude: string | null;
+    readonly location: string | null;
+    readonly longitude: string | null;
+}
+
+// @public
 export interface MachineCalibration {
     readonly at: string;
     readonly basis: "probe" | "defaults";
@@ -4717,6 +4725,7 @@ export interface SessionLayout {
     readonly dimension: "2d" | "3d";
     readonly engine: string;
     readonly id: LayoutId;
+    locationColumns(): LocationColumns;
     optionInEffect(id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect;
     readonly options: Readonly<Record<string, unknown>>;
     set(id: LayoutId, options?: {

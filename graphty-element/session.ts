@@ -117,6 +117,7 @@ export type {
     LoadedWeight,
     LoadMapping,
     LoadMappingRead,
+    LocationColumns,
     Neighbor,
     NeighborOptions,
     NeighborPage,

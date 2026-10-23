@@ -2989,6 +2989,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
             optionInEffect: READ,
+            locationColumns: READ,
         },
     },
     {

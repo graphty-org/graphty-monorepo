@@ -270,10 +270,11 @@ async function main(argv) {
         console.error(`no shard of ${reader} is a plain vitest run`);
         return 2;
     }
-    console.log(`Building ${[...new Set([pkg, reader])].join(", ")} and what they depend on...`);
+    console.log("Building every package...");
     execFileSync(
         "pnpm",
-        ["exec", "nx", "run-many", "-t", "build", "-p", [...new Set([pkg, reader])].join(","), "--outputStyle=static"],
+        // every package: each one's import graph resolves the others through their dist, as in the gate
+        ["exec", "nx", "run-many", "-t", "build", "--outputStyle=static"],
         { cwd: wt, stdio: "inherit" },
     );
     const candidates = execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
@@ -284,7 +285,8 @@ async function main(argv) {
     const picked = given
         ? given.split(",")
         : seededPick(candidates, Number(opt("--count", "5")), Number(opt("--seed", "1")));
-    const graphs = buildGraphs(wt, [...new Set([pkg, reader])], shards);
+    // every package's graph, as the gate has them: a package without one is assumed to read anything
+    const graphs = buildGraphs(wt, [...new Set(SHARDS.map((s) => s.package))], SHARDS);
     if ((graphs.get(reader) ?? []).includes(null)) {
         console.error(`the import graph of ${reader} could not be built; the selection would run it whole`);
         return 2;

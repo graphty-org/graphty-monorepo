@@ -31,6 +31,16 @@ import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
 import type { NodePaint, StylePainter } from "./StylePainter";
 
+/**
+ * How a flat map in 3D is first seen: turned from straight on toward the south by 45 degrees, so
+ * the camera looks north across the map and the edges' arcs rise above it.
+ */
+const FLAT_MAP_TILT = Quaternion.FromUnitVectorsToRef(
+    new Vector3(0, 0, -1),
+    new Vector3(0, -Math.SQRT1_2, -Math.SQRT1_2),
+    new Quaternion(),
+);
+
 /** The corners of a box in world space, and what it holds. */
 interface FramingBox {
     min: Vector3;
@@ -2176,16 +2186,18 @@ export class UpdateManager implements Manager {
         const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame ?? null;
         if (frame !== null) {
-            // A globe framed to the data opens on the data, so a node is as large as on the flat map.
-            const corners = frame.surface === "globe" && !frame.world ? [] : mapCorners(frame);
-            for (const corner of corners) {
+            // The whole map: a globe opens as the whole sphere, the flat map as its whole box.
+            for (const corner of mapCorners(frame)) {
                 boundingBoxMin = Vector3.Minimize(boundingBoxMin, corner);
                 boundingBoxMax = Vector3.Maximize(boundingBoxMax, corner);
             }
 
             const orbit = this.camera.getActiveController();
             if (frame !== this.facedFrame && frame.dimensions === 3 && orbit instanceof OrbitCameraController) {
-                orbit.pivot.rotationQuaternion = Quaternion.Identity();
+                // A globe is faced straight on. A flat map in 3D is seen from the south at a slant,
+                // so its edges read as arcs above it: straight down, an arc looks like a line.
+                orbit.pivot.rotationQuaternion =
+                    frame.surface === "flat" ? FLAT_MAP_TILT.clone() : Quaternion.Identity();
             }
 
             this.facedFrame = frame;

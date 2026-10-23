@@ -131,7 +131,9 @@ function onSphere(element: Graphty, spot: Point, radius: number): { x: number; y
 describe("the camera on a location map", () => {
     it("faces a map applied after the camera was turned round to its back", async () => {
         const element = await mounted("3d");
-        assert.isBelow(viewDirection(element).z, -0.9, "the first map is seen from its face (-z)");
+        const first = viewDirection(element);
+        assert.isBelow(first.z, -0.6, "the first map is seen from its face (-z)");
+        assert.isBelow(first.y, -0.6, "at a slant from the south, so its arcs rise above it");
         // Turn the view half way round, as a reader would, by dragging.
         await drag(element, { x: 40, y: CENTER.y }, { x: WIDTH - 20, y: CENTER.y }, 16);
         await drag(element, { x: 40, y: CENTER.y }, { x: WIDTH - 20, y: CENTER.y }, 16);
@@ -140,7 +142,7 @@ describe("the camera on a location map", () => {
         await applied(element);
         await vi.waitFor(async () => {
             await applied(element);
-            assert.isBelow(viewDirection(element).z, -0.9, "the new map is faced again");
+            assert.isBelow(viewDirection(element).z, -0.6, "the new map is faced again");
         });
     });
 
@@ -228,7 +230,7 @@ describe("the camera on a location map", () => {
         assert.isBelow(viewDirection(element).y, -0.8);
     });
 
-    it("opens a globe on its data, as large as on the flat map, and an undo frames the flat map again", async () => {
+    it("opens a globe as the whole sphere, and an undo frames the flat map again", async () => {
         const element = await mounted("3d");
         // How far apart Seattle and Miami are drawn: the share of the view the data fills.
         const spread = (): number => {
@@ -241,7 +243,7 @@ describe("the camera on a location map", () => {
         await applied(element);
         await vi.waitFor(async () => {
             await applied(element);
-            assert.closeTo(spread() / flat, 1, 0.25, "the globe frames the data, not the whole sphere");
+            assert.isBelow(spread() / flat, 0.8, "the globe frames the whole sphere, not only the data");
         });
         await element.session.undo();
         await applied(element);
@@ -362,6 +364,58 @@ describe("nodes and edges on a map", () => {
         await element.setViewMode("2d");
         await applied(element);
         assert.deepEqual(outlined(element), { nodes: 0, edges: 0 }, "nor in 2D");
+    });
+});
+
+/**
+ * The points every edge's line is drawn through, or null for an edge drawn as one straight segment.
+ * @param element - The element.
+ * @returns The lines.
+ */
+function edgeLines(element: Graphty): ({ x: number; y: number; z: number }[] | null)[] {
+    return [...element.graph.getDataManager().edges.values()].map(
+        (edge) => edge.drawnCurve?.map((v) => ({ x: v.x, y: v.y, z: v.z })) ?? null,
+    );
+}
+
+describe("the surface and the view", () => {
+    it("draws straight edges on the flat map in 2D, arcs above it in 3D, and arcs above a sphere on the globe", async () => {
+        const element = await mounted("3d");
+        for (const line of edgeLines(element)) {
+            assert.isNotNull(line, "a 3D flat map draws each edge as an arc");
+            const lift = Math.max(...(line ?? []).map((p) => Math.abs(p.z)));
+            assert.isAbove(lift, 0, "raised off the map's plane");
+        }
+
+        await element.setViewMode("2d");
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.surface, "flat");
+        assert.deepEqual(edgeLines(element), [null, null, null], "the 2D map draws straight edges");
+
+        await element.setViewMode("3d");
+        await element.session.layout.set("location-map", { options: { surface: "globe" } });
+        await applied(element);
+        const frame = element.mapFrame;
+        const radius = frame?.surface === "globe" ? frame.radius : 0;
+        assert.isAbove(radius, 0, "the globe is drawn");
+        for (const line of edgeLines(element)) {
+            assert.isNotNull(line, "a globe draws each edge as an arc");
+            const highest = Math.max(...(line ?? []).map((p) => Math.hypot(p.x, p.y, p.z)));
+            assert.isAbove(highest, radius, "above the sphere");
+        }
+    });
+
+    it("refuses a globe in the 2D view with a coded refusal, and keeps the flat map", async () => {
+        const element = await mounted("2d");
+        let details: { option?: unknown; refusal?: unknown } | undefined;
+        await element.session.layout.set("location-map", { options: { surface: "globe" } }).catch((error: unknown) => {
+            ({ details } = error as { details?: typeof details });
+        });
+        assert.deepEqual(details?.refusal, { code: "setting.notIn2d", params: { setting: "surface" } });
+        assert.strictEqual(details?.option, "surface");
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.surface, "flat", "the flat map is still drawn");
+        assert.notStrictEqual(element.session.layout.options.surface, "globe");
     });
 });
 

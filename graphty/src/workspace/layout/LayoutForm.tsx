@@ -167,12 +167,29 @@ export function LayoutForm({
     const reason = unavailable(session, descriptor, values);
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
 
+    // The view the layout would be drawn in: the 2D view draws every layout flat.
+    const drawnIn = current.dimension === "2d" ? "2d" : shape;
+    // An option the 2D view does not draw (the map's Surface) offers only its default there.
+    const defaultOnly = (option: OptionDescriptor): boolean =>
+        typeof option.default === "string" &&
+        session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code === "setting.notIn2d";
+    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
+        const shown = { ...asked };
+        for (const option of descriptor.options) {
+            if (shown[option.name] !== undefined && defaultOnly(option)) {
+                shown[option.name] = option.default;
+            }
+        }
+        return shown;
+    };
+
     const edit = (next: Record<string, unknown>): void => {
         setValues(next);
         setError(null);
     };
-    const apply = (options: Record<string, unknown>): void => {
+    const apply = (asked: Record<string, unknown>): void => {
         setError(null);
+        const options = inView(asked);
         session.layout
             .set(descriptor.id, engine === undefined ? { options } : { engine, options })
             .then(onApplied, (failure: unknown) => {
@@ -198,7 +215,7 @@ export function LayoutForm({
     };
 
     // The map's form: which columns "Automatic" used, the warnings about what they held, Surface
-    // off in 2D, and a row naming the map it draws on.
+    // offering only the flat map in 2D, and a row naming the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
     const mapDrawn = isMap && isCurrent ? element : null;
     const warnings = mapDrawn?.mapFrame?.warnings ?? [];
@@ -216,10 +233,10 @@ export function LayoutForm({
         const used = isMap ? columnUsed(mapDrawn, option.name) : undefined;
         return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
     };
-    // The view the layout would be drawn in: the 2D view draws every layout flat.
-    const drawnIn = current.dimension === "2d" ? "2d" : shape;
     const disabledReason = (option: OptionDescriptor): string | null =>
-        optionEffectWords(session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code);
+        defaultOnly(option)
+            ? null
+            : optionEffectWords(session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code);
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const seed = takesSeed ? (
@@ -311,8 +328,12 @@ export function LayoutForm({
                 <OptionsForm
                     session={session}
                     // Shape is the dim control; Seed is drawn with Reshuffle below.
-                    options={descriptor.options.filter((o) => o.name !== "dim" && o.name !== "seed")}
-                    values={values}
+                    options={descriptor.options
+                        .filter((o) => o.name !== "dim" && o.name !== "seed")
+                        .map((o) =>
+                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === o.default) } : o,
+                        )}
+                    values={inView(values)}
                     words={words}
                     canUseSelectedNode
                     onChange={(name, value) => {

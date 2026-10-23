@@ -344,17 +344,33 @@ describe("the location map", () => {
         assert.strictEqual(posted, shown, "the switch posted no second notice");
     });
 
-    it("disables Surface in 2D with its reason", async () => {
+    it("offers only the flat map as Surface in 2D, and draws a globe chosen in 3D flat there", async () => {
         const element = await openAirports();
+        let popover = await openMapForm();
+        await pick(popover, "Location", /where/i);
+        await pick(popover, "Surface", "Globe");
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(element.mapFrame?.surface, "globe");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await userEvent.keyboard("{Escape}");
         await element.session.layout.setDimension("2d");
-        const popover = await openMapForm();
-        const surface = within(popover).getByRole("combobox", { name: "Surface" });
-        assert.isTrue(surface.hasAttribute("disabled"));
-        const holder = surface.closest("[aria-description]");
-        assert.strictEqual(holder?.getAttribute("aria-description"), "Not in 2D");
-        await userEvent.hover(holder ?? surface);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
-        assert.strictEqual(tip.textContent, "Not in 2D");
+        popover = await openMapForm();
+        const surface = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Surface" });
+        assert.isFalse(surface.hasAttribute("disabled"), "Surface can be opened");
+        assert.strictEqual(surface.value, "Flat map", "and shows the flat map in 2D");
+        await userEvent.click(surface);
+        const offered = (await within(popover).findAllByRole("option")).map((option) => option.textContent);
+        assert.deepEqual(offered, ["Flat map"], "the only surface offered");
+        await waitFor(
+            () => {
+                assert.strictEqual(element.mapFrame?.surface, "flat", "the 2D view draws the flat map");
+            },
+            { timeout: TIMEOUT_MS },
+        );
     });
 
     it("closes only the Advanced pop-out on Escape, and names its button", async () => {

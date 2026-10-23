@@ -314,10 +314,10 @@ its datasets from graphty.app, and the same hosting fits.
 
 ### 5.1 The four combinations
 
-| graphty-element view                  | `surface: "flat"` (default)                                                 | `surface: "globe"`                                                                                               |
-| ------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 2D (`view-mode="2d"`)                 | Flat map in the x-y plane, orthographic 2D camera, straight edges           | Not available: the surface is flat. The option is kept, not rewritten, so returning to 3D brings the globe back. |
-| 3D (`view-mode="3d"`, also AR and VR) | Flat map in the x-y plane, orbit camera, edges as raised arcs above the map | Sphere at the origin, orbit camera, edges as raised great-circle arcs                                            |
+| graphty-element view                  | `surface: "flat"` (default)                                                                                         | `surface: "globe"`                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D (`view-mode="2d"`)                 | Flat map in the x-y plane, orthographic 2D camera, straight edges                                                   | Not available. Asking for it (`surface: "globe"` while in 2D) is refused with `E_OPTION_RANGE`, `details.refusal` `{ code: "setting.notIn2d", params: { setting: "surface" } }`, and the app offers only the flat map in 2D. A globe chosen in 3D is kept when the view switches to 2D, drawn flat there, and comes back in 3D. |
+| 3D (`view-mode="3d"`, also AR and VR) | Flat map in the x-y plane, orbit camera first seen from the south at 45 degrees, edges as raised arcs above the map | The whole sphere at the origin, faced straight on, orbit camera, edges as raised great-circle arcs                                                                                                                                                                                                                              |
 
 ### 5.2 Flat projections
 
@@ -816,7 +816,12 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
   "Not reachable" at a custom Address, announces Map shown and fallback, and sets the offset to the
   toolbar's height.
 - **Surface in 2D**: `session.layout.optionInEffect(id, option, dimension)` answers
-  `setting.notIn2d` for `location-map.surface`, and the app disables the field with that reason.
+  `setting.notIn2d` for `location-map.surface`; a `layout.set` asking for a globe in 2D is refused
+  (5.1), and the app's Surface field offers only the flat map in 2D.
+- **The owner's matrix (2026-10-22)**: a flat map in 3D opens seen from the south at 45 degrees, so
+  its edges read as arcs above it (straight down, an arc looks like a straight line, and the flat
+  3D map looked like the 2D one); a globe opens framed as the whole sphere, not on its data (framed
+  on its data, a globe looked like a flat map with arcs).
 - **"Automatic (column)"**: `element.mapFrame.location` names the columns used; `optionsFor` lists
   every node column for the three location options, fitting ones first and the rest with
   `refusal: { code: "location.column-unfit", params: { role, share } }`.
@@ -837,8 +842,7 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
   Advanced; one-point data spans 10 degrees, other data at least 0.01; the Venice sample card is
   re-rendered with darker edges and outlined nodes (`tools/render-sample-thumbnails.mjs`, median
   mark contrast 3.5:1 on white).
-- **From checking these on screen**: a globe with `extent: "data"` opens framed on the data (as
-  large as on the flat map), not on the whole sphere, and a globe drag turns about the globe's
+- **From checking these on screen**: a globe drag turns about the globe's
   center wherever the camera looks; a map replaced by one on the other surface (an undo from globe
   to flat) is framed again; the basemap status stays `loading` while a tile's
   shader compiles; the Map form shows the location note once, under the field the places were

@@ -30,6 +30,17 @@ beforeAll(async () => {
 // consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
 (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
+// These tests drive the page with real input (userEvent from vitest/browser, through the DevTools
+// protocol), so every update it causes lands outside act() by design, and React, told this is an act
+// environment, logged an "update ... not wrapped in act(...)" warning for each one: 435,000 in one
+// run of the app's tests, which made every real-element test about 1.8 times slower and filled each
+// shard's log with 90 MB (issue #3271). Testing Library's own render, fireEvent and waitFor still
+// switch the act environment on for their duration. Registered after Testing Library's beforeAll,
+// which sets the flag, so this runs second.
+beforeAll(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+});
+
 // Cleanup after each test case
 afterEach(() => {
     cleanup();

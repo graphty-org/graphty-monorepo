@@ -4,6 +4,7 @@
  * follows the width of its container.
  */
 import { screen } from "@testing-library/react";
+import React, { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
@@ -52,6 +53,36 @@ describe("FileSource", () => {
         );
         await commands.chooseFiles("button[aria-label='Choose file']", [CSV]);
         await expect.poll(() => names(onFiles)).toEqual([["nodes.csv"]]);
+    });
+
+    it("shows the address in effect, and the next one when it changes", async () => {
+        /**
+         * A field whose address in effect a button changes.
+         * @returns the field and the button
+         */
+        function Harness(): React.JSX.Element {
+            const [address, setAddress] = useState("https://a.example/x.png");
+            return (
+                <>
+                    <FileSource
+                        variant="row"
+                        placeholder="Address"
+                        defaultValue={address}
+                        onFiles={() => undefined}
+                        onUrl={() => undefined}
+                    />
+                    <button type="button" onClick={() => setAddress("https://b.example/y.png")}>
+                        Next
+                    </button>
+                </>
+            );
+        }
+        await renderThemed(<Harness />);
+        const field = screen.getByRole("textbox", { name: "Address" });
+        expect(field).toHaveValue("https://a.example/x.png");
+        await userEvent.clear(field);
+        await userEvent.click(screen.getByRole("button", { name: "Next" }));
+        await expect.poll(() => (field as HTMLInputElement).value).toBe("https://b.example/y.png");
     });
 
     it("hands a file chosen through the button variant to onFiles", async () => {

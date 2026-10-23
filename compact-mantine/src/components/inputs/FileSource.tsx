@@ -1,5 +1,5 @@
 import { ActionIcon, Button, TextInput } from "@mantine/core";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
 import { UiGlyph } from "../../icons";
@@ -41,6 +41,8 @@ export interface FileSourceProps {
     placeholder?: string;
     /** Whether every control is off and drops are ignored. */
     disabled?: boolean;
+    /** The address the URL field shows at first, and again whenever this value changes (the address in effect). */
+    defaultValue?: string;
 }
 
 /**
@@ -92,6 +94,7 @@ export function FileSource(props: FileSourceProps): React.JSX.Element {
         label,
         placeholder,
         disabled = false,
+        defaultValue = "",
     } = props;
     const labels = useLabels();
     const root = useRef<HTMLDivElement>(null);
@@ -103,7 +106,11 @@ export function FileSource(props: FileSourceProps): React.JSX.Element {
         single: !multiple,
         disabled: disabled || drawn === "button",
     });
-    const [address, setAddress] = useState("");
+    const [address, setAddress] = useState(defaultValue);
+    // The address in effect changed (written, undone, another project): the field shows it.
+    useEffect(() => {
+        setAddress(defaultValue);
+    }, [defaultValue]);
     const [invalid, setInvalid] = useState(false);
     const showUrl = url ?? onUrl !== undefined;
     const chooseText = label ?? labels.fileChoose;

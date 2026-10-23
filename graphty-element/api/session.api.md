@@ -20,7 +20,6 @@ import { GraphSource } from '@graphty/graph-io';
 import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
-import type { MapSourceId } from 'babylonjs-map';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { QueryLanguage } from '@graphty/graph-io';
 import { RecordBatch } from '@graphty/graph-io';
@@ -1251,9 +1250,7 @@ export interface GraphSession {
 }
 
 // @public
-export type GraphSettingKey = "background"
-/** @since 3.31.0 */
-| "basemap" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
+export type GraphSettingKey = "background" | "lighting" | "node.depthIndependentSize" | "node.outlineWidth" | "labels.declutter" | "labels.avoidNodesAndEdges";
 
 export { GraphSource }
 
@@ -2973,7 +2970,6 @@ export interface ProjectApi {
 export interface ProjectConfig {
     readonly author?: string;
     readonly background: GraphBackgroundConfig;
-    readonly basemap?: BasemapConfig;
     // (undocumented)
     readonly data: SessionDataConfig;
     readonly editableBase: boolean;
@@ -2994,7 +2990,6 @@ export interface ProjectConfigPatch {
     readonly author?: string | null;
     // (undocumented)
     readonly background?: GraphBackgroundConfig;
-    readonly basemap?: BasemapConfig;
     // (undocumented)
     readonly data?: {
         readonly algorithms?: SessionDataConfig["algorithms"];
@@ -4597,7 +4592,7 @@ export interface SettingEffect extends CodedFact<SettingEffectCode> {
 }
 
 // @public
-export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d" | "setting.needsMapLayout";
+export type SettingEffectCode = "setting.inEffect" | "setting.notIn2d";
 
 // @public
 export interface SetUser {

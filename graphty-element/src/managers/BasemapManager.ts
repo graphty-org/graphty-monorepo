@@ -252,6 +252,7 @@ export class BasemapManager {
         const unreachable = layers.some(
             (layer, i) => !("image" in sources[i]) && layer.ready === 0 && layer.failed > 0,
         );
+        const meshes = surface.root.getChildMeshes();
         let state: BasemapStatus["state"] = "ready";
         if (this.#unknown || unreachable) {
             state = "fallback";
@@ -259,10 +260,12 @@ export class BasemapManager {
             this.#pending ||
             loading > 0 ||
             ready + failed === 0 ||
-            surface.root.getChildMeshes().some((m) => m.isEnabled() && !m.isReady(true))
+            !meshes.some((m) => m.isEnabled()) ||
+            meshes.some((m) => m.isEnabled() && !m.isReady(true))
         ) {
             // No tile asked for yet (the map was just made or its source changed) is loading too,
-            // and so is a tile whose shader is still compiling: it is not on screen yet.
+            // and so is a loaded tile not drawn again yet after a source change, and a tile whose
+            // shader is still compiling: it is not on screen yet.
             state = "loading";
         }
 

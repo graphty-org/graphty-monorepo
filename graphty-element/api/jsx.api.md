@@ -39,7 +39,6 @@ import { LitElement } from 'lit';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
-import type { MapSourceId } from 'babylonjs-map';
 import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
 import { NEO4J_LOSS } from '@graphty/graph-io';
@@ -254,7 +253,6 @@ export interface GraphtyElementJSXProps {
     autosaveOptions?: Graphty["autosaveOptions"];
     autosaveRestore?: Graphty["autosaveRestore"];
     background?: Graphty["background"];
-    basemap?: Graphty["basemap"];
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
     dataSource?: Graphty["dataSource"];
     dataSourceConfig?: Graphty["dataSourceConfig"];

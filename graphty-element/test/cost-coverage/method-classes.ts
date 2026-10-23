@@ -84,7 +84,6 @@ export const MUTATING: readonly string[] = [
     "Graph.select",
     "Graph.selectNode",
     "Graph.setBackground",
-    "Graph.setBasemap",
     "Graph.setData",
     "Graph.setEdges",
     "Graph.setLayout",

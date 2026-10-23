@@ -796,12 +796,6 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { background: { backgroundType: "skybox", data: SKYBOX_PNG } } },
     },
     {
-        name: "config.set basemap",
-        variant: "basemap",
-        tags: BOTH,
-        command: { op: "config.set", values: { basemap: { source: "openstreetmap" } } },
-    },
-    {
         name: "config.set selectionStyle",
         variant: "selectionStyle",
         tags: BOTH,

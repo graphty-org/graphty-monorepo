@@ -306,8 +306,9 @@ describe("the map under the graph", () => {
         element.layoutBehavior = { rendering: { onDemand: true } };
         await applied(element);
         // A new map made while the element draws only on demand, its drawn-mesh list frozen.
-        element.basemap = { source: "natural-earth-gray" };
-        await element.session.layout.set("location-map", { options: { extent: "world" } });
+        await element.session.layout.set("location-map", {
+            options: { extent: "world", map: { source: "natural-earth-gray" } },
+        });
         await applied(element);
         await vi.waitFor(async () => {
             assert.isAbove(await colorsAround(element, CENTER, 40), 20, "a picture under the graph in 3D");
@@ -357,9 +358,7 @@ function outlined(element: Graphty): { nodes: number; edges: number } {
 
 describe("nodes and edges on a map", () => {
     it("are drawn as their style layers paint them, with no outline of the map's own, in 3D and 2D", async () => {
-        const element = await mounted("3d");
-        element.basemap = { source: "natural-earth-gray" };
-        await applied(element);
+        const element = await mounted("3d", { map: { source: "natural-earth-gray" } });
         assert.deepEqual(outlined(element), { nodes: 0, edges: 0 }, "no outline in 3D");
         await element.setViewMode("2d");
         await applied(element);
@@ -419,6 +418,95 @@ describe("the surface and the view", () => {
     });
 });
 
+/**
+ * Where each city is in the scene.
+ * @param element - The element.
+ * @returns The positions, by id.
+ */
+function scenePositions(element: Graphty): Record<string, string> {
+    return Object.fromEntries(
+        CITIES.map(({ id }) => {
+            const p = element.graph.getNode(id)?.getPosition();
+            return [id, p === undefined ? "missing" : [p.x, p.y, p.z].map((v) => v.toFixed(4)).join(",")];
+        }),
+    );
+}
+
+/**
+ * The tiles the globe is drawing: each patch's source and level.
+ * @param element - The element.
+ * @returns The globe's patches.
+ */
+function globeTiles(element: Graphty): { source: string; z: number; textured: boolean }[] {
+    return element.graph
+        .getScene()
+        .meshes.filter((m) => m.name.startsWith("graphty-globe-tile-") && m.isEnabled())
+        .map((m) => {
+            const [source, , tile] = m.name.slice("graphty-globe-tile-".length).split("|");
+            const material = m.material as { emissiveTexture?: unknown } | null;
+            return { source, z: Number(tile.split("/")[0]), textured: (material?.emissiveTexture ?? null) !== null };
+        });
+}
+
+describe("the globe's map", () => {
+    it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
+        const element = await mounted("3d", { surface: "globe", extent: "world" });
+        await vi.waitFor(() => {
+            assert.strictEqual(element.basemapStatus.state, "ready");
+        });
+        const placed = scenePositions(element);
+        // One 2 x 1 pixel picture of the whole world, as a reader's own image would be.
+        const picture =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGNQSDhgsMABAAe3AlFeqn87AAAAAElFTkSuQmCC";
+        const sources = [
+            [{ source: "natural-earth-gray" }, "natural-earth-gray"],
+            [{ source: "openstreetmap" }, "openstreetmap"],
+            [{ source: "opentopomap" }, "opentopomap"],
+            [{ source: "nasa-gibs-blue-marble" }, "nasa-gibs-blue-marble"],
+            [{ source: "usgs-imagery" }, "usgs-imagery"],
+            [{ source: "eox-s2cloudless-2016" }, "eox-s2cloudless-2016"],
+            [{ tiles: "https://tile.openstreetmap.org/{z}/{x}/{y}.png", attribution: "My tiles" }, "tiles"],
+            [{ image: picture, attribution: "My picture" }, "image"],
+        ] as const;
+        for (const [map, source] of sources) {
+            await element.session.layout.set("location-map", { options: { surface: "globe", extent: "world", map } });
+            await vi.waitFor(async () => {
+                await applied(element);
+                assert.strictEqual(element.basemapStatus.source, source);
+                assert.strictEqual(element.basemapStatus.state, "ready", source);
+            });
+            const tiles = globeTiles(element);
+            assert.isAbove(tiles.length, 0, `${source} is drawn on the globe`);
+            assert.isTrue(
+                tiles.every((t) => t.textured),
+                `${source}: every patch carries its picture`,
+            );
+            assert.deepEqual(scenePositions(element), placed, `${source}: no node moved`);
+        }
+
+        // Street tiles refine as the camera nears the surface.
+        await element.session.layout.set("location-map", {
+            options: { surface: "globe", extent: "world", map: { source: "openstreetmap" } },
+        });
+        await vi.waitFor(async () => {
+            await applied(element);
+            assert.strictEqual(element.basemapStatus.state, "ready");
+        });
+        const far = Math.max(...globeTiles(element).map((t) => t.z));
+        for (let i = 0; i < 12; i++) {
+            await wheel(element, CENTER, -400);
+        }
+        await vi.waitFor(async () => {
+            await applied(element);
+            assert.isAbove(Math.max(...globeTiles(element).map((t) => t.z)), far, "finer tiles near the surface");
+        });
+
+        // The map is saved with the layout.
+        const saved = await element.session.project.save({ markSaved: false });
+        assert.include(saved.text.replace(/\s/g, ""), '"map":{"source":"openstreetmap"}');
+    });
+});
+
 describe("the location map's history and map", () => {
     it("draws the map again when an undo brings back a map layout", async () => {
         const element = await mounted("2d");
@@ -465,7 +553,9 @@ describe("the location map's history and map", () => {
         element.addEventListener("basemap-status", (event) => {
             states.push(event.detail);
         });
-        element.basemap = { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" };
+        await element.session.layout.set("location-map", {
+            options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
+        });
         await vi.waitFor(async () => {
             await applied(element);
             assert.strictEqual(element.basemapStatus.state, "fallback");

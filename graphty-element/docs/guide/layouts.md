@@ -314,11 +314,19 @@ should not decide.
 - **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
   or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
   `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
-- **The map.** `element.basemap` picks the picture: unset, the bundled Natural Earth world image
-  (no network); `{ source: "openstreetmap" }` or another named keyless source; `{ tiles, attribution }`
-  for any XYZ tile service; `{ image, bounds }` for one picture; `{ source: "none" }` for none.
-  Zooming in loads finer tiles. The map's credits are drawn in the canvas's corner and are on
-  `element.basemapStatus.attribution`. The basemap is saved with the project.
+- **The map.** The layout's `map` option picks the picture, on the flat map and wrapped onto the
+  globe alike: unset (`null`), the bundled Natural Earth world image (no network);
+  `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
+  `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
+  `{ image, bounds }` for one picture; `{ source: "none" }` for none. Zooming in loads finer tiles.
+  Setting a new `map` on the applied layout swaps the picture without moving a node:
+
+    ```javascript
+    g.layoutConfig = { location: "where", surface: "globe", map: { source: "nasa-gibs-blue-marble" } };
+    ```
+
+    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)
 

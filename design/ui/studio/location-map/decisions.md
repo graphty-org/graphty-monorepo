@@ -293,11 +293,10 @@ then legibility, then polish.
 ### 16. Map settings have one home, and nothing is called "Map" three times
 
 - **What:**
-    - The choice of map stays in Graph settings > Map, beside Background, because the element's
-      `basemap` is a graph setting that survives switching layouts.
-    - Its select is labeled "Source", as Background sits under Canvas.
-    - The Map layout form gains one read-only row naming the current source, which moves focus to
-      that field.
+    - Superseded by the owner on 2026-10-22: the map is the Map layout's own option (`map`), chosen
+      in the Map layout form, not in Graph settings, because a map means nothing without the map
+      layout. The form's select is labeled "Map"; on the applied map it swaps the picture at once,
+      with no node moved.
 - **Why:**
     - Three reviews found the map's settings split across two places.
     - A screen reader heard group "Map", heading "Map" and combobox "Map".
@@ -425,7 +424,8 @@ uses the proposed name. Nothing here is published yet.
 
 1. From the design (section 15.1), still open:
     - the layout id `location-map`
-    - the `basemap` property and project-file key, and its shape
+    - the shape of the layout's `map` option (where the map is set is decided: the layout option
+      `map`, 2026-10-22)
     - the option names
     - the named source ids
     - the bundled Natural Earth image as the default map

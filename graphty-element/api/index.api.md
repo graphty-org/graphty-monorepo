@@ -2463,7 +2463,6 @@ export class Graph implements GraphContext {
     setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
-    setBasemap(basemap: BasemapConfig | undefined): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
     setCameraPan(pan: {
         x: number;
@@ -2742,8 +2741,6 @@ export class Graphty extends LitElement {
     set autosaveRestore(value: "auto" | "manual" | null | undefined);
     get background(): GraphBackgroundConfig | undefined;
     set background(value: GraphBackgroundConfig | undefined);
-    get basemap(): BasemapConfig | undefined;
-    set basemap(value: BasemapConfig | undefined);
     get basemapStatus(): BasemapStatus;
     batchOperations(fn: (tx: TransactionScope_2) => Promise<void> | void, label?: string): Promise<void>;
     get cameraPlaced(): boolean;

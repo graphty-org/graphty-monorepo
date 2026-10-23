@@ -33,7 +33,7 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
-import { Basemap, type BasemapConfig, type BasemapStatus, type MapFrameFact } from "./config/Basemap";
+import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
@@ -1937,10 +1937,9 @@ export class Graph implements GraphContext {
                 this.updateManager.update(frameMs);
             });
 
-            // The map follows the layout's frame and the basemap setting; nothing happens unless one changed.
+            // The map follows the layout's frame and its `map` option; nothing happens unless one changed.
             const frame = this.#geoFrame();
-            const { basemap } = this.session.config;
-            this.basemapManager.sync(frame, basemap);
+            this.basemapManager.sync(frame, this.#mapOption());
             if (frame !== this.#followedFrame) {
                 // A map swapped for one on the other surface (an undo of flat to globe) is framed
                 // again: the camera stood for a globe many times the flat map's size, or the reverse.
@@ -2072,24 +2071,6 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Set the map drawn under a geographic layout (`location-map`): a named source, a raster tile
-     * service or one picture, or undefined for the bundled Natural Earth world image.
-     *
-     * A project setting: one step, which undo takes back. It is drawn only while a geographic layout
-     * is active, so it can be set before one is chosen and survives switching layouts.
-     * @param basemap - The map, or undefined for the default.
-     * @throws A Zod error when the value is not a basemap; nothing is changed then.
-     * @since 3.31.0
-     */
-    setBasemap(basemap: BasemapConfig | undefined): void {
-        if (basemap !== undefined) {
-            Basemap.parse(basemap);
-        }
-
-        this.setProjectConfig({ basemap });
-    }
-
-    /**
      * What the map under a geographic layout is doing: its source, whether it is loading, drawn or
      * fell back to the bundled world image, and the credits that must be shown with it.
      * @returns The status; `state` is `off` while no geographic layout is active.
@@ -2098,7 +2079,7 @@ export class Graph implements GraphContext {
     get basemapStatus(): BasemapStatus {
         // Follow the layout's frame first: a frame published since the last frame drawn is a map
         // still to draw, which is loading, not the old map's ready.
-        this.basemapManager.sync(this.#geoFrame(), this.session.config.basemap);
+        this.basemapManager.sync(this.#geoFrame(), this.#mapOption());
         return this.basemapManager.status;
     }
 
@@ -4317,6 +4298,15 @@ export class Graph implements GraphContext {
     #geoFrame(): LocationMapFrame | null {
         const engine = this.layoutManager.layoutEngine as { geoFrame?: LocationMapFrame | null } | undefined;
         return engine?.geoFrame ?? null;
+    }
+
+    /**
+     * The map the active geographic layout draws under the graph: its `map` option.
+     * @returns The map, or undefined for the bundled world image.
+     */
+    #mapOption(): BasemapConfig | undefined {
+        const engine = this.layoutManager.layoutEngine as { config?: { map?: BasemapConfig | null } } | undefined;
+        return engine?.config?.map ?? undefined;
     }
 
     /** Whether the graph is now drawn over a map: edges under nodes. */

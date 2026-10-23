@@ -2,6 +2,7 @@ import type { F32 } from "@graphty/graph-format";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { Basemap } from "../config/Basemap";
 import { GraphtyError } from "../errors";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
 import type { LocationMapFrame, PlaceOptions } from "./locationMap/place";
@@ -122,6 +123,15 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    map: {
+        schema: Basemap.nullable().default(null),
+        meta: {
+            label: "Map",
+            description:
+                "The map drawn under the graph: a named source ({ source: id }), a tile service " +
+                "({ tiles, attribution }) or one picture ({ image, bounds }); null for the bundled world image",
+        },
+    },
     nodeScale: {
         schema: z.enum(["scene", "screen"]).default("scene"),
         meta: {
@@ -147,6 +157,7 @@ const LocationMapLayoutConfig = z.strictObject({
     unplaced: z.enum(["tray", "leave"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
+    map: Basemap.nullable().default(null),
     dim: z.number().default(3),
 });
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
@@ -183,6 +194,30 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         super(opts);
         this.config = LocationMapLayoutConfig.parse(opts);
         this.dimensions = layoutDim(this.config.dim);
+    }
+
+    /**
+     * Take new options that change only the map drawn under the graph, without placing a node
+     * again: a new `map` swaps the picture under nodes that stay where they are.
+     * @param options - The layout's new options.
+     * @returns True when they were taken; false when another option changed, or none did, so the
+     *     layout runs again.
+     */
+    takeDrawingOptions(options: Readonly<Record<string, unknown>>): boolean {
+        const parsed = LocationMapLayoutConfig.safeParse({ ...options, dim: this.config.dim });
+        if (!parsed.success) {
+            return false;
+        }
+
+        const { map: next, ...placing } = parsed.data;
+        const { map: was, ...placed } = this.config;
+        // The same options again ask for the layout to run again, as for any layout.
+        if (JSON.stringify(placing) !== JSON.stringify(placed) || JSON.stringify(next) === JSON.stringify(was)) {
+            return false;
+        }
+
+        this.config = parsed.data;
+        return true;
     }
 
     /**

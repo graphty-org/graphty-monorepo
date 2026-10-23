@@ -61,7 +61,6 @@ import { LoadFromSourceOptions } from '@graphty/graph-io';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
-import type { MapSourceId } from 'babylonjs-map';
 import { maskTest } from '@graphty/graph-format';
 import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';

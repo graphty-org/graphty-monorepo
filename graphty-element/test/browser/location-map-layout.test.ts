@@ -238,12 +238,17 @@ describe("the location map layout", () => {
         assert.isFalse(at("lost").x === 0 && at("lost").y === 0, "never at latitude 0, longitude 0");
     });
 
-    it("saves the basemap with the project", async () => {
-        graph.setBasemap({ source: "openstreetmap" });
-        await operationQueueOf(graph).waitForCompletion();
-        assert.deepEqual(graph.getSession().config.basemap, { source: "openstreetmap" });
-        const saved = await graph.getSession().project.save({ markSaved: false });
-        assert.include(saved.text.replace(/\s/g, ""), '"basemap":{"source":"openstreetmap"}');
+    it("saves the map with the layout, and an undo brings back the map it replaced", async () => {
+        await placeAirports();
+        const session = graph.getSession();
+        await session.layout.set("location-map", { options: { map: { source: "openstreetmap" } } });
+        assert.deepEqual(session.layout.options.map, { source: "openstreetmap" });
+        const saved = await session.project.save({ markSaved: false });
+        assert.include(saved.text.replace(/\s/g, ""), '"map":{"source":"openstreetmap"}');
+        await session.undo();
+        await settled();
+        await drawnFrames(graph.getScene(), 1);
+        assert.strictEqual(graph.basemapStatus.source, "natural-earth");
     });
 });
 

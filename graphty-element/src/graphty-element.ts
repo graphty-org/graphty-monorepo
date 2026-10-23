@@ -28,7 +28,7 @@ import type {
     GraphSelectionStyleInput,
     ViewMode,
 } from "./config";
-import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { BasemapStatus, MapFrameFact } from "./config/Basemap";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import { DEFAULT_LIGHTING, type Lighting } from "./config/Lighting";
 import type { PartialXRConfig } from "./config/xr-config-schema";
@@ -2750,69 +2750,6 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("background", oldValue);
-    }
-
-    /**
-     * The map drawn under the `location-map` layout.
-     * @remarks
-     * A named source (`{ source: "openstreetmap" }`; see {@link BasemapSourceId}), a raster tile
-     * service (`{ tiles: "https://.../{z}/{x}/{y}.png", attribution: "..." }`), one picture of a box of
-     * the earth (`{ image, bounds }`), or `{ source: "none" }` for the layout with no picture. Unset,
-     * the bundled Natural Earth world image, which contacts no third party. It is drawn only while the
-     * location map layout is active, with the map's credits in the canvas's bottom-right corner
-     * (`attributionShown: false` hides them, and then the page must show `basemapStatus.attribution`).
-     * A project setting, saved with the project and undoable.
-     * @since 3.31.0
-     * @example JavaScript property
-     * ```typescript
-     * element.layout = "location-map";
-     * element.basemap = { source: "openstreetmap" };
-     * ```
-     * @example HTML attribute (JSON string)
-     * ```html
-     * <graphty-element layout="location-map" basemap='{"source":"nasa-gibs-blue-marble"}'></graphty-element>
-     * ```
-     * @returns The basemap set on this element, or undefined for the default
-     */
-    @property({
-        converter: {
-            fromAttribute: (value: string | null): BasemapConfig | undefined => {
-                if (value === null) {
-                    return undefined;
-                }
-
-                try {
-                    return JSON.parse(value) as BasemapConfig;
-                } catch {
-                    console.error(
-                        `<graphty-element>: the basemap attribute must be a JSON object, not "${value}". ` +
-                            "Keeping the basemap already set.",
-                    );
-
-                    return undefined;
-                }
-            },
-            toAttribute: (value: BasemapConfig | undefined): string | null =>
-                value === undefined ? null : JSON.stringify(value),
-        },
-    })
-    get basemap(): BasemapConfig | undefined {
-        return this.#setting("basemap") as BasemapConfig | undefined;
-    }
-    /**
-     * Sets the basemap. A value the schema refuses is reported and dropped, as for `background`.
-     */
-    set basemap(value: BasemapConfig | undefined) {
-        const oldValue = this.basemap;
-        try {
-            this.#graph.setBasemap(value ?? undefined);
-        } catch (error: unknown) {
-            console.error("<graphty-element>: the basemap was refused. Keeping the one already set.", error);
-
-            return;
-        }
-
-        this.requestUpdate("basemap", oldValue);
     }
 
     /**

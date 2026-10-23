@@ -1392,9 +1392,6 @@ function configOf(
         get background() {
             return read().background;
         },
-        get basemap() {
-            return read().basemap;
-        },
         get selectionStyle() {
             return read().selectionStyle;
         },
@@ -1436,16 +1433,12 @@ const IGNORED_IN_2D: ReadonlySet<GraphSettingKey> = new Set(["lighting", "node.d
 /** Every graph setting `config.inEffect` answers for. */
 const GRAPH_SETTINGS: ReadonlySet<string> = new Set<GraphSettingKey>([
     "background",
-    "basemap",
     "lighting",
     "node.depthIndependentSize",
     "node.outlineWidth",
     "labels.declutter",
     "labels.avoidNodesAndEdges",
 ]);
-
-/** The layout engines that draw a map under the graph, so the basemap setting shows. */
-const MAP_ENGINES: ReadonlySet<string> = new Set(["location-map"]);
 
 /**
  * Whether a graph setting changes the drawing in a view: see `SessionConfig.inEffect`.
@@ -1462,10 +1455,6 @@ function settingEffect(key: GraphSettingKey, layout: LayoutChoice): SettingEffec
             source: "config",
             details: { key, known: [...GRAPH_SETTINGS] },
         });
-    }
-
-    if (key === "basemap" && !MAP_ENGINES.has(layout.engine)) {
-        return Object.freeze({ inEffect: false, code: "setting.needsMapLayout", params: { setting: key } });
     }
 
     const ignored = layout.dimension === "2d" && IGNORED_IN_2D.has(key);

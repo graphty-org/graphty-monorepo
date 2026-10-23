@@ -931,9 +931,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: assigns({ backgroundType: "color", color: "#101010" }, [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
-            basemap: assigns({ source: "openstreetmap" }, [
-                { op: "config.set", values: { basemap: { source: "openstreetmap" } } },
-            ]),
             basemapStatus: READ,
             mapFrame: READ,
             attributionOffset: CAMERA,
@@ -1118,10 +1115,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setBackground: calls(
                 [{ backgroundType: "color", color: "#202020" }],
                 [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
-            ),
-            setBasemap: calls(
-                [{ source: "opentopomap" }],
-                [{ op: "config.set", values: { basemap: { source: "opentopomap" } } }],
             ),
             basemapStatus: READ,
             mapFrame: READ,
@@ -2399,7 +2392,6 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             data: READ,
             runAlgorithmsOnLoad: READ,
             background: READ,
-            basemap: READ,
             selectionStyle: READ,
             startingRows: READ,
             editableBase: READ,

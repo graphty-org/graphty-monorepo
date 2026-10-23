@@ -78,17 +78,23 @@ straight edges. Nothing in the example names a projection, a tile, a texture or 
 
 ```js
 g.layoutConfig = { location: "where", surface: "globe" }; // or "flat" (the default)
-g.basemap = { source: "openstreetmap" }; // a named free source
-g.basemap = { source: "maptiler-satellite", key: "..." }; // a source that needs the reader's key
-g.basemap = { tiles: "https://tiles.example.com/{z}/{x}/{y}.png", attribution: "(c) Example" };
-g.basemap = {
-    image: "/floorplan.png",
-    bounds: [
-        [-122.52, 37.7],
-        [-122.35, 37.83],
-    ],
+// The layout's `map` option picks the picture (decided 2026-10-22; see section 15.1):
+g.layoutConfig = { location: "where", map: { source: "openstreetmap" } }; // a named free source
+g.layoutConfig = {
+    location: "where",
+    map: { tiles: "https://tiles.example.com/{z}/{x}/{y}.png", attribution: "(c) Example" },
 };
-g.basemap = { source: "none" }; // the layout without a picture
+g.layoutConfig = {
+    location: "where",
+    map: {
+        image: "/floorplan.png",
+        bounds: [
+            [-122.52, 37.7],
+            [-122.35, 37.83],
+        ],
+    },
+};
+g.layoutConfig = { location: "where", map: { source: "none" } }; // the layout without a picture
 ```
 
 ### 2.3 What is added to the public API
@@ -118,11 +124,9 @@ algorithms' `weight` option uses (`WEIGHT_OPTION` in `graphty-element/src/catalo
 so the graphty app's generic options form (`graphty/src/workspace/options/OptionsForm.tsx`) shows
 an attribute picker for them with no new UI.
 
-The element property `basemap` (attribute `basemap`, JSON), a session config item beside
-`background` (`graphty-element/src/config/GraphStyle.ts`, read in
-`graphty-element/src/session/GraphSession.ts`) and saved with the project file
-(`graphty-element/src/session/projectFile.ts`). It is drawn only while the active layout publishes a
-geographic frame (section 5.4), so it can be set once and survives switching layouts. Its shape:
+The layout option `map` (decided 2026-10-22, section 15.1; this section first proposed a separate
+element property and project setting `basemap`), saved with the layout in the project file. A new
+`map` on the applied layout swaps the picture without placing a node again. Its shape:
 
 ```ts
 type Basemap =
@@ -699,9 +703,13 @@ These are public names or contracts that would be breaking to change once publis
 
 1. **The layout id `location-map`** (alternatives: `geo`, `geographic`, `map`). It is stored in
    saved project files and in `KNOWN_LAYOUT_IDS`.
-2. **The element property and project-file key `basemap`** and its shape (section 2.3), versus
-   folding the map into `background` as a third `backgroundType: "map"`. A separate key is
-   recommended: a background and a map can coexist (the color shows beyond a partial map).
+2. **Where the map is set.** Decided by the owner (2026-10-22): the map is the location map
+   layout's own option, `map`, with the shapes of section 2.3 (`{ source }`, `{ tiles, attribution
+}`, `{ image, bounds }`, each with `attributionShown` and `beyond`), set with `layout.set` and
+   saved with the layout in the project file. There is no separate `basemap` element property,
+   project setting or Graph settings section: a map means nothing to a reader who is not using
+   the map layout. A new `map` on the applied layout swaps the picture without placing a node
+   again.
 3. **The option names** `location`, `latitude`, `longitude`, `surface`, `projection`, `extent`,
    `unplaced`, `overlap`, and the edge-style properties `line.route` and `line.arcHeight`.
 4. **The named source ids** (`openstreetmap`, `openfreemap`, `nasa-gibs-blue-marble`, ...): saved
@@ -722,23 +730,21 @@ unpublished (version 0.0.0) until the first release.
 
 The graphty-element prototype (branch `feat/location-map-prototype`) ships under these proposed
 names, all still open: the layout id `location-map` and its options (`location`, `latitude`,
-`longitude`, `format`, `surface`, `projection`, `extent`, `size`, `unplaced`, `overlap`); the
-element property and project setting `basemap` with its three shapes and `attributionShown`; the
-read-only `basemapStatus` (`{ source, state: "off" | "loading" | "ready" | "fallback",
+`longitude`, `format`, `surface`, `projection`, `extent`, `size`, `unplaced`, `overlap`, `nodeScale`,
+`map`); the read-only `basemapStatus` (`{ source, state: "off" | "loading" | "ready" | "fallback",
 attribution }`); the style channels `edge.route` and `edge.arcHeight` (`line.route`,
 `line.arcHeight`); the warning codes `W_LOCATION_UNPARSED`, `W_LOCATION_OUT_OF_RANGE`,
 `W_LOCATION_AMBIGUOUS` and `W_LOCATION_SWAPPED`; the catalog table `BASEMAP_SOURCE_DESCRIPTORS`
 (`{ id, plainName, kind: "plain" | "streets" | "satellite" | "terrain", coverage: "world" | "us",
-network }`, in the `./catalog` entry, where the design said `basemapSources`); the graph setting
-key `basemap` of `session.config.inEffect`, with the code `setting.needsMapLayout` while the layout
-draws no map; and the graph-samples dataset id `venice-transit`.
+network }`, in the `./catalog` entry, where the design said `basemapSources`); and the graph-samples
+dataset id `venice-transit`.
 
 The graphty app's controls, built on these: Map in the Layout popover, whose form shows Location,
 Latitude, Longitude (each a node column picker that reads "Automatic" while empty), Surface (Flat
 map or Globe) and Fit, with Format, Projection, Size, Unplaced (Tray or Leave in place) and Same
-place behind Advanced; a Map section in Graph settings, shown while `inEffect("basemap")` is true,
-with one list of the catalog's sources grouped Plain, Satellite, Streets and Topographic, then
-Custom (Tiles or Image, each with Address and Credit) and None; and a notice "N of M nodes
+place behind Advanced, and Map: one list of the catalog's sources grouped Plain, Light, Satellite,
+Streets and Topographic, then Custom (Tiles or Image, each with Address and Credit) and None, which
+on the applied map swaps the picture at once; and a notice "N of M nodes
 unplaced" from the `W_LOCATION_UNPARSED` layout warning. The credits are the element's strip on the
 canvas.
 
@@ -751,8 +757,10 @@ sources and the gazetteer are not built yet.
 
 ### 15.2 Decisions made here, each with its reason
 
-- Layout plus a separate basemap setting, joined by a published frame: the map follows the layout,
-  and switching basemaps does not re-run the layout.
+- The map is the layout's `map` option, joined to the drawing by a published frame: the map
+  follows the layout, and a new `map` on the applied layout is taken by the engine as it stands
+  (`takeDrawingOptions`), so no node is placed again. (It began as a separate `basemap` project
+  setting; the owner moved it into the layout on 2026-10-22.)
 - Nodes stay graphty nodes; no map markers: the owner's requirement, and the only way style layers
   keep working.
 - Flat map in the x-y plane at z = 0: the plane the 2D camera already looks at, so switching 2D and

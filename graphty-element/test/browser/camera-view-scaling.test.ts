@@ -155,18 +155,6 @@ const CASES: readonly Case[] = [
             assert.deepInclude(element.graph.getStyles().config.graph.background, { color: "#123456" });
         },
     },
-    {
-        // With no geographic layout active nothing is drawn: setting the map is a recorded setting.
-        methods: ["Graph.setBasemap"],
-        growth: "constant",
-        prepare: (element) =>
-            Promise.resolve(() => {
-                element.graph.setBasemap({ source: "opentopomap" });
-            }),
-        check: (element) => {
-            assert.deepEqual(element.graph.getSession().config.basemap, { source: "opentopomap" });
-        },
-    },
 ];
 
 describe("the camera presets and the background do work in proportion to their reach", () => {

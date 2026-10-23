@@ -423,13 +423,12 @@ function columns(rows: readonly (Readonly<Record<string, unknown>> | undefined)[
  * @returns The settings as a patch.
  */
 function configOf(session: GraphSession): ProjectConfigPatch {
-    const { data, runAlgorithmsOnLoad, background, basemap, selectionStyle, layoutBehavior } = session.config;
+    const { data, runAlgorithmsOnLoad, background, selectionStyle, layoutBehavior } = session.config;
     // Through JSON text, so the settings hold only what the saved file can: no undefined values.
     const text = JSON.stringify({
         data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
         runAlgorithmsOnLoad,
         background,
-        basemap,
         selectionStyle,
         layoutBehavior,
     });

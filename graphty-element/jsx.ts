@@ -166,10 +166,6 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Sets the basemap. A value the schema refuses is reported and dropped, as for `background`.
-     */
-    basemap?: Graphty["basemap"];
-    /**
      * Moves the map's credits up from the corner.
      */
     attributionOffset?: Graphty["attributionOffset"];

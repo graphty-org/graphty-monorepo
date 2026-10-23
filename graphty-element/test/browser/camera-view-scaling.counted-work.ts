@@ -8,7 +8,6 @@ export default {
         "Graph.removeCameraPreset",
         "Graph.saveCameraPreset",
         "Graph.setBackground",
-        "Graph.setBasemap",
         "Graphty.importCameraPresets",
         "Graphty.removeCameraPreset",
         "Graphty.saveCameraPreset",

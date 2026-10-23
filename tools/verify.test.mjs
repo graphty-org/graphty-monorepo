@@ -5,7 +5,7 @@
 //   node tools/verify.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
@@ -16,7 +16,7 @@ import {
     bounds,
     claim,
     CONFIRM_RUNS,
-    failedEvery,
+    decided,
     failedTargets,
     failingShards,
     handled,
@@ -66,6 +66,8 @@ let gated; // the commits the full gate ran on
 let checked; // the bisect points
 let flaky; // commits whose full gate fails once although nothing is broken
 let hold; // when set, the gate waits for this promise
+let checkHold; // when set, a check (a confirming run, a bisect point) waits for this promise
+let checkStarted;
 let gateStarted;
 let concurrent;
 let most;
@@ -74,8 +76,7 @@ let runs;
 let ctx;
 
 /**
- * A check as the real one counts it: up to CONFIRM_RUNS runs of `targets`, stopping once none can fail every time
- * (unless `full`).
+ * A check as the real one counts it: up to CONFIRM_RUNS runs of `targets`, stopping once decided() (unless `full`).
  * @param targets the targets
  * @param full run them all
  * @param fails `(run) => boolean`, whether run k (from 1) fails every target
@@ -87,16 +88,20 @@ const judge = (targets, full, fails) => {
     while (runs < CONFIRM_RUNS) {
         runs++;
         if (fails(runs)) for (const t of targets) failed[t.id] = (failed[t.id] ?? 0) + 1;
-        if (!full && !failedEvery({ runs, failed }).length) break;
+        if (!full && decided({ runs, failed }, targets)) break;
     }
     return { runs, failed };
 };
 
 const fake = {
-    gate: async (_c, sha) => {
+    gate: async (c, sha, name = "golden-verify") => {
         gated.push(sha);
         gateStarted?.();
         if (hold) await hold;
+        // As tools/prepush-tests.mjs at its next shard boundary, in the full gate only.
+        if (!name.startsWith("golden-bisect") && existsSync(c.supersededFile)) {
+            return { code: 1, output: "  [SUPERSEDED] a newer commit is wanted", log: `log-${sha.slice(0, 7)}` };
+        }
         const fail = broken(sha) || flaky.delete(sha);
         return {
             code: fail ? 1 : 0,
@@ -107,6 +112,8 @@ const fake = {
     check: async (_c, sha, { failing, targets, full }) => {
         assert.deepEqual(failing, ["s1"], "only the failing shard runs again");
         checked.push(sha);
+        checkStarted?.();
+        if (checkHold) await checkHold;
         most = Math.max(most, ++concurrent);
         await new Promise((r) => setImmediate(r));
         concurrent--;
@@ -142,6 +149,8 @@ beforeEach(() => {
     flaky = new Set();
     hold = null;
     gateStarted = null;
+    checkHold = null;
+    checkStarted = null;
     concurrent = 0;
     most = 0;
     published = [];
@@ -161,7 +170,7 @@ describe("a run", () => {
         assert.equal(s.run, null, "the run marked itself ended");
     });
 
-    it("goes on to what a landing wanted while it ran, with no second run", async () => {
+    it("leaves a commit a newer landing supersedes at the next shard boundary, records it, and goes on", async () => {
         let release;
         hold = new Promise((r) => (release = r));
         const started = new Promise((r) => (gateStarted = r));
@@ -169,12 +178,21 @@ describe("a run", () => {
         await requestVerification(ctx, first);
         await started;
         const second = land("a3", { "a3.txt": "3\n" });
-        assert.match(await requestVerification(ctx, second), /is running/);
+        const said = await requestVerification(ctx, second);
+        assert.match(said, new RegExp(`leaves ${first.slice(0, 10)} at its next test shard and goes on to`));
         assert.equal(runs.length, 1, "no second run");
+        hold = null;
         release();
         await settle();
-        assert.deepEqual(gated, [first, second]);
-        assert.equal(readState(ctx).verified, second);
+        const s = readState(ctx);
+        assert.deepEqual(gated, [first, second], "the newer commit's gate, in the same run");
+        assert.equal(s.superseded.commit, first);
+        assert.equal(s.superseded.by, second);
+        assert.deepEqual(published, [second], "the superseded commit is neither passed...");
+        assert.equal(s.last.status, "passed");
+        assert.equal(s.last.commit, second, "...nor failed");
+        assert.equal(s.verified, second);
+        assert.ok(!existsSync(ctx.supersededFile), "the next gate starts without the marker");
     });
 
     it("bisects a failure to the landing that broke it, re-running only the failing shard, two points at once", async () => {
@@ -247,6 +265,39 @@ describe("a run", () => {
         await settle();
         assert.deepEqual(gated, [tip]);
         assert.equal(readState(ctx).verified, tip);
+    });
+});
+
+describe("a confirming run and a bisect", () => {
+    it("are never superseded: the run finishes the bisect on its commit, then goes on to the newer one", async () => {
+        const verified = readState(ctx).verified;
+        land("g1", { "g1.txt": "1\n" });
+        const culprit = land("g2", { "bad.txt": "g\n" });
+        const tip = land("g3", { "g3.txt": "3\n" });
+        let release;
+        checkHold = new Promise((r) => (release = r));
+        const confirming = new Promise((r) => (checkStarted = r));
+        await requestVerification(ctx, tip);
+        await confirming;
+        assert.equal(readState(ctx).run.step, "confirm");
+        git(repo, "revert", "--no-edit", "-m", "1", culprit);
+        git(repo, "push", "-q", "origin", "golden");
+        const fixed = git(repo, "rev-parse", "HEAD");
+        assert.match(await requestVerification(ctx, fixed), /it goes on to/);
+        assert.ok(!existsSync(ctx.supersededFile), "no marker for a confirming run");
+        // The newer commit's gate starts only after the bisect ended: look at the state there.
+        let atNext;
+        gateStarted = () => (atNext = readState(ctx));
+        checkHold = null;
+        release();
+        await settle();
+        assert.equal(atNext.last.commit, tip);
+        assert.equal(atNext.last.status, "failed");
+        assert.equal(atNext.last.culprit.sha, culprit, "the bisect ran to its end on the failing commit");
+        assert.equal(atNext.last.from, verified);
+        assert.notEqual(atNext.superseded?.commit, tip, "a bisected commit is never recorded as superseded");
+        assert.deepEqual(gated, [tip, fixed]);
+        assert.equal(readState(ctx).verified, fixed);
     });
 });
 
@@ -368,7 +419,7 @@ describe("with the test ledger", () => {
         assert.deepEqual(failedTargets(1, null, [shard]), [shard.id], "nothing known: any failure");
     });
 
-    it("quarantines a test that passes a confirming run, and neither bisects nor blames a landing", async () => {
+    it("quarantines a test flaky before the range, with the range's landings as suspects, and blames nothing", async () => {
         const ledgerDir = join(dir, "ledger-flaky");
         process.env.TEST_QUARANTINE_DIR = join(dir, "quarantine");
         const filed = [];
@@ -402,6 +453,11 @@ describe("with the test ledger", () => {
             gh,
             ...files,
         });
+        const from = git(repo, "rev-parse", "golden");
+        await withState(c, (s) => (s.verified = from));
+        // it failed once at the verified commit already: flaky before the range
+        const earlier = new Date(Date.now() - 3_600_000).toISOString();
+        writeRecord(ledgerDir, { ...rec, id: newRunId("s1"), commit: from, tree: from, started_at: earlier });
         const tip = land("q1", { "q1.txt": "1\n" });
         await requestVerification(c, tip);
         await settle();
@@ -413,9 +469,127 @@ describe("with the test ledger", () => {
         assert.equal(s.last.confirm.runs, 2, "stopped once it passed");
         assert.deepEqual(s.last.quarantined, [{ id: "s1: p/f.test.ts > f > g", issue: 7 }]);
         assert.match(filed[0].join(" "), /Flaky test quarantined: p\/f.test.ts > f > g/);
+        assert.ok(filed[0].includes("priority:critical"), "a load- or timing-sensitive test is critical");
+        assert.match(filed[0].at(-1), new RegExp(`Suspects.*\\n- ${tip} q1$`, "s"), "the range's landing is a suspect");
         const q = JSON.parse(readFileSync(join(dir, "quarantine/state.json"), "utf8"));
         assert.equal(Object.values(q.added)[0].issue, 7);
         delete process.env.TEST_QUARANTINE_DIR;
+    });
+});
+
+describe("newly intermittent tests and non-test failures", () => {
+    /**
+     * A context whose gate records a failure of `p/<tag>.test.ts > t` in the ledger at every commit `fails` names,
+     * and whose check fails that test only in the second run of each check there: an intermittent test.
+     * @param tag names the test, the ledger and the state file
+     * @param fails `(sha) => boolean`
+     * @returns `{ c, filed }`, the context and the issues it created
+     */
+    const intermittent = (tag, fails) => {
+        const ledgerDir = join(dir, `ledger-${tag}`);
+        const filed = [];
+        const gh = (args) => {
+            if (args[1] === "create") filed.push(args);
+            return { create: "https://github.com/o/r/issues/9", list: "[]" }[args[1]] ?? "";
+        };
+        const file = `p/${tag}.test.ts`;
+        const failure = { file, name: "t", ...failureHashes(`Error: ${tag}`, file) };
+        const rec = { v: 1, kind: "verify", branch: "golden", base: null, dirty: false, shard: "s1", family: "s1" };
+        Object.assign(rec, { variant: "s1", selected: null, outcome: "failed", reused_from: null, secs: 1, log: null });
+        Object.assign(rec, { files: [[file, 1, 1, 0, 1, 0]], failures: [failure], exonerations: [] });
+        const gate = async (_c, sha) => {
+            gated.push(sha);
+            if (!fails(sha)) return { code: 0, output: "", log: "l" };
+            const at = new Date().toISOString();
+            writeRecord(ledgerDir, { ...rec, id: newRunId("s1"), commit: sha, tree: sha, started_at: at });
+            return { code: 1, output: "  [FAIL] s1 (exit 1, 3s)\n[FAIL] Tests (x)", log: "l" };
+        };
+        const check = async (_c, sha, { targets, full }) => {
+            checked.push(sha);
+            return judge(targets, full, (k) => k === 2 && fails(sha));
+        };
+        const files = { stateFile: join(dir, `${tag}-verify.json`), lock: join(dir, `${tag}-verify.lock`) };
+        const c = verifyContext(repo, {
+            ...fake,
+            env: { ...env, TEST_LEDGER_DIR: ledgerDir, GRAPHTY_TEST_QUARANTINE: "1" },
+            gate,
+            check,
+            gh,
+            ...files,
+        });
+        return { c, filed };
+    };
+    const fromGoldenTip = (c) => withState(c, (s) => (s.verified = git(repo, "rev-parse", "golden")));
+
+    it("bisects a test a landing made intermittent by the rate rule, and names that landing", async () => {
+        const { c, filed } = intermittent("r", (sha) => has(sha, "r.txt"));
+        await fromGoldenTip(c);
+        land("r1", { "r1.txt": "1\n" });
+        const culprit = land("r2", { "r.txt": "r\n" });
+        const tip = land("r3", { "r3.txt": "3\n" });
+        await requestVerification(c, tip);
+        await settle();
+        const s = readState(c);
+        const id = "s1: p/r.test.ts > t";
+        assert.deepEqual(s.last.confirm.consistent, [], "it passed a confirming run");
+        assert.deepEqual(s.last.confirm.regressed, [id], "no failure before the range: newly intermittent");
+        assert.deepEqual(s.last.quarantined, [], "a regression is not quarantined");
+        assert.equal(s.last.status, "failed");
+        assert.equal(s.last.culprit.sha, culprit);
+        assert.equal(s.last.culprit.branch, "r2");
+        assert.equal(s.last.culprit.evidence.at.failed[id], 1, "bad on one failing run");
+        assert.deepEqual(s.last.culprit.evidence.parent.failed, {}, "its parent passed...");
+        assert.equal(s.last.culprit.evidence.parent.runs, CONFIRM_RUNS, "...every one of its runs");
+        for (const [sha, point] of Object.entries(s.last.bisect.points)) {
+            if (point === "good") assert.deepEqual(s.last.bisect.evidence[sha], { runs: CONFIRM_RUNS, failed: {} });
+        }
+        assert.equal(filed.length, 0, "a culprit is reverted, not tracked");
+    });
+
+    it("names no landing when the first bad landing's parent fails 1 of 5, and records why", async () => {
+        const { c, filed } = intermittent("p", (sha) => has(sha, "p.txt"));
+        await fromGoldenTip(c);
+        writeFileSync(join(repo, "p.txt"), "p\n");
+        git(repo, "add", ".");
+        git(repo, "commit", "-q", "-m", "fix: straight onto golden, not a landing");
+        git(repo, "push", "-q", "origin", "golden");
+        const tip = land("p1", { "p1.txt": "1\n" });
+        await requestVerification(c, tip);
+        await settle();
+        const s = readState(c);
+        assert.deepEqual(s.last.confirm.regressed, ["s1: p/p.test.ts > t"]);
+        assert.equal(s.last.culprit, null);
+        assert.equal(s.last.reproduced, true);
+        assert.match(
+            s.last.noLanding,
+            new RegExp(`first bad landing is ${tip.slice(0, 10)}.*fails it too \\(in 1 of 5 runs\\)`),
+        );
+        assert.match(filed.map((f) => f.join(" ")).join("\n"), /Failing on golden: Error: p/);
+    });
+
+    it("says a non-test failure's culprit was judged by 1 run", async () => {
+        const broke = (sha) => has(sha, "lint.txt");
+        const gate = async (_c, sha) => (
+            gated.push(sha),
+            { code: broke(sha) ? 1 : 0, output: "[FAIL] Lint", log: "l" }
+        );
+        const check = async (_c, sha, { failing, targets }) => {
+            assert.equal(failing, null, "no test shard: the whole gate");
+            checked.push(sha);
+            return { runs: 1, failed: broke(sha) ? Object.fromEntries(targets.map((t) => [t.id, 1])) : {} };
+        };
+        const files = { stateFile: join(dir, "lint-verify.json"), lock: join(dir, "lint-verify.lock") };
+        const c = verifyContext(repo, { ...fake, env, gate, check, ...files });
+        await fromGoldenTip(c);
+        land("n1", { "n1.txt": "1\n" });
+        const culprit = land("n2", { "lint.txt": "x\n" });
+        await requestVerification(c, land("n3", { "n3.txt": "3\n" }));
+        await settle();
+        const s = readState(c);
+        assert.equal(s.last.failing, null);
+        assert.equal(s.last.culprit.sha, culprit);
+        assert.equal(s.last.culprit.evidence.at.runs, 1);
+        assert.equal(s.last.culprit.evidence.judgedBy, "judged by 1 run");
     });
 });
 

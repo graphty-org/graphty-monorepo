@@ -19,6 +19,7 @@ import {
     emptyState,
     PASSES_TO_LEAVE,
     quarantineEnabled,
+    quarantineTests,
     readState,
     runShard,
     splitLog,
@@ -222,7 +223,7 @@ describe("afterShard", () => {
         assert.equal(done.added.length, 1);
         assert.equal(calls.length, 1);
         assert.deepEqual(calls[0].slice(0, 2), ["issue", "create"]);
-        for (const l of ["bug", "priority:high", "effort:medium"]) assert.ok(calls[0].includes(l), l);
+        for (const l of ["bug", "priority:critical", "effort:medium"]) assert.ok(calls[0].includes(l), l);
         const added = Object.values(readState(main).added)[0];
         assert.deepEqual([added.family, added.issue, added.since, added.expires], ["graphty", 321, DAY, LATER]);
         afterShard({ main, root, shard: "graphty-3", result: flaky, gh, day: DAY });
@@ -262,6 +263,28 @@ describe("afterShard", () => {
             [T2.name],
         );
         assert.match(done.added[0].reason, /another of the same inputs/);
+    });
+});
+
+describe("quarantineTests", () => {
+    it("files a critical issue that lists the range's landings as suspects, and keeps them out of the entry", () => {
+        const main = fresh();
+        const calls = [];
+        const gh = (args) => (calls.push(args), "https://github.com/graphty-org/graphty-monorepo/issues/55\n");
+        const suspects = [
+            { sha: "a".repeat(40), branch: "fix/one" },
+            { sha: "b".repeat(40), branch: "feat/two" },
+        ];
+        const t = { ...T1, family: "graphty", how: "failed, then passed", excerpt: "boom", suspects };
+        const held = quarantineTests(main, [t], gh, DAY);
+        assert.deepEqual(
+            held.map((e) => e.issue),
+            [55],
+        );
+        assert.ok(calls[0].includes("priority:critical"));
+        const body = calls[0][calls[0].indexOf("--body") + 1];
+        assert.match(body, new RegExp(`- ${"a".repeat(40)} fix/one\n- ${"b".repeat(40)} feat/two`));
+        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "the list holds no suspects");
     });
 });
 

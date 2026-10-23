@@ -24,7 +24,10 @@ file and the workflow are what the next launch reads.
 ## Where things live
 
 All studio work happens in the studio worktree (today `.worktrees/design-studio-tier1`, branch
-`design/studio-tier1`), never in the main checkout. Inside it, `design/ui/studio/` holds:
+`design/studio-tier1`), never in the main checkout. The studio reads earlier rounds' screenshots, so create
+its worktree with `./tools/worktree-new.sh <branch> <base> --full-images ...`; an ordinary worktree has the
+`design/**` images only as Git LFS pointer files (fix one with `git lfs pull --include "design/**"`). Inside
+it, `design/ui/studio/` holds:
 
 | Path                              | What it is                                                                                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -158,7 +161,11 @@ Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/`
 `tmp/studio-sessions/`, `tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
 `report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
 `tier<N>/dry-run-r<r>-<pass>.md`; fix groups the re-walk rejected in `tier<N>/rejected-fixes.md`.
-The pilot reports and triage are committed after every pass.
+The pilot reports and triage are committed after every pass. The walks' screenshots and step files
+(pilot, dry-run, readiness and tool-check walks) are never committed: they go under the main
+checkout's `tmp/design-studio/tier<N>/<round or pass>/`, which git ignores, and a report names them
+by that path as plain text. `real.mjs` refuses a walk folder inside the studio's files, and
+`.gitignore` keeps everything but `.md` out of `rounds/r*/`.
 Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): the pre-push gate
 refuses more than 20 new images or 20 MB outside the image folders (`tools/check-committed-images.mjs`);
 an `Images-Approved: <reason>` trailer passes a deliberate few, such as mockups.
@@ -329,6 +336,10 @@ Each rule below exists because breaking it cost a run.
   committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
   reproduces is invalid), merge origin/master into the studio branch every pass, land through
   `node tools/land.mjs land <branch>` (see "Landing"), and commit the pilot reports and triage.
+- **Never commit walk screenshots.** Study screenshots filled golden with 83k LFS files (9.9 GB) on
+  2026-10-21, almost all of them pilot and dry-run walk images. Walks write under the main
+  checkout's `tmp/design-studio/`; only reports, scored round sessions and the images a report or
+  insight file cites go in git.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
   copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
   `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing

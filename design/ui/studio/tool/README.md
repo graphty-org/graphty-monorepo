@@ -16,11 +16,19 @@ variables unset. To study a build that others' rebuilds must not replace mid-ses
 
 ```bash
 T=design/ui/studio/tool
-node $T/real.mjs --start rounds/r1/p03-t2 empty                  # 01.png: the empty app, clean storage
-node $T/real.mjs --step  rounds/r1/p03-t2 --click "Open a file" --upload friends.csv  # 02.png
-node $T/real.mjs --step  rounds/r1/p03-t2 --click-at 702,380     # point at the last screenshot
-node $T/real.mjs --end   rounds/r1/p03-t2                        # always end: it frees the browser
+W=<main checkout>/tmp/design-studio/tier2/r1/pilot
+node $T/real.mjs --start $W/p03-t2 empty                  # 01.png: the empty app, clean storage
+node $T/real.mjs --step  $W/p03-t2 --click "Open a file" --upload friends.csv  # 02.png
+node $T/real.mjs --step  $W/p03-t2 --click-at 702,380     # point at the last screenshot
+node $T/real.mjs --end   $W/p03-t2                        # always end: it frees the browser
 ```
+
+Pilot, dry-run, readiness and tool-check walks write their screenshots and step files under the
+main checkout's `tmp/design-studio/<tier>/<round or pass>/` (`tier1` for the first tier's
+`rounds/`), which git ignores; only a walk's `report.md` goes in the studio's files, naming its
+screenshots by that path as plain text. `--start` and `--rewalk` refuse a walk folder inside the
+studio's files (`rounds/r1d2/...` or `rounds/<round>/pilot/...`) and print the folder to use.
+Scored round sessions, expert walkthroughs and bars stay in the round's folder.
 
 Every command prints what a participant would notice, then the path of the new screenshot. A
 notice the app took down before the screenshot (it keeps one for 6 seconds, and a step can take
@@ -347,7 +355,9 @@ A round may not start until its folder holds, for the frozen build named on the 
 tier's `criteria.md`:
 
 - the walks of every task half its `plan.md` runs, each in a folder of its own under the half's:
-  `<round folder>/pilot/<half>/<walk>/` (`pilot/T40B/s3-pointer/`), with its screenshots and its
+  `tmp/design-studio/<tier>/<round>/pilot/<half>/<walk>/` of the main checkout
+  (`tier3/round-2/pilot/T40B/s3-pointer/`; a round walked before 2026-10-21 keeps them in
+  `<round folder>/pilot/`), with its screenshots and its
   `session.json`. A half needs a success walk and a detours walk, and a keyboard walk when the plan
   gives the half a keyboard-only session (a start with `--keys`). The walk's folder name says which
   it is: one holding `keys` or `keyboard` is the keyboard walk, and counts only when its
@@ -466,8 +476,9 @@ missed, and the controls and headings on the screen it ended on, by kind and nam
 walk, a keyboard walk or a re-walk is therefore already a script.
 
 ```bash
-node $T/real.mjs --replay rounds/r1d1/pilot/T38A/success rounds/r1d2/pilot/T38A/success
-node $T/real.mjs --rewalk rounds/r1d1/pilot/T38A rounds/r1d2/pilot/T38A [--only success,detours]
+D=<main checkout>/tmp/design-studio/tier3
+node $T/real.mjs --replay $D/r1d1/pilot/T38A/success $D/r1d2/pilot/T38A/success
+node $T/real.mjs --rewalk $D/r1d1/pilot/T38A $D/r1d2/pilot/T38A [--only success,detours]
 ```
 
 `--replay <walk folder | route.jsonl> <new session folder>` starts the new session the way the

@@ -6,14 +6,16 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import type { ElementSession } from "../../../src/session/types";
 
 /**
  * A process trace: ten steps, node i at step i, and edge i -> i + 1 at step i + 1.
  * @param startingRows - Whether the project draws the starting rows.
- * @returns The session, with `step` designated on nodes and edges.
+ * @returns The session, as the renderer reads it (the drawn masks and the ghosts), with `step`
+ *   designated on nodes and edges.
  */
-async function trace(startingRows = true): Promise<GraphSession> {
-    const session = createGraphSession();
+async function trace(startingRows = true): Promise<ElementSession> {
+    const session = createGraphSession() as ElementSession;
     if (startingRows) {
         await session.config.set({ startingRows: true });
     }

@@ -825,17 +825,24 @@ async function defaultCheck(ctx, commit, { failing, targets, slot, full }) {
     const failed = {};
     let runs = 0;
     while (runs < CONFIRM_RUNS) {
-        for (const shard of failing) {
-            const target = targets.filter((t) => t.shard === shard);
-            if (!target.length) continue;
-            const entry = SHARDS.find((s) => s.shard === shard) ?? { shard };
-            for (const id of await shardRun(ctx, { dir, opts, shard: entry, target }))
-                failed[id] = (failed[id] ?? 0) + 1;
-        }
+        for (const id of await checkRound(ctx, { dir, opts, SHARDS, failing, targets }))
+            failed[id] = (failed[id] ?? 0) + 1;
         runs++;
         if (!full && decided({ runs, failed }, targets)) break;
     }
     return { runs, failed };
+}
+
+// One counted run of every failing shard's targets: the ids it failed.
+async function checkRound(ctx, { dir, opts, SHARDS, failing, targets }) {
+    const ids = [];
+    for (const shard of failing) {
+        const target = targets.filter((t) => t.shard === shard);
+        if (!target.length) continue;
+        const entry = SHARDS.find((s) => s.shard === shard) ?? { shard };
+        ids.push(...(await shardRun(ctx, { dir, opts, shard: entry, target })));
+    }
+    return ids;
 }
 
 /**

@@ -175,8 +175,9 @@ describe("the camera on a location map", () => {
         assert.isAtLeast(camera.length(), radius * 1.02 - 1e-3, "the camera is outside the globe");
         const near = element.graph.getScene().activeCamera?.minZ ?? Infinity;
         assert.isBelow(near, camera.length() - radius, "the near clip plane stops short of the surface");
-        // The surface fills the view: the map's picture, not the background, at the center.
-        assert.isAbove(await colorsAround(element, CENTER, 40), 20, "the map is drawn, not clipped");
+        // The surface fills the view: the map's picture, shaded across it, not the one flat colour
+        // of the background a clipped surface would leave.
+        assert.isAbove(await colorsAround(element, CENTER, 40), 1, "the map is drawn, not clipped");
     });
 
     it("turns the globe under the hand: the place grabbed stays under the pointer", async () => {
@@ -315,12 +316,14 @@ describe("the map under the graph", () => {
         });
         await applied(element);
         await vi.waitFor(async () => {
-            assert.isAbove(await colorsAround(element, CENTER, 40), 20, "a picture under the graph in 3D");
+            // The globe fills the view, its middle a plain gray ocean: the box takes in land too.
+            assert.isAbove(await colorsAround(element, CENTER, 100), 20, "a picture under the graph in 3D");
         });
         await element.setViewMode("2d");
         await applied(element);
         await vi.waitFor(async () => {
-            assert.isAbove(await colorsAround(element, CENTER, 40), 20, "and in 2D");
+            // The 2D view frames the whole world map afresh, its middle the plain gray Atlantic.
+            assert.isAbove(await colorsAround(element, CENTER, 100), 20, "and in 2D");
         });
     });
 

@@ -1952,7 +1952,7 @@ export class Graph implements GraphContext {
                 this.#followFrame(frame);
             }
 
-            this.#drawOverMap(frame, basemap);
+            this.#drawOverMap(frame);
 
             this.statsManager.measure("Graph.settlementCheck", () => {
                 // Only process settlement events if there are nodes - an empty graph
@@ -4319,7 +4319,7 @@ export class Graph implements GraphContext {
         return engine?.geoFrame ?? null;
     }
 
-    /** Whether the graph is now drawn over a map: casing on, edges under nodes. */
+    /** Whether the graph is now drawn over a map: edges under nodes. */
     #overMap = false;
 
     /** The meshes the edge lines are drawn from, refreshed each frame while a map is drawn. */
@@ -4332,19 +4332,13 @@ export class Graph implements GraphContext {
     readonly #nodeMeshes = new Set<AbstractMesh>();
 
     /**
-     * While a map is drawn: nodes and edges no layer outlined get a light casing (unless
-     * `basemap.casing` is false), and nodes are drawn after edges with edges writing no depth, so
-     * an arc passing in front of a node never hides it. Undone when the map goes.
+     * While a map is drawn, nodes are drawn after edges with edges writing no depth, so an arc
+     * passing in front of a node never hides it. Undone when the map goes. Nodes and edges look as
+     * their style layers paint them, as in every layout: a map adds no outline of its own.
      * @param frame - The active geographic frame, or null.
-     * @param basemap - The basemap setting.
      */
-    #drawOverMap(frame: LocationMapFrame | null, basemap: BasemapConfig | undefined): void {
+    #drawOverMap(frame: LocationMapFrame | null): void {
         const mapped = frame !== null;
-        const casing =
-            mapped &&
-            basemap?.casing !== false &&
-            !(basemap !== undefined && "source" in basemap && basemap.source === "none");
-        this.stylePainter.setCasing(casing, this.dataManager.nodes.size, this.dataManager.edges.size);
         this.#edgeMeshes.clear();
         this.#edgeBandMeshes.clear();
         this.#nodeMeshes.clear();
@@ -4357,7 +4351,7 @@ export class Graph implements GraphContext {
 
         for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
             this.#edgeMeshes.add(batch.mesh);
-            // A band under the line (the casing is one) must draw before it: with no depth written
+            // A band under the line (an outline a layer drew) must draw before it: with no depth written
             // the later of two meshes at one depth wins, and a band drawn last hid its line.
             if (key.includes("-outline") || key.includes("-underlay")) {
                 this.#edgeBandMeshes.add(batch.mesh);
@@ -4391,7 +4385,7 @@ export class Graph implements GraphContext {
         };
         // Everything else in Babylon's own order (as with no map), then the map, then the edges'
         // bands, their lines, then the nodes over them -- in the blended pass too, where the edge
-        // lines (antialiased) and their casings are drawn.
+        // lines (antialiased) and their outlines are drawn.
         const byRank =
             (then: (a: SubMesh, b: SubMesh) => number) =>
             (a: SubMesh, b: SubMesh): number =>

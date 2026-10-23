@@ -13,7 +13,6 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
-import { colorToHex } from "../config/common";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
@@ -77,34 +76,6 @@ const EDGE_BASE: EdgeStyleConfig = EdgeStyle.parse(defaultEdgeStyle);
  * unset, a cap follows the line it caps.
  */
 const EDGE_BASE_DIRECTED: EdgeStyleConfig = EdgeStyle.parse({ ...defaultEdgeStyle, arrowHead: { type: "normal" } });
-
-/** The light casing a map gives nodes and edges no layer outlined (`basemap.casing`). */
-const CASING_COLOR = "#ffffff";
-
-/**
- * How much wider than its line an edge's casing is, in the line's width units: one default line
- * width more, about half a pixel each side. 1.2 was a seventh of the line and hid nothing but the
- * line itself.
- */
-const EDGE_CASING_WIDTH = 8;
-
-/**
- * Solid, so the casing is drawn in the opaque pass, under its line: a see-through casing went to
- * the transparent pass, after every line, and painted over the line it was cased around.
- */
-const CASING_OPACITY = 1;
-
-/**
- * The line's color on a map when no layer chose one: dark enough to stand 3:1 off the casing and
- * off light maps, where the plain edge gray stood 1.5:1 off Natural Earth's land.
- */
-const CASED_EDGE_COLOR = "#505050";
-
-/** The edges' default gray, as the base layer writes it. */
-const DEFAULT_EDGE_HEX =
-    typeof defaultEdgeStyle.line?.color === "string"
-        ? colorToHex(defaultEdgeStyle.line.color)?.slice(0, 7).toLowerCase()
-        : undefined;
 
 /** No elements were repainted, which is what an unbound painter drains. */
 const NOTHING: readonly number[] = Object.freeze([]);
@@ -528,15 +499,9 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
  * @param resolved - Everything the stack painted this node.
  * @param meshKey - The key the interner gave this node's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
- * @param casing - Whether a map is drawn, so a node or edge no layer outlined gets its light casing.
  * @returns The paint.
  */
-function nodePaintOf(
-    resolved: ResolvedStyle,
-    meshKey: number,
-    plainText: (channel: Channel) => boolean,
-    casing = false,
-): NodePaint {
+function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (channel: Channel) => boolean): NodePaint {
     const bag: Record<string, unknown> = {};
     const fill: FillChannels = {};
 
@@ -587,11 +552,6 @@ function nodePaintOf(
         key.push(`o${String(opacity)}`);
     }
 
-    // On a map, a node no layer outlined gets the map's light casing, so it stands off the picture.
-    if (casing && resolved["node.outline"] === undefined) {
-        setAtPath(bag, "effect.outline.color", CASING_COLOR);
-        key.push("c");
-    }
     if (filled) {
         key.push(`g${hex}`);
     }
@@ -609,7 +569,6 @@ function nodePaintOf(
  * @param meshKey - The key the interner gave this edge's geometry.
  * @param plainText - Whether a text channel's words are drawn as plain text.
  * @param directed - Whether the graph is directed, which is what gives an edge a head no layer chose.
- * @param casing - Whether a map is drawn, so a node or edge no layer outlined gets its light casing.
  * @returns The paint.
  */
 function edgePaintOf(
@@ -617,23 +576,11 @@ function edgePaintOf(
     meshKey: number,
     plainText: (channel: Channel) => boolean,
     directed: boolean,
-    casing = false,
 ): EdgePaint {
     const bag: Record<string, unknown> = {};
 
     for (const [name, value] of inWriteOrder(resolved)) {
         writeChannel(bag, name as Channel, value, plainText(name as Channel));
-    }
-
-    // On a map, an edge no layer outlined gets the map's thin light casing.
-    const cased = casing && resolved["edge.outlineWidth"] === undefined && resolved["edge.outlineColor"] === undefined;
-    if (cased) {
-        setAtPath(bag, "line.outline", { color: CASING_COLOR, width: EDGE_CASING_WIDTH, opacity: CASING_OPACITY });
-        // The base layer writes the default gray to every edge, so the default is matched by value.
-        const hex = asColorValue(resolved["edge.color"])?.hex.slice(0, 7).toLowerCase();
-        if (hex === undefined || hex === DEFAULT_EDGE_HEX) {
-            setAtPath(bag, "line.color", CASED_EDGE_COLOR);
-        }
     }
 
     // See EdgePaint: the edge renderer has no per-instance state, so the two channels the interner
@@ -645,7 +592,7 @@ function edgePaintOf(
     // A reader's own head type wins in either direction. The default head is in the key, so a
     // graph whose direction changed rebuilds its caps rather than adopting the old key.
     const headed = directed && resolved["edge.arrowHead"] === undefined;
-    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}${cased ? "|c" : ""}`;
+    const identity = `s${String(meshKey)}|${color?.hex ?? ""}|${opacity === undefined ? "" : String(opacity)}${headed ? "|>" : ""}`;
     const base = headed ? EDGE_BASE_DIRECTED : EDGE_BASE;
 
     return {
@@ -868,23 +815,6 @@ export class StylePainter {
     /** What the last pass painted, or null while no session is bound. */
     private paint: ElementPaint | null = null;
 
-    /** Whether a map's casing is drawn under nodes and edges no layer outlined. */
-    private casing = false;
-
-    /**
-     * Give nodes and edges no layer outlined a light casing (while a map is drawn), or take it
-     * away, and put every element back in the queue to be drawn so.
-     * @param on - Whether the casing is drawn.
-     * @param nodes - How many nodes the renderer holds.
-     * @param edges - How many edges it holds.
-     */
-    setCasing(on: boolean, nodes: number, edges: number): void {
-        if (on !== this.casing) {
-            this.casing = on;
-            this.invalidate(nodes, edges);
-        }
-    }
-
     /** The nodes whose paint the renderer has not applied yet. */
     private readonly pendingNodes = new Set<number>();
 
@@ -1069,11 +999,8 @@ export class StylePainter {
             return null;
         }
 
-        return nodePaintOf(
-            paint.styleOf("node", index),
-            paint.meshKeyOf("node", index),
-            (channel) => paint.plainText("node", index, channel),
-            this.casing,
+        return nodePaintOf(paint.styleOf("node", index), paint.meshKeyOf("node", index), (channel) =>
+            paint.plainText("node", index, channel),
         );
     }
 
@@ -1094,7 +1021,6 @@ export class StylePainter {
             paint.meshKeyOf("edge", index),
             (channel) => paint.plainText("edge", index, channel),
             this.directed(),
-            this.casing,
         );
     }
 

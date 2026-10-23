@@ -330,50 +330,38 @@ describe("the map under the graph", () => {
     });
 });
 
-/** A hang guard for the map's picture loading, not a pass/fail timing. */
-const MAP_WAIT = { timeout: 20_000, interval: 100 };
-
 /**
- * How many pixels of a frame are a dark neutral gray: an edge's line on a map, which no map
- * color, node color or casing is.
+ * Whether any node or edge is painted an outline: the element's style stack paints none here, so
+ * one would be the layout's own.
  * @param element - The element.
- * @returns The count.
+ * @returns The nodes and edges painted with an outline.
  */
-async function darkGrayPixels(element: Graphty): Promise<number> {
-    const { engine } = element.graph;
-    element.graph.scene.render();
-    const pixels = (await engine.readPixels(
-        0,
-        0,
-        engine.getRenderWidth(),
-        engine.getRenderHeight(),
-    )) as unknown as Uint8Array;
-    let count = 0;
-    for (let o = 0; o < pixels.length; o += 4) {
-        const [r, g, b] = [pixels[o], pixels[o + 1], pixels[o + 2]];
-        if (Math.max(r, g, b) < 160 && Math.abs(r - g) < 12 && Math.abs(g - b) < 12) {
-            count++;
+function outlined(element: Graphty): { nodes: number; edges: number } {
+    const painter = element.graph.getStylePainter();
+    let nodes = 0;
+    let edges = 0;
+    for (let index = 0; index < CITIES.length; index++) {
+        if (painter.nodePaint(index)?.style.effect?.outline !== undefined) {
+            nodes++;
         }
     }
-    return count;
+    for (let index = 0; index < 3; index++) {
+        if (painter.edgePaint(index)?.style.line?.outline !== undefined) {
+            edges++;
+        }
+    }
+    return { nodes, edges };
 }
 
-describe("edges on a map", () => {
-    it("draw a dark line inside their light casing, not the casing over the line, in 3D and 2D", async () => {
+describe("nodes and edges on a map", () => {
+    it("are drawn as their style layers paint them, with no outline of the map's own, in 3D and 2D", async () => {
         const element = await mounted("3d");
         element.basemap = { source: "natural-earth-gray" };
         await applied(element);
-        await vi.waitFor(async () => {
-            await applied(element);
-            const dark = await darkGrayPixels(element);
-            assert.isAbove(dark, 40, `the arcs' lines show in 3D (${String(dark)} dark pixels)`);
-        }, MAP_WAIT);
+        assert.deepEqual(outlined(element), { nodes: 0, edges: 0 }, "no outline in 3D");
         await element.setViewMode("2d");
-        await vi.waitFor(async () => {
-            await applied(element);
-            const dark = await darkGrayPixels(element);
-            assert.isAbove(dark, 40, `and the straight lines in 2D (${String(dark)} dark pixels)`);
-        }, MAP_WAIT);
+        await applied(element);
+        assert.deepEqual(outlined(element), { nodes: 0, edges: 0 }, "nor in 2D");
     });
 });
 

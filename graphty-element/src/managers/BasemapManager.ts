@@ -81,7 +81,7 @@ function sourcesOf(
         return { sources: "image" in named ? [named] : [world, named], name, unknown: false };
     }
 
-    const { attributionShown: _shown, beyond: _beyond, casing: _casing, ...source } = basemap;
+    const { attributionShown: _shown, beyond: _beyond, ...source } = basemap;
     if ("tiles" in source) {
         return { sources: [world, source], name, unknown: false };
     }

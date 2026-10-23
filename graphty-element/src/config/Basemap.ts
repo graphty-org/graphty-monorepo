@@ -27,11 +27,6 @@ const attributionShown = z.boolean().optional();
  * box.
  */
 const beyond = z.enum(["continue", "clip"]).optional();
-/**
- * Whether edges get a thin light casing and nodes a light outline while the map is drawn, so they
- * stand off any picture (default on). False draws them exactly as their styles say.
- */
-const casing = z.boolean().optional();
 
 /**
  * The map the element draws under a geographic layout (the `location-map` layout): a named source,
@@ -41,7 +36,7 @@ const casing = z.boolean().optional();
  * @since 3.31.0
  */
 export const Basemap = z.union([
-    z.strictObject({ source: z.string() as z.ZodType<BasemapSourceId>, attributionShown, beyond, casing }),
+    z.strictObject({ source: z.string() as z.ZodType<BasemapSourceId>, attributionShown, beyond }),
     z.strictObject({
         /** An XYZ URL template: `{z}`, `{x}`, `{y}`, `{-y}`, `{s}` and `{r}`. */
         tiles: z.string().min(1),
@@ -54,7 +49,6 @@ export const Basemap = z.union([
         subdomains: z.array(z.string()).optional(),
         attributionShown,
         beyond,
-        casing,
     }),
     z.strictObject({
         /** The picture's URL. */
@@ -66,7 +60,6 @@ export const Basemap = z.union([
         attribution: z.string().optional(),
         attributionShown,
         beyond,
-        casing,
     }),
 ]);
 

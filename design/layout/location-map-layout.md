@@ -394,12 +394,11 @@ layout; `nodeScale: "screen"` holds node size on screen while zooming, as web ma
 On the globe the radius is set so the data's extent spans `size` scene units of arc, the same share
 of the view as on the flat map, so a node is the same size on either surface.
 
-Contrast: while a map is drawn, edges no style layer outlined get a thin light casing and nodes a
-light outline (`basemap.casing`, default on; an edge left at the default gray is drawn dark gray,
-`#505050`, inside a solid white casing about a pixel wider), and nodes are drawn after edges, with edges writing no
-depth, so an arc passing in front of a hub never hides it. The Graph settings "Outline width" did
-nothing visible on the map before this because it only sets the width of outlines a style layer
-draws, and no layer drew one; the casing gives every node on a map an outline it applies to.
+No styling of the map's own: nodes and edges on a map look exactly as their style layers paint
+them, as in every other layout (appearance comes only through style layers). An outline or a
+darker line for contrast against a busy map is a reader's choice, made with a style layer; the
+layout adds none. What the map does change is draw order: nodes are drawn after edges, with edges
+writing no depth, so an arc passing in front of a hub never hides it.
 
 ## 7. Edges
 
@@ -841,8 +840,7 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
 - **From checking these on screen**: a globe with `extent: "data"` opens framed on the data (as
   large as on the flat map), not on the whole sphere, and a globe drag turns about the globe's
   center wherever the camera looks; a map replaced by one on the other surface (an undo from globe
-  to flat) is framed again; the edge casing is solid and drawn under its line (a see-through casing
-  went to the blended pass and covered the line); the basemap status stays `loading` while a tile's
+  to flat) is framed again; the basemap status stays `loading` while a tile's
   shader compiles; the Map form shows the location note once, under the field the places were
   read from. Not fixed: the tray lies on the map itself now that the map continues past the data,
   where its row can read as places in the ocean (Select on the notice finds them); and a tile
@@ -850,10 +848,11 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
 
 Added to the open names (15.1): the refusal code `layout.needs-location`, `recommend.location-map`,
 `location.column-unfit`, the frame facts `element.mapFrame` (`location`, `unplaced`, `warnings`),
-`nodeScale`, `basemap.beyond`, `basemap.casing`, `attributionOffset`, `cameraTransitionDuration`,
+`nodeScale`, `basemap.beyond`, `attributionOffset`, `cameraTransitionDuration`,
 `session.layout.optionInEffect`, `session.recommendLayout`, the `basemap-status` event and
 `E_BASEMAP_UNREACHABLE`, the source id `natural-earth-gray` and the catalog kind `light`; and the
-defaults `casing` on and `beyond: "continue"`. `results.location-map.*` is not built (4.3).
+default `beyond: "continue"`. The map's default node and edge casing (`basemap.casing`) was
+removed after review: a layout gives nodes and edges no look of its own. `results.location-map.*` is not built (4.3).
 
 ## 16. Implementation plan
 

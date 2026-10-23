@@ -29,7 +29,6 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
         continue: "continue";
         clip: "clip";
     }>>;
-    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     tiles: z.ZodString;
     attribution: z.ZodString;
@@ -46,7 +45,6 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
         continue: "continue";
         clip: "clip";
     }>>;
-    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>, z.ZodObject<{
     image: z.ZodString;
     bounds: z.ZodOptional<z.ZodTuple<[z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>], null>>;
@@ -60,7 +58,6 @@ export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
         continue: "continue";
         clip: "clip";
     }>>;
-    casing: z.ZodOptional<z.ZodBoolean>;
 }, z.core.$strict>]>;
 
 // @public

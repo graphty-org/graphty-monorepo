@@ -7,8 +7,8 @@ import {
     SegmentedControl,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import type { DataIssue, GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
+import type { DataIssue, GraphSession, IssueId, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
+import { ActionIcon, Button, Chip, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -24,6 +24,7 @@ import {
     countOf,
     headerIconsLabel,
     headerWidth,
+    ignoreAll,
     issuePlace,
     keyColumnOf,
     type RecordKind,
@@ -61,6 +62,8 @@ interface View {
     /** The reader's column order, ids first to last; ids missing from it keep their place after it. */
     readonly order: readonly string[];
     readonly sort: DataTableSort | null;
+    /** Only the rows an open issue is on: one issue's ("Show rows"), or any ("With issues"); null for all. */
+    readonly issue: IssueId | "any" | null;
 }
 
 /** The Nodes tab narrowed to one group's members. */
@@ -71,7 +74,7 @@ interface Members {
     readonly scope: ScopeInput;
 }
 
-const EMPTY_VIEW: View = { hidden: [], order: [], sort: null };
+const EMPTY_VIEW: View = { hidden: [], order: [], sort: null, issue: null };
 
 /**
  * The columns a view shows, in the reader's order: the keys first, then the order the reader set.
@@ -254,10 +257,16 @@ function ColumnsMenu({ choices, hidden, onToggle }: Readonly<ColumnsMenuProps>):
  * @param session - the element's session.
  * @param kind - nodes or edges.
  * @param scope - the records showing.
+ * @param issue - only the records an open issue is on, or null.
  * @returns the count.
  */
-function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput): number {
-    const counted = { limit: 0, scope };
+function recordTotal(
+    session: GraphSession,
+    kind: RecordKind,
+    scope: ScopeInput,
+    issue: IssueId | "any" | null = null,
+): number {
+    const counted = { limit: 0, scope, ...(issue === null ? {} : { issue }) };
     return kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
 }
 
@@ -331,11 +340,13 @@ function TableOptions({ kind, store }: Readonly<{ kind: RecordKind; store: Works
  * @param kind - nodes or edges.
  * @param members - the group the Nodes tab is narrowed to, or null.
  * @param shown - how many records the filters show, or null when the table lists them all.
+ * @param issue - the issue filter, or null.
  * @returns the key.
  */
-function tableKey(kind: RecordKind, members: Members | null, shown: number | null): string {
+function tableKey(kind: RecordKind, members: Members | null, shown: number | null, issue: string | null): string {
     const base = members === null || kind === "edge" ? kind : `node:${members.run}:${members.name}`;
-    return shown === null ? base : `${base}:shown:${String(shown)}`;
+    const narrowed = issue === null ? base : `${base}:issue:${issue}`;
+    return shown === null ? narrowed : `${narrowed}:shown:${String(shown)}`;
 }
 
 /**
@@ -397,7 +408,14 @@ function headerCell(props: HeaderCellProps): HeaderParts {
     const end =
         issues.length === 0 && !renaming ? undefined : (
             <>
-                {issues.length === 0 ? null : <HeaderWarning header={column.header} issues={issues} />}
+                {issues.length === 0 ? null : (
+                    <HeaderWarning
+                        header={column.header}
+                        issues={issues}
+                        onShowRows={actions.showRows}
+                        onIgnoreAll={actions.ignoreAll}
+                    />
+                )}
                 {renaming ? <RenamePopover name={column.header} onDone={onRenamed} /> : null}
             </>
         );
@@ -613,6 +631,9 @@ export function TableDock(): React.JSX.Element {
     const scope = kind === "node" && shownMembers !== null ? shownMembers.scope : narrowed;
     const tableHeight = Math.max(MIN_TABLE_HEIGHT, bodyHeight);
     const issues = issuesByColumn(session, kind, choices);
+    const issueColumns = new Map([...issues].map(([column, list]) => [column, list.map((issue) => issue.id)]));
+    // "With issues": how many rows an open issue is on, or the ones the filter shows.
+    const withIssues = recordTotal(session, kind, scope, view.issue ?? "any");
     const hiddenChoices = choices.filter(isHidden);
 
     const setView = (change: Partial<View>): void => {
@@ -648,6 +669,12 @@ export function TableDock(): React.JSX.Element {
         },
         unhide: (columns) => {
             hide(columns, false);
+        },
+        showRows: (issue) => {
+            setView({ issue: issue.id });
+        },
+        ignoreAll: () => {
+            ignoreAll(session, store, issues.get(column.id) ?? []);
         },
     });
     const header = (column: TableColumnChoice): HeaderParts =>
@@ -720,6 +747,17 @@ export function TableDock(): React.JSX.Element {
                         }}
                     />
                 ) : null}
+                {groupRun === undefined && (withIssues > 0 || view.issue !== null) ? (
+                    <Chip
+                        size="xs"
+                        checked={view.issue !== null}
+                        onChange={(checked) => {
+                            setView({ issue: checked ? "any" : null });
+                        }}
+                    >
+                        {`With issues ${withIssues.toLocaleString("en-US")}`}
+                    </Chip>
+                ) : null}
                 <span className="ws-table-spacer" />
                 {groupRun === undefined ? (
                     <ColumnsMenu
@@ -740,11 +778,13 @@ export function TableDock(): React.JSX.Element {
             <div className="ws-table-body" ref={bodyRef}>
                 {groupRun === undefined ? (
                     <RecordTable
-                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null)}
+                        key={tableKey(kind, shownMembers, scope === "visible" ? shownCount : null, view.issue)}
                         session={session}
                         kind={kind}
                         columns={visible}
                         scope={scope}
+                        issue={view.issue}
+                        issueColumns={issueColumns}
                         sort={sorted === undefined ? null : view.sort}
                         onSortChange={(next) => {
                             setView({ sort: next });

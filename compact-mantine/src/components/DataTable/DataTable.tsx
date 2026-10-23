@@ -1384,6 +1384,7 @@ function DataTableInner<TRow extends object>(
                                                 // the cells reads the cell's state, not its row's.
                                                 aria-selected={isSelectable ? isSelected : undefined}
                                                 data-testid="data-table-cell"
+                                                data-tone={config?.cellTone?.(row.original)}
                                                 aria-colindex={index + 1}
                                                 data-grid-row={item.index}
                                                 data-grid-column={index}

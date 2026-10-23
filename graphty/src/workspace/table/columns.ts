@@ -23,6 +23,7 @@ import type {
 import { type FieldKey, loadValue, tableRoles } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import type { WorkspaceStore } from "../state/store";
 
 /** Which records a table holds. */
 export type RecordKind = "node" | "edge";
@@ -60,8 +61,8 @@ export interface TableColumnChoice {
 const KEYS: Readonly<Record<RecordKind, readonly (TableColumnChoice & { keyRole: ColumnRole })[]>> = {
     node: [{ id: "id", header: "Id", group: "key", numeric: false, keyRole: "key" }],
     edge: [
-        { id: "source", header: "From", group: "key", numeric: false, keyRole: "source" },
-        { id: "target", header: "To", group: "key", numeric: false, keyRole: "target" },
+        { id: "source", header: "Source", group: "key", numeric: false, keyRole: "source" },
+        { id: "target", header: "Target", group: "key", numeric: false, keyRole: "target" },
     ],
 };
 
@@ -160,9 +161,12 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
             },
         ];
     });
-    // The edge's ends are named after the columns a load read them from ("from", "to"), else as
-    // this graph's direction names them.
-    const [from, to] = edgeEnds(session);
+    // The edge's ends are named after the columns a load read them from ("from", "to"), else
+    // Source and Target, or Node A and Node B on a graph whose edges have no direction.
+    const [from, to] =
+        session.data.statistics().directedness === "undirected"
+            ? edgeEnds(session)
+            : [ROLE_WORDS.source, ROLE_WORDS.target];
     const read = (role: "source" | "target"): string | undefined =>
         sources.map((source) => loadValue(tableRoles(source, "edges"), role)).find((name) => name !== null) ??
         undefined;
@@ -198,17 +202,35 @@ export function headerRoles(kind: RecordKind): ColumnRole[] {
         : ["source", "target", "weight", "time", "kind"];
 }
 
-/** What a role is called in a header: the special field's name. */
+/**
+ * What each role is called, everywhere a role is named: the table's headers and role pills, the
+ * header's Role menu, and Data > Fields.
+ */
 export const ROLE_WORDS: Readonly<Record<string, string>> = {
-    key: "id",
-    label: "label",
-    source: "source",
-    target: "target",
-    weight: "weight",
-    time: "time",
-    kind: "kind",
-    edgeId: "edge id",
+    key: "Id",
+    source: "Source",
+    target: "Target",
+    label: "Label",
+    kind: "Kind",
+    weight: "Weight",
+    time: "Time",
+    location: "Location",
+    edgeId: "Edge id",
 };
+
+/**
+ * The role pill a header shows, or undefined: none on a key column, whose key glyph says it, and
+ * none when the role's word is the column's own name ("weight" needs no "Weight" pill).
+ * @param column - the column.
+ * @returns the pill's word, or undefined.
+ */
+export function rolePill(column: TableColumnChoice): string | undefined {
+    if (column.group === "key" || column.role === undefined) {
+        return undefined;
+    }
+    const word = ROLE_WORDS[column.role] ?? column.role;
+    return word.toLowerCase() === column.header.toLowerCase() ? undefined : word;
+}
 
 /** The types a header's Type menu offers, in order, with their words. */
 export const VALUE_TYPES: readonly { readonly type: ValueType; readonly label: string }[] = [
@@ -415,7 +437,8 @@ const HEADER_ICON = 14;
  * @returns the width in px.
  */
 export function headerWidth(column: TableColumnChoice, warned: boolean): number {
-    const role = column.role === undefined ? 0 : (ROLE_WORDS[column.role] ?? column.role).length * 6 + 12;
+    const pill = rolePill(column);
+    const role = pill === undefined ? 0 : pill.length * 6 + 12;
     const origin = column.group === "result" || column.descriptor?.origin === "joined" ? HEADER_ICON + 2 : 0;
     const name = Math.min(column.header.length, 16) * CHAR;
     // Padding 16 + 16, the type icon and its gap, the menu caret's 32, the warning's 24.
@@ -423,8 +446,8 @@ export function headerWidth(column: TableColumnChoice, warned: boolean): number 
 }
 
 /**
- * What a header's leading icons say, for a screen reader: the type, the role and the origin, in
- * the order they are drawn.
+ * What a header's leading icons say, for a screen reader: the type (Key on a key column, read
+ * with its name as "Key, id"), the role pill and the origin, in the order they are drawn.
  * @param column - the column
  * @returns the icons' words, such as "number, weight, joined"
  */
@@ -433,10 +456,27 @@ export function headerIconsLabel(column: TableColumnChoice): string {
     const type = valueTypeOf(column.descriptor) ?? (column.descriptor === undefined ? fallback : "mixed");
     const origin = column.group === "result" ? "computed" : column.descriptor?.origin;
     return [
-        column.group === "key" ? "key" : (VALUE_TYPES.find((entry) => entry.type === type)?.label ?? type),
-        column.role === undefined ? undefined : (ROLE_WORDS[column.role] ?? column.role),
+        column.group === "key" ? "Key" : (VALUE_TYPES.find((entry) => entry.type === type)?.label ?? type),
+        rolePill(column)?.toLowerCase(),
         origin === "joined" || origin === "computed" ? origin : undefined,
     ]
         .filter((word) => word !== undefined)
         .join(", ");
+}
+
+/**
+ * Ignores every issue given, as one undo step saved with the project.
+ * @param session - the element's session.
+ * @param store - the workspace store, for the notice.
+ * @param issues - the issues.
+ */
+export function ignoreAll(session: GraphSession, store: WorkspaceStore, issues: readonly DataIssue[]): void {
+    session.data.ignoreIssues(issues).then(
+        () => {
+            store.set({ announcement: "Issues ignored" });
+        },
+        () => {
+            store.set({ notice: { message: "Not changed" } });
+        },
+    );
 }

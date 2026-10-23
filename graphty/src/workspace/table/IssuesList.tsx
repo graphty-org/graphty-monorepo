@@ -6,7 +6,7 @@ import React, { useState } from "react";
 import { GLYPHS } from "../glyphs";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { fixLabel, issueLabel, issuePlace } from "./columns";
+import { fixLabel, ignoreAll, issueLabel, issuePlace } from "./columns";
 
 /**
  * Applies a fix, one undo step; a refusal says so on the notice.
@@ -131,9 +131,14 @@ interface IssueWhere {
  * @param props - Component props
  * @param props.issue - the issue
  * @param props.where - the table and the column, or "nodes" or "edges"
+ * @param props.onShowRows - narrows the table to the rows the issue is on (an open issue's "Show rows")
  * @returns the row
  */
-export function IssueRow({ issue, where }: Readonly<{ issue: DataIssue; where?: IssueWhere }>): React.JSX.Element {
+export function IssueRow({
+    issue,
+    where,
+    onShowRows,
+}: Readonly<{ issue: DataIssue; where?: IssueWhere; onShowRows?: (issue: DataIssue) => void }>): React.JSX.Element {
     return (
         <li
             className="ws-issue"
@@ -147,6 +152,18 @@ export function IssueRow({ issue, where }: Readonly<{ issue: DataIssue; where?: 
             </Text>
             <span className="ws-issue-actions">
                 <IssueActions issue={issue} />
+                {onShowRows === undefined || issue.ignored || issue.status === "fixed" ? null : (
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        aria-label={`Show rows: ${issueLabel(issue)}`}
+                        onClick={() => {
+                            onShowRows(issue);
+                        }}
+                    >
+                        Show rows
+                    </Button>
+                )}
             </span>
         </li>
     );
@@ -181,12 +198,12 @@ function GroupToggle({
  * The maximized table's Issues list (spec section 3.5.3): every issue graphty-element counts,
  * flat, one row each with its table and column as a chip, the fix the data shows pressed, the
  * other fixes and Ignore; at the end "Ignored 2", which lists the ignored ones again with Restore,
- * and "Resolved 3", which lists the fixed ones with the fix that settled each. Nothing when there
- * is nothing to show.
+ * and "Resolved 3", which lists the fixed ones with the fix that settled each; "Ignore all"
+ * ignores every open one as one undo step. Nothing when there is nothing to show.
  * @returns the section
  */
 export function IssuesList(): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     const [showIgnored, setShowIgnored] = useState(false);
     const [showResolved, setShowResolved] = useState(false);
     if (session === null) {
@@ -201,7 +218,23 @@ export function IssuesList(): React.JSX.Element | null {
         return <IssueRow key={issue.id} issue={issue} where={{ kind, name }} />;
     };
     return (
-        <ControlSection label="Issues" empty={all.length === 0}>
+        <ControlSection
+            label="Issues"
+            empty={all.length === 0}
+            actions={
+                open.length === 0 ? undefined : (
+                    <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        onClick={() => {
+                            ignoreAll(session, store, open);
+                        }}
+                    >
+                        Ignore all
+                    </Button>
+                )
+            }
+        >
             <ul className="ws-issues" aria-label="Issues">
                 {open.map(row)}
                 {showIgnored ? ignored.map(row) : null}

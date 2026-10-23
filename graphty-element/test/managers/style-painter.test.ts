@@ -90,9 +90,10 @@ interface Harness {
 
 /**
  * Build a stack, an engine and a painter over four nodes and two edges.
+ * @param directed - Whether the graph behind the painter is directed.
  * @returns The harness.
  */
-function harness(): Harness {
+function harness(directed = true): Harness {
     const elements: SelectorSource = {
         nodeValue: (index, path) => NODES[index]?.[path],
         edgeValue: (index, path) => EDGES[index]?.[path],
@@ -108,7 +109,7 @@ function harness(): Harness {
         base: [NODE_BASE],
         repaint: engine.repaint,
     });
-    const painter = new StylePainter();
+    const painter = new StylePainter(() => directed);
     painter.bind(engine);
 
     return {
@@ -274,6 +275,94 @@ describe("StylePainter channels", () => {
         assert.strictEqual(held.painter.meshCount("node"), flat, "a ramp mints no new source meshes");
     });
 
+    it("fills a node with a gradient from its colour into node.gradientColor, drawn from its own mesh", async () => {
+        const held = harness();
+        await held.paintAll();
+        const flat = held.painter.nodePaint(2);
+
+        const spec: LayerSpec = {
+            name: "gradient hosts",
+            target: "node",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            set: { "node.color": "#E8EEF7", "node.gradientColor": "#B7C9E3", "node.gradientDirection": 45 },
+        };
+        await held.styles.add(spec);
+        await held.paintAll();
+
+        const filled = held.painter.nodePaint(0);
+        assert.deepStrictEqual(filled?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 45,
+            colors: ["#E8EEF7", "#B7C9E3"],
+        });
+        // The ramp is the fill: no instance colour is drawn over it.
+        assert.isNull(filled?.color);
+        assert.notStrictEqual(filled?.meshKey, held.painter.nodePaint(2)?.meshKey, "a gradient is its own mesh");
+        assert.deepStrictEqual(held.painter.nodePaint(2), flat, "a node the layer does not select is untouched");
+
+        // The ramp starts at the node's own colour, so two starts are two meshes.
+        await held.styles.add({
+            name: "another start",
+            target: "node",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+        });
+        await held.paintAll();
+        assert.notStrictEqual(held.painter.nodePaint(0)?.meshKey, held.painter.nodePaint(1)?.meshKey);
+    });
+
+    it("fills a node with a radial gradient through every listed colour at its stops", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "radial three",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.gradientKind": "radial",
+                "node.gradientColors": "cyan rgb(255, 0, 255) #ffff00",
+                "node.gradientStops": "0 0.2 1",
+            },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+            stops: [0, 0.2, 1],
+        });
+
+        // stops that are not one per colour are left out, so the colours are evenly spaced
+        await held.styles.add({
+            name: "linear two stops",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientKind": "linear", "node.gradientStops": "0 1" },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 0,
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+        });
+    });
+
+    it("fills a node flat with its colour when only a gradient direction is painted", async () => {
+        const held = harness();
+        const spec: LayerSpec = {
+            name: "direction only",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientDirection": 90 },
+        };
+        await held.styles.add(spec);
+        await held.paintAll();
+
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 90,
+            colors: ["#6366F1"],
+        });
+    });
+
     it("puts a size change in the mesh key, because a size is geometry", async () => {
         const held = harness();
         const before = (await held.paintAll(), held.painter.nodePaint(0));
@@ -358,6 +447,52 @@ describe("StylePainter channels", () => {
         // than the string an author typed.
         assert.strictEqual(paint?.style.line?.color, "#ff0000");
         assert.include(paint?.meshKey ?? "", "#ff0000", "the colour has to key the mesh, so it is in the key");
+    });
+});
+
+describe("StylePainter arrowheads", () => {
+    it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
+        const directed = harness(true);
+        const undirected = harness(false);
+        await directed.paintAll();
+        await undirected.paintAll();
+
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "normal");
+        assert.isUndefined(undirected.painter.edgePaint(0)?.style.arrowHead, "a marriage has no direction");
+        assert.notStrictEqual(
+            directed.painter.edgePaint(0)?.meshKey,
+            undirected.painter.edgePaint(0)?.meshKey,
+            "the head is geometry, so it keys the mesh",
+        );
+    });
+
+    it("lets a reader's own head type win in either direction", async () => {
+        const undirected = harness(false);
+        const directed = harness(true);
+        await undirected.styles.add({
+            name: "arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "diamond" },
+        });
+        await directed.styles.add({
+            name: "no arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+        await undirected.paintAll();
+        await directed.paintAll();
+
+        assert.strictEqual(undirected.painter.edgePaint(0)?.style.arrowHead?.type, "diamond");
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "none");
+    });
+
+    it("bootstraps an undirected edge deep-equal to its first pass, so the pass rebuilds nothing", async () => {
+        const held = harness(false);
+        await held.paintAll();
+
+        assert.deepStrictEqual(held.painter.edgePaint(0)?.style, bootstrapEdgePaint(false).style);
     });
 });
 

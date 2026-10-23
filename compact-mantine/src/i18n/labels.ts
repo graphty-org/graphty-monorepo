@@ -1,3 +1,5 @@
+import { colorWord } from "../utils/color-utils";
+
 // Every string the library produces, in one place. Section 2.1 of the hardening
 // contract: ship English defaults, let a consumer override every string, and do
 // not force an i18n framework on anyone. React Aria's
@@ -149,6 +151,36 @@ export interface CompactMantineLabels {
      * @returns The button's accessible name
      */
     resetToDefault: (label: string) => string;
+    /**
+     * What a screen reader hears after a field's name while nothing is set on it, so the gray
+     * placeholder is not the only sign: "Node color, not set, #3388FF".
+     * @param beneath - What the field shows in its place (the value beneath), or "" for nothing
+     * @returns The words joined to the field's name
+     */
+    fieldNotSet: (beneath: string) => string;
+    /**
+     * What a screen reader hears after a field's name while a value is set on it: "Node color,
+     * set here".
+     */
+    fieldSet: string;
+    /**
+     * What a color field shows while nothing is set on it, said after `fieldNotSet`'s "not set"
+     * so the color is heard as what the drawing shows, not as a value: "Node color, not set,
+     * drawn #6366F1 indigo".
+     * @param hex - The color drawn, as `#RRGGBB`
+     * @param words - The color's name, when the field was given one
+     * @returns The words
+     */
+    colorDrawn?: (hex: string, words?: string) => string;
+
+    // Tree
+
+    /**
+     * Tree: said in a live region after a row moves (Alt+Arrow, a drag, or a
+     * row menu's move). `parent` is the name of the folder it now sits in, or
+     * null at the top level; `position` and `count` are already formatted.
+     */
+    treeMoved: (name: string, parent: string | null, position: string, count: string) => string;
 
     // CompactColorInput
 
@@ -164,7 +196,7 @@ export interface CompactMantineLabels {
     colorHexValue: string;
     /**
      * Accessible name of the swatch button that opens the color picker, saying
-     * what pressing it does: "Pick Fill color".
+     * what pressing it does: "Pick fill color", in sentence case.
      * @param label - The control's own label, as drawn above it
      * @returns The button's accessible name
      */
@@ -177,6 +209,40 @@ export interface CompactMantineLabels {
      * @returns The text box's accessible name
      */
     colorValue: (label: string) => string;
+    /**
+     * Title of the hex box while it holds words that name no color, after Enter: "blu is not a
+     * color".
+     * @param typed - What was typed
+     * @returns The words
+     */
+    notAColor: (typed: string) => string;
+    /**
+     * Message drawn under CompactColorInput, and read as the hex box's description, after Enter
+     * on words that name no color: what the box takes instead.
+     * @param typed - What was typed
+     * @returns The words
+     */
+    colorRefused: (typed: string) => string;
+    /**
+     * Message drawn under CompactColorInput, and announced, when the reader leaves the hex box
+     * holding words that name no color: the box went back to what it held.
+     * @param typed - What was typed
+     * @param kept - What the box holds again: a hex code, or the words shown when nothing is set
+     * @returns The words
+     */
+    colorRefusedKept: (typed: string, kept: string) => string;
+    /**
+     * Announced when Escape takes back what was typed in CompactColorInput's hex box: the edit is
+     * gone and the color it held stays.
+     * @param kept - What the box holds again: a hex code, or the words shown when nothing is set
+     * @returns The words
+     */
+    colorEditDiscarded: (kept: string) => string;
+    /**
+     * A color as a reader says it, for the picker's swatch names and tooltips beside the hex:
+     * "orange", "dark green". Replace it to name colors in another language.
+     */
+    colorWord: (color: string) => string;
     /**
      * Accessible name of the number box holding the color's opacity
      * percentage, when the control has a label: "Fill opacity".
@@ -286,6 +352,19 @@ export interface CompactMantineLabels {
      */
     columnMenu?: (header: string) => string;
     /**
+     * What a screen reader reads for a data table cell that holds no value. Optional, so a full
+     * set of labels written before it existed still type-checks; left out, the English default
+     * is used.
+     */
+    emptyCell?: string;
+    /**
+     * Read after a sorted column's header, so the focused header says how it sorts. Optional;
+     * left out, the English default is used.
+     * @param descending - Whether the column sorts largest first
+     * @returns The words, such as "sorted ascending"
+     */
+    sortedBy?: (descending: boolean) => string;
+    /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
      */
@@ -347,6 +426,16 @@ export interface CompactMantineLabels {
      * @returns The number spelled as an ordinal
      */
     ordinal: (value: string, rule: Intl.LDMLPluralRule) => string;
+
+    // Select lists (ensureListboxKeyboard)
+
+    /**
+     * Shown at the foot of a select's open list, and spoken, when the letters
+     * typed ahead start no option's name; Enter then picks nothing.
+     * @param typed - The letters typed, as typed
+     * @returns The line, such as `No option starts with "cube"`
+     */
+    listNoMatch?: (typed: string) => string;
 }
 
 /**
@@ -357,6 +446,16 @@ export interface CompactMantineLabels {
  */
 function withColorNoun(label: string): string {
     return /\bcolou?r\b/i.test(label) ? label : `${label} color`;
+}
+
+/**
+ * A label set inside a sentence, in sentence case: "Node color" after "Pick" is "node color".
+ * A word that is capitalized throughout ("RGB", "X") keeps its case.
+ * @param label - The control's label
+ * @returns The label with its first letter lower case when the word is not all capitals
+ */
+function midSentence(label: string): string {
+    return /^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label;
 }
 
 /**
@@ -389,11 +488,27 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     about: (label: string): string => `About ${label}`,
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
+    fieldNotSet: (beneath: string): string => (beneath === "" ? "not set" : `not set, ${beneath}`),
+    fieldSet: "set here",
+    colorDrawn: (hex: string, words?: string): string =>
+        words === undefined ? `drawn ${hex}` : `drawn ${hex} ${words}`,
+
+    treeMoved: (name: string, parent: string | null, position: string, count: string): string =>
+        parent === null
+            ? `${name} moved to the top level, ${position} of ${count}`
+            : `${name} moved into ${parent}, ${position} of ${count}`,
 
     colorSwatch: "Pick color",
     colorHexValue: "Color hex value",
-    pickColor: (label: string): string => `Pick ${withColorNoun(label)}`,
+    pickColor: (label: string): string => `Pick ${midSentence(withColorNoun(label))}`,
     colorValue: (label: string): string => withColorNoun(label),
+    notAColor: (typed: string): string => `${typed} is not a color`,
+    colorRefused: (typed: string): string =>
+        `"${typed}" is not a color. Type a color name or a hex code such as 2E8B57.`,
+    colorRefusedKept: (typed: string, kept: string): string =>
+        `"${typed}" is not a color, so this stays ${kept}. Type a color name or a hex code such as 2E8B57.`,
+    colorEditDiscarded: (kept: string): string => `Edit discarded; this stays ${kept}.`,
+    colorWord,
     colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",
     colorPanelTitle: "Color",
@@ -420,6 +535,8 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     rowsShown: (shown: string, total: string): string => `${shown} of ${total} rows`,
     rowsSelected: (count: string): string => `${count} selected`,
     columnMenu: (header: string): string => `Options for ${header}`,
+    emptyCell: "No value",
+    sortedBy: (descending: boolean): string => (descending ? "sorted descending" : "sorted ascending"),
     yes: "Yes",
     no: "No",
 
@@ -434,6 +551,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     quickActions: "Quick actions",
     searchActions: "Search actions",
     noResults: "No results",
+    listNoMatch: (typed: string): string => `No option starts with "${typed}"`,
 
     passwordReveal: "Show the password",
 

@@ -9,7 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { formatF32 } from "../../common/format.js";
 import { canonEnum } from "../canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity } from "../canon/number.js";
+import { canonBoolean, canonNumber, canonOpacity, canonSigned } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { canonText } from "../canon/text.js";
 import { StyleNotes } from "../notes.js";
@@ -321,7 +321,18 @@ export function matches(where: Predicate, src: RefSource, i: number, depth = 0):
     return false;
 }
 
-const ENUM_KINDS: ReadonlySet<string> = new Set(["shape", "borderStyle", "lineStyle", "arrow", "weight", "position"]);
+const ENUM_KINDS: ReadonlySet<string> = new Set([
+    "shape",
+    "borderStyle",
+    "lineStyle",
+    "arrow",
+    "arrowSide",
+    "weight",
+    "position",
+    "labelFit",
+    "borderPosition",
+    "textAlign",
+]);
 
 /**
  * How a passthrough reads a raw value as a property's canonical value (CSS spelling for colors).
@@ -341,6 +352,8 @@ export function canonicalFor(target: StyleTarget, property: string): (raw: unkno
             return (raw) => (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : null);
         case "number":
             return (raw) => canonNumber(raw, site);
+        case "signed":
+            return (raw) => canonSigned(raw, site);
         case "opacity":
             return (raw) => canonOpacity(raw, "css", site);
         case "boolean":
@@ -481,9 +494,21 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
  * Evaluates a continuous mapping at x.
  * @param points - the points, in increasing `at`
  * @param x - the input
+ * @param step - when given, a number is rounded to the nearest multiple of it (a whole-number property)
  * @returns the value, or null for a missing or non-finite input
  */
-export function evalContinuous(points: readonly ContinuousPoint[], x: number | null): StyleValue | null {
+export function evalContinuous(points: readonly ContinuousPoint[], x: number | null, step?: number): StyleValue | null {
+    const v = evalPoints(points, x);
+    return typeof v === "number" && step !== undefined && step > 0 ? num6(Math.round(v / step) * step) : v;
+}
+
+/**
+ * A continuous mapping's value at x, unrounded.
+ * @param points - the points, in increasing `at`
+ * @param x - the input
+ * @returns the value, or null for a missing or non-finite input
+ */
+function evalPoints(points: readonly ContinuousPoint[], x: number | null): StyleValue | null {
     if (x === null || !Number.isFinite(x) || points.length === 0) {
         return null;
     }
@@ -539,7 +564,7 @@ function evalMapping(
             return j < 0 ? null : m.table[j][1];
         }
         case "continuous":
-            return Array.isArray(v) ? null : evalContinuous(m.points, numberOf(v));
+            return Array.isArray(v) ? null : evalContinuous(m.points, numberOf(v), m.step);
         default:
             return null;
     }
@@ -651,12 +676,42 @@ export function resolveStyles(
     property: StyleProperty,
     snapshot?: GraphSnapshot,
 ): readonly (StyleValue | null)[] {
+    return resolveRules(extracted.styles.rules, target, property, sourceOf(extracted, target, snapshot));
+}
+
+/**
+ * Which elements a rule's condition selects under a file's styles, read the way `resolveStyles()` reads it.
+ * @param extracted - the styles whose columns and features the condition reads
+ * @param target - nodes or edges
+ * @param where - the condition
+ * @param snapshot - the graph; when given, data columns and degrees are read from it, otherwise from
+ * `extracted.features`
+ * @returns per element, whether the condition selects it
+ * @category Styles
+ */
+export function matchPredicate(
+    extracted: ExtractedStyles,
+    target: StyleTarget,
+    where: Predicate,
+    snapshot?: GraphSnapshot,
+): readonly boolean[] {
+    const src = sourceOf(extracted, target, snapshot);
+    return Array.from({ length: src.n }, (_v, i) => matches(where, src, i));
+}
+
+/**
+ * Where a file's styles read their per-element values from.
+ * @param extracted - the styles
+ * @param target - nodes or edges
+ * @param snapshot - the graph, or undefined to read from `extracted.features`
+ * @returns the reference source
+ */
+function sourceOf(extracted: ExtractedStyles, target: StyleTarget, snapshot: GraphSnapshot | undefined): RefSource {
     let n = extracted.fingerprint[target === "node" ? "nodes" : "edges"];
     if (snapshot !== undefined) {
         n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
     }
-    const src = refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
-    return resolveRules(extracted.styles.rules, target, property, src);
+    return refSource(target, n, extracted.columns[target], extracted.features[target], snapshot);
 }
 
 /**

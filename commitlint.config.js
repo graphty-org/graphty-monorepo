@@ -1,5 +1,8 @@
 export default {
     extends: ["@commitlint/config-conventional"],
+    // The merge commits tools/land.mjs makes on the golden branch ("land: <branch>") and its reapply of a
+    // reverted landing; the commits they bring in are checked on their own.
+    ignores: [(message) => /^(land: \S+|Reapply "land: \S+")\s*$/m.test(message.split("\n")[0])],
     rules: {
         "scope-enum": [
             2,

@@ -1,0 +1,30 @@
+{
+    "sample": "cx2-synthetic-lethal",
+    "file": "graph-io/test/corpus/styles/cx2/fidelity/synthetic-lethal.cx2",
+    "sha256": "457b1e0951f846e2bdc0cb40e555c2464e934e0ca4468a3fa689c1017dc91025",
+    "program": "Cytoscape desktop",
+    "version": "3.10.5 (Temurin JRE 17, headless Xvfb, CyREST)",
+    "route": "cytoscape-desktop",
+    "command": "session new; network load file file=<file>; view set current (the largest view); hide the WEST, SOUTH and EAST panels; resize the main window until the view is 1200 x 900; view fit content; GET /v1/networks/{net}/views/{view}.svg",
+    "standIn": false,
+    "network": {
+        "title": "HeLa-A549-293T_SyntheticLethal",
+        "nodes": 69,
+        "views": 1,
+        "chosen": "the view with the most nodes",
+        "style": "HeLa-A549-293T_SyntheticLethal-Style"
+    },
+    "canvas": {
+        "widthPx": 1200,
+        "heightPx": 900,
+        "zoom": 1.4389825898944553,
+        "center": [-1444.029372975744, -78.19512118553354],
+        "background": "#FFFFFF"
+    },
+    "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
+    "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
+    "exportsAgreed": 3,
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
+    "date": "2026-10-18",
+    "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs cx2-synthetic-lethal && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/cx2-synthetic-lethal.svg"
+}

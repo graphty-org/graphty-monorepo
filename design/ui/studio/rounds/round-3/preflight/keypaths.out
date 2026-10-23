@@ -1,0 +1,313 @@
+
+##### T2
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 expect /Nodes\s+77/ found: Nodes | 77 -> focus BODY
+T2: END STATE REACHED, 20 key presses
+
+##### T10A
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 tabTo /treeitem "/ (8 x Tab) -> focus treeitem "Selection"
+ 8 arrowTo /treeitem "Everything/ (1 x ArrowDown) -> focus treeitem "Everything"
+ 9 key Enter  -> focus treeitem "Everything"
+10 tabTo /Add label line/ (16 x Tab) -> focus button "Add label line"
+11 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+12 type name  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+13 arrowTo /highlighted=option "name/ (0 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+14 key Enter  -> focus button "Label position" expanded=false | live: "Les Miserables: 77 nodes, 254 edges / 77 labels, 7 hidden"
+15 expect /\d+ labels, \d+ hidden/ found: 77 labels, 7 hidden -> focus button "Label position" expanded=false
+16 tabTo /Show all labels/ (3 x Tab) -> focus input "Show all labels" checked=false
+17 key Space  -> focus input "Show all labels" checked=true | live: "Les Miserables: 77 nodes, 254 edges / 77 labels"
+18 expect /\d+ labels/ found: 77 labels -> focus input "Show all labels" checked=true
+19 expectNot /\d+ labels, \d+ hidden/ absent: /\d+ labels, \d+ hidden/ -> focus input "Show all labels" checked=true
+T10A: END STATE REACHED, 53 key presses
+
+##### T10B
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the College football/ (8 x Tab) -> focus button "Open the College football sample"
+ 5 key Enter  -> focus BODY | live: "College football: 115 nodes, 613 edges"
+ 6 wait 4000  -> focus BODY
+ 7 tabTo /treeitem "/ (8 x Tab) -> focus treeitem "Selection"
+ 8 arrowTo /treeitem "Everything/ (1 x ArrowDown) -> focus treeitem "Everything"
+ 9 key Enter  -> focus treeitem "Everything"
+10 tabTo /Add label line/ (16 x Tab) -> focus button "Add label line"
+11 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+12 type label  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "label"
+13 arrowTo /highlighted=option "label/ (0 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "label"
+14 key Enter  -> focus button "Label position" expanded=false | live: "College football: 115 nodes, 613 edges / 115 labels, 14 hidden"
+15 expect /\d+ labels, \d+ hidden/ found: 115 labels, 14 hidden -> focus button "Label position" expanded=false
+16 tabTo /Show all labels/ (3 x Tab) -> focus input "Show all labels" checked=false
+17 key Space  -> focus input "Show all labels" checked=true | live: "College football: 115 nodes, 613 edges / 115 labels"
+18 expect /\d+ labels/ found: 115 labels -> focus input "Show all labels" checked=true
+19 expectNot /\d+ labels, \d+ hidden/ absent: /\d+ labels, \d+ hidden/ -> focus input "Show all labels" checked=true
+T10B: END STATE REACHED, 55 key presses
+
+##### T12A
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Escape  -> focus BODY
+ 8 key /  -> focus combobox "Find" expanded=false
+ 9 type Javert  -> focus combobox "Find" expanded=true
+10 key ArrowDown  -> focus combobox "Find" expanded=true highlighted=option "Javert"
+11 key Enter  -> focus group "Summary values"
+12 tabTo /Degree/ (1 x Tab) -> focus button "Degree 17"
+13 key Enter  -> focus section "Javert's 17 connections"
+14 expect /Javert's \d+ connections/ found: Javert's 17 connections -> focus section "Javert's 17 connections"
+T12A: END STATE REACHED, 27 key presses
+
+##### T12Ag
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Escape  -> focus BODY
+ 8 key /  -> focus combobox "Find" expanded=false
+ 9 type Javert  -> focus combobox "Find" expanded=true
+10 key ArrowDown  -> focus combobox "Find" expanded=true highlighted=option "Javert"
+11 key Enter  -> focus group "Summary values"
+12 key g  -> focus section "Javert's 17 connections"
+13 expect /Javert's \d+ connections/ found: Javert's 17 connections -> focus section "Javert's 17 connections"
+T12Ag: END STATE REACHED, 26 key presses
+
+##### T12B
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Florentine/ (9 x Tab) -> focus button "Open the Florentine families sample"
+ 5 key Enter  -> focus BODY | live: "Florentine families: 15 nodes, 20 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Escape  -> focus BODY
+ 8 key /  -> focus combobox "Find" expanded=false
+ 9 type Medici  -> focus combobox "Find" expanded=true
+10 key ArrowDown  -> focus combobox "Find" expanded=true highlighted=option "Medici"
+11 key Enter  -> focus group "Summary values"
+12 tabTo /Degree/ (1 x Tab) -> focus button "Degree 6"
+13 key Enter  -> focus section "Medici's 6 connections"
+14 expect /Medici's \d+ connections/ found: Medici's 6 connections -> focus section "Medici's 6 connections"
+T12B: END STATE REACHED, 30 key presses
+
+##### T9A
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Shift+A  -> focus combobox "Filter analyses" expanded=true [in dialog]
+ 8 type PageRank  -> focus combobox "Filter analyses" expanded=true [in dialog] highlighted=option "PageRank Start here Which nodes are conn"
+ 9 key Enter  -> focus button "Run" [in dialog]
+10 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished"
+11 wait 2500  -> focus button "Analyze" expanded=false
+12 expect /PageRank/ found: PageRank -> focus button "Analyze" expanded=false
+13 tabTo /treeitem "Selection"/ (14 x Tab) -> focus treeitem "Selection"
+14 arrowTo /treeitem "PageRank/ (1 x ArrowDown) -> focus treeitem "PageRank"
+15 key Enter  -> focus treeitem "PageRank"
+16 tabTo /Add to Shape/ (13 x Tab) -> focus button "Add to Shape"
+17 key Enter  -> focus menuitem "Size"
+18 arrowTo /menuitem "Size/ (0 x ArrowDown) -> focus menuitem "Size"
+19 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "Fixed size"
+20 arrowTo /highlighted=option "PageRank"|option "PageRank"/ (1 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "PageRank"
+21 key Enter  -> focus button "1 to 3, variable PageRank"
+22 expect /Size: PageRank/ found: Size: PageRank -> focus button "1 to 3, variable PageRank"
+T9A: END STATE REACHED, 57 key presses
+
+##### T9B
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Florentine/ (9 x Tab) -> focus button "Open the Florentine families sample"
+ 5 key Enter  -> focus BODY | live: "Florentine families: 15 nodes, 20 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Shift+A  -> focus combobox "Filter analyses" expanded=true [in dialog]
+ 8 type PageRank  -> focus combobox "Filter analyses" expanded=true [in dialog] highlighted=option "PageRank Start here Which nodes are conn"
+ 9 key Enter  -> focus button "Run" [in dialog]
+10 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished"
+11 wait 2500  -> focus button "Analyze" expanded=false
+12 expect /PageRank/ found: PageRank -> focus button "Analyze" expanded=false
+13 tabTo /treeitem "Selection"/ (14 x Tab) -> focus treeitem "Selection"
+14 arrowTo /treeitem "PageRank/ (1 x ArrowDown) -> focus treeitem "PageRank"
+15 key Enter  -> focus treeitem "PageRank"
+16 tabTo /Add to Shape/ (13 x Tab) -> focus button "Add to Shape"
+17 key Enter  -> focus menuitem "Size"
+18 arrowTo /menuitem "Size/ (0 x ArrowDown) -> focus menuitem "Size"
+19 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "Fixed size"
+20 arrowTo /highlighted=option "PageRank"|option "PageRank"/ (1 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "PageRank"
+21 key Enter  -> focus button "1 to 3, variable PageRank"
+22 expect /Size: PageRank/ found: Size: PageRank -> focus button "1 to 3, variable PageRank"
+T9B: END STATE REACHED, 60 key presses
+
+##### T15A
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 key Shift+A  -> focus combobox "Filter analyses" expanded=true [in dialog]
+ 8 type PageRank  -> focus combobox "Filter analyses" expanded=true [in dialog] highlighted=option "PageRank Start here Which nodes are conn"
+ 9 key Enter  -> focus button "Run" [in dialog]
+10 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished"
+11 wait 2500  -> focus button "Analyze" expanded=false
+12 expect /PageRank/ found: PageRank -> focus button "Analyze" expanded=false
+13 tabTo /treeitem "Selection"/ (14 x Tab) -> focus treeitem "Selection"
+14 arrowTo /treeitem "PageRank/ (1 x ArrowDown) -> focus treeitem "PageRank"
+15 key Enter  -> focus treeitem "PageRank"
+16 tabTo /Add to Shape/ (13 x Tab) -> focus button "Add to Shape"
+17 key Enter  -> focus menuitem "Size"
+18 arrowTo /menuitem "Size/ (0 x ArrowDown) -> focus menuitem "Size"
+19 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "Fixed size"
+20 arrowTo /highlighted=option "PageRank"|option "PageRank"/ (1 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "PageRank"
+21 key Enter  -> focus button "1 to 3, variable PageRank"
+22 expect /Size: PageRank/ found: Size: PageRank -> focus button "1 to 3, variable PageRank"
+23 tabTo /treeitem "/ (16 x Tab) -> focus treeitem "PageRank"
+24 arrowTo /treeitem "Everything/ (1 x ArrowDown) -> focus treeitem "Everything"
+25 key Enter  -> focus treeitem "Everything"
+26 tabTo /Add label line/ (16 x Tab) -> focus button "Add label line"
+27 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+28 type name  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+29 arrowTo /highlighted=option "name/ (0 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+30 key Enter  -> focus button "Label position" expanded=false | live: "PageRank finished / 77 labels, 6 hidden"
+31 expect /\d+ labels, \d+ hidden/ found: 77 labels, 6 hidden -> focus button "Label position" expanded=false
+32 key Control+e  -> focus button "Close" [in dialog]
+33 tabTo /button "Export"/ (9 x Tab) -> focus button "Export" [in dialog]
+34 download  downloaded les-miserables_current-view.png -> focus button "Label position" expanded=false | live: "PageRank finished / Exported les-miserables_current-view.png / 77 labels, 6 hidden"
+T15A: END STATE REACHED, 105 key presses
+
+##### T15Amenu
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 tabTo /button "Main menu"/ (1 x Tab) -> focus button "Main menu"
+ 8 key Enter  -> focus menuitem "Back to start"
+ 9 arrowTo /menuitem "Export/ (7 x ArrowDown) -> focus menuitem "Export... Ctrl+E"
+10 key Enter  -> focus button "Close" [in dialog]
+11 focusIs /\[in dialog\]/ focus ok -> focus button "Close" [in dialog]
+12 key Tab  -> focus gridcell "Image" [in dialog]
+13 focusIs /\[in dialog\]/ focus ok -> focus gridcell "Image" [in dialog]
+14 key Escape  -> focus button "Main menu"
+15 focusIs /button "Main menu"/ focus ok -> focus button "Main menu"
+16 key Enter  -> focus menuitem "Back to start"
+17 arrowTo /menuitem "Export/ (7 x ArrowDown) -> focus menuitem "Export... Ctrl+E"
+18 key Enter  -> focus button "Close" [in dialog]
+19 tabTo /button "Export"/ (9 x Tab) -> focus button "Export" [in dialog]
+20 download  downloaded les-miserables_current-view.png -> focus button "Main menu" | live: "Les Miserables: 77 nodes, 254 edges / Exported les-miserables_current-view.png"
+T15Amenu: END STATE REACHED, 51 key presses
+
+##### T15B
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 tabTo /Open project or file/ (5 x Tab) -> focus button "Open project or file... Ctrl+O"
+ 4 upload friends.csv chooser answered -> focus BODY | live: "friends: 20 nodes, 41 edges"
+ 5 key Shift+A  -> focus combobox "Filter analyses" expanded=true [in dialog]
+ 6 type PageRank  -> focus combobox "Filter analyses" expanded=true [in dialog] highlighted=option "PageRank Start here Which nodes are conn"
+ 7 key Enter  -> focus button "Run" [in dialog]
+ 8 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished"
+ 9 wait 2500  -> focus button "Analyze" expanded=false
+10 expect /PageRank/ found: PageRank -> focus button "Analyze" expanded=false
+11 tabTo /treeitem "Selection"/ (14 x Tab) -> focus treeitem "Selection"
+12 arrowTo /treeitem "PageRank/ (1 x ArrowDown) -> focus treeitem "PageRank"
+13 key Enter  -> focus treeitem "PageRank"
+14 tabTo /Add to Shape/ (13 x Tab) -> focus button "Add to Shape"
+15 key Enter  -> focus menuitem "Size"
+16 arrowTo /menuitem "Size/ (0 x ArrowDown) -> focus menuitem "Size"
+17 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "Fixed size"
+18 arrowTo /highlighted=option "PageRank"|option "PageRank"/ (1 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "PageRank"
+19 key Enter  -> focus button "1 to 3, variable PageRank"
+20 expect /Size: PageRank/ found: Size: PageRank -> focus button "1 to 3, variable PageRank"
+21 tabTo /treeitem "/ (16 x Tab) -> focus treeitem "PageRank"
+22 arrowTo /treeitem "Everything/ (1 x ArrowDown) -> focus treeitem "Everything"
+23 key Enter  -> focus treeitem "Everything"
+24 tabTo /Add label line/ (16 x Tab) -> focus button "Add label line"
+25 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+26 type id  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+27 arrowTo /highlighted=option "id/ (0 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+28 key Enter  -> focus button "Label position" expanded=false | live: "PageRank finished / 20 labels, 0 hidden"
+29 expect /\d+ labels, \d+ hidden/ found: 20 labels, 0 hidden -> focus button "Label position" expanded=false
+30 key Control+e  -> focus button "Close" [in dialog]
+31 tabTo /button "Export"/ (9 x Tab) -> focus button "Export" [in dialog]
+32 download  downloaded friends_current-view.png -> focus button "Label position" expanded=false | live: "PageRank finished / Exported friends_current-view.png / 20 labels, 0 hidden"
+T15B: END STATE REACHED, 103 key presses
+
+##### T5
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 tabTo /Open project or file/ (5 x Tab) -> focus button "Open project or file... Ctrl+O"
+ 4 upload club-members.graphml chooser answered -> focus BODY | live: "club-members could not be opened: the file is incomplete or damaged near line 9, so nothing was read. Ask for the file again."
+ 5 expect /could not be opened[^\n]*/ found: could not be opened: the file is incomplete or damaged near line 9, so nothing was read. Ask for the file again. -> focus BODY
+T5: END STATE REACHED, 18 key presses
+
+##### T6
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 expect /Nodes\s+77/ found: Nodes | 77 -> focus BODY
+ 8 tabTo /button "Graph"/ (6 x Tab) -> focus button "Graph"
+ 9 arrowTo /button "Data"/ (1 x ArrowDown) -> focus button "Data"
+10 key Enter  -> focus button "Data"
+11 expect /shared_chapters/ found: shared_chapters -> focus button "Data"
+T6: END STATE REACHED, 28 key presses
+
+##### T14
+ 1 tabTo /button "No thanks"/ (11 x Tab) -> focus button "No thanks"
+ 2 key Enter  -> focus BODY | live: "Usage data stays off. Change this in Settings > Privacy"
+ 3 key Tab  -> focus button "Change this in Settings > Privacy"
+ 4 tabTo /button "Open the Les Miserables/ (6 x Tab) -> focus button "Open the Les Miserables sample"
+ 5 key Enter  -> focus BODY | live: "Les Miserables: 77 nodes, 254 edges"
+ 6 wait 4000  -> focus BODY
+ 7 tabTo /treeitem "/ (8 x Tab) -> focus treeitem "Selection"
+ 8 arrowTo /treeitem "Everything/ (1 x ArrowDown) -> focus treeitem "Everything"
+ 9 key Enter  -> focus treeitem "Everything"
+10 tabTo /Add label line/ (16 x Tab) -> focus button "Add label line"
+11 key Enter  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "id"
+12 type name  -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+13 arrowTo /highlighted=option "name/ (0 x ArrowDown) -> focus combobox "Find an attribute" expanded=true [in dialog] highlighted=option "name"
+14 key Enter  -> focus button "Label position" expanded=false | live: "Les Miserables: 77 nodes, 254 edges / 0 labels, 0 hidden"
+15 expect /\d+ labels, \d+ hidden/ found: 77 labels, 7 hidden -> focus button "Label position" expanded=false | live: "Les Miserables: 77 nodes, 254 edges / 77 labels, 7 hidden"
+16 key Shift+A  -> focus combobox "Filter analyses" expanded=true [in dialog]
+17 type PageRank  -> focus combobox "Filter analyses" expanded=true [in dialog] highlighted=option "PageRank Start here Which nodes are conn"
+18 key Enter  -> focus button "Run" [in dialog]
+19 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished / 77 labels, 7 hidden"
+20 wait 2500  -> focus button "Analyze" expanded=false
+21 expect /PageRank/ found: PageRank -> focus button "Analyze" expanded=false
+22 key Control+s  -> focus input "Name" [in dialog]
+23 type Kept for tomorrow  -> focus input "Name" [in dialog]
+24 key Enter  -> focus button "Analyze" expanded=false | live: "PageRank finished / Saved Kept for tomorrow in this browser. / 77 labels, 7 hidden"
+25 wait 1500  -> focus button "Analyze" expanded=false
+26 tabTo /button "Main menu"/ (22 x Tab) -> focus button "Main menu" | live: "PageRank finished / 77 labels, 7 hidden"
+27 key Enter  -> focus menuitem "Back to start"
+28 arrowTo /menuitem "Back to start/ (0 x ArrowDown) -> focus menuitem "Back to start"
+29 key Enter  -> focus BODY | live: ""
+30 wait 1500  -> focus BODY
+31 tabTo /Kept for tomorrow/ (5 x Tab) -> focus gridcell "Kept for tomorrow In this browser - 77 nodes - Oct 7, 2026,"
+32 key Enter  -> focus BODY | live: "PageRank finished / Opened Kept for tomorrow"
+33 wait 4000  -> focus BODY
+34 expect /PageRank/ found: PageRank -> focus BODY | live: "PageRank finished"
+35 tabTo /treeitem "Selection"/ (8 x Tab) -> focus treeitem "Selection"
+36 arrowTo /treeitem "Everything/ (2 x ArrowDown) -> focus treeitem "Everything"
+37 key Enter  -> focus treeitem "Everything" | live: "PageRank finished / 77 labels, 7 hidden"
+38 expect /\d+ labels, \d+ hidden/ found: 77 labels, 7 hidden -> focus treeitem "Everything"
+T14: END STATE REACHED, 97 key presses
+exit 0

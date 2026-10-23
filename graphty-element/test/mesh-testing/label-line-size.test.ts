@@ -79,3 +79,48 @@ describe("RichTextLabel size with a blank first line", () => {
         assert.closeTo(height("\nwords"), height("words"), 1e-9);
     });
 });
+
+describe("RichTextLabel size with an outline", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        scene = new Scene(new NullEngine());
+    });
+
+    afterEach(() => {
+        scene.dispose();
+    });
+
+    /**
+     * How wide a label's words and their outline are in the world.
+     * @param outlineWidth - The outline's width in canvas pixels; 0 draws none.
+     * @returns The width in world units.
+     */
+    const wordsWidth = (outlineWidth: number): number => {
+        const label = RichTextLabel.createLabel(scene, {
+            text: "XRCC2",
+            fontSize: 48,
+            textOutline: outlineWidth > 0,
+            textOutlineWidth: outlineWidth,
+        });
+        const mesh = label.labelMesh;
+        assert.isNotNull(mesh);
+        const box = mesh.getBoundingInfo().boundingBox;
+        const { left, right } = label.textBounds;
+
+        return (right - left) * (box.maximum.x - box.minimum.x);
+    };
+
+    test("an outline grows the label around the letters instead of shrinking them", () => {
+        // The words measure their advance plus the outline on both sides. With every canvas pixel
+        // the same size in the world, each 10 px of outline adds the same width. Sizing one line
+        // from its outlined line box shrank the pixels as the outline grew, so a 0.2 em outline
+        // drew the letters at three quarters of their size.
+        const none = wordsWidth(0);
+        const ten = wordsWidth(10);
+        const twenty = wordsWidth(20);
+
+        assert.closeTo(twenty - ten, ten - none, 1e-6);
+        assert.isAbove(ten, none);
+    });
+});

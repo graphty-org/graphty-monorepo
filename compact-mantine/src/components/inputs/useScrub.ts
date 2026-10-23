@@ -1,5 +1,7 @@
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef } from "react";
 
+import { shieldDragSelection } from "../chrome/dragSelectionShield";
+
 /** The rate a scrub changes a value at: exactly half a unit per screen pixel (spec 6.1). */
 export const SCRUB_UNITS_PER_PX = 0.5;
 
@@ -102,6 +104,7 @@ export function useScrub(enabled: boolean, rtl: boolean, callbacks: ScrubCallbac
             } catch {
                 // Without capture the drag still works while the pointer stays on the handle.
             }
+            shieldDragSelection();
             armed.current = true;
             started.current = false;
             originX.current = event.clientX;

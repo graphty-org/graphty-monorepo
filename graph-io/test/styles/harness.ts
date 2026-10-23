@@ -496,7 +496,7 @@ function carried(
         return values;
     }
     const bad = new Set(
-        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as number[]) : [])),
+        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as readonly number[]) : [])),
     );
     return values.map((v, i) => {
         if (v === null || isStyleValue(target, property, v)) {
@@ -529,7 +529,15 @@ function checkToolRule(
 ): void {
     // a default that is itself per element (Gephi's edge in its source node's color and as thick as its weight,
     // Graphviz's node named by its name) maps a style column
-    const perElement = new Set(["SOURCE_NODE_COLOR", "EDGE_WEIGHT", "NODE_NAME"]);
+    const perElement = new Set([
+        "SOURCE_NODE_COLOR",
+        "EDGE_WEIGHT",
+        "END_NODE_COLORS",
+        "NODE_FILL_SHADE",
+        "NODE_SIZE",
+        "NODE_POSITIONS",
+        "NODE_NAME",
+    ]);
     if (rule.map !== undefined && !perElement.has(rule.facts?.reason ?? "")) {
         fail(`the tool-defaults rule ${rule.id} maps values instead of setting them`);
     }
@@ -584,7 +592,7 @@ function checkProperty(
             note.params.property === property &&
             Array.isArray(note.elements)
         ) {
-            for (const i of note.elements as number[]) {
+            for (const i of note.elements as readonly number[]) {
                 rounded.add(i);
             }
         }
@@ -790,7 +798,7 @@ function compareRules(written: ExtractedStyles, read: ExtractedStyles, excused: 
 /**
  * The round trip of design 10.7 for one input: export with styles, import the file back with styles, and compare
  * the rules and every element's values; export again (byte-identical); edit one native value outside (one exception
- * comes back); replace the block with a hostile one (ignored with a note, never thrown).
+ * comes back). The hostile blocks of item 5 are checkHostileBlocks(), a test of their own: each is a full import.
  * @param writer - how the format writes
  * @param loaded - the graph as read
  * @param ex - its styles
@@ -891,7 +899,30 @@ export async function roundTrip(
             failures.push(...(await checkOutsideEdit(registry, importFormat, edited, backStyles)));
         }
     }
+    return failures;
+}
+
+/**
+ * Design 10.7 item 5 for one input: the written file with its block replaced by a hostile one is read with the
+ * block ignored with a note, never thrown, and never with the hostile block's rules.
+ * @param writer - how the format writes
+ * @param loaded - the graph as read
+ * @param ex - its styles
+ * @returns the failures
+ */
+export async function checkHostileBlocks(
+    writer: StyleWriter,
+    loaded: LoadedGraph,
+    ex: ExtractedStyles,
+): Promise<string[]> {
+    const failures: string[] = [];
     if (writer.replaceBlock !== undefined) {
+        const registry = writer.registry?.() ?? createRegistry();
+        const importFormat = writer.importFormat ?? writer.format;
+        const written = await registry.exportGraphToBytes(loaded.snapshot, writer.format, {
+            ...writer.options,
+            styles: ex,
+        });
         for (const [what, hostile, reason] of hostileBlocks(writeStyleBlock(ex))) {
             const tampered = writer.replaceBlock(written, () => hostile);
             try {

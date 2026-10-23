@@ -271,6 +271,8 @@ describe("dot exporter: clusters", () => {
             "graph [label=one];",
             "a;",
             "subgraph cluster_1 {",
+            // opened after cluster_0's label, so Graphviz labels it "one" too, and the import says so
+            "graph [label=one];",
             "b;",
             "}",
             "c;",

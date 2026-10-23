@@ -94,7 +94,7 @@ const CASES: ReasonCase[] = [
             />
         ),
         // The Select's input is a combobox (it opens a listbox).
-        described: () => screen.getByRole("combobox", { name: "Shape" }),
+        described: () => screen.getByRole("combobox", { name: /^Shape/ }),
         enabledTitle: "Shape",
     },
     {
@@ -105,7 +105,7 @@ const CASES: ReasonCase[] = [
         // under test is only the reason.
         render: (props) => <PanelField label="Size" kind="number" defaultValue={1} stepHint="" {...props} />,
         // A scrubbable number field is a spinbutton (spec 6.1), not a plain textbox.
-        described: () => screen.getByRole("spinbutton", { name: "Size" }),
+        described: () => screen.getByRole("spinbutton", { name: /^Size/ }),
         enabledTitle: "Size",
     },
     {
@@ -113,7 +113,7 @@ const CASES: ReasonCase[] = [
         label: "Fill",
         reason: "Load data first",
         render: (props) => <CompactColorInput label="Fill" defaultColor="#FF0000" {...props} />,
-        described: () => screen.getByRole("button", { name: "Pick Fill color" }),
+        described: () => screen.getByRole("button", { name: "Pick fill color" }),
     },
     {
         name: "ToggleRow",

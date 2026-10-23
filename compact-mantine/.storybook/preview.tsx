@@ -6,11 +6,24 @@ import { type ReactNode, useRef } from "react";
 
 import { createCompactTheme } from "../src/theme";
 
-// One theme per contrast mode, built once: MantineProvider re-resolves when the object changes.
+// One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object
+// changes.
 const THEMES = {
     figma: createCompactTheme(),
     high: createCompactTheme({ highContrast: true }),
+    "figma-graphty": createCompactTheme({ accent: "graphty" }),
+    "high-graphty": createCompactTheme({ highContrast: true, accent: "graphty" }),
 };
+
+/**
+ * The theme for the contrast and accent toolbars.
+ * @param globals - the story's globals
+ * @returns the theme
+ */
+function getTheme(globals: Record<string, unknown>): MantineThemeOverride {
+    const contrast = getContrast(globals);
+    return globals.accent === "graphty" ? THEMES[`${contrast}-graphty`] : THEMES[contrast];
+}
 
 function getColorScheme(globals: Record<string, unknown>): "light" | "dark" {
     if (globals.theme === "light") {
@@ -146,6 +159,18 @@ const preview: Preview = {
                 dynamicTitle: true,
             },
         },
+        accent: {
+            description: 'Figma\'s blue, or the graphty brand lime (createCompactTheme({ accent: "graphty" }))',
+            toolbar: {
+                title: "Accent",
+                icon: "paintbrush",
+                items: [
+                    { value: "figma", title: "Figma blue" },
+                    { value: "graphty", title: "graphty lime" },
+                ],
+                dynamicTitle: true,
+            },
+        },
         // No toolbar: set by the capture modes below (and by a `globals=schemes:single` URL),
         // so a BOTH_SCHEMES story is captured as one real, un-nested render per mode.
         schemes: {
@@ -169,13 +194,14 @@ const preview: Preview = {
         schemes: "auto",
         theme: "light",
         contrast: "figma",
+        accent: "figma",
         direction: "ltr",
     },
     decorators: [
         (Story, context: StoryContext) => {
             const colorScheme = getColorScheme(context.globals);
             const direction = getDirection(context.globals);
-            const theme = THEMES[getContrast(context.globals)];
+            const theme = getTheme(context.globals);
 
             // A States story with `parameters: BOTH_SCHEMES` renders twice, light
             // and dark side by side, and ignores the toolbar's theme; contrast

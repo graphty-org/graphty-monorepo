@@ -1,11 +1,3 @@
-/* The selection bar sits directly above the toolbar, centered on it. */
-.ws-toolbar-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
 .ws-analyze-list {
     max-height: 420px;
     overflow-y: auto;
@@ -22,9 +14,14 @@
     border-radius: 5px;
 }
 
-.ws-analyze-entry:hover,
-.ws-analyze-entry:focus-visible {
+.ws-analyze-entry:hover {
     background: var(--cm-bg-hover);
+}
+
+/* The active option: the selected fill inside a ring that stands 3:1 or more against the list. */
+.ws-analyze-entry[aria-selected="true"] {
+    background: var(--cm-bg-selected);
+    box-shadow: inset 0 0 0 1px var(--cm-border-selected-strong);
 }
 
 .ws-analyze-entry[aria-disabled="true"] {
@@ -34,4 +31,14 @@
 .ws-analyze-icon {
     display: inline-flex;
     padding-top: 2px;
+}
+
+/* The View tool's face: the current mode as a word and a caret, in the tool's 24px box. */
+.ws-view-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
 }

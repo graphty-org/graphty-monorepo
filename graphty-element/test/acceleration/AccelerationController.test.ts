@@ -132,7 +132,24 @@ describe("AccelerationController: probing", () => {
 
         assert.strictEqual(status.state, "unavailable");
         assert.include(status.reason, "@graphty/graphty-element/webgpu");
-        assert.isUndefined(status.code);
+        assert.strictEqual(status.code, "E_NO_ACCELERATOR_REGISTERED");
+        controller.dispose();
+    });
+
+    it("gives a factory that throws without an acceleration code one, with what it threw", async () => {
+        const registry = new AcceleratorRegistry();
+        registry.register({
+            name: "broken",
+            backend: "webgpu",
+            factory: () => Promise.reject(new TypeError("Importing a module script failed.")),
+        });
+        const controller = new AccelerationController({ registry });
+
+        const status = await controller.start();
+
+        assert.strictEqual(status.state, "unavailable");
+        assert.strictEqual(status.code, "E_ACCELERATOR_FAILED");
+        assert.include(status.reason, "broken: Importing a module script failed.");
         controller.dispose();
     });
 

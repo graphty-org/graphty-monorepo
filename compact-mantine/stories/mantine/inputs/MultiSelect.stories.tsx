@@ -7,7 +7,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * Mantine's `MultiSelect`, themed as Figma's filled field with variable-pill shaped pills and the
- * dark list box opening 4px below it. Every prop is Mantine's: see
+ * list box opening 4px below it. Every prop is Mantine's: see
  * [MultiSelect on mantine.dev](https://mantine.dev/core/multi-select/).
  *
  * Reach for MultiSelect when the reader picks several values from a fixed list. For one value use

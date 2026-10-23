@@ -98,6 +98,11 @@ import type {
     QuickAction,
     QuickActionsProps,
     RailButtonProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
     ResetButtonProps,
@@ -232,6 +237,11 @@ type PublicTypeSurface = {
     quickAction: QuickAction;
     quickActions: QuickActionsProps;
     railButton: RailButtonProps;
+    rampEditor: RampEditorProps;
+    rampEditorBin: RampEditorBin;
+    rampEditorHandle: RampEditorHandle;
+    rampEditorLabels: RampEditorLabels;
+    rampEditorPalette: RampEditorPalette;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
     resetButton: ResetButtonProps;
@@ -310,6 +320,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "compactColors",
     "compactDarkColors",
     "compactGlobalCss",
+    "compactGraphtyColors",
     "compactTheme",
     "compactThemeOverride",
     "createCompactTheme",
@@ -326,6 +337,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutButton",
     "PopoutManager",
     "PopoutRegion",
+    "RampEditor",
     "ScrollArea",
     "SegmentedControl",
     "ToggleWithContent",
@@ -336,6 +348,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "VariablePill",
     "ContextMenu",
     "MenuCheckItem",
+    "MenuItemDescription",
+    "MenuShortcut",
     "ModalFooter",
     "Toast",
     "ToastProvider",
@@ -373,6 +387,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "CompoundRow",
     "DataRow",
     "DataRowHeader",
+    "EllipsizedName",
     "FieldRow",
     "HistogramRow",
     "MetricRow",
@@ -429,6 +444,8 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "focusWithRing",
+    "colorWord",
     "isLightColor",
     "isRtl",
     "isValidHex",
@@ -792,6 +809,11 @@ describe("Package exports", () => {
                     popoutRegion: true,
                     popoutTrigger: true,
                     proseBlock: true,
+                    rampEditor: true,
+                    rampEditorBin: true,
+                    rampEditorHandle: true,
+                    rampEditorLabels: true,
+                    rampEditorPalette: true,
                     rampRow: true,
                     rankChip: true,
                     resetButton: true,
@@ -861,7 +883,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(129);
+                expect(names).toHaveLength(134);
             });
         });
 
@@ -1055,7 +1077,12 @@ describe("Package exports", () => {
             expect(mainExports.createCompactTheme).toBe(themeExports.createCompactTheme);
             expect(mainExports.createCompactTheme({ highContrast: true }).other?.compact).toEqual({
                 highContrast: true,
+                accent: "figma",
             });
+            expect(mainExports.compactGlobalCss({ accent: "graphty" })).toContain(
+                "--cm-bg-brand: light-dark(#97c800, #c4f23a);",
+            );
+            expect(mainExports.compactGraphtyColors[6]).toBe("#97c800");
             expect(mainExports.compactGlobalCss()).toContain("--cm-bg:");
             expect(mainExports.compactGlobalCss()).toContain(".cm-toolbar");
             expect(typeof mainExports.ensureCompactStyles).toBe("function");

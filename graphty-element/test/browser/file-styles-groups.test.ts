@@ -69,3 +69,75 @@ describe("a file's groups in 2D", () => {
         }
     });
 });
+
+/** A group with no position of its own around two members set far apart, every node bordered and labelled. */
+const STRETCHED = JSON.stringify({
+    elements: [
+        { data: { id: "g" } },
+        { data: { id: "a", parent: "g" }, position: { x: -300, y: 0 } },
+        { data: { id: "b", parent: "g" }, position: { x: 300, y: 200 } },
+        { data: { id: "ab", source: "a", target: "b" } },
+    ],
+    style: [
+        {
+            selector: "node",
+            style: { shape: "rectangle", width: 20, height: 20, "border-width": 2, label: "data(id)" },
+        },
+    ],
+});
+
+/**
+ * How far a node's border reaches past its fill across the view, and how tall its label is, in
+ * the scene.
+ * @param element - The element.
+ * @param id - The node.
+ * @returns The border's reach and the label's height.
+ */
+function drawnSizes(element: Graphty, id: string): { border: number; label: number } {
+    const node = element.graph.getDataManager().nodes.get(id);
+    assert.isDefined(node, id);
+    const width = (mesh: {
+        computeWorldMatrix(force: boolean): unknown;
+        getBoundingInfo(): {
+            boundingBox: { minimumWorld: { x: number; y: number }; maximumWorld: { x: number; y: number } };
+        };
+    }): { x: number; y: number } => {
+        mesh.computeWorldMatrix(true);
+        const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
+        return { x: max.x - min.x, y: max.y - min.y };
+    };
+    const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border"));
+    assert.isDefined(ring, `${id} has a border`);
+    const label = node.label?.labelMesh;
+    assert.isDefined(label ?? undefined, `${id} has a label`);
+    return { border: (width(ring).x - width(node.mesh).x) / 2, label: label ? width(label).y : Number.NaN };
+}
+
+describe("a group stretched over its members' box", () => {
+    test("keeps the border width and label size its style gives", async () => {
+        const element = document.createElement("graphty-element");
+        element.style.cssText = "display:block;width:800px;height:600px";
+        element.viewMode = "2d";
+        document.body.appendChild(element);
+        mounted = element;
+        await element.updateComplete;
+        await element.session.data.import(
+            { type: "json", config: { data: STRETCHED } },
+            { styles: "file", layout: "recommended" },
+        );
+        await element.waitForSettled();
+        await element.session.styles.settled();
+        await element.waitForStableFrame();
+
+        const group = drawnSizes(element, "g");
+        const member = drawnSizes(element, "a");
+        assert.isAbove(member.border, 0);
+        assert.closeTo(
+            group.border,
+            member.border,
+            member.border * 0.05,
+            "the group's border is as wide as a member's",
+        );
+        assert.closeTo(group.label, member.label, member.label * 0.05, "the group's label is as tall as a member's");
+    });
+});

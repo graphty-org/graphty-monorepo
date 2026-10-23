@@ -135,10 +135,13 @@ class Entry implements LiveScope {
      * An entry that watches nothing until a pass reads it.
      * @param scope - The scope, already checked.
      * @param sources - The session.
+     * @param revive - Takes a stopped entry that is read again back into the live set; false once
+     *     the session is torn down, when it only answers the read.
      */
     constructor(
-        private readonly scope: Scope,
+        readonly scope: Scope,
         private readonly sources: LayerScopeSources,
+        private readonly revive: (entry: Entry) => boolean,
     ) {}
 
     bits(target: SelectorTarget): U32 | null {
@@ -159,13 +162,20 @@ class Entry implements LiveScope {
         return this.#ensure().problem;
     }
 
-    /** Stop watching and release the pin. What it holds still answers a late read. */
+    /**
+     * Stop watching, release the pin and forget the holding. A layer compiled over this entry can
+     * come back without being compiled again -- an undo that took it away is redone -- so a later
+     * read starts watching again and resolves the scope as it stands then, never what it held when
+     * it stopped (the run it reads may have been away and back meanwhile).
+     */
     dispose(): void {
         this.#disposed = true;
         this.#stop?.();
         this.#stop = null;
         this.#unpin?.();
         this.#unpin = null;
+        this.#held = null;
+        this.#carried = null;
     }
 
     /**
@@ -175,6 +185,10 @@ class Entry implements LiveScope {
      */
     #ensure(): Held {
         if (this.#held === null) {
+            if (this.#disposed) {
+                this.#disposed = !this.revive(this);
+            }
+
             if (!this.#disposed) {
                 this.#stop = this.sources.subscribe({
                     signature: () => this.sources.signature(this.scope),
@@ -306,7 +320,12 @@ class Entry implements LiveScope {
 
 /** The live scopes of one session's style layers. */
 export class LayerScopes {
+    /** The entry `live()` hands out per canonical scope. */
     readonly #entries = new Map<string, Entry>();
+    /** Every watching entry, with its key: those `live()` handed out and those read back after stopping. */
+    readonly #watching = new Map<Entry, string>();
+    /** Set once the session is torn down: a stopped entry read after that never watches again. */
+    #closed = false;
     readonly #inner: LayerScopeSources;
     readonly #sources: LayerScopeSources;
     /** Whether a whole-graph repaint is running, and whether another was asked for meanwhile. */
@@ -368,11 +387,31 @@ export class LayerScopes {
         const key = canonicalize(scope);
         let entry = this.#entries.get(key);
         if (entry === undefined) {
-            entry = new Entry(scope, this.#sources);
+            entry = new Entry(scope, this.#sources, (revived) => this.#revive(revived));
             this.#entries.set(key, entry);
+            this.#watching.set(entry, key);
         }
 
         return entry;
+    }
+
+    /**
+     * Take back a stopped entry a layer read again, so the next `keep()` can stop it once more.
+     * @param entry - The entry.
+     * @returns Whether it may watch: not once the session is torn down.
+     */
+    #revive(entry: Entry): boolean {
+        if (this.#closed) {
+            return false;
+        }
+
+        const key = canonicalize(entry.scope);
+        this.#watching.set(entry, key);
+        if (!this.#entries.has(key)) {
+            this.#entries.set(key, entry);
+        }
+
+        return true;
     }
 
     /**
@@ -385,16 +424,20 @@ export class LayerScopes {
             named.add(canonicalize(scope));
         }
 
-        for (const [key, entry] of this.#entries) {
+        for (const [entry, key] of this.#watching) {
             if (!named.has(key)) {
                 entry.dispose();
-                this.#entries.delete(key);
+                this.#watching.delete(entry);
+                if (this.#entries.get(key) === entry) {
+                    this.#entries.delete(key);
+                }
             }
         }
     }
 
-    /** Stop every entry. */
+    /** Stop every entry, for good. */
     dispose(): void {
+        this.#closed = true;
         this.keep([]);
     }
 }

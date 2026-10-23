@@ -264,6 +264,29 @@ const CLUSTER_PREFIX = "cluster";
 const CLUSTER_ATTRIBUTE = "cluster";
 const STATEMENTS_PER_ABORT_CHECK = 64;
 const MAX_ANCESTOR_WALK = 4096;
+/**
+ * The graph attributes a cluster takes from the graphs around it when it sets none of its own: Graphviz gives a
+ * subgraph every graph attribute its enclosing graphs set before it opened (a root `label` set first labels every
+ * cluster). Only the attributes that decide how a cluster is drawn are copied.
+ */
+const INHERITED_GRAPH_ATTRIBUTES: ReadonlySet<string> = new Set([
+    "bgcolor",
+    "color",
+    "colorscheme",
+    "fillcolor",
+    "fontcolor",
+    "fontname",
+    "fontsize",
+    "gradientangle",
+    "label",
+    "labeljust",
+    "labelloc",
+    "pencolor",
+    "penwidth",
+    "peripheries",
+    "style",
+    "tooltip",
+]);
 
 /**
  * The header keyword, ended by what may follow it in DOT: space, `{`, a quoted ID or a comment.
@@ -320,6 +343,8 @@ interface Scope {
     readonly containers: number[];
     /** Subgraph attributes buffered until the subgraph closes (the root applies them at once). */
     readonly attributes: Map<string, DotAttribute>;
+    /** The drawing attributes a cluster opened in this scope inherits: the enclosing scopes' and this one's so far. */
+    readonly graphDefaults: Map<string, DotAttribute>;
     /** Whether the subgraph is a cluster (by name or by `cluster=true`). */
     cluster: boolean;
     /** The container node index once created, or INVALID_INDEX. */
@@ -734,6 +759,12 @@ class DotParser {
     /** The parent assigned to a node by this import. */
     private readonly parentOf = new Map<number, number>();
 
+    /** Each cluster container's inherited drawing attributes, as its scope saw them when the cluster first opened. */
+    private readonly inherited = new Map<number, Map<string, DotAttribute>>();
+
+    /** The attributes each cluster container sets itself, which its inherited ones never replace. */
+    private readonly ownAttributes = new Map<number, Set<string>>();
+
     /** Nodes already warned about a cluster conflict. */
     private readonly conflictWarned = new Set<number>();
 
@@ -851,6 +882,7 @@ class DotParser {
         });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
+        this.applyInherited();
         return lexer.next();
     }
 
@@ -873,6 +905,7 @@ class DotParser {
             memberSet: new Set(),
             containers: [],
             attributes: new Map(),
+            graphDefaults: new Map(parent?.graphDefaults),
             cluster: false,
             container: INVALID_INDEX,
         };
@@ -1113,48 +1146,96 @@ class DotParser {
      */
     private closeScope(scope: Scope, parent: Scope): void {
         const { container } = scope;
-        if (container !== INVALID_INDEX) {
-            for (const attribute of scope.attributes.values()) {
-                if (attribute.name !== CLUSTER_ATTRIBUTE) {
-                    this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
-                }
-            }
-            for (const nested of scope.containers) {
-                if (nested !== container && !this.parentOf.has(nested)) {
-                    this.setParent(nested, container);
-                }
-            }
-            for (const member of scope.members) {
-                if (member === container) {
-                    continue;
-                }
-                const existing = this.parentOf.get(member);
-                if (existing === undefined) {
-                    this.setParent(member, container);
-                } else if (existing !== container && !this.isAncestor(container, existing)) {
-                    this.clusterConflict(member, existing, container, scope.line);
-                }
-            }
-            parent.containers.push(container);
+        if (container === INVALID_INDEX) {
+            this.closePlainSubgraph(scope, parent);
         } else {
-            if (scope.attributes.size > 0) {
-                const names = [...scope.attributes.keys()].join(", ");
-                this.report.warning(
-                    "unsupported",
-                    DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
-                    `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
-                    { line: scope.line, element: scope.name },
-                );
-            }
-            for (const nested of scope.containers) {
-                parent.containers.push(nested);
-            }
+            this.closeCluster(scope, parent, container);
         }
         if (!parent.root) {
             for (const member of scope.members) {
                 if (!parent.memberSet.has(member)) {
                     parent.memberSet.add(member);
                     parent.members.push(member);
+                }
+            }
+        }
+    }
+
+    /**
+     * Finish a cluster: apply its attributes to its container node, assign parents to its nested
+     * containers and its members, and hand the container to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     * @param container - the cluster's container node
+     */
+    private closeCluster(scope: Scope, parent: Scope, container: number): void {
+        const own = this.ownAttributes.get(container) ?? new Set<string>();
+        this.ownAttributes.set(container, own);
+        for (const attribute of scope.attributes.values()) {
+            if (attribute.name !== CLUSTER_ATTRIBUTE) {
+                own.add(attribute.name);
+                this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
+            }
+        }
+        for (const nested of scope.containers) {
+            if (nested !== container && !this.parentOf.has(nested)) {
+                this.setParent(nested, container);
+            }
+        }
+        for (const member of scope.members) {
+            if (member !== container) {
+                this.adoptMember(member, container, scope.line);
+            }
+        }
+        parent.containers.push(container);
+    }
+
+    /**
+     * Put a cluster's member in it, unless it is already in another cluster this one is not inside.
+     * @param member - the member node
+     * @param container - the cluster's container node
+     * @param line - the cluster's line
+     */
+    private adoptMember(member: number, container: number, line: number): void {
+        const existing = this.parentOf.get(member);
+        if (existing === undefined) {
+            this.setParent(member, container);
+        } else if (existing !== container && !this.isAncestor(container, existing)) {
+            this.clusterConflict(member, existing, container, line);
+        }
+    }
+
+    /**
+     * Finish a subgraph that is not a cluster: report its attributes dropped, and hand its nested
+     * containers to the enclosing scope.
+     * @param scope - the closed scope
+     * @param parent - the enclosing scope
+     */
+    private closePlainSubgraph(scope: Scope, parent: Scope): void {
+        if (scope.attributes.size > 0) {
+            const names = [...scope.attributes.keys()].join(", ");
+            this.report.warning(
+                "unsupported",
+                DOT_ISSUE.SUBGRAPH_ATTRIBUTES_DROPPED,
+                `subgraph ${scope.name === null ? "(anonymous)" : JSON.stringify(scope.name)} is not a cluster; its attributes (${names}) cannot be represented and were dropped`,
+                { line: scope.line, element: scope.name },
+            );
+        }
+        for (const nested of scope.containers) {
+            parent.containers.push(nested);
+        }
+    }
+
+    /**
+     * Give every cluster the drawing attributes it inherits and does not set itself (Graphviz's subgraph attribute
+     * inheritance), once the whole graph is read: a cluster reopened later can still set its own.
+     */
+    private applyInherited(): void {
+        for (const [container, attributes] of this.inherited) {
+            const own = this.ownAttributes.get(container);
+            for (const attribute of attributes.values()) {
+                if (own?.has(attribute.name) !== true) {
+                    this.setNodeAttribute(container, attribute.name, attribute.value, attribute.line);
                 }
             }
         }
@@ -1244,6 +1325,7 @@ class DotParser {
             if (!this.containers.has(index)) {
                 this.containers.add(index);
                 this.sink.setNodeValue(this.clusterColumn(), index, true);
+                this.inherited.set(index, new Map(scope.graphDefaults));
             }
             scope.container = index;
         } catch (err) {
@@ -1261,6 +1343,9 @@ class DotParser {
      * @param attribute - the attribute
      */
     private scopeAttribute(scope: Scope, attribute: DotAttribute): void {
+        if (INHERITED_GRAPH_ATTRIBUTES.has(attribute.name)) {
+            scope.graphDefaults.set(attribute.name, attribute);
+        }
         if (scope.root) {
             this.setGraphAttribute(attribute);
             return;

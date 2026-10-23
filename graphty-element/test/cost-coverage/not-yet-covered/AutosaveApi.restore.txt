@@ -1,0 +1,1 @@
+No counted-work test yet (issue #1643): ProjectApi.open's cost, behind autosave's own reads; covered when that is.

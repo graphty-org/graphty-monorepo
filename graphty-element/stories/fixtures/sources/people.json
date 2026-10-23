@@ -1,0 +1,60 @@
+[
+    {
+        "url": "https://people.example.com/api/people?team=core",
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": [
+            {
+                "id": "ana",
+                "name": "Ana",
+                "knows": ["bo", "cy", "dee"]
+            },
+            {
+                "id": "bo",
+                "name": "Bo",
+                "knows": ["cy", "eli"]
+            },
+            {
+                "id": "cy",
+                "name": "Cy",
+                "knows": ["fay"]
+            },
+            {
+                "id": "dee",
+                "name": "Dee",
+                "knows": ["eli", "gus"]
+            },
+            {
+                "id": "eli",
+                "name": "Eli",
+                "knows": ["fay"]
+            },
+            {
+                "id": "fay",
+                "name": "Fay",
+                "knows": ["gus", "hal"]
+            },
+            {
+                "id": "gus",
+                "name": "Gus",
+                "knows": ["ana"]
+            },
+            {
+                "id": "hal",
+                "name": "Hal",
+                "knows": ["bo"]
+            }
+        ]
+    },
+    {
+        "url": "https://people.example.com/api/people?team=locked",
+        "status": 401,
+        "headers": {
+            "content-type": "application/json"
+        },
+        "body": {
+            "error": "unauthorized"
+        }
+    }
+]

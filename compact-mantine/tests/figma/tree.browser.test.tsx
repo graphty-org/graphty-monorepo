@@ -212,8 +212,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         );
     });
 
-    it("selected parent: pill with a 4px #f2f9ff band below; its descendants banded; hover on a child #bde3ff", async () => {
-        // ii/layer-row-parent-selected.pseudo.json and cr/light-layer-row-parent-selected.pseudo.json
+    it("selected parent: pill with a 4px #f2f9ff band below; its descendants banded; hover on a child #e5f4ff", async () => {
+        // ii/layer-row-parent-selected.pseudo.json and cr/light-layer-row-parent-selected.pseudo.json.
+        // Departs from Figma on purpose: Figma fills the selected parent #e5f4ff, within 1.05:1 of
+        // its children's band, so the selected row could not be told from them. The parent takes
+        // the stronger #bde3ff and a hovered child the plain selected #e5f4ff.
         await renderTree({ defaultSelected: ["frame"] });
         const parent = row("cross-area-index");
         expectMeasured(
@@ -221,7 +224,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             {
                 top: 4,
                 blockSize: "24px",
-                backgroundColor: "#e5f4ff",
+                backgroundColor: "#bde3ff",
                 borderBottomWidth: "4px",
                 borderBottomColor: "#f2f9ff",
                 borderRadius: "5px 5px 0px 0px",
@@ -241,7 +244,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             { pseudo: "::before" },
         );
         await drive(middle, "hover");
-        expectMeasured(middle, { top: 4, blockSize: "24px", backgroundColor: "#bde3ff" }, { pseudo: "::after" });
+        expectMeasured(middle, { top: 4, blockSize: "24px", backgroundColor: "#e5f4ff" }, { pseudo: "::after" });
     });
 
     it("a run of selected rows is one block: first 4/28, middle 0/32, last 0/28", async () => {
@@ -283,7 +286,7 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         expectMeasured(part(row("hidden"), ".cm-tree-icon"), { color: "#0000004d" });
     });
 
-    it("toggles: 24px targets at x 188 and 208, hidden until hover, a toggle that is on stays", async () => {
+    it("toggles: 24px targets side by side at x 184 and 208, hidden until hover, a toggle that is on stays", async () => {
         const figLock = await figmaElement("ii/layer-row-hover", { index: 40 });
         const items: TreeNodeData[] = [
             {
@@ -306,8 +309,14 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const a = row("a");
         const lock = screen.getByRole("button", { name: "Lock" });
         const hide = screen.getByRole("button", { name: "Hide" });
-        expectMeasured(lock, { x: figLock.box[0] - 57, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
-        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: "0" }, { origin: a });
+        // Figma overlaps the two targets on a 20 pitch (lock at 188); the row keeps each a whole
+        // 24 x 24 target (WCAG 2.5.8, 159bba0f53), so the lock sits 4px further left and the eye,
+        // still ending 8 from the edge, where Figma draws it.
+        expectMeasured(lock, { x: figLock.box[0] - 57 - 4, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
+        // Hidden until hover. The touch commands no longer switch on Chromium's touch emulation,
+        // which left `(hover: none)` matching for the rest of the run (vitest.config.ts, touchDrag).
+        expect(matchMedia("(hover: none)").matches).toBe(false);
+        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, width: 24, opacity: "0" }, { origin: a });
         await drive(a, "hover");
         await animationsSettled(a);
         expectMeasured(hide, { opacity: "1" });
@@ -345,8 +354,9 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         );
     });
 
-    it("dark: #2c2c2c panel text white, nested glyph #ffffff66, selected #394360, band #32394d, child hover #4a5878", async () => {
-        // cr/dark-layer-row-parent-selected.pseudo.json and cr/dark-layer-row-child-of-selected-hover.pseudo.json
+    it("dark: #2c2c2c panel text white, nested glyph #ffffff66, selected parent #4a5878, band #32394d, child hover #394360", async () => {
+        // cr/dark-layer-row-parent-selected.pseudo.json and cr/dark-layer-row-child-of-selected-hover.pseudo.json.
+        // Departs from Figma on purpose: its selected parent #394360 sits within 1.2:1 of the band.
         await renderTree({ defaultSelected: ["inner"] }, "dark");
         const fig = "cr/dark-layer-row-parent-selected";
         const inner = row("ci-inner-frame");
@@ -358,11 +368,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
             part(row("ci-rect"), ".cm-tree-icon"),
             figmaSpec(await figmaElement(fig, { index: 93 }), ["color"]),
         );
-        expectMeasured(inner, { backgroundColor: "#394360", borderBottomColor: "#32394d" }, { pseudo: "::after" });
+        expectMeasured(inner, { backgroundColor: "#4a5878", borderBottomColor: "#32394d" }, { pseudo: "::after" });
         const text = row("ci-text");
         expectMeasured(text, { backgroundColor: "#32394d", blockSize: "28px" }, { pseudo: "::before" });
         await drive(text, "hover");
-        expectMeasured(text, { backgroundColor: "#4a5878" }, { pseudo: "::after" });
+        expectMeasured(text, { backgroundColor: "#394360" }, { pseudo: "::after" });
     });
 });
 
@@ -611,7 +621,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             { x: 16, fontSize: "11px", lineHeight: "32px", fontWeight: "450", color: "#000000e5" },
             { origin: rows[0] },
         );
-        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#00000080" });
+        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#0000008c" });
     });
 
     it("pill: rest none, hover #f5f5f5, selected #e5f4ff, inset 4 8 4 12, radius 5", async () => {
@@ -657,7 +667,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             fontSize: "11px",
             lineHeight: "16px",
             fontWeight: "550",
-            color: "#00000080",
+            color: "#0000008c",
         });
         expectMeasured(screen.getByTestId("data-row-header-label"), { color: "#000000e5" });
         const caret = part(screen.getByTestId("data-row-header-sort-glyph"), "svg path").getBoundingClientRect();

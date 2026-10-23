@@ -13,5 +13,6 @@ export * from "./defaults.js";
 export * from "./io/index.js";
 export * from "./notes.js";
 export * from "./plan/index.js";
+export * from "./slots.js";
 export type * from "./types.js";
 export * from "./vocabulary.js";

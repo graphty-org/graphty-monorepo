@@ -30,7 +30,7 @@ import type { NodeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
-import type { DataService } from "../commands/data";
+import type { DataService, EdgeIdentityService } from "../commands/data";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
@@ -84,6 +84,8 @@ const RUN_CATEGORY: OperationCategory = "algorithm-run";
  */
 interface CommandServices {
     data?: DataService;
+    /** Stable edge identity: what a replacing load maps a hand-picked layer's edges through. */
+    edgeIdentity?: EdgeIdentityService;
     /** The arrangement: where `positions.*` write. Always present. */
     positions?: Arrangement;
     runs?: RunService;
@@ -94,10 +96,14 @@ interface CommandServices {
     sets?: SetService;
     notes?: NoteService;
     camera?: CameraService;
+    /** A renderer's: the size of the canvas it draws on, in CSS px, or null before it has one. */
+    viewport?: () => { readonly width: number; readonly height: number } | null;
     /** The renderer's layout engine and scene: what `layout.set` and `view.dimension` build. */
     layout?: LayoutService;
     /** Which layout suits the graph held now, for an import that asks for one. */
     layoutAdvice?: LayoutAdvice;
+    /** Settles once everything `layoutAdvice` reads about the loaded graph is known. */
+    layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
@@ -576,6 +582,8 @@ interface Group {
     readonly jobs: Set<Job>;
     /** A deferred member's transaction step, which it merges into when that step is still on top. */
     readonly after: string | null;
+    /** Labelled by its transaction, whose only work it is: its member starting does not rename it. */
+    named?: true;
     /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
     readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
     /** Sealed or rolled back. */
@@ -1890,7 +1898,7 @@ export class Dispatcher {
         if (job.inline) {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
-        } else if (group.tx === null && group.after === null) {
+        } else if (group.tx === null && group.after === null && group.named === undefined) {
             group.label = definition.undo.label(command, state);
             group.fact = definition.undo.fact(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
@@ -2072,22 +2080,34 @@ export class Dispatcher {
     private sealTransaction(group: Group): void {
         const runs = [...group.jobs];
         group.jobs.clear();
-        const stepId = this.seal(group);
+        const recorded = this.seal(group);
+        // A transaction that wrote nothing before its runs went on still continues the step it
+        // was told to (`after`): its runs join that step, not one of their own beside it.
+        const stepId = recorded ?? group.after;
         for (const done of group.executed.splice(0)) {
             this.events.executed?.(done);
         }
         for (const job of runs) {
             const deferred = this.group(
-                {
-                    label: job.definition.undo.label(job.command, this.store.state),
-                    fact: job.definition.undo.fact(job.command, this.store.state),
-                },
+                // A run that is all the transaction did is the transaction's step, under its label.
+                recorded === null
+                    ? { label: group.label, fact: group.fact }
+                    : {
+                          label: job.definition.undo.label(job.command, this.store.state),
+                          fact: job.definition.undo.fact(job.command, this.store.state),
+                      },
                 null,
-                {},
+                // Recorded as its own step when the transaction's is no longer on top: it is
+                // still the transaction's work, by the same hand.
+                group.provenance,
                 stepId,
                 job.seq,
                 null,
             );
+            if (recorded === null) {
+                deferred.named = true;
+            }
+
             job.group = deferred;
             deferred.jobs.add(job);
             for (const key of job.keys) {
@@ -2380,11 +2400,42 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get graphWritesWaiting(): boolean {
+        return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Whether a dispatched, unfinished command matches.
+     * @param match - Tests one command.
+     * @returns True while one does.
+     */
+    commandWaiting(match: (command: CommandLike) => boolean): boolean {
+        return this.waiting((job) => match(job.command));
+    }
+
+    private waiting(match: (job: Job) => boolean): boolean {
+        for (const group of this.open) {
+            for (const job of group.jobs) {
+                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a command that writes the graph is dispatched and has not started: a write still to
+     * come after whatever is running now. A command that is running is not counted, so the pass
+     * deriving a write (an import's included, which runs until its rows are placed) can tell
+     * "another write follows" from "this is the write".
+     * @returns True while one is.
+     */
+    get graphWritesQueued(): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
                 if (
-                    job.status !== "done" &&
-                    job.status !== "cancelled" &&
+                    (job.status === "new" || job.status === "queued" || job.status === "waiting") &&
                     job.keys.some((key) => sliceOf(key) === "graph")
                 ) {
                     return true;

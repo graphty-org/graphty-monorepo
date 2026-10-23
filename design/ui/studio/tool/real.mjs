@@ -212,6 +212,27 @@ const briefed = (dir) => {
     const f = join(dir, "briefing.md");
     return existsSync(f) && readFileSync(f, "utf8").includes(`--start ${dir} `);
 };
+// Pilot, dry-run and readiness walks (rounds/r1, rounds/r1d2, rounds/round-2/pilot ...) keep their
+// screenshots and step files in the main checkout's tmp/design-studio/<tier>/<round or pass>/, which
+// git ignores; only a walk's report.md belongs in the studio's files. On 2026-10-21 golden held
+// 83,000 walk screenshots (9.9 GB in Git LFS) because walks wrote them beside their reports.
+const WALKS = join(MAIN, "tmp/design-studio");
+// a studio folder under rounds/ as its place under WALKS (tier 1's rounds/ has no tier folder), or null
+const walksOf = (dir) => {
+    const m = under(dir, STUDIO) && dir.slice(STUDIO.length + 1).match(/^(?:(tier\d+)\/)?rounds\/(.+)$/);
+    return m ? join(WALKS, m[1] || "tier1", m[2]) : null;
+};
+const WALK_IN_ROUNDS = /\/rounds\/(?:r\d[^/]*|[^/]+\/pilot)(?:\/|$)/;
+// why a walk must not write into this folder, or null
+function walkRefusal(dir) {
+    if (!under(dir, STUDIO) || !WALK_IN_ROUNDS.test(dir.slice(STUDIO.length))) return null;
+    return `${dir} is a walk folder inside the studio's files; walks write under ${WALKS} (git ignores it): use ${walksOf(dir)}`;
+}
+// a round's readiness walks: under WALKS, or the round's own pilot/ for a round walked before 2026-10-21
+function readinessOf(rd) {
+    const t = walksOf(join(rd, "pilot"));
+    return t && (existsSync(t) || !existsSync(join(rd, "pilot"))) ? t : join(rd, "pilot");
+}
 // why --start must not open this folder for a participant, or null
 function participantRefusal(dir) {
     if (under(dir, STUDIO) && (ROUND_SESSION.test(dir) || existsSync(join(dir, "briefing.md"))))
@@ -648,7 +669,7 @@ function gateCheck(rd) {
         halves.set(h, halves.get(h) || /--keys\b/.test(t.start ?? ""));
     }
     if (!halves.size) problems.push(`${join(rd, "plan.md")} lists no session`);
-    const pd = join(rd, "pilot");
+    const pd = readinessOf(rd);
     for (const [h, keys] of [...halves].sort()) {
         const hd = join(pd, h);
         const walks = { success: [], detours: [], keyboard: [] };
@@ -867,7 +888,7 @@ const say = (r) => {
 
 async function start(dir, how, sr, task, keys) {
     dir = resolve(dir);
-    const refused = participantRefusal(dir);
+    const refused = participantRefusal(dir) || walkRefusal(dir);
     if (refused) {
         console.error(refused);
         return 2;
@@ -2859,6 +2880,10 @@ async function replay(from, dir, { endOnDiverge, keep }) {
 async function rewalk(oldDir, newDir, only) {
     oldDir = resolve(oldDir);
     newDir = resolve(newDir);
+    if (walkRefusal(newDir)) {
+        console.error(walkRefusal(newDir));
+        return 2;
+    }
     const found = [];
     const look = (d, depth) => {
         if (existsSync(join(d, "route.jsonl"))) return found.push(d);

@@ -6,6 +6,7 @@ import {
     GENERATOR_DESCRIPTORS,
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
+import { useFileDrop } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -693,7 +694,6 @@ export function StartScreen(): React.JSX.Element {
     const recent = useRecentProjects();
     const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    const [dragging, setDragging] = useState(false);
     const [network, setNetwork] = useState(false);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
@@ -710,32 +710,14 @@ export function StartScreen(): React.JSX.Element {
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"), so the
-    // listeners go on globalThis (the window) rather than on an element.
-    useEffect(() => {
-        const over = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(true);
-        };
-        const leave = (event: DragEvent): void => {
-            if (event.relatedTarget === null) {
-                setDragging(false);
-            }
-        };
-        const drop = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(false);
-            openFiles(workspace, [...(event.dataTransfer?.files ?? [])]);
-        };
-        globalThis.addEventListener("dragover", over);
-        globalThis.addEventListener("dragleave", leave);
-        globalThis.addEventListener("drop", drop);
-        return () => {
-            globalThis.removeEventListener("dragover", over);
-            globalThis.removeEventListener("dragleave", leave);
-            globalThis.removeEventListener("drop", drop);
-        };
-    }, [workspace]);
+    // The drop target is the whole window ("drop a file anywhere in this window").
+    const onDrop = useCallback(
+        (files: File[]) => {
+            openFiles(workspace, files);
+        },
+        [workspace],
+    );
+    const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
     const [latest] = recent;
@@ -933,6 +915,10 @@ export function StartScreen(): React.JSX.Element {
                 onOpenLink={(url) => {
                     setNetwork(false);
                     openUrl(workspace.store, url);
+                }}
+                onOpenFiles={(files) => {
+                    setNetwork(false);
+                    openFiles(workspace, files);
                 }}
                 onOpenServer={() => {
                     setNetwork(false);

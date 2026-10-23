@@ -7,7 +7,8 @@ import { useCommand } from "../state/WorkspaceContext";
 /**
  * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
  * Server... and Paste, registered by the loading and server packages. Each is drawn only once its
- * package registers it.
+ * package registers it. Paste means what it means everywhere (`readPasted`): the clipboard, opened
+ * as a web address when it is one, else read as data.
  */
 export const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste"] as const;
 

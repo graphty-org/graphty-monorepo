@@ -1,9 +1,11 @@
 import type { BasemapStatusEvent } from "@graphty/graphty-element";
 import { BASEMAP_SOURCE_DESCRIPTORS, type BasemapSourceDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig, BasemapSourceId } from "@graphty/graphty-element/schema";
-import { Select, Stack, TextInput } from "@mantine/core";
+import { FileSource } from "@graphty/compact-mantine";
+import { Input, Select, Stack, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { readDataUrl } from "../start/open";
 import { useWorkspace } from "../state/WorkspaceContext";
 
 /** The list's values for a map of the reader's own, beside the catalog's source ids. */
@@ -98,16 +100,14 @@ function customBasemap(kind: Custom, address: string, credit: string): BasemapCo
  * @param props - Component props
  * @param props.label - the field's label
  * @param props.value - the value in effect
- * @param props.error - why the value does not work, shown beside it
  * @param props.onCommit - writes a new value
  * @returns The field
  */
 function CommitField({
     label,
     value,
-    error,
     onCommit,
-}: Readonly<{ label: string; value: string; error?: string; onCommit: (next: string) => void }>): React.JSX.Element {
+}: Readonly<{ label: string; value: string; onCommit: (next: string) => void }>): React.JSX.Element {
     const commit = (event: React.SyntheticEvent<HTMLInputElement>): void => {
         const next = event.currentTarget.value.trim();
         if (next !== value) {
@@ -119,7 +119,6 @@ function CommitField({
             key={value}
             size="xs"
             label={label}
-            error={error}
             defaultValue={value}
             onBlur={commit}
             onKeyDown={(event) => {
@@ -188,16 +187,29 @@ export function MapSourceFields({
             />
             {custom === null ? null : (
                 <>
-                    <CommitField
+                    {/* An address typed in (Enter), or an image from this computer, chosen or
+                        dropped on the row, which makes the map one image. */}
+                    <Input.Wrapper
+                        size="xs"
                         label="Address"
                         error={sameKind && unreachable ? "Not reachable" : undefined}
-                        value={sameKind ? address : ""}
-                        onCommit={(next) => {
-                            if (next !== "") {
+                    >
+                        <FileSource
+                            variant="row"
+                            url
+                            accept="image/*"
+                            placeholder="Address"
+                            label="Upload image"
+                            onUrl={(next) => {
                                 onChange(customBasemap(custom, next, sameKind ? credit : pendingCredit));
-                            }
-                        }}
-                    />
+                            }}
+                            onFiles={([file]) => {
+                                void readDataUrl(file).then((data) => {
+                                    onChange(customBasemap("image", data, sameKind ? credit : pendingCredit));
+                                });
+                            }}
+                        />
+                    </Input.Wrapper>
                     <CommitField
                         label="Credit"
                         value={sameKind ? credit : pendingCredit}

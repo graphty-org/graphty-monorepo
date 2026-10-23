@@ -22,6 +22,9 @@ import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
 
+/** The look a new project gives a pinned node: a thin gray ring. */
+const PINNED_LOOK = { color: "#868e96", scale: 1.12, opacity: 1 } as const;
+
 /** Props for Workspace. */
 interface WorkspaceProps {
     /** Chrome state to start from: a story's or a test's. */
@@ -83,14 +86,20 @@ export function Workspace({
             return;
         }
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
-        // the style tree starts with Everything, Selected and Hovered, Everything holds the base
-        // look as values a reader edits, and a finished run's layer lands on top, where the reader
-        // sees it. Set before anything loads, so the rows are there from the first frame.
+        // the style tree starts with Everything, Selected, Pinned and Hovered, Everything holds the
+        // base look as values a reader edits, a pinned node wears a thin gray ring (under Selected,
+        // which wins), and a finished run's layer lands on top, where the reader sees it. Set
+        // before anything loads, so the rows are there from the first frame.
         const defaults =
             project?.id === startProjectId ||
             (session.config.startingRows && session.config.editableBase && session.config.runPlacement === "top")
                 ? Promise.resolve()
-                : session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
+                : session.config.set({
+                      startingRows: true,
+                      editableBase: true,
+                      runPlacement: "top",
+                      pinnedStyle: PINNED_LOOK,
+                  });
         if (opening === null) {
             void defaults.catch(() => undefined);
             return;

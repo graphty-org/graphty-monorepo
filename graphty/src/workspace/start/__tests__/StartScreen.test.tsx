@@ -229,17 +229,13 @@ describe("the start screen", () => {
         }
         // Memgraph cannot be reached from an https page without a server, so it is not offered.
         assert.isNull(within(dialog).queryByText("Memgraph"));
-        const open = within(dialog).getByRole("button", { name: "Open" });
-        // Open with no address asks for one, and opens nothing.
-        await userEvent.click(open);
-        assert.isNotNull(within(dialog).getByText("Paste the web address of a graph file first."));
+        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
+        // Enter on something that is not a web address opens nothing.
+        await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
 
-        await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Web address of a graph file" }),
-            "https://example.com/data/trade%20routes.graphml",
-        );
-        await userEvent.click(open);
+        await userEvent.clear(field);
+        await userEvent.type(field, "https://example.com/data/trade%20routes.graphml{Enter}");
 
         assert.equal(store.get().project?.name, "trade routes");
         assert.equal(store.get().opening?.name, "trade routes");

@@ -12,7 +12,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { pickSample } from "../../../test/samples-dialog";
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { WORKSPACE_AUTOSAVE_KEY } from "../autosave";
@@ -133,6 +133,9 @@ async function workThenLeave(rename = true): Promise<string> {
         assert.include(screen.getByTestId("workspace-status").textContent, `${String(SAMPLE.nodes)} nodes, `);
     });
     assert.strictEqual(screen.getByTestId("workspace-status").getAttribute("aria-live"), "polite");
+    // The region lives in the status bar along the bottom, with the autosave chip.
+    const bar = screen.getByRole("contentinfo", { name: "Status" });
+    assert.isNotNull(within(bar).getByTestId("workspace-status"));
 
     if (rename) {
         await userEvent.keyboard("{F2}");
@@ -144,7 +147,7 @@ async function workThenLeave(rename = true): Promise<string> {
         });
     }
 
-    // Work is saved: the element says so, and the header's chip shows it.
+    // Work is saved: the element says so, and the status bar's chip shows it.
     await waitFor(
         () => {
             assert.strictEqual(element.autosaver.status.state, "saved");
@@ -152,7 +155,7 @@ async function workThenLeave(rename = true): Promise<string> {
         },
         { timeout: TIMEOUT_MS },
     );
-    const chip = screen.getByTestId("autosave-chip");
+    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
     assert.strictEqual(chip.textContent, "Autosave: saved");
     // The chip's words are readable: 4.5:1 or more against what is behind them.
     assert.isAtLeast(textContrast(chip), 4.5);

@@ -126,7 +126,7 @@ async function dataPageWith(file: File): Promise<GraphSession> {
     });
     await screen.findByRole("heading", { name: "Open as a new graph" });
     const session = await elementSession();
-    await userEvent.upload(screen.getByTestId("data-page-file-input"), file);
+    dropOn(screen.getByRole("region", { name: "Data page" }), file);
     await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
     return session;
 }

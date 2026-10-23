@@ -1,5 +1,6 @@
+import { FileSource } from "@graphty/compact-mantine";
 import { Modal, UnstyledButton } from "@mantine/core";
-import React, { useState } from "react";
+import type React from "react";
 
 import { GLYPHS } from "../glyphs";
 
@@ -11,13 +12,14 @@ const SOURCES = [
 ] as const;
 
 /**
- * Open network data: the network sources, each of which opens the server form, and Open from a
- * link, which opens a graph file at a web address.
+ * Open network data: the network sources, each of which opens the server form, and a web address
+ * (or a file from this computer) to open.
  * @param props - Component props
  * @param props.opened - Whether the chooser is open
  * @param props.scheme - The page's color scheme
  * @param props.onClose - Closes it
  * @param props.onOpenLink - Opens the graph file at an address
+ * @param props.onOpenFiles - Opens files chosen or dropped on the address row
  * @param props.onOpenServer - Opens the server form
  * @returns The chooser
  */
@@ -26,19 +28,16 @@ export function NetworkDataDialog({
     scheme,
     onClose,
     onOpenLink,
+    onOpenFiles,
     onOpenServer,
 }: Readonly<{
     opened: boolean;
     scheme: "light" | "dark";
     onClose: () => void;
     onOpenLink: (url: string) => void;
+    onOpenFiles: (files: File[]) => void;
     onOpenServer: () => void;
 }>): React.JSX.Element {
-    const [address, setAddress] = useState("");
-    const [said, setSaid] = useState<string | null>(null);
-    const trimmed = address.trim();
-    const valid = trimmed !== "" && URL.canParse(trimmed, globalThis.location.href);
-
     return (
         <Modal.Root opened={opened} onClose={onClose} centered size={520} radius={16} padding={0}>
             <Modal.Overlay color="#0a0c12" backgroundOpacity={0.45} />
@@ -62,34 +61,14 @@ export function NetworkDataDialog({
                                 </UnstyledButton>
                             ))}
                         </div>
-                        {said === null ? null : <output className="ws-land-net-note">{said}</output>}
-                        <form
-                            className="ws-land-net-addr"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                if (valid) {
-                                    onOpenLink(new URL(trimmed, globalThis.location.href).href);
-                                } else {
-                                    setSaid("Paste the web address of a graph file first.");
-                                }
-                            }}
-                        >
-                            <label className="ws-land-net-field">
-                                <GLYPHS.webAddress aria-hidden />
-                                <input
-                                    type="url"
-                                    placeholder="Or paste a web address"
-                                    aria-label="Web address of a graph file"
-                                    value={address}
-                                    onChange={(event) => {
-                                        setAddress(event.currentTarget.value);
-                                    }}
-                                />
-                            </label>
-                            <button type="submit" className="ws-land-net-open">
-                                Open
-                            </button>
-                        </form>
+                        <FileSource
+                            variant="row"
+                            url
+                            multiple
+                            placeholder="Web address of a graph file"
+                            onUrl={onOpenLink}
+                            onFiles={onOpenFiles}
+                        />
                     </div>
                 </div>
             </Modal.Content>

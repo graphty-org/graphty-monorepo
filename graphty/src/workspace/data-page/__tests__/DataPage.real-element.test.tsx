@@ -105,11 +105,20 @@ async function pick(label: string, option: string): Promise<void> {
 }
 
 /**
- * Hands files to the page as the file picker does.
+ * Drops files on the Data page as the browser does. A synthetic DragEvent, the one exception to
+ * real input here: a page cannot start a drag of a file from the operating system, and
+ * Playwright's drag-and-drop moves page elements, never files.
  * @param files - the files.
  */
 async function chooseFiles(...files: File[]): Promise<void> {
-    await userEvent.upload(screen.getByTestId("data-page-file-input"), files);
+    const page = await screen.findByRole("region", { name: "Data page" });
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        page.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
 }
 
 /**
@@ -753,8 +762,7 @@ describe("the Data page on the real element", () => {
         await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"));
         await screen.findByRole("grid", { name: "Rows of people.csv" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(screen.getByRole("button", { name: "Add a table" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "File..." }));
+        // A drop on the page joins the table on it, as Tables "+" File... does.
         await chooseFiles(new File([TIES], "ties.csv"));
         await screen.findByRole("grid", { name: "Rows of ties.csv" }, { timeout: TIMEOUT_MS });
         assert.include(screen.getByRole("button", { current: true }).textContent, "Edges: ties.csv");

@@ -50,6 +50,16 @@ const generateNodeData = (): { id: string; position: { x: number; y: number; z: 
 };
 
 /**
+ * The corners the two free-form polygons are drawn with: an irregular four-cornered outline.
+ *
+ * WITHOUT CORNERS A "polygon" IS A RECTANGLE, by the element's contract (`node.shapePoints`
+ * unset or unreadable falls back to the rectangle's outline), so a polygon specimen with no
+ * corners draws the rectangle's exact geometry and the grid shows one shape twice. Its own
+ * corners are what make a polygon a shape of its own, so the specimen gives it some.
+ */
+const POLYGON_POINTS = "-1,-1 1,-0.6 0.6,1 -0.6,0.6";
+
+/**
  * One layer per shape: the node with that id is drawn in that shape and named by its own label.
  *
  * WHERE THE LABEL SITS is no longer part of this. The 1.x version of these layers put the name
@@ -67,6 +77,7 @@ const generateLayers = (): LayerSpec[] => {
             "node.shape": shape,
             "node.label": shape,
             "node.labelStyle": { sizePx: 24, color: "#000000" },
+            ...(shape === "polygon" || shape === "round-polygon" ? { "node.shapePoints": POLYGON_POINTS } : {}),
         },
     }));
 };

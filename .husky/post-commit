@@ -1,0 +1,4 @@
+#!/bin/sh
+# Every branch is on GitHub: pushes this branch in the background after every commit and refreshes its
+# progress note (tools/branch-push.sh says what it skips). It never fails the commit.
+./tools/branch-push.sh

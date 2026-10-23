@@ -73,6 +73,7 @@ describe("inputComponentExtensions", () => {
         expect(components).toContain("FileInput");
         expect(components).toContain("JsonInput");
         expect(components).toContain("InputClearButton");
+        expect(components).toContain("InputWrapper");
         expect(components).toContain("ComboboxTarget");
         expect(components).toContain("Combobox");
     });

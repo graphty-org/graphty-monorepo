@@ -2,6 +2,8 @@ export type { ContextMenuProps } from "./ContextMenu";
 export { ContextMenu } from "./ContextMenu";
 export type { MenuCheckItemProps } from "./MenuCheckItem";
 export { MenuCheckItem } from "./MenuCheckItem";
+export { MenuItemDescription } from "./MenuItemDescription";
+export { MenuShortcut } from "./MenuShortcut";
 export type { ModalFooterProps } from "./ModalFooter";
 export { ModalFooter } from "./ModalFooter";
 export type { ToastAction, ToastApi, ToastOptions, ToastProps, ToastProviderProps } from "./Toast";

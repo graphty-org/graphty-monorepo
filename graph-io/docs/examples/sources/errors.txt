@@ -1,0 +1,6 @@
+E_SOURCE_AUTH {
+  origin: 'https://example.com',
+  status: 401,
+  scheme: null,
+  serverCode: null
+}

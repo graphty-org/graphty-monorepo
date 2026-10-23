@@ -39,42 +39,35 @@ function withDegree(): { harness: Harness; calls: () => number } {
             .map((edge) => ({ id: edge.id, values: { from: String(edge.source) } }));
 
         // The fields name the run "$", as the element's own algorithms declare them.
-        return Promise.resolve({
-            result: createRunResult({
-                runId: context.runId,
-                shape: "node-metric",
-                fields: [
-                    {
-                        name: "value",
-                        plainName: "Connections",
-                        technicalName: "degree",
-                        kind: "node",
-                        type: "number",
-                        path: "results.$.value",
-                    },
-                    {
-                        name: "from",
-                        plainName: "From",
-                        technicalName: "from",
-                        kind: "edge",
-                        type: "string",
-                        path: "results.$.from",
-                    },
-                ],
-                measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
-                nodes,
-                edges,
-                caveats: {
-                    exact: true,
-                    direction: "as-loaded",
-                    precision: "f64",
-                    method: "degree",
-                    facts: [],
-                    notes: [],
+        const result = createRunResult({
+            runId: context.runId,
+            shape: "node-metric",
+            fields: [
+                {
+                    name: "value",
+                    plainName: "Connections",
+                    technicalName: "degree",
+                    kind: "node",
+                    type: "number",
+                    path: "results.$.value",
                 },
-                durationMs: 1,
-            }),
+                {
+                    name: "from",
+                    plainName: "From",
+                    technicalName: "from",
+                    kind: "edge",
+                    type: "string",
+                    path: "results.$.from",
+                },
+            ],
+            measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
+            nodes,
+            edges,
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", facts: [], notes: [] },
+            durationMs: 1,
         });
+        // The summary rides along, as the element's own executor hands it over.
+        return Promise.resolve({ result, summary: result.summary() });
     };
     const harness: Harness = makeSession({ runs: { execute } });
     ({ store } = harness);
@@ -229,6 +222,24 @@ describe("the project file", () => {
 
         source.session.dispose();
         session.dispose();
+    });
+
+    it("gives a reopened run the record it was saved with, summary included", async () => {
+        const source = await busySession();
+        const before = source.session.runs.get("links")?.record;
+        assert.isDefined(before?.summary?.measured, "the run has a count");
+        const { text } = await source.session.project.save();
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        const after = target.session.runs.get("links")?.record;
+        // Caveats and duration are the record's own, saved from it; the counts come back as they were.
+        assert.strictEqual(after?.summary?.measured, before?.summary?.measured);
+        assert.strictEqual(after?.summary?.count, before?.summary?.count);
+        assert.deepStrictEqual(after?.summary?.groups, before?.summary?.groups);
+
+        source.session.dispose();
+        target.session.dispose();
     });
 
     it("carries edge results and the edge selection over to the edge ids of the session it opens in", async () => {
@@ -391,6 +402,80 @@ describe("the project file", () => {
         await session.undo();
         assert.isFalse(session.project.dirty, "undo returns to the marked save");
         session.dispose();
+    });
+
+    describe("the first import into a new session", () => {
+        const GML = "graph [\n node [ id 1 ]\n node [ id 2 ]\n edge [ source 1 target 2 ]\n]";
+        const load = (session: Harness["session"]): Promise<void> =>
+            session.data.import({ type: "gml", config: { data: GML } });
+
+        it("is the baseline: the project is not dirty, and undoing it makes it dirty", async () => {
+            const { session } = withDegree().harness;
+            await load(session);
+            assert.strictEqual(session.data.nodes().length, 2);
+            assert.isFalse(session.project.dirty);
+            await session.undo();
+            assert.isTrue(session.project.dirty, "undoing past the baseline");
+            await session.redo();
+            assert.isFalse(session.project.dirty);
+            session.dispose();
+        });
+
+        it("is the baseline inside a transaction that also sets up the load", async () => {
+            const { session } = withDegree().harness;
+            await session.transaction("Load the sample", async (tx) => {
+                await tx.data.import({ type: "gml", config: { data: GML } });
+                await tx.styles.add({
+                    name: "Orange",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#ff9900" },
+                });
+            });
+            assert.isFalse(session.project.dirty);
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#0099ff" },
+            });
+            assert.isTrue(session.project.dirty, "a change after the load");
+            session.dispose();
+        });
+
+        it("is the only one: a second import makes the project dirty", async () => {
+            const { session } = withDegree().harness;
+            await load(session);
+            await load(session);
+            assert.isTrue(session.project.dirty);
+            session.dispose();
+        });
+
+        it("is not one after a save or an open", async () => {
+            const saved = withDegree().harness.session;
+            await saved.project.save();
+            await load(saved);
+            assert.isTrue(saved.project.dirty, "after a save");
+
+            const source = await busySession();
+            const { text } = await source.session.project.save();
+            const opened = withDegree().harness.session;
+            await opened.project.open(text);
+            await load(opened);
+            assert.isTrue(opened.project.dirty, "after an open");
+            for (const each of [saved, source.session, opened]) {
+                each.dispose();
+            }
+        });
+
+        it("is not one after another change", async () => {
+            const { session } = withDegree().harness;
+            await session.data.addNodes([{ id: "a" }]);
+            await session.undo();
+            await load(session);
+            assert.isTrue(session.project.dirty);
+            session.dispose();
+        });
     });
 
     it("ignores a save marked after a project was opened over it", async () => {

@@ -1,0 +1,25 @@
+{
+    "start": null,
+    "end": {
+        "runs": ["louvain Louvain (label Communities)"],
+        "layers": [
+            "node-defaults_1 Node defaults",
+            "edge-defaults_1 Edge defaults",
+            "everything_1 Everything",
+            "everything_2 Everything",
+            "group-6_1 Group 6",
+            "group-5_1 Group 5",
+            "group-4_1 Group 4",
+            "group-3_1 Group 3",
+            "group-2_1 Group 2",
+            "group-1_1 Group 1",
+            "selected_1 Selected",
+            "selected_2 Selected",
+            "hovered_1 Hovered"
+        ],
+        "notes": [],
+        "steps": [],
+        "sources": ["Les Miserables"]
+    },
+    "gone": {}
+}

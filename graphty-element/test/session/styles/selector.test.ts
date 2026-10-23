@@ -301,7 +301,17 @@ describe("selector refusals", () => {
         );
 
         assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
-        assert.deepStrictEqual(refusal.details.kinds, ["everything", "expression", "has", "ids", "top", "member"]);
+        assert.deepStrictEqual(refusal.details.kinds, [
+            "everything",
+            "expression",
+            "has",
+            "ids",
+            "top",
+            "member",
+            "rule",
+            "state",
+            "hover",
+        ]);
     });
 
     it("refuses an id list that is not a list of ids", () => {
@@ -551,6 +561,98 @@ describe("the expression subset: what it refuses", () => {
 
     it("carries the offending expression on every refusal, so a form can show it", () => {
         assert.strictEqual(refuse("data.tags[0]").details.where, "data.tags[0]");
+    });
+});
+
+describe("every selector refusal says why, as a code", () => {
+    const harness = makeSource([{}]);
+
+    function reasonOf(selector: unknown): unknown {
+        return refusalOf(() => compileSelector(selector as Selector, "node", harness.source)).details.reason;
+    }
+
+    function expressionReason(where: string): unknown {
+        return reasonOf({ match: "expression", where });
+    }
+
+    it("refuses a bare number with number-needs-backticks at the number's offset", () => {
+        const refusal = refusalOf(() =>
+            compileSelector({ match: "expression", where: "weight > 3" }, "node", harness.source),
+        );
+
+        assert.strictEqual(refusal.code, "E_BAD_SELECTOR");
+        assert.strictEqual(refusal.details.reason, "number-needs-backticks");
+        assert.strictEqual(refusal.details.position, 9);
+    });
+
+    it("suggests the rule with each bare number between backticks, and only for a bare number", () => {
+        const suggestionOf = (where: string): unknown =>
+            refusalOf(() => compileSelector({ match: "expression", where }, "node", harness.source)).details.suggestion;
+
+        assert.strictEqual(suggestionOf("minutes >= 10"), "minutes >= `10`");
+        assert.strictEqual(
+            suggestionOf("col2 > 1.5 && 'a 3' == data.b || `4` < -2e3"),
+            "col2 > `1.5` && 'a 3' == data.b || `4` < `-2e3`",
+        );
+        assert.strictEqual(suggestionOf("data.a == #"), undefined);
+        // `x >= \`10\`x` would be refused in turn, so nothing is suggested.
+        assert.strictEqual(suggestionOf("x >= 10x"), undefined);
+        assert.strictEqual(suggestionOf("x >= 10"), "x >= `10`");
+        assert.strictEqual(suggestionOf("weight > 3"), "weight > `3`");
+        // A lone `10` parses but reads no attribute, so the selector would refuse it in turn.
+        assert.strictEqual(suggestionOf("10"), undefined);
+        assert.strictEqual(suggestionOf("(10)"), undefined);
+        assert.strictEqual(
+            refusalOf(() => compileSelector({ match: "expression", where: "10" }, "node", harness.source)).details
+                .reason,
+            "number-needs-backticks",
+        );
+    });
+
+    it("gives each expression mistake its own reason", () => {
+        const cases: readonly [string, string][] = [
+            ["data.a == `1", "unclosed-quote"],
+            ["data.a == 'host", "unclosed-quote"],
+            ["data.a == `host`", "bare-word-needs-quotes"],
+            ['"\\q" == `1`', "bad-quoted-name"],
+            ["data.tags[0]", "unsupported-syntax"],
+            ["data.a | data.b", "pipe-not-supported"],
+            ["&data.a", "expression-reference-not-supported"],
+            ["data.a == 5", "number-needs-backticks"],
+            ["data.a == #", "bad-character"],
+            ["data.", "dot-needs-name"],
+            ['data."a.b" == `1`', "name-contains-dot"],
+            ["length(data.tags) > `2`", "function-not-supported"],
+            ["(data.a == `1`", "unclosed-parenthesis"],
+            ["data.a ==", "missing-operand"],
+            ["!data.flag", "not-needs-parentheses"],
+            ["data.a `1`", "trailing-input"],
+            ["'data.a == `1`'", "quoted-whole-expression"],
+            ["`true`", "reads-no-attribute"],
+        ];
+
+        for (const [where, reason] of cases) {
+            assert.strictEqual(expressionReason(where), reason, where);
+        }
+    });
+
+    it("gives each shape mistake its own reason", () => {
+        const cases: readonly [unknown, string][] = [
+            ["data.a", "bare-string"],
+            [42, "not-a-selector"],
+            [{ match: "expression" }, "where-missing"],
+            [{ match: "has" }, "has-path-missing"],
+            [{ match: "ids", nodes: "a" }, "ids-not-a-list"],
+            [{ match: "ids", nodes: [{}] }, "not-an-id"],
+            [{ match: "top", path: "data.a", n: 1 }, "top-path-not-a-result"],
+            [{ match: "top", path: "results.degree.value", n: 1.5 }, "top-n-not-whole"],
+            [{ match: "member", of: 7 }, "bad-member-scope"],
+            [{ match: "nope" }, "unknown-kind"],
+        ];
+
+        for (const [selector, reason] of cases) {
+            assert.strictEqual(reasonOf(selector), reason, JSON.stringify(selector));
+        }
     });
 });
 

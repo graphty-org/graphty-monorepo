@@ -3387,6 +3387,8 @@ type GraphtyErrorCode =
     | "E_UNKNOWN_FORMAT"
     | "E_UNKNOWN_PALETTE"
     | "E_UNKNOWN_CAMERA"
+    | "E_UNKNOWN_GENERATOR"
+    | "E_UNKNOWN_DATASET"
     | "E_UNKNOWN_SINK"
     | "E_UNKNOWN_RUN"
     | "E_UNKNOWN_LAYER"

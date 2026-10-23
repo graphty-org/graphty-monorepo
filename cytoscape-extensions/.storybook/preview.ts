@@ -39,6 +39,7 @@ const preview: Preview = {
                         "Layouts",
                         "Centrality",
                         "Communities",
+                        "Traversal",
                         "Paths And Trees",
                         "Structure",
                         "Flows And Cuts",

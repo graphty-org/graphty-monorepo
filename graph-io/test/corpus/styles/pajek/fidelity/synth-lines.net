@@ -1,0 +1,132 @@
+% synthetic Pajek coverage: every line drawing parameter (Pajek 6.02 manual, pages 90-92)
+*Network synthetic lines
+*Vertices 40
+1 "v1" 0.9200 0.5000 0.5000 ellipse ic White bc Black fos 9
+2 "v2" 0.9148 0.5657 0.5000 ellipse ic White bc Black fos 9
+3 "v3" 0.8994 0.6298 0.5000 ellipse ic White bc Black fos 9
+4 "v4" 0.8742 0.6907 0.5000 ellipse ic White bc Black fos 9
+5 "v5" 0.8398 0.7469 0.5000 ellipse ic White bc Black fos 9
+6 "v6" 0.7970 0.7970 0.5000 ellipse ic White bc Black fos 9
+7 "v7" 0.7469 0.8398 0.5000 ellipse ic White bc Black fos 9
+8 "v8" 0.6907 0.8742 0.5000 ellipse ic White bc Black fos 9
+9 "v9" 0.6298 0.8994 0.5000 ellipse ic White bc Black fos 9
+10 "v10" 0.5657 0.9148 0.5000 ellipse ic White bc Black fos 9
+11 "v11" 0.5000 0.9200 0.5000 ellipse ic White bc Black fos 9
+12 "v12" 0.4343 0.9148 0.5000 ellipse ic White bc Black fos 9
+13 "v13" 0.3702 0.8994 0.5000 ellipse ic White bc Black fos 9
+14 "v14" 0.3093 0.8742 0.5000 ellipse ic White bc Black fos 9
+15 "v15" 0.2531 0.8398 0.5000 ellipse ic White bc Black fos 9
+16 "v16" 0.2030 0.7970 0.5000 ellipse ic White bc Black fos 9
+17 "v17" 0.1602 0.7469 0.5000 ellipse ic White bc Black fos 9
+18 "v18" 0.1258 0.6907 0.5000 ellipse ic White bc Black fos 9
+19 "v19" 0.1006 0.6298 0.5000 ellipse ic White bc Black fos 9
+20 "v20" 0.0852 0.5657 0.5000 ellipse ic White bc Black fos 9
+21 "v21" 0.0800 0.5000 0.5000 ellipse ic White bc Black fos 9
+22 "v22" 0.0852 0.4343 0.5000 ellipse ic White bc Black fos 9
+23 "v23" 0.1006 0.3702 0.5000 ellipse ic White bc Black fos 9
+24 "v24" 0.1258 0.3093 0.5000 ellipse ic White bc Black fos 9
+25 "v25" 0.1602 0.2531 0.5000 ellipse ic White bc Black fos 9
+26 "v26" 0.2030 0.2030 0.5000 ellipse ic White bc Black fos 9
+27 "v27" 0.2531 0.1602 0.5000 ellipse ic White bc Black fos 9
+28 "v28" 0.3093 0.1258 0.5000 ellipse ic White bc Black fos 9
+29 "v29" 0.3702 0.1006 0.5000 ellipse ic White bc Black fos 9
+30 "v30" 0.4343 0.0852 0.5000 ellipse ic White bc Black fos 9
+31 "v31" 0.5000 0.0800 0.5000 ellipse ic White bc Black fos 9
+32 "v32" 0.5657 0.0852 0.5000 ellipse ic White bc Black fos 9
+33 "v33" 0.6298 0.1006 0.5000 ellipse ic White bc Black fos 9
+34 "v34" 0.6907 0.1258 0.5000 ellipse ic White bc Black fos 9
+35 "v35" 0.7469 0.1602 0.5000 ellipse ic White bc Black fos 9
+36 "v36" 0.7970 0.2030 0.5000 ellipse ic White bc Black fos 9
+37 "v37" 0.8398 0.2531 0.5000 ellipse ic White bc Black fos 9
+38 "v38" 0.8742 0.3093 0.5000 ellipse ic White bc Black fos 9
+39 "v39" 0.8994 0.3702 0.5000 ellipse ic White bc Black fos 9
+40 "v40" 0.9148 0.4343 0.5000 ellipse ic White bc Black fos 9
+*Arcs
+1 2 1 w 1 c Red s 1 l "arc 1" lp 0.5 lc Yellow fos 10
+2 3 2 c Blue p Dots
+3 4 3 w 3 p Solid ap 20
+4 5 4 c Yellow a B l "arc 4" lp 0.5 lc Cyan fos 10 lr 8 lphi 90 la 360 font Courier
+5 6 -1 w 5 c Orange s 5
+6 7 2 h1 -1 h2 -1
+7 8 3 w 1 c Cyan p Dots l "arc 7" lp 0.5 lc Gray25 fos 10
+8 9 4 c Magenta p Solid
+9 10 1 w 3 s 4
+10 11 2 c Gray25 a B ap 0.5 l "arc 10" lp 0.5 lc RGB0088FF fos 10 lr 8 lphi 90 la 360 font Courier
+11 12 3 w 5 c Gray70
+12 13 4 p Dots
+13 14 1 w 1 c RGB0088FF p Solid s 3 l "arc 13" lp 0.5 lc CMYK00FF0000 fos 10
+14 15 -1 c RGB(1,0,0.5) h1 -1 h2 -1
+15 16 3 w 3
+16 17 4 c CMYK00FF0000 a B l "arc 16" lp 0.5 lc LightYellow fos 10 lr 8 lphi 90 la 360 font Courier
+17 18 1 w 5 c CMYK(0,0,1,0) p Dots s 2 ap 0.25
+18 19 2 p Solid
+19 20 3 w 1 c LightYellow l "arc 19" lp 0.5 lc Maroon fos 10
+20 21 4 c OliveGreen
+21 22 1 w 3 s 1
+22 23 2 c Maroon p Dots a B l "arc 22" lp 0.5 lc Red fos 10 lr 8 lphi 90 la 360 font Courier h1 -1 h2 -1
+23 24 -1 w 5 c Turquoise p Solid
+24 25 4 ap 20
+25 26 1 w 1 c Red s 5 l "arc 25" lp 0.5 lc Yellow fos 10
+26 27 2 c Blue
+27 28 3 w 3 p Dots
+28 29 4 c Yellow p Solid a B l "arc 28" lp 0.5 lc Cyan fos 10 lr 8 lphi 90 la 360 font Courier
+29 30 1 w 5 c Orange s 4
+30 31 2 h1 -1 h2 -1
+31 32 3 w 1 c Cyan ap 0.5 l "arc 31" lp 0.5 lc Gray25 fos 10
+32 33 -1 c Magenta p Dots
+33 34 1 w 3 p Solid s 3
+34 35 2 c Gray25 a B l "arc 34" lp 0.5 lc RGB0088FF fos 10 lr 8 lphi 90 la 360 font Courier
+35 36 3 w 5 c Gray70
+36 37 4
+37 38 1 w 1 c RGB0088FF p Dots s 2 l "arc 37" lp 0.5 lc CMYK00FF0000 fos 10
+38 39 2 c RGB(1,0,0.5) p Solid ap 0.25 h1 -1 h2 -1
+39 40 3 w 3
+40 1 4 c CMYK00FF0000 a B l "arc 40" lp 0.5 lc LightYellow fos 10 lr 8 lphi 90 la 360 font Courier
+1 11 1 a1 40 k1 1.5 a2 -40 k2 1.5 c Blue l "bezier opposite"
+2 12 1 a1 30 k1 1 a2 30 k2 1 c Red l "bezier same side"
+3 13 1 a1 0 k1 -1 a2 0 k2 30 c Green l "oval"
+4 14 1 a1 0 k1 -2 a2 0 k2 200 c Purple l "circular arc"
+5 15 1 a1 0 k1 -4 a2 0 k2 1 c Brown l "double"
+6 6 1 c Red w 2 l "loop"
+7 7 2 a1 -130 k1 0.6 a2 -130 k2 0.6 c Blue l "bezier loop"
+20 30 1 c Orange
+30 20 1 c Cyan
+22 32 1 c Orange
+32 22 1 c Cyan
+24 34 1 c Orange
+34 24 1 c Cyan
+*Arcs :2 "second relation"
+1 21 1 c Magenta w 2
+6 26 1 c Magenta w 2
+11 31 1 c Magenta w 2
+16 36 1 c Magenta w 2
+21 1 1 c Magenta w 2
+26 6 1 c Magenta w 2
+31 11 1 c Magenta w 2
+36 16 1 c Magenta w 2
+*Edges
+1 8 1 c Red w 3 p Dots l "edge 1-8" lc Red fos 12 la 45
+3 10 1 c Cyan
+5 12 1 c RGB0088FF w 3 p Dots
+7 14 1 c LightYellow l "edge 7-14" lc Red fos 12 la 45
+9 16 -2 c Red w 3 p Dots
+11 18 1 c Cyan
+13 20 1 c RGB0088FF w 3 p Dots l "edge 13-20" lc Red fos 12 la 45
+15 22 1 c LightYellow
+17 24 1 c Red w 3 p Dots
+19 26 -2 c Cyan l "edge 19-26" lc Red fos 12 la 45
+21 28 1 c RGB0088FF w 3 p Dots
+23 30 1 c LightYellow
+25 32 1 c Red w 3 p Dots l "edge 25-32" lc Red fos 12 la 45
+27 34 1 c Cyan
+29 36 -2 c RGB0088FF w 3 p Dots
+31 38 1 c LightYellow l "edge 31-38" lc Red fos 12 la 45
+33 40 1 c Red w 3 p Dots
+35 2 1 c Cyan
+37 4 1 c RGB0088FF w 3 p Dots l "edge 37-4" lc Red fos 12 la 45
+39 6 -2 c LightYellow
+*Arcslist
+8 18 19 21
+9 27
+*Edgeslist
+10 31 33 35

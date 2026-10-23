@@ -63,6 +63,13 @@ export type { ControlGroupProps } from "../components/ControlGroup";
 export type { ControlSectionProps } from "../components/ControlSection";
 export type { GradientEditorProps } from "../components/GradientEditor";
 export type { InfoCircleProps } from "../components/InfoCircle";
+export type {
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
+} from "../components/RampEditor";
 export type { ToggleWithContentProps } from "../components/ToggleWithContent";
 
 // The data table: its columns, its values and the strings it produces.
@@ -153,6 +160,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "../components/tree";
 
@@ -176,7 +184,7 @@ export type {
 } from "../components/shell";
 
 // The theme's options.
-export type { CompactThemeOptions } from "../theme";
+export type { CompactAccent, CompactThemeOptions } from "../theme";
 
 // Providers, translation and text direction.
 export type { PanelLabelsProviderProps } from "../context/PanelLabelsContext";

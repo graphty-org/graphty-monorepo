@@ -1,0 +1,33 @@
+{
+ "key": [
+  {
+   "title": "Color: Louvain",
+   "text": "Color: Louvain Group 1 Group 2 Group 3 12 of 24 nodes",
+   "rows": [
+    {
+     "text": "Group 1",
+     "color": "#e69f00"
+    },
+    {
+     "text": "Group 2",
+     "color": "#56b4e9"
+    },
+    {
+     "text": "Group 3",
+     "color": "#009e73"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 12,
+   "#e69f00": 4,
+   "#56b4e9": 4,
+   "#009e73": 4
+  },
+  "edges": {
+   "#a9a9a9": 59
+  }
+ }
+}

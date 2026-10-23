@@ -91,7 +91,7 @@ describe("HistogramRow", () => {
 
             const [two, three] = screen.getAllByTestId("histogram-bar");
             expect(three).toHaveAttribute("data-highlighted", "true");
-            expect(three.style.background).toBe(PANEL_INK.ACCENT);
+            expect(three.style.background).toBe(PANEL_INK.ACCENT_GRAPHIC);
             expect(two).toHaveAttribute("data-highlighted", "false");
             // Bars read in the secondary icon ink (spec 9.8); the divider ink is too faint.
             expect(two.style.background).toBe("var(--cm-icon-secondary)");
@@ -638,7 +638,7 @@ describe("MetricRow", () => {
             const track = screen.getByTestId("metric-row-bar");
             const fill = screen.getByTestId("metric-row-fill");
             expect(track.style.background).toBe(PANEL_INK.SURFACE);
-            expect(fill.style.getPropertyValue("--progress-section-color")).toBe(PANEL_INK.ACCENT);
+            expect(fill.style.getPropertyValue("--progress-section-color")).toBe(PANEL_INK.ACCENT_GRAPHIC);
         });
 
         it("fills the track to the percentile", () => {

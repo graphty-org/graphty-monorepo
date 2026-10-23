@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { CORPUS_SAMPLES } from "./corpus-samples.js";
 import { canCarry } from "./routes.js";
 import { SAMPLES } from "./samples.js";
 import { PROPERTIES, type Scene } from "./scene.js";
@@ -45,7 +46,7 @@ type SceneParts = Pick<Scene, "nodes" | "edges" | "groups" | "gaps"> & {
 const sha256 = (path: string): string => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 describe("committed reference scenes", () => {
-    const cases = SAMPLES.flatMap((s) => s.routes.map((route) => ({ sample: s, route })));
+    const cases = [...SAMPLES, ...CORPUS_SAMPLES].flatMap((s) => s.routes.map((route) => ({ sample: s, route })));
     it.each(cases)("$sample.id / $route is valid, stamped and traceable to its sample", async ({ sample, route }) => {
         const { sceneErrors } = await load<Common>("common.mjs");
         const path = `${here}scenes/${sample.id}/${route}.ref.json`;
@@ -56,6 +57,30 @@ describe("committed reference scenes", () => {
         expect(scene.provenance.route).toBe(route);
         expect(scene.provenance.sourceSha256).toBe(sha256(`${here}../${sample.file}`));
         expect(scene.canCarry).toEqual(canCarry(route, PROPERTIES));
+        // A scene whose nodes all sit at one point drew no positions (gml2gv writes pos="0,0" for a
+        // node without coordinates); it must say so with a position gap, not stack the drawing.
+        const spots = new Set(scene.nodes.map((n) => `${String(n.x)},${String(n.y)}`));
+        if (scene.nodes.length > 1 && spots.size === 1) {
+            expect(scene.gaps.map((g) => g.property)).toContain("position");
+        }
+    });
+});
+
+describe("the style fidelity corpus", () => {
+    it("names each sample once, and no file twice", () => {
+        const all = [...SAMPLES, ...CORPUS_SAMPLES];
+        expect(new Set(all.map((s) => s.id)).size).toBe(all.length);
+        expect(new Set(all.map((s) => s.file)).size).toBe(all.length);
+    });
+
+    it("judges node size on files sigma drew itself, from the sizes it drew", () => {
+        // sigma's sizes are screen pixels and its positions are fitted to the canvas, so its scene
+        // records both as drawn, in viewport pixels; a scene that skipped size passed every size.
+        for (const id of ["json-sigma-lesmis", "json-graphology-synth"]) {
+            const scene = JSON.parse(readFileSync(`${here}scenes/${id}/sigma.ref.json`, "utf8")) as Scene;
+            expect(scene.gaps.map((g) => g.property)).not.toContain("size");
+            expect(scene.canCarry.size).toBe("yes");
+        }
     });
 });
 
@@ -310,6 +335,36 @@ describe("per-tool readers", () => {
         expect(s.gaps[0].property).toBe("labelText");
     });
 
+    it("Cytoscape desktop: fans the parallel edges after a bundle's first round ding's anchors", async () => {
+        const { autoAnchors, anchoredPath } = await load<{
+            autoAnchors: (t: unknown, rows: unknown[], geo: Map<string, unknown[]>) => Map<string, number[]>;
+            anchoredPath: (s: number[], a: number[], t: number[], curved: boolean) => number[][];
+        }>("cyrest.mjs");
+        const geo = new Map<string, unknown[]>([
+            ["1", [0, 0, 30, 20, "rect"]],
+            ["2", [100, 0, 40, 10, "rect"]],
+        ]);
+        const edge = (suid: number, source: number, target: number) => ({
+            data: { SUID: suid, source: String(source), target: String(target) },
+        });
+        const topology = { elements: { edges: [edge(13, 1, 2), edge(11, 2, 1), edge(12, 1, 2), edge(14, 1, 1)] } };
+        const rows = [11, 12, 13, 14].map((SUID) => ({ SUID }));
+        // SUID order 11, 12, 13: the first straight, then 40 (the largest side) to either side of x = 50
+        expect([...autoAnchors(topology, rows, geo)]).toEqual([
+            ["12", [50, 40]],
+            ["13", [50, -40]],
+        ]);
+        const bentFirst = rows.map((r) => (r.SUID === 11 ? { ...r, EDGE_BEND: "0.5,0.5,0.5" } : r));
+        expect(autoAnchors(topology, bentFirst, geo).size).toBe(0);
+        const path = anchoredPath([0, 0], [50, 40], [100, 0], true);
+        expect(path[8]).toEqual([50, 20]);
+        expect(anchoredPath([0, 0], [50, 40], [100, 0], false)).toEqual([
+            [0, 0],
+            [50, 40],
+            [100, 0],
+        ]);
+    });
+
     it("Cytoscape desktop: names, locked sizes, label anchors, transparency and annotations", async () => {
         const { sceneFromCyrest } = await load<{ sceneFromCyrest: (v: unknown) => SceneParts }>("cyrest.mjs");
         const row = (suid: number, x: number, label: string) => ({
@@ -378,6 +433,27 @@ describe("per-tool readers", () => {
         });
         expect(s.annotations).toEqual([{ kind: "arrow", bbox: { x: 4, y: 10, w: 6, h: 20 } }]);
         expect(s.gaps.map((g) => g.property)).toEqual(["position"]);
+
+        // Under the lock a node that sets its own width and height is drawn at them, not at the
+        // locked size (ddram: every node sets both; the mapped size is drawn by none of them).
+        const own = sceneFromCyrest({
+            nodes: [row(1, 0, "A"), row(2, 100, "B")],
+            edges: [],
+            topology: {
+                elements: {
+                    nodes: [{ data: { SUID: 1, name: "a" } }, { data: { SUID: 2, name: "b" } }],
+                    edges: [],
+                },
+            },
+            background: "#FFFFFF",
+            annotations: [],
+            locked: true,
+            bypassed: { 1: { w: 461, h: 461 } },
+        });
+        expect(own.nodes.map((n) => [n.w, n.h])).toEqual([
+            [461, 461],
+            [40, 40],
+        ]);
     });
 
     it("draw.io: absolute geometry through parents, ports from exit and entry constraints, groups", async () => {

@@ -1,0 +1,214 @@
+{
+    "sample": "graphology-specimen-node-shapes",
+    "program": "sigma.js",
+    "version": "sigma 4.0.1, graphology 0.26.0, @sigma/export-image 4.0.0",
+    "command": "graph.import(file); new Sigma(graph, <div 1200x900>) with sigma's default settings; toBlob(sigma, { format: \"png\" })",
+    "how": "sigma 4 draws nodes, edges and labels with WebGL2 and offers no vector export. @sigma/export-image's toBlob renders the instance to PNG (its own export, 1200 x 900, transparent background); the SVG wraps those bytes unmodified in one <image> element.",
+    "svgKind": "raster",
+    "canvas": {
+        "width": 1200,
+        "height": 900,
+        "deviceScaleFactor": 1,
+        "background": "none (the page behind it is white)"
+    },
+    "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
+    "file": "test/fidelity/specimens/graphology/specimen-node-shapes.json",
+    "fileSha256": "bcd0e9e1ec5752a8187e618359c8b670cb6222fcdef5493861d54446d5affa05",
+    "svgSha256": "28dc3574d0aa18f1fd7f375277e1c89467d99729fb34a1379e707d62a8e2d424",
+    "date": "2026-10-18",
+    "standIn": false,
+    "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
+    "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
+    "observed": {
+        "nodes": 20,
+        "edges": 0,
+        "labelsShown": 8
+    },
+    "drawn": {
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "nodes": [
+            {
+                "id": "anchor-nw",
+                "x": 39.99999761581421,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-ne",
+                "x": 1160.0000023841858,
+                "y": 34.827571182415305,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-sw",
+                "x": 39.99999761581421,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "anchor-se",
+                "x": 1160.0000023841858,
+                "y": 865.1724288175845,
+                "r": 2.8965517827151146,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "default",
+                "x": 167.44827402049097,
+                "y": 238.55171648592793,
+                "r": 9.655172609050382,
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
+            },
+            {
+                "id": "shape-circle",
+                "x": 383.7241370102455,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-circle",
+                "x": 600,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-point",
+                "x": 816.2758629897545,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-image",
+                "x": 1032.551725979509,
+                "y": 238.55171648592793,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-border",
+                "x": 167.44827402049097,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "type-square",
+                "x": 383.7241370102455,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "shape-square",
+                "x": 600,
+                "y": 634.4137997771132,
+                "r": 17.379310696290688,
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
+            },
+            {
+                "id": "cap-default",
+                "x": 95.61379095603681,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-shape-circle",
+                "x": 273.0758606770943,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "neutral=circle",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-circle",
+                "x": 557.1310343002451,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=circle",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-point",
+                "x": 776.6896559246655,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=point",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-image",
+                "x": 992.9655189144202,
+                "y": 277.1724075387264,
+                "r": 6.758620826335267,
+                "label": "type=image",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-border",
+                "x": 95.61379095603681,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "type=border",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-type-square",
+                "x": 282.92413658109206,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "type=square",
+                "fill": "#000000",
+                "alpha": 0
+            },
+            {
+                "id": "cap-shape-square",
+                "x": 553.8482756655792,
+                "y": 673.0344908299118,
+                "r": 6.758620826335267,
+                "label": "shape=square",
+                "fill": "#000000",
+                "alpha": 0
+            }
+        ],
+        "edges": []
+    },
+    "pageErrors": []
+}

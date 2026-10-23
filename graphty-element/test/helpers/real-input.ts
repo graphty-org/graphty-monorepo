@@ -105,6 +105,7 @@ async function mouseEvent(
     modifiers?: Modifiers,
     timestamp?: number,
     button: Button = "left",
+    clickCount = 1,
 ): Promise<void> {
     const at = toPage(element, point);
     await send()("Input.dispatchMouseEvent", {
@@ -113,7 +114,7 @@ async function mouseEvent(
         y: at.y,
         button: type === "mouseMoved" && buttons === 0 ? "none" : button,
         buttons: buttons === 0 ? 0 : BUTTON_BITS[button],
-        clickCount: type === "mouseMoved" ? 0 : 1,
+        clickCount: type === "mouseMoved" ? 0 : clickCount,
         modifiers: modifierBits(modifiers),
         ...(timestamp === undefined ? {} : { timestamp }),
     });
@@ -149,6 +150,34 @@ export async function click(
     await Promise.all([
         mouseEvent("mousePressed", element, point, 1, modifiers, undefined, button),
         mouseEvent("mouseReleased", element, point, 0, modifiers, undefined, button),
+    ]);
+}
+
+/**
+ * Press and release the right button at one point, as a context-menu click does.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function rightClick(element: Element, point: Point): Promise<void> {
+    await click(element, point, undefined, "right");
+}
+
+/**
+ * Two clicks of the left button at one point, as a double-click: the second press carries a click
+ * count of two. All four events are sent together, because the scene counts two presses as a
+ * double-click only when they arrive within its double-click delay (300 ms), and on a loaded machine
+ * the round trip between two awaited sends alone can take that long. The protocol delivers them in
+ * order.
+ * @param element - The element the point is on.
+ * @param point - Where.
+ */
+export async function doubleClick(element: Element, point: Point): Promise<void> {
+    await mouseEvent("mouseMoved", element, point, 0);
+    await Promise.all([
+        mouseEvent("mousePressed", element, point, 1, undefined, undefined, "left", 1),
+        mouseEvent("mouseReleased", element, point, 0, undefined, undefined, "left", 1),
+        mouseEvent("mousePressed", element, point, 1, undefined, undefined, "left", 2),
+        mouseEvent("mouseReleased", element, point, 0, undefined, undefined, "left", 2),
     ]);
 }
 
@@ -208,10 +237,19 @@ export async function release(element: Element, point: Point): Promise<void> {
  * @param from - Where the press is.
  * @param to - Where the release is.
  * @param steps - How many moves between them.
+ * @param held - Run at `to` with the button still down, before the release.
+ * @param modifiers - Modifier keys held throughout.
  */
-export async function drag(element: Element, from: Point, to: Point, steps = 8): Promise<void> {
-    await mouseEvent("mouseMoved", element, from, 0);
-    await mouseEvent("mousePressed", element, from, 1);
+export async function drag(
+    element: Element,
+    from: Point,
+    to: Point,
+    steps = 8,
+    held?: () => Promise<void>,
+    modifiers?: Modifiers,
+): Promise<void> {
+    await mouseEvent("mouseMoved", element, from, 0, modifiers);
+    await mouseEvent("mousePressed", element, from, 1, modifiers);
     for (let i = 1; i <= steps; i++) {
         const t = i / steps;
         await mouseEvent(
@@ -219,12 +257,14 @@ export async function drag(element: Element, from: Point, to: Point, steps = 8):
             element,
             { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t },
             1,
+            modifiers,
         );
         // One frame between moves, as a hand gives: the element reads the pointer once a frame.
         await nextFrame();
     }
 
-    await mouseEvent("mouseReleased", element, to, 0);
+    await held?.();
+    await mouseEvent("mouseReleased", element, to, 0, modifiers);
 }
 
 /**

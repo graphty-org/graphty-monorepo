@@ -4,6 +4,7 @@ import { expect, waitFor } from "storybook/test";
 import { realInput } from "../../stories/real-input";
 import { storyWaitOptions } from "../../stories/wait";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
+import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
 import { Workspace } from "../Workspace";
 
@@ -30,15 +31,37 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
     }
 }
 
+/**
+ * Waits until the start page's graph is drawn as it stays: its sample loaded, Louvain's
+ * communities colored and named in the caption, and a stable frame of that. The graph loads after
+ * the page has rendered, so a picture taken before then shows the page without it.
+ * @param canvasElement - the story's root.
+ */
+async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
+    await waitFor(() => {
+        expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
+    }, storyWaitOptions(30_000));
+    const element = canvasElement.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the start page drew no <graphty-element>");
+    }
+    await element.waitForStableFrame();
+}
+
 const meta: Meta<typeof Workspace> = {
     title: "Workspace/Start screen",
     component: Workspace,
     parameters: { layout: "fullscreen" },
+    // A story with a play of its own waits for the graph first, as this one does.
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+    },
     // Every story starts from a first launch: the usage data card unanswered, single-key
     // shortcuts on. The answer is the reader's and lives in this browser, so it is reset here.
-    beforeEach: () => {
+    beforeEach: async () => {
         forgetUsageAnswer();
         localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+        await clearRecent();
     },
 };
 
@@ -51,6 +74,7 @@ export const FirstRun: Story = {};
 /** What is collected, open (`#/start-screen/disclosure`). */
 export const Disclosure: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "What is collected");
     },
 };
@@ -58,6 +82,7 @@ export const Disclosure: Story = {
 /** Answered Share usage data: the answer line, and the chip says so (`#/start-screen/answered`). */
 export const Answered: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "Share usage data");
     },
 };
@@ -65,6 +90,7 @@ export const Answered: Story = {
 /** Answered No thanks (`#/start-screen/declined`). */
 export const Declined: Story = {
     play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "No thanks");
     },
 };
@@ -76,10 +102,45 @@ export const Returning: Story = {
     },
 };
 
+/** A returning reader: Resume, the next three recent projects, Open a file and New project. */
+export const ReturningReader: Story = {
+    beforeEach: async () => {
+        answerUsageData("declined");
+        const day = 86_400_000;
+        const now = Date.UTC(2026, 9, 17, 12);
+        await rememberRecent({ id: "football", name: "College football communities", nodes: 115, at: now - day / 12 });
+        await rememberRecent({ id: "key", name: "Key players, ranked", nodes: 77, at: now - day });
+        await rememberRecent({ id: "karate", name: "Karate club split", nodes: 34, at: now - 8 * day });
+        await rememberRecent({ id: "florentine", name: "Florentine marriages", nodes: 15, at: now - 15 * day });
+        // The page words save times from today ("2 hours ago", "Yesterday"), so the story's today is fixed.
+        const realNow = Date.now;
+        Date.now = () => now;
+        return () => {
+            Date.now = realNow;
+        };
+    },
+};
+
+/** Open network data: the sources on the way, and Open from a link. */
+export const NetworkData: Story = {
+    beforeEach: () => {
+        answerUsageData("declined");
+    },
+    play: async ({ canvasElement, parameters }) => {
+        await heroDrawn(canvasElement);
+        await click(canvasElement, parameters, "Open network data");
+        await waitFor(
+            () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
+            storyWaitOptions(1000),
+        );
+    },
+};
+
 /** A file dragged over the window (`#/start-screen/drop-target`). */
 export const DropTarget: Story = {
     play: async ({ canvasElement, parameters }) => {
-        const root = canvasElement.querySelector(".ws-start");
+        await heroDrawn(canvasElement);
+        const root = canvasElement.querySelector(".ws-land");
         if (root === null) {
             throw new Error("no start screen");
         }

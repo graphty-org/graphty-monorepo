@@ -191,10 +191,9 @@ describe("push-queue: a commit that already failed", () => {
     function setupWithInputs() {
         const ctx = setup();
         mkdirSync(join(ctx.repo, "tools"));
-        copyFileSync(
-            new URL("./prepush-inputs.mjs", import.meta.url).pathname,
-            join(ctx.repo, "tools", "prepush-inputs.mjs"),
-        );
+        for (const f of ["prepush-inputs.mjs", "push-base.mjs"]) {
+            copyFileSync(new URL(`./${f}`, import.meta.url).pathname, join(ctx.repo, "tools", f));
+        }
         writeFileSync(join(ctx.repo, ".gitignore"), "tmp/\n");
         ctx.git("add", ".");
         ctx.git("commit", "-q", "-m", "tools");

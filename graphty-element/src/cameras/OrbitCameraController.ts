@@ -1,5 +1,8 @@
 import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
+import { type FreeArea, freeArea, fullInsets } from "../camera/insets";
+import type { ViewInsets } from "../camera/types";
+import type { FitBounds, FitInsets } from "../config/GraphBehavior";
 import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
@@ -24,6 +27,60 @@ export interface OrbitConfig {
  */
 const DEFAULT_FAR_PLANE = 10000;
 
+/** No room kept clear: framing uses the whole canvas. */
+const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
+
+/**
+ * What every fit keeps clear at each edge, in CSS pixels: the larger of the view insets (what
+ * something else covers) and the fit insets (`camera.fitInsets`), side by side.
+ * @param viewInsets - The view insets.
+ * @param fitInsets - The fit insets.
+ * @returns Every side.
+ */
+export function framingInsets(viewInsets: ViewInsets, fitInsets: FitInsets): Required<ViewInsets> {
+    const view = fullInsets(viewInsets);
+    const fit = fullInsets(fitInsets);
+    return {
+        top: Math.max(view.top, fit.top),
+        right: Math.max(view.right, fit.right),
+        bottom: Math.max(view.bottom, fit.bottom),
+        left: Math.max(view.left, fit.left),
+    };
+}
+
+/** A point a fit must keep in view, and how far the thing drawn there reaches around it. */
+export interface FramingSpot {
+    readonly pos: Vector3;
+    readonly half: number;
+}
+
+/**
+ * How far from the center the camera must stand to keep every spot in view at every angle the
+ * view turns to about the vertical axis through the center, for `camera.fitBounds` "turning".
+ *
+ * A spot `r` from that axis and `dy` above the center, seen from a camera `d` away, is drawn
+ * highest when it has turned nearest the camera: it fits when `d >= dy / tan(halfFovY) + r`.
+ * Sideways it sits at `r sin(a)` and `r cos(a)` nearer, and the worst angle needs
+ * `d >= r * sqrt(1 + 1 / tan(halfFovX)^2)`. Spots near the axis, the top and bottom of most
+ * graphs, ask for much less than the corners of the box around them would.
+ * @param center - The center the view turns about.
+ * @param spots - What must stay in view.
+ * @param tanX - The tangent of half the horizontal field of view.
+ * @param tanY - The tangent of half the vertical field of view.
+ * @returns The distance.
+ */
+export function turningFitDistance(center: Vector3, spots: readonly FramingSpot[], tanX: number, tanY: number): number {
+    const sideways = Math.sqrt(1 + 1 / (tanX * tanX));
+    let distance = 0;
+    for (const { pos, half } of spots) {
+        const r = Math.hypot(pos.x - center.x, pos.z - center.z) + half;
+        const dy = Math.abs(pos.y - center.y) + half;
+        distance = Math.max(distance, dy / tanY + r, r * sideways);
+    }
+
+    return distance;
+}
+
 /**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
@@ -33,11 +90,26 @@ export class OrbitCameraController {
     public camera: UniversalCamera;
     public cameraDistance: number;
     public config: OrbitConfig;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    public fitInsets: FitInsets = NO_INSETS;
+    /** What a fit fits into view; see `camera.fitBounds`. */
+    public fitBounds: FitBounds = "box";
 
     private readonly pivotController: PivotController;
 
+    /**
+     * Margins of the canvas something else covers, in CSS pixels. Every fit keeps the graph out
+     * of them, and the camera is shifted sideways so the pivot sits at the center of what is
+     * left -- a lens shift, so the graph still turns about its own center.
+     */
+    public viewInsets: ViewInsets = {};
+    /** Told each time {@link rotate}, {@link spin} or {@link zoom} moves the camera: the reader's input. */
+    public onReaderMove?: () => void;
+
     /** Half the diagonal of the last bounding box fitted by zoomToBoundingBox. */
     #sceneRadius = 0;
+
+    readonly #canvas: Element;
 
     /**
      * Expose pivot TransformNode for compatibility with existing code.
@@ -56,6 +128,7 @@ export class OrbitCameraController {
      */
     constructor(canvas: Element, scene: Scene, config: OrbitConfig) {
         this.config = config;
+        this.#canvas = canvas;
 
         this.scene = scene;
         this.scene.clearColor = new Color4(0, 0, 0, 1);
@@ -86,6 +159,16 @@ export class OrbitCameraController {
         // Pitch follows "drag up = graph moves up" convention (not inverted)
         this.pivotController.rotate(dx * this.config.trackballRotationSpeed, dy * this.config.trackballRotationSpeed);
         this.updateCameraPosition();
+        this.onReaderMove?.();
+    }
+
+    /**
+     * Turn the scene about its vertical axis on its own, for `camera.autoRotate`.
+     * @param radians - The angle.
+     */
+    public autoTurn(radians: number): void {
+        this.pivotController.rotate(radians, 0);
+        this.updateCameraPosition();
     }
 
     /**
@@ -96,6 +179,7 @@ export class OrbitCameraController {
     public spin(dz: number): void {
         this.pivotController.spin(dz);
         this.updateCameraPosition();
+        this.onReaderMove?.();
     }
 
     /**
@@ -109,6 +193,31 @@ export class OrbitCameraController {
         // beyond it, so the ceiling follows the graph and a reader can still pull back.
         const ceiling = Math.max(this.config.maxZoomDistance, this.cameraDistance + this.#sceneRadius * 2);
         this.cameraDistance = Scalar.Clamp(this.cameraDistance + delta, this.config.minZoomDistance, ceiling);
+        this.onReaderMove?.();
+    }
+
+    /**
+     * Zoom like {@link zoom}, keeping the point under a spot on the screen where it is: the pivot
+     * slides toward that spot by the share of the distance the zoom took away.
+     *
+     * Exact for a point on the plane through the pivot that faces the camera, and close for a
+     * node in front of or behind it.
+     * ponytail: plane through the pivot, not the picked depth; pick the node under the pointer if
+     * a deep 3D layout drifts noticeably.
+     * @param delta - Distance delta to adjust the camera by; negative zooms in.
+     * @param x - The spot's horizontal position, -1 (left edge) to 1 (right edge).
+     * @param y - The spot's vertical position, -1 (bottom edge) to 1 (top edge).
+     */
+    public zoomToward(delta: number, x: number, y: number): void {
+        const before = this.cameraDistance;
+        this.zoom(delta);
+        const taken = before - this.cameraDistance;
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        const slide = new Vector3((x - free.x) * tanX * taken, (y - free.y) * tanY * taken, 0);
+        this.pivot.position.addInPlace(Vector3.TransformNormal(slide, this.pivot.computeWorldMatrix(true)));
+        this.pivot.computeWorldMatrix(true);
+        this.updateCameraPosition();
     }
 
     /**
@@ -135,11 +244,12 @@ export class OrbitCameraController {
      * Glide the pivot to a point, turning about that point meanwhile, so the camera ends up
      * looking at it and orbits, spins and zooms about it.
      * @param point - The point, in world space.
+     * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
      * @returns Whether the pivot moved.
      */
-    public followPoint(point: Vector3): boolean {
+    public followPoint(point: Vector3, frames = 1): boolean {
         this.pivotController.center = point;
-        const moved = glideTowards(this.pivot.position, point);
+        const moved = glideTowards(this.pivot.position, point, frames);
         this.updateCameraPosition();
         return moved;
     }
@@ -152,8 +262,16 @@ export class OrbitCameraController {
         // Parent the camera to the pivot for proper transformation
         this.camera.parent = this.pivot;
 
-        // Set local position relative to pivot
-        this.camera.position.set(0, 0, -this.cameraDistance);
+        // Set local position relative to pivot, shifted sideways so the pivot lands at the
+        // center of the part of the canvas the view insets leave free. The shift is a share of
+        // the distance, so the pivot stays at that point on screen as the reader zooms.
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        this.camera.position.set(
+            -free.x * tanX * this.cameraDistance,
+            -free.y * tanY * this.cameraDistance,
+            -this.cameraDistance,
+        );
 
         // Reset camera rotation - when parented, the camera inherits the pivot's rotation
         this.camera.rotation.set(0, 0, 0);
@@ -165,29 +283,46 @@ export class OrbitCameraController {
     }
 
     /**
-     * Zoom the camera to fit a bounding box in view.
-     * Positions the pivot at the center and adjusts camera distance.
-     * @param min - The minimum corner of the bounding box
-     * @param max - The maximum corner of the bounding box
+     * Take new view insets without moving what is drawn. The lens shift follows the insets, so
+     * the pivot moves by the change in the shift and the camera stays where it is; the next fit
+     * centers the graph on the new free area.
+     * ponytail: until that fit the graph turns about a point off its center by up to half the
+     * inset change; re-center the pivot on the next turn if that ever reads as wrong.
+     * @param insets - CSS pixels per side.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3): void {
-        const center = min.add(max).scale(0.5);
-        const size = max.subtract(min);
-
-        this.#sceneRadius = size.length() / 2;
-
-        // Position pivot at center of bounding box
-        this.pivot.position.copyFrom(center);
+    public setViewInsets(insets: ViewInsets): void {
+        const before = this.camera.position.clone();
+        this.viewInsets = insets;
+        this.updateCameraPosition();
+        const moved = before.subtract(this.camera.position);
+        this.pivot.position.addInPlace(Vector3.TransformNormal(moved, this.pivot.computeWorldMatrix(true)));
         this.pivot.computeWorldMatrix(true);
+    }
 
-        // Get canvas dimensions
+    /**
+     * Called when the canvas resizes: the shift that centers the free area depends on its aspect.
+     */
+    public onResize(): void {
+        this.updateCameraPosition();
+    }
+
+    /**
+     * The part of the canvas the view insets leave free.
+     * @returns The free area in normalized device coordinates.
+     */
+    #freeArea(): FreeArea {
+        const { clientWidth, clientHeight } = this.#canvas;
+        return freeArea(framingInsets(this.viewInsets, this.fitInsets), clientWidth, clientHeight);
+    }
+
+    /**
+     * The tangents of half the horizontal and the vertical field of view.
+     * @returns Both tangents.
+     */
+    #halfFovTangents(): { tanX: number; tanY: number } {
         const engine = this.scene.getEngine();
-        engine.resize(); // Ensure we have current dimensions
-        const canvasWidth = engine.getRenderWidth();
-        const canvasHeight = engine.getRenderHeight();
-        const aspectRatio = canvasWidth / canvasHeight;
+        const aspectRatio = engine.getRenderWidth() / engine.getRenderHeight() || 1;
 
-        // Get camera FOV (vertical)
         let verticalFov = 0.8; // default ~45.8 degrees
         if (this.camera.fovMode === Camera.FOVMODE_VERTICAL_FIXED) {
             verticalFov = this.camera.fov;
@@ -196,9 +331,32 @@ export class OrbitCameraController {
             verticalFov = 2 * Math.atan(Math.tan(this.camera.fov / 2) / aspectRatio);
         }
 
-        // Calculate horizontal FOV from vertical FOV and aspect ratio
-        const halfFovY = verticalFov / 2;
-        const halfFovX = Math.atan(Math.tan(halfFovY) * aspectRatio);
+        const tanY = Math.tan(verticalFov / 2);
+        return { tanX: tanY * aspectRatio, tanY };
+    }
+
+    /**
+     * Zoom the camera to fit a bounding box in view.
+     * Positions the pivot at the center and adjusts camera distance.
+     * @param min - The minimum corner of the bounding box
+     * @param max - The maximum corner of the bounding box
+     * @param spots - What the box holds; with `fitBounds` "turning", what is fitted.
+     */
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
+        const center = min.add(max).scale(0.5);
+        const size = max.subtract(min);
+        const turning = this.fitBounds === "turning" && spots !== undefined && spots.length > 0;
+
+        this.#sceneRadius = size.length() / 2;
+
+        // Position pivot at center of bounding box
+        this.pivot.position.copyFrom(center);
+        this.pivot.computeWorldMatrix(true);
+
+        const engine = this.scene.getEngine();
+        engine.resize(); // Ensure we have current dimensions
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
 
         // For 3D scenes, we need to account for perspective projection.
         // Objects at different Z depths will project differently on screen.
@@ -214,31 +372,31 @@ export class OrbitCameraController {
         // - It projects to screen_y = y * focal / (d - z)
         //
         // To fit within FOV: |screen_x| < tan(fovX/2) * (d - z), etc.
-        // Rearranging: d > z + |x| / tan(fovX/2)  and  d > z + |y| / tan(fovY/2)
+        //
+        // With view insets the box must fit the free area instead: half as wide as the free share
+        // (`free.width` in NDC) and centered on it. The camera is shifted so the center lands
+        // there, and a corner at depth z then sits (x / tanX - free.x * z) / (d + z) from that
+        // center, so d >= |x / tanX - free.x * z| / free.width - z. No insets gives the old rule.
 
         const halfWidth = size.x / 2;
         const halfHeight = size.y / 2;
         const halfDepth = size.z / 2;
 
-        // Check all 8 corners of the bounding box
-        // Each corner has coordinates relative to center: (±halfWidth, ±halfHeight, ±halfDepth)
-        // We need to find the minimum distance that fits all corners
         let maxRequiredDistance = 0;
 
-        for (const sx of [-1, 1]) {
+        if (turning) {
+            maxRequiredDistance = turningFitDistance(center, spots, tanX * free.width, tanY * free.height);
+        }
+
+        for (const sx of turning ? [] : [-1, 1]) {
             for (const sy of [-1, 1]) {
                 for (const sz of [-1, 1]) {
                     const x = sx * halfWidth;
                     const y = sy * halfHeight;
                     const z = sz * halfDepth;
 
-                    // Distance needed to fit this corner horizontally
-                    // d > z + |x| / tan(fovX/2)
-                    const distanceForX = z + Math.abs(x) / Math.tan(halfFovX);
-
-                    // Distance needed to fit this corner vertically
-                    // d > z + |y| / tan(fovY/2)
-                    const distanceForY = z + Math.abs(y) / Math.tan(halfFovY);
+                    const distanceForX = Math.abs(x / tanX - free.x * z) / free.width - z;
+                    const distanceForY = Math.abs(y / tanY - free.y * z) / free.height - z;
 
                     maxRequiredDistance = Math.max(maxRequiredDistance, distanceForX, distanceForY);
                 }
@@ -248,7 +406,8 @@ export class OrbitCameraController {
         // Apply a reasonable padding factor
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
-        const PADDING_PERCENT = 5; // 5% padding
+        // The turning fit is already met only at the worst angle, so it gets no more room.
+        const PADDING_PERCENT = turning ? 0 : 5;
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the

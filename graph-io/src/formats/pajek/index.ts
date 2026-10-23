@@ -4,6 +4,7 @@
  * @module @graphty/graph-io/pajek
  */
 
+export type { PajekDrawOptions } from "./draw.js";
 export { PAJEK_LOSS, pajekExporter, type PajekExportOptions } from "./exporter.js";
 export { PAJEK_ISSUE, pajekImporter, type PajekImportOptions } from "./importer.js";
 export { PAJEK_STYLE_CAPABILITIES } from "./styles.js";

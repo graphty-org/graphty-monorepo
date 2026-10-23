@@ -18,6 +18,8 @@ import {
 } from "@graphty/graph-format";
 
 import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
+import { type SourceIssueCode } from "./sources/codes.js";
+import { type SourceReportInfo } from "./sources/types.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -170,9 +172,10 @@ export interface CommonImportOptions {
      * Called as the input is read, with the bytes read so far and the total. For a string or a
      * Uint8Array the total is known from the first call. For a stream (which includes loadFromUrl()
      * and loadFromFile()) it is undefined until the last call, which always has
-     * `bytesDone === bytesTotal`. Text counts its UTF-8 length.
+     * `bytesDone === bytesTotal`. Text counts its UTF-8 length. A load from a network source passes a
+     * third argument, "bytes" or "items", saying what is counted.
      */
-    onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    onProgress?: ((bytesDone: number, bytesTotal?: number, unit?: "items" | "bytes") => void) | undefined;
     /**
      * The character encoding of byte input, as a label such as "utf-8", "windows-1252" or
      * "utf-16le". Without it graph-io uses a byte order mark, then the encoding the file declares
@@ -553,9 +556,18 @@ export interface ImportIssue {
      * kept, possibly changed.
      */
     readonly severity: "error" | "warning";
-    /** A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). */
-    readonly code: string;
-    /** A plain-English message. */
+    /**
+     * A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). The network
+     * source codes (`SOURCE_ISSUE`) autocomplete; every other code is a string.
+     */
+    readonly code: SourceIssueCode | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+    /**
+     * The issue's machine-readable values (`{ status: 401 }`), when it has any. Every network source
+     * issue has them (`SourceIssueParams` maps each code to its shape); an application writes its
+     * own words from the code and these values.
+     */
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
+    /** A plain-English message, for logs. */
     readonly message: string;
     /** The 1-based line in the input, or null when the format has no lines or it is unknown. */
     readonly line: number | null;
@@ -598,6 +610,8 @@ export interface ImportReport {
     readonly lossy: readonly LossNote[];
     /** How long reading the file took, in milliseconds. */
     readonly durationMs: number;
+    /** What a load from a network source did: requests, bytes, where to resume. Experimental. */
+    readonly source?: SourceReportInfo | undefined;
 }
 
 /**

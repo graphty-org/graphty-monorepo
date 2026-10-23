@@ -313,7 +313,13 @@ describe("an algorithm run over a multigraph", () => {
             { skipQueue: true },
         );
 
-        const run = graph.getSession().runs.start("shortest-path", { method: "dijkstra", source: "a", target: "c" });
+        // A weight nobody gave a meaning is not read as a distance, so the run says it is one.
+        const run = graph.getSession().runs.start("shortest-path", {
+            method: "dijkstra",
+            source: "a",
+            target: "c",
+            weight: { attribute: "weight", meaning: "distance" },
+        });
         const result = await run;
 
         assert.deepInclude(result.node("c"), { distance: 3 }, "1 then 2, not the group's sum of 5 then 2");

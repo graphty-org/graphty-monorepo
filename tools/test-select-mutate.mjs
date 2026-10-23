@@ -182,6 +182,31 @@ function breaker(wt, files, rebuild) {
 }
 
 /**
+ * The run of a shard with the whole batch broken, or null (printed) when the package does not build with
+ * it (the gate stops at the build; no test could run) or the run printed no summary.
+ * @param shard the shard
+ * @param run () => failing() of the batch
+ * @param put breaker() of the batch
+ * @returns the run or null
+ */
+function firstRun(shard, run, put) {
+    try {
+        const r = run();
+        if (r.summary) {
+            return r;
+        }
+        console.log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
+    } catch (e) {
+        if (!(e instanceof BuildBroken)) {
+            throw e;
+        }
+        console.log(`${shard.shard}: SKIPPED, ${e.message}`);
+        put([]);
+    }
+    return null;
+}
+
+/**
  * Breaks a batch of files, runs the shards once and reports what the selection missed.
  * @param m what to mutate
  * @param m.wt the scratch worktree
@@ -223,21 +248,8 @@ async function mutateBatch({ wt, files, shards, allShards, graphs, rebuild }) {
     let misses = 0;
     let inconclusive = 0;
     for (const shard of shards) {
-        let run;
-        try {
-            run = failing(shard, null, files);
-        } catch (e) {
-            if (!(e instanceof BuildBroken)) {
-                throw e;
-            }
-            // the gate stops at the build; no test could run
-            console.log(`${shard.shard}: SKIPPED, ${e.message}`);
-            put([]);
-            inconclusive++;
-            continue;
-        }
-        if (!run.summary) {
-            console.log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
+        const run = firstRun(shard, () => failing(shard, null, files), put);
+        if (!run) {
             inconclusive++;
             continue;
         }

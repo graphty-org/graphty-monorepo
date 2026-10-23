@@ -161,6 +161,84 @@ describe("the gate key", () => {
     });
 });
 
+describe("a test shard's key", () => {
+    // Package p depends on q; r is unrelated. The gate is a checkout of its own, as .worktrees/gate-live
+    // is, holding a copy of the gate's scripts.
+    const graph = {
+        roots: new Map([
+            ["p", "p"],
+            ["q", "q"],
+            ["r", "r"],
+        ]),
+        outputs: new Map([
+            ["p", ["p/dist"]],
+            ["q", ["q/dist"]],
+        ]),
+        deps: new Map([["p", new Set(["q"])]]),
+    };
+    const shard = { shard: "p-1", package: "p", "test-command": "cd p && vitest run", "needs-browser": false };
+    const write = (dir, path, text) => {
+        mkdirSync(join(dir, path, ".."), { recursive: true });
+        writeFileSync(join(dir, path), text);
+    };
+    const gate = repo();
+    for (const f of ["shard-verdict.mjs", "x.mjs"]) write(gate.dir, `tools/${f}`, `${f}\n`);
+    const gateInputs = import(join(gate.dir, "tools/prepush-inputs.mjs"));
+    const checkout = () => {
+        const r = repo();
+        for (const p of ["p", "q", "r"]) write(r.dir, `${p}/src/a.ts`, `${p}\n`);
+        write(r.dir, ".gitignore", "node_modules/\ndist/\ntmp/\ncoverage/\n.coverage-parts/\n");
+        r.git("add", ".");
+        r.git("commit", "-q", "-m", "packages");
+        return r;
+    };
+    const keyOf = async (dir) => (await gateInputs).shardKeys(dir, graph)()(shard);
+
+    it("is the same for the same tree in two worktrees, whatever their build outputs hold", async () => {
+        const r = checkout();
+        const other = join(TMP, `shard-worktree-${made}`);
+        r.git("worktree", "add", "-q", "--detach", other, "HEAD");
+        write(other, "node_modules/.pnpm/lock.yaml", "lock\n");
+        // graph-format stamps the commit it was built at; nx's cache restores another commit's build.
+        write(r.dir, "q/dist/q.js", 'producer = "@graphty/graph-format@29f982b6ae06"\n');
+        write(other, "q/dist/q.js", 'producer = "@graphty/graph-format@c09057348c37"\n');
+        write(other, "p/dist/tsconfig.tsbuildinfo", "buffer@5.7.1\n");
+        assert.equal(await keyOf(other), await keyOf(r.dir));
+    });
+
+    it("is not changed by what a run writes, nor by a gate change outside the rule that judges a run", async () => {
+        const r = checkout();
+        const before = await keyOf(r.dir);
+        write(r.dir, "p/coverage/index.html", "report\n");
+        write(r.dir, "p/.coverage-parts/p-1/coverage-final.json", "{}\n");
+        write(r.dir, "p/dist/p.js", "rebuilt\n");
+        write(r.dir, "tmp/prepush-tests/p-1.log", "Tests  1 passed (1)\n");
+        write(gate.dir, "tools/x.mjs", "a gate fix that went live during the run\n");
+        write(r.dir, "r/src/a.ts", "a package p does not read\n");
+        assert.equal(await keyOf(r.dir), before);
+    });
+
+    it("changes with the files the shard reads, the installed lockfile and the gate's verdict rule", async () => {
+        const r = checkout();
+        const base = await keyOf(r.dir);
+        const changed = async (why, dir, path, text) => {
+            const old = existsSync(join(dir, path)) ? readFileSync(join(dir, path), "utf8") : null;
+            write(dir, path, text);
+            assert.notEqual(await keyOf(r.dir), base, why);
+            if (old === null) rmSync(join(dir, path));
+            else writeFileSync(join(dir, path), old);
+            assert.equal(await keyOf(r.dir), base, `${why}, undone`);
+        };
+        await changed("its package's source", r.dir, "p/src/a.ts", "p 2\n");
+        await changed("a new test file, not yet committed", r.dir, "p/test/a.test.ts", "t\n");
+        await changed("a dependency's source", r.dir, "q/src/a.ts", "q 2\n");
+        await changed("a root file", r.dir, "pnpm-lock.yaml", "lock 2\n");
+        await changed("the checkout's own tools", r.dir, "tools/run-tests.sh", "x\n");
+        await changed("the installed lockfile", r.dir, "node_modules/.pnpm/lock.yaml", "lock 2\n");
+        await changed("the gate's verdict rule", gate.dir, "tools/shard-verdict.mjs", "stricter\n");
+    });
+});
+
 describe("pass records (prepush-inputs.mjs passed / record)", () => {
     it("are found from any worktree with the same inputs, and never after a change", () => {
         const r = repo();

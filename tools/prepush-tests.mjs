@@ -18,8 +18,8 @@
  *   whose policy is "never" never runs here. CI runs them all either way.
  *
  * A shard that already PASSED with byte-identical inputs, on any branch -- its package's files and
- * those of every package it depends on or reads, their build outputs, the root files, the installed
- * lockfile, the gate's version, the Node version (tools/prepush-inputs.mjs) -- is skipped with a
+ * those of every package it depends on or reads, the root files, the installed lockfile, the gate's
+ * rule for judging a run, the Node version (tools/prepush-inputs.mjs) -- is skipped with a
  * [SKIP] line saying when, on which branch and on which commit it passed. So a push after a failed
  * gate re-runs the shard that failed and every shard whose inputs changed, and nothing else, and a
  * landing reuses what its branch passed. Passes are kept in <main checkout>/tmp/prepush-passes/shard/;

@@ -688,7 +688,7 @@ function enterTarget(active: number, ruleOption: string | null, runsTyped: boole
 function refusalSpeech(session: GraphSession, refusal: Refusal): string {
     const example = refusal.example ? exampleRule(session) : null;
     if (refusal.rule !== null) {
-        return `Did you mean ${shownRule(session, refusal.rule.slice(1))}?`;
+        return `Did you mean ${shownRule(session, refusal.rule.slice(1)).trim()}?`;
     }
     return example === null ? refusal.words : `${refusal.words}. A rule reads like ${example}`;
 }

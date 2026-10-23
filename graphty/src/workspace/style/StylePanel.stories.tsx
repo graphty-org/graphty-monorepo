@@ -201,6 +201,10 @@ function sceneStory(play: (scene: Scene) => Promise<void>): Story {
         play: async ({ canvasElement }) => {
             const scene = await loadScene(canvasElement);
             await play(scene);
+            // The key's node shapes arrive as pictures graphty-element draws after the frame.
+            await waitFor(() => {
+                expect(canvasElement.ownerDocument.querySelector("[data-node-picture-pending]")).toBeNull();
+            }, storyWaitOptions(5000));
             await scene.element.waitForStableFrame();
         },
     };

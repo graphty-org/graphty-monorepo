@@ -4094,3 +4094,72 @@ Left open: a dashed or patterned line is always drawn straight (PatternedLineMes
 edge.curve (cx2-signor-aml 27 -> 68); graphty's vee is notched 0.6 of its length and reads as thin barbs where
 vis-network, Graphviz and Cytoscape.js draw a broad head; the drawing defects the new properties expose. Each failing
 element is in oracle-known-failures.json, and each lowered floor in oracle-floors.json's lowered with its reason.
+
+## Round 4: the comparator, edges and layouts (2026-10-22)
+
+Round 4 worked on three things: the oracle comparator's own readings (so a defect is neither hidden nor invented),
+how edges are drawn, and how layouts the programs make are carried. The sections above, from "yEd's notched arrows"
+on, hold each change and its evidence; this one gives the totals and what is left.
+
+Totals over all 563 samples (461 specimen sheets, 102 corpus files), from a full run of the branch head
+(`graphty-element/test/fidelity/oracle-report.test.ts`):
+
+| measure                                             | final report, 2026-10-20 | round 4 |
+| --------------------------------------------------- | ------------------------ | ------- |
+| samples with no failing element                     | 273                      | 309     |
+| failing elements, plain and @matched views together | 21,184                   | 20,209  |
+| failing elements, plain view                        | -                        | 10,359  |
+| failing elements, @matched view (559 samples)       | -                        | 9,850   |
+
+The failing count fell while the comparator judges more: arrowhead length and width within [0.85, 1.18], where the
+arrowhead sits, stacked heads, the dash period and drawn share, free text graphty draws, and a route's allowance capped
+at its end nodes' smaller side. Each of these turned elements that used to pass into failures; the totals are net of
+them. The most failed properties now are edge.route (1,479 plain), label.anchor (1,449), node.stroke (1,291),
+edge.arrow (1,174) and stray.present (1,169).
+
+Fixed in the comparator (each with a unit test that fails without the fix, and a planted defect in `mutations.ts`
+where one applies):
+
+- Arrowheads: yEd's notched arrows read as notched (the notch line at 0.15); a head under a covered stub capped at
+  the end it points to; head parts counted by place, so Graphviz's stacked heads are seen.
+- Edges: a Cytoscape desktop double line read midway between its two rows, not as a zigzag; a patterned band carried
+  to its own arrowheads; a zigzag round a small node read as a zigzag; a route drawn as runs and corners joined; a
+  line between two overlapping nodes named the way graphty runs it.
+- Labels and strays: glyph-outline labels read as one label each; free text judged by its words; a compound member's
+  label bounding its group in font pixels, as Cytoscape.js does.
+- Layouts: sigma.js labels judged at sigma's framing; edge.curve not judged between two programs' own unrelated
+  layouts, as node.position is not; vis-network nodes named by where vis-network drew them, not paired by chance.
+
+Fixed in graph-io and graphty-element (edges and layouts):
+
+- yEd's `standard` and yFiles' `STEALTH` arrows read as notched (`vee`).
+- vis-network's default dynamic curves drawn through support points under vis-network's own forces (new
+  `line.support*` options); Gephi self-loops measured against the node's outline.
+- A DOT file without positions drawn along the routes Graphviz lays (`EdgePosition.bends`, graph-io's
+  `graphvizPosBends`); a placed DOT file whose edges store no route has Graphviz route them (`neato -n2`, the fixed
+  layout's `edgeRoutes: "graphviz"`); a seeded layout gives the same drawing however the data arrives.
+- Pajek arcs: arrowhead stops, the bow Pajek gives two arcs between the same vertices, `ap` as a distance; the Pajek
+  writer now writes a line's arrowhead size `s` (it dropped it, so a re-read Bezier arc ended at a default-size head
+  and its bends moved), and a file graphty wrote keeps its routes in its block instead of being bowed again.
+
+Still open:
+
+- A dashed or patterned line is drawn straight (PatternedLineMesh), so a curved dashed edge fails edge.curve, and a
+  patterned line keeps its straight line under a laid Graphviz route.
+- graphty's vee is notched 0.6 of its length and reads as thin barbs where vis-network, Graphviz and Cytoscape.js draw
+  a broad head; Cytoscape desktop's source heads are drawn about 23 percent small, Graphviz's box heads 25 percent
+  large, vis-network's crow and inv_triangle 34 percent wide; graphty draws stacked heads as one.
+- graphty's Graphviz run lays nodes out as the shapes graphty draws (no label text), so its routes differ where
+  Graphviz routes round label-sized nodes (`dot-real-depcruise`, `dot-real-crazy`); an edge label hangs from the
+  middle of a laid route, not at Graphviz's `lp`.
+- The recommendation asks Graphviz to route a placed DOT file even when every edge already stores its `pos`
+  (`parsing_test.dot`); the stored routes win, so the run only costs time.
+- vis-network's `repulsion` and `hierarchicalRepulsion` solvers and hierarchical static curves are not modeled.
+- The full oracle run is not green against its own records: 30 samples have a property below its recorded floor or an
+  element failing that `oracle-known-failures.json` does not list (for example `gml-need4stacks261` edge.arrow, whose
+  pass rate equals its floor but whose 178 newly judged failing heads were never added; `cx-syn-mappings` and its
+  CX2, session and XGMML copies at label.alongLine 0.971 against a floor of 1), and the drawn-scene and mutant checks
+  report 11 more (a planted glow the border scorer misses, seven planted label and gradient defects now caught that are
+  still listed as untestable). The aggregate totals above are identical to the run the floors were recorded from, so
+  these are records that do not match that run, not new regressions; they need a recording pass with a reason for
+  each lowered floor.

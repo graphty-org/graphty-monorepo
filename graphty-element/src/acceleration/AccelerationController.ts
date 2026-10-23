@@ -24,6 +24,8 @@
 
 import { ACCELERATION_ERROR_CODES, type AccelerationErrorCode, GraphtyError } from "../errors";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
+import type { CodedFactParam } from "../session/shared";
+import { reportUnavailable } from "./consoleReport";
 import { type AcceleratorRegistry, acceleratorRegistry } from "./registry";
 import {
     ACCELERATION_MIN_EDGES_MEASUREMENT,
@@ -207,6 +209,27 @@ function accelerationCodeOf(error: GraphtyError): AccelerationErrorCode | undefi
     return ACCELERATION_ERROR_CODES.find((known) => known === error.code);
 }
 
+/** The `details` of a failed probe that are published as `capabilities.acceleration.params`. */
+const PUBLISHED_PARAMS = ["accelerator", "package", "missing"] as const;
+
+/**
+ * Picks the values a failed probe publishes beside its code: the accelerator's name, and for the
+ * package codes the package and the exports it lacked. Never a sentence.
+ * @param error - The failure, already wrapped.
+ * @returns The params, frozen.
+ */
+function paramsOf(error: GraphtyError): Readonly<Record<string, CodedFactParam>> {
+    const params: Record<string, CodedFactParam> = {};
+    for (const key of PUBLISHED_PARAMS) {
+        const value = error.details[key];
+        if (typeof value === "string" || (Array.isArray(value) && value.every((item) => typeof item === "string"))) {
+            params[key] = value;
+        }
+    }
+
+    return Object.freeze(params);
+}
+
 /**
  * Whether a thrown value is a cancellation rather than a failure.
  *
@@ -244,7 +267,8 @@ function sameStatus(a: AccelerationStatus, b: AccelerationStatus): boolean {
         a.architecture === b.architecture &&
         a.device === b.device &&
         a.reason === b.reason &&
-        a.code === b.code
+        a.code === b.code &&
+        JSON.stringify(a.params) === JSON.stringify(b.params)
     );
 }
 
@@ -290,6 +314,7 @@ export class AccelerationController {
     #state: AccelerationState;
     #reason: string | undefined;
     #code: AccelerationErrorCode | undefined;
+    #params: Readonly<Record<string, CodedFactParam>> | undefined;
     #backend: string | undefined;
     #device: AcceleratorDeviceInfo | undefined;
     #attachment: Attachment | null = null;
@@ -761,7 +786,8 @@ export class AccelerationController {
         this.#probeSettled = true;
 
         if (!attached) {
-            this.#transition("unavailable", this.#reason, this.#code);
+            this.#transition("unavailable", this.#reason, this.#code, this.#params);
+            reportUnavailable(this.#code, this.#reason);
         }
 
         return this.#status;
@@ -784,14 +810,17 @@ export class AccelerationController {
 
         if (registrations.length === 0) {
             this.#reason =
-                'no accelerator is registered. Import "@graphty/graphty-element/webgpu" to use WebGPU, ' +
-                "or register your own accelerator factory.";
+                "no accelerator is registered. Load the element from @graphty/graphty-element, which finds " +
+                'an installed WebGPU package itself, import "@graphty/graphty-element/webgpu", or register ' +
+                "your own accelerator factory.";
             this.#code = "E_NO_ACCELERATOR_REGISTERED";
+            this.#params = undefined;
             return false;
         }
 
         const declined: string[] = [];
         let code: AccelerationErrorCode | undefined;
+        let params: Readonly<Record<string, CodedFactParam>> | undefined;
 
         for (const registration of registrations) {
             try {
@@ -820,13 +849,19 @@ export class AccelerationController {
                 });
                 // A throw with no acceleration code of its own (a backend module that failed to load,
                 // a defect) still gets one, so a consumer can switch on every unavailable state.
-                code = accelerationCodeOf(failure) ?? code ?? "E_ACCELERATOR_FAILED";
+                const own = accelerationCodeOf(failure);
+                if (own !== undefined || code === undefined) {
+                    code = own ?? "E_ACCELERATOR_FAILED";
+                    params = paramsOf(failure);
+                }
+
                 declined.push(`${registration.name}: ${failure.message}`);
             }
         }
 
         this.#reason = declined.join("; ");
         this.#code = code;
+        this.#params = params;
         return false;
     }
 
@@ -1142,6 +1177,7 @@ export class AccelerationController {
                 policy: this.#policy,
                 state: this.#state,
                 ...(this.#code === undefined ? {} : { acceleration: this.#code }),
+                ...(this.#params === undefined ? {} : { params: this.#params }),
                 ...(work === undefined ? {} : { capability: work.capability, nodeCount: work.nodeCount }),
             },
         });
@@ -1166,11 +1202,18 @@ export class AccelerationController {
      * @param state - The new state.
      * @param reason - The sentence a person reads, or undefined to clear it.
      * @param code - The code a `switch` takes, or undefined to clear it.
+     * @param params - The values the code is about, or undefined to clear them.
      */
-    #transition(state: AccelerationState, reason: string | undefined, code: AccelerationErrorCode | undefined): void {
+    #transition(
+        state: AccelerationState,
+        reason: string | undefined,
+        code: AccelerationErrorCode | undefined,
+        params?: Readonly<Record<string, CodedFactParam>>,
+    ): void {
         this.#state = state;
         this.#reason = reason;
         this.#code = code;
+        this.#params = params;
 
         const next = this.#buildStatus();
         if (sameStatus(this.#status, next)) {
@@ -1240,6 +1283,10 @@ export class AccelerationController {
 
         if (this.#code !== undefined) {
             status.code = this.#code;
+        }
+
+        if (this.#params !== undefined) {
+            status.params = this.#params;
         }
 
         return Object.freeze(status);

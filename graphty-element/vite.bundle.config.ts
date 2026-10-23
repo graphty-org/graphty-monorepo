@@ -63,7 +63,17 @@ export default defineConfig({
             // neo4j-driver, graph-io's optional peer for Cypher over Bolt, is left out the same
             // way: a page maps it in an import map, and without one a Bolt load rejects with
             // `E_SOURCE_RUNTIME` (`reason: "needs-peer-dependency"`). The Query API needs nothing.
-            external: ["@mlc-ai/web-llm", "@hpcc-js/wasm-graphviz", "neo4j-driver"],
+            // The optional GPU package is left out the same way: a page that maps
+            // `@graphty/webgpu-graph-algorithms` and its `/browser` subpath in an import map gets
+            // WebGPU acceleration, and without one `capabilities.acceleration` reports
+            // `E_MISSING_PACKAGE` and nothing is printed.
+            external: [
+                "@mlc-ai/web-llm",
+                "@hpcc-js/wasm-graphviz",
+                "neo4j-driver",
+                "@graphty/webgpu-graph-algorithms",
+                "@graphty/webgpu-graph-algorithms/browser",
+            ],
             output: {
                 // Vite 8 warns that this is deprecated in favour of `codeSplitting: false`,
                 // but that key is not in the Rollup types this workspace resolves, so using it

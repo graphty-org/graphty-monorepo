@@ -20,6 +20,7 @@
 import type { AlgorithmAccelerator } from "@graphty/algorithms";
 
 import type { AccelerationErrorCode } from "../errors";
+import type { CodedFactParam } from "../session/shared";
 
 /**
  * Where hardware acceleration stands, in one word.
@@ -264,6 +265,15 @@ export interface AccelerationStatus {
     readonly reason?: string;
     /** Why acceleration is unavailable or has stopped, in a string a `switch` can take. */
     readonly code?: AccelerationErrorCode;
+    /**
+     * The values {@link AccelerationStatus.code} is about, by name, when it has any: `accelerator`
+     * (the registered name that failed), `package` (for `E_MISSING_PACKAGE`,
+     * `E_ACCELERATOR_FAILED` and `E_ACCELERATOR_INCOMPATIBLE` from the GPU package) and `missing`
+     * (the export names `E_ACCELERATOR_INCOMPATIBLE` found absent). Never a sentence; present
+     * only beside a `code`.
+     * @since 3.31.0
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
 }
 
 /**

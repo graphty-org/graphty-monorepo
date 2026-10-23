@@ -82,6 +82,7 @@ const SIDE_EFFECTFUL = ["./dist/graphty.js", "./dist/graphty.bundle.js", "./dist
  */
 const REGISTRATION_MODULES = [
     "./webgpu.ts",
+    "./src/acceleration/autoload.ts",
     "./src/algorithms/index.ts",
     "./src/data/index.ts",
     "./src/layout/index.ts",

@@ -95,7 +95,7 @@ source file of the same name at the package root:
 | `./commands` | `commands.ts`                          | `COMMANDS` (every op, undoable or exempt with a reason), `CommandMeta`, `isSessionCommand`, `SessionCommand`                                                           | Yes         |
 | `./react`    | `react.ts`                             | Nothing yet; the name is reserved for typed React wrappers                                                                                                             | Yes (empty) |
 | `./jsx`      | `jsx.ts`                               | Types only, no JavaScript: the opt-in React 19 JSX declaration of the tag, generated from the custom elements manifest at build time                                   | Yes (types) |
-| `./webgpu`   | `webgpu.ts`                            | Side-effect import that registers the WebGPU accelerator; the only file that imports the optional peer                                                                 | No          |
+| `./webgpu`   | `webgpu.ts`                            | Optional side-effect import that registers the WebGPU accelerator statically (the root entry already loads an installed peer lazily, `src/acceleration/autoload.ts`)   | No          |
 | `./ai`       | `ai.ts`                                | The natural-language layer and its LLM SDKs; needs a DOM                                                                                                               | No          |
 | `./bundle`   | `index.ts` via `vite.bundle.config.ts` | One self-contained file for a `<script>` tag (replaced the UMD build)                                                                                                  | No          |
 
@@ -122,9 +122,15 @@ those entry points reach, check what that import drags in. A type-only import is
 `import type` and the emitter deletes the statement. A value import of anything that touches a
 mesh, a material, a scene, a `LitElement` or `document` is not.
 
-`@graphty/webgpu-graph-algorithms` is an optional peer dependency and `webgpu.ts` is the only
-file in the package allowed to import it. A consumer who never imports `./webgpu` never resolves
-the peer, which is why activation is an entry point rather than a dynamic import from the core.
+`@graphty/webgpu-graph-algorithms` is an optional peer dependency. Two files import it:
+`webgpu.ts` (statically, the explicit entry) and `src/acceleration/autoload.ts` (a literal
+`await import()` directly inside `try`, reached only from `index.ts` and so `bundle.ts`, run at the
+first probe). That form is what lets every bundler build a consumer with the package absent;
+do not compute the specifier, move it into a `.then()` chain or import the peer statically from a
+lazily loaded module. `test/packaging/node-safe-entries.test.ts` pins both doors and keeps the
+peer out of the Node-safe entries; `scripts/bundler-matrix.mjs` (`npm run test:bundlers`, release
+train) builds a packed consumer with Vite 8, webpack (current and 5.90.2), Rollup, esbuild and an
+import map, with the package absent, present and broken.
 
 The build runs Vite twice: the library build (`vite.config.ts`, every dependency external, one
 output file per entry point) and the self-contained bundle (`vite.bundle.config.ts`, nothing
@@ -302,7 +308,10 @@ loss and applies the `acceleration.minNodes` threshold, and the `Capabilities` d
 reads. The element exposes the `acceleration` attribute (`auto` | `off` | `required`, reflecting)
 and emits `graphty-capabilities-change` on every transition. A consumer writes no probe, no
 construction and no device-loss code -- that is the point. Nothing here names a GPU type; WebGPU
-arrives only through the `./webgpu` entry point.
+arrives through `autoload.ts` (the root entry, lazily) or the `./webgpu` entry point, both building
+the factory with `createWebGpuFactory` (`webgpuFactory.ts`). Every probe outcome is a code and
+`params` on the status, and `consoleReport.ts` prints one line per page per code (nothing for
+`E_MISSING_PACKAGE`).
 
 What actually uses an accelerator: the layouts `forceatlas2`, `spring` and `spring-electrical`
 run on `SimulationLayoutEngine` over `@graphty/layout`'s `createSimulation`, which takes the

@@ -46,7 +46,16 @@ const NODE_SAFE_ENTRIES = [
  * What must never appear in a Node-safe entry point's import graph. `@hpcc-js/wasm-graphviz` is
  * imported only by the Graphviz Worker, which no entry point imports.
  */
-const FORBIDDEN = [/^@babylonjs($|\/)/, /^lit($|\/)/, /^@lit($|\/)/, /^@mlc-ai($|\/)/, /^@hpcc-js($|\/)/];
+const FORBIDDEN = [
+    /^@babylonjs($|\/)/,
+    /^lit($|\/)/,
+    /^@lit($|\/)/,
+    /^@mlc-ai($|\/)/,
+    /^@hpcc-js($|\/)/,
+    // The optional GPU package: only the root entry loads it (lazily, src/acceleration/autoload.ts),
+    // so a Node consumer of a Node-safe entry never tries to import its browser-only subpath.
+    /^@graphty\/webgpu-graph-algorithms($|\/)/,
+];
 
 /** The emitted JavaScript of one source file, keyed by absolute path. */
 const transpiled = new Map<string, string>();
@@ -261,6 +270,17 @@ describe("the ./webgpu entry point", () => {
     // comparison below would fail. It is not a package-wide census -- an importer outside this
     // entry point's graph is not visible from here -- and `exports-map.test.ts` is what keeps the
     // peer optional in the manifest; this keeps the entry point the only door it comes through.
+    it("the root entry reaches the optional peer only through its lazy loader", () => {
+        const peers = graphOf("index.ts").filter((found) =>
+            /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),
+        );
+
+        assert.deepEqual(peers.map((found) => `${found.specifier} from ${found.chain.at(-1) ?? "nowhere"}`).sort(), [
+            "@graphty/webgpu-graph-algorithms from src/acceleration/autoload.ts",
+            "@graphty/webgpu-graph-algorithms/browser from src/acceleration/autoload.ts",
+        ]);
+    });
+
     it("reaches both entries of the optional peer from webgpu.ts, and from no other file", () => {
         const peers = graphOf("webgpu.ts").filter((found) =>
             /^@graphty\/webgpu-graph-algorithms($|\/)/.test(found.specifier),

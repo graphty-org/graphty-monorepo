@@ -387,7 +387,7 @@ const REPEATING_MIN = 3;
 const SIMILARITY_COLUMNS: readonly string[] = ["confidence", "score", "strength"];
 
 /** Column names a node's label is read from when no label path is configured. */
-const LABEL_COLUMNS: readonly string[] = ["name", "Name", "title", "Title"];
+export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];
 
 /** A value that starts with a calendar date, which reads as a time, never as an id. */
 const DATE_LIKE = /^\d{4}-\d{2}-\d{2}/;
@@ -1044,9 +1044,11 @@ export class Draft implements LoadDraft {
             Object.assign(named, { edgeWeightMeaning: null });
         }
 
-        // A graph file's label column, which the element reads by itself, labels the nodes as the
-        // draft's mapping says it will, unless a label path is configured already.
-        const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
+        // A graph file's label column, which the element reads by itself, or the label column a
+        // table's columns name, labels the nodes as the draft's mapping says it will, unless a
+        // label path is configured already or a merge keeps how the graph names its nodes.
+        const nodeMapping = Object.values(mapping.tables).find((table) => table.rowsAre === "nodes");
+        const label = read.tables[0].table.fixed || choices.mode !== "merge" ? (nodeMapping?.label ?? null) : null;
         const labelled =
             label === null || this.host.config().knownFields.nodeLabelPath !== null
                 ? named

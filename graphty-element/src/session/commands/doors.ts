@@ -2251,6 +2251,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     IGNORE_STEP,
                 ],
             },
+            // Every ignored id joins the issue state, as one batch.
+            ignoreIssues: {
+                kind: "dispatches",
+                op: "data.issues",
+                call: {
+                    kind: "call",
+                    args: [["padded-space:node:doorName"]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Ignored padded-space:node:doorName",
+                        fact: {
+                            code: "data.ignore-issues",
+                            params: { issues: ["padded-space:node:doorName"], ignored: true },
+                        },
+                        steps: [IGNORE_STEP],
+                    },
+                    IGNORE_STEP,
+                ],
+            },
             // The rows only that load supplied go, and the load leaves the list, as one batch.
             removeSource: {
                 kind: "dispatches",
@@ -3023,6 +3049,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsOnLoad: READ,
             background: READ,
             selectionStyle: READ,
+            pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
             runPlacement: READ,

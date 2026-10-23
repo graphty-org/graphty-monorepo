@@ -75,7 +75,7 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
-import { Draft, draftStyles, fileName, type JoinedTable, keyExpression, readSource } from "./draft";
+import { Draft, draftStyles, fileName, type JoinedTable, keyExpression, LABEL_COLUMNS, readSource } from "./draft";
 import {
     type DataIssue,
     findIssues,
@@ -316,6 +316,9 @@ const FIND_KINDS: readonly FindKind[] = ["node", "edge"];
 
 /** How many records a page holds when the caller does not say. */
 const DEFAULT_PAGE_LIMIT = 100;
+
+/** A page record's issues when an issue-marked page has none on it. */
+const NO_ISSUES: readonly IssueId[] = Object.freeze([]);
 
 /** Natural order for text: "2" before "10". */
 const NATURAL = new Intl.Collator("en", { numeric: true });
@@ -580,6 +583,12 @@ export class SessionData implements SessionDataApi {
         readonly columns: readonly AttributeDescriptor[];
         readonly found: readonly FoundIssue[];
     } | null = null;
+    /** The open issues on each record, by kind, and what they were read from. */
+    private openIssuesMemo: {
+        readonly found: readonly FoundIssue[];
+        readonly state: IssueState;
+        readonly byRecord: Readonly<Record<"node" | "edge", ReadonlyMap<NodeId | EdgeId, readonly IssueId[]>>>;
+    } | null = null;
     /** `sources()` with its counts, and what they were counted from. */
     private sourcesMemo: {
         readonly stored: readonly LoadedSource[];
@@ -807,10 +816,14 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options, "sample", {
-            generator: name,
-            params: { ...params },
-        });
+        await this.importVia(
+            send,
+            recordsSource(graph, name),
+            options,
+            "sample",
+            { generator: name, params: { ...params } },
+            sampleLabelOf(graph),
+        );
     }
 
     /**
@@ -845,10 +858,14 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(snapshot, name), load, "sample", {
-            dataset: name,
-            ...(baseUrl === undefined ? {} : { baseUrl }),
-        });
+        await this.importVia(
+            send,
+            recordsSource(snapshot, name),
+            load,
+            "sample",
+            { dataset: name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+            sampleLabelOf(snapshot),
+        );
     }
 
     /**
@@ -858,6 +875,7 @@ export class SessionData implements SessionDataApi {
      * @param options - What `import` takes.
      * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
      * @param sample - For a generated graph or a dataset: what it was, for the project file.
+     * @param sampleLabel - For a generated graph or a dataset: the column that names its nodes.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
@@ -866,6 +884,7 @@ export class SessionData implements SessionDataApi {
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
         origin?: LoadedSourceKind,
         sample?: LoadFacts["sample"],
+        sampleLabel?: string,
     ): Promise<void> {
         let resolvedConfig: Readonly<Record<string, unknown>> = source.config;
         const send = this.noting(
@@ -909,20 +928,19 @@ export class SessionData implements SessionDataApi {
         const { knownFields } = this.readConfig();
         const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
         // A new graph from a graph file names its nodes by the file's label column, as a draft's
-        // load of it does, unless a label path is configured already. A node without one is still
-        // named by its id. A merge keeps how the graph it joins names its nodes.
-        const names =
-            origin !== "sample" &&
-            step.mode !== "merge" &&
-            knownFields.nodeLabelPath === null &&
-            step.source.type !== undefined &&
-            step.source.type !== "csv";
+        // load of it does, and a dataset by the label, name or title its nodes carry, unless a
+        // label path is configured already. A node without one is still named by its id. A merge
+        // keeps how the graph it joins names its nodes.
+        const graphFile = step.source.type !== undefined && step.source.type !== "csv";
+        const fileLabel = graphFile ? "label" : undefined;
+        const label = origin === "sample" ? sampleLabel : fileLabel;
+        const names = step.mode !== "merge" && knownFields.nodeLabelPath === null && label !== undefined;
         const before: BatchCommand["steps"] = [
             ...(resets
                 ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
                 : []),
             ...(names
-                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: label } } } } as const]
                 : []),
         ];
         // The batch is the import in the history, so it carries the import's fact: a page load's
@@ -1796,7 +1814,17 @@ export class SessionData implements SessionDataApi {
             records.push(recordAt(rows === null ? position : (rows[position] ?? position)));
         }
 
-        const page = { records: Object.freeze(records), offset, total, revision: String(revision) };
+        // Finding the issues reads every record once per revision, so only a page that asks does.
+        const asks = options.issue !== undefined || options.markIssues === true;
+        const marks = records.length === 0 || !asks ? undefined : this.openIssuesByRecord(target);
+        const marked = marks !== undefined && records.some((record) => marks.has(record.id));
+        const page = {
+            records: Object.freeze(records),
+            offset,
+            total,
+            revision: String(revision),
+            ...(marked ? { issues: Object.freeze(records.map((record) => marks.get(record.id) ?? NO_ISSUES)) } : {}),
+        };
         if (columns === undefined) {
             return Object.freeze(page);
         }
@@ -1825,16 +1853,26 @@ export class SessionData implements SessionDataApi {
         const touching = target === "edge" ? options.touching : undefined;
         const { sort } = options;
         const matching = matchingOf(options.matching);
-        if (scope === undefined && touching === undefined && sort === undefined && matching === undefined) {
+        const { issue } = options;
+        if (
+            scope === undefined &&
+            touching === undefined &&
+            sort === undefined &&
+            matching === undefined &&
+            issue === undefined
+        ) {
             return null;
         }
+
+        // Ignoring an issue moves no revision, so the key names what the issue filter read.
+        const issueKey = issue === undefined ? undefined : [issue, this.issueState().ignored];
 
         const result = sort !== undefined && "run" in sort ? resolveResult(sort, target, this.pages, verb) : undefined;
         // JSON keeps 1 and "1" apart, which the ids need. A result sort is keyed by what it
         // resolved to, never by the run handle it was given.
         const sortKey =
             result === undefined ? sort : { run: result.run, field: result.field, descending: sort?.descending };
-        const key = JSON.stringify([target, scope, sortKey, touching, matching]);
+        const key = JSON.stringify([target, scope, sortKey, touching, matching, issueKey]);
         return this.orders.get(key, () => {
             const space = edgeSpaceOf(snapshot);
             const order =
@@ -1850,7 +1888,10 @@ export class SessionData implements SessionDataApi {
                                         )
                                   : rowReader(resultSortValue(result, target), snapshot, target),
                       };
-            const matches = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const text = matching === undefined ? null : this.pages.textTest(matching.text, matching.mode, target);
+            const flagged = issue === undefined ? null : this.issueRows(snapshot, target, issue);
+            const matches =
+                flagged === null ? text : (index: number): boolean => flagged(index) && (text === null || text(index));
             return this.computeOrder(snapshot, target, scope, touching, order, matches);
         });
     }
@@ -2103,11 +2144,77 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * The issue state now: what each load saw, the ignored issues and the kept pairs.
+     * @returns the state
+     */
+    private issueState(): IssueState {
+        return (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+    }
+
+    /**
+     * The open issues each record of one kind is affected by, read once per issues and state.
+     * @param target - nodes or edges
+     * @returns the issue ids by record id; a record with none is absent
+     */
+    private openIssuesByRecord(target: "node" | "edge"): ReadonlyMap<NodeId | EdgeId, readonly IssueId[]> {
+        const found = this.foundIssues();
+        const state = this.issueState();
+        const memo = this.openIssuesMemo;
+        if (memo?.found === found && memo.state === state) {
+            return memo.byRecord[target];
+        }
+
+        const ignored = new Set(state.ignored);
+        const byRecord = { node: new Map<NodeId | EdgeId, IssueId[]>(), edge: new Map<NodeId | EdgeId, IssueId[]>() };
+        for (const { issue, affected } of found) {
+            if (affected === undefined || ignored.has(issue.id)) {
+                continue;
+            }
+
+            const map = byRecord[affected.kind];
+            for (const id of affected.ids) {
+                const list = map.get(id);
+                if (list === undefined) {
+                    map.set(id, [issue.id]);
+                } else if (!list.includes(issue.id)) {
+                    list.push(issue.id);
+                }
+            }
+        }
+
+        for (const map of Object.values(byRecord)) {
+            for (const list of map.values()) {
+                Object.freeze(list);
+            }
+        }
+
+        this.openIssuesMemo = { found, state, byRecord };
+        return byRecord[target];
+    }
+
+    /**
+     * Whether each row of one kind is affected by an open issue: one, or any.
+     * @param snapshot - the current snapshot
+     * @param target - nodes or edges
+     * @param issue - the issue's id, or `"any"`
+     * @returns a test by row
+     */
+    private issueRows(snapshot: GraphSnapshot, target: "node" | "edge", issue: IssueId): (index: number) => boolean {
+        const byRecord = this.openIssuesByRecord(target);
+        const space = edgeSpaceOf(snapshot);
+        const idOf = (index: number): NodeId | EdgeId =>
+            target === "node" ? snapshot.ids.idOf(index) : space.idOf(index);
+        return issue === "any"
+            ? (index) => byRecord.has(idOf(index))
+            : (index) => byRecord.get(idOf(index))?.includes(issue) === true;
+    }
+
+    /**
      * Every issue found in the data now, with the plans that fix it, read once per graph and state.
      * @returns the issues, ignored ones included
      */
     private foundIssues(): readonly FoundIssue[] {
-        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const state = this.issueState();
         const snapshot = this.current();
         const columns = this.attributes();
         const memo = this.issuesMemo;
@@ -2138,7 +2245,7 @@ export class SessionData implements SessionDataApi {
     issues(options: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean } = {}): readonly DataIssue[] {
         this.requireLive("issues");
         const found = this.foundIssues();
-        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const state = this.issueState();
         const ignored = new Set(state.ignored);
         const listed: DataIssue[] = found
             .map(({ issue }): DataIssue => {
@@ -2228,7 +2335,7 @@ export class SessionData implements SessionDataApi {
     async ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored = true): Promise<void> {
         this.requireLive("ignoreIssue");
         const id = typeof issue === "string" ? issue : issue.id;
-        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const state = this.issueState();
         if (state.ignored.includes(id) === ignored) {
             return;
         }
@@ -2254,6 +2361,49 @@ export class SessionData implements SessionDataApi {
                 ],
             },
             "ignore an issue",
+        );
+    }
+
+    /**
+     * Ignore several issues, or list them again with `false`, as one undoable step.
+     * @param issues - the issues or their ids
+     * @param ignored - true (the default) to ignore, false to list them again
+     * @returns settles once the step is recorded; nothing is recorded when nothing changes
+     */
+    async ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored = true): Promise<void> {
+        this.requireLive("ignoreIssues");
+        const state = this.issueState();
+        const ids = [...new Set(issues.map((issue) => (typeof issue === "string" ? issue : issue.id)))].filter(
+            (id) => state.ignored.includes(id) !== ignored,
+        );
+        if (ids.length === 0) {
+            return;
+        }
+
+        if (ignored) {
+            // Only an issue the data has now can be ignored; any ignored id can be listed again.
+            ids.forEach((id) => this.issueNamed(id));
+        }
+
+        const changed = new Set(ids);
+        await this.sendIssues(
+            {
+                op: "batch",
+                label: ignored ? `Ignored ${ids.join(", ")}` : `Stopped ignoring ${ids.join(", ")}`,
+                fact: { code: "data.ignore-issues", params: { issues: ids, ignored } },
+                steps: [
+                    {
+                        op: "data.issues",
+                        state: {
+                            ...state,
+                            ignored: ignored
+                                ? [...state.ignored, ...ids]
+                                : state.ignored.filter((each) => !changed.has(each)),
+                        },
+                    },
+                ],
+            },
+            "ignore issues",
         );
     }
 
@@ -4042,6 +4192,17 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
 function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSourceInput {
     const data = JSON.stringify({ directed: graph.directed, ...toElementData(graph) });
     return { type: "json", name, config: { data } };
+}
+
+/**
+ * The column that names a generated graph's or a dataset's nodes: the first of
+ * {@link LABEL_COLUMNS} some node holds text in.
+ * @param graph - The graph.
+ * @returns The column, or undefined when no node has one.
+ */
+function sampleLabelOf(graph: SampleGraph | GraphSnapshot): string | undefined {
+    const { nodes } = toElementData(graph) as { nodes: readonly Readonly<Record<string, unknown>>[] };
+    return LABEL_COLUMNS.find((column) => nodes.some((node) => typeof node[column] === "string"));
 }
 
 /**

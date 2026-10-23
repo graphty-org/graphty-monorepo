@@ -244,7 +244,11 @@ export function partPatch(
 }
 
 /** The template id a starting row's layers carry, which is how the element finds one again. */
-export type StartingRowId = "graphty:starting-everything" | "graphty:starting-selected" | "graphty:starting-hovered";
+export type StartingRowId =
+    "graphty:starting-everything" | "graphty:starting-selected" | "graphty:starting-hovered" | typeof PINNED_ROW_ID;
+
+/** The template id the Pinned row carries. */
+export const PINNED_ROW_ID = "graphty:starting-pinned";
 
 /** One starting row: what it is, and where it is pinned. */
 export interface StartingRow {
@@ -355,6 +359,34 @@ export function ghostRow(): { readonly templateId: typeof GHOST_ROW_ID; readonly
             selector: { match: "state", state: "ghosted" },
             set: { ...STARTING_GHOST_LOOK },
             source: { by: "template", templateId: GHOST_ROW_ID },
+        },
+    };
+}
+
+/**
+ * The Pinned row: nodes in the state `"pinned"`, pinned to the top directly below Selected,
+ * drawing the halo the project setting `pinnedStyle` gives. A starting row that exists while
+ * `pinnedStyle` is set.
+ * @param look - The setting's node halo.
+ * @param look.color - The halo's color.
+ * @param look.scale - The halo's size, as a multiple of the node's drawn radius.
+ * @param look.opacity - How solid the halo is.
+ * @returns The row.
+ */
+export function pinnedRow(look: { readonly color: string; readonly scale: number; readonly opacity: number }): {
+    readonly templateId: typeof PINNED_ROW_ID;
+    readonly pin: "top";
+    readonly spec: RowSpec;
+} {
+    return {
+        templateId: PINNED_ROW_ID,
+        pin: "top",
+        spec: {
+            name: "Pinned",
+            target: "node",
+            selector: { match: "state", state: "pinned" },
+            set: { "node.haloColor": look.color, "node.haloScale": look.scale, "node.haloOpacity": look.opacity },
+            source: { by: "template", templateId: PINNED_ROW_ID },
         },
     };
 }

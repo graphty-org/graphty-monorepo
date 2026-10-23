@@ -245,6 +245,28 @@ describe("the location map", () => {
         });
     });
 
+    it("applied with its defaults, places every node by its coordinates on a map drawn under them", async () => {
+        const element = await openAirports(false, CITIES);
+        const popover = await openMapForm();
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        await waitFor(
+            () => {
+                assert.strictEqual(element.basemapStatus.state, "ready", "a map is drawn");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.strictEqual(element.session.layout.id, "location-map");
+        // West to east on screen: Seattle, Chicago, New York; Seattle, the farthest north, highest.
+        const at = (id: string): { x: number; y: number } => {
+            const p = element.nodeScreenPosition(id);
+            assert.isNotNull(p, id);
+            return p ?? { x: NaN, y: NaN };
+        };
+        assert.isBelow(at("SEA").x, at("CHI").x);
+        assert.isBelow(at("CHI").x, at("NYC").x);
+        assert.isBelow(at("SEA").y, at("NYC").y);
+    });
+
     it("applies Map with only Latitude set, and names the columns Automatic used", async () => {
         const element = await openAirports(false, CITIES);
         let popover = await openMapForm();

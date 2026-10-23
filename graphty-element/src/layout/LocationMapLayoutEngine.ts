@@ -12,11 +12,22 @@ import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayout
 let placeModule: typeof import("./locationMap/place") | null = null;
 
 /**
- * The placement module, loaded on first use.
+ * The placement module, loaded on first use. A load that fails (a page whose build was replaced
+ * under it, a dropped connection) is not remembered, so the next run tries again.
  * @returns The module.
+ * @throws A `GraphtyError` with code `E_FETCH_FAILED` when the module could not be loaded.
  */
 async function loadPlace(): Promise<typeof import("./locationMap/place")> {
-    placeModule ??= await import("./locationMap/place");
+    try {
+        placeModule ??= await import("./locationMap/place");
+    } catch (error) {
+        throw GraphtyError.wrap(error, {
+            code: "E_FETCH_FAILED",
+            source: "layout",
+            details: { layout: "location-map" },
+        });
+    }
+
     return placeModule;
 }
 
@@ -195,7 +206,8 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * Start the layout: refuse a graph with no location the layout can find, before it becomes the
      * active layout, so the previous one stays drawn.
      * @throws A `GraphtyError` with code `E_UNKNOWN_ATTRIBUTE` whose `details.refusal` is the
-     *     `layout.needs-location` fact.
+     *     `layout.needs-location` fact, or with code `E_FETCH_FAILED` when the placement code could not
+     *     be loaded.
      */
     override async init(): Promise<void> {
         await super.init();
@@ -209,6 +221,10 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         if (isLocationRefusal(answer)) {
             throw refusalError(answer);
         }
+
+        // Loaded here, before the layout becomes the active one: a load that fails in the run
+        // instead would leave the map named the layout with the old drawing and nothing said.
+        await loadPlace();
     }
 
     /**

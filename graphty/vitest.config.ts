@@ -33,6 +33,20 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 };
 
 /**
+ * Makes every request whose URL holds `fragment` fail with 404, as a code file does on a page
+ * whose build was replaced under it; `false` lets them through again.
+ * @param ctx - the browser command context.
+ * @param fragment - a piece of the URL.
+ * @param failing - whether they fail.
+ */
+const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async (ctx, fragment, failing) => {
+    const glob = `**/*${fragment}*`;
+    await (failing
+        ? ctx.page.route(glob, (route) => route.fulfill({ status: 404, body: "gone" }))
+        : ctx.page.unroute(glob));
+};
+
+/**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
  * @returns the browser config.
@@ -42,7 +56,7 @@ const chromium = () => ({
     headless: true,
     provider: playwright(),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile },
+    commands: { chooseNextFile, failRequests },
 });
 
 export default defineConfig({

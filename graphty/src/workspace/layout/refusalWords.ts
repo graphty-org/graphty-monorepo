@@ -72,13 +72,20 @@ const MISSING_LOCATION_WORDS: Readonly<Record<string, string>> = {
 
 /**
  * Why a layout the reader applied refused to run, when the element's error carries a refusal it
- * codes, or null for any other failure.
+ * codes or says its code could not be loaded, or null for any other failure.
  * @param error - what `layout.set` rejected with.
  * @returns the words, or null.
  */
 export function layoutErrorWords(error: unknown): string | null {
-    const details = (error as { details?: { refusal?: { code?: unknown; params?: { missing?: unknown } } } } | null)
-        ?.details;
+    const failure = error as {
+        code?: unknown;
+        details?: { refusal?: { code?: unknown; params?: { missing?: unknown } } };
+    } | null;
+    // The layout's code could not be fetched: usually a page older than the site it came from.
+    if (failure?.code === "E_FETCH_FAILED") {
+        return "The layout could not be loaded, so the drawing is unchanged. Reload the page to try again";
+    }
+    const details = failure?.details;
     if (details?.refusal?.code !== "layout.needs-location") {
         return null;
     }

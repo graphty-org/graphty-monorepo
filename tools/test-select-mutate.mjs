@@ -147,13 +147,15 @@ function runShard(wt, shard, command, browser) {
  * @param m.wt the scratch worktree
  * @param m.files the repo-relative files to break together
  * @param m.shards the plain shards to run, one per command
+ * @param m.allShards every shard of the matrix
  * @param m.graphs buildGraphs() of the unbroken packages
  * @returns `{ misses, inconclusive }`
  */
-async function mutateBatch({ wt, files, shards, graphs }) {
+async function mutateBatch({ wt, files, shards, allShards, graphs }) {
     const sels = new Map();
     for (const f of files) {
-        sels.set(f, measuredOf((await selectChange(wt, [f], shards, graphs)).shards));
+        // asked about every shard, so every package is one (a file of another package is not a root file)
+        sels.set(f, measuredOf((await selectChange(wt, [f], allShards, graphs)).shards));
     }
     const chosen = (f, shard) => {
         const s = sels.get(f).find((x) => x.shard === shard.shard);
@@ -277,7 +279,7 @@ async function main(argv) {
     for (let i = 0; i < picked.length; i += size) {
         const batch = picked.slice(i, i + size);
         console.log(`Batch ${i / size + 1}: ${batch.length} broken file(s)`);
-        const r = await mutateBatch({ wt, files: batch, shards, graphs });
+        const r = await mutateBatch({ wt, files: batch, shards, allShards: SHARDS, graphs });
         misses += r.misses;
         inconclusive += r.inconclusive;
     }

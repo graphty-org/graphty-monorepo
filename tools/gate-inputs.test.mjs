@@ -452,6 +452,7 @@ wait`,
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
+                    GRAPHTY_TEST_SLOTS_DIR: join(TMP, "no-gates"), // a gate running on this machine changes nothing here
                 },
             },
         );
@@ -462,5 +463,45 @@ wait`,
         assert.equal(fifth?.kind, "browser-slot", JSON.stringify(lines));
         assert.equal(fifth.heldBy.length, 4);
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
+    });
+
+    it("while a gate runs its test shards, keeps every other browser command to slot 4; the gate's own take any", () => {
+        const dir = join(TMP, "gate-lane");
+        const slotsDir = join(dir, "test-slots");
+        mkdirSync(slotsDir, { recursive: true });
+        // A live gate mark: this test process stands in for the gate.
+        writeFileSync(join(slotsDir, `.gate-${process.pid}`), JSON.stringify({ pid: process.pid, since: Date.now() }));
+        // The holder is outside the gate, so it takes slot 4; the gate's command then takes slot 1 at once,
+        // and another command outside the gate waits for slot 4 although slots 2 and 3 are free.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+"$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
+until [ -e held.4 ]; do sleep 0.05; done
+TEST_SLOT_GATE=1 "$GATE" sh -c "echo gate > gate"
+"$GATE" sh -c "echo other > other" 2> other.err &
+until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
+[ ! -e other ] || exit 9
+touch go
+wait`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "0.1",
+                    PIPELINE_WAIT_LOG: "off",
+                    GRAPHTY_TEST_SLOTS_DIR: slotsDir,
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
+        assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
     });
 });

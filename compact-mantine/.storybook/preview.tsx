@@ -5,6 +5,14 @@ import type { Preview, StoryContext } from "@storybook/react";
 import { type ReactNode, useRef } from "react";
 
 import { createCompactTheme } from "../src/theme";
+import { configure } from "@storybook/test";
+
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
+
+// A play function's waitFor and findBy* wait until the monorepo's one hang guard, not Testing
+// Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
+// (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object
 // changes.

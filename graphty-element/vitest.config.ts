@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { TEST_GUARDS } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -300,6 +301,8 @@ export default defineConfig({
                     // `coverage: { enabled: false }` used to sit here saying so, but coverage is a
                     // root-only option: vitest ignored it at run time and its types rejected it.
                     name: "bench",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/**/*.bench.test.ts"],
                     // One file at a time: a benchmark timed beside another measures the other.
@@ -318,11 +321,10 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
-                    // The shared config's figure. Tests that import a whole entry point take several
-                    // seconds on a CI runner or under the pre-push gate, past vitest's default five.
-                    testTimeout: 30000,
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // Timing benchmarks, which run as their own project -- see "bench" above.
@@ -414,6 +416,8 @@ export default defineConfig({
                 },
                 test: {
                     name: "mesh",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     environment: "node",
                     setupFiles: ["./test/mesh-testing/test-setup.ts"],
@@ -429,10 +433,6 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Mesh construction under NullEngine is fast; these are the limits the standalone
-                    // config used and no case comes close to them.
-                    testTimeout: 10000,
-                    hookTimeout: 5000,
                 },
             },
             {
@@ -461,6 +461,8 @@ export default defineConfig({
                     // of starting a browser project at all -- but a file that needs a settled physics
                     // layout or a video encode does not belong in a gate a person waits on.
                     name: "contract",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: ["./test/setup.ts"],
                     include: [
                         "test/browser/label-paint.test.ts",
@@ -530,6 +532,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
@@ -553,6 +557,8 @@ export default defineConfig({
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/browser/**/*.bench.test.ts"],
                     fileParallelism: false,
@@ -595,6 +601,8 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
@@ -673,6 +681,8 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     include: ["test/browser/autosave/**/*.test.ts"],
                     fileParallelism: false,
                     browser: {
@@ -726,6 +736,8 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: ["./test/setup.ts"],
                     include: [
                         "test/fidelity/fidelity.test.ts",
@@ -755,6 +767,8 @@ export default defineConfig({
                 envPrefix: ["VITE_", "GRAPHTY_BENCH_SCALE"],
                 test: {
                     name: "bench-browser",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     include: ["test/bench-browser/**/*.bench-browser.ts"],
                     testTimeout: 0,
                     fileParallelism: false,
@@ -772,6 +786,8 @@ export default defineConfig({
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
@@ -794,8 +810,6 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    // Interaction tests load complex scenes and may need longer timeout
-                    testTimeout: 30000,
                 },
             },
             {
@@ -819,6 +833,8 @@ export default defineConfig({
                 },
                 test: {
                     name: "storybook",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
                         "**/*~/**",
@@ -841,8 +857,6 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                     },
                     setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
-                    // Storybook tests load complex 3D scenes and need longer timeout
-                    testTimeout: 30000,
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
@@ -857,6 +871,8 @@ export default defineConfig({
             {
                 test: {
                     name: "lifecycle",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     environment: "node",
                     include: ["test/lifecycle/**/*.test.ts"],
                     // The benchmark beside these tests runs in "bench".
@@ -881,6 +897,8 @@ export default defineConfig({
                 define: { ...define },
                 test: {
                     name: "llm-regression",
+                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+                    ...TEST_GUARDS,
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [

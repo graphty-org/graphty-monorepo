@@ -60,6 +60,7 @@ import {
 } from "../test/helpers/paint-assertions";
 import { click, hover } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
+import "../../vitest.wait-guard-setup";
 import { operationQueueOf } from "../src/Graph";
 
 // Strict state: every session created in these tests checks that project state changes only
@@ -95,9 +96,6 @@ if (globalThis.window !== undefined) {
         originalWarn.apply(console, args);
     };
 }
-
-/** How often to look again while waiting for the data to arrive. */
-const POLL_MS = 50;
 
 /** The story parameters this hook reads. */
 interface PaintCheckParameters {
@@ -182,7 +180,12 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
  */
 async function until(done: () => boolean): Promise<void> {
     while (!done()) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        // Once a frame: what is waited for changes as the element draws.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
     }
 }
 

@@ -11,7 +11,6 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
-import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -351,13 +350,22 @@ export default tseslint.config(
     // ============================================
     // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
     // ============================================
-    // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
-    // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
+    // A wall-clock assertion, a fixed sleep, a hand-set timeout or a deadline on a wait passes on an
+    // idle machine and fails when several test runs share it. The rule and its reasons:
+    // tools/eslint-rules/no-test-timing.mjs. Story play functions and their helpers are tests too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
     // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
     // and a desktop program that offers no event to wait on is polled.
     {
-        files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
+        files: [
+            "**/*.test.{ts,tsx,js,mjs}",
+            "**/*.spec.{ts,tsx,js,mjs}",
+            "**/test/**/*.{ts,tsx,js,mjs}",
+            "**/tests/**/*.{ts,tsx,js,mjs}",
+            "**/*.stories.{ts,tsx}",
+            "**/stories/**/*.{ts,tsx}",
+            "**/.storybook/**/*.{ts,tsx}",
+        ],
         ignores: [
             "**/*.bench.test.ts",
             "**/*.bench-browser.ts",
@@ -378,13 +386,6 @@ export default tseslint.config(
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
-    },
-    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
-    // of its own under a test runner (#2930). graphty's stories are in its own config.
-    {
-        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
-        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
-        rules: { "local-stories/story-wait-options": "error" },
     },
 
     // ============================================

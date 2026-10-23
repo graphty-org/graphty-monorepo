@@ -17,6 +17,7 @@ const sleep = { messageId: "sleep" };
 const timeout = { messageId: "timeout" };
 const frames = { messageId: "frames" };
 const pageTimer = { messageId: "pageTimer" };
+const waitBudget = { messageId: "waitBudget" };
 const FRAMES_HELPER = "async function frames(count) { for (let i = 0; i < count; i++) { await nextFrame(); } }";
 
 tester.run("no-test-timing", rule, {
@@ -54,7 +55,14 @@ tester.run("no-test-timing", rule, {
         "it('x', runCase);",
         "vi.setConfig({ restoreMocks: true });",
         "window.setTimeout(() => {}, 10);",
-        "expect(locator).toBeVisible({ timeout: 5000 });",
+        "expect(locator).toBeVisible();",
+        // Options that are no deadline, and timeouts of things that are not waits.
+        "await screen.findByRole('button', { name: 'Go' });",
+        "await locator.click({ force: true });",
+        "execFile(cmd, args, { timeout: 60_000 }, done);",
+        "expect(tx).toEqual({ timeout: 5000 });",
+        "expect(spy).toHaveBeenCalledWith({ timeout: 5000 });",
+        "await expect.poll(() => x(), { message: 'x' }).toBe(1);",
         "regex.test(input, 5);",
         // One animation frame is a yield; frames counted by the work they carry are counted work.
         "await nextFrame(); expect(count).toBe(1);",
@@ -146,6 +154,73 @@ tester.run("no-test-timing", rule, {
         {
             code: "async function twoFrames() { await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); } await twoFrames();",
             errors: [frames],
+        },
+        // 6. Time budgets on waits.
+        {
+            code: "await waitFor(() => expect(x).toBe(1), { timeout: 2000 });",
+            output: "await waitFor(() => expect(x).toBe(1));",
+            errors: [waitBudget],
+        },
+        {
+            code: "await canvas.findByRole('button', {}, { timeout: 5000 });",
+            output: "await canvas.findByRole('button', {});",
+            errors: [waitBudget],
+        },
+        {
+            code: "await canvas.findByRole('button', { name: 'Go' }, storyWaitOptions(5000));",
+            output: "await canvas.findByRole('button', { name: 'Go' });",
+            errors: [waitBudget],
+        },
+        {
+            code: "await vi.waitFor(() => done(), { timeout: 5000, interval: 50 });",
+            output: "await vi.waitFor(() => done());",
+            errors: [waitBudget],
+        },
+        {
+            code: "await vi.waitUntil(() => done(), 5000);",
+            output: "await vi.waitUntil(() => done());",
+            errors: [waitBudget],
+        },
+        {
+            code: "await expect.poll(() => x(), { timeout: 3000, message: 'x' }).toBe(1);",
+            output: "await expect.poll(() => x(), { message: 'x' }).toBe(1);",
+            errors: [waitBudget],
+        },
+        {
+            code: "await expect.poll(() => x(), { message: 'x', timeout: 3000 }).toBe(1);",
+            output: "await expect.poll(() => x(), { message: 'x' }).toBe(1);",
+            errors: [waitBudget],
+        },
+        {
+            code: "await expect.element(el, { timeout: 3000 }).toBeVisible();",
+            output: "await expect.element(el).toBeVisible();",
+            errors: [waitBudget],
+        },
+        {
+            code: "await expect(locator).toBeVisible({ timeout: 5000 });",
+            output: "await expect(locator).toBeVisible();",
+            errors: [waitBudget],
+        },
+        { code: "await locator.click({ timeout: 500 });", output: "await locator.click();", errors: [waitBudget] },
+        {
+            code: "await page.waitForSelector('x', { timeout: 10000 });",
+            output: "await page.waitForSelector('x');",
+            errors: [waitBudget],
+        },
+        {
+            code: "await page.waitForFunction(() => ready, null, { timeout: 10000 });",
+            output: "await page.waitForFunction(() => ready, null);",
+            errors: [waitBudget],
+        },
+        {
+            code: "await expect(async () => check()).toPass({ timeout: 9000 });",
+            output: "await expect(async () => check()).toPass();",
+            errors: [waitBudget],
+        },
+        {
+            code: "const WAIT = { timeout: 2000 }; await vi.waitFor(() => done(), WAIT);",
+            output: null,
+            errors: [waitBudget],
         },
         // 5. Timers in code handed to the page (#2422, #2447).
         {

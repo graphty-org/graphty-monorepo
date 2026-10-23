@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { TEST_GUARDS } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 export default defineConfig({
@@ -17,7 +18,10 @@ export default defineConfig({
         maxWorkers: workerShare(),
         // No test runs git with the developer's own config, including a GIT_CONFIG_COUNT signing override.
         // No test sees the developer's real HOME.
-        setupFiles: ["test/isolate-git.setup.mjs", "test/temp-home.setup.mjs"],
+        setupFiles: ["test/isolate-git.setup.mjs", "test/temp-home.setup.mjs", "../vitest.wait-guard-setup.ts"],
+        // One hang guard for every test, hook and wait, far above how long anything takes on a
+        // loaded machine; it ends a hang, it never judges speed (tools/test-wait-guard.mjs).
+        ...TEST_GUARDS,
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

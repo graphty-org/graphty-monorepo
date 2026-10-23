@@ -918,7 +918,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
     that interaction in its play function (pointer events on the canvas, clicks on the controls),
     and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
-- Tests wait on conditions and assert on counted work; the `local/no-test-timing` lint rule enforces it.
+- Tests wait on conditions and assert on counted work, with no deadline of their own on any wait: every test, hook and wait shares its package's one hang guard (`tools/test-wait-guard.mjs`), far above normal. The `local/no-test-timing` lint rule enforces it.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots

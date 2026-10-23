@@ -457,7 +457,7 @@ describe("Pajek styles: writing", () => {
             /^2 square 0\.8 0\.25 0\.5 box ic SkyBlue lc Black x_fact 4\.0 y_fact 4\.0 fos 16\.0 bw 2\.0$/m,
         );
         // the width arc 4-2 is drawn at, carried from the arc before it, is written on it
-        expect(out).toContain("4 2 -1 c Red w 3.0 p Dots l dotted");
+        expect(out).toContain("4 2 -1 c Red w 3.0 s 2.0 p Dots l dotted");
         const back = await load(out);
         expect(back.styles.styles.source.tool).toBe("graphty");
         expect(plain(back.styles)).toEqual(plain(styles));

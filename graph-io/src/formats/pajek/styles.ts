@@ -79,6 +79,7 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "arrowSize",
         "arrowPosition",
         "label",
         "labelColor",
@@ -1248,8 +1249,10 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         readHooks(get, put, keywords[snapshot.edgeSource(i)], keywords[snapshot.edgeTarget(i)]);
     };
     const directed = directedEdges(snapshot);
-    // Straight Lines draws the arcs Pajek would bow apart straight
-    const bows = drawsStraightLines(draw) ? new Map<number, 1 | -1>() : sharedArcBows(snapshot, directed);
+    // Straight Lines draws the arcs Pajek would bow apart straight, and a file graphty wrote keeps its routes in its
+    // block
+    const bows =
+        drawsStraightLines(draw) || block !== null ? new Map<number, 1 | -1>() : sharedArcBows(snapshot, directed);
     const keywords: unknown[] = [];
     const weights = explicitWeights(snapshot);
     // the line's value: its weight, or the `value` column when the import kept the value as an attribute
@@ -1673,6 +1676,11 @@ function lineParams(get: Get, directed: boolean, approximate: Approximate): Map<
     if (typeof lineStyle === "string" && lineStyle !== "solid" && pajekDots(lineStyle, out, directed, approximate)) {
         out.set("p", "Dots");
     }
+    // the arrowhead's size, which also places a Bezier arc's end (`readArcEnd`)
+    const arrowSize = get("arrowSize");
+    if (typeof arrowSize === "number" && arrowSize !== 1) {
+        out.set("s", arrowSize);
+    }
     const position = get("arrowPosition");
     if (typeof position === "number" && position > 0) {
         out.set("ap", position);
@@ -2015,6 +2023,8 @@ function lineRestated(key: string, directed: boolean): Written {
             return directed ? Number(defaults.width) : Number(defaults.width) / EDGE_WIDTH_PER_W;
         case "p":
             return "Solid";
+        case "s":
+            return 1;
         default:
             return 0;
     }

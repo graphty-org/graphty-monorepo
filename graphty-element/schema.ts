@@ -100,6 +100,7 @@ export type {
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
+    GlobeLook,
     ImageData,
     Lighting,
     LocationSourceFact,

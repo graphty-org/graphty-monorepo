@@ -88,9 +88,10 @@ const ARROW_CAPTION_LOCATION: AttachPosition = "top";
 const ARROW_CAPTION_OFFSET = 0.3;
 
 /**
- * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of its
- * length: a quarter over a flat map, a tenth over a globe, where a long route's quarter would rise
- * higher than the globe is wide.
+ * How high a raised route rises at its middle when `line.arcHeight` is unset, as a share of the
+ * straight distance between its ends: a quarter over a flat map, a tenth over a globe, so a route
+ * to the far side of the world rises a fifth of the radius and thousands of routes do not wrap
+ * the globe in a thick halo.
  */
 const DEFAULT_ARC_HEIGHT = { arc: 0.25, "great-circle": 0.1 } as const;
 

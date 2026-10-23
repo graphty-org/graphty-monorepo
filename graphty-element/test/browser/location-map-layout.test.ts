@@ -173,9 +173,9 @@ describe("the location map layout", () => {
         assert.equal(strip?.style.display, "none");
     });
 
-    it("switches between a flat map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
+    it("switches between a 2D map and a globe in 3D, with raised arcs and great-circle arcs", async () => {
         await graph.setViewMode("3d");
-        await placeAirports({}, 60);
+        await placeAirports({ mapDimension: "2d" }, 60);
         const edges = [...graph.getDataManager().edges.values()];
         assert.isAbove(edges.length, 10);
 
@@ -188,7 +188,7 @@ describe("the location map layout", () => {
         const lowest = Math.min(...(flatArc ?? []).map((p) => p.z));
         assert.isBelow(lowest, at(id).z - 0.5, "the arc rises off the map");
 
-        await graph.setLayout("location-map", { surface: "globe" });
+        await graph.setLayout("location-map", { mapDimension: "3d" });
         await settled();
         await drawnFrames(graph.getScene(), 2);
         const p = at(id);

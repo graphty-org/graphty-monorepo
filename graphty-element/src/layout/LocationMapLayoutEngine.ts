@@ -77,11 +77,13 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    surface: {
-        schema: z.enum(["flat", "globe"]).default("flat"),
+    mapDimension: {
+        schema: z.enum(["2d", "3d"]).default("3d"),
         meta: {
-            label: "Surface",
-            description: "A flat map or a globe; the 2D view always draws the flat map",
+            label: "Map Dimension",
+            description:
+                "In the 3D view, a 3D map (the globe) or a 2D map (a flat map, edges arced above it); " +
+                "the 2D view always draws the 2D map",
         },
     },
     projection: {
@@ -150,7 +152,7 @@ const LocationMapLayoutConfig = z.strictObject({
     latitude: z.string().nullable().default(null),
     longitude: z.string().nullable().default(null),
     format: z.enum(FORMATS).default("auto"),
-    surface: z.enum(["flat", "globe"]).default("flat"),
+    mapDimension: z.enum(["2d", "3d"]).default("3d"),
     projection: z.enum(["auto", "web-mercator", "equirectangular"]).default("auto"),
     extent: z.enum(["data", "world"]).default("data"),
     size: z.number().positive().default(100),
@@ -170,9 +172,10 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  *
  * Nodes with no usable location go to a tray below the map (or stay where they were) and are
  * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
- * 0, longitude 0. The 2D view always draws the flat map; in 3D `surface` picks a flat map or a
- * globe. Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges'
- * default route follow. A graph with no location the layout can find is refused when the layout
+ * 0, longitude 0. The 2D view always draws a 2D (flat) map with straight edges; in the 3D view
+ * `mapDimension` picks the 3D map, a globe (the default), or the 2D map with edges arced above it.
+ * Each answer publishes {@link LocationMapLayout.geoFrame}, which the map and the edges' default
+ * route follow. A graph with no location the layout can find is refused when the layout
  * starts, so the previous layout stays drawn: the refusal is `layout.needs-location`, the code the
  * layout's cost estimate gives before it is chosen.
  */
@@ -318,8 +321,17 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * @returns The options and the view's dimension.
      */
     #placeOptions(): PlaceOptions {
-        const { format, surface, projection, extent, size, unplaced, overlap } = this.config;
-        return { format, surface, projection, extent, size, unplaced, overlap, dimensions: this.dimensions };
+        const { format, mapDimension, projection, extent, size, unplaced, overlap } = this.config;
+        return {
+            format,
+            surface: mapDimension === "3d" ? "globe" : "flat",
+            projection,
+            extent,
+            size,
+            unplaced,
+            overlap,
+            dimensions: this.dimensions,
+        };
     }
 
     /**

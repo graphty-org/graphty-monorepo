@@ -305,16 +305,17 @@ a decimal pair (latitude first, or longitude first when only that fits), GeoJSON
 degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
 should not decide.
 
-- **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
-  (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe
-  with great-circle arcs. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+- **Map dimension.** The 2D view always draws a 2D (flat) map with straight edges. In the 3D view,
+  `mapDimension: "3d"` (the default) draws a 3D map, a globe, with great-circle arcs above it, and
+  `mapDimension: "2d"` draws the 2D map with each edge raised as an arc over it. A 3D map asked
+  for in the 2D view is kept and drawn again when the view goes back to 3D. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
   `line.arcHeight` override the arcs per edge.
 - **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
   the whole world. `size` is the map's width (or the globe's radius) in scene units.
 - **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
   or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
   `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
-- **The map.** The layout's `map` option picks the picture, on the flat map and wrapped onto the
+- **The map.** The layout's `map` option picks the picture, on the 2D map and wrapped onto the
   globe alike: unset (`null`), the bundled Natural Earth world image (no network);
   `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
   `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
@@ -322,7 +323,7 @@ should not decide.
   Setting a new `map` on the applied layout swaps the picture without moving a node:
 
     ```javascript
-    g.layoutConfig = { location: "where", surface: "globe", map: { source: "nasa-gibs-blue-marble" } };
+    g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
     The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.

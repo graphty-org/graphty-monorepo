@@ -74,10 +74,10 @@ That is the whole integration. It shows the three airports on the bundled world 
 data, in the default 3D view with arcs between them. Setting `view-mode="2d"` gives a flat map with
 straight edges. Nothing in the example names a projection, a tile, a texture or a parser.
 
-### 2.2 Choosing the map and the surface
+### 2.2 Choosing the map and its dimension
 
 ```js
-g.layoutConfig = { location: "where", surface: "globe" }; // or "flat" (the default)
+g.layoutConfig = { location: "where", mapDimension: "2d" }; // or "3d" (the default): the globe in 3D
 // The layout's `map` option picks the picture (decided 2026-10-22; see section 15.1):
 g.layoutConfig = { location: "where", map: { source: "openstreetmap" } }; // a named free source
 g.layoutConfig = {
@@ -104,20 +104,20 @@ All of it is additive; nothing existing changes.
 The layout `location-map`, in the layout catalog (`graphty-element/src/catalog/layouts.ts`) and in
 `KNOWN_LAYOUT_IDS` (`graphty-element/src/catalog/types.ts`). Its options:
 
-| Option       | Type                  | Default    | Meaning                                                                                                                                                                                                                              |
-| ------------ | --------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `location`   | node attribute        | null       | One field holding a whole location (a pair, a string, a GeoJSON Point, a code).                                                                                                                                                      |
-| `latitude`   | node attribute        | null       | Separate latitude column, used with `longitude` instead of `location`.                                                                                                                                                               |
-| `longitude`  | node attribute        | null       | Separate longitude column.                                                                                                                                                                                                           |
-| `format`     | enum                  | `"auto"`   | `auto`, `decimal`, `lon-lat` (decimal pair with longitude first), `dms`, `iso6709`, `geojson`, `wkt`, `geohash`, `plus-code`, `mgrs`, `utm`, `place-name`. `auto` detects per column, below.                                         |
-| `surface`    | enum                  | `"flat"`   | `flat` or `globe`. In the 2D view the surface is always flat, whatever this says.                                                                                                                                                    |
-| `projection` | enum                  | `"auto"`   | Flat surface only: `auto`, `web-mercator`, `equirectangular`, `equal-earth`, `albers-usa`, `transverse-mercator`. `auto` is Web Mercator, which matches every web tile source.                                                       |
-| `extent`     | enum or bounds        | `"data"`   | `data` fits the projection and the map to the located nodes plus a margin; `world` shows the whole map; `[[west, south], [east, north]]` fixes it.                                                                                   |
-| `size`       | number                | 100        | Scene units across the shown extent (flat) or the globe's radius (globe).                                                                                                                                                            |
-| `unplaced`   | enum                  | `"tray"`   | Nodes with no usable location: `tray` puts them in a row beside the map, `leave` leaves them where the previous layout put them. They are never put at latitude 0, longitude 0 (`design/extensions/layout.md` already forbids that). |
-| `overlap`    | enum                  | `"spread"` | Nodes at exactly the same place: `spread` arranges them in a small spiral around the point, `stack` keeps them on it.                                                                                                                |
-| `geocoder`   | geocoder name or null | null       | For `place-name`: `"gazetteer"` (offline country, state and city names) or a keyed service. See section 4.5.                                                                                                                         |
-| `nodeScale`  | enum                  | `"scene"`  | `scene`: node sizes are scene units and grow as the camera zooms in; `screen`: every node keeps its size on screen at any zoom, a size-1 node drawn as one unit is when the map's extent fills the view's height.                    |
+| Option         | Type                  | Default    | Meaning                                                                                                                                                                                                                                |
+| -------------- | --------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `location`     | node attribute        | null       | One field holding a whole location (a pair, a string, a GeoJSON Point, a code).                                                                                                                                                        |
+| `latitude`     | node attribute        | null       | Separate latitude column, used with `longitude` instead of `location`.                                                                                                                                                                 |
+| `longitude`    | node attribute        | null       | Separate longitude column.                                                                                                                                                                                                             |
+| `format`       | enum                  | `"auto"`   | `auto`, `decimal`, `lon-lat` (decimal pair with longitude first), `dms`, `iso6709`, `geojson`, `wkt`, `geohash`, `plus-code`, `mgrs`, `utm`, `place-name`. `auto` detects per column, below.                                           |
+| `mapDimension` | enum                  | `"3d"`     | `3d` (a globe) or `2d` (a flat map) in the 3D view. The 2D view always draws the 2D map, whatever this says, and keeps the value for the 3D view. Owner decision 2026-10-23: the map follows the 2D/3D mode, no flat-map/globe choice. |
+| `projection`   | enum                  | `"auto"`   | Flat surface only: `auto`, `web-mercator`, `equirectangular`, `equal-earth`, `albers-usa`, `transverse-mercator`. `auto` is Web Mercator, which matches every web tile source.                                                         |
+| `extent`       | enum or bounds        | `"data"`   | `data` fits the projection and the map to the located nodes plus a margin; `world` shows the whole map; `[[west, south], [east, north]]` fixes it.                                                                                     |
+| `size`         | number                | 100        | Scene units across the shown extent (flat) or the globe's radius (globe).                                                                                                                                                              |
+| `unplaced`     | enum                  | `"tray"`   | Nodes with no usable location: `tray` puts them in a row beside the map, `leave` leaves them where the previous layout put them. They are never put at latitude 0, longitude 0 (`design/extensions/layout.md` already forbids that).   |
+| `overlap`      | enum                  | `"spread"` | Nodes at exactly the same place: `spread` arranges them in a small spiral around the point, `stack` keeps them on it.                                                                                                                  |
+| `geocoder`     | geocoder name or null | null       | For `place-name`: `"gazetteer"` (offline country, state and city names) or a keyed service. See section 4.5.                                                                                                                           |
+| `nodeScale`    | enum                  | `"scene"`  | `scene`: node sizes are scene units and grow as the camera zooms in; `screen`: every node keeps its size on screen at any zoom, a size-1 node drawn as one unit is when the map's extent fills the view's height.                      |
 
 The location options use the existing option type `"attribute"` with `on: "node"`, the same type the
 algorithms' `weight` option uses (`WEIGHT_OPTION` in `graphty-element/src/catalog/algorithms.ts`),
@@ -186,9 +186,9 @@ and the layout's frame (section 5.4).
   `UpdateManager.redrawArrangement()`, `Node.update()`, `Node.setMeshPosition()`. Nothing about nodes
   changes, which is what keeps style layers working (section 6).
 - **2D and 3D.** The layout gets `input.dimensions` from the view mode. In 2D it returns z = 0 and
-  the surface is flat; `Graph.settleDimension` already flattens z. In 3D with `surface: "flat"`
+  the map is 2D; `Graph.settleDimension` already flattens z. In 3D with `mapDimension: "2d"`
   the map lies in the x-y plane at z = 0 (the plane the 2D camera looks at, so switching views does
-  not move the map) and nodes sit on it at z = 0; with `surface: "globe"` nodes sit on a sphere.
+  not move the map) and nodes sit on it at z = 0; with `mapDimension: "3d"` (the default) nodes sit on a sphere.
 - **The map** is a new manager, `BasemapManager` (`graphty-element/src/managers/BasemapManager.ts`),
   beside `RenderManager`, whose `applyBackground()` (`graphty-element/src/managers/RenderManager.ts`)
   is the closest existing piece: it already builds a `PhotoDome` from a URL. The basemap code is
@@ -318,10 +318,10 @@ its datasets from graphty.app, and the same hosting fits.
 
 ### 5.1 The four combinations
 
-| graphty-element view                  | `surface: "flat"` (default)                                                                                         | `surface: "globe"`                                                                                                                                                                                                                                                                                                              |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2D (`view-mode="2d"`)                 | Flat map in the x-y plane, orthographic 2D camera, straight edges                                                   | Not available. Asking for it (`surface: "globe"` while in 2D) is refused with `E_OPTION_RANGE`, `details.refusal` `{ code: "setting.notIn2d", params: { setting: "surface" } }`, and the app offers only the flat map in 2D. A globe chosen in 3D is kept when the view switches to 2D, drawn flat there, and comes back in 3D. |
-| 3D (`view-mode="3d"`, also AR and VR) | Flat map in the x-y plane, orbit camera first seen from the south at 45 degrees, edges as raised arcs above the map | The whole sphere at the origin, faced straight on, orbit camera, edges as raised great-circle arcs                                                                                                                                                                                                                              |
+| graphty-element view                  | `mapDimension: "2d"`                                                                                                | `mapDimension: "3d"` (default)                                                                                                                                                                       |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D (`view-mode="2d"`)                 | Flat map in the x-y plane, orthographic 2D camera, straight edges                                                   | Not offered. The value is kept and the 2D map is drawn (`optionInEffect` answers `setting.notIn2d` with `params.drawn: "2d"`); the app offers only the 2D map in 2D, and the globe comes back in 3D. |
+| 3D (`view-mode="3d"`, also AR and VR) | Flat map in the x-y plane, orbit camera first seen from the south at 45 degrees, edges as raised arcs above the map | The whole sphere at the origin, faced straight on, orbit camera, edges as raised great-circle arcs                                                                                                   |
 
 ### 5.2 Flat projections
 
@@ -669,7 +669,7 @@ location field, the layout, edges, styling, attribution drawing, `basemapStatus`
   `latLonFromColumns` for the formats of section 4.1 except place names and what3words.
 
 The bundled world image is `babylonjs-map/assets/natural-earth.jpg` (Natural Earth I with shaded
-relief and water, 1:50m, public domain, 2048 x 1024, 220 KB), loaded by URL, not inlined.
+relief and water, 1:50m, public domain, 4096 x 2048, 770 KB, downsampled from `NE1_50M_SR_W`), loaded by URL, not inlined.
 
 The bullets below predate the decision: read "graphty-element chunk" as "graphty-element's lazy
 chunk plus `babylonjs-map`".
@@ -710,7 +710,7 @@ These are public names or contracts that would be breaking to change once publis
    project setting or Graph settings section: a map means nothing to a reader who is not using
    the map layout. A new `map` on the applied layout swaps the picture without placing a node
    again.
-3. **The option names** `location`, `latitude`, `longitude`, `surface`, `projection`, `extent`,
+3. **The option names** `location`, `latitude`, `longitude`, `mapDimension`, `projection`, `extent`,
    `unplaced`, `overlap`, and the edge-style properties `line.route` and `line.arcHeight`.
 4. **The named source ids** (`openstreetmap`, `openfreemap`, `nasa-gibs-blue-marble`, ...): saved
    project files will name them.
@@ -730,7 +730,7 @@ unpublished (version 0.0.0) until the first release.
 
 The graphty-element prototype (branch `feat/location-map-prototype`) ships under these proposed
 names, all still open: the layout id `location-map` and its options (`location`, `latitude`,
-`longitude`, `format`, `surface`, `projection`, `extent`, `size`, `unplaced`, `overlap`, `nodeScale`,
+`longitude`, `format`, `mapDimension`, `projection`, `extent`, `size`, `unplaced`, `overlap`, `nodeScale`,
 `map`); the read-only `basemapStatus` (`{ source, state: "off" | "loading" | "ready" | "fallback",
 attribution }`); the style channels `edge.route` and `edge.arcHeight` (`line.route`,
 `line.arcHeight`); the warning codes `W_LOCATION_UNPARSED`, `W_LOCATION_OUT_OF_RANGE`,
@@ -823,9 +823,9 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
   on one line or folded into a "(c)" button, raised by `element.attributionOffset`. The app shows
   "Not reachable" at a custom Address, announces Map shown and fallback, and sets the offset to the
   toolbar's height.
-- **Surface in 2D**: `session.layout.optionInEffect(id, option, dimension)` answers
-  `setting.notIn2d` for `location-map.surface`; a `layout.set` asking for a globe in 2D is refused
-  (5.1), and the app's Surface field offers only the flat map in 2D.
+- **Map dimension in 2D**: `session.layout.optionInEffect(id, option, dimension)` answers
+  `setting.notIn2d` with `params.drawn: "2d"` for `location-map.mapDimension`; the value is kept
+  for the 3D view (5.1), and the app's Map type field offers only the 2D map in 2D.
 - **The owner's matrix (2026-10-22)**: a flat map in 3D opens seen from the south at 45 degrees, so
   its edges read as arcs above it (straight down, an arc looks like a straight line, and the flat
   3D map looked like the 2D one); a globe opens framed as the whole sphere, not on its data (framed
@@ -888,7 +888,7 @@ server (no network in CI) that zooms with real wheel input and checks the reques
 visual baselines from the bundled map only (network tiles are never captured).
 
 **Phase 3: arcs and the globe.** `line.route` and `line.arcHeight`; raised arcs on the flat 3D
-map; `surface: "globe"` with great-circle arcs, globe quadtree LOD and polar caps. Tests: arc
+map; `mapDimension: "3d"` with great-circle arcs, globe quadtree LOD and polar caps. Tests: arc
 geometry unit tests (endpoints, peak height, segment counts), a real-input orbit and zoom test on
 the globe, visual baselines.
 

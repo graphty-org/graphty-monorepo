@@ -31,6 +31,12 @@ export interface OrbitConfig {
  */
 const DEFAULT_FAR_PLANE = 10000;
 
+/** Babylon's own near clip plane, kept everywhere but close to a globe. */
+const DEFAULT_NEAR_PLANE = 1;
+
+/** The nearest the near clip plane comes, close to a globe, so depth keeps its precision. */
+const MIN_NEAR_PLANE = 0.01;
+
 /** No room kept clear: framing uses the whole canvas. */
 const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
 
@@ -361,6 +367,23 @@ export class OrbitCameraController {
         // far plane has to follow the graph. A layout that settles tens of thousands of units
         // across would otherwise be clipped away by Babylon's default 10000.
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
+        this.camera.minZ = this.#nearPlane();
+    }
+
+    /**
+     * The near clip plane: Babylon's 1 unit, or, over a globe, a quarter of the camera's height
+     * above its surface when that is less, so zooming down to the surface never cuts it away.
+     * @returns The distance.
+     */
+    #nearPlane(): number {
+        const sphere = this.grabSphere ?? this.surfaceFloor;
+        if (sphere === null) {
+            return DEFAULT_NEAR_PLANE;
+        }
+
+        const eye = Vector3.TransformCoordinates(this.camera.position, this.pivot.computeWorldMatrix(true));
+        const height = eye.length() - sphere.radius;
+        return Scalar.Clamp(height / 4, MIN_NEAR_PLANE, DEFAULT_NEAR_PLANE);
     }
 
     /**

@@ -130,7 +130,7 @@ function onSphere(element: Graphty, spot: Point, radius: number): { x: number; y
 
 describe("the camera on a location map", () => {
     it("faces a map applied after the camera was turned round to its back", async () => {
-        const element = await mounted("3d");
+        const element = await mounted("3d", { mapDimension: "2d" });
         const first = viewDirection(element);
         assert.isBelow(first.z, -0.6, "the first map is seen from its face (-z)");
         assert.isBelow(first.y, -0.6, "at a slant from the south, so its arcs rise above it");
@@ -147,7 +147,7 @@ describe("the camera on a location map", () => {
     });
 
     it("looks at the map's face from Top, from the south from Side, and from its front for Isometric", async () => {
-        const element = await mounted("3d");
+        const element = await mounted("3d", { mapDimension: "2d" });
         await element.applyCameraView("topView");
         assert.isBelow(viewDirection(element).z, -0.99, "Top looks straight at the map");
         await element.applyCameraView("sideView");
@@ -160,11 +160,11 @@ describe("the camera on a location map", () => {
         assert.isBelow(iso.y, 0, "and from the south");
     });
 
-    it("never zooms inside the globe, however far the wheel turns", async () => {
-        const element = await mounted("3d", { surface: "globe" });
+    it("never zooms inside the globe, however far the wheel turns, and never clips its surface", async () => {
+        const element = await mounted("3d", { mapDimension: "3d" });
         const frame = element.mapFrame;
-        assert.strictEqual(frame?.surface, "globe");
-        const radius = frame?.surface === "globe" ? frame.radius : 0;
+        assert.strictEqual(frame?.mapDimension, "3d");
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
         for (let notch = 0; notch < 20; notch++) {
             await wheel(element, CENTER, -400);
             await drawnFrames(element.graph.getScene(), 1);
@@ -173,12 +173,16 @@ describe("the camera on a location map", () => {
         const camera = element.graph.getScene().activeCamera?.globalPosition;
         assert.isDefined(camera);
         assert.isAtLeast(camera.length(), radius * 1.02 - 1e-3, "the camera is outside the globe");
+        const near = element.graph.getScene().activeCamera?.minZ ?? Infinity;
+        assert.isBelow(near, camera.length() - radius, "the near clip plane stops short of the surface");
+        // The surface fills the view: the map's picture, not the background, at the center.
+        assert.isAbove(await colorsAround(element, CENTER, 40), 20, "the map is drawn, not clipped");
     });
 
     it("turns the globe under the hand: the place grabbed stays under the pointer", async () => {
-        const element = await mounted("3d", { surface: "globe" });
+        const element = await mounted("3d", { mapDimension: "3d" });
         const frame = element.mapFrame;
-        const radius = frame?.surface === "globe" ? frame.radius : 0;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
         // A spot on the globe between its middle and its edge.
         const from = { x: CENTER.x - 20, y: CENTER.y + 10 };
         const grabbed = onSphere(element, from, radius);
@@ -221,7 +225,7 @@ describe("the camera on a location map", () => {
     });
 
     it("moves at once with no transition time: a preset view lands in the next frame", async () => {
-        const element = await mounted("3d");
+        const element = await mounted("3d", { mapDimension: "2d" });
         element.cameraTransitionDuration = 0;
         await element.applyCameraView("sideView", { animate: true });
         const landed = JSON.stringify(element.getCameraState());
@@ -231,7 +235,7 @@ describe("the camera on a location map", () => {
     });
 
     it("opens a globe as the whole sphere, and an undo frames the flat map again", async () => {
-        const element = await mounted("3d");
+        const element = await mounted("3d", { mapDimension: "2d" });
         // How far apart Seattle and Miami are drawn: the share of the view the data fills.
         const spread = (): number => {
             const a = at(element, "SEA");
@@ -239,7 +243,7 @@ describe("the camera on a location map", () => {
             return Math.hypot(a.x - b.x, a.y - b.y);
         };
         const flat = spread();
-        await element.session.layout.set("location-map", { options: { surface: "globe" } });
+        await element.session.layout.set("location-map", { options: { mapDimension: "3d" } });
         await applied(element);
         await vi.waitFor(async () => {
             await applied(element);
@@ -249,7 +253,7 @@ describe("the camera on a location map", () => {
         await applied(element);
         await vi.waitFor(async () => {
             await applied(element);
-            assert.strictEqual(element.mapFrame?.surface, "flat");
+            assert.strictEqual(element.mapFrame?.mapDimension, "2d");
             assert.closeTo(spread() / flat, 1, 0.25, "the flat map is framed again");
         });
     });
@@ -377,44 +381,53 @@ function edgeLines(element: Graphty): ({ x: number; y: number; z: number }[] | n
     );
 }
 
-describe("the surface and the view", () => {
-    it("draws straight edges on the flat map in 2D, arcs above it in 3D, and arcs above a sphere on the globe", async () => {
+describe("the map's dimension and the view", () => {
+    it("draws the globe in 3D by default, the 2D map with straight edges in 2D, and the globe again in 3D", async () => {
         const element = await mounted("3d");
+        const globe = element.mapFrame;
+        assert.strictEqual(globe?.mapDimension, "3d", "the 3D view draws the 3D map unasked");
+        const radius = globe?.mapDimension === "3d" ? globe.radius : 0;
         for (const line of edgeLines(element)) {
-            assert.isNotNull(line, "a 3D flat map draws each edge as an arc");
+            assert.isNotNull(line, "a globe draws each edge as an arc");
+            const highest = Math.max(...(line ?? []).map((p) => Math.hypot(p.x, p.y, p.z)));
+            assert.isAbove(highest, radius, "above the sphere");
+        }
+
+        await element.setViewMode("2d");
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the 2D view draws the 2D map");
+        assert.deepEqual(edgeLines(element), [null, null, null], "with straight edges");
+
+        await element.setViewMode("3d");
+        await applied(element);
+        assert.strictEqual(element.mapFrame?.mapDimension, "3d", "back in 3D, the globe again");
+    });
+
+    it("draws the 2D map with arcs above it in 3D when asked, and keeps that choice across 2D", async () => {
+        const element = await mounted("3d", { mapDimension: "2d" });
+        assert.strictEqual(element.mapFrame?.mapDimension, "2d");
+        for (const line of edgeLines(element)) {
+            assert.isNotNull(line, "a 2D map in 3D draws each edge as an arc");
             const lift = Math.max(...(line ?? []).map((p) => Math.abs(p.z)));
             assert.isAbove(lift, 0, "raised off the map's plane");
         }
 
         await element.setViewMode("2d");
         await applied(element);
-        assert.strictEqual(element.mapFrame?.surface, "flat");
-        assert.deepEqual(edgeLines(element), [null, null, null], "the 2D map draws straight edges");
-
         await element.setViewMode("3d");
-        await element.session.layout.set("location-map", { options: { surface: "globe" } });
         await applied(element);
-        const frame = element.mapFrame;
-        const radius = frame?.surface === "globe" ? frame.radius : 0;
-        assert.isAbove(radius, 0, "the globe is drawn");
-        for (const line of edgeLines(element)) {
-            assert.isNotNull(line, "a globe draws each edge as an arc");
-            const highest = Math.max(...(line ?? []).map((p) => Math.hypot(p.x, p.y, p.z)));
-            assert.isAbove(highest, radius, "above the sphere");
-        }
+        assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the reader's 2D map is kept");
     });
 
-    it("refuses a globe in the 2D view with a coded refusal, and keeps the flat map", async () => {
-        const element = await mounted("2d");
-        let details: { option?: unknown; refusal?: unknown } | undefined;
-        await element.session.layout.set("location-map", { options: { surface: "globe" } }).catch((error: unknown) => {
-            ({ details } = error as { details?: typeof details });
+    it("takes a 3D map asked for in the 2D view and draws the 2D map there", async () => {
+        const element = await mounted("2d", { mapDimension: "3d" });
+        assert.strictEqual(element.mapFrame?.mapDimension, "2d");
+        assert.strictEqual(element.session.layout.options.mapDimension, "3d", "kept for the 3D view");
+        assert.deepEqual(element.session.layout.optionInEffect("location-map", "mapDimension"), {
+            inEffect: false,
+            code: "setting.notIn2d",
+            params: { setting: "mapDimension", drawn: "2d" },
         });
-        assert.deepEqual(details?.refusal, { code: "setting.notIn2d", params: { setting: "surface" } });
-        assert.strictEqual(details?.option, "surface");
-        await applied(element);
-        assert.strictEqual(element.mapFrame?.surface, "flat", "the flat map is still drawn");
-        assert.notStrictEqual(element.session.layout.options.surface, "globe");
     });
 });
 
@@ -450,7 +463,7 @@ function globeTiles(element: Graphty): { source: string; z: number; textured: bo
 
 describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
-        const element = await mounted("3d", { surface: "globe", extent: "world" });
+        const element = await mounted("3d", { mapDimension: "3d", extent: "world" });
         await vi.waitFor(() => {
             assert.strictEqual(element.basemapStatus.state, "ready");
         });
@@ -469,7 +482,7 @@ describe("the globe's map", () => {
             [{ image: picture, attribution: "My picture" }, "image"],
         ] as const;
         for (const [map, source] of sources) {
-            await element.session.layout.set("location-map", { options: { surface: "globe", extent: "world", map } });
+            await element.session.layout.set("location-map", { options: { mapDimension: "3d", extent: "world", map } });
             await vi.waitFor(async () => {
                 await applied(element);
                 assert.strictEqual(element.basemapStatus.source, source);
@@ -486,7 +499,7 @@ describe("the globe's map", () => {
 
         // Street tiles refine as the camera nears the surface.
         await element.session.layout.set("location-map", {
-            options: { surface: "globe", extent: "world", map: { source: "openstreetmap" } },
+            options: { mapDimension: "3d", extent: "world", map: { source: "openstreetmap" } },
         });
         await vi.waitFor(async () => {
             await applied(element);

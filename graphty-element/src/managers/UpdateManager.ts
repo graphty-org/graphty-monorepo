@@ -17,6 +17,7 @@ import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraC
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
+import { mapDepth, screenNodeScale } from "../layout/locationMap/nodeScale";
 import type { LocationMapFrame } from "../layout/locationMap/place";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
@@ -1843,7 +1844,7 @@ export class UpdateManager implements Manager {
     /**
      * The scale that holds every node at one size on screen while the location map layout runs
      * with `nodeScale: "screen"`: a node of size 1 is drawn as one scene unit is when the map's
-     * extent fills the view's height, whatever the zoom. Null when the layout does not ask for it.
+     * extent fills the view's height, whatever the zoom, on a flat map and on a globe alike. Null when the layout does not ask for it.
      * @returns The scale, or null.
      */
     private screenSizingScale(): number | null {
@@ -1855,16 +1856,19 @@ export class UpdateManager implements Manager {
             return null;
         }
 
-        const span = frame.surface === "flat" ? frame.size : 2 * frame.radius;
+        // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            const height = (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0);
-            return height > 0 ? height / span : null;
+            return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, frame.size);
         }
 
+        // Nodes stand on the map's surface: the flat map at the point the camera turns about, the
+        // globe's face under the camera, its height above the globe.
         const orbit = this.camera.getActiveController();
-        const target = orbit instanceof OrbitCameraController ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
-        const distance = Vector3.Distance(camera.globalPosition, target);
-        return distance > 0 ? (2 * distance * Math.tan(camera.fov / 2)) / span : null;
+        const globe = frame.surface === "globe";
+        const target =
+            orbit instanceof OrbitCameraController && !globe ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
+        const eye = Vector3.Distance(camera.globalPosition, target);
+        return screenNodeScale({ fov: camera.fov, depth: mapDepth(eye, globe ? frame.radius : 0) }, frame.size);
     }
 
     /**

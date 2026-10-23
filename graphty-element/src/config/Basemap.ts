@@ -98,7 +98,7 @@ export type LocationSourceFact =
 
 /**
  * How the active location map layout lays out its map, as plain facts (`element.mapFrame`): the
- * surface, the box a flat map shows or a globe's radius, where the locations were read, and the
+ * map's dimension (a 2D map or the 3D globe), the box a 2D map shows or the globe's radius, where the locations were read, and the
  * nodes it could not place.
  * @since 3.31.0
  */
@@ -115,12 +115,40 @@ export type MapFrameFact = {
     readonly warnings: readonly { readonly code: string; readonly params: Readonly<Record<string, unknown>> }[];
 } & (
     | {
-          readonly surface: "flat";
+          /** A 2D (flat) map. */
+          readonly mapDimension: "2d";
           readonly projection: ProjectionId;
           /** The box shown, `[[west, south], [east, north]]`; east passes 180 across the date line. */
           readonly bounds: GeoBounds;
           /** Scene units across the box's longer side. */
           readonly size: number;
       }
-    | { readonly surface: "globe"; readonly radius: number }
+    | {
+          /** The 3D map: a globe. */
+          readonly mapDimension: "3d";
+          readonly radius: number;
+          /** The box of the data on the globe, `[[west, south], [east, north]]`, or the whole world. */
+          readonly bounds: GeoBounds;
+      }
 );
+
+/**
+ * How the globe under the `location-map` layout looks, beyond the map drawn on it: a preference of
+ * the view (`element.globeLook`), not saved with the project, and ignored while a 2D map is drawn.
+ * Every part is off by default, so the globe is the map wrapped onto a sphere and nothing more.
+ * @since 3.31.0
+ */
+export interface GlobeLook {
+    /** A thin blue glow of air around the globe's rim, added onto the background. Default false. */
+    readonly atmosphere?: boolean;
+    /**
+     * Where the sun is overhead, in degrees: the far side of the globe is drawn dark, with a soft
+     * twilight between. Default none: every side lit alike.
+     */
+    readonly sun?: { readonly lat: number; readonly lon: number } | null;
+    /**
+     * A colour (`#rrggbb`) the canvas is cleared to while the globe is drawn, in place of the
+     * graph's own background, which comes back with a 2D map or another layout. Default none.
+     */
+    readonly background?: string | null;
+}

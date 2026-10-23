@@ -189,32 +189,6 @@ async function applyChoice(choice: LayoutChoice, ctx: UndoableContext, explicitS
     await ctx.services.layout?.apply(choice, ctx.signal, explicitScope);
 }
 
-/**
- * Refuse a location map asked to draw a globe in the 2D view, which has only the flat map. A
- * globe chosen in 3D is kept, not refused, when the view switches to 2D: it draws flat there and
- * comes back on the way back to 3D.
- * @param choice - The choice a `layout.set` would write.
- * @throws A `GraphtyError` with code `E_OPTION_RANGE` whose `details.refusal` is the
- *     `setting.notIn2d` fact for `surface`.
- */
-function refuseGlobeIn2d(choice: LayoutChoice): void {
-    if (choice.engine !== "location-map" || choice.dimension !== "2d" || choice.options.surface !== "globe") {
-        return;
-    }
-
-    throw new GraphtyError({
-        code: "E_OPTION_RANGE",
-        message: 'The 2D view draws only the flat map: "surface" can be "flat" there, not "globe".',
-        source: "layout",
-        details: {
-            option: "surface",
-            value: "globe",
-            allowed: ["flat"],
-            refusal: { code: "setting.notIn2d", params: { setting: "surface" } },
-        },
-    });
-}
-
 const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     op: "layout.set",
     // Takes the arrangement it began from: the new layout moves every node.
@@ -229,7 +203,6 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     },
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
-        refuseGlobeIn2d(choice);
         ctx.draft.layout = choice;
         await applyChoice(choice, ctx, choice.scope !== undefined && command.scope !== undefined);
     },

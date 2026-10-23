@@ -1399,8 +1399,8 @@ actions }`, controlled `selected`, `expanded`, with `onSelect`, `onExpandedChang
   `--cm-bg-secondary` AND weight 550 (no blue); hover on current unchanged.
 - Divider row: the same row holding a 208 x 1 `--cm-border` line with 8px margins.
 - Keyboard: Figma's own model is accessible, so keep it: a one-column `grid` with one Tab stop; ArrowUp / Down move focus without switching;
-  Enter / Space / click switches. Focus ring: 1px `--cm-border-selected` on the whole 240 x 32
-  wrapper, radius 5, offset 0.
+  Enter / Space / click switches. Focus ring: 1px `--cm-border-selected` on the 224 x 24
+  pill (bc/page-row--focus), radius 5, offset 0.
 - The same row, with `--cm-bg-selected` and weight 600 for a selected GROUP, is the variables
   collection list (`tone="group"`).
 

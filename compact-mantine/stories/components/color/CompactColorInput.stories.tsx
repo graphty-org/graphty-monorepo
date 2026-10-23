@@ -107,10 +107,9 @@ export const Default: Story = {
 };
 
 /**
- * Every state, light and dark side by side: rest, the default, focus and
+ * Every state, light and dark side by side: rest, the default, hover, focus and
  * picker open (forced, since a story cannot hold the pointer), a translucent color with the
- * checkerboard half, a near-white color with its ring, disabled, and without opacity. Hover
- * changes nothing, as on the select: the field is outlined at rest.
+ * checkerboard half, a near-white color with its ring, disabled, and without opacity.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -122,6 +121,11 @@ export const States: Story = {
                 </StateCell>
                 <StateCell label="Default (nothing chosen)">
                     <CompactColorInput defaultColor="#3373E5" width={156} />
+                </StateCell>
+                <StateCell label="Hover">
+                    <ForceState state="hover" selector=".cm-paint-field">
+                        <CompactColorInput color="#3373E5" opacity={100} defaultColor="#000000" width={156} />
+                    </ForceState>
                 </StateCell>
                 <StateCell label="Focus">
                     <ForceState state="focus" selector=".cm-paint-field">

@@ -4,7 +4,12 @@
  * estimate of `layout.set`.
  */
 
-import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    type LayoutDescriptor,
+    layoutEntry,
+    type LayoutImplementation,
+    type OptionDescriptor,
+} from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
@@ -60,12 +65,51 @@ export function takesSeed(session: GraphSession, id: string): boolean {
 }
 
 /**
- * A layout's name.
+ * The engine that draws a descriptor, when it is not its layout's default: a nested row's.
+ * @param descriptor - the layout, as a row of the list hands it to the form.
+ * @returns the engine's catalog entry, or undefined for the default engine.
+ */
+function otherEngine(descriptor: LayoutDescriptor): LayoutImplementation | undefined {
+    return layoutEntry(descriptor.id)?.implementations.find(
+        (implementation) => implementation.engine === descriptor.engine && !implementation.isDefault,
+    );
+}
+
+/**
+ * A layout's name: an engine other than the default by the element's name for it, else the app's
+ * name for the layout, else the element's.
  * @param descriptor - the element's layout descriptor.
  * @returns the name the app shows.
  */
 export function layoutName(descriptor: LayoutDescriptor): string {
-    return LAYOUT_NAMES[descriptor.id] ?? descriptor.technicalName;
+    return otherEngine(descriptor)?.plainName ?? LAYOUT_NAMES[descriptor.id] ?? descriptor.plainName;
+}
+
+/**
+ * Whether a layout is drawn by Graphviz, which the list says beside its name.
+ * @param descriptor - the layout.
+ * @returns true for a Graphviz engine.
+ */
+export function isGraphviz(descriptor: LayoutDescriptor): boolean {
+    return layoutEntry(descriptor.id)?.implementations[0]?.fact.code === "implementation.graphviz";
+}
+
+/**
+ * A layout as drawn by one of its engines: the engine, its options and its dimensions in place of
+ * the default engine's. The form opens on it and applies `{ engine }`.
+ * @param descriptor - the layout.
+ * @param implementation - the engine.
+ * @returns the descriptor.
+ */
+export function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplementation): LayoutDescriptor {
+    return {
+        ...descriptor,
+        engine: implementation.engine,
+        options: implementation.options,
+        maxDimensions: implementation.maxDimensions,
+        description: implementation.description,
+        ...(implementation.requires === undefined ? {} : { requires: implementation.requires }),
+    };
 }
 
 /**
@@ -124,6 +168,25 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
 }
 
 /**
+ * Whether a layout is the one drawn now, by the same engine.
+ * @param session - the element's session.
+ * @param descriptor - the layout, with its engine.
+ * @returns true when it is.
+ */
+export function isDrawn(session: GraphSession, descriptor: LayoutDescriptor): boolean {
+    return descriptor.id === session.layout.id && descriptor.engine === session.layout.engine;
+}
+
+/**
+ * The engine to ask `layout.set` for: a nested row's, else none (the layout's default).
+ * @param descriptor - the layout, with its engine.
+ * @returns the engine, or undefined.
+ */
+export function engineOf(descriptor: LayoutDescriptor): string | undefined {
+    return otherEngine(descriptor)?.engine;
+}
+
+/**
  * The values the form opens a layout with: what it is drawn with when it is the current layout,
  * else the app's seed, the selected node for a center and the first grouping the element offers.
  * @param session - the element's session.
@@ -131,10 +194,13 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
  * @returns the values.
  */
 export function startingValues(session: GraphSession, descriptor: LayoutDescriptor): Record<string, unknown> {
-    if (descriptor.id === session.layout.id) {
+    if (isDrawn(session, descriptor)) {
         return { ...session.layout.options };
     }
-    const values: Record<string, unknown> = takesSeed(session, descriptor.id) ? { seed: LAYOUT_SEED } : {};
+    // The row's own engine's options: an engine of a layout takes a seed or not of its own.
+    const values: Record<string, unknown> = descriptor.options.some((option) => option.name === "seed")
+        ? { seed: LAYOUT_SEED }
+        : {};
     const node = keyOption(descriptor, "node-id")?.name;
     const selected = session.selection.nodes.at(0);
     if (node !== undefined && selected !== undefined) {
@@ -165,14 +231,28 @@ export function unavailable(
     if (node !== undefined && (values[node] === undefined || values[node] === null)) {
         return "Select a node first";
     }
-    const estimate = session.estimate({ op: "layout.set", id: descriptor.id, options: values });
+    const estimate = session.estimate({
+        op: "layout.set",
+        id: descriptor.id,
+        engine: engineOf(descriptor),
+        options: values,
+    });
     return estimate.available ? null : layoutRefusalWords(session, estimate);
 }
 
 /** One row of the Layout list. */
-interface LayoutChoice {
+export interface LayoutChoice {
+    /** The layout, with the engine the row applies. */
     readonly descriptor: LayoutDescriptor;
+    /** The row's key: the layout's id, and the engine's for a nested row. */
+    readonly key: string;
     readonly name: string;
+    /** The dimmed second line. */
+    readonly description: string;
+    /** Whether it is a Graphviz engine, said by a dimmed suffix. */
+    readonly graphviz: boolean;
+    /** Whether it is an engine nested under its layout's row. */
+    readonly nested: boolean;
     readonly current: boolean;
     readonly recommended: boolean;
     readonly slow: boolean;
@@ -181,26 +261,46 @@ interface LayoutChoice {
 }
 
 /**
- * The Layout list: every layout in the element's catalog, in catalog order, the current one
- * marked, "Recommended" on the one the element recommends for this graph, "slow" on one the
- * element's estimate puts over the app's threshold, and why one cannot run now.
+ * One row of the list for a layout, or for one of its other engines.
+ * @param session - the element's session.
+ * @param descriptor - the layout, with the engine the row applies.
+ * @param recommended - whether the element recommends it for this graph.
+ * @returns the row.
+ */
+function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommended: boolean): LayoutChoice {
+    const values = startingValues(session, descriptor);
+    const reason = unavailable(session, descriptor, values);
+    const engine = engineOf(descriptor);
+    const estimate = session.estimate({ op: "layout.set", id: descriptor.id, engine, options: values });
+    return {
+        descriptor,
+        key: engine === undefined ? descriptor.id : `${descriptor.id}:${engine}`,
+        name: layoutName(descriptor),
+        description: descriptor.description,
+        graphviz: isGraphviz(descriptor),
+        nested: engine !== undefined,
+        current: isDrawn(session, descriptor),
+        recommended,
+        slow: reason === null && isSlow(estimate.seconds),
+        reason,
+    };
+}
+
+/**
+ * The Layout list: every layout in the element's catalog, in catalog order, each followed by a
+ * nested row for every engine but its default; the one drawn now marked, "Recommended" on the one
+ * the element recommends for this graph, "slow" on one the element's estimate puts over the app's
+ * threshold, and why one cannot run now.
  * @param session - the element's session.
  * @param layouts - the layouts, from {@link useLayouts}.
  * @returns the rows.
  */
 export function layoutChoices(session: GraphSession, layouts: readonly LayoutDescriptor[]): LayoutChoice[] {
     const recommended = session.recommendLayout()?.layout.id;
-    return layouts.map((descriptor) => {
-        const values = startingValues(session, descriptor);
-        const reason = unavailable(session, descriptor, values);
-        const estimate = session.estimate({ op: "layout.set", id: descriptor.id, options: values });
-        return {
-            descriptor,
-            name: layoutName(descriptor),
-            current: descriptor.id === session.layout.id,
-            recommended: descriptor.id === recommended,
-            slow: reason === null && isSlow(estimate.seconds),
-            reason,
-        };
-    });
+    return layouts.flatMap((descriptor) => [
+        choiceOf(session, descriptor, descriptor.id === recommended),
+        ...(layoutEntry(descriptor.id)?.implementations ?? [])
+            .filter((implementation) => !implementation.isDefault)
+            .map((implementation) => choiceOf(session, withEngine(descriptor, implementation), false)),
+    ]);
 }

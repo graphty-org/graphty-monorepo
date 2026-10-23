@@ -11,6 +11,7 @@ import {
     issueLabel,
     issuePlace,
     keyColumnOf,
+    rolePill,
     sortCaption,
     type TableColumnChoice,
     valueTypeOf,
@@ -29,7 +30,7 @@ const NAME: TableColumnChoice = { id: "a:name", header: "name", group: "attribut
 describe("the table dock's words and sorts", () => {
     it("names a header's icons for a screen reader: type, role, origin", () => {
         assert.equal(headerIconsLabel(RANK), "number, computed");
-        assert.equal(headerIconsLabel({ id: "id", header: "Id", group: "key", numeric: false }), "key");
+        assert.equal(headerIconsLabel({ id: "id", header: "Id", group: "key", numeric: false }), "Key");
         assert.equal(
             headerIconsLabel({
                 ...NAME,
@@ -39,6 +40,15 @@ describe("the table dock's words and sorts", () => {
             }),
             "text, label, joined",
         );
+    });
+
+    it("shows a role pill only off the key and only when its word is not the column's name", () => {
+        const id: TableColumnChoice = { ...NAME, id: "a:id", header: "id", group: "key", role: "key" };
+        assert.isUndefined(rolePill(id), "a key column's glyph says it");
+        assert.equal(headerIconsLabel(id), "Key");
+        assert.isUndefined(rolePill({ ...NAME, header: "Weight", role: "weight" }), "the name says it");
+        assert.equal(rolePill({ ...NAME, role: "label" }), "Label");
+        assert.equal(rolePill({ ...NAME, header: "from", role: "source" }), "Source");
     });
 
     it("sorts a result column by its run and an attribute by its key", () => {

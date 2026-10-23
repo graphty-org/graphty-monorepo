@@ -4,13 +4,12 @@ import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { arrowheadNote } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { DEFAULT_NAME_KEY } from "./cards";
 import { Field, type RowContext } from "./PropertyRow";
-import { lineIn, partlySet, startingAdds, writeIn } from "./row";
+import { carriedOpacity, lineIn, partlySet, startingAdds, writeIn } from "./row";
 import { focusLineNext } from "./useFocusLine";
-import { channelWord, failureWords, fieldName, type SectionSpec } from "./words";
+import { channelWord, failureWords, fieldName, OPACITY_OF, type SectionSpec } from "./words";
 
 /**
  * Whether the row sets a property: a line of its own (not the element's locked base), or, for
@@ -40,17 +39,33 @@ function optionsFor(descriptor: ChannelDescriptor): AddOption[] {
     return [{ key: descriptor.channel, label: channelWord(descriptor.channel) }];
 }
 
+/** Why an undirected graph's Arrowheads add nothing: its edges have no direction to point. */
+const NO_ARROWHEADS = "Not available: undirected graph";
+
 /**
- * A section's one help line, or null: on edges, Arrowheads says what arrowheads follow on a graph
- * that is not directed; on nodes, Effects with an outline says where its width is set.
+ * Why a section's "+" adds nothing on this graph, or null: Arrowheads on an undirected graph.
+ * @param ctx - the row and kind.
+ * @param spec - the section.
+ * @returns the words, or null.
+ */
+function notAvailable(ctx: RowContext, spec: SectionSpec): string | null {
+    return ctx.side === "edge" && spec.id === "ends" && ctx.session.data.statistics().directedness === "undirected"
+        ? NO_ARROWHEADS
+        : null;
+}
+
+/**
+ * A section's one help line, or null: on edges, Arrowheads says they are not available on an
+ * undirected graph; on nodes, Effects with an outline says where its width is set.
  * @param ctx - the row and kind.
  * @param spec - the section.
  * @param set - the properties the row sets in it.
  * @returns the words, or null.
  */
 function sectionNote(ctx: RowContext, spec: SectionSpec, set: readonly ChannelDescriptor[]): string | null {
-    if (ctx.side === "edge" && spec.id === "ends") {
-        return arrowheadNote(ctx.session.data.statistics().directedness);
+    const blocked = notAvailable(ctx, spec);
+    if (blocked !== null) {
+        return blocked;
     }
     if (ctx.side === "node" && spec.id === "effects" && set.some((d) => d.channel === "node.outline")) {
         return "Every outline is drawn at one width, set in Graph settings. For a ring this layer sizes, use Halo.";
@@ -85,7 +100,13 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const set = descriptors.filter((d) => isSet(ctx, d));
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
-    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d));
+    // Opacity is set in the color's own box, so "+" never offers it, and a color line set to a
+    // value carries it; a row that sets opacity alone, or varies it by data, keeps its own line.
+    const folded = new Set(
+        set.flatMap((d) => (OPACITY_OF[d.channel] === undefined ? [] : (carriedOpacity(ctx, d.channel) ?? []))),
+    );
+    const boxed = new Set(Object.values(OPACITY_OF));
+    const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d) && !boxed.has(d.channel));
     // A line "+" added keeps the place it was added at, below the lines set before it, once its
     // value is written too: drawn in the section's order, it would jump above them under the
     // reader's eyes.
@@ -93,7 +114,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const lines = [
         ...set.filter((d) => !added.includes(d)),
         ...added.filter((d) => set.includes(d) || pending.includes(d)),
-    ];
+    ].filter((d) => !folded.has(d.channel));
     const write = (descriptor: ChannelDescriptor, value: boolean): void => {
         writeIn(ctx, descriptor.channel, { value })
             .then(() => {
@@ -140,6 +161,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                         kind={ctx.side}
                         title={spec.title}
                         options={unset.flatMap(optionsFor)}
+                        disabledReason={notAvailable(ctx, spec) ?? undefined}
                         onAdd={(key) => {
                             const [channel, pick] = key.split("=");
                             const descriptor = unset.find((d) => d.channel === channel);
@@ -190,6 +212,7 @@ export interface AddOption {
  * @param props.title - the section's title
  * @param props.options - what it can add, in menu order
  * @param props.onAdd - adds one, by its key
+ * @param props.disabledReason - why it adds nothing on this graph, which disables it as a full one is
  * @returns The button and its menu
  */
 export function AddButton({
@@ -197,15 +220,17 @@ export function AddButton({
     title,
     options,
     onAdd,
+    disabledReason,
 }: Readonly<{
     kind: "node" | "edge";
     title: string;
     options: readonly AddOption[];
     onAdd: (key: string) => void;
+    disabledReason?: string;
 }>): React.JSX.Element {
     const name = `Add to ${kind} ${title.toLowerCase()}`;
-    const full = options.length === 0;
-    const reason = `Everything in ${kind} ${title.toLowerCase()} is set`;
+    const full = options.length === 0 || disabledReason !== undefined;
+    const reason = disabledReason ?? `Everything in ${kind} ${title.toLowerCase()} is set`;
     const button = (
         <ActionIcon
             variant="subtle"

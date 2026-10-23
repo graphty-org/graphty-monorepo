@@ -2,6 +2,7 @@ import { DataTable, type DataTableColumn, type DataTableSort, type DataTableValu
 import type {
     EdgeRecord,
     GraphSession,
+    IssueId,
     NodeId,
     NodeRecord,
     PageColumn,
@@ -55,6 +56,10 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
+    /** Only the records an open issue is on: one issue's, or any; null for every record. */
+    issue?: IssueId | "any" | null;
+    /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
+    issueColumns?: ReadonlyMap<string, readonly IssueId[]>;
     sort: DataTableSort | null;
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
@@ -125,6 +130,8 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.kind - Nodes or edges
  * @param props.columns - The visible columns
  * @param props.scope - Which records
+ * @param props.issue - Only the records an open issue is on
+ * @param props.issueColumns - The issues each column's warning carries
  * @param props.sort - The sorted column
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
@@ -137,6 +144,8 @@ export function RecordTable({
     kind,
     columns,
     scope,
+    issue = null,
+    issueColumns,
     sort,
     onSortChange,
     height,
@@ -154,6 +163,7 @@ export function RecordTable({
         limit: range.limit,
         scope,
         columns: runIds,
+        ...(issue === null ? {} : { issue }),
         ...(sorted === undefined ? {} : { sort: elementSort(sorted, sort?.desc ?? false) }),
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =
@@ -187,6 +197,7 @@ export function RecordTable({
                 </>
             );
         const parts = header?.(column);
+        const warned = issueColumns?.get(column.id) ?? [];
         return {
             ...parts,
             id: column.id,
@@ -196,6 +207,13 @@ export function RecordTable({
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
             menu: joinMenus(parts?.menu, move),
+            // A cell on a record its column's issues are on is drawn in the header warning's tint.
+            ...(warned.length === 0
+                ? {}
+                : {
+                      cellTone: (row: Row) =>
+                          page.issues?.[row.index]?.some((id) => warned.includes(id)) === true ? "warning" : undefined,
+                  }),
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)

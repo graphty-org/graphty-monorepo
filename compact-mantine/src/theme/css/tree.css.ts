@@ -711,6 +711,7 @@ button.cm-entity-chip:hover { background: color-mix(in srgb, var(--cm-entity-ink
 .cm-dt.cm-dt-compact .cm-dt-cell.cm-dt-header { padding: 0 4px; }
 .cm-dt .cm-dt-header { ${cmFont("body")} font-weight: 600; letter-spacing: normal; color: var(--cm-text); }
 .cm-dt .cm-dt-row[aria-selected="true"] > .cm-dt-cell { background: var(--cm-bg-selected); }
+.cm-dt .cm-dt-cell[data-tone="warning"] { color: var(--cm-text-warning); }
 /* The active (keyboard) cell: a 1px box drawn inside the cell; the grid line stays. */
 .cm-dt .cm-dt-cell::before,
 .cm-dt .cm-dt-sort::before {

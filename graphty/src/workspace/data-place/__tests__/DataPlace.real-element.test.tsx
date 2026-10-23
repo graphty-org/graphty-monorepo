@@ -204,8 +204,8 @@ describe("the Data place's sidebar on the real element", () => {
             return cell;
         };
         for (const [column, role] of [
-            ["user", "source"],
-            ["host", "target"],
+            ["user", "Source"],
+            ["host", "Target"],
         ]) {
             await userEvent.click(within(await header(column)).getByRole("button", { name: `Options for ${column}` }));
             await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));

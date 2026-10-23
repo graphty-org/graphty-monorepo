@@ -10,7 +10,7 @@ import { costLine, optionWords } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { MapSourceFields } from "./MapSourceFields";
-import { LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import { engineOf, isDrawn, LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords } from "./refusalWords";
 
 /** The location map's id, whose form names the columns it read and picks the map it draws on. */
@@ -123,14 +123,15 @@ export function LayoutForm({
 }: Readonly<LayoutFormProps>): React.JSX.Element {
     const { element, store } = useWorkspace();
     const current = session.layout;
-    const isCurrent = descriptor.id === current.id;
+    // The descriptor carries the engine its row applies: a nested row's, else the default.
+    const isCurrent = isDrawn(session, descriptor);
     const [start] = useState(() => ({
         values: startingValues(session, descriptor),
-        engine: isCurrent ? current.engine : undefined,
+        engine: engineOf(descriptor),
     }));
     const [values, setValues] = useState<Record<string, unknown>>(start.values);
-    // Undefined: the catalog's default engine for the layout.
-    const [engine, setEngine] = useState<string | undefined>(start.engine);
+    // Undefined: the catalog's default engine for the layout. Each engine has a row of its own.
+    const { engine } = start;
     const [error, setError] = useState<string | null>(null);
     const formRef = useRef<HTMLFormElement>(null);
     // Focus starts on the button so Enter applies; on the first control when it is disabled
@@ -143,8 +144,7 @@ export function LayoutForm({
         }
     }, [focusButton]);
 
-    const ownEngine = isCurrent && engine === start.engine;
-    const shape = shapeOf(values, ownEngine && values.dim === start.values.dim ? current.arrangedDimension : undefined);
+    const shape = shapeOf(values, isCurrent && values.dim === start.values.dim ? current.arrangedDimension : undefined);
     const startShape = shapeOf(start.values, isCurrent ? current.arrangedDimension : undefined);
     const showShape = shapeChoice && current.dimension === "3d" && descriptor.maxDimensions === 3;
 
@@ -211,17 +211,12 @@ export function LayoutForm({
     };
     const pickShape = (picked: "2d" | "3d"): void => {
         if (picked === startShape) {
-            // Back to what is drawn: its own dim (or none) and engine.
+            // Back to what is drawn: its own dim (or none).
             const { dim: _dim, ...rest } = values;
             edit(start.values.dim === undefined ? rest : { ...rest, dim: start.values.dim });
-            setEngine(start.engine);
             return;
         }
         edit({ ...values, dim: picked === "2d" ? 2 : 3 });
-        // A flat-only engine cannot draw 3D: the layout's default engine does.
-        if (picked === "3d") {
-            setEngine(undefined);
-        }
     };
 
     // One note under Location: what the columns held.

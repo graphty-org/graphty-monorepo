@@ -132,6 +132,12 @@ export interface DataTableColumn<TRow extends object> {
      * grid has one, so whatever they offer must also be reachable from `menu`.
      */
     headerEnd?: React.ReactNode;
+    /**
+     * A cell's tone: `"warning"` draws its text in the warning color, as a header's warning is
+     * drawn, to mark a value that has a problem. Left out, or undefined for a row, the cell is
+     * drawn as usual.
+     */
+    cellTone?: (row: TRow) => "warning" | undefined;
 }
 
 /**

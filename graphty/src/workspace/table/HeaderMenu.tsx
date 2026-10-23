@@ -32,6 +32,10 @@ export interface HeaderMenuActions {
     readonly hide: () => void;
     readonly hideOthers: () => void;
     readonly unhide: (columns: readonly TableColumnChoice[]) => void;
+    /** Narrows the table to the rows one issue is on. */
+    readonly showRows: (issue: DataIssue) => void;
+    /** Ignores every issue the header carries, one undo step. */
+    readonly ignoreAll: () => void;
 }
 
 /** Props for HeaderMenu. */
@@ -101,7 +105,8 @@ function failWords(session: GraphSession, ref: ColumnRef, type: ValueType): stri
 
 /**
  * A header's menu (spec section 3.5.2), one level, with Type and Role as short pick lists: first
- * each issue's fixes (the one the data shows checked) and Ignore, so the keyboard reaches what the warning's hover shows; then
+ * each issue's fixes (the one the data shows checked), Ignore and Show rows, and Ignore all for
+ * more than one, so the keyboard reaches what the warning's hover shows; then
  * Type, Role, Rename..., Hide, Hide others, Unhide (each hidden column, then all; only when something
  * is hidden), the
  * commands other packages register for a column (Match on this, in join mode), and the sorts.
@@ -151,9 +156,22 @@ export function HeaderMenu({ column, kind, issues, hidden, actions }: HeaderMenu
                           >
                               Ignore
                           </Menu.Item>
+                          <Menu.Item
+                              onClick={() => {
+                                  actions.showRows(issue);
+                              }}
+                          >
+                              Show rows
+                          </Menu.Item>
                           <Menu.Divider />
                       </React.Fragment>
                   ))}
+            {session === null || issues.length < 2 ? null : (
+                <>
+                    <Menu.Item onClick={actions.ignoreAll}>Ignore all</Menu.Item>
+                    <Menu.Divider />
+                </>
+            )}
             {session === null || ref === undefined ? null : (
                 <>
                     <Menu.Sub>

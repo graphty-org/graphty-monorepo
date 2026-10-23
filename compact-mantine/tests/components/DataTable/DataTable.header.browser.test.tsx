@@ -249,4 +249,22 @@ describe("DataTable header features", () => {
         renderTable();
         expect(screen.getByRole("button", { name: "Options for Degree" })).toHaveAttribute("tabindex", "-1");
     });
+
+    it("draws a cell its column marks with the warning tone in the warning color", () => {
+        const toned = columns(vi.fn()).map((column) =>
+            column.id === "degree"
+                ? { ...column, cellTone: (node: Node) => (node.degree === 3 ? ("warning" as const) : undefined) }
+                : column,
+        );
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable columns={toned} data={NODES} getRowId={(node) => node.id} label="Nodes" />
+            </MantineProvider>,
+        );
+        const warned = screen.getByText("3", { selector: ".cm-dt-text" }).closest("td");
+        const plain = screen.getByText("4", { selector: ".cm-dt-text" }).closest("td");
+        expect(warned).toHaveAttribute("data-tone", "warning");
+        expect(plain).not.toHaveAttribute("data-tone");
+        expect(getComputedStyle(warned!).color).not.toBe(getComputedStyle(plain!).color);
+    });
 });

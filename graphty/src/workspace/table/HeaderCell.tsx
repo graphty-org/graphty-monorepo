@@ -1,10 +1,10 @@
 import { Popout, PopoutManager } from "@graphty/compact-mantine";
 import type { DataIssue } from "@graphty/graphty-element/session";
-import { HoverCard, TextInput, VisuallyHidden } from "@mantine/core";
+import { Button, Group, HoverCard, TextInput, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { issueLabel, ROLE_WORDS, type TableColumnChoice } from "./columns";
+import { issueLabel, rolePill, type TableColumnChoice } from "./columns";
 import { IssueRow } from "./IssuesList";
 import { TYPE_ICONS } from "./typeIcons";
 
@@ -12,8 +12,8 @@ import { TYPE_ICONS } from "./typeIcons";
 const ICON = 14;
 
 /**
- * A header's leading icons: the type (a key's key), the role badge, the origin (a joined column's
- * link, a computed column's sigma).
+ * A header's leading icons: the type (a key's key), the role pill when its word is not the
+ * column's name (never on a key), the origin (a joined column's link, a computed column's sigma).
  * @param props - Component props
  * @param props.column - the column
  * @returns the icons
@@ -24,12 +24,13 @@ export function HeaderIcons({ column }: Readonly<{ column: TableColumnChoice }>)
             ? GLYPHS.key
             : (TYPE_ICONS[column.descriptor?.type ?? (column.numeric ? "number" : "category")] ?? GLYPHS.mixed);
     const origin = column.group === "result" ? "computed" : column.descriptor?.origin;
+    const pill = rolePill(column);
     return (
         <span className="ws-th-icons" data-type={column.descriptor?.type}>
             <Type size={ICON} />
-            {column.role === undefined ? null : (
+            {pill === undefined ? null : (
                 <span className="ws-th-role" data-role={column.role}>
-                    {ROLE_WORDS[column.role] ?? column.role}
+                    {pill}
                 </span>
             )}
             {origin === "joined" ? <GLYPHS.joined size={ICON} data-origin="joined" /> : null}
@@ -39,18 +40,28 @@ export function HeaderIcons({ column }: Readonly<{ column: TableColumnChoice }>)
 }
 
 /**
- * The warning on a header: hover shows each issue as a short label with its count, its fixes and
- * Ignore. The header's menu offers the same, for the keyboard and touch; a screen reader hears the
- * warning's name and, as its description, each issue's label, without hovering.
+ * The warning on a header: hover shows each issue as a short label with its count, its fixes,
+ * Ignore and Show rows, and Ignore all. The header's menu offers the same, for the keyboard and
+ * touch; a screen reader hears the warning's name and, as its description, each issue's label,
+ * without hovering.
  * @param props - Component props
  * @param props.header - the column's name
  * @param props.issues - the column's issues
+ * @param props.onShowRows - narrows the table to the rows one issue is on
+ * @param props.onIgnoreAll - ignores every one of the column's issues, one undo step
  * @returns the warning
  */
 export function HeaderWarning({
     header,
     issues,
-}: Readonly<{ header: string; issues: readonly DataIssue[] }>): React.JSX.Element {
+    onShowRows,
+    onIgnoreAll,
+}: Readonly<{
+    header: string;
+    issues: readonly DataIssue[];
+    onShowRows?: (issue: DataIssue) => void;
+    onIgnoreAll?: () => void;
+}>): React.JSX.Element {
     const described = useId();
     return (
         <HoverCard openDelay={100} closeDelay={250} position="bottom-start" shadow="md">
@@ -68,9 +79,21 @@ export function HeaderWarning({
             <HoverCard.Dropdown>
                 <ul className="ws-issues" aria-label={`Issues in ${header}`}>
                     {issues.map((issue) => (
-                        <IssueRow key={issue.id} issue={issue} />
+                        <IssueRow key={issue.id} issue={issue} onShowRows={onShowRows} />
                     ))}
                 </ul>
+                {onIgnoreAll === undefined ? null : (
+                    <Group justify="flex-end" px={4} pt={4}>
+                        <Button
+                            size="compact-xs"
+                            variant="subtle"
+                            aria-label={`Ignore all issues in ${header}`}
+                            onClick={onIgnoreAll}
+                        >
+                            Ignore all
+                        </Button>
+                    </Group>
+                )}
             </HoverCard.Dropdown>
         </HoverCard>
     );

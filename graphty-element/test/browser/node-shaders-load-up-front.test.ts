@@ -15,9 +15,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
 
-/** How long the element may take to build its renderer and draw. */
-const MOUNT_TIMEOUT_MS = 15000;
-
 /** A Babylon default material shader module, as the dev server or a bundle names its file. */
 const DEFAULT_SHADER_FILE = /default\.(vertex|fragment)/;
 
@@ -68,7 +65,7 @@ describe("node shaders", () => {
             { src: "a", dst: "b" },
             { src: "b", dst: "c" },
         ];
-        await element.waitForStableFrame({ timeoutMs: MOUNT_TIMEOUT_MS });
+        await element.waitForStableFrame();
 
         assert.isAbove(element.graph.getNodeCount(), 0, "the graph drew its nodes");
         assert.deepEqual(fetchedDefaultShaders(), [], "drawing fetched no shader module");

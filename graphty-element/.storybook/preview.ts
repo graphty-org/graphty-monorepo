@@ -23,6 +23,8 @@ import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 // Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
 // (tools/test-wait-guard.mjs).
 configure({ asyncUtilTimeout: WAIT_GUARD_MS });
+// graphty-element's waitForStableFrame() waits until the same guard, not its 30 s default.
+(globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: number }).__GRAPHTY_WAIT_GUARD_MS__ = WAIT_GUARD_MS;
 
 // Ensure custom element is registered
 if (!customElements.get("graphty-element")) {

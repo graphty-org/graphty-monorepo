@@ -8,7 +8,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
-import { TEST_GUARDS } from "../tools/test-wait-guard.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
@@ -30,8 +30,6 @@ const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
 const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
 
-/** Every wait's deadline is the monorepo's one hang guard (tools/test-wait-guard.mjs). */
-const WAIT_GUARD_SETUP = "../vitest.wait-guard-setup.ts";
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -60,7 +58,7 @@ const chromium = () => ({
     commands: { chooseNextFile },
 });
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react(), sampleDataPlugin()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
@@ -87,14 +85,11 @@ export default defineConfig({
         reporters: ["default", ...ciReporters()],
         globals: true,
         exclude: BASE_EXCLUDE,
-        // One hang guard for every test, hook and wait, far above how long anything takes on a
-        // loaded machine; it ends a hang, it never judges speed (tools/test-wait-guard.mjs).
-        ...TEST_GUARDS,
         // The tests that mount the real graphty-element get a project of their own, run after
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
         // time: run beside the rest, a neighbouring file's import of the element bundle
-        // (src/types/__tests__/ai.test.ts) outran its 15 second test timeout.
+        // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {
                 extends: true,
@@ -109,7 +104,7 @@ export default defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: [WAIT_GUARD_SETUP, "./src/test/setup.ts"],
+                    setupFiles: ["./src/test/setup.ts"],
                 },
             },
             {
@@ -120,7 +115,7 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", WAIT_GUARD_SETUP, "./src/test/setup.ts"],
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
@@ -146,7 +141,7 @@ export default defineConfig({
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
                     browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [WAIT_GUARD_SETUP, ".storybook/vitest.setup.ts"],
+                    setupFiles: [".storybook/vitest.setup.ts"],
                     // One story file at a time, as graphty-element's storybook project: in parallel
                     // every file mounts a real element at once, and on a machine already busy with
                     // other test runs the stories' own waits ran out.
@@ -169,7 +164,6 @@ export default defineConfig({
                     name: "node",
                     include: ["test/**/*.test.ts"],
                     environment: "node",
-                    setupFiles: [WAIT_GUARD_SETUP],
                 },
             },
         ],
@@ -216,3 +210,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -7,7 +7,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
-import { TEST_GUARDS } from "../tools/test-wait-guard.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
@@ -237,7 +237,7 @@ const browserCommands = {
     accessibilityTree,
 };
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react()],
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
@@ -251,8 +251,6 @@ export default defineConfig({
             {
                 test: {
                     name: "default",
-                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-                    ...TEST_GUARDS,
                     globals: true,
                     environment: "jsdom",
                     setupFiles: ["./tests/setup.ts"],
@@ -275,8 +273,6 @@ export default defineConfig({
                 optimizeDeps: { include: ["react/jsx-dev-runtime"] },
                 test: {
                     name: "browser",
-                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-                    ...TEST_GUARDS,
                     globals: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
@@ -300,8 +296,6 @@ export default defineConfig({
                 optimizeDeps: { include: ["react/jsx-dev-runtime"] },
                 test: {
                     name: "storybook",
-                    // One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-                    ...TEST_GUARDS,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],
@@ -333,3 +327,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

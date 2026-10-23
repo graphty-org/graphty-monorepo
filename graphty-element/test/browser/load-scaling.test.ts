@@ -307,7 +307,7 @@ describe("the scene-wide work of a load", () => {
         try {
             await graph.setLayout("fixed");
             graph.setData(graphOf(edgeCount));
-            await graph.waitForStableFrame({ timeoutMs: 120000 });
+            await graph.waitForStableFrame();
             const counted = work.byKind();
 
             // The hooks are on the classes the element built its scene from, not on a second copy

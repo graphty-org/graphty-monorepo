@@ -60,16 +60,12 @@ import {
 } from "../test/helpers/paint-assertions";
 import { click, hover } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
-import "../../vitest.wait-guard-setup";
 import { operationQueueOf } from "../src/Graph";
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
-// The test project brings its own timeout, so the play functions' waits set none of their own
-// (`isUnderRunner` in stories/helpers.ts).
-(globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
 afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();

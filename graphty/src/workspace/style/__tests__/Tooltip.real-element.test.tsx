@@ -15,9 +15,6 @@ import { findValuePicker, render, screen, waitFor, within } from "../../../test/
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** What the element's hover event carries. */
 type NodeEventDetail = HTMLElementEventMap["graphty-node-hover"]["detail"];
 
@@ -62,7 +59,7 @@ describe("a tooltip from an attribute on the real element", () => {
         await userEvent.click(within(nodes).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         // An empty tooltip says nothing, so a new Tooltip asks at once what it reads.
-        const list = await findValuePicker({ timeout: TIMEOUT_MS });
+        const list = await findValuePicker();
         assert.isNotNull(within(list).queryByRole("option", { name: "Fixed text" }), "fixed text is still a choice");
         assert.isNotNull(within(list).queryByRole("option", { name: /^Node id(,|$)/ }), "the node id can be picked");
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));

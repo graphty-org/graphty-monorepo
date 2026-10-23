@@ -3,11 +3,12 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 const src = fileURLToPath(new URL("./src/", import.meta.url));
 
-export default defineConfig({
+const config = defineConfig({
     // the documentation examples (docs/examples/) import the package by its published name, as a reader does
     resolve: {
         alias: [
@@ -31,7 +32,6 @@ export default defineConfig({
         globals: true,
         environment: "node",
         pool: "forks",
-        testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         // the browser tests run in Chromium under vitest.browser.config.ts (shard graph-io-browser)
         exclude: ["test/sources/browser/**", "**/node_modules/**"],
@@ -55,3 +55,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

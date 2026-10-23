@@ -45,7 +45,6 @@ import {
 } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 /** The test every LAW row names (the measurement of test/helpers/grid-law.ts, asserted per fixture there). */
 const GRID_LAW_TEST = "test/layouts/grid-law.test.ts";
@@ -268,35 +267,30 @@ describe("sabotage coverage of the P4 LAW table (PD-21, PD-22)", () => {
 });
 
 describe("sabotage: the grid far field, near field and K1 grid block against the grid-inspect checks (spec 11.9 item 1)", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the dev box's RTX 4070 SUPER under load, 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "the pristine kernels pass every row's check (the baseline the mutants are measured against)",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "sabotage/grid/baseline" });
-            try {
-                for (const { id, rows } of GRID_ROWS) {
-                    for (const row of rows) {
-                        const report = await checkOf(ctx, row);
-                        console.warn(
-                            `[sabotage] grid baseline ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                        );
-                        assertCheckPasses(report);
-                    }
-                }
-                for (const model of ["fr", "se"] as const) {
-                    const report = await lawCheck(ctx, model);
+    it("the pristine kernels pass every row's check (the baseline the mutants are measured against)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "sabotage/grid/baseline" });
+        try {
+            for (const { id, rows } of GRID_ROWS) {
+                for (const row of rows) {
+                    const report = await checkOf(ctx, row);
                     console.warn(
-                        `[sabotage] grid LAW baseline ${model}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                        `[sabotage] grid baseline ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
                     );
                     assertCheckPasses(report);
                 }
-            } finally {
-                ctx.dispose();
             }
-        },
-        CASE_TIMEOUT,
-    );
+            for (const model of ["fr", "se"] as const) {
+                const report = await lawCheck(ctx, model);
+                console.warn(
+                    `[sabotage] grid LAW baseline ${model}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                assertCheckPasses(report);
+            }
+        } finally {
+            ctx.dispose();
+        }
+    });
 
     for (const { id, rows } of GRID_ROWS) {
         for (const row of rows) {

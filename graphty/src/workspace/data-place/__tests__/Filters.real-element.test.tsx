@@ -18,9 +18,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace on the Data place, waits for the session and loads the small graph file
  * (8 nodes, 9 edges; edge `value` 9 or more on 4 edges whose ends are 5 nodes).
@@ -49,307 +46,278 @@ describe("Filters on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "adds an edge-attribute step from Filter to..., and the row, chip and status agree with the element",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const filters = (): HTMLElement =>
-                within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
+    it("adds an edge-attribute step from Filter to..., and the row, chip and status agree with the element", async () => {
+        const { session, store } = await openWithGraph();
+        const filters = (): HTMLElement =>
+            within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
 
-            const row = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-            row.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-            assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
-            // The attribute it was opened from stays marked.
-            assert.equal(row.getAttribute("aria-selected"), "true");
+        const row = await screen.findByRole("treeitem", { name: "value, edge attribute" });
+        row.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
+        assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
+        // The attribute it was opened from stays marked.
+        assert.equal(row.getAttribute("aria-selected"), "true");
 
-            // The editor says what an edge-attribute step keeps.
-            await screen.findByText("Keeps edges that pass and the nodes at their ends.");
-            const from = screen.getByRole("textbox", { name: FROM });
-            await userEvent.clear(from);
-            await userEvent.type(from, "9");
-            await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+        // The editor says what an edge-attribute step keeps.
+        await screen.findByText("Keeps edges that pass and the nodes at their ends.");
+        const from = screen.getByRole("textbox", { name: FROM });
+        await userEvent.clear(from);
+        await userEvent.type(from, "9");
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
 
-            await waitFor(() => {
-                assert.equal(session.visibility.steps.length, 1);
-            });
-            const [step] = session.visibility.steps;
-            assert.deepEqual(step.rule, { kind: "range", attribute: "data.value", min: 9, max: 31, nodes: "ends" });
-            const { visibleNodes, totalNodes, visibleEdges, totalEdges } = session.visibility.summary;
-            assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
-            // A step over an edge column names both counts, on its row and on the header chip.
-            const edgesShown = `5 of 8 nodes, ${String(visibleEdges)} of ${String(totalEdges)} edges`;
+        await waitFor(() => {
+            assert.equal(session.visibility.steps.length, 1);
+        });
+        const [step] = session.visibility.steps;
+        assert.deepEqual(step.rule, { kind: "range", attribute: "data.value", min: 9, max: 31, nodes: "ends" });
+        const { visibleNodes, totalNodes, visibleEdges, totalEdges } = session.visibility.summary;
+        assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
+        // A step over an edge column names both counts, on its row and on the header chip.
+        const edgesShown = `5 of 8 nodes, ${String(visibleEdges)} of ${String(totalEdges)} edges`;
 
-            const stepRow = await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
-            // The outcome shows under the sentence, on the row's second line.
-            await waitFor(() => {
-                const outcome = within(stepRow).getByText(
-                    `8 to 5 nodes, ${String(totalEdges)} to ${String(visibleEdges)} edges`,
-                );
-                assert.isTrue(outcome.checkVisibility());
-            });
-            assert.isNull(stepRow.getAttribute("data-dimmed"));
-            // The chip's tooltip names the step that is on.
-            const chip = screen.getByRole("button", { name: `Filter: ${edgesShown}` });
-            await userEvent.hover(chip);
-            await screen.findByText(
-                'Showing only: "value is between 9 and 31". Click to open Filters, where you can turn it off.',
-                {},
+        const stepRow = await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
+        // The outcome shows under the sentence, on the row's second line.
+        await waitFor(() => {
+            const outcome = within(stepRow).getByText(
+                `8 to 5 nodes, ${String(totalEdges)} to ${String(visibleEdges)} edges`,
             );
-            await userEvent.unhover(chip);
-            await waitFor(() => {
-                assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
-            });
+            assert.isTrue(outcome.checkVisibility());
+        });
+        assert.isNull(stepRow.getAttribute("data-dimmed"));
+        // The chip's tooltip names the step that is on.
+        const chip = screen.getByRole("button", { name: `Filter: ${edgesShown}` });
+        await userEvent.hover(chip);
+        await screen.findByText(
+            'Showing only: "value is between 9 and 31". Click to open Filters, where you can turn it off.',
+            {},
+        );
+        await userEvent.unhover(chip);
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
+        });
 
-            // The step's own editor says it is on, as its row does.
-            act(() => {
-                store.set({ inspected: { kind: "filter-step", id: step.id } });
-            });
-            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-            await inspector.findByText("On");
-            // The step whose editor is open is marked in the list, as an inspected row is.
-            assert.equal(
-                within(filters())
-                    .getByRole("treeitem", { name: "value is between 9 and 31" })
-                    .getAttribute("aria-selected"),
-                "true",
-            );
+        // The step's own editor says it is on, as its row does.
+        act(() => {
+            store.set({ inspected: { kind: "filter-step", id: step.id } });
+        });
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        await inspector.findByText("On");
+        // The step whose editor is open is marked in the list, as an inspected row is.
+        assert.equal(
+            within(filters())
+                .getByRole("treeitem", { name: "value is between 9 and 31" })
+                .getAttribute("aria-selected"),
+            "true",
+        );
 
-            // The checkbox's tooltip says what a click does.
-            const tick = screen.getByRole("checkbox", { name: "Apply step: value is between 9 and 31" });
-            await userEvent.hover(tick);
-            await screen.findByText("Turn this step off", {});
-            await userEvent.unhover(tick);
+        // The checkbox's tooltip says what a click does.
+        const tick = screen.getByRole("checkbox", { name: "Apply step: value is between 9 and 31" });
+        await userEvent.hover(tick);
+        await screen.findByText("Turn this step off", {});
+        await userEvent.unhover(tick);
 
-            // Untick: the full graph, the chip gone, the row and the editor say off.
-            await userEvent.click(tick);
-            await waitFor(() => {
-                assert.isFalse(session.visibility.steps[0]?.on);
-            });
-            await inspector.findByText("Off");
-            assert.equal(session.visibility.summary.visibleNodes, 8);
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
-                const offRow = within(filters()).getByRole("treeitem");
-                assert.isTrue(within(offRow).getByText("off").checkVisibility());
-                assert.equal(offRow.getAttribute("data-dimmed"), "");
-            });
-            assert.equal(store.get().announcement, "Filter off");
-
-            // Editing the step while it is off: the button says saving turns it on.
-            act(() => {
-                store.set({ inspected: { kind: "filter-step", id: step.id } });
-            });
-            const save = await inspector.findByRole("button", { name: "Save and turn on" });
-            const value = inspector.getByRole("textbox", { name: FROM });
-            await userEvent.clear(value);
-            await userEvent.type(value, "10");
-            await waitFor(() => {
-                assert.isFalse(save.hasAttribute("disabled"));
-            });
-            await userEvent.click(save);
-            await waitFor(() => {
-                assert.equal(store.get().announcement, 'Saved "value is between 10 and 31". The step is on.');
-                assert.isTrue(session.visibility.steps[0]?.on);
-            });
-            await within(filters()).findByRole("treeitem", { name: "value is between 10 and 31" });
-            // Undo restores the step as it was: the old rule, off.
-            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-            await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
+        // Untick: the full graph, the chip gone, the row and the editor say off.
+        await userEvent.click(tick);
+        await waitFor(() => {
             assert.isFalse(session.visibility.steps[0]?.on);
+        });
+        await inspector.findByText("Off");
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
+            const offRow = within(filters()).getByRole("treeitem");
+            assert.isTrue(within(offRow).getByText("off").checkVisibility());
+            assert.equal(offRow.getAttribute("data-dimmed"), "");
+        });
+        assert.equal(store.get().announcement, "Filter off");
 
-            // Undo puts the step back on and the notice names it.
-            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-            await waitFor(() => {
-                assert.isTrue(session.visibility.steps[0]?.on);
-                assert.equal(
-                    store.get().notice?.message,
-                    'Undid turning off the filter step "value is between 9 and 31".',
-                );
-            });
-            await screen.findByRole("button", { name: `Filter: ${edgesShown}` });
+        // Editing the step while it is off: the button says saving turns it on.
+        act(() => {
+            store.set({ inspected: { kind: "filter-step", id: step.id } });
+        });
+        const save = await inspector.findByRole("button", { name: "Save and turn on" });
+        const value = inspector.getByRole("textbox", { name: FROM });
+        await userEvent.clear(value);
+        await userEvent.type(value, "10");
+        await waitFor(() => {
+            assert.isFalse(save.hasAttribute("disabled"));
+        });
+        await userEvent.click(save);
+        await waitFor(() => {
+            assert.equal(store.get().announcement, 'Saved "value is between 10 and 31". The step is on.');
+            assert.isTrue(session.visibility.steps[0]?.on);
+        });
+        await within(filters()).findByRole("treeitem", { name: "value is between 10 and 31" });
+        // Undo restores the step as it was: the old rule, off.
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
+        assert.isFalse(session.visibility.steps[0]?.on);
 
-            // The chip opens the Data place.
-            store.set({ place: "graph" });
-            await userEvent.click(screen.getByRole("button", { name: `Filter: ${edgesShown}` }));
-            assert.equal(store.get().place, "data");
+        // Undo puts the step back on and the notice names it.
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.isTrue(session.visibility.steps[0]?.on);
+            assert.equal(store.get().notice?.message, 'Undid turning off the filter step "value is between 9 and 31".');
+        });
+        await screen.findByRole("button", { name: `Filter: ${edgesShown}` });
 
-            // The row menu deletes the step.
-            const again = within(filters()).getByRole("treeitem", { name: "value is between 9 and 31" });
-            again.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 0);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // The chip opens the Data place.
+        store.set({ place: "graph" });
+        await userEvent.click(screen.getByRole("button", { name: `Filter: ${edgesShown}` }));
+        assert.equal(store.get().place, "data");
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the toolbar's Filters tool opens an editor whose disabled Add step says what is missing",
-        async () => {
-            const { session, store } = await openWithGraph();
-            store.set({ place: "graph" });
-            await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
-            const add = await screen.findByRole("button", { name: "Add step" });
-            assert.equal(add.getAttribute("aria-disabled"), "true");
-
-            // Hover names the missing attribute; a click adds nothing.
-            await userEvent.hover(add);
-            await screen.findByText("Choose an attribute first", {});
-            await userEvent.click(add);
+        // The row menu deletes the step.
+        const again = within(filters()).getByRole("treeitem", { name: "value is between 9 and 31" });
+        again.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
+        await waitFor(() => {
             assert.lengthOf(session.visibility.steps, 0);
-            await userEvent.unhover(add);
+        });
+    });
 
-            // With an attribute and no text, focus names the missing value; Enter adds nothing.
-            await userEvent.click(screen.getByRole("combobox", { name: "Attribute" }));
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            await userEvent.click(screen.getByRole("combobox", { name: "label: text to match" }));
-            await userEvent.keyboard("{Enter}");
-            assert.lengthOf(session.visibility.steps, 0);
-            // Past the card's Match case, to Add step.
-            await userEvent.tab();
-            await userEvent.tab();
-            assert.equal(document.activeElement, add);
-            await screen.findByText("Type a value first", {});
+    it("the toolbar's Filters tool opens an editor whose disabled Add step says what is missing", async () => {
+        const { session, store } = await openWithGraph();
+        store.set({ place: "graph" });
+        await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
+        const add = await screen.findByRole("button", { name: "Add step" });
+        assert.equal(add.getAttribute("aria-disabled"), "true");
 
-            // A whole rule enables it, and it adds the step.
-            await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
-            assert.isNull(add.getAttribute("aria-disabled"));
-            await userEvent.click(add);
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 1);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // Hover names the missing attribute; a click adds nothing.
+        await userEvent.hover(add);
+        await screen.findByText("Choose an attribute first", {});
+        await userEvent.click(add);
+        assert.lengthOf(session.visibility.steps, 0);
+        await userEvent.unhover(add);
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "adds a largest-component step from the section's +",
-        async () => {
-            const { session } = await openWithGraph();
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(screen.getByRole("combobox", { name: "Keep" }));
-            await userEvent.click(await screen.findByRole("option", { name: "the largest component" }));
-            await userEvent.click(screen.getByRole("button", { name: "Add step" }));
-            await waitFor(() => {
-                assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "member", of: "largest-component" });
-            });
-            await screen.findByRole("treeitem", { name: "in the largest component" });
-        },
-        TIMEOUT_MS,
-    );
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "drops a new step left without Add step, says so, and never writes it",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const attribute = (): HTMLInputElement =>
-                screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        // With an attribute and no text, focus names the missing value; Enter adds nothing.
+        await userEvent.click(screen.getByRole("combobox", { name: "Attribute" }));
+        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        await userEvent.click(screen.getByRole("combobox", { name: "label: text to match" }));
+        await userEvent.keyboard("{Enter}");
+        assert.lengthOf(session.visibility.steps, 0);
+        // Past the card's Match case, to Add step.
+        await userEvent.tab();
+        await userEvent.tab();
+        assert.equal(document.activeElement, add);
+        await screen.findByText("Type a value first", {});
 
-            // Selecting the attribute's row moves the inspector off the editor: the half-made
-            // step adds nothing, the notice says so, and "+" starts again.
-            await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
-            await waitFor(() => {
-                assert.equal(store.get().inspected?.kind, "attribute");
-            });
-            assert.lengthOf(session.visibility.steps, 0);
-            assert.equal(store.get().notice?.message, "Filter step not added. Press Add step to use a step.");
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await waitFor(() => {
-                assert.equal(attribute().value, "");
-            });
+        // A whole rule enables it, and it adds the step.
+        await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
+        assert.isNull(add.getAttribute("aria-disabled"));
+        await userEvent.click(add);
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.steps, 1);
+        });
+    });
 
-            // Escape in the editor cancels it and says so once.
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            screen.getByRole("combobox", { name: "Keep" }).focus();
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(store.get().inspected);
-            });
-            assert.equal(store.get().announcement, "Step not added.");
+    it("adds a largest-component step from the section's +", async () => {
+        const { session } = await openWithGraph();
+        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+        await userEvent.click(screen.getByRole("combobox", { name: "Keep" }));
+        await userEvent.click(await screen.findByRole("option", { name: "the largest component" }));
+        await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "member", of: "largest-component" });
+        });
+        await screen.findByRole("treeitem", { name: "in the largest component" });
+    });
+    it("drops a new step left without Add step, says so, and never writes it", async () => {
+        const { session, store } = await openWithGraph();
+        const attribute = (): HTMLInputElement => screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
+        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+        await userEvent.click(attribute());
+        await userEvent.click(await screen.findByRole("option", { name: "label" }));
 
-            // A whole rule is not added when a click leaves the editor either: it is named.
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
-            await screen.findByText("8 to 1 nodes");
-            await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
-            await waitFor(() => {
-                assert.equal(
-                    store.get().notice?.message,
-                    'Filter step not added: "label contains Cos". Press Add step to use a step.',
-                );
-            });
+        // Selecting the attribute's row moves the inspector off the editor: the half-made
+        // step adds nothing, the notice says so, and "+" starts again.
+        await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
+        await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
-            assert.lengthOf(session.visibility.steps, 0);
-            assert.equal(session.visibility.summary.visibleNodes, 8);
-        },
-        TIMEOUT_MS,
-    );
+        });
+        assert.lengthOf(session.visibility.steps, 0);
+        assert.equal(store.get().notice?.message, "Filter step not added. Press Add step to use a step.");
+        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+        await waitFor(() => {
+            assert.equal(attribute().value, "");
+        });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, like the tests above, tracked in #1636
-    it(
-        "the text box is named, Enter takes a highlighted value, and a step that matches no node is never added",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const chooseLabel = async (): Promise<HTMLElement> => {
-                await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-                await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-                await userEvent.click(await screen.findByRole("option", { name: "label" }));
-                return screen.findByRole("combobox", { name: "label: text to match" });
-            };
+        // Escape in the editor cancels it and says so once.
+        await userEvent.click(attribute());
+        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        screen.getByRole("combobox", { name: "Keep" }).focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(store.get().inspected);
+        });
+        assert.equal(store.get().announcement, "Step not added.");
 
-            // Text no label holds: Enter adds nothing, the step says it matches none, and Add
-            // step waits.
-            const box = await chooseLabel();
-            await userEvent.type(box, "Zzz");
-            await screen.findByText("8 to 0 nodes");
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.equal(store.get().announcement, "No node matches this step");
-            });
-            assert.equal(session.visibility.steps.length, 0);
-            assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
-            // Escape in a box holding text keeps the text and the editor; from the editor's other
-            // controls, with no list open, Escape closes the editor.
-            screen.getByRole("combobox", { name: "Keep" }).focus();
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(store.get().inspected);
-            });
+        // A whole rule is not added when a click leaves the editor either: it is named.
+        await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
+        await userEvent.click(attribute());
+        await userEvent.click(await screen.findByRole("option", { name: "label" }));
+        await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
+        await screen.findByText("8 to 1 nodes");
+        await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
+        await waitFor(() => {
+            assert.equal(
+                store.get().notice?.message,
+                'Filter step not added: "label contains Cos". Press Add step to use a step.',
+            );
+        });
+        assert.equal(store.get().inspected?.kind, "attribute");
+        assert.lengthOf(session.visibility.steps, 0);
+        assert.equal(session.visibility.summary.visibleNodes, 8);
+    });
 
-            // A value highlighted in the list: Enter takes it, the next adds the step.
-            const again = await chooseLabel();
-            await userEvent.type(again, "Cos");
-            await screen.findByRole("option", { name: "Cosette" });
-            await userEvent.keyboard("{ArrowDown}{Enter}");
-            await waitFor(() => {
-                assert.equal((again as HTMLInputElement).value, "Cosette");
+    it("the text box is named, Enter takes a highlighted value, and a step that matches no node is never added", async () => {
+        const { session, store } = await openWithGraph();
+        const chooseLabel = async (): Promise<HTMLElement> => {
+            await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
+            await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
+            await userEvent.click(await screen.findByRole("option", { name: "label" }));
+            return screen.findByRole("combobox", { name: "label: text to match" });
+        };
+
+        // Text no label holds: Enter adds nothing, the step says it matches none, and Add
+        // step waits.
+        const box = await chooseLabel();
+        await userEvent.type(box, "Zzz");
+        await screen.findByText("8 to 0 nodes");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "No node matches this step");
+        });
+        assert.equal(session.visibility.steps.length, 0);
+        assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
+        // Escape in a box holding text keeps the text and the editor; from the editor's other
+        // controls, with no list open, Escape closes the editor.
+        screen.getByRole("combobox", { name: "Keep" }).focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(store.get().inspected);
+        });
+
+        // A value highlighted in the list: Enter takes it, the next adds the step.
+        const again = await chooseLabel();
+        await userEvent.type(again, "Cos");
+        await screen.findByRole("option", { name: "Cosette" });
+        await userEvent.keyboard("{ArrowDown}{Enter}");
+        await waitFor(() => {
+            assert.equal((again as HTMLInputElement).value, "Cosette");
+        });
+        assert.equal(session.visibility.steps.length, 0);
+        await screen.findByText("8 to 1 nodes");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.deepEqual(session.visibility.steps[0]?.rule, {
+                kind: "text",
+                reads: "data.label",
+                mode: "substring",
+                text: "Cosette",
             });
-            assert.equal(session.visibility.steps.length, 0);
-            await screen.findByText("8 to 1 nodes");
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.deepEqual(session.visibility.steps[0]?.rule, {
-                    kind: "text",
-                    reads: "data.label",
-                    mode: "substring",
-                    text: "Cosette",
-                });
-            });
-            assert.equal(session.visibility.summary.visibleNodes, 1);
-        },
-        TIMEOUT_MS,
-    );
+        });
+        assert.equal(session.visibility.summary.visibleNodes, 1);
+    });
 });

@@ -7,6 +7,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
@@ -63,12 +64,6 @@ const browserGpu: keyof typeof BROWSER_FLAGS =
 const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
-/**
- * The per-test budget of the node project. A recording run (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
- * committed noise fixtures) runs the writer cases, which measure the UNSCALED fixtures and take up to tens of minutes
- * on one adapter; every other run skips them and keeps the 30 s budget.
- */
-const nodeTestTimeout = noiseFloorWrite === "1" ? 1_800_000 : 30_000;
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -288,7 +283,7 @@ const nodeForks = Math.min(
     workerShare() ?? Infinity,
 );
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
@@ -327,8 +322,6 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: nodeTestTimeout,
-                    hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
@@ -348,8 +341,6 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: nodeTestTimeout,
-                    hookTimeout: 60_000,
                     include: [...GPU_ALONE_TESTS],
                     fileParallelism: false,
                     sequence: { groupOrder: 1 },
@@ -372,8 +363,6 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 30_000,
-                    hookTimeout: 60_000,
                     include: [...DEVICE_ERROR_TESTS],
                     setupFiles: ["test/setup/gpu.ts"],
                     globalSetup: ["test/setup/global.ts"],
@@ -387,8 +376,6 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 600_000,
-                    hookTimeout: 120_000,
                     include: ["test/limits/**/*.test.ts"],
                     setupFiles: ["test/setup/gpu.ts"],
                 },
@@ -403,8 +390,6 @@ export default defineConfig({
                     name: "browser",
                     globals: true,
                     include: ["test/browser/**/*.test.ts"],
-                    testTimeout: 120_000,
-                    hookTimeout: 120_000,
                     env: {
                         GRAPHTY_GPU_REQUIRE: gpuRequire,
                         GRAPHTY_BROWSER_GPU: browserGpu,
@@ -440,3 +425,6 @@ export default defineConfig({
         ],
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

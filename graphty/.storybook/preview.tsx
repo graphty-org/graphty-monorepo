@@ -20,6 +20,8 @@ import DocumentationTemplate from "./DocumentationTemplate.mdx";
 // Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
 // (tools/test-wait-guard.mjs). Here, so the interactive Storybook and the visual capture get it too.
 configure({ asyncUtilTimeout: WAIT_GUARD_MS });
+// graphty-element's waitForStableFrame() waits until the same guard, not its 30 s default.
+(globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: number }).__GRAPHTY_WAIT_GUARD_MS__ = WAIT_GUARD_MS;
 
 // Error tracking in Storybook only when a DSN was built in. Without one there is nothing to set up,
 // and the Sentry stories say on the page that it is not configured.

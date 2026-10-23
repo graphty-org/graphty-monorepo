@@ -4,6 +4,7 @@
 import { defineConfig, type UserConfig } from "vitest/config";
 
 import { workerShare } from "./tools/test-slots.mjs";
+import { withTestGuards } from "./tools/test-wait-guard.mjs";
 import { ciReporters } from "./vitest.ci-junit.mjs";
 
 // Every Playwright browser the test projects launch inherits this process's environment. Chromium
@@ -24,26 +25,27 @@ export interface VitestConfigOptions {
 }
 
 export function createVitestConfig(options: VitestConfigOptions): UserConfig {
-    return defineConfig({
-        test: {
-            globals: true,
-            environment: "happy-dom",
-            setupFiles: options.setupFiles,
-            coverage: {
-                provider: "v8",
-                reporter: ["text", "json", "html", "lcov"],
-                exclude: ["node_modules", "dist", "**/*.d.ts", "**/*.config.*", "**/mockData", "**/__tests__"],
-                thresholds: {
-                    lines: 80,
-                    functions: 80,
-                    branches: 75,
-                    statements: 80,
+    return withTestGuards(
+        defineConfig({
+            test: {
+                globals: true,
+                environment: "happy-dom",
+                setupFiles: options.setupFiles,
+                coverage: {
+                    provider: "v8",
+                    reporter: ["text", "json", "html", "lcov"],
+                    exclude: ["node_modules", "dist", "**/*.d.ts", "**/*.config.*", "**/mockData", "**/__tests__"],
+                    thresholds: {
+                        lines: 80,
+                        functions: 80,
+                        branches: 75,
+                        statements: 80,
+                    },
                 },
+                reporters: ["default", ...ciReporters()],
+                // At most this run's share of the cores (tools/test-slots.mjs; undefined on GitHub Actions).
+                maxWorkers: workerShare(),
             },
-            reporters: ["default", ...ciReporters()],
-            testTimeout: 30000,
-            // At most this run's share of the cores (tools/test-slots.mjs; undefined on GitHub Actions).
-            maxWorkers: workerShare(),
-        },
-    });
+        }),
+    );
 }

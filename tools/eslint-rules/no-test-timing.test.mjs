@@ -18,13 +18,13 @@ const timeout = { messageId: "timeout" };
 const frames = { messageId: "frames" };
 const pageTimer = { messageId: "pageTimer" };
 const waitBudget = { messageId: "waitBudget" };
+const deadline = { messageId: "deadline" };
 const FRAMES_HELPER = "async function frames(count) { for (let i = 0; i < count; i++) { await nextFrame(); } }";
 
 tester.run("no-test-timing", rule, {
     valid: [
         // Wall-clock values that are not asserted on, and assertions on counted work.
         "const t0 = performance.now(); run(); console.log(performance.now() - t0);",
-        "const deadline = Date.now() + 1000; while (Date.now() < deadline) { step(); }",
         "expect(visits).toBeLessThan(500);",
         "assert(count < 10);",
         "expect(record.createdAt).toBe(Date.now());",
@@ -59,7 +59,17 @@ tester.run("no-test-timing", rule, {
         // Options that are no deadline, and timeouts of things that are not waits.
         "await screen.findByRole('button', { name: 'Go' });",
         "await locator.click({ force: true });",
-        "execFile(cmd, args, { timeout: 60_000 }, done);",
+        "configure({ asyncUtilTimeout: WAIT_GUARD_MS });",
+        // A timeout option of the code under test is what the test checks.
+        "const { notifier } = make({ timeoutMs: 300 });",
+        "const reply = await runGraphviz(job, { timeoutMs: 1 });",
+        "spawnSync(cmd, args, { timeout: TEST_GUARD_MS });",
+        "const config = { test: { testTimeout: TEST_GUARD_MS, expect: { poll: { timeout: WAIT_GUARD_MS } } } };",
+        "await vi.waitFor(() => done(), { timeout: guard.WAIT_GUARD_MS });",
+        "const before = Date.now(); const e = emit(); if (e.at < before) { fail(); }",
+        // An animation's progress, and work that simulates the code under test, are not deadlines.
+        "const start = performance.now(); function step() { const p = Math.min((performance.now() - start) / 300, 1); if (p < 1) { requestAnimationFrame(step); } } step();",
+        "defineAlgorithm({ nodes: () => { const end = performance.now() + 300; while (performance.now() < end) {} return []; } });",
         "expect(tx).toEqual({ timeout: 5000 });",
         "expect(spy).toHaveBeenCalledWith({ timeout: 5000 });",
         "await expect.poll(() => x(), { message: 'x' }).toBe(1);",
@@ -120,15 +130,27 @@ tester.run("no-test-timing", rule, {
         { code: "await helpers.delay(2 * 100);", errors: [sleep] },
         { code: "await nap(10);", options: [{ sleepNames: ["nap"] }], errors: [sleep] },
         // 3. Per-test timeouts.
-        { code: "it('x', async () => {}, 60_000);", errors: [timeout] },
-        { code: "it('x', { timeout: 1000 }, async () => {});", errors: [timeout] },
-        { code: "it('x', async () => {}, { timeout: 1000 });", errors: [timeout] },
-        { code: "it.skipIf(ci)('x', async () => {}, TIMEOUT);", errors: [timeout] },
-        { code: "test.each([1])('x %i', (n) => {}, 5000);", errors: [timeout] },
-        { code: "describe('x', () => {}, 30000);", errors: [timeout] },
-        { code: "beforeAll(async () => {}, 30000);", errors: [timeout] },
-        { code: "test.beforeEach(async () => {}, 30000);", errors: [timeout] },
-        { code: "it('x', runCase, 5000);", errors: [timeout] },
+        { code: "it('x', async () => {}, 60_000);", output: "it('x', async () => {});", errors: [timeout] },
+        { code: "it('x', { timeout: 1000 }, async () => {});", output: "it('x', async () => {});", errors: [timeout] },
+        { code: "it('x', async () => {}, { timeout: 1000 });", output: "it('x', async () => {});", errors: [timeout] },
+        {
+            code: "it.skipIf(ci)('x', async () => {}, TIMEOUT);",
+            output: "it.skipIf(ci)('x', async () => {});",
+            errors: [timeout],
+        },
+        {
+            code: "test.each([1])('x %i', (n) => {}, 5000);",
+            output: "test.each([1])('x %i', (n) => {});",
+            errors: [timeout],
+        },
+        { code: "describe('x', () => {}, 30000);", output: "describe('x', () => {});", errors: [timeout] },
+        { code: "beforeAll(async () => {}, 30000);", output: "beforeAll(async () => {});", errors: [timeout] },
+        {
+            code: "test.beforeEach(async () => {}, 30000);",
+            output: "test.beforeEach(async () => {});",
+            errors: [timeout],
+        },
+        { code: "it('x', runCase, 5000);", output: "it('x', runCase);", errors: [timeout] },
         { code: "vi.setConfig({ testTimeout: 60000 });", errors: [timeout] },
         { code: "function f() { this.timeout(5000); }", errors: [timeout] },
         { code: "test.setTimeout(120000);", errors: [timeout] },
@@ -221,6 +243,28 @@ tester.run("no-test-timing", rule, {
             code: "const WAIT = { timeout: 2000 }; await vi.waitFor(() => done(), WAIT);",
             output: null,
             errors: [waitBudget],
+        },
+        // 7. Any other local deadline: an option, a helper's default, a config value, a deadline loop.
+        {
+            code: "execFile(cmd, args, { timeout: 60_000 }, done);",
+            output: "execFile(cmd, args, done);",
+            errors: [deadline],
+        },
+        {
+            code: "await el.waitForStableFrame({ timeoutMs: 1 });",
+            output: "await el.waitForStableFrame();",
+            errors: [deadline],
+        },
+        { code: "await settle(page, { pollIntervalMs: 50 });", output: "await settle(page);", errors: [deadline] },
+        { code: "configure({ asyncUtilTimeout: 5000 });", errors: [deadline] },
+        { code: "async function until(fn, timeoutMs = 5000) { await fn(); }", errors: [deadline] },
+        { code: "const until = async (fn, { timeout = 5000 } = {}) => fn();", errors: [deadline] },
+        { code: "export default { test: { testTimeout: 0 } };", errors: [deadline] },
+        { code: "defineConfig({ test: { projects: [{ test: { hookTimeout: 60_000 } }] } });", errors: [deadline] },
+        { code: "const deadline = Date.now() + 1000; while (Date.now() < deadline) { step(); }", errors: [deadline] },
+        {
+            code: "const start = performance.now(); while (!ready()) { if (performance.now() - start > 5000) throw new Error('x'); await tick(); }",
+            errors: [deadline],
         },
         // 5. Timers in code handed to the page (#2422, #2447).
         {

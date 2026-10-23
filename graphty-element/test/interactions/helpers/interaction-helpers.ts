@@ -19,12 +19,11 @@ import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions
  * This ensures the camera, scene, and input handlers are all set up.
  *
  * @param graph - The graph instance to wait for
- * @param timeout - Maximum time to wait in milliseconds (default: 5000)
  */
-export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<void> {
+export async function waitForGraphReady(graph: Graph): Promise<void> {
     await vi.waitFor(() => {
         if (!graph.initialized) {
-            throw new Error(`Graph did not initialize within ${timeout}ms`);
+            throw new Error("Graph did not initialize");
         }
     });
 

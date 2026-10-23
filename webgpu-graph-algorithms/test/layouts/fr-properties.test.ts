@@ -28,7 +28,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const NUM_RUNS = 200;
-const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 /**
@@ -141,220 +140,195 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 21 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "fixed nodes never move: a random mask set through setFixed between steps, or given as the fixed option at creation (PD-6), keeps every pinned row bitwise where it was; the all-fixed mask settles within settleWindow + 1 steps",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    async (bits, before, after) => {
-                        const mask = makeMask(n);
-                        bits.forEach((b, i) => {
-                            maskSet(mask, i, b);
-                        });
-                        await withSim(ctx, BASE, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            await sim.step(before);
-                            const pinnedAt = Float32Array.from(positions);
-                            sim.setFixed(mask);
-                            await sim.step(after);
-                            expectPinnedStill(positions, pinnedAt, bits);
-                        });
-                        await withSim(ctx, { ...BASE, fixed: mask }, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            await sim.step(before + after);
-                            expectPinnedStill(positions, start, bits);
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-            const settleWindow = 3;
-            const all = makeMask(n);
-            for (let i = 0; i < n; i++) {
-                maskSet(all, i, true);
+    it("fixed nodes never move: a random mask set through setFixed between steps, or given as the fixed option at creation (PD-6), keeps every pinned row bitwise where it was; the all-fixed mask settles within settleWindow + 1 steps", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.array(fc.boolean(), { minLength: n, maxLength: n }),
+                fc.integer({ min: 1, max: stepBound() }),
+                fc.integer({ min: 1, max: stepBound() }),
+                async (bits, before, after) => {
+                    const mask = makeMask(n);
+                    bits.forEach((b, i) => {
+                        maskSet(mask, i, b);
+                    });
+                    await withSim(ctx, BASE, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        await sim.step(before);
+                        const pinnedAt = Float32Array.from(positions);
+                        sim.setFixed(mask);
+                        await sim.step(after);
+                        expectPinnedStill(positions, pinnedAt, bits);
+                    });
+                    await withSim(ctx, { ...BASE, fixed: mask }, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        await sim.step(before + after);
+                        expectPinnedStill(positions, start, bits);
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+        const settleWindow = 3;
+        const all = makeMask(n);
+        for (let i = 0; i < n; i++) {
+            maskSet(all, i, true);
+        }
+        await withSim(ctx, { ...BASE, settleThreshold: 1e-3, settleWindow, fixed: all }, async (sim) => {
+            const positions = Float32Array.from(start);
+            sim.load(s, positions);
+            let steps = 0;
+            while (!sim.settled && steps < settleWindow + 1) {
+                await sim.step(1);
+                steps++;
             }
-            await withSim(ctx, { ...BASE, settleThreshold: 1e-3, settleWindow, fixed: all }, async (sim) => {
-                const positions = Float32Array.from(start);
-                sim.load(s, positions);
-                let steps = 0;
-                while (!sim.settled && steps < settleWindow + 1) {
-                    await sim.step(1);
-                    steps++;
+            expect(sim.settled, `settled after ${steps} steps`).toBe(true);
+            expect(sim.stats.meanDisplacement).toBe(0);
+            for (let i = 0; i < 3 * n; i++) {
+                if (!Object.is(positions[i], start[i])) {
+                    throw new Error(`component ${i} moved under the all-fixed mask`);
                 }
-                expect(sim.settled, `settled after ${steps} steps`).toBe(true);
-                expect(sim.stats.meanDisplacement).toBe(0);
-                for (let i = 0; i < 3 * n; i++) {
-                    if (!Object.is(positions[i], start[i])) {
-                        throw new Error(`component ${i} moved under the all-fixed mask`);
-                    }
-                }
-            });
-        },
-        CASE_TIMEOUT,
-    );
+            }
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 16 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    bitwiseStableFloat(-2, 2),
-                    bitwiseStableFloat(-2, 2),
-                    async (i, x, y) => {
-                        await withSim(ctx, { ...BASE, maxInFlight: 2 }, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            sim.setFixed(pinMask(n, i));
-                            await sim.step(1);
-                            const submittedBefore = sim.lastSubmittedBatchId;
-                            const older = sim.step(2);
-                            while (sim.lastSubmittedBatchId === submittedBefore) {
-                                await tick();
+    it("setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                bitwiseStableFloat(-2, 2),
+                bitwiseStableFloat(-2, 2),
+                async (i, x, y) => {
+                    await withSim(ctx, { ...BASE, maxInFlight: 2 }, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        sim.setFixed(pinMask(n, i));
+                        await sim.step(1);
+                        const submittedBefore = sim.lastSubmittedBatchId;
+                        const older = sim.step(2);
+                        while (sim.lastSubmittedBatchId === submittedBefore) {
+                            await tick();
+                        }
+                        sim.setPosition(i, x, y, 0);
+                        expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
+                            sim.lastSubmittedBatchId,
+                        );
+                        const newer = sim.step(2);
+                        await older;
+                        expect(positions[3 * i], "x after the older batch landed").toBe(x);
+                        expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
+                        await newer;
+                        expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(x);
+                        expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
+                        expect(positions[3 * i + 2]).toBe(0);
+                        expect(sim.overrides.has(i), "the override is cleared by a batch newer than the write").toBe(
+                            false,
+                        );
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("settled within maxIter: run({ maxIter, batch: 1 }) stops at maxIter exactly; settled within the FR budget: run({ batch: 1 }) stops at exactly iterations", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: runBound() }),
+                fc.integer({ min: 1, max: runBound() }),
+                async (maxIter, iterations) => {
+                    await withSim(ctx, BASE, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        const stats = await sim.run({ maxIter, batch: 1 });
+                        // run()'s maxIter caps the run; the simulation's own budget (a million) is untouched
+                        expect(sim.settled).toBe(false);
+                        expect(sim.iterationsDone).toBe(maxIter);
+                        expect(stats.iteration).toBe(maxIter);
+                        expect(stats.trace).toHaveLength(1);
+                    });
+                    await withSim(ctx, { ...BASE, iterations }, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        const stats = await sim.run({ batch: 1 });
+                        expect(sim.settled).toBe(true);
+                        expect(sim.iterationsDone).toBe(iterations);
+                        expect(stats.iteration).toBe(iterations);
+                        expect(stats.trace).toHaveLength(1);
+                        expect(stats.temperature).toBe(
+                            Math.fround(
+                                FR_START_TEMPERATURE - (FR_START_TEMPERATURE / (iterations + 1)) * (iterations - 1),
+                            ),
+                        );
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("reheat on unpin, setPosition and load, not on pin (D8): every reheat restarts the temperature index at floor(0.7 iterations) (PD-5), a pin continues the schedule unbroken, a load restarts it at 0", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                fc.integer({ min: 0, max: n - 1 }),
+                fc.boolean(),
+                bitwiseStableFloat(-2, 2),
+                async (a, b, pinFirst, x) => {
+                    await withSim(ctx, BASE, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        // the expected temperature index of the NEXT iteration
+                        let index = 0;
+                        const stepAndCheck = async (k: number, label: string): Promise<void> => {
+                            await sim.step(k);
+                            const { trace } = sim.stats;
+                            expect(trace).toHaveLength(k);
+                            for (let i = 0; i < k; i++) {
+                                expect(trace[i].temperature, `${label}: record ${i}`).toBe(temperatureOf(index + i));
                             }
-                            sim.setPosition(i, x, y, 0);
-                            expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
-                                sim.lastSubmittedBatchId,
-                            );
-                            const newer = sim.step(2);
-                            await older;
-                            expect(positions[3 * i], "x after the older batch landed").toBe(x);
-                            expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
-                            await newer;
-                            expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(
-                                x,
-                            );
-                            expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
-                            expect(positions[3 * i + 2]).toBe(0);
-                            expect(
-                                sim.overrides.has(i),
-                                "the override is cleared by a batch newer than the write",
-                            ).toBe(false);
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 45 s on the Windows WARP host lane, 18 s on lavapipe on the dev box under load, 16 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "settled within maxIter: run({ maxIter, batch: 1 }) stops at maxIter exactly; settled within the FR budget: run({ batch: 1 }) stops at exactly iterations",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: runBound() }),
-                    fc.integer({ min: 1, max: runBound() }),
-                    async (maxIter, iterations) => {
-                        await withSim(ctx, BASE, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            const stats = await sim.run({ maxIter, batch: 1 });
-                            // run()'s maxIter caps the run; the simulation's own budget (a million) is untouched
-                            expect(sim.settled).toBe(false);
-                            expect(sim.iterationsDone).toBe(maxIter);
-                            expect(stats.iteration).toBe(maxIter);
-                            expect(stats.trace).toHaveLength(1);
-                        });
-                        await withSim(ctx, { ...BASE, iterations }, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            const stats = await sim.run({ batch: 1 });
-                            expect(sim.settled).toBe(true);
-                            expect(sim.iterationsDone).toBe(iterations);
-                            expect(stats.iteration).toBe(iterations);
-                            expect(stats.trace).toHaveLength(1);
-                            expect(stats.temperature).toBe(
-                                Math.fround(
-                                    FR_START_TEMPERATURE - (FR_START_TEMPERATURE / (iterations + 1)) * (iterations - 1),
-                                ),
-                            );
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on lavapipe on the dev box under load, 14 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "reheat on unpin, setPosition and load, not on pin (D8): every reheat restarts the temperature index at floor(0.7 iterations) (PD-5), a pin continues the schedule unbroken, a load restarts it at 0",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    fc.integer({ min: 0, max: n - 1 }),
-                    fc.boolean(),
-                    bitwiseStableFloat(-2, 2),
-                    async (a, b, pinFirst, x) => {
-                        await withSim(ctx, BASE, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            // the expected temperature index of the NEXT iteration
-                            let index = 0;
-                            const stepAndCheck = async (k: number, label: string): Promise<void> => {
-                                await sim.step(k);
-                                const { trace } = sim.stats;
-                                expect(trace).toHaveLength(k);
-                                for (let i = 0; i < k; i++) {
-                                    expect(trace[i].temperature, `${label}: record ${i}`).toBe(
-                                        temperatureOf(index + i),
-                                    );
-                                }
-                                index += k;
-                            };
-                            await stepAndCheck(3, "after load");
-                            expect(sim.iterationsDone).toBe(3);
-                            const first = pinFirst ? a : b;
-                            const second = pinFirst ? b : a;
-                            sim.setFixed(pinMask(n, first));
-                            expect(sim.iterationsDone, "a pin does not reheat").toBe(3);
-                            await stepAndCheck(2, "after a pin");
-                            expect(sim.iterationsDone).toBe(5);
-                            if (second !== first) {
-                                // a new pin (no bit went 1 -> 0): still no reheat
-                                const both = pinMask(n, first);
-                                maskSet(both, second, true);
-                                sim.setFixed(both);
-                                expect(sim.iterationsDone, "a second pin does not reheat").toBe(5);
-                                await stepAndCheck(1, "after two pins");
-                            }
-                            sim.setFixed(makeMask(n));
-                            expect(sim.iterationsDone, "an unpin reheats").toBe(0);
-                            index = REHEAT_INDEX;
-                            await stepAndCheck(2, "after an unpin");
-                            expect(sim.iterationsDone).toBe(2);
-                            sim.setPosition(a, x, 0.5, 0);
-                            expect(sim.iterationsDone, "setPosition reheats").toBe(0);
-                            index = REHEAT_INDEX;
-                            await stepAndCheck(2, "after setPosition");
-                            sim.load(s, Float32Array.from(start));
-                            expect(sim.iterationsDone, "load reheats").toBe(0);
-                            index = 0;
-                            await stepAndCheck(1, "after a reload");
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                            index += k;
+                        };
+                        await stepAndCheck(3, "after load");
+                        expect(sim.iterationsDone).toBe(3);
+                        const first = pinFirst ? a : b;
+                        const second = pinFirst ? b : a;
+                        sim.setFixed(pinMask(n, first));
+                        expect(sim.iterationsDone, "a pin does not reheat").toBe(3);
+                        await stepAndCheck(2, "after a pin");
+                        expect(sim.iterationsDone).toBe(5);
+                        if (second !== first) {
+                            // a new pin (no bit went 1 -> 0): still no reheat
+                            const both = pinMask(n, first);
+                            maskSet(both, second, true);
+                            sim.setFixed(both);
+                            expect(sim.iterationsDone, "a second pin does not reheat").toBe(5);
+                            await stepAndCheck(1, "after two pins");
+                        }
+                        sim.setFixed(makeMask(n));
+                        expect(sim.iterationsDone, "an unpin reheats").toBe(0);
+                        index = REHEAT_INDEX;
+                        await stepAndCheck(2, "after an unpin");
+                        expect(sim.iterationsDone).toBe(2);
+                        sim.setPosition(a, x, 0.5, 0);
+                        expect(sim.iterationsDone, "setPosition reheats").toBe(0);
+                        index = REHEAT_INDEX;
+                        await stepAndCheck(2, "after setPosition");
+                        sim.load(s, Float32Array.from(start));
+                        expect(sim.iterationsDone, "load reheats").toBe(0);
+                        index = 0;
+                        await stepAndCheck(1, "after a reload");
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed", async (t) => {
         requireGpu(t);
@@ -447,67 +421,57 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         );
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "the FR displacement bound: after one iteration every free row moved by at most the temperature, a row with |F| < t by exactly |F| (up to four f32 roundings and the position rounding), a pinned row by 0",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: 100_000 }),
-                    fc.integer({ min: 0, max: n - 1 }),
-                    async (seed, pin) => {
-                        const options: FruchtermanReingoldOptions = { ...BASE, seed, fixed: pinMask(n, pin) };
-                        const once = (): Promise<{ before: F32; force: F32; after: F32 }> =>
-                            withSim(ctx, options, async (sim) => {
-                                const positions = new Float32Array(3 * n).fill(Number.NaN);
-                                sim.load(s, positions);
-                                const before = xyzOf(
-                                    asF32((await sim.inspect?.("positions")) ?? new Float32Array(0)),
-                                    n,
-                                );
-                                const run = sim.debugRunStages;
-                                const read = sim.inspect;
-                                if (run === undefined || read === undefined) {
-                                    throw new Error("ctx.debug.inspect was not honoured");
-                                }
-                                await run.call(sim, "K5");
-                                const force = asF32(await read.call(sim, "force"));
-                                const after = xyzOf(asF32(await read.call(sim, "positions")), n);
-                                return { before, force, after };
-                            });
-                        const first = await once();
-                        const { before, force, after } = await once();
-                        expectBitwiseEqual(first.before, before, "start positions, run 1 vs run 2");
-                        expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
-                        expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
-                        const temperature = temperatureOf(0);
-                        expect(temperature).toBe(Math.fround(FR_START_TEMPERATURE));
-                        const margin = temperature * 4 * ULP + POSITION_ROUNDING;
-                        for (let i = 0; i < n; i++) {
-                            const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
-                            const dp = Math.hypot(after[3 * i] - before[3 * i], after[3 * i + 1] - before[3 * i + 1]);
-                            expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
-                            if (i === pin) {
-                                expect(dp, `pinned node ${i} moved`).toBe(0);
-                                continue;
+    it("the FR displacement bound: after one iteration every free row moved by at most the temperature, a row with |F| < t by exactly |F| (up to four f32 roundings and the position rounding), a pinned row by 0", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: 100_000 }),
+                fc.integer({ min: 0, max: n - 1 }),
+                async (seed, pin) => {
+                    const options: FruchtermanReingoldOptions = { ...BASE, seed, fixed: pinMask(n, pin) };
+                    const once = (): Promise<{ before: F32; force: F32; after: F32 }> =>
+                        withSim(ctx, options, async (sim) => {
+                            const positions = new Float32Array(3 * n).fill(Number.NaN);
+                            sim.load(s, positions);
+                            const before = xyzOf(asF32((await sim.inspect?.("positions")) ?? new Float32Array(0)), n);
+                            const run = sim.debugRunStages;
+                            const read = sim.inspect;
+                            if (run === undefined || read === undefined) {
+                                throw new Error("ctx.debug.inspect was not honoured");
                             }
-                            expect(dp, `node ${i}: |dp| <= t`).toBeLessThanOrEqual(temperature + margin);
-                            if (f < temperature) {
-                                expect(Math.abs(dp - f), `node ${i}: |dp| == |F| below the cap`).toBeLessThanOrEqual(
-                                    f * 4 * ULP + POSITION_ROUNDING,
-                                );
-                            } else {
-                                expect(dp, `node ${i}: |dp| == t at the cap`).toBeGreaterThanOrEqual(
-                                    temperature - margin,
-                                );
-                            }
+                            await run.call(sim, "K5");
+                            const force = asF32(await read.call(sim, "force"));
+                            const after = xyzOf(asF32(await read.call(sim, "positions")), n);
+                            return { before, force, after };
+                        });
+                    const first = await once();
+                    const { before, force, after } = await once();
+                    expectBitwiseEqual(first.before, before, "start positions, run 1 vs run 2");
+                    expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
+                    expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
+                    const temperature = temperatureOf(0);
+                    expect(temperature).toBe(Math.fround(FR_START_TEMPERATURE));
+                    const margin = temperature * 4 * ULP + POSITION_ROUNDING;
+                    for (let i = 0; i < n; i++) {
+                        const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
+                        const dp = Math.hypot(after[3 * i] - before[3 * i], after[3 * i + 1] - before[3 * i + 1]);
+                        expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
+                        if (i === pin) {
+                            expect(dp, `pinned node ${i} moved`).toBe(0);
+                            continue;
                         }
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                        expect(dp, `node ${i}: |dp| <= t`).toBeLessThanOrEqual(temperature + margin);
+                        if (f < temperature) {
+                            expect(Math.abs(dp - f), `node ${i}: |dp| == |F| below the cap`).toBeLessThanOrEqual(
+                                f * 4 * ULP + POSITION_ROUNDING,
+                            );
+                        } else {
+                            expect(dp, `node ${i}: |dp| == t at the cap`).toBeGreaterThanOrEqual(temperature - margin);
+                        }
+                    }
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 });

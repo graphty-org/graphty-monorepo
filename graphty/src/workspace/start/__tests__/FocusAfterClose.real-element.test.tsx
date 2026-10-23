@@ -32,9 +32,6 @@ import { clearRecent, refreshStored, rememberRecent } from "../../project/recent
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Waits for the open project's element to come up with the graph loaded.
  * @param nodes - the node count the loaded graph has.
@@ -126,24 +123,19 @@ afterEach(() => {
 });
 
 describe("focus after the control holding it goes away, on the real element", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a sample opened with Enter hands focus to the graph's heading, which says its size",
-        async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
-            // The tile's size line is the button's description.
-            assert.include(describedBy(sample), "15 nodes");
-            sample.focus();
-            await userEvent.keyboard("{Enter}");
-            const { session } = await loaded(15);
-            await waitFor(() => {
-                assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
-            });
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+    it("a sample opened with Enter hands focus to the graph's heading, which says its size", async () => {
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        const sample = screen.getByRole("button", { name: "Open the Florentine families sample" });
+        // The tile's size line is the button's description.
+        assert.include(describedBy(sample), "15 nodes");
+        sample.focus();
+        await userEvent.keyboard("{Enter}");
+        const { session } = await loaded(15);
+        await waitFor(() => {
+            assertFocusOnGraphHeading(15, session.data.statistics().edgeCount);
+        });
+        unmount();
+    });
 
     it("Tab and Shift+Tab round the start screen, never to the page", async () => {
         forgetUsageAnswer();
@@ -168,83 +160,67 @@ describe("focus after the control holding it goes away, on the real element", ()
         unmount();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "a refused file hands focus to Open a file, beside the reason",
-        async () => {
-            vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
-                const transfer = new DataTransfer();
-                transfer.items.add(new File(['<?xml version="1.0"?>\n<graphml><graph><node id='], "cut.graphml"));
-                this.files = transfer.files;
-                this.dispatchEvent(new Event("change"));
-            });
-            const store = createWorkspaceStore();
-            const { unmount } = render(<Workspace store={store} />);
-            openButton().focus();
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.isTrue(store.get().notice?.error);
-                assert.isNull(store.get().project);
-            });
-            await waitFor(() => {
-                assert.strictEqual(document.activeElement, openButton());
-            });
-            assert.isNotNull(screen.getByText(store.get().notice?.message ?? ""));
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+    it("a refused file hands focus to Open a file, beside the reason", async () => {
+        vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
+            const transfer = new DataTransfer();
+            transfer.items.add(new File(['<?xml version="1.0"?>\n<graphml><graph><node id='], "cut.graphml"));
+            this.files = transfer.files;
+            this.dispatchEvent(new Event("change"));
+        });
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+        openButton().focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isTrue(store.get().notice?.error);
+            assert.isNull(store.get().project);
+        });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, openButton());
+        });
+        assert.isNotNull(screen.getByText(store.get().notice?.message ?? ""));
+        unmount();
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Escape from the shortcuts dialog opened from the drawing hands focus back to the drawing",
-        async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { host } = await loaded(15);
-            host.shadowRoot?.querySelector("canvas")?.focus();
+    it("Escape from the shortcuts dialog opened from the drawing hands focus back to the drawing", async () => {
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        const { host } = await loaded(15);
+        host.shadowRoot?.querySelector("canvas")?.focus();
+        assertFocusOnDrawing(host);
+
+        await userEvent.keyboard("?");
+        await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
             assertFocusOnDrawing(host);
+        });
+        unmount();
+    });
 
-            await userEvent.keyboard("?");
-            await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog"));
-                assertFocusOnDrawing(host);
-            });
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+    it("Enter on a recent project hands focus to the graph's heading", async () => {
+        // A project kept in this browser, so Recent projects lists it.
+        const first = render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        const { session } = await loaded(15);
+        await session.project.rename("Kept Florentine");
+        await browserProjects.save(session);
+        await refreshStored();
+        first.unmount();
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Enter on a recent project hands focus to the graph's heading",
-        async () => {
-            // A project kept in this browser, so Recent projects lists it.
-            const first = render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { session } = await loaded(15);
-            await session.project.rename("Kept Florentine");
-            await browserProjects.save(session);
-            await refreshStored();
-            first.unmount();
-
-            const store = createWorkspaceStore();
-            const { unmount } = render(<Workspace store={store} />);
-            const row = await screen.findByRole("gridcell", { name: /^Kept Florentine/ });
-            row.focus();
-            await userEvent.keyboard("{Enter}");
-            const opened = await loaded(15);
-            await waitFor(() => {
-                assert.equal(store.get().project?.name, "Kept Florentine");
-                assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
-            });
-            unmount();
-        },
-        // Twice the waits inside it, so a failure reports its assertion rather than the test timeout.
-        TIMEOUT_MS * 2,
-    );
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+        const row = await screen.findByRole("gridcell", { name: /^Kept Florentine/ });
+        row.focus();
+        await userEvent.keyboard("{Enter}");
+        const opened = await loaded(15);
+        await waitFor(() => {
+            assert.equal(store.get().project?.name, "Kept Florentine");
+            assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
+        });
+        unmount();
+    });
     it("removing Recent projects rows hands focus to the row now in its place, then to Open a file", async () => {
         for (const [i, name] of ["Older file", "Newer file"].entries()) {
             await rememberRecent({ id: name, name, nodes: 10, at: 1000 + i });
@@ -268,76 +244,66 @@ describe("focus after the control holding it goes away, on the real element", ()
         unmount();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "removing a project kept in this browser, after its question, hands focus on too",
-        async () => {
-            const first = render(<Workspace store={createWorkspaceStore()} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { session } = await loaded(15);
-            await browserProjects.save(session);
-            await refreshStored();
-            first.unmount();
+    it("removing a project kept in this browser, after its question, hands focus on too", async () => {
+        const first = render(<Workspace store={createWorkspaceStore()} />);
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        const { session } = await loaded(15);
+        await browserProjects.save(session);
+        await refreshStored();
+        first.unmount();
 
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            (await screen.findByRole("button", { name: /^More for / })).focus();
-            await userEvent.keyboard("{Enter}");
-            (await screen.findByRole("menuitem", { name: "Remove from this browser" })).focus();
-            await userEvent.keyboard("{Enter}");
-            const dialog = await screen.findByRole("dialog");
-            within(dialog).getByRole("button", { name: "Remove" }).focus();
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("dialog"));
-                assert.strictEqual(document.activeElement, openButton());
-            });
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        (await screen.findByRole("button", { name: /^More for / })).focus();
+        await userEvent.keyboard("{Enter}");
+        (await screen.findByRole("menuitem", { name: "Remove from this browser" })).focus();
+        await userEvent.keyboard("{Enter}");
+        const dialog = await screen.findByRole("dialog");
+        within(dialog).getByRole("button", { name: "Remove" }).focus();
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+            assert.strictEqual(document.activeElement, openButton());
+        });
+        unmount();
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "Open a file with a data file hands focus to Load on the Data page, and Load to the graph's heading",
-        async () => {
-            const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
-            // Every control focus reaches from here on: never the rail, while the file is read.
-            const reached: Element[] = [];
-            const onFocusIn = (event: FocusEvent): void => {
-                if (event.target instanceof Element) {
-                    reached.push(event.target);
-                }
-            };
-            document.addEventListener("focusin", onFocusIn);
+    it("Open a file with a data file hands focus to Load on the Data page, and Load to the graph's heading", async () => {
+        const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+        // Every control focus reaches from here on: never the rail, while the file is read.
+        const reached: Element[] = [];
+        const onFocusIn = (event: FocusEvent): void => {
+            if (event.target instanceof Element) {
+                reached.push(event.target);
+            }
+        };
+        document.addEventListener("focusin", onFocusIn);
 
-            // The file is read with focus on Load, which says what it will make; Load takes the
-            // Data page away: focus goes to the graph's heading.
-            chooseCsv();
-            openButton().focus();
-            await userEvent.keyboard("{Enter}");
-            const load = await screen.findByRole("button", { name: "Load" });
-            await waitFor(() => {
-                assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
-                assert.strictEqual(document.activeElement, load);
-            });
-            assert.include(describedBy(load), "abc: 3 nodes, 2 edges");
-            await userEvent.keyboard("{Enter}");
-            await loaded(3);
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("region", { name: "Data page" }));
-                assertFocusOnGraphHeading(3, 2);
-            });
-            document.removeEventListener("focusin", onFocusIn);
-            assert.isEmpty(
-                reached.filter(
-                    (element) => element.closest(".ws-rail") !== null || element.closest('[role="tree"]') !== null,
-                ),
-                "focus passed the rail or a layer row",
-            );
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+        // The file is read with focus on Load, which says what it will make; Load takes the
+        // Data page away: focus goes to the graph's heading.
+        chooseCsv();
+        openButton().focus();
+        await userEvent.keyboard("{Enter}");
+        const load = await screen.findByRole("button", { name: "Load" });
+        await waitFor(() => {
+            assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
+            assert.strictEqual(document.activeElement, load);
+        });
+        assert.include(describedBy(load), "abc: 3 nodes, 2 edges");
+        await userEvent.keyboard("{Enter}");
+        await loaded(3);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Data page" }));
+            assertFocusOnGraphHeading(3, 2);
+        });
+        document.removeEventListener("focusin", onFocusIn);
+        assert.isEmpty(
+            reached.filter(
+                (element) => element.closest(".ws-rail") !== null || element.closest('[role="tree"]') !== null,
+            ),
+            "focus passed the rail or a layer row",
+        );
+        unmount();
+    });
 
     it("Cancel on the Data page opened by Open a file hands focus back to Open a file", async () => {
         const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
@@ -353,50 +319,45 @@ describe("focus after the control holding it goes away, on the real element", ()
         unmount();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "closing the table, or a notice from inside it, hands focus to the drawing",
-        async () => {
-            const store = createWorkspaceStore();
-            const { unmount } = render(<Workspace store={store} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-            const { host } = await loaded(15);
+    it("closing the table, or a notice from inside it, hands focus to the drawing", async () => {
+        const store = createWorkspaceStore();
+        const { unmount } = render(<Workspace store={store} />);
+        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        const { host } = await loaded(15);
 
-            store.set({ dockOpen: true });
-            (await screen.findByRole("button", { name: "Close table" })).focus();
-            await userEvent.keyboard("{Enter}");
-            assert.isNull(screen.queryByRole("button", { name: "Close table" }));
-            await waitFor(() => {
-                assertFocusOnDrawing(host);
-            });
+        store.set({ dockOpen: true });
+        (await screen.findByRole("button", { name: "Close table" })).focus();
+        await userEvent.keyboard("{Enter}");
+        assert.isNull(screen.queryByRole("button", { name: "Close table" }));
+        await waitFor(() => {
+            assertFocusOnDrawing(host);
+        });
 
-            let undone = false;
-            store.set({
-                notice: {
-                    message: "Removed Color",
-                    action: {
-                        label: "Undo",
-                        run: () => {
-                            undone = true;
-                        },
+        let undone = false;
+        store.set({
+            notice: {
+                message: "Removed Color",
+                action: {
+                    label: "Undo",
+                    run: () => {
+                        undone = true;
                     },
                 },
-            });
-            // The notice's own Undo, not the header's.
-            const notice = await waitFor(() => {
-                const slot = document.querySelector<HTMLElement>(".ws-notice-slot");
-                assert.exists(slot);
-                return slot;
-            });
-            within(notice).getByRole("button", { name: "Undo" }).focus();
-            await userEvent.keyboard("{Enter}");
-            assert.isTrue(undone);
-            assert.isNull(store.get().notice);
-            await waitFor(() => {
-                assertFocusOnDrawing(host);
-            });
-            unmount();
-        },
-        TIMEOUT_MS,
-    );
+            },
+        });
+        // The notice's own Undo, not the header's.
+        const notice = await waitFor(() => {
+            const slot = document.querySelector<HTMLElement>(".ws-notice-slot");
+            assert.exists(slot);
+            return slot;
+        });
+        within(notice).getByRole("button", { name: "Undo" }).focus();
+        await userEvent.keyboard("{Enter}");
+        assert.isTrue(undone);
+        assert.isNull(store.get().notice);
+        await waitFor(() => {
+            assertFocusOnDrawing(host);
+        });
+        unmount();
+    });
 });

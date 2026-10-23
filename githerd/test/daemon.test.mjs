@@ -3469,7 +3469,7 @@ describe("the notify command check", () => {
 });
 
 /**
- * Waits for a condition, checking every 20 ms; fails after 15 s.
+ * Waits for a condition, until the one hang guard (tools/test-wait-guard.mjs).
  * @param {() => unknown} check returns truthy when done
  * @param {string} what for the failure message
  * @returns {Promise<any>} the check's value

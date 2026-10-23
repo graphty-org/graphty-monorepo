@@ -11,9 +11,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
 
-/** Far longer than an empty graph needs, far shorter than the 30 s default. */
-const STABLE_TIMEOUT_MS = 5000;
-
 let container: HTMLDivElement | null = null;
 
 /**
@@ -51,7 +48,7 @@ describe("an element with no data", () => {
     it("reports a stable frame", async () => {
         const element = await mount();
 
-        await element.waitForStableFrame({ timeoutMs: STABLE_TIMEOUT_MS });
+        await element.waitForStableFrame();
 
         assert.isTrue(element.isFrameStable, "an empty graph has nothing left to move");
     });

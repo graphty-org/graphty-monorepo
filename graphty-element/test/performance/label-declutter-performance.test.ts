@@ -202,8 +202,7 @@ describe("label declutter performance", () => {
     }
 
     for (const count of SIZES) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, building 1000 labels and timing about 300 frames over them takes 11 to 28 s locally and about 39 s on CI (the frames are not rasterized, see the file comment), more than a third of the 15 s budget (5000 labels, run by hand, take about two minutes); tracked in #1636
-        it(`${String(count)} labelled nodes`, { timeout: 300_000 }, async () => {
+        it(`${String(count)} labelled nodes`, async () => {
             const g = await draw(count);
             const lines: string[] = [];
 

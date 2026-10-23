@@ -350,9 +350,11 @@ export default tseslint.config(
     // ============================================
     // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
     // ============================================
-    // A wall-clock assertion, a fixed sleep, a hand-set timeout or a deadline on a wait passes on an
-    // idle machine and fails when several test runs share it. The rule and its reasons:
-    // tools/eslint-rules/no-test-timing.mjs. Story play functions and their helpers are tests too.
+    // A wall-clock assertion, a fixed sleep, a hand-set timeout or any other local deadline passes on
+    // an idle machine and fails when several test runs share it. There is one hang guard, set in
+    // tools/test-wait-guard.mjs; nothing else may end a test on the clock. The rule and its reasons:
+    // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
+    // the vitest configs (a per-project testTimeout) are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
     // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
     // and a desktop program that offers no event to wait on is polled.
@@ -365,6 +367,7 @@ export default tseslint.config(
             "**/*.stories.{ts,tsx}",
             "**/stories/**/*.{ts,tsx}",
             "**/.storybook/**/*.{ts,tsx}",
+            "**/vitest*.config.{ts,mts,mjs,js}",
         ],
         ignores: [
             "**/*.bench.test.ts",
@@ -373,8 +376,6 @@ export default tseslint.config(
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
-            // The wait guard's own test passes explicit wait options to check the guard keeps them.
-            "tools/test-wait-guard.test.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },

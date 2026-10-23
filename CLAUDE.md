@@ -602,6 +602,11 @@ reason); run by `tools/check-links.sh`:
   sidebars and nav) and that every Storybook deep link (`?path=/story/<id>`) names a story that
   exists (`tools/check-storybook-links.mjs`).
 - **Pre-push** (`tools/prepush.sh`): the offline half, `tools/check-links.sh --offline`, under a second.
+  It also builds the docs site as CI's Docs job does (`docs:content`, the API pages, `vitepress build
+  docs`; about 3 minutes) when the push affects a package with a `docs:api:<package>` script or changes
+  `docs/`, a package's `docs/` that `tools/copy-docs-content.js` copies in, or that script, so a dead
+  link or a generated page Vue cannot compile (a doc comment's code span split across two lines left
+  a bare `<value>` tag) stops the push, not CI.
 - **Docs builds**: VitePress fails on a dead link in Markdown (no `ignoreDeadLinks` anywhere), and
   graphty-element's TypeDoc run (`graphty-element/scripts/build-api-docs.mjs`) fails on a broken
   `{@link}`. The unified `npm run docs:build` in CI runs both.

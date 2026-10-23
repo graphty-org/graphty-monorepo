@@ -291,34 +291,17 @@ At most one per round, and only when nothing above acted.
 
 ### 7. Finished worktrees
 
-Merged branches stay on GitHub and here as history; this step removes only finished worktrees, never a
-branch on GitHub. At most five removals per round. List candidates (read-only; it skips the main checkout, locked worktrees and the live
-tool worktrees in `tools/live-tools.json` plus `golden-local`):
+`tools/worktree-cleanup.mjs` removes finished worktrees on its own: the servherd server `worktree-cleanup` runs
+`--apply` every 15 minutes from its live copy `.worktrees/worktree-cleanup-live` (`tools/live-tools.json`). It removes
+only worktrees whose work is finished and that pass every safety check (see its header), never a branch on GitHub.
+This step only checks that it runs:
 
-```bash
-cd /home/apowers/Projects/graphty-monorepo
-fp=$(mktemp); git rev-list --first-parent origin/master origin/golden >"$fp"
-git worktree list --porcelain | awk '/^worktree /{w=$2; l=0} /^locked/{l=1} /^branch /{sub("refs/heads/","",$2); if (!l) print w, $2}' |
-while read -r dir br; do
-  case "$dir" in "$PWD"|*/golden-local|*/gate-live|*/githerd|*/visual-review-server-v3|*/sonar-baseline-runner) continue;; esac
-  [ "$(git rev-list --count "refs/heads/$br" --not origin/master origin/golden)" = 0 ] || continue
-  grep -qx "$(git rev-parse "refs/heads/$br")" "$fp" && continue
-  git log origin/golden --format=%s | grep -qxF "Revert \"land: $br\"" && { echo "keep (reverted) $dir"; continue; }
-  cat tmp/pipeline-round/state.json tmp/issue-round/state.json 2>/dev/null | grep -qF -- "branch $br," && { echo "keep (taken) $dir"; continue; }
-  if ls -l /proc/[0-9]*/cwd 2>/dev/null | grep -qF -- "-> $dir"; then echo "keep (process) $dir"
-  elif [ -n "$(git -C "$dir" --no-optional-locks status --porcelain)" ]; then echo "keep (dirty) $dir"
-  else echo "remove $dir $br"; fi
-done; rm -f "$fp"
-```
-
-Every commit of a `remove` line's branch is on origin/master or origin/golden, and the branch has commits of its own (a
-fresh branch sits on the first-parent line and is skipped). A branch reverted from golden, or named by a `taken` marker
-in the state files, is kept: a fix is due on it. The process check sees only processes whose working directory is
-inside the worktree, never Claude agents (they work by absolute path), which is why the marker check is there. Ignored
-files go with the worktree: move a non-empty `<dir>/tmp/` to the main checkout's `tmp/<worktree name>/` first; build
-output and `node_modules` are discarded. Remove with `git worktree remove <dir>`, then `git branch -d <branch>` (git
-refuses `-d` for a branch that is only on golden; that is fine, the branch stays). A refusal is reported, never forced.
-If `live-tools.json` gains a tool, add its worktree to the `case` line.
+- `servherd_list` shows `worktree-cleanup` online. If not, start it:
+  `servherd_start({ name: "worktree-cleanup", cwd: "/home/apowers/Projects/graphty-monorepo/.worktrees/worktree-cleanup-live", command: "node tools/worktree-cleanup.mjs --apply --every 15" })`.
+- The last `pass` line in `tmp/worktree-cleanup/log.jsonl` of the main checkout is under an hour old. Its kept counts
+  say why the rest stay; a large "uncommitted or untracked files" count is worktrees an owner must look at, never a
+  reason to force anything.
+- `node tools/worktree-cleanup.mjs` (a dry run, from any checkout) prints the plan with every reason.
 
 Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
 `git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.
@@ -374,7 +357,8 @@ Each: signal, meaning, action. Add to this list (see the next section).
 - **master-guard still freezes and lifts a Mergify queue.** That no longer stops anything; ignore it.
 - **npm `previously staged version` (409).** The publish succeeded and is propagating (minutes). Not a failure.
 - **Worktrees git refuses to remove** because of untracked build output an old branch's `.gitignore` did not cover:
-  they show as `keep (dirty)`. Leave them; a tool fix belongs in `tools/worktree-prune.sh`, not a forced removal.
+  they count as "uncommitted or untracked files" in `tools/worktree-cleanup.mjs`. Leave them; a tool fix belongs
+  there, not a forced removal.
 - **About three dozen open pull requests from the retired Mergify flow.** They are step 6 material. `hold` means do not
   merge, not do not touch.
 - **The baseline seed pull request** from `visual-seed.yml` merges into master directly; it is not a stray.

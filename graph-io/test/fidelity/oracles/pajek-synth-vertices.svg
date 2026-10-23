@@ -1,0 +1,659 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Title: 1. C:\pj\in\synth-vertices.net (81) -->
+<!-- Creator: Pajek 6.02: http://mrvar.fdv.uni-lj.si/pajek -->
+<!-- CreationDate: (the run's clock time, removed by tools/pajek.mjs) -->
+<svg xml:space="preserve" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
+<title>1. C:\pj\in\synth-vertices.net (81)</title>
+<g inkscape:groupmode="layer" id="PajekSig" inkscape:label="PajekSignature">
+<g transform="translate(3 482)">
+<g transform="scale(0.1)">
+<g transform="matrix(1 0 0 -1 0 96)">
+<path d="M   7.67  49.98 L  31.76  72.76 L  46.91  78.63
+         L  57.23  80.49 M  72.86  65.23 L  65.73  83.25
+         L  57.06  75.49 L  56.75  68.65 M  76.27  68.03
+         L  75.65  84.50 L  93.92  91.02 L 107.24  74.87
+         M  80.29  67.72 L  89.28  84.81 L 104.77  81.70
+         L 116.23  73.31 L 121.18  59.33 M  56.75  81.08
+         L  71.31  64.30"
+         style="fill:none; stroke:saddlebrown; stroke-width:5;"/>
+<path d="M  86.18  70.21 L  91.45  73.00 L  95.78  69.58
+         M  91.14  60.88 L  96.09  62.75 L  98.26  59.33"
+         style="fill:none; stroke:saddlebrown; stroke-width:1.5;"/>
+<path d="M  81.07  49.08 L  87.81  49.08 L  93.30  54.38
+         L  93.30  60.88 L  93.30  67.39 L  87.81  72.69
+         L  81.07  72.69 L  74.33  72.69 L  68.83  67.39
+         L  68.83  60.88 L  68.83  54.38 L  74.33  49.08
+         L  81.07  49.08 z"
+         style="fill:maroon; stroke:saddlebrown; stroke-width:1;"/>
+<path d="M  54.63  37.53 L  68.53  43.56 L  75.39  55.85
+         L  69.90  65.35 L  64.41  72.86 L  48.60  74.06
+         L  34.71  68.04 L  20.81  55.02 L  15.95  40.72
+         L  17.44  33.22 L  24.92  28.72 L  40.73  30.51
+         L  54.63  37.53 z"
+         style="fill:maroon; stroke:saddlebrown; stroke-width:1;" />
+<path d="M  77.82  50.63 L 103.84  59.33 L 131.10  43.80
+         L 139.46  27.95 L 139.15  15.83 M  35.99   5.27
+         L  47.15  32.92 L  61.71  50.01 L  70.07  46.90
+         L  82.77  45.04 L  83.39  27.02 L  65.42  12.11
+         M  68.52  50.63 L  91.14  49.39 L 103.53  43.17
+         L 117.16  22.67 L 115.30   8.38"
+         style="fill:none; stroke:saddlebrown; stroke-width:5;"/>
+<path d="M  41.57  54.98 L  60.16  64.61 M  52.41  66.17
+         L  57.99  57.47"
+         style="fill:none; stroke:white; stroke-width:5;"/>
+</g>
+</g>
+<animateMotion dur="20s" path="M3 0 L482 0" begin="120s" fill="freeze"/>
+</g>
+<g transform="translate(3 482)">
+<g transform="scale(0.1)">
+<text x="5" y="140" style="font-family:Brush Script MT;font-size:75px;fill:green;">Pajek</text>
+</g>
+<animateMotion dur="0.1s" path="M3 0 L482 0" begin="120s" fill="freeze"/>
+</g>
+</g>      <!-- Layer Signature -->
+
+<g inkscape:groupmode="layer" id="PajekNet" inkscape:label="PajekNetwork">
+
+<!-- Edge:     1    2 -->
+<line x1="30.00" y1="30.00" x2="85.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     1   10 -->
+<line x1="30.00" y1="30.00" x2="30.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     2    3 -->
+<line x1="85.00" y1="30.00" x2="140.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     3    4 -->
+<line x1="140.00" y1="30.00" x2="195.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     3   12 -->
+<line x1="140.00" y1="30.00" x2="140.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     4    5 -->
+<line x1="195.00" y1="30.00" x2="250.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     5    6 -->
+<line x1="250.00" y1="30.00" x2="305.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     5   14 -->
+<line x1="250.00" y1="30.00" x2="250.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     6    7 -->
+<line x1="305.00" y1="30.00" x2="360.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     7    8 -->
+<line x1="360.00" y1="30.00" x2="415.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     7   16 -->
+<line x1="360.00" y1="30.00" x2="360.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     8    9 -->
+<line x1="415.00" y1="30.00" x2="470.00" y2="30.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:     9   18 -->
+<line x1="470.00" y1="30.00" x2="470.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    10   11 -->
+<line x1="30.00" y1="85.00" x2="85.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    10   19 -->
+<line x1="30.00" y1="85.00" x2="30.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    11   12 -->
+<line x1="85.00" y1="85.00" x2="140.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    12   13 -->
+<line x1="140.00" y1="85.00" x2="195.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    12   21 -->
+<line x1="140.00" y1="85.00" x2="140.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    13   14 -->
+<line x1="195.00" y1="85.00" x2="250.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    14   15 -->
+<line x1="250.00" y1="85.00" x2="305.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    14   23 -->
+<line x1="250.00" y1="85.00" x2="250.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    15   16 -->
+<line x1="305.00" y1="85.00" x2="360.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    16   17 -->
+<line x1="360.00" y1="85.00" x2="415.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    16   25 -->
+<line x1="360.00" y1="85.00" x2="360.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    17   18 -->
+<line x1="415.00" y1="85.00" x2="470.00" y2="85.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    18   27 -->
+<line x1="470.00" y1="85.00" x2="470.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    19   20 -->
+<line x1="30.00" y1="140.00" x2="85.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    19   28 -->
+<line x1="30.00" y1="140.00" x2="30.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    20   21 -->
+<line x1="85.00" y1="140.00" x2="140.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    21   22 -->
+<line x1="140.00" y1="140.00" x2="195.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    21   30 -->
+<line x1="140.00" y1="140.00" x2="140.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    22   23 -->
+<line x1="195.00" y1="140.00" x2="250.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    23   24 -->
+<line x1="250.00" y1="140.00" x2="305.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    23   32 -->
+<line x1="250.00" y1="140.00" x2="250.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    24   25 -->
+<line x1="305.00" y1="140.00" x2="360.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    25   26 -->
+<line x1="360.00" y1="140.00" x2="415.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    25   34 -->
+<line x1="360.00" y1="140.00" x2="360.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    26   27 -->
+<line x1="415.00" y1="140.00" x2="470.00" y2="140.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    27   36 -->
+<line x1="470.00" y1="140.00" x2="470.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    28   29 -->
+<line x1="30.00" y1="195.00" x2="85.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    28   37 -->
+<line x1="30.00" y1="195.00" x2="30.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    29   30 -->
+<line x1="85.00" y1="195.00" x2="140.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    30   31 -->
+<line x1="140.00" y1="195.00" x2="195.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    30   39 -->
+<line x1="140.00" y1="195.00" x2="140.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    31   32 -->
+<line x1="195.00" y1="195.00" x2="250.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    32   33 -->
+<line x1="250.00" y1="195.00" x2="305.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    32   41 -->
+<line x1="250.00" y1="195.00" x2="250.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    33   34 -->
+<line x1="305.00" y1="195.00" x2="360.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    34   35 -->
+<line x1="360.00" y1="195.00" x2="415.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    34   43 -->
+<line x1="360.00" y1="195.00" x2="360.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    35   36 -->
+<line x1="415.00" y1="195.00" x2="470.00" y2="195.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    36   45 -->
+<line x1="470.00" y1="195.00" x2="470.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    37   38 -->
+<line x1="30.00" y1="250.00" x2="85.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    37   46 -->
+<line x1="30.00" y1="250.00" x2="30.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    38   39 -->
+<line x1="85.00" y1="250.00" x2="140.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    39   40 -->
+<line x1="140.00" y1="250.00" x2="195.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    39   48 -->
+<line x1="140.00" y1="250.00" x2="140.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    40   41 -->
+<line x1="195.00" y1="250.00" x2="250.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    41   42 -->
+<line x1="250.00" y1="250.00" x2="305.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    41   50 -->
+<line x1="250.00" y1="250.00" x2="250.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    42   43 -->
+<line x1="305.00" y1="250.00" x2="360.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    43   44 -->
+<line x1="360.00" y1="250.00" x2="415.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    43   52 -->
+<line x1="360.00" y1="250.00" x2="360.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    44   45 -->
+<line x1="415.00" y1="250.00" x2="470.00" y2="250.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    45   54 -->
+<line x1="470.00" y1="250.00" x2="470.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    46   47 -->
+<line x1="30.00" y1="305.00" x2="85.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    46   55 -->
+<line x1="30.00" y1="305.00" x2="30.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    47   48 -->
+<line x1="85.00" y1="305.00" x2="140.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    48   49 -->
+<line x1="140.00" y1="305.00" x2="195.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    48   57 -->
+<line x1="140.00" y1="305.00" x2="140.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    49   50 -->
+<line x1="195.00" y1="305.00" x2="250.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    50   51 -->
+<line x1="250.00" y1="305.00" x2="305.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    50   59 -->
+<line x1="250.00" y1="305.00" x2="250.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    51   52 -->
+<line x1="305.00" y1="305.00" x2="360.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    52   53 -->
+<line x1="360.00" y1="305.00" x2="415.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    52   61 -->
+<line x1="360.00" y1="305.00" x2="360.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    53   54 -->
+<line x1="415.00" y1="305.00" x2="470.00" y2="305.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    54   63 -->
+<line x1="470.00" y1="305.00" x2="470.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    55   56 -->
+<line x1="30.00" y1="360.00" x2="85.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    55   64 -->
+<line x1="30.00" y1="360.00" x2="30.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    56   57 -->
+<line x1="85.00" y1="360.00" x2="140.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    57   58 -->
+<line x1="140.00" y1="360.00" x2="195.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    57   66 -->
+<line x1="140.00" y1="360.00" x2="140.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    58   59 -->
+<line x1="195.00" y1="360.00" x2="250.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    59   60 -->
+<line x1="250.00" y1="360.00" x2="305.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    59   68 -->
+<line x1="250.00" y1="360.00" x2="250.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    60   61 -->
+<line x1="305.00" y1="360.00" x2="360.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    61   62 -->
+<line x1="360.00" y1="360.00" x2="415.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    61   70 -->
+<line x1="360.00" y1="360.00" x2="360.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    62   63 -->
+<line x1="415.00" y1="360.00" x2="470.00" y2="360.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    63   72 -->
+<line x1="470.00" y1="360.00" x2="470.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    64   65 -->
+<line x1="30.00" y1="415.00" x2="85.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    64   73 -->
+<line x1="30.00" y1="415.00" x2="30.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    65   66 -->
+<line x1="85.00" y1="415.00" x2="140.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    66   67 -->
+<line x1="140.00" y1="415.00" x2="195.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    66   75 -->
+<line x1="140.00" y1="415.00" x2="140.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    67   68 -->
+<line x1="195.00" y1="415.00" x2="250.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    68   69 -->
+<line x1="250.00" y1="415.00" x2="305.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    68   77 -->
+<line x1="250.00" y1="415.00" x2="250.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    69   70 -->
+<line x1="305.00" y1="415.00" x2="360.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    70   71 -->
+<line x1="360.00" y1="415.00" x2="415.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    70   79 -->
+<line x1="360.00" y1="415.00" x2="360.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    71   72 -->
+<line x1="415.00" y1="415.00" x2="470.00" y2="415.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    72   81 -->
+<line x1="470.00" y1="415.00" x2="470.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    73   74 -->
+<line x1="30.00" y1="470.00" x2="85.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    74   75 -->
+<line x1="85.00" y1="470.00" x2="140.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    75   76 -->
+<line x1="140.00" y1="470.00" x2="195.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    76   77 -->
+<line x1="195.00" y1="470.00" x2="250.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    77   78 -->
+<line x1="250.00" y1="470.00" x2="305.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    78   79 -->
+<line x1="305.00" y1="470.00" x2="360.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    79   80 -->
+<line x1="360.00" y1="470.00" x2="415.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+<!-- Edge:    80   81 -->
+<line x1="415.00" y1="470.00" x2="470.00" y2="470.00" style="stroke-width:2.00;stroke:rgb(0,112,145)"/>
+
+<!-- Vertex:     1 -->
+<ellipse cx="30.00" cy="30.00" rx="10.00" ry="10.00" style="fill:rgb(255,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<text x="35.18" y="49.32" style="font-family:Helvetica;font-weight: bold;font-size:8px;fill:rgb(255,0,0)">v1</text>
+<!-- Vertex:     2 -->
+<g transform="translate(85.00 30.00)">
+<path d="M -15.00 -10.00 L 15.00 -10.00 L 15.00 10.00 L -15.00 10.00 z" style="fill:rgb(0,0,255);stroke:rgb(140,35,255);stroke-width:2.00;"/>
+</g>
+<text x="90.18" y="49.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">box 2</text>
+<!-- Vertex:     3 -->
+<g transform="translate(140.00 30.00)">
+<path d="M -10.00 0 L -0.10 10.00 L 0.10 10.00 L 10.00 0 L 0.10 -10.00 L -0.10 -10.00 z" style="fill:rgb(0,255,0);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(145.18 49.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v3</text>
+</g></g>
+<!-- Vertex:     4 -->
+<g transform="translate(195.00 30.00)">
+<path d="M 25.00 10.00 L 0 -10.00 L -25.00 10.00 z" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="186.51" y="21.51" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">triangle 4</text>
+<!-- Vertex:     5 -->
+<g transform="translate(250.00 30.00)">
+<g transform="rotate(-60.00)">
+<ellipse cx="0.00" cy="0.00" rx="10.00" ry="15.00" style="fill:rgb(255,99,33);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g></g>
+<text x="255.18" y="49.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v5</text>
+<!-- Vertex:     6 -->
+<text x="310.18" y="49.32" style="font-family:Arial;font-weight: bold;font-size:1px;fill:rgb(255,255,255)">empty 6</text>
+<!-- Vertex:     7 -->
+<g transform="translate(360.00 30.00)">
+<path d="M -14.00 15.00 L 14.00 15.00 L 14.00 -4.50 L 20.00 -4.50 L 20.00 -6.00 L 0.00 -15.00 L -20.00 -6.00 L -20.00 -4.50 L -14.00 -4.50 z" style="fill:rgb(0,255,255);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<!-- Vertex:     8 -->
+<g transform="translate(415.00 30.00)">
+<path d="M -2.40 86.78 A 8.00 4.80 0 0 1 -34.40 86.78 L -34.40 -35.90 A 2.96 1.78 0 0 0 -40.32 -35.90 L -40.32 9.98 A 11.12 6.67 0 0 1 -62.56 9.98 L -62.56 -43.87 A 33.28 16.61 0 0 1 -34.88 -60.48 L -6.88 -62.59 L -6.88 -65.95 A 27.36 16.42 0 1 1 6.88 -65.95 L 6.88 -62.59 L 34.88 -60.48 A 33.28 16.61 0 0 1 62.56 -43.87 L 62.56 9.98 A 11.12 6.67 0 0 1 40.32 9.98 L 40.32 -35.90 A 2.96 1.78 0 0 0 34.40 -35.90 L 34.40 86.78 A 8.00 4.80 0 0 1 2.72 86.78 L 2.40 16.70 L -2.40 16.70 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="420.18" y="49.32" style="font-family:Courier;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">man 8</text>
+<!-- Vertex:     9 -->
+<g transform="translate(470.00 30.00)">
+<path d="M -0.51 17.65 A 1.42 1.42 0 0 1 -3.35 17.65 L -3.35 6.88 L -7.39 6.88 L -3.20 -7.82 A 0.35 0.35 0 0 0 -3.90 -7.82 L -6.65 1.09 A 1.23 1.23 0 0 1 -8.91 0.12 L -6.01 -9.75 A 5.99 5.99 0 0 1 -0.84 -12.77 L -1.17 -13.28 A 3.32 3.36 0 1 1 1.17 -13.28 L 0.84 -12.77 A 5.99 5.99 0 0 1 6.01 -9.75 L 8.91 0.12 A 1.23 1.23 0 0 1 6.65 1.09 L 3.90 -7.82 A 0.35 0.35 0 0 0 3.20 -7.82 L 7.39 6.88 L 3.35 6.88 L 3.35 17.65 A 1.42 1.42 0 0 1 0.51 17.65 L 0.51 6.88 L -0.51 6.88 z" style="fill:rgb(102,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="482.00" y="30.00" style="font-family:Arial;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v9</text>
+<!-- Vertex:    10 -->
+<g transform="translate(30.00 85.00)">
+<path d="M -15.00 -20.00 L 15.00 -20.00 L 15.00 20.00 L -15.00 20.00 z" style="fill:rgb(191,191,191);stroke:rgb(173,0,0);stroke-width:2.00;"/>
+</g>
+<text x="35.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(255,0,255)">box 10</text>
+<!-- Vertex:    11 -->
+<g transform="translate(85.00 85.00)">
+<path d="M -20.00 0 L -40.00 20.00 L 40.00 20.00 L 20.00 0 L 40.00 -20.00 L -40.00 -20.00 z" style="fill:rgb(76,76,76);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="90.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:18px;fill:rgb(173,0,0)">v11</text>
+<!-- Vertex:    12 -->
+<g transform="translate(140.00 85.00)">
+<path d="M 10.00 10.00 L 0 -10.00 L -10.00 10.00 z" style="fill:rgb(255,136,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="145.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">triangle 12</text>
+<!-- Vertex:    13 -->
+<ellipse cx="195.00" cy="85.00" rx="10.00" ry="10.00" style="fill:rgb(0,136,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<text x="200.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(0,136,255)">v13</text>
+<!-- Vertex:    14 -->
+<text x="241.51" y="93.49" style="font-family:Arial;font-weight: bold;font-size:1px;fill:rgb(255,255,255)">empty 14</text>
+<!-- Vertex:    15 -->
+<g transform="translate(305.00 85.00)">
+<path d="M -7.00 10.00 L 7.00 10.00 L 7.00 -3.00 L 10.00 -3.00 L 10.00 -4.00 L 0.00 -10.00 L -10.00 -4.00 L -10.00 -3.00 L -7.00 -3.00 z" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(310.18 104.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Times-Roman;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v15</text>
+</g></g>
+<!-- Vertex:    16 -->
+<g transform="translate(360.00 85.00)">
+<path d="M -2.40 57.86 A 8.00 3.20 0 0 1 -34.40 57.86 L -34.40 -23.94 A 2.96 1.18 0 0 0 -40.32 -23.94 L -40.32 6.66 A 11.12 4.45 0 0 1 -62.56 6.66 L -62.56 -29.25 A 33.28 11.07 0 0 1 -34.88 -40.32 L -6.88 -41.73 L -6.88 -43.97 A 27.36 10.94 0 1 1 6.88 -43.97 L 6.88 -41.73 L 34.88 -40.32 A 33.28 11.07 0 0 1 62.56 -29.25 L 62.56 6.66 A 11.12 4.45 0 0 1 40.32 6.66 L 40.32 -23.94 A 2.96 1.18 0 0 0 34.40 -23.94 L 34.40 57.86 A 8.00 3.20 0 0 1 2.72 57.86 L 2.40 11.14 L -2.40 11.14 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="365.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(191,191,191)">man 16</text>
+<!-- Vertex:    17 -->
+<g transform="translate(415.00 85.00)">
+<path d="M -1.69 88.24 A 4.75 7.12 0 0 1 -11.18 88.24 L -11.18 34.42 L -24.64 34.42 L -10.66 -39.10 A 1.17 1.76 0 0 0 -13.00 -39.10 L -22.17 5.46 A 4.11 6.16 0 0 1 -29.71 0.59 L -20.02 -48.75 A 19.95 29.93 0 0 1 -2.80 -63.86 L -3.90 -66.40 A 11.05 16.82 0 1 1 3.90 -66.40 L 2.80 -63.86 A 19.95 29.93 0 0 1 20.02 -48.75 L 29.71 0.59 A 4.11 6.16 0 0 1 22.17 5.46 L 13.00 -39.10 A 1.17 1.76 0 0 0 10.66 -39.10 L 24.64 34.42 L 11.18 34.42 L 11.18 88.24 A 4.75 7.12 0 0 1 1.69 88.24 L 1.69 34.42 L -1.69 34.42 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="420.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v17</text>
+<!-- Vertex:    18 -->
+<ellipse cx="470.00" cy="85.00" rx="10.00" ry="10.00" style="fill:rgb(102,204,204);stroke:rgb(255,0,128);stroke-width:2.00;"/>
+<text x="475.18" y="104.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 18</text>
+<!-- Vertex:    19 -->
+<g transform="translate(30.00 140.00)">
+<path d="M -20.00 0 L -10.00 15.00 L 10.00 15.00 L 20.00 0 L 10.00 -15.00 L -10.00 -15.00 z" style="fill:rgb(255,255,153);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="30.00" y="128.00" style="font-family:Arial;font-weight: bold;font-size:14px;fill:rgb(0,255,255)">v19</text>
+<!-- Vertex:    20 -->
+<g transform="translate(85.00 140.00)">
+<path d="M 25.00 15.00 L 0 -15.00 L -25.00 15.00 z" style="fill:rgb(0,153,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<!-- Vertex:    21 -->
+<ellipse cx="140.00" cy="140.00" rx="10.00" ry="10.00" style="fill:rgb(96,255,224);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<text x="145.18" y="159.32" style="font-family:Arial;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v21</text>
+<!-- Vertex:    22 -->
+<text x="200.18" y="159.32" style="font-family:Helvetica;font-weight: bold;font-size:1px;fill:rgb(255,255,0)">empty 22</text>
+<!-- Vertex:    23 -->
+<g transform="translate(250.00 140.00)">
+<g transform="rotate(-60.00)">
+<path d="M -14.00 20.00 L 14.00 20.00 L 14.00 -6.00 L 20.00 -6.00 L 20.00 -8.00 L 0.00 -20.00 L -20.00 -8.00 L -20.00 -6.00 L -14.00 -6.00 z" style="fill:rgb(38,255,204);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+</g>
+<text x="255.18" y="159.32" style="font-family:Arial;font-weight: bold;font-size:18px;fill:rgb(173,0,0)">v23</text>
+<!-- Vertex:    24 -->
+<g transform="translate(305.00 140.00)">
+<path d="M -0.29 17.36 A 0.96 0.96 0 0 1 -4.13 17.36 L -4.13 -7.18 A 0.36 0.36 0 0 0 -4.84 -7.18 L -4.84 2.00 A 1.33 1.33 0 0 1 -7.51 2.00 L -7.51 -8.77 A 3.99 3.32 0 0 1 -4.19 -12.10 L -0.83 -12.52 L -0.83 -13.19 A 3.28 3.28 0 1 1 0.83 -13.19 L 0.83 -12.52 L 4.19 -12.10 A 3.99 3.32 0 0 1 7.51 -8.77 L 7.51 2.00 A 1.33 1.33 0 0 1 4.84 2.00 L 4.84 -7.18 A 0.36 0.36 0 0 0 4.13 -7.18 L 4.13 17.36 A 0.96 0.96 0 0 1 0.33 17.36 L 0.29 3.34 L -0.29 3.34 z" style="fill:rgb(255,132,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="313.49" y="148.49" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">man 24</text>
+<!-- Vertex:    25 -->
+<g transform="translate(360.00 140.00)">
+<path d="M -1.69 58.83 A 4.75 4.75 0 0 1 -11.18 58.83 L -11.18 22.95 L -24.64 22.95 L -10.66 -26.06 A 1.17 1.17 0 0 0 -13.00 -26.06 L -22.17 3.64 A 4.11 4.11 0 0 1 -29.71 0.39 L -20.02 -32.50 A 19.95 19.95 0 0 1 -2.80 -42.57 L -3.90 -44.27 A 11.05 11.21 0 1 1 3.90 -44.27 L 2.80 -42.57 A 19.95 19.95 0 0 1 20.02 -32.50 L 29.71 0.39 A 4.11 4.11 0 0 1 22.17 3.64 L 13.00 -26.06 A 1.17 1.17 0 0 0 10.66 -26.06 L 24.64 22.95 L 11.18 22.95 L 11.18 58.83 A 4.75 4.75 0 0 1 1.69 58.83 L 1.69 22.95 L -1.69 22.95 z" style="fill:rgb(255,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="365.18" y="159.32" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(255,0,0)">v25</text>
+<!-- Vertex:    26 -->
+<ellipse cx="415.00" cy="140.00" rx="15.00" ry="10.00" style="fill:rgb(255,217,188);stroke:rgb(140,35,255);stroke-width:2.00;"/>
+<text x="420.18" y="159.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 26</text>
+<!-- Vertex:    27 -->
+<g transform="translate(470.00 140.00)">
+<path d="M -10.00 -10.00 L 10.00 -10.00 L 10.00 10.00 L -10.00 10.00 z" style="fill:rgb(0,255,0);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(475.18 159.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v27</text>
+</g></g>
+<!-- Vertex:    28 -->
+<g transform="translate(30.00 195.00)">
+<path d="M 25.00 10.00 L 0 -10.00 L -25.00 10.00 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="35.18" y="214.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">triangle 28</text>
+<!-- Vertex:    29 -->
+<ellipse cx="85.00" cy="195.00" rx="10.00" ry="15.00" style="fill:rgb(255,99,33);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<text x="73.00" y="195.00" style="font-family:Courier;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v29</text>
+<!-- Vertex:    30 -->
+<text x="145.18" y="214.32" style="font-family:Arial;font-weight: bold;font-size:1px;fill:rgb(255,255,255)">empty 30</text>
+<!-- Vertex:    31 -->
+<g transform="translate(195.00 195.00)">
+<path d="M -14.00 15.00 L 14.00 15.00 L 14.00 -4.50 L 20.00 -4.50 L 20.00 -6.00 L 0.00 -15.00 L -20.00 -6.00 L -20.00 -4.50 L -14.00 -4.50 z" style="fill:rgb(0,255,255);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="200.18" y="214.32" style="font-family:Arial;font-weight: bold;font-size:14px;fill:rgb(255,255,153)">v31</text>
+<!-- Vertex:    32 -->
+<g transform="translate(250.00 195.00)">
+<g transform="rotate(-15.00)">
+<path d="M -2.40 86.78 A 8.00 4.80 0 0 1 -34.40 86.78 L -34.40 -35.90 A 2.96 1.78 0 0 0 -40.32 -35.90 L -40.32 9.98 A 11.12 6.67 0 0 1 -62.56 9.98 L -62.56 -43.87 A 33.28 16.61 0 0 1 -34.88 -60.48 L -6.88 -62.59 L -6.88 -65.95 A 27.36 16.42 0 1 1 6.88 -65.95 L 6.88 -62.59 L 34.88 -60.48 A 33.28 16.61 0 0 1 62.56 -43.87 L 62.56 9.98 A 11.12 6.67 0 0 1 40.32 9.98 L 40.32 -35.90 A 2.96 1.78 0 0 0 34.40 -35.90 L 34.40 86.78 A 8.00 4.80 0 0 1 2.72 86.78 L 2.40 16.70 L -2.40 16.70 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+</g>
+<text x="255.18" y="214.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">man 32</text>
+<!-- Vertex:    33 -->
+<g transform="translate(305.00 195.00)">
+<path d="M -0.51 17.65 A 1.42 1.42 0 0 1 -3.35 17.65 L -3.35 6.88 L -7.39 6.88 L -3.20 -7.82 A 0.35 0.35 0 0 0 -3.90 -7.82 L -6.65 1.09 A 1.23 1.23 0 0 1 -8.91 0.12 L -6.01 -9.75 A 5.99 5.99 0 0 1 -0.84 -12.77 L -1.17 -13.28 A 3.32 3.36 0 1 1 1.17 -13.28 L 0.84 -12.77 A 5.99 5.99 0 0 1 6.01 -9.75 L 8.91 0.12 A 1.23 1.23 0 0 1 6.65 1.09 L 3.90 -7.82 A 0.35 0.35 0 0 0 3.20 -7.82 L 7.39 6.88 L 3.35 6.88 L 3.35 17.65 A 1.42 1.42 0 0 1 0.51 17.65 L 0.51 6.88 L -0.51 6.88 z" style="fill:rgb(102,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<!-- Vertex:    34 -->
+<ellipse cx="360.00" cy="195.00" rx="15.00" ry="20.00" style="fill:rgb(191,191,191);stroke:rgb(173,0,0);stroke-width:2.00;"/>
+<text x="368.49" y="186.51" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(255,0,255)">ellipse 34</text>
+<!-- Vertex:    35 -->
+<g transform="translate(415.00 195.00)">
+<path d="M -20.00 -20.00 L 20.00 -20.00 L 20.00 20.00 L -20.00 20.00 z" style="fill:rgb(76,76,76);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="420.18" y="214.32" style="font-family:Arial;font-weight: bold;font-size:18px;fill:rgb(173,0,0)">v35</text>
+<!-- Vertex:    36 -->
+<g transform="translate(470.00 195.00)">
+<path d="M -10.00 0 L -0.10 10.00 L 0.10 10.00 L 10.00 0 L 0.10 -10.00 L -0.10 -10.00 z" style="fill:rgb(255,136,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="475.18" y="214.32" style="font-family:Times-Roman;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 36</text>
+<!-- Vertex:    37 -->
+<ellipse cx="30.00" cy="250.00" rx="10.00" ry="10.00" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<text x="35.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(0,136,255)">v37</text>
+<!-- Vertex:    38 -->
+<text x="90.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:1px;fill:rgb(255,255,255)">empty 38</text>
+<!-- Vertex:    39 -->
+<g transform="translate(140.00 250.00)">
+<path d="M -7.00 10.00 L 7.00 10.00 L 7.00 -3.00 L 10.00 -3.00 L 10.00 -4.00 L 0.00 -10.00 L -10.00 -4.00 L -10.00 -3.00 L -7.00 -3.00 z" style="fill:rgb(51,153,51);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(140.00 262.00)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v39</text>
+</g></g>
+<!-- Vertex:    40 -->
+<g transform="translate(195.00 250.00)">
+<path d="M -2.40 57.86 A 8.00 3.20 0 0 1 -34.40 57.86 L -34.40 -23.94 A 2.96 1.18 0 0 0 -40.32 -23.94 L -40.32 6.66 A 11.12 4.45 0 0 1 -62.56 6.66 L -62.56 -29.25 A 33.28 11.07 0 0 1 -34.88 -40.32 L -6.88 -41.73 L -6.88 -43.97 A 27.36 10.94 0 1 1 6.88 -43.97 L 6.88 -41.73 L 34.88 -40.32 A 33.28 11.07 0 0 1 62.56 -29.25 L 62.56 6.66 A 11.12 4.45 0 0 1 40.32 6.66 L 40.32 -23.94 A 2.96 1.18 0 0 0 34.40 -23.94 L 34.40 57.86 A 8.00 3.20 0 0 1 2.72 57.86 L 2.40 11.14 L -2.40 11.14 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="200.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(191,191,191)">man 40</text>
+<!-- Vertex:    41 -->
+<g transform="translate(250.00 250.00)">
+<g transform="rotate(-60.00)">
+<path d="M -1.69 88.24 A 4.75 7.12 0 0 1 -11.18 88.24 L -11.18 34.42 L -24.64 34.42 L -10.66 -39.10 A 1.17 1.76 0 0 0 -13.00 -39.10 L -22.17 5.46 A 4.11 6.16 0 0 1 -29.71 0.59 L -20.02 -48.75 A 19.95 29.93 0 0 1 -2.80 -63.86 L -3.90 -66.40 A 11.05 16.82 0 1 1 3.90 -66.40 L 2.80 -63.86 A 19.95 29.93 0 0 1 20.02 -48.75 L 29.71 0.59 A 4.11 6.16 0 0 1 22.17 5.46 L 13.00 -39.10 A 1.17 1.76 0 0 0 10.66 -39.10 L 24.64 34.42 L 11.18 34.42 L 11.18 88.24 A 4.75 7.12 0 0 1 1.69 88.24 L 1.69 34.42 L -1.69 34.42 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+</g>
+<text x="255.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v41</text>
+<!-- Vertex:    42 -->
+<ellipse cx="305.00" cy="250.00" rx="10.00" ry="10.00" style="fill:rgb(102,204,204);stroke:rgb(255,0,128);stroke-width:2.00;"/>
+<text x="310.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 42</text>
+<!-- Vertex:    43 -->
+<g transform="translate(360.00 250.00)">
+<path d="M -20.00 -15.00 L 20.00 -15.00 L 20.00 15.00 L -20.00 15.00 z" style="fill:rgb(255,255,153);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="365.18" y="269.32" style="font-family:Helvetica;font-weight: bold;font-size:14px;fill:rgb(0,255,255)">v43</text>
+<!-- Vertex:    44 -->
+<g transform="translate(415.00 250.00)">
+<path d="M -25.00 0 L -50.00 15.00 L 50.00 15.00 L 25.00 0 L 50.00 -15.00 L -50.00 -15.00 z" style="fill:rgb(0,153,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="406.51" y="241.51" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 44</text>
+<!-- Vertex:    45 -->
+<g transform="translate(470.00 250.00)">
+<path d="M 10.00 10.00 L 0 -10.00 L -10.00 10.00 z" style="fill:rgb(96,255,224);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="475.18" y="269.32" style="font-family:Arial;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v45</text>
+<!-- Vertex:    46 -->
+<!-- Vertex:    47 -->
+<g transform="translate(85.00 305.00)">
+<path d="M -14.00 20.00 L 14.00 20.00 L 14.00 -6.00 L 20.00 -6.00 L 20.00 -8.00 L 0.00 -20.00 L -20.00 -8.00 L -20.00 -6.00 L -14.00 -6.00 z" style="fill:rgb(38,255,204);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="90.18" y="324.32" style="font-family:Arial;font-weight: bold;font-size:18px;fill:rgb(173,0,0)">v47</text>
+<!-- Vertex:    48 -->
+<g transform="translate(140.00 305.00)">
+<path d="M -0.29 17.36 A 0.96 0.96 0 0 1 -4.13 17.36 L -4.13 -7.18 A 0.36 0.36 0 0 0 -4.84 -7.18 L -4.84 2.00 A 1.33 1.33 0 0 1 -7.51 2.00 L -7.51 -8.77 A 3.99 3.32 0 0 1 -4.19 -12.10 L -0.83 -12.52 L -0.83 -13.19 A 3.28 3.28 0 1 1 0.83 -13.19 L 0.83 -12.52 L 4.19 -12.10 A 3.99 3.32 0 0 1 7.51 -8.77 L 7.51 2.00 A 1.33 1.33 0 0 1 4.84 2.00 L 4.84 -7.18 A 0.36 0.36 0 0 0 4.13 -7.18 L 4.13 17.36 A 0.96 0.96 0 0 1 0.33 17.36 L 0.29 3.34 L -0.29 3.34 z" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="145.18" y="324.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">man 48</text>
+<!-- Vertex:    49 -->
+<g transform="translate(195.00 305.00)">
+<path d="M -1.69 58.83 A 4.75 4.75 0 0 1 -11.18 58.83 L -11.18 22.95 L -24.64 22.95 L -10.66 -26.06 A 1.17 1.17 0 0 0 -13.00 -26.06 L -22.17 3.64 A 4.11 4.11 0 0 1 -29.71 0.39 L -20.02 -32.50 A 19.95 19.95 0 0 1 -2.80 -42.57 L -3.90 -44.27 A 11.05 11.21 0 1 1 3.90 -44.27 L 2.80 -42.57 A 19.95 19.95 0 0 1 20.02 -32.50 L 29.71 0.39 A 4.11 4.11 0 0 1 22.17 3.64 L 13.00 -26.06 A 1.17 1.17 0 0 0 10.66 -26.06 L 24.64 22.95 L 11.18 22.95 L 11.18 58.83 A 4.75 4.75 0 0 1 1.69 58.83 L 1.69 22.95 L -1.69 22.95 z" style="fill:rgb(255,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="207.00" y="305.00" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(255,0,0)">v49</text>
+<!-- Vertex:    50 -->
+<g transform="translate(250.00 305.00)">
+<g transform="rotate(-15.00)">
+<ellipse cx="0.00" cy="0.00" rx="15.00" ry="10.00" style="fill:rgb(0,0,255);stroke:rgb(140,35,255);stroke-width:2.00;"/>
+</g></g>
+<text x="255.18" y="324.32" style="font-family:Courier;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 50</text>
+<!-- Vertex:    51 -->
+<g transform="translate(305.00 305.00)">
+<path d="M -10.00 -10.00 L 10.00 -10.00 L 10.00 10.00 L -10.00 10.00 z" style="fill:rgb(0,255,0);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(310.18 324.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v51</text>
+</g></g>
+<!-- Vertex:    52 -->
+<g transform="translate(360.00 305.00)">
+<path d="M -25.00 0 L -12.50 10.00 L 12.50 10.00 L 25.00 0 L 12.50 -10.00 L -12.50 -10.00 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="365.18" y="324.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 52</text>
+<!-- Vertex:    53 -->
+<g transform="translate(415.00 305.00)">
+<path d="M 10.00 15.00 L 0 -15.00 L -10.00 15.00 z" style="fill:rgb(255,99,33);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="420.18" y="324.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v53</text>
+<!-- Vertex:    54 -->
+<ellipse cx="470.00" cy="305.00" rx="10.00" ry="10.00" style="fill:rgb(140,35,255);stroke:rgb(0,0,255);stroke-width:2.00;"/>
+<text x="461.51" y="313.49" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">cross 54</text>
+<!-- Vertex:    55 -->
+<g transform="translate(30.00 360.00)">
+<path d="M -14.00 15.00 L 14.00 15.00 L 14.00 -4.50 L 20.00 -4.50 L 20.00 -6.00 L 0.00 -15.00 L -20.00 -6.00 L -20.00 -4.50 L -14.00 -4.50 z" style="fill:rgb(0,255,255);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="35.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:14px;fill:rgb(255,255,153)">v55</text>
+<!-- Vertex:    56 -->
+<g transform="translate(85.00 360.00)">
+<path d="M -2.40 86.78 A 8.00 4.80 0 0 1 -34.40 86.78 L -34.40 -35.90 A 2.96 1.78 0 0 0 -40.32 -35.90 L -40.32 9.98 A 11.12 6.67 0 0 1 -62.56 9.98 L -62.56 -43.87 A 33.28 16.61 0 0 1 -34.88 -60.48 L -6.88 -62.59 L -6.88 -65.95 A 27.36 16.42 0 1 1 6.88 -65.95 L 6.88 -62.59 L 34.88 -60.48 A 33.28 16.61 0 0 1 62.56 -43.87 L 62.56 9.98 A 11.12 6.67 0 0 1 40.32 9.98 L 40.32 -35.90 A 2.96 1.78 0 0 0 34.40 -35.90 L 34.40 86.78 A 8.00 4.80 0 0 1 2.72 86.78 L 2.40 16.70 L -2.40 16.70 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="90.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">man 56</text>
+<!-- Vertex:    57 -->
+<g transform="translate(140.00 360.00)">
+<path d="M -0.51 17.65 A 1.42 1.42 0 0 1 -3.35 17.65 L -3.35 6.88 L -7.39 6.88 L -3.20 -7.82 A 0.35 0.35 0 0 0 -3.90 -7.82 L -6.65 1.09 A 1.23 1.23 0 0 1 -8.91 0.12 L -6.01 -9.75 A 5.99 5.99 0 0 1 -0.84 -12.77 L -1.17 -13.28 A 3.32 3.36 0 1 1 1.17 -13.28 L 0.84 -12.77 A 5.99 5.99 0 0 1 6.01 -9.75 L 8.91 0.12 A 1.23 1.23 0 0 1 6.65 1.09 L 3.90 -7.82 A 0.35 0.35 0 0 0 3.20 -7.82 L 7.39 6.88 L 3.35 6.88 L 3.35 17.65 A 1.42 1.42 0 0 1 0.51 17.65 L 0.51 6.88 L -0.51 6.88 z" style="fill:rgb(102,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="145.18" y="379.32" style="font-family:Times-Roman;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v57</text>
+<!-- Vertex:    58 -->
+<ellipse cx="195.00" cy="360.00" rx="15.00" ry="20.00" style="fill:rgb(191,191,191);stroke:rgb(173,0,0);stroke-width:2.00;"/>
+<text x="200.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(255,0,255)">ellipse 58</text>
+<!-- Vertex:    59 -->
+<g transform="translate(250.00 360.00)">
+<g transform="rotate(-60.00)">
+<path d="M -20.00 -20.00 L 20.00 -20.00 L 20.00 20.00 L -20.00 20.00 z" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+</g>
+<!-- Vertex:    60 -->
+<g transform="translate(305.00 360.00)">
+<path d="M -10.00 0 L -0.10 10.00 L 0.10 10.00 L 10.00 0 L 0.10 -10.00 L -0.10 -10.00 z" style="fill:rgb(255,136,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="310.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 60</text>
+<!-- Vertex:    61 -->
+<g transform="translate(360.00 360.00)">
+<path d="M 10.00 10.00 L 0 -10.00 L -10.00 10.00 z" style="fill:rgb(0,136,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="365.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(0,136,255)">v61</text>
+<!-- Vertex:    62 -->
+<ellipse cx="415.00" cy="360.00" rx="15.00" ry="10.00" style="fill:rgb(255,0,128);stroke:rgb(102,204,204);stroke-width:2.00;"/>
+<text x="420.18" y="379.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">cross 62</text>
+<!-- Vertex:    63 -->
+<g transform="translate(475.18 379.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(255,255,255)">v63</text>
+</g></g>
+<!-- Vertex:    64 -->
+<g transform="translate(30.00 415.00)">
+<path d="M -2.40 57.86 A 8.00 3.20 0 0 1 -34.40 57.86 L -34.40 -23.94 A 2.96 1.18 0 0 0 -40.32 -23.94 L -40.32 6.66 A 11.12 4.45 0 0 1 -62.56 6.66 L -62.56 -29.25 A 33.28 11.07 0 0 1 -34.88 -40.32 L -6.88 -41.73 L -6.88 -43.97 A 27.36 10.94 0 1 1 6.88 -43.97 L 6.88 -41.73 L 34.88 -40.32 A 33.28 11.07 0 0 1 62.56 -29.25 L 62.56 6.66 A 11.12 4.45 0 0 1 40.32 6.66 L 40.32 -23.94 A 2.96 1.18 0 0 0 34.40 -23.94 L 34.40 57.86 A 8.00 3.20 0 0 1 2.72 57.86 L 2.40 11.14 L -2.40 11.14 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="38.49" y="423.49" style="font-family:Helvetica;font-weight: bold;font-size:15px;fill:rgb(191,191,191)">man 64</text>
+<!-- Vertex:    65 -->
+<g transform="translate(85.00 415.00)">
+<path d="M -1.69 88.24 A 4.75 7.12 0 0 1 -11.18 88.24 L -11.18 34.42 L -24.64 34.42 L -10.66 -39.10 A 1.17 1.76 0 0 0 -13.00 -39.10 L -22.17 5.46 A 4.11 6.16 0 0 1 -29.71 0.59 L -20.02 -48.75 A 19.95 29.93 0 0 1 -2.80 -63.86 L -3.90 -66.40 A 11.05 16.82 0 1 1 3.90 -66.40 L 2.80 -63.86 A 19.95 29.93 0 0 1 20.02 -48.75 L 29.71 0.59 A 4.11 6.16 0 0 1 22.17 5.46 L 13.00 -39.10 A 1.17 1.76 0 0 0 10.66 -39.10 L 24.64 34.42 L 11.18 34.42 L 11.18 88.24 A 4.75 7.12 0 0 1 1.69 88.24 L 1.69 34.42 L -1.69 34.42 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="90.18" y="434.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v65</text>
+<!-- Vertex:    66 -->
+<ellipse cx="140.00" cy="415.00" rx="10.00" ry="10.00" style="fill:rgb(102,204,204);stroke:rgb(255,0,128);stroke-width:2.00;"/>
+<text x="145.18" y="434.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 66</text>
+<!-- Vertex:    67 -->
+<g transform="translate(195.00 415.00)">
+<path d="M -20.00 -15.00 L 20.00 -15.00 L 20.00 15.00 L -20.00 15.00 z" style="fill:rgb(255,255,153);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<text x="200.18" y="434.32" style="font-family:Arial;font-weight: bold;font-size:14px;fill:rgb(0,255,255)">v67</text>
+<!-- Vertex:    68 -->
+<g transform="translate(250.00 415.00)">
+<g transform="rotate(-15.00)">
+<path d="M -25.00 0 L -50.00 15.00 L 50.00 15.00 L 25.00 0 L 50.00 -15.00 L -50.00 -15.00 z" style="fill:rgb(0,153,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+</g>
+<text x="255.18" y="434.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 68</text>
+<!-- Vertex:    69 -->
+<g transform="translate(305.00 415.00)">
+<path d="M 10.00 10.00 L 0 -10.00 L -10.00 10.00 z" style="fill:rgb(96,255,224);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="293.00" y="415.00" style="font-family:Arial;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v69</text>
+<!-- Vertex:    70 -->
+<ellipse cx="360.00" cy="415.00" rx="15.00" ry="20.00" style="fill:rgb(255,217,188);stroke:rgb(191,191,191);stroke-width:2.00;"/>
+<text x="365.18" y="434.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(255,255,0)">cross 70</text>
+<!-- Vertex:    71 -->
+<text x="420.18" y="434.32" style="font-family:Courier;font-weight: bold;font-size:18px;fill:rgb(255,255,255)">v71</text>
+<!-- Vertex:    72 -->
+<g transform="translate(470.00 415.00)">
+<path d="M -7.00 10.00 L 7.00 10.00 L 7.00 -3.00 L 10.00 -3.00 L 10.00 -4.00 L 0.00 -10.00 L -10.00 -4.00 L -10.00 -3.00 L -7.00 -3.00 z" style="fill:rgb(255,132,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<!-- Vertex:    73 -->
+<g transform="translate(30.00 470.00)">
+<path d="M -1.69 58.83 A 4.75 4.75 0 0 1 -11.18 58.83 L -11.18 22.95 L -24.64 22.95 L -10.66 -26.06 A 1.17 1.17 0 0 0 -13.00 -26.06 L -22.17 3.64 A 4.11 4.11 0 0 1 -29.71 0.39 L -20.02 -32.50 A 19.95 19.95 0 0 1 -2.80 -42.57 L -3.90 -44.27 A 11.05 11.21 0 1 1 3.90 -44.27 L 2.80 -42.57 A 19.95 19.95 0 0 1 20.02 -32.50 L 29.71 0.39 A 4.11 4.11 0 0 1 22.17 3.64 L 13.00 -26.06 A 1.17 1.17 0 0 0 10.66 -26.06 L 24.64 22.95 L 11.18 22.95 L 11.18 58.83 A 4.75 4.75 0 0 1 1.69 58.83 L 1.69 22.95 L -1.69 22.95 z" style="fill:rgb(255,0,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="35.18" y="489.32" style="font-family:Arial;font-weight: bold;font-size:8px;fill:rgb(255,0,0)">v73</text>
+<!-- Vertex:    74 -->
+<ellipse cx="85.00" cy="470.00" rx="15.00" ry="10.00" style="fill:rgb(0,0,255);stroke:rgb(140,35,255);stroke-width:2.00;"/>
+<text x="93.49" y="461.51" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">ellipse 74</text>
+<!-- Vertex:    75 -->
+<g transform="translate(140.00 470.00)">
+<path d="M -10.00 -10.00 L 10.00 -10.00 L 10.00 10.00 L -10.00 10.00 z" style="fill:rgb(0,255,0);stroke:rgb(102,0,0);stroke-width:4.00;"/>
+</g>
+<g transform="translate(145.18 489.32)">
+<g transform="rotate(-60.00)">
+<text x="0.00" y="0.00" style="font-family:Arial;font-weight: bold;font-size:10px;fill:rgb(173,0,0)">v75</text>
+</g></g>
+<!-- Vertex:    76 -->
+<g transform="translate(195.00 470.00)">
+<path d="M -25.00 0 L -12.50 10.00 L 12.50 10.00 L 25.00 0 L 12.50 -10.00 L -12.50 -10.00 z" style="fill:rgb(255,255,0);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="200.18" y="489.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">diamond 76</text>
+<!-- Vertex:    77 -->
+<g transform="translate(250.00 470.00)">
+<g transform="rotate(-60.00)">
+<path d="M 10.00 15.00 L 0 -15.00 L -10.00 15.00 z" style="fill:rgb(255,99,33);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+</g>
+<text x="255.18" y="489.32" style="font-family:Arial;font-weight: bold;font-size:12px;fill:rgb(173,0,0)">v77</text>
+<!-- Vertex:    78 -->
+<ellipse cx="305.00" cy="470.00" rx="10.00" ry="10.00" style="fill:rgb(140,35,255);stroke:rgb(0,0,255);stroke-width:2.00;"/>
+<text x="310.18" y="489.32" style="font-family:Times-Roman;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">cross 78</text>
+<!-- Vertex:    79 -->
+<text x="360.00" y="482.00" style="font-family:Arial;font-weight: bold;font-size:14px;fill:rgb(255,255,153)">v79</text>
+<!-- Vertex:    80 -->
+<g transform="translate(415.00 470.00)">
+<path d="M -17.50 15.00 L 17.50 15.00 L 17.50 -4.50 L 25.00 -4.50 L 25.00 -6.00 L 0.00 -15.00 L -25.00 -6.00 L -25.00 -4.50 L -17.50 -4.50 z" style="fill:rgb(255,0,255);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="420.18" y="489.32" style="font-family:Arial;font-weight: bold;font-size:15px;fill:rgb(173,0,0)">house 80</text>
+<!-- Vertex:    81 -->
+<g transform="translate(470.00 470.00)">
+<path d="M -0.29 17.36 A 0.96 0.96 0 0 1 -4.13 17.36 L -4.13 -7.18 A 0.36 0.36 0 0 0 -4.84 -7.18 L -4.84 2.00 A 1.33 1.33 0 0 1 -7.51 2.00 L -7.51 -8.77 A 3.99 3.32 0 0 1 -4.19 -12.10 L -0.83 -12.52 L -0.83 -13.19 A 3.28 3.28 0 1 1 0.83 -13.19 L 0.83 -12.52 L 4.19 -12.10 A 3.99 3.32 0 0 1 7.51 -8.77 L 7.51 2.00 A 1.33 1.33 0 0 1 4.84 2.00 L 4.84 -7.18 A 0.36 0.36 0 0 0 4.13 -7.18 L 4.13 17.36 A 0.96 0.96 0 0 1 0.33 17.36 L 0.29 3.34 L -0.29 3.34 z" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+</g>
+<text x="475.18" y="489.32" style="font-family:Arial;font-weight: bold;font-size:16px;fill:rgb(173,0,0)">v81</text>
+</g>         <!-- Layer Network -->
+</svg>

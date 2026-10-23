@@ -336,20 +336,26 @@ export async function startFixture(): Promise<Fixture> {
     const server = createServer((request: IncomingMessage, response: ServerResponse) => {
         const url = new URL(request.url ?? "/", "http://x");
         if (url.pathname === "/log" && request.method === "POST") {
-            void bodyOf(request).then((text) => {
-                try {
-                    log.push({
-                        ...(JSON.parse(text) as { tab: string; type: string }),
-                        seq: log.length,
-                        at: Date.now(),
-                    });
-                } catch {
-                    // A report cut off by a kill: nothing to record.
-                }
+            void bodyOf(request).then(
+                (text) => {
+                    try {
+                        log.push({
+                            ...(JSON.parse(text) as { tab: string; type: string }),
+                            seq: log.length,
+                            at: Date.now(),
+                        });
+                    } catch {
+                        // A report cut off by a kill: nothing to record.
+                    }
 
-                waiters.forEach((wake) => wake());
-                response.writeHead(204).end();
-            });
+                    waiters.forEach((wake) => wake());
+                    response.writeHead(204).end();
+                },
+                () => {
+                    // The page or its browser was killed mid-report: Node aborts the request
+                    // ("aborted", ECONNRESET) and there is no one left to answer.
+                },
+            );
             return;
         }
 

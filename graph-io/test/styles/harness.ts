@@ -496,7 +496,7 @@ function carried(
         return values;
     }
     const bad = new Set(
-        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as number[]) : [])),
+        noted("W_STYLE_BAD_VALUE").flatMap((n) => (Array.isArray(n.elements) ? (n.elements as readonly number[]) : [])),
     );
     return values.map((v, i) => {
         if (v === null || isStyleValue(target, property, v)) {
@@ -527,14 +527,15 @@ function checkToolRule(
     tool: ReturnType<typeof toolDefaults>,
     fail: (line: string) => void,
 ): void {
-    // a default that is itself per element (Gephi's edge in its nodes' mixed color and as thick as its weight, its
-    // node's border darker than its fill and its node labeled, Graphviz's node named by its name) maps a style column
+    // a default that is itself per element (Gephi's edge in its source node's color and as thick as its weight,
+    // Graphviz's node named by its name) maps a style column
     const perElement = new Set([
         "SOURCE_NODE_COLOR",
-        "END_NODES_COLOR",
-        "FILL_BORDER",
-        "NODE_SIZE_LABEL",
         "EDGE_WEIGHT",
+        "END_NODE_COLORS",
+        "NODE_FILL_SHADE",
+        "NODE_SIZE",
+        "NODE_POSITIONS",
         "NODE_NAME",
     ]);
     if (rule.map !== undefined && !perElement.has(rule.facts?.reason ?? "")) {
@@ -591,7 +592,7 @@ function checkProperty(
             note.params.property === property &&
             Array.isArray(note.elements)
         ) {
-            for (const i of note.elements as number[]) {
+            for (const i of note.elements as readonly number[]) {
                 rounded.add(i);
             }
         }

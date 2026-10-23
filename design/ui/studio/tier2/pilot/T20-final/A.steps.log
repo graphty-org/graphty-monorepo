@@ -1,0 +1,47 @@
+== T20A start empty
+commit 1202de900c16d4a8e475179740e8fc884f547723, build e2ccec0e9304 graphty@0.8.56
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/01.png
+exit 0
+== T20A step: --click "No thanks"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/02.png
+exit 0
+== T20A step: --click "New from data..."
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/03.png
+exit 0
+== T20A step: --click "choose a file..." --upload bus-stops.csv
+a file chooser is open (answer it with --upload <file>)
+chose the file bus-stops.csv
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/04.png
+exit 0
+== T20A step: --click-at 728,205
+at 728,205: label "minutes"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/05.png
+exit 0
+== T20A step: --click "Weight"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/06.png
+exit 0
+== T20A step: --click "Farther"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/07.png
+exit 0
+== T20A step: --click "Load"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/08.png
+exit 0
+== T20A step: --key p
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/09.png
+exit 0
+== T20A step: --type Depot
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/10.png
+exit 0
+== T20A step: --click "Depot"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/11.png
+exit 0
+== T20A step: --click "To" --type Harbor
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/12.png
+exit 0
+== T20A step: --click "Harbor"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/13.png
+exit 0
+== T20A step: --click "Find path"
+/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A/14.png
+exit 0
+session ended: /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/tier2/pilot/T20-final/A

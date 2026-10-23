@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Board and staff 8 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: Board and staff",
+     "color": "#0066ff"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#0066ff": 8,
+   "#6366f1": 16
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

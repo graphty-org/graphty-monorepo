@@ -97,5 +97,21 @@ describe("TwoDCameraController", () => {
             assert.approximately(controller.camera.position.y, 0, 0.0001);
             assert.equal(controller.camera.maxZ, 10000, "A small graph keeps the default far plane");
         });
+
+        test("should stand back far enough to see a text centered over the biggest node it frames", () => {
+            // a flat node 40 units across: a text centered over it stands half its diagonal (28 units) in front
+            // (RichTextLabel's placeInFront), well past the 10 units a flat box alone would leave
+            const min = new Vector3(-20, -20, 0);
+            const max = new Vector3(20, 20, 0);
+
+            controller.zoomToBoundingBox(min, max);
+
+            const inFront = -Math.hypot(40, 40) / 2;
+            assert.isAbove(
+                inFront - controller.camera.position.z,
+                controller.camera.minZ,
+                "the text is past the near plane",
+            );
+        });
     });
 });

@@ -1,11 +1,22 @@
 import type { Column } from "@graphty/graph-format";
-import { PAJEK_ISSUE, pajekImporter } from "@graphty/graph-io/pajek";
+import { PAJEK_ISSUE, type PajekDrawOptions, pajekImporter } from "@graphty/graph-io/pajek";
 
 import { BaseDataSourceConfig, DataSource, DataSourceChunk } from "./DataSource.js";
 import { components, copiedPath, copyColumns, importWhole, toRecords } from "./graph-io-import.js";
 
-// Pajek has no additional config currently, so just use the base config
-type PajekDataSourceConfig = BaseDataSourceConfig;
+/** What the Pajek reader is configured with. */
+interface PajekDataSourceConfig extends BaseDataSourceConfig {
+    /**
+     * How Pajek drew the file, which Pajek keeps in its ini file and Draw menu rather than in the
+     * file: the Draw window's `width` and `height` in px (Pajek stretches the file's 0..1
+     * coordinates across it one axis at a time), the `partition`, `vector` and `vector2` of Draw >
+     * Network + Partition (+ Vector) in a project file, and Draw window options by their ini names
+     * (`{ ini: { "Form8.MarkVerticesUsing": "2" } }`). With `styles: "file"` a file is drawn as
+     * Pajek's defaults draw it in a 500 x 500 window unless they are given here. graph-io's
+     * `pajekDraw` import option.
+     */
+    pajekDraw?: PajekDrawOptions;
+}
 
 /** The graph-io column that says, per edge, which section a line of a mixed file came from. */
 const DIRECTED_COLUMN = "graphty.directed";
@@ -68,7 +79,11 @@ export class PajekDataSource extends DataSource {
             await this.getInput(),
             // Vertex numbers stay the strings they have always been, and the line's value stays an
             // attribute: the element reads its weight from the record.
-            { ids: "keep", weightFrom: null },
+            {
+                ids: "keep",
+                weightFrom: null,
+                ...(this.config.pajekDraw === undefined ? {} : { pajekDraw: this.config.pajekDraw }),
+            },
             this.errorAggregator,
             // A vertex with two lines keeps its first, as the element keeps a repeated record.
             { firstDeclarationWins: true },

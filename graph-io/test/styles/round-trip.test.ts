@@ -125,7 +125,14 @@ async function corpusSamples(): Promise<readonly (readonly [string, LoadedGraph,
     for (const format of registered.filter((f) => f.corpus !== false)) {
         const files = new Set(corpusFiles(`${STYLE_CORPUS}/${format.name}`).map((r) => `${format.name}/${r}`));
         const inputs = formatInputs(format)
-            .filter((i) => files.has(i.name) && !i.name.includes("/generated/") && i.bytes !== undefined)
+            .filter(
+                (i) =>
+                    files.has(i.name) &&
+                    !i.name.includes("/generated/") &&
+                    // the style fidelity fixtures are scored against their source programs, not sampled here
+                    !i.name.includes("/fidelity/") &&
+                    i.bytes !== undefined,
+            )
             .sort((a, b) => (a.bytes?.length ?? 0) - (b.bytes?.length ?? 0));
         for (const input of inputs) {
             const loaded = await input.load().catch(() => null);
@@ -255,16 +262,19 @@ describe("a graph background the format has no place for", () => {
     }
 
     // the program each format is written for paints white where the file gives no background
-    it.each(["graphml", "gml", "gexf"])("is not reported lost as %s when it is the white that program draws", (f) => {
-        expect(backgroundLosses(f, "#ffffff")).toEqual([]);
-    });
+    it.each(["graphml", "gml", "gexf", "pajek"])(
+        "is not reported lost as %s when it is the white that program draws",
+        (f) => {
+            expect(backgroundLosses(f, "#ffffff")).toEqual([]);
+        },
+    );
 
     it.each(["graphml", "gml", "gexf"])("is reported lost as %s when it is any other color", (f) => {
         expect(backgroundLosses(f, "#102030")).toEqual([`${f} background`]);
     });
 
-    // Pajek states no background default, and JSON is drawn by several programs
-    it.each(["pajek", "json"])("is reported lost as %s even when it is white", (f) => {
+    // JSON is drawn by several programs
+    it.each(["json"])("is reported lost as %s even when it is white", (f) => {
         expect(backgroundLosses(f, "#ffffff")).toEqual([`${f} background`]);
     });
 });

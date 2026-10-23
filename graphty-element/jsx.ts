@@ -174,6 +174,18 @@ export interface GraphtyElementJSXProps {
      */
     autoFrame?: Graphty["autoFrame"];
     /**
+     * Switches zooming toward the pointer on or off.
+     */
+    zoomToPointer?: Graphty["zoomToPointer"];
+    /**
+     * Sets how the 3D nodes are lit.
+     */
+    lighting?: Graphty["lighting"];
+    /**
+     * Sets the view insets.
+     */
+    viewInsets?: Graphty["viewInsets"];
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
@@ -219,6 +231,7 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    "aria-label"?: string;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
@@ -318,6 +331,10 @@ export interface GraphtyElementJSXProps {
      * Switches the camera's own framing on or off.
      */
     "auto-frame"?: boolean;
+    /**
+     * Switches zooming toward the pointer on or off.
+     */
+    "zoom-to-pointer"?: boolean;
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */

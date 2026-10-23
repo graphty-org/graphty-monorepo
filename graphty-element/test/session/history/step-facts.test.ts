@@ -27,6 +27,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.run": ["algo.run"],
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
+    "algo.move": ["algo.move"],
     batch: ["batch", "data.replace-nodes", "data.replace-edges", "data.set", "layout.behavior"],
     "data.apply": [
         "data.add-nodes",
@@ -43,6 +44,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.collapse": ["data.collapse"],
     "data.declare": ["data.declare"],
     "data.setSource": ["data.set-source"],
+    "data.label": ["data.label"],
     "data.setFileStyles": ["data.set-file-styles"],
     "style.patch": [
         "style.add-layer",
@@ -52,12 +54,28 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "style.remove-layers",
         "style.highlight",
         "style.fix-channel",
+        "style.add-folder",
+        "style.rename-row",
+        "style.move-row",
+        "style.pin-row",
+        "style.lock-row",
+        "style.hide-row",
+        "style.delete-row",
+        "style.restore-starting-rows",
     ],
     "style.encode": ["style.encode"],
     "style.template": ["style.template"],
     "visibility.set": ["visibility.filter", "visibility.clear-filter"],
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
+    "visibility.steps": [
+        "visibility.step-add",
+        "visibility.step-edit",
+        "visibility.step-on",
+        "visibility.step-off",
+        "visibility.step-remove",
+        "visibility.steps",
+    ],
     "set.create": ["set.create"],
     "set.rename": ["set.rename"],
     "set.redefine": ["set.redefine"],
@@ -83,6 +101,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "algo.run": ["algorithm"],
     "algo.legacy": ["algorithm"],
     "algo.remove": ["algorithm", "run"],
+    "algo.move": ["algorithm", "run"],
     "algo.batch": ["count", "label"],
     "algo.template": [],
     batch: ["label", "steps"],
@@ -102,9 +121,10 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.collapse": ["node", "nodes"],
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
+    "data.label": ["label", "path", "value"],
     "data.set-file-styles": ["loads"],
     "style.add-layer": ["layer"],
-    "style.update-layer": ["layer"],
+    "style.update-layer": ["channels", "layer"],
     "style.remove-layer": ["layer"],
     "style.move-layer": ["layer"],
     "style.remove-layers": ["count"],
@@ -113,12 +133,26 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "style.encode": ["channel", "run"],
     "style.template": [],
     "style.suggested": ["algorithms"],
+    "style.add-folder": ["name"],
+    "style.rename-row": ["name", "row"],
+    "style.move-row": ["row"],
+    "style.pin-row": ["pin", "row"],
+    "style.lock-row": ["locked", "row"],
+    "style.hide-row": ["hidden", "row"],
+    "style.delete-row": ["row"],
+    "style.restore-starting-rows": [],
     "visibility.filter": ["kind"],
     "visibility.clear-filter": [],
     "visibility.window": [],
     "visibility.clear-window": [],
     "visibility.show-context": [],
     "visibility.hide-context": [],
+    "visibility.step-add": ["id"],
+    "visibility.step-edit": ["id"],
+    "visibility.step-on": ["id"],
+    "visibility.step-off": ["id"],
+    "visibility.step-remove": ["id"],
+    "visibility.steps": [],
     "set.create": ["name"],
     "set.rename": ["name", "set"],
     "set.redefine": ["set"],
@@ -241,6 +275,24 @@ describe("history step facts", () => {
             assertDocumented(fact, fact.code);
         }
 
+        session.dispose();
+    });
+
+    it("names the channels a layer update changes", async () => {
+        const session = await fixtureSession();
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 2 } });
+        const sized = topOf(session.history.steps, session.history.position).fact;
+        await session.styles.update(layer.id, { name: "Renamed" });
+        const renamed = topOf(session.history.steps, session.history.position).fact;
+
+        assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
+        assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
         session.dispose();
     });
 

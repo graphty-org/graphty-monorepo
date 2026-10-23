@@ -1,3 +1,25 @@
+## 0.1.39 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-samples:** publish a picture of every large dataset and every generator ([a895fb9b3](https://github.com/graphty-org/graphty-monorepo/commit/a895fb9b3))
+- **graph-samples:** a catalogue of every generator, and generateGraph to run one by name ([b51fa5053](https://github.com/graphty-org/graphty-monorepo/commit/b51fa5053))
+- **graph-samples:** a picture of each small dataset, published beside its file ([cd843173e](https://github.com/graphty-org/graphty-monorepo/commit/cd843173e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.38 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+
 ## 0.1.37 (2026-10-18)
 
 ### 🧱 Updated Dependencies

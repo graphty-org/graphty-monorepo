@@ -83,6 +83,25 @@ export function canonNumber(raw: unknown, site: CanonSite, factor = 1): number |
 }
 
 /**
+ * A signed number (an offset): any finite value within the largest a style number may be, either way.
+ * @param raw - the file's value
+ * @param site - where it was read
+ * @returns the canonical number, or null (noted)
+ * @category Styles
+ */
+export function canonSigned(raw: unknown, site: CanonSite): number | null {
+    const value = finite(raw, site);
+    if (value === null) {
+        return null;
+    }
+    if (Math.abs(value) > MAX_STYLE_NUMBER) {
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, typeof raw === "string" ? raw : String(raw));
+        return null;
+    }
+    return num6(value);
+}
+
+/**
  * An opacity from 0 to 1. Cytoscape desktop states opacities from 0 to 255 and is divided by 255; every other
  * dialect states 0 to 1. A value outside the dialect's range is null with a `W_STYLE_BAD_VALUE` note.
  * @param raw - the file's value

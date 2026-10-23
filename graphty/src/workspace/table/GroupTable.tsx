@@ -60,7 +60,7 @@ function GroupMenu({
  */
 function groupColumns(onShowMembers: GroupTableProps["onShowMembers"]): DataTableColumn<Row>[] {
     return [
-        { id: "group", header: "Group", sortable: false, value: (row) => row.name },
+        { id: "group", header: "Group", sortable: false, rowHeader: true, value: (row) => row.name },
         { id: "size", header: "Size", sortable: false, value: (row) => row.group.size, align: "end" },
         {
             id: "menu",

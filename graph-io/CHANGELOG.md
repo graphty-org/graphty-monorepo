@@ -1,3 +1,45 @@
+## 0.3.48 (2026-10-21)
+
+### 🚀 Features
+
+- **graph-io:** the Cypher source for Neo4j and Neptune (experimental) ([fe4858f9e](https://github.com/graphty-org/graphty-monorepo/commit/fe4858f9e))
+- **graph-io:** the NDEx source (experimental) ([7680f51c4](https://github.com/graphty-org/graphty-monorepo/commit/7680f51c4))
+- **graph-io:** storableCredential and fromStorableCredential for a credential store (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graph-io:** the REST mapping source and the OpenAlex preset (experimental) ([45d12db10](https://github.com/graphty-org/graphty-monorepo/commit/45d12db10))
+- **graph-io:** network source framework (experimental) ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+
+### 🩹 Fixes
+
+- **graph-io:** read yEd SmartNodeLabelModel label placement and keep inside-top ([#2491](https://github.com/graphty-org/graphty-monorepo/issues/2491))
+- **graph-io:** keep master's Pajek label reading ([5e62bdd50](https://github.com/graphty-org/graphty-monorepo/commit/5e62bdd50))
+- **graph-io:** hash Cypher content on pages without Web Crypto ([d8ba52102](https://github.com/graphty-org/graphty-monorepo/commit/d8ba52102))
+- **graph-io:** page capped Cypher expansions and name a refused credentialed redirect ([2105a3885](https://github.com/graphty-org/graphty-monorepo/commit/2105a3885))
+- **graph-io:** a cap that cuts a downloaded file short fails with E_SOURCE_LIMIT ([#2907](https://github.com/graphty-org/graphty-monorepo/issues/2907))
+- **graph-io:** skip the background loss note when the target tool draws it anyway ([#2934](https://github.com/graphty-org/graphty-monorepo/issues/2934))
+- **graph-io:** read Cytoscape font sizes as the whole numbers Cytoscape draws ([#2890](https://github.com/graphty-org/graphty-monorepo/issues/2890))
+- **graph-io:** paint a yEd file's graph white, as yEd's canvas does ([#2654](https://github.com/graphty-org/graphty-monorepo/issues/2654))
+- **graph-io:** note fractional passthrough font sizes Cytoscape draws rounded ([#2881](https://github.com/graphty-org/graphty-monorepo/issues/2881))
+- **graph-io:** note font sizes and transparencies Cytoscape draws rounded ([#2653](https://github.com/graphty-org/graphty-monorepo/issues/2653))
+- **graph-io:** give Gephi's files Preview's arrow size and node-scaled label size ([#2660](https://github.com/graphty-org/graphty-monorepo/issues/2660))
+- **graph-io:** draw Gephi's files with Gephi Preview's defaults ([#2494](https://github.com/graphty-org/graphty-monorepo/issues/2494))
+- **graph-io:** round Cytoscape's integer properties and paint Graphviz's default background white ([#2497](https://github.com/graphty-org/graphty-monorepo/issues/2497))
+- **graph-io:** read and write cytoscape.js hollow arrowheads as the open arrow shapes ([#2371](https://github.com/graphty-org/graphty-monorepo/issues/2371))
+- **graph-io:** label each pajek vertex with its name, as pajek draws it ([#2323](https://github.com/graphty-org/graphty-monorepo/issues/2323))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.47 (2026-10-20)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.6
+
 ## 0.3.46 (2026-10-19)
 
 ### 🩹 Fixes

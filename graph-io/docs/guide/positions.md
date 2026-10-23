@@ -66,6 +66,11 @@ snapshot is left as the importer read it; the conversion runs when you call `ext
 - `pxPerUnit`: how many points one `"file"` unit is, when that unit is a known length (`72` for a
   Graphviz input file, whose `pos` is in inches); absent otherwise. Multiply a coordinate by it to
   compare it with the file's style lengths, which are in points.
+- `viewerFit`: `{ padding }` when the coordinates have no fixed length and the program that draws
+  the file fits them into its canvas instead (a graphology file, drawn by sigma.js: `padding: 30`).
+  The bounding box is fitted inside the canvas's smaller side less `padding` px at each end, and the
+  file's label sizes are px of that canvas; node sizes stay in the unit of the coordinates. Absent
+  otherwise.
 - `dims`: `3` when the nodes differ in z, else `2` (z is then 0).
 - `source`: the format, the program that wrote the file when it can tell (`tool`), and which way
   that file's y grew (`yAxis`).
@@ -85,7 +90,7 @@ snapshot is left as the importer read it; the conversion runs when you call `ext
 | Pajek                             | the file's own                                                          | down; z is centered on 0.5, and a z of 0.5 on every vertex is a flat drawing                                                                          |
 | DOT                               | points when the root graph has `bb` (Graphviz output), inches otherwise | up                                                                                                                                                    |
 | XGMML, CX, CX2, Cytoscape session | the file's own (Cytoscape writes pixels)                                | already stored y up by the importer                                                                                                                   |
-| JSON                              | the file's own                                                          | Cytoscape.js `elements`: already stored y up. Plain `x` / `y`: up, unless d3-force or vis.js keys mark them as screen coordinates and there is no `z` |
+| JSON                              | the file's own; graphology: fitted to the canvas (`viewerFit`)          | Cytoscape.js `elements`: already stored y up. Plain `x` / `y`: up, unless d3-force or vis.js keys mark them as screen coordinates and there is no `z` |
 
 When the file's y grows downward and it stores a real z, z is turned with y, so a 3D drawing is
 rotated half a turn, never mirrored. In a Pajek file that NetworkX wrote, two or more nodes at

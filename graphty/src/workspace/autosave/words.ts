@@ -8,7 +8,6 @@
  */
 
 import type {
-    AutosaveAtRisk,
     AutosaveAvailable,
     AutosaveCode,
     AutosaveEntry,
@@ -169,17 +168,6 @@ export function availableSentence(available: AutosaveAvailable): string {
         default:
             return "Earlier work is kept in this browser.";
     }
-}
-
-/**
- * The notice for work kept only where the browser may delete it.
- * @param fact - the at-risk fact.
- * @returns the sentence.
- */
-export function atRiskSentence(fact: AutosaveAtRisk): string {
-    return fact.params.ephemeral === "likely"
-        ? "This looks like a private window: your work is gone when it closes. Save a copy to a file to keep it."
-        : "This browser may clear what it keeps for this site. Save a copy to a file to be sure.";
 }
 
 /**

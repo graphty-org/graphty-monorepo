@@ -1,5 +1,7 @@
 # Golden-local landing
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). Its landing model is replaced (the full-gate row of 3.1, sections 4.2, 4.3, 4.7 and 4.8, the landing-failure rows of 4.13, and 4.14's cut selection and one-round grace before a revert); the rest remains in force, and the tools follow this document until the fast pipeline is built.
+
 Status: adopted by the owner on 2026-10-18. Decision record:
 `design/decisions/2026-10-18-golden-local-adopted.md`. This document replaces the merge half of
 `design/ci/ci-cd-plan.md` and the whole of the githerd design (see "Superseded documents" at the
@@ -350,6 +352,17 @@ Landing is serial. One lock guards local `golden`; the push queue already serial
 this machine. Sessions work in parallel on their own branches and worktrees, and only the landing
 step is one at a time. A session that finds the lock held is told who holds it and waits in the
 background, not in a model turn.
+
+Waiters queue first come, first served, except `--priority` (on `land`, `revert` and `cut`): a priority
+waiter goes ahead of every ordinary one, behind earlier priority waiters, and never interrupts the
+landing that holds the lock. It is only for fixes that unblock the pipeline: a red master, a broken
+golden, a fix a cut is blocked on.
+
+Every run executes the same version of `land.mjs`: whichever checkout's copy a session calls, it re-runs
+the live copy in `.worktrees/land-live` (as `push-queue.sh` does with `.worktrees/gate-live`) and passes its
+exit code through. A session on an older copy once skipped the queue this way. A new version goes live
+with `tools/live.sh land <branch>`, after land's tests pass; without a live copy the called copy runs
+itself and says so.
 
 ### 4.9 Failure handling
 

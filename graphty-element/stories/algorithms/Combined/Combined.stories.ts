@@ -234,6 +234,99 @@ export const CommunityStructureWithPath: Story = {
 };
 
 /**
+ * A route over a ranking: the picture a reader gets when they find the shortest path on a graph
+ * already coloured by a score.
+ *
+ * PageRank colours every node along the default measurement palette, orange to brown, and sizes
+ * it; Dijkstra, applied last, highlights the route over the nodes and edges on it and no others.
+ * The highlight is drawn in a colour outside that palette, so the route's nodes read as the route
+ * rather than as more low- or high-ranked nodes.
+ */
+export const RouteOverRanking: Story = {
+    args: {
+        setup: storySetup({
+            algorithms: ["graphty:pagerank", "graphty:dijkstra"],
+        }),
+        runAlgorithmsOnLoad: true,
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const element = canvasElement.querySelector("graphty-element");
+        if (!element) {
+            return;
+        }
+
+        const { graph } = element;
+
+        await graph.waitForSettled();
+
+        const applied = graph.applySuggestedStyles(["graphty:pagerank", "graphty:dijkstra"]);
+
+        await holds(
+            applied,
+            "Algorithms/Combined RouteOverRanking: applySuggestedStyles returned false, so neither run had " +
+                "anything to paint",
+        );
+
+        await sizeByPageRank(element, "Algorithms/Combined RouteOverRanking");
+
+        const scene = await drawn(canvasElement, "Algorithms/Combined RouteOverRanking");
+
+        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+        await assertAlgorithmPainted(scene, "graphty:pagerank", { paints: "node", atLeast: 20 });
+        await assertAlgorithmPainted(scene, "graphty:dijkstra");
+        await assertDrawnVariety(scene, "hex", 3);
+        await assertDrawnVariety(scene, "radius", 3);
+        await assertDistinctPicture(scene, "Algorithms/Combined");
+    },
+};
+
+/**
+ * A route over an unranked graph: the picture a reader gets when they find the shortest path
+ * before measuring anything.
+ *
+ * Every other node keeps the default node colour, so the route's nodes have to stand apart from
+ * THAT colour as lit spheres a few pixels across, not only as swatches. The route is drawn in the
+ * element's own highlight colour, indigo, which differs from the default node mostly in lightness;
+ * a consumer that wants more separation sets `session.styles.setHighlightColor()`. Beside
+ * `RouteOverRanking`, which draws the same route over PageRank's colours.
+ */
+export const RouteOverUnranked: Story = {
+    args: {
+        setup: storySetup({
+            algorithms: ["graphty:dijkstra"],
+        }),
+        runAlgorithmsOnLoad: true,
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const element = canvasElement.querySelector("graphty-element");
+        if (!element) {
+            return;
+        }
+
+        const { graph } = element;
+
+        await graph.waitForSettled();
+
+        await holds(
+            graph.applySuggestedStyles(["graphty:dijkstra"]),
+            "Algorithms/Combined RouteOverUnranked: applySuggestedStyles returned false, so the route had " +
+                "nothing to paint",
+        );
+
+        const scene = await drawn(canvasElement, "Algorithms/Combined RouteOverUnranked");
+
+        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+        await assertAlgorithmPainted(scene, "graphty:dijkstra");
+        await assertDrawnVariety(scene, "hex", 2);
+        await assertDistinctPicture(scene, "Algorithms/Combined");
+    },
+};
+
+/**
  * Combined Edge Flow - edge color and width based on relationship strength
  * Demonstrates multi-dimensional edge styling where:
  * - Edge colour follows the value along viridis (dark purple = weak, yellow = strong)

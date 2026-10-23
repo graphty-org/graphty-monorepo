@@ -1,0 +1,22 @@
+{
+    "sample": "dot-real-crazy",
+    "file": "graph-io/test/corpus/styles/dot/fidelity/real-crazy.gv",
+    "sha256": "369bf321b0f8104a3b5bdb602478925638f6baf65abe54809ef60f9b4e08e3ca",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "dot",
+    "command": "dot -Kdot -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "engineSource": "the file names no layout, so dot (Graphviz's default)",
+    "standIn": false,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 853,
+        "heightPt": 675,
+        "widthPx": 1137,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-real-crazy && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-real-crazy.svg"
+}

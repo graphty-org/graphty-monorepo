@@ -4,7 +4,10 @@ import { basename, resolve } from "node:path";
 import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { hashCreationOrder } from "../../src/formats/cx/styles.js";
 import { createRegistry, importGraph } from "../../src/registry.js";
+import { dropMismatchedKeys } from "../../src/styles/cytoscape/mappings.js";
+import { edgeEnds } from "../../src/styles/cytoscape/resolve.js";
 import {
     cx1Definition,
     type CytoscapeBypass,
@@ -96,7 +99,8 @@ function elementsOf(s: GraphSnapshot, target: StyleTarget, namespace: string): C
         }
         bypasses.push(m);
     }
-    return { count: n, value: (c, i) => cell(s, target, c, i), bypasses };
+    const ends = target === "edge" ? { ends: { source: s.edgeList().src, target: s.edgeList().dst } } : {};
+    return { count: n, value: (c, i) => cell(s, target, c, i), bypasses, ...ends };
 }
 
 /** A fixture's style, from what the importer kept, as the CX and CX2 readers build it. */
@@ -108,6 +112,17 @@ function styleOf(s: GraphSnapshot, format: string): CytoscapeStyle {
     }
     const opaque = (extra.cx2?.opaque ?? {}) as Record<string, unknown>;
     return cytoscapeStyleFromCx2(opaque.visualProperties, opaque.visualEditorProperties);
+}
+
+/**
+ * Whether a CX fixture is a collection (it has `cySubNetworks`), whose elements desktop creates in list order.
+ * @param s - the imported graph
+ * @returns whether it is
+ */
+function isCollection(s: GraphSnapshot): boolean {
+    const extra = (s.meta.extra ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const subs = extra.cx?.cySubNetworks;
+    return Array.isArray(subs) && subs.length > 0;
 }
 
 describe("Cytoscape resolution reproduces the prototype on the CX and CX2 fixtures", () => {
@@ -124,8 +139,20 @@ describe("Cytoscape resolution reproduces the prototype on the CX and CX2 fixtur
         const s = result.snapshot;
         const style = styleOf(s, format);
         const want = GOLDEN.files[key];
+        let nodes: ReturnType<typeof resolveCytoscape> = {};
         for (const target of ["node", "edge"] as const) {
-            const got = resolveCytoscape(target, style, elementsOf(s, target, `${format}.bypass`));
+            const elements = elementsOf(s, target, `${format}.bypass`);
+            // the edges' fan spacing is read against the nodes' sizes, as the readers pass them
+            // a CX version 1 file outside a collection is created in hash order, as readCxStyles passes it
+            const created = format === "cx" && !isCollection(s) ? (hashCreationOrder(s) ?? undefined) : undefined;
+            const got = resolveCytoscape(
+                target,
+                style,
+                target === "edge"
+                    ? { ...elements, ends: { ...edgeEnds(s, nodes), ...(created === undefined ? {} : { created }) } }
+                    : elements,
+            );
+            nodes = target === "node" ? got : nodes;
             const kept = Object.fromEntries(
                 Object.entries(got).filter(([, col]) => col?.some((v) => v !== null) === true),
             );
@@ -169,6 +196,23 @@ describe("mapping definitions", () => {
         expect(typedKey("TRUE", "boolean")).toBe(true);
         expect(typedKey("x", "boolean")).toBe("x");
         expect(typedKey({}, "string")).toBeNull();
+    });
+
+    it("empties a discrete mapping whose integer keys meet a double column, as Cytoscape matches nothing", () => {
+        const style = emptyCytoscapeStyle();
+        const m = mappingFromCx1({ type: "DISCRETE", definition: "COL=tier,T=integer,K=0=4,V=0=DASH" });
+        const same = mappingFromCx1({ type: "DISCRETE", definition: "COL=n,T=integer,K=0=4,V=0=DASH" });
+        if (m === null || same === null) {
+            throw new Error("the definitions did not parse");
+        }
+        style.node.mappings.set("NODE_BORDER_STROKE", m);
+        style.node.mappings.set("NODE_LABEL_POSITION", same);
+        const notes = new StyleNotes();
+        const types: Record<string, string> = { tier: "double", n: "long" };
+        dropMismatchedKeys(style.node, (c) => types[c] ?? null, notes, "node");
+        expect(style.node.mappings.get("NODE_BORDER_STROKE")).toMatchObject({ kind: "discrete", table: [] });
+        expect(style.node.mappings.get("NODE_LABEL_POSITION")).toMatchObject({ table: [[4, "DASH"]] });
+        expect(notes.list().map((n) => n.code)).toEqual(["W_STYLE_BAD_MAPPING"]);
     });
 
     it("reads CX2 continuous intervals as points", () => {
@@ -253,6 +297,28 @@ describe("resolution", () => {
         expect(rules[0].set).toMatchObject({ width: 30, height: 30 });
     });
 
+    it("draws a hexagon at the height Cytoscape desktop squashes it to, inside its border", () => {
+        const style = emptyCytoscapeStyle();
+        style.node.defaults.set("NODE_WIDTH", "40");
+        style.node.defaults.set("NODE_HEIGHT", "40");
+        style.node.defaults.set("NODE_BORDER_WIDTH", "1");
+        style.node.mappings.set("NODE_SHAPE", {
+            kind: "discrete",
+            column: "c",
+            type: "string",
+            table: [
+                ["h", "HEXAGON"],
+                ["r", "RECTANGLE"],
+            ],
+        });
+        const got = resolveCytoscape("node", style, elements(["h", "r"]));
+        // a 40 x 40 HEXAGON with a border of 1 is a 39 x 33.775 path (cx2-repro-shared-interaction's oracle):
+        // 33.775 + 1 tall to the border's outer edge, the width untouched
+        expect(got.width).toEqual([40, 40]);
+        expect(got.height?.[0]).toBeCloseTo(39 * (Math.sqrt(3) / 2) + 1, 6);
+        expect(got.height?.[1]).toBe(40);
+    });
+
     it("reads both opacity scales", () => {
         const style = emptyCytoscapeStyle();
         style.node.defaults.set("NODE_TRANSPARENCY", "51");
@@ -261,40 +327,13 @@ describe("resolution", () => {
         expect(resolveCytoscape("edge", style, elements([1])).opacity).toEqual([0.5]);
     });
 
-    it("rounds an interpolated whole-number property the way Cytoscape draws it, in both readings", () => {
-        // Cytoscape's NODE_LABEL_FONT_SIZE and NODE_TRANSPARENCY are integer visual properties: 11.765 draws as 12
-        const style = emptyCytoscapeStyle();
-        const ramp = (lo: string, hi: string): CytoscapeMapping => ({
-            kind: "continuous",
-            column: "c",
-            type: "double",
-            points: [
-                { at: 0, below: lo, value: lo, above: lo },
-                { at: 17, below: hi, value: hi, above: hi },
-            ],
-        });
-        style.node.mappings.set("NODE_LABEL_FONT_SIZE", ramp("10", "40"));
-        style.node.mappings.set("NODE_TRANSPARENCY", ramp("0", "100"));
-        style.node.mappings.set("NODE_BORDER_WIDTH", ramp("10", "40"));
-        const values = [1, 2, 3];
-        const want = {
-            labelSize: [12, 14, 15],
-            fillOpacity: [6 / 255, 12 / 255, 18 / 255].map((x) => Number(x.toPrecision(6))),
-            // a double property keeps its fraction
-            borderWidth: [11.7647, 13.5294, 15.2941],
-        };
-        const oracle = resolveCytoscape("node", style, elements(values));
-        const b = new GraphBuilder({ directed: true });
-        const c = b.declareNodeColumn({ name: "c", dtype: "f64" });
-        for (const x of values) {
-            b.setNodeValue(c, b.addNode(`n${String(x)}`), x);
-        }
-        const s = b.freeze();
-        const ex = extracted(s, cytoscapeRules("node", style, elements(values)).rules);
-        for (const [property, expected] of Object.entries(want)) {
-            expect([property, oracle[property]]).toEqual([property, expected]);
-            expect([property, resolveStyles(ex, "node", property as never, s)]).toEqual([property, expected]);
-        }
+    it("reads a node border's transparency as its opacity, in both dialects", () => {
+        const desktop = emptyCytoscapeStyle();
+        desktop.node.defaults.set("NODE_BORDER_TRANSPARENCY", "0");
+        expect(resolveCytoscape("node", desktop, elements([1])).borderOpacity).toEqual([0]);
+        const cx2 = emptyCytoscapeStyle();
+        cx2.node.defaults.set("NODE_BORDER_OPACITY", 0.78);
+        expect(resolveCytoscape("node", cx2, elements([1])).borderOpacity).toEqual([0.78]);
     });
 
     it("fills what the style leaves unset with the chosen tool's defaults", () => {
@@ -350,10 +389,11 @@ describe("element graphics (XGMML)", () => {
         );
         const got = resolveCytoscapeBypasses("node", [a, b], { notes });
         expect(got.fill).toEqual(["#ff0000", null]);
-        expect(got.width).toEqual([20, null]);
+        // a size with no width of its own sizes the node, as Cytoscape sizes a node by a locked NODE_SIZE
+        expect(got.width).toEqual([20, 33]);
         expect(got.shape).toEqual(["ellipse", null]);
         expect(got.fillOpacity).toEqual([0.501961, null]);
-        expect(got.labelFont).toEqual([null, "serif"]);
+        expect(got.labelFont).toEqual([null, "DejaVu Serif, serif"]);
         expect(got.labelWeight).toEqual([null, "bold"]);
         expect(notes.list().map((n) => n.code)).toContain("W_STYLE_NOT_CARRIED");
     });
@@ -481,7 +521,7 @@ function randomRules(rand: () => number): StyleRule[] {
                 fill: pick(colors),
                 shape: pick(shapes),
                 width: 10 + Math.round(rand() * 40),
-                labelFont: "serif",
+                labelFont: "DejaVu Serif, serif",
                 labelWeight: "bold",
                 labelItalic: false,
             },
@@ -557,7 +597,8 @@ function randomRules(rand: () => number): StyleRule[] {
             set: {
                 color: pick(colors),
                 width: 1 + Math.round(rand() * 5),
-                targetArrow: pick(["triangle", "vee", "tee", "none"]),
+                // desktop has no open vee (its ARROW is a filled delta), so no vee: it would not come back
+                targetArrow: pick(["triangle", "diamond", "tee", "none"]),
             },
         },
         {
@@ -740,6 +781,164 @@ describe("emit then translate returns the same rules", () => {
         const cx2 = new StyleNotes();
         emitCytoscapeStyle(ex, s, { dialect: "cx2", notes: cx2 });
         expect(codes(cx2)).toContain("W_STYLE_NOT_WRITTEN edge tooltip");
+    });
+
+    it("writes a vee to desktop as its ARROW, which desktop draws a filled delta, and says so", () => {
+        const s = graph(3, rng(1));
+        const ex = extracted(s, [
+            {
+                id: "y",
+                target: "edge",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { targetArrow: "vee" },
+            },
+        ]);
+        const notes = new StyleNotes();
+        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop", notes });
+        expect(out.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("ARROW");
+        expect(notes.list().map((n) => `${n.code} ${String(n.params.property)}`)).toContain(
+            "W_STYLE_APPROXIMATED targetArrow",
+        );
+    });
+
+    it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {
+        const s = graph(3, rng(1));
+        const ex = extracted(s, [
+            {
+                id: "x",
+                target: "node",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { shape: "other:invtrapezium", borderStyle: "other:cylinder" },
+            },
+            {
+                id: "y",
+                target: "edge",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: {
+                    targetArrow: "other:open-square",
+                    sourceArrow: "other:lcurve",
+                    lineStyle: "other:backward-slash",
+                },
+            },
+        ]);
+        const desktop = new StyleNotes();
+        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop", notes: desktop });
+        expect(out.style.node.defaults.get("NODE_SHAPE")).toBe("PARALLELOGRAM");
+        expect(out.style.node.defaults.get("NODE_BORDER_LINE_TYPE")).toBe("SOLID");
+        expect(out.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("OPEN_SQUARE");
+        expect(out.style.edge.defaults.get("EDGE_SOURCE_ARROW_SHAPE")).toBe("NONE");
+        expect(out.style.edge.defaults.get("EDGE_LINE_TYPE")).toBe("BACKWARD_SLASH");
+        const approximated = desktop
+            .list()
+            .filter((n) => n.code === "W_STYLE_APPROXIMATED")
+            .map((n) => String(n.params.property));
+        expect(approximated).toEqual(expect.arrayContaining(["shape", "borderStyle", "sourceArrow"]));
+        const cx2 = emitCytoscapeStyle(ex, s, { dialect: "cx2" });
+        expect(cx2.style.node.defaults.get("NODE_SHAPE")).toBe("parallelogram");
+        expect(cx2.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("open-square");
+    });
+
+    it("writes a mapping over a style column or a degree into an added column", () => {
+        const s = graph(5, rng(2));
+        const ex = extracted(s, [
+            {
+                id: "d",
+                target: "node",
+                role: "mapping",
+                origin: "inferred",
+                where: { all: true },
+                map: { width: { kind: "passthrough", by: { computed: "degree" } } },
+            },
+        ]);
+        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop" });
+        expect(out.columns.node.get("graphty.style.node.degree")).toEqual([2, 2, 2, 2, 2]);
+        const back = cytoscapeRules(
+            "node",
+            throughFile(out.style, "desktop"),
+            emittedElements(s, "node", out.bypasses.node, out.columns.node),
+            {
+                columnRef: (c) => (c === "graphty.style.node.degree" ? { computed: "degree" } : { data: c }),
+            },
+        );
+        expect(back.rules[0].map).toEqual({ width: { kind: "passthrough", by: { computed: "degree" } } });
+    });
+});
+
+describe("file forms", () => {
+    it("writes CX version 1 definitions that read back", () => {
+        const def = cx1Definition({ kind: "discrete", column: "a,b", type: "string", table: [["x,y", "#FF0000"]] });
+        expect(def).toBe("COL=a,,b,T=string,K=0=x,,y,V=0=#FF0000");
+        expect(mappingFromCx1({ type: "DISCRETE", definition: def })).toEqual({
+            kind: "discrete",
+            column: "a,b",
+            type: "string",
+            table: [["x,y", "#FF0000"]],
+        });
+    });
+
+    it("writes a session visual style with escaped attributes", () => {
+        const style = emptyCytoscapeStyle();
+        style.node.defaults.set("NODE_FILL_COLOR", "#FF0000");
+        style.node.dependencies.set("nodeSizeLocked", false);
+        style.node.mappings.set("NODE_LABEL", { kind: "passthrough", column: 'a"<b', type: "string" });
+        style.edge.mappings.set("EDGE_WIDTH", {
+            kind: "continuous",
+            column: "w",
+            type: "double",
+            points: [{ at: 1, below: "1", value: "2", above: "3" }],
+        });
+        const xml = cytoscapeVizmapXml(style, "net & co");
+        expect(xml).toContain('<visualStyle name="net &amp; co">');
+        expect(xml).toContain('<dependency name="nodeSizeLocked" value="false"/>');
+        expect(xml).toContain('<visualProperty name="NODE_FILL_COLOR" default="#FF0000"/>');
+        expect(xml).toContain('<passthroughMapping attributeName="a&quot;&lt;b" attributeType="string"/>');
+        expect(xml).toContain(
+            '<continuousMappingPoint attrValue="1" lesserValue="1" equalValue="2" greaterValue="3"/>',
+        );
+    });
+});
+
+describe("whole-number visual properties", () => {
+    it("rounds an interpolated whole-number property the way Cytoscape draws it, in both readings", () => {
+        // Cytoscape's NODE_LABEL_FONT_SIZE and NODE_TRANSPARENCY are integer visual properties: 11.765 draws as 12
+        const style = emptyCytoscapeStyle();
+        const ramp = (lo: string, hi: string): CytoscapeMapping => ({
+            kind: "continuous",
+            column: "c",
+            type: "double",
+            points: [
+                { at: 0, below: lo, value: lo, above: lo },
+                { at: 17, below: hi, value: hi, above: hi },
+            ],
+        });
+        style.node.mappings.set("NODE_LABEL_FONT_SIZE", ramp("10", "40"));
+        style.node.mappings.set("NODE_TRANSPARENCY", ramp("0", "100"));
+        style.node.mappings.set("NODE_BORDER_WIDTH", ramp("10", "40"));
+        const values = [1, 2, 3];
+        const want = {
+            labelSize: [12, 14, 15],
+            fillOpacity: [6 / 255, 12 / 255, 18 / 255].map((x) => Number(x.toPrecision(6))),
+            // a double property keeps its fraction
+            borderWidth: [11.7647, 13.5294, 15.2941],
+        };
+        const oracle = resolveCytoscape("node", style, elements(values));
+        const b = new GraphBuilder({ directed: true });
+        const c = b.declareNodeColumn({ name: "c", dtype: "f64" });
+        for (const x of values) {
+            b.setNodeValue(c, b.addNode(`n${String(x)}`), x);
+        }
+        const s = b.freeze();
+        const ex = extracted(s, cytoscapeRules("node", style, elements(values)).rules);
+        for (const [property, expected] of Object.entries(want)) {
+            expect([property, oracle[property]]).toEqual([property, expected]);
+            expect([property, resolveStyles(ex, "node", property as never, s)]).toEqual([property, expected]);
+        }
     });
 
     it("notes a ramp of a whole-number visual property, which Cytoscape draws rounded, and not once it rounds", () => {
@@ -928,105 +1127,5 @@ describe("emit then translate returns the same rules", () => {
                 [format, sizes],
             );
         }
-    });
-
-    it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {
-        const s = graph(3, rng(1));
-        const ex = extracted(s, [
-            {
-                id: "x",
-                target: "node",
-                role: "defaults",
-                origin: "declared",
-                where: { all: true },
-                set: { shape: "other:invtrapezium", borderStyle: "other:cylinder" },
-            },
-            {
-                id: "y",
-                target: "edge",
-                role: "defaults",
-                origin: "declared",
-                where: { all: true },
-                set: {
-                    targetArrow: "other:open-square",
-                    sourceArrow: "other:lcurve",
-                    lineStyle: "other:backward-slash",
-                },
-            },
-        ]);
-        const desktop = new StyleNotes();
-        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop", notes: desktop });
-        expect(out.style.node.defaults.get("NODE_SHAPE")).toBe("PARALLELOGRAM");
-        expect(out.style.node.defaults.get("NODE_BORDER_LINE_TYPE")).toBe("SOLID");
-        expect(out.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("OPEN_SQUARE");
-        expect(out.style.edge.defaults.get("EDGE_SOURCE_ARROW_SHAPE")).toBe("NONE");
-        expect(out.style.edge.defaults.get("EDGE_LINE_TYPE")).toBe("BACKWARD_SLASH");
-        const approximated = desktop
-            .list()
-            .filter((n) => n.code === "W_STYLE_APPROXIMATED")
-            .map((n) => String(n.params.property));
-        expect(approximated).toEqual(expect.arrayContaining(["shape", "borderStyle", "sourceArrow"]));
-        const cx2 = emitCytoscapeStyle(ex, s, { dialect: "cx2" });
-        expect(cx2.style.node.defaults.get("NODE_SHAPE")).toBe("parallelogram");
-        expect(cx2.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("open-square");
-    });
-
-    it("writes a mapping over a style column or a degree into an added column", () => {
-        const s = graph(5, rng(2));
-        const ex = extracted(s, [
-            {
-                id: "d",
-                target: "node",
-                role: "mapping",
-                origin: "inferred",
-                where: { all: true },
-                map: { width: { kind: "passthrough", by: { computed: "degree" } } },
-            },
-        ]);
-        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop" });
-        expect(out.columns.node.get("graphty.style.node.degree")).toEqual([2, 2, 2, 2, 2]);
-        const back = cytoscapeRules(
-            "node",
-            throughFile(out.style, "desktop"),
-            emittedElements(s, "node", out.bypasses.node, out.columns.node),
-            {
-                columnRef: (c) => (c === "graphty.style.node.degree" ? { computed: "degree" } : { data: c }),
-            },
-        );
-        expect(back.rules[0].map).toEqual({ width: { kind: "passthrough", by: { computed: "degree" } } });
-    });
-});
-
-describe("file forms", () => {
-    it("writes CX version 1 definitions that read back", () => {
-        const def = cx1Definition({ kind: "discrete", column: "a,b", type: "string", table: [["x,y", "#FF0000"]] });
-        expect(def).toBe("COL=a,,b,T=string,K=0=x,,y,V=0=#FF0000");
-        expect(mappingFromCx1({ type: "DISCRETE", definition: def })).toEqual({
-            kind: "discrete",
-            column: "a,b",
-            type: "string",
-            table: [["x,y", "#FF0000"]],
-        });
-    });
-
-    it("writes a session visual style with escaped attributes", () => {
-        const style = emptyCytoscapeStyle();
-        style.node.defaults.set("NODE_FILL_COLOR", "#FF0000");
-        style.node.dependencies.set("nodeSizeLocked", false);
-        style.node.mappings.set("NODE_LABEL", { kind: "passthrough", column: 'a"<b', type: "string" });
-        style.edge.mappings.set("EDGE_WIDTH", {
-            kind: "continuous",
-            column: "w",
-            type: "double",
-            points: [{ at: 1, below: "1", value: "2", above: "3" }],
-        });
-        const xml = cytoscapeVizmapXml(style, "net & co");
-        expect(xml).toContain('<visualStyle name="net &amp; co">');
-        expect(xml).toContain('<dependency name="nodeSizeLocked" value="false"/>');
-        expect(xml).toContain('<visualProperty name="NODE_FILL_COLOR" default="#FF0000"/>');
-        expect(xml).toContain('<passthroughMapping attributeName="a&quot;&lt;b" attributeType="string"/>');
-        expect(xml).toContain(
-            '<continuousMappingPoint attrValue="1" lesserValue="1" equalValue="2" greaterValue="3"/>',
-        );
     });
 });

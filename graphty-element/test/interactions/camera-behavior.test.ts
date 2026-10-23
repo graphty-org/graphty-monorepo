@@ -212,29 +212,70 @@ describe("the keyboard", () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
         const before = element.getCameraState();
+        const turning = framesTurning(element);
 
         await userEvent.keyboard("{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 20);
 
         const after = element.getCameraState();
         const turned = Math.abs(angleAround(after) - angleAround(before));
-        // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees.
-        assert.closeTo(turned, 0.16, 0.03, "one tap turns the camera about 9 degrees");
+        // Eight frames of 0.02 rad: 0.16 rad, about 9 degrees. userEvent sends the key's down and
+        // up as two protocol commands, and on a busy machine frames are drawn between them: the
+        // key was then held that many frames, and a hold longer than the step turns every frame.
+        const frames = turning();
+        assert.closeTo(turned, frames * 0.02, 0.03, `one tap turns the camera ${String(frames)} frames of 0.02 rad`);
     });
 
     it("quick taps each turn a full step", async () => {
         const element = await mounted("3d");
         await click(element, EMPTY);
         const before = element.getCameraState();
+        const turning = framesTurning(element);
 
-        // Three taps with no frame between them: each owes its own eight frames.
+        // Three taps: each owes its own eight frames, 0.48 rad in all when no frame is drawn while
+        // a key is down. userEvent sends every down and up as its own protocol command, and on a
+        // busy machine frames are drawn between them; those held frames turn too.
         await userEvent.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
         await drawnFrames(element.graph.getScene(), 40);
 
         const turned = Math.abs(angleAround(element.getCameraState()) - angleAround(before));
-        assert.closeTo(turned, 0.48, 0.06, "three taps turn the camera three steps");
+        const frames = turning();
+        assert.isAtLeast(frames, 24, "three taps owe three steps");
+        assert.closeTo(turned, frames * 0.02, 0.06, `three taps turn the camera ${String(frames)} frames of 0.02 rad`);
     });
 });
+
+/**
+ * Count the frames an arrow key should turn the camera: every frame drawn while a key is down on
+ * the element's canvas, and every frame of the eight each press owes, added up across presses.
+ * @param element - The element.
+ * @returns A function returning the count so far.
+ */
+function framesTurning(element: Graphty): () => number {
+    const { canvas } = element.graph;
+    let down = false;
+    let owed = 0;
+    let frames = 0;
+    const onDown = (evt: KeyboardEvent): void => {
+        down = true;
+        owed += evt.repeat ? 0 : 8;
+    };
+    const onUp = (): void => {
+        down = false;
+    };
+    canvas.addEventListener("keydown", onDown, { capture: true });
+    canvas.addEventListener("keyup", onUp, { capture: true });
+    const observer = element.graph.getScene().onBeforeRenderObservable.add(() => {
+        frames += Number(down || owed > 0);
+        owed = Math.max(0, owed - 1);
+    });
+    cleanups.push(() => {
+        canvas.removeEventListener("keydown", onDown, { capture: true });
+        canvas.removeEventListener("keyup", onUp, { capture: true });
+        observer.remove();
+    });
+    return () => frames;
+}
 
 /**
  * The camera's angle around the vertical axis through its target.

@@ -1,0 +1,4 @@
+# T7 prompt B setup: friends.csv drawn
+--click No thanks
+--click Open project or file...
+--upload friends.csv

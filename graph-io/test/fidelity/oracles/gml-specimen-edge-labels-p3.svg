@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g>
+		<g>
+			<polygon points="258.667 436 255.667 436.75 255.667 435.25 " stroke="#000000" stroke-width="1.000000px" fill="#000000" />
+			<path fill="none" d=" M188.667,436 L258.667,436" stroke="#000000" stroke-width="1.000000px" />
+		</g>
+		<g>
+			<text text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000" x="600" y="436">Abc</text>
+			<path fill="none" d=" M562,436 L638,436" stroke="#505050" stroke-width="1.500000px" />
+		</g>
+		<g>
+			<text text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000" x="954.33330000000001" y="421">Abc</text>
+			<path fill="none" d=" M935.333,436 L973.333,406 M973.333,406 L1011.33,436" stroke="#505050" stroke-width="1.500000px" />
+		</g>
+	</g>
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="188.66669999999999" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="188.66669999999999" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="264.66669999999999" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="264.66669999999999" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="183.16669999999999" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="226.66669999999999" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<ellipse cx="562" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="562" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="638" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="638" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="569" y="469.5" width="62" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label=Abc</text>
+	</g>
+	<g>
+		<ellipse cx="935.33330000000001" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="935.33330000000001" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="1011.3333" cy="436" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1011.3333" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="908.33330000000001" y="469.5" width="130" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="973.33330000000001" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label on a bent edge</text>
+	</g>
+</svg>

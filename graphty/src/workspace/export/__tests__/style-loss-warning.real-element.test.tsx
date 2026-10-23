@@ -102,6 +102,23 @@ async function openData(): Promise<HTMLElement> {
     return dialog;
 }
 
+/**
+ * Chooses the CSV node table, as the reader picks it from Format and Table.
+ * @param dialog - the Export dialog, on Data.
+ */
+async function chooseCsvNodes(dialog: HTMLElement): Promise<void> {
+    await userEvent.click(within(dialog).getByLabelText("Format", { selector: "input" }));
+    await userEvent.click(await screen.findByRole("option", { name: "CSV" }));
+    await userEvent.click(within(dialog).getByLabelText("Table", { selector: "input" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Nodes" }));
+    await waitFor(() => {
+        assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "Writing");
+    });
+}
+
+/** A notice's toast; the status line speaks the same words (state/store.ts). */
+const TOAST = { selector: ".cm-toast-message" };
+
 afterEach(() => {
     vi.restoreAllMocks();
 });
@@ -131,6 +148,7 @@ describe("Export warns before the graph's styles are lost", () => {
 
         // CSV cannot hold the colors: Export stops at the warning and nothing is written.
         const dialog = await openData();
+        await chooseCsvNodes(dialog);
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
         const warning = await within(dialog).findByRole("alertdialog", {}, { timeout: TIMEOUT_MS });
         assert.match(warning.textContent, /Node fill color on 8 nodes is not written/);
@@ -138,7 +156,7 @@ describe("Export warns before the graph's styles are lost", () => {
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
-        await screen.findByText("Exported untitled_nodes.csv", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_nodes.csv", TOAST, { timeout: TIMEOUT_MS });
         assert.deepEqual(
             saved.map(({ name }) => name),
             ["untitled_nodes.csv"],
@@ -152,7 +170,7 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<graphml");
         });
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_graph.graphml", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.graphml", TOAST, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByRole("alertdialog"));
         const file = saved.find(({ name }) => name === "untitled_graph.graphml");
         assert.isDefined(file, "the GraphML file was saved");
@@ -166,9 +184,11 @@ describe("Export warns before the graph's styles are lost", () => {
         assert.lengthOf(layers(back), STACK.length);
         back.dispose();
 
-        // Every export the dialog made, previews and saves, asked for the styles.
-        assert.isAbove(exports.mock.calls.length, 3);
-        for (const [, options] of exports.mock.calls) {
+        // Every export the dialog made, previews and saves, asked for the styles, but the project
+        // file's (Data opens on Graphty JSON), which holds them already and takes no options.
+        const written = exports.mock.calls.filter(([format]) => format !== "graphty");
+        assert.isAbove(written.length, 3);
+        for (const [, options] of written) {
             assert.strictEqual(options?.styles, true);
         }
     });
@@ -210,7 +230,7 @@ describe("Export warns before the graph's styles are lost", () => {
         assert.lengthOf(saved, 0, "no file before the reader chooses");
 
         await userEvent.click(within(warning).getByRole("button", { name: "Save anyway" }));
-        await screen.findByText("Exported untitled_graph.gexf", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.gexf", TOAST, { timeout: TIMEOUT_MS });
         assert.deepEqual(
             saved.map(({ name }) => name),
             ["untitled_graph.gexf"],
@@ -235,8 +255,9 @@ describe("Export warns before the graph's styles are lost", () => {
         await session.data.addEdges(EDGES);
 
         const dialog = await openData();
+        await chooseCsvNodes(dialog);
         await userEvent.click(within(dialog).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_nodes.csv", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_nodes.csv", TOAST, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByRole("alertdialog"));
 
         const again = await openData();
@@ -246,7 +267,7 @@ describe("Export warns before the graph's styles are lost", () => {
             assert.include(within(again).getByLabelText("Preview of the exported data").textContent, "<gexf");
         });
         await userEvent.click(within(again).getByRole("button", { name: "Export" }));
-        await screen.findByText("Exported untitled_graph.gexf", {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Exported untitled_graph.gexf", TOAST, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByRole("alertdialog"));
         assert.deepEqual(
             saved.map(({ name }) => name),

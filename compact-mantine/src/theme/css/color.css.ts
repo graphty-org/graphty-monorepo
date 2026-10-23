@@ -10,6 +10,7 @@
  * JavaScript that no class can outrank: the overlays' inset box-shadow and the alpha overlay's
  * checkerboard. (The thumb's inline `top: 1px` is corrected with a margin instead.)
  */
+import { PANEL_GRID } from "../../constants/panel";
 import { cmFont } from "../tokens";
 
 /** Figma's checkerboard: 3px cells, #e1e1e1 top-left and bottom-right, white between. */
@@ -61,38 +62,54 @@ const css = `
     pointer-events: none;
 }
 
-/* A paint field's own label, the field-row legend (spec 6: 11/16 400, secondary, 4 below). */
+/* A paint field's own label: the same caption as every other field's label (.cm-field-label,
+   9/14 500, secondary, in a 16 band, 4 above the field), so a panel mixing kinds reads as one. */
 .cm-paint-label {
-    margin-bottom: 4px;
-    color: var(--cm-text-secondary);
-    ${cmFont("legend")}
-}
-
-/* 7.2 Paint field: one 24-tall field, a 1px border in the fill color that hover and focus
-   repaint, the chit at x+5, hex from x+24, a 1px seam, then opacity and its "%" handle. */
-.cm-paint {
     display: flex;
     align-items: center;
-    gap: 8px;
+    min-height: 16px;
+    margin: 0 0 4px 0;
+    color: var(--cm-text-secondary);
+    ${cmFont("captionStrong")}
 }
+
+/* 7.2 Paint field: one 24-tall field, the chit at x+5, hex from x+24, a 1px seam, then opacity
+   and its "%" handle. Its surface is the select's and the number field's (the outlined field): the
+   panel color inside a 1px edge, so every style field shares one surface and a fill never reads as
+   a state (Figma fills it gray; a gray fill beside outlined selects read as disabled). */
+/* The field and its reset share one line, the field giving way when the row is narrow, so the
+   reset never drops under the field; a refusal takes the line below. */
+.cm-paint {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto;
+    justify-content: start;
+    align-items: center;
+    gap: 4px 8px;
+}
+/* Why an entry was refused, on a line of its own under the field. Its text has no width of its
+   own (inline-size containment): a sentence longer than the field would otherwise widen the
+   reset's track and squeeze the field to a fraction of its width. It wraps to the row instead. */
+.cm-paint-message { grid-column: 1 / -1; contain: inline-size; }
 .cm-paint-field {
     position: relative;
     display: flex;
-    flex: none;
+    /* Its width until the row is narrower (a panel with a scrollbar), then it gives way, so the
+       reset button beside it stays inside the row instead of pushing the panel sideways. */
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
     align-items: center;
     box-sizing: border-box;
     height: 24px;
-    border: 1px solid var(--cm-bg-secondary);
+    border: 1px solid var(--cm-field-border);
     border-radius: 5px;
-    background-color: var(--cm-bg-secondary);
+    background-color: var(--cm-bg);
     color: var(--cm-text);
     ${cmFont("body")}
-    box-shadow: var(--cm-field-shadow);
 }
 .cm-paint-field:hover,
 .cm-paint-field[data-state="hover"] {
-    border-color: var(--cm-border);
-    box-shadow: var(--cm-field-shadow-hover);
+    border-color: var(--cm-field-edge-hover);
 }
 .cm-paint-field:focus-within,
 .cm-paint-field[data-state="focus"] {
@@ -115,7 +132,8 @@ const css = `
 [data-testid="field-row"]:has(.cm-paint-chit[aria-expanded="true"]):dir(rtl) {
     border-image-outset: 0 16px 0 8px;
 }
-.cm-paint-field[data-disabled] {
+/* Disabled by its own prop, by a disabled fieldset around it, or by aria-disabled around it. */
+.cm-paint-field:is([data-disabled], :has(:disabled), [aria-disabled="true"] *) {
     border-color: var(--cm-border-disabled);
     background-color: var(--cm-bg);
     color: var(--cm-text-disabled);
@@ -136,7 +154,36 @@ const css = `
     cursor: default;
 }
 .cm-paint-chit:focus-visible .cm-chit::after { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
-.cm-paint-chit:disabled .cm-chit { opacity: 0.4; }
+.cm-paint-chit:is(:disabled, [aria-disabled="true"] *) .cm-chit { opacity: 0.4; }
+/* Mixed: no color is in force, so the swatch is a dash in an outline, which still opens the
+   picker. */
+.cm-paint-chit:is([data-mixed], [data-empty]) {
+    align-items: center;
+    justify-content: center;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--cm-border);
+    color: var(--cm-text-secondary);
+}
+.cm-paint-chit:is([data-mixed], [data-empty]):focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+/* Words that name no color, after Enter: the field's edge turns the danger ink. */
+.cm-paint-field:has(.cm-paint-hex[aria-invalid="true"]) { border-color: var(--cm-text-danger); }
+/* The chip form: the swatch alone, 24 square (WCAG 2.2, 2.5.8). Mixed draws a dash in an outline,
+   which cannot be taken for a color. */
+.cm-paint-chip-wrap { display: inline-flex; flex: none; }
+.cm-paint-chit.cm-paint-chip {
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: 0;
+    border-radius: 5px;
+    color: var(--cm-text-secondary);
+}
+.cm-paint-chip .cm-chit { width: 24px; height: 24px; border-radius: 5px; }
+.cm-paint-chip .cm-chit::after { border-radius: 10px; }
+.cm-paint-chip:is([data-mixed], [data-empty]) { box-shadow: inset 0 0 0 1px var(--cm-border); }
+.cm-paint-chip:is([data-mixed], [data-empty]):focus-visible { box-shadow: inset 0 0 0 2px var(--cm-border-selected); }
+.cm-paint-chip:is(:disabled, [aria-disabled="true"] *) { color: var(--cm-text-disabled); }
 .cm-paint-input {
     box-sizing: border-box;
     min-width: 0;
@@ -150,18 +197,24 @@ const css = `
     font: inherit;
     letter-spacing: inherit;
     outline: none;
-    cursor: default;
+    /* A text box takes the text cursor, focused or not; the arrow is for buttons. */
+    cursor: text;
 }
-.cm-paint-input:focus { cursor: text; }
-.cm-paint-input:disabled { color: var(--cm-text-disabled); }
-.cm-paint-input[data-is-default="true"]:not(:disabled) {
+.cm-paint-input:disabled { cursor: default; }
+.cm-paint-input[data-is-default="true"],
+.cm-paint-input[data-is-default="true"]::placeholder {
     color: var(--cm-text-secondary);
     font-style: italic;
+    opacity: 1;
 }
+.cm-paint-input:is(:disabled, [aria-disabled="true"] *),
+.cm-paint-input:is(:disabled, [aria-disabled="true"] *)::placeholder { color: var(--cm-text-disabled); }
 .cm-paint-hex {
     flex: 1 1 0;
+    /* No width of its own: an input's default (about 20 characters) was its share of the field's
+       min-content, so a field filling a pop-out ("100%") widened the pop-out past its width. */
+    width: 0;
     margin-inline-start: 5px;
-    text-transform: uppercase;
 }
 .cm-paint-opacity {
     position: relative;
@@ -180,7 +233,7 @@ const css = `
     inset-block: 0;
     inset-inline-start: -1px;
     width: 1px;
-    background-color: var(--cm-bg);
+    background-color: var(--cm-field-border);
 }
 .cm-paint-opacity .cm-paint-input {
     flex: none;
@@ -203,14 +256,30 @@ const css = `
 /* A field too narrow for the hex and the opacity box together keeps the hex: the opacity box goes,
    and the opacity stays editable in the picker. 120 is the chit, the hex's six digits and the
    54px opacity box. */
-.cm-paint-field { container-type: inline-size; }
+.cm-paint-field {
+    container-type: inline-size;
+    /* A size container's own content gives it no width, and the field's column is sized to its
+       content: without this a field given a share of its row ("100%") collapses to its border. */
+    contain-intrinsic-inline-size: ${String(PANEL_GRID.BODY)}px;
+}
 @container (max-width: 119px) {
     .cm-paint-opacity { display: none; }
 }
-.cm-paint-opacity[data-disabled] .cm-paint-suffix {
+/* The hover color is also what keeps a finger on the "%": Chromium's touch adjustment moves a tap
+   off an element that shows no response to it onto the text box beside it, and the scrub never
+   starts. */
+.cm-paint-opacity:not([data-disabled]) .cm-paint-suffix:hover {
+    color: var(--cm-text);
+}
+.cm-paint-opacity[data-disabled] .cm-paint-suffix,
+[aria-disabled="true"] .cm-paint-suffix {
     color: var(--cm-text-disabled);
     cursor: default;
 }
+/* Under a locked panel (aria-disabled around it) the field's reset dims with its text, as a
+   disabled prop dims it. */
+.cm-paint { --cm-paint-reset-ink: var(--cm-text-secondary); }
+.cm-paint:is([data-disabled], [aria-disabled="true"] *) { --cm-paint-reset-ink: var(--cm-text-disabled); }
 
 /* 7.3 Color picker, the body of a light popover 240 wide. */
 .cm-color-picker {
@@ -279,6 +348,8 @@ const css = `
     align-items: center;
     margin-top: 8px;
 }
+/* Why the value box refused its text, on a line of its own under the value row. */
+.cm-color-picker-message { margin-top: 4px; }
 /* Figma's format button sizes to its word (55.17 for "Hex"); the joined field takes the rest, up
    to 144. */
 .cm-color-picker-format { flex: none; min-width: 55px; }
@@ -337,6 +408,20 @@ const css = `
     border-radius: 20%;
     background: none;
     cursor: default;
+}
+/* The swatch equal to the color in force. */
+.cm-color-swatch-button[aria-pressed="true"] { outline: 1px solid currentColor; outline-offset: 2px; }
+/* The swatch of the color the picker opened on: a dot under it, so the way back stays in sight. */
+.cm-color-swatch-button[data-start] { position: relative; }
+.cm-color-swatch-button[data-start]::after {
+    content: "";
+    position: absolute;
+    bottom: -6px;
+    left: calc(50% - 2px);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: currentColor;
 }
 
 /* 7.4 Color sliders (Mantine HueSlider / AlphaSlider): a 180 x 24 slot, the role=slider element
@@ -511,6 +596,12 @@ const css = `
 /* A stop's color: a paint field (7.2) holding the chit button that selects the stop and its hex
    box; the color itself is picked in the editor's own picker, so nothing pops out. */
 .cm-gradient-color { flex: 1 1 0; min-width: 0; }
+/* Inside the picker the stop rows keep Figma's filled paint field: they are part of the picker,
+   not style fields beside the panel's selects. */
+.cm-paint-field.cm-gradient-color { background-color: var(--cm-bg-secondary); }
+.cm-paint-field.cm-gradient-color:not(:hover, :focus-within, [data-state="hover"], [data-state="focus"]) {
+    border-color: var(--cm-bg-secondary);
+}
 .cm-gradient-color .cm-paint-chit { width: 16px; height: 16px; border-radius: 20%; }
 /* The field chit writes --cs-size / --cs-radius inline, so the size is set directly. Its inner
    border is dropped at rest, as Figma's stop chit has none, and kept as the keyboard ring. */

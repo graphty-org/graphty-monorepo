@@ -597,7 +597,11 @@ describe("gexfExporter: values", () => {
             <node id="a"><viz:position x="0.5" y="-1"/><viz:shape value="image" uri="http://x/y.png"/><viz:size value="1"/></node>
             </nodes></graph></gexf>`;
         const snapshot = await imported(doc);
-        expect(snapshot.nodes.get("position")?.meta.extra).toEqual({ units: "file", sourceDims: 2 });
+        expect(snapshot.nodes.get("position")?.meta.extra).toEqual({
+            units: "file",
+            originUnplaced: true,
+            sourceDims: 2,
+        });
         const text = await exact(snapshot);
         expect(text).toContain('<viz:position x="0.5" y="-1"/>');
         expect(text).toContain('<viz:shape value="image" uri="http://x/y.png"/>');

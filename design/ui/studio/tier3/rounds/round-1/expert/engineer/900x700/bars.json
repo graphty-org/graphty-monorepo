@@ -1,0 +1,1573 @@
+{
+ "build": "758b8e8081dc graphty@0.8.91",
+ "scheme": "dark",
+ "measured": "2026-10-21T14:48:18.032Z",
+ "tier": "3",
+ "tags": [
+  "wcag2a",
+  "wcag2aa",
+  "wcag21aa",
+  "wcag22aa"
+ ],
+ "screens": {},
+ "wordsAtRest": {
+  "words": [
+   "(tier 1 not measured)"
+  ],
+  "left": []
+ },
+ "tier2": {
+  "screens": {
+   "the start screen": [],
+   "a sample just opened": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a sample just opened, the key switched on": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "Everything, Node tab": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the open shape list": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    },
+    {
+     "id": "scrollable-region-focusable",
+     "impact": "serious",
+     "help": "Scrollable region must have keyboard access",
+     "nodes": [
+      {
+       "target": ".cm-popover-surface",
+       "html": "<div class=\"cm-popover-surface c...\" data-composed=\"true\" role=\"presentation\" data-position=\"bottom-start\" style=\"z-index: 1100; top: ...\" data-cm-scroll-up=\"\">",
+       "why": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable"
+      }
+     ]
+    }
+   ],
+   "Everything, Edge tab": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the line menu": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a new layer, its picker open": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the add-a-condition menu": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a text card": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a layer with a condition, at rest": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a color just added": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the text menu": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the analysis list": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the analysis list, filtered to groups": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a groups analysis before it runs": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a folder of groups": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a folder of groups, Edge tab": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the find box, a name typed, its results": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    },
+    {
+     "id": "scrollable-region-focusable",
+     "impact": "serious",
+     "help": "Scrollable region must have keyboard access",
+     "nodes": [
+      {
+       "target": ".cm-scroll-viewport",
+       "html": "<div class=\"cm-scroll-viewport ws-find-viewport m_c0783ff9 mantine-ScrollArea-viewport\" data-scrollbars=\"y\" style=\"overflow: hidden scroll;\">",
+       "why": "Fix any of the following:\n  Element should have focusable content\n  Element should be focusable"
+      }
+     ]
+    }
+   ],
+   "a node's inspector, its Memberships": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a node's own Style tab, its Fill + and Why this look": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    },
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": [
+      {
+       "target": "button[aria-label=\"Open layer Selected\"]",
+       "html": "<button class=\"mantine-focus-never ...\" data-size=\"xs\" data-underline=\"never\" aria-label=\"Open layer Selected\" style=\"--text-fz: var(--man...\">",
+       "why": "Fix any of the following:\n  Target has insufficient size (37.4px by 14px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 22px instead of at least 24px."
+      },
+      {
+       "target": "button[aria-label=\"Open layer Louvain / Group 3\"]",
+       "html": "<button class=\"mantine-focus-never ...\" data-size=\"xs\" data-underline=\"never\" aria-label=\"Open layer Louvain /...\" style=\"--text-fz: var(--man...\">",
+       "why": "Fix any of the following:\n  Target has insufficient size (73.8px by 14px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 22px instead of at least 24px."
+      },
+      {
+       "target": "button[aria-label=\"Open layer Everything\"]",
+       "html": "<button class=\"mantine-focus-never ...\" data-size=\"xs\" data-underline=\"never\" aria-label=\"Open layer Everythin...\" style=\"--text-fz: var(--man...\">",
+       "why": "Fix any of the following:\n  Target has insufficient size (44.5px by 14px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 22px instead of at least 24px."
+      }
+     ]
+    }
+   ],
+   "two layers picked together": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a layer with an Edge tab condition, at rest": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a colleague's project just opened": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a colleague's layer selected": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a file read, before loading": [],
+   "a category card": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a yes/no card": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a number card": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    },
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": [
+      {
+       "target": "div[aria-label=\"hours range start\"]",
+       "html": "<div class=\"mantine-focus-never cm-slider-thumb m_c9a9a60a mantine-RangeSlider-thumb\" tabindex=\"0\" role=\"slider\" aria-label=\"hours range start\" aria-valuemax=\"52\" aria-valuemin=\"2\" aria-valuenow=\"2\" s",
+       "why": "Fix any of the following:\n  Target has insufficient size (10px by 10px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 20px instead of at least 24px."
+      },
+      {
+       "target": "div[aria-label=\"hours range end\"]",
+       "html": "<div class=\"mantine-focus-never cm-slider-thumb m_c9a9a60a mantine-RangeSlider-thumb\" tabindex=\"0\" role=\"slider\" aria-label=\"hours range end\" aria-valuemax=\"52\" aria-valuemin=\"2\" aria-valuenow=\"52\" st",
+       "why": "Fix any of the following:\n  Target has insufficient size (10px by 10px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 20px instead of at least 24px."
+      }
+     ]
+    }
+   ],
+   "a has-no-value card": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    },
+    {
+     "id": "target-size",
+     "impact": "serious",
+     "help": "All touch targets must be 24px large, or leave sufficient space",
+     "nodes": [
+      {
+       "target": "div[aria-label=\"hours range start\"]",
+       "html": "<div class=\"mantine-focus-never cm-slider-thumb m_c9a9a60a mantine-RangeSlider-thumb\" tabindex=\"0\" role=\"slider\" aria-label=\"hours range start\" aria-valuemax=\"52\" aria-valuemin=\"2\" aria-valuenow=\"2\" s",
+       "why": "Fix any of the following:\n  Target has insufficient size (10px by 10px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 20px instead of at least 24px."
+      },
+      {
+       "target": "div[aria-label=\"hours range end\"]",
+       "html": "<div class=\"mantine-focus-never cm-slider-thumb m_c9a9a60a mantine-RangeSlider-thumb\" tabindex=\"0\" role=\"slider\" aria-label=\"hours range end\" aria-valuemax=\"52\" aria-valuemin=\"2\" aria-valuenow=\"52\" st",
+       "why": "Fix any of the following:\n  Target has insufficient size (10px by 10px, should be at least 24px by 24px)\n  Target has insufficient space to its closest neighbors. Safe clickable space has a diameter of 20px instead of at least 24px."
+      }
+     ]
+    }
+   ],
+   "a layer with four conditions, at rest": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a color bound to a category column, with its key": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the color popover of a category column": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the size popover, before a column is picked": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the size popover of a number column": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "a run's folder, its picker open, a card added to every layer": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ],
+   "the color from each layer dialog": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": [
+      {
+       "target": ".m_5add502a",
+       "html": "<span class=\"m_5add502a mantine-Badge-label\">Autosave: saved</span>",
+       "why": "Fix any of the following:\n  Element has insufficient color contrast of 2.17 (foreground color: #40c057, background color: #ecf9ee, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+      }
+     ]
+    }
+   ]
+  },
+  "sharedNames": {
+   "the start screen": [
+    [
+     "link \"Samples\"",
+     "button \"Samples\""
+    ],
+    [
+     "link \"Docs\"",
+     "link \"Docs\"",
+     "link \"Docs\""
+    ],
+    [
+     "link \"GitHub\"",
+     "link \"GitHub\""
+    ]
+   ],
+   "a sample just opened": [],
+   "a sample just opened, the key switched on": [],
+   "Everything, Node tab": [],
+   "the open shape list": [],
+   "Everything, Edge tab": [],
+   "the line menu": [],
+   "a new layer, its picker open": [],
+   "the add-a-condition menu": [],
+   "a text card": [],
+   "a layer with a condition, at rest": [],
+   "a color just added": [],
+   "the text menu": [],
+   "the analysis list": [],
+   "the analysis list, filtered to groups": [],
+   "a groups analysis before it runs": [],
+   "a folder of groups": [],
+   "a folder of groups, Edge tab": [],
+   "the find box, a name typed, its results": [],
+   "a node's inspector, its Memberships": [],
+   "a node's own Style tab, its Fill + and Why this look": [],
+   "two layers picked together": [],
+   "a layer with an Edge tab condition, at rest": [],
+   "a colleague's project just opened": [],
+   "a colleague's layer selected": [],
+   "a file read, before loading": [],
+   "a category card": [],
+   "a yes/no card": [],
+   "a number card": [],
+   "a has-no-value card": [],
+   "a layer with four conditions, at rest": [],
+   "a color bound to a category column, with its key": [],
+   "the color popover of a category column": [],
+   "the size popover, before a column is picked": [],
+   "the size popover of a number column": [],
+   "a run's folder, its picker open, a card added to every layer": [],
+   "the color from each layer dialog": []
+  },
+  "focusOnPage": {
+   "Escape from the line menu": false,
+   "adding a layer": false,
+   "adding a card": false,
+   "choosing a text card's match kind": false,
+   "Done in the picker": false,
+   "adding a color": false,
+   "Undo": false,
+   "Escape from the text menu": false,
+   "running a groups analysis": false,
+   "Done in an Edge tab picker": false,
+   "selecting a colleague's layer": false,
+   "Load": false,
+   "adding a yes/no card": false,
+   "Escape from a card's menu": false,
+   "Done after four cards": false,
+   "picking a column for a color": false,
+   "Escape from the color popover": false,
+   "adding a size": false,
+   "Escape from the size popover": false,
+   "Escape from a bound size's popover": false,
+   "adding a shape": false,
+   "adding a card on a folder": false,
+   "Done in a folder's picker": false,
+   "Escape from the color from each layer dialog": false
+  },
+  "typedWithNoClick": {
+   "a new text card": true,
+   "a text card after Starts with": true,
+   "a new Color line": true,
+   "a new Shape line": true
+  },
+  "activeOptionInView": {},
+  "words": {
+   "a sample just opened": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Everything",
+     "Graph",
+     "settings",
+     "This",
+     "browser",
+     "may",
+     "clear",
+     "what",
+     "it",
+     "keeps",
+     "for",
+     "this",
+     "site",
+     "Save",
+     "a",
+     "copy",
+     "to",
+     "a",
+     "file",
+     "to",
+     "be",
+     "sure",
+     "Save",
+     "Graph",
+     "From",
+     "Style",
+     "Values",
+     "Overview",
+     "Nodes",
+     "Edges",
+     "Direction",
+     "Undirected",
+     "Density",
+     "Components",
+     "Degree",
+     "Degree",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "node",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "nodes",
+     "node",
+     "node",
+     "node",
+     "Lowest",
+     "Median",
+     "Mean",
+     "Highest",
+     "Transitivity"
+    ],
+    "left": [
+     "Les",
+     "Miserables",
+     "Les",
+     "Miserables",
+     "0",
+     "0",
+     "77",
+     "3D",
+     "Les",
+     "Miserables",
+     "77",
+     "254",
+     "0.08681",
+     "1",
+     "1",
+     "36",
+     "1",
+     "17",
+     "17",
+     "2",
+     "10",
+     "10",
+     "3",
+     "6",
+     "6",
+     "4",
+     "3",
+     "3",
+     "6",
+     "5",
+     "5",
+     "7",
+     "10",
+     "10",
+     "8",
+     "1",
+     "1",
+     "9",
+     "3",
+     "3",
+     "10",
+     "5",
+     "5",
+     "11",
+     "6",
+     "6",
+     "12",
+     "2",
+     "2",
+     "13",
+     "2",
+     "2",
+     "15",
+     "2",
+     "2",
+     "16",
+     "1",
+     "1",
+     "17",
+     "1",
+     "1",
+     "19",
+     "1",
+     "1",
+     "1",
+     "6",
+     "6.6",
+     "36",
+     "0.5088"
+    ]
+   },
+   "Everything, Node tab": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Everything",
+     "Graph",
+     "settings",
+     "Everything",
+     "Node",
+     "and",
+     "edge",
+     "layer",
+     "Style",
+     "Values",
+     "Node",
+     "Edge",
+     "Style",
+     "nodes",
+     "Everything",
+     "styles",
+     "all",
+     "nodes",
+     "it",
+     "is",
+     "the",
+     "base",
+     "layer",
+     "under",
+     "every",
+     "other",
+     "layer",
+     "Shape",
+     "Shape",
+     "Size",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Color",
+     "Effects",
+     "Rendering",
+     "Edges",
+     "styles",
+     "Edit",
+     "edges"
+    ],
+    "left": [
+     "Les",
+     "Miserables",
+     "Les",
+     "Miserables",
+     "0",
+     "0",
+     "77",
+     "3D",
+     "77",
+     "4"
+    ]
+   },
+   "a layer with a condition, at rest": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Layer",
+     "Everything",
+     "Graph",
+     "settings",
+     "Layer",
+     "Node",
+     "layer",
+     "Style",
+     "Values",
+     "Node",
+     "Edge",
+     "not",
+     "styled",
+     "Style",
+     "nodes",
+     "Which",
+     "nodes",
+     "of",
+     "nodes",
+     "contains",
+     "nodes",
+     "Shape",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Effects",
+     "Rendering",
+     "Edges",
+     "not",
+     "styled",
+     "Edit",
+     "edges"
+    ],
+    "left": [
+     "Les",
+     "Miserables",
+     "Les",
+     "Miserables",
+     "0",
+     "0",
+     "1",
+     "6",
+     "77",
+     "3D",
+     "1",
+     "6",
+     "77",
+     "name",
+     "Mme",
+     "6"
+    ]
+   },
+   "a folder of groups": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Louvain",
+     "Layer",
+     "Everything",
+     "Graph",
+     "settings",
+     "Louvain",
+     "Folder",
+     "Style",
+     "Values",
+     "layers",
+     "in",
+     "Louvain",
+     "Layers",
+     "added",
+     "later",
+     "are",
+     "not",
+     "changed",
+     "Node",
+     "Edge",
+     "not",
+     "styled",
+     "Style",
+     "nodes",
+     "Which",
+     "nodes",
+     "of",
+     "nodes",
+     "Louvain",
+     "Layer",
+     "Shape",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Color",
+     "Layer",
+     "Effects",
+     "Rendering",
+     "Edges",
+     "not",
+     "styled",
+     "Edit",
+     "edges"
+    ],
+    "left": [
+     "Les",
+     "Miserables",
+     "Les",
+     "Miserables",
+     "0",
+     "0",
+     "1",
+     "6",
+     "77",
+     "3D",
+     "6",
+     "77",
+     "77"
+    ]
+   },
+   "two layers picked together": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Louvain",
+     "Layer",
+     "Everything",
+     "Graph",
+     "settings",
+     "Selection",
+     "cleared",
+     "node",
+     "layers",
+     "Style",
+     "layers",
+     "Node",
+     "Edge",
+     "Style",
+     "nodes",
+     "Which",
+     "nodes",
+     "of",
+     "nodes",
+     "Layer",
+     "of",
+     "layers",
+     "Shape",
+     "Shape",
+     "layer",
+     "sets",
+     "shape",
+     "not",
+     "set",
+     "Layer",
+     "Size",
+     "layer",
+     "sets",
+     "size",
+     "not",
+     "set",
+     "Layer",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Color",
+     "layer",
+     "sets",
+     "color",
+     "not",
+     "set",
+     "Layer",
+     "Effects",
+     "Rendering",
+     "Edges",
+     "on",
+     "in",
+     "of",
+     "layers",
+     "Edit",
+     "edges"
+    ],
+    "left": [
+     "Les",
+     "Miserables",
+     "Les",
+     "Miserables",
+     "0",
+     "0",
+     "1",
+     "6",
+     "77",
+     "3D",
+     "1",
+     "2",
+     "77",
+     "77",
+     "name",
+     "1",
+     "2",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "1",
+     "2",
+     "2"
+    ]
+   },
+   "a layer with four conditions, at rest": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Layer",
+     "Everything",
+     "Graph",
+     "settings",
+     "Layer",
+     "Node",
+     "layer",
+     "Style",
+     "Values",
+     "Node",
+     "Edge",
+     "not",
+     "styled",
+     "Style",
+     "nodes",
+     "Which",
+     "nodes",
+     "of",
+     "nodes",
+     "nodes",
+     "yes",
+     "nodes",
+     "to",
+     "nodes",
+     "no",
+     "value",
+     "nodes",
+     "Shape",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Effects",
+     "Rendering",
+     "Edges",
+     "not",
+     "styled",
+     "Edit",
+     "edges"
+    ],
+    "left": [
+     "volunteers",
+     "volunteers.graphml",
+     "0",
+     "0",
+     "1",
+     "4",
+     "24",
+     "3D",
+     "1",
+     "4",
+     "24",
+     "role",
+     "volunteer",
+     "16",
+     "trained",
+     "15",
+     "hours",
+     "2",
+     "52",
+     "24",
+     "phone",
+     "7"
+    ]
+   },
+   "a run's folder, its picker open, a card added to every layer": {
+    "words": [
+     "Autosave",
+     "saved",
+     "Local",
+     "only",
+     "Graph",
+     "Data",
+     "Notes",
+     "Settings",
+     "Graph",
+     "Style",
+     "layers",
+     "Hovered",
+     "Selected",
+     "Louvain",
+     "Everything",
+     "Graph",
+     "settings",
+     "Color",
+     "Louvain",
+     "Group",
+     "Group",
+     "Group",
+     "of",
+     "nodes",
+     "This",
+     "browser",
+     "may",
+     "clear",
+     "what",
+     "it",
+     "keeps",
+     "for",
+     "this",
+     "site",
+     "Save",
+     "a",
+     "copy",
+     "to",
+     "a",
+     "file",
+     "to",
+     "be",
+     "sure",
+     "Save",
+     "Louvain",
+     "Folder",
+     "Style",
+     "Values",
+     "layers",
+     "in",
+     "Louvain",
+     "Layers",
+     "added",
+     "later",
+     "are",
+     "not",
+     "changed",
+     "Node",
+     "Edge",
+     "not",
+     "styled",
+     "Style",
+     "nodes",
+     "Which",
+     "nodes",
+     "of",
+     "nodes",
+     "Nodes",
+     "that",
+     "pass",
+     "every",
+     "condition",
+     "Louvain",
+     "Layer",
+     "layers",
+     "Group",
+     "Group",
+     "Group",
+     "nodes",
+     "Add",
+     "a",
+     "condition",
+     "Done",
+     "Shape",
+     "Visibility",
+     "Text",
+     "Fill",
+     "Color",
+     "Layer",
+     "Effects"
+    ],
+    "left": [
+     "volunteers",
+     "volunteers.graphml",
+     "0",
+     "0",
+     "24",
+     "1",
+     "2",
+     "3",
+     "15",
+     "24",
+     "3D",
+     "3",
+     "15",
+     "24",
+     "3",
+     "1",
+     "2",
+     "3",
+     "trained",
+     "15"
+    ]
+   }
+  }
+ },
+ "exceptions": [],
+ "walked": {
+  "screens": {
+   "900x700": [
+    "the start screen",
+    "a sample just opened",
+    "a sample just opened, the key switched on",
+    "Everything, Node tab",
+    "the open shape list",
+    "Everything, Edge tab",
+    "the line menu",
+    "a new layer, its picker open",
+    "the add-a-condition menu",
+    "a text card",
+    "a layer with a condition, at rest",
+    "a color just added",
+    "the text menu",
+    "the analysis list",
+    "the analysis list, filtered to groups",
+    "a groups analysis before it runs",
+    "a folder of groups",
+    "a folder of groups, Edge tab",
+    "the find box, a name typed, its results",
+    "a node's inspector, its Memberships",
+    "a node's own Style tab, its Fill + and Why this look",
+    "two layers picked together",
+    "a layer with an Edge tab condition, at rest",
+    "a colleague's project just opened",
+    "a colleague's layer selected",
+    "a file read, before loading",
+    "a category card",
+    "a yes/no card",
+    "a number card",
+    "a has-no-value card",
+    "a layer with four conditions, at rest",
+    "a color bound to a category column, with its key",
+    "the color popover of a category column",
+    "the size popover, before a column is picked",
+    "the size popover of a number column",
+    "a run's folder, its picker open, a card added to every layer",
+    "the color from each layer dialog"
+   ]
+  },
+  "focus": {
+   "900x700": [
+    "Escape from the line menu",
+    "adding a layer",
+    "adding a card",
+    "choosing a text card's match kind",
+    "Done in the picker",
+    "adding a color",
+    "Undo",
+    "Escape from the text menu",
+    "running a groups analysis",
+    "Done in an Edge tab picker",
+    "selecting a colleague's layer",
+    "Load",
+    "adding a yes/no card",
+    "Escape from a card's menu",
+    "Done after four cards",
+    "picking a column for a color",
+    "Escape from the color popover",
+    "adding a size",
+    "Escape from the size popover",
+    "Escape from a bound size's popover",
+    "adding a shape",
+    "adding a card on a folder",
+    "Done in a folder's picker",
+    "Escape from the color from each layer dialog"
+   ]
+  },
+  "typed": {
+   "900x700": [
+    "a new text card",
+    "a text card after Starts with",
+    "a new Color line",
+    "a new Shape line"
+   ]
+  },
+  "planted": {
+   "900x700": [
+    "axe",
+    "shared names",
+    "focus",
+    "typing"
+   ]
+  }
+ },
+ "bar10": {
+  "cut": {
+   "the start screen at 900x700": [],
+   "a sample just opened at 900x700": [],
+   "a sample just opened, the key switched on at 900x700": [],
+   "Everything, Node tab at 900x700": [],
+   "the open shape list at 900x700": [],
+   "Everything, Edge tab at 900x700": [],
+   "the line menu at 900x700": [],
+   "a new layer, its picker open at 900x700": [],
+   "the add-a-condition menu at 900x700": [],
+   "a text card at 900x700": [],
+   "a layer with a condition, at rest at 900x700": [],
+   "a color just added at 900x700": [],
+   "the text menu at 900x700": [],
+   "the analysis list at 900x700": [],
+   "the analysis list, filtered to groups at 900x700": [],
+   "a groups analysis before it runs at 900x700": [],
+   "a folder of groups at 900x700": [],
+   "a folder of groups, Edge tab at 900x700": [],
+   "the find box, a name typed, its results at 900x700": [],
+   "a node's inspector, its Memberships at 900x700": [],
+   "a node's own Style tab, its Fill + and Why this look at 900x700": [],
+   "two layers picked together at 900x700": [],
+   "a layer with an Edge tab condition, at rest at 900x700": [],
+   "a colleague's project just opened at 900x700": [],
+   "a colleague's layer selected at 900x700": [],
+   "a file read, before loading at 900x700": [],
+   "a category card at 900x700": [],
+   "a yes/no card at 900x700": [],
+   "a number card at 900x700": [],
+   "a has-no-value card at 900x700": [],
+   "a layer with four conditions, at rest at 900x700": [],
+   "a color bound to a category column, with its key at 900x700": [],
+   "the color popover of a category column at 900x700": [],
+   "the size popover, before a column is picked at 900x700": [],
+   "the size popover of a number column at 900x700": [],
+   "a run's folder, its picker open, a card added to every layer at 900x700": [],
+   "the color from each layer dialog at 900x700": []
+  },
+  "raw": {
+   "the start screen at 900x700": [],
+   "a sample just opened at 900x700": [],
+   "a sample just opened, the key switched on at 900x700": [],
+   "Everything, Node tab at 900x700": [],
+   "the open shape list at 900x700": [],
+   "Everything, Edge tab at 900x700": [],
+   "the line menu at 900x700": [],
+   "a new layer, its picker open at 900x700": [],
+   "the add-a-condition menu at 900x700": [],
+   "a text card at 900x700": [],
+   "a layer with a condition, at rest at 900x700": [],
+   "a color just added at 900x700": [],
+   "the text menu at 900x700": [],
+   "the analysis list at 900x700": [],
+   "the analysis list, filtered to groups at 900x700": [],
+   "a groups analysis before it runs at 900x700": [],
+   "a folder of groups at 900x700": [],
+   "a folder of groups, Edge tab at 900x700": [],
+   "the find box, a name typed, its results at 900x700": [],
+   "a node's inspector, its Memberships at 900x700": [],
+   "a node's own Style tab, its Fill + and Why this look at 900x700": [],
+   "two layers picked together at 900x700": [],
+   "a layer with an Edge tab condition, at rest at 900x700": [],
+   "a colleague's project just opened at 900x700": [],
+   "a colleague's layer selected at 900x700": [],
+   "a file read, before loading at 900x700": [],
+   "a category card at 900x700": [],
+   "a yes/no card at 900x700": [],
+   "a number card at 900x700": [],
+   "a has-no-value card at 900x700": [],
+   "a layer with four conditions, at rest at 900x700": [],
+   "a color bound to a category column, with its key at 900x700": [],
+   "the color popover of a category column at 900x700": [],
+   "the size popover, before a column is picked at 900x700": [],
+   "the size popover of a number column at 900x700": [],
+   "a run's folder, its picker open, a card added to every layer at 900x700": [],
+   "the color from each layer dialog at 900x700": []
+  }
+ },
+ "planted": {
+  "caught": [
+   "a clipped name: caught on \"the start screen at 900x700\", span: \"Planted cut Northern Regional Distribution Center 01\"",
+   "an E_BAD_SELECTOR string: caught on \"the start screen at 900x700\", p: code E_BAD_SELECTOR",
+   "an image with no text alternative: caught by axe on \"the start screen at 900x700\"",
+   "two buttons called Planted twin: caught on \"the start screen at 900x700\"",
+   "focus dropped to the page: caught on \"the start screen at 900x700\"",
+   "typing with focus in no field: caught on \"the start screen at 900x700\""
+  ],
+  "missed": []
+ },
+ "weights": {
+  "problems": [],
+  "notFinished": [],
+  "runs": []
+ },
+ "untrusted": [],
+ "log": [
+  "ok   the start screen at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/02.png)",
+  "ok   a sample just opened at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/04.png)",
+  "ok   a sample just opened, the key switched on at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/05.png)",
+  "ok   Everything, Node tab at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/07.png)",
+  "ok   the open shape list at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/08.png)",
+  "ok   Everything, Edge tab at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/10.png)",
+  "ok   the line menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/11.png)",
+  "ok   Escape from the line menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/12.png)",
+  "ok   adding a layer at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/13.png)",
+  "ok   a new layer, its picker open at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/14.png)",
+  "ok   the add-a-condition menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/15.png)",
+  "ok   a text card at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/16.png)",
+  "ok   choosing a text card's match kind at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/18.png)",
+  "ok   a layer with a condition, at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/21.png)",
+  "ok   a color just added at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/22.png)",
+  "ok   Undo at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/24.png)",
+  "ok   the text menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/25.png)",
+  "ok   Escape from the text menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/26.png)",
+  "ok   the analysis list at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/27.png)",
+  "ok   the analysis list, filtered to groups at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/28.png)",
+  "ok   a groups analysis before it runs at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/29.png)",
+  "ok   running a groups analysis at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/30.png)",
+  "ok   a folder of groups at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/31.png)",
+  "ok   a folder of groups, Edge tab at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/32.png)",
+  "ok   the find box, a name typed, its results at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/33.png)",
+  "ok   a node's inspector, its Memberships at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/34.png)",
+  "ok   a node's own Style tab, its Fill + and Why this look at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/35.png)",
+  "ok   two layers picked together at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/36.png)",
+  "ok   a layer with an Edge tab condition, at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/first-use-900x700/38.png)",
+  "ok   a colleague's project just opened at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/colleague-900x700/02.png)",
+  "ok   a colleague's layer selected at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/colleague-900x700/03.png)",
+  "ok   a file read, before loading at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/02.png)",
+  "ok   Load at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/03.png)",
+  "ok   a category card at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/04.png)",
+  "ok   a yes/no card at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/06.png)",
+  "ok   a number card at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/07.png)",
+  "ok   a has-no-value card at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/08.png)",
+  "ok   Escape from a card's menu at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/09.png)",
+  "ok   a layer with four conditions, at rest at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/10.png)",
+  "ok   a color bound to a category column, with its key at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/11.png)",
+  "ok   the color popover of a category column at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/12.png)",
+  "ok   Escape from the color popover at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/13.png)",
+  "ok   adding a size at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/14.png)",
+  "ok   the size popover, before a column is picked at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/15.png)",
+  "ok   Escape from the size popover at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/16.png)",
+  "ok   the size popover of a number column at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/17.png)",
+  "ok   Escape from a bound size's popover at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/18.png)",
+  "ok   adding a shape at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/own-file-900x700/19.png)",
+  "ok   a run's folder, its picker open, a card added to every layer at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/folder-picker-900x700/04.png)",
+  "ok   Done in a folder's picker at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/folder-picker-900x700/05.png)",
+  "ok   the color from each layer dialog at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/folder-picker-900x700/06.png)",
+  "ok   Escape from the color from each layer dialog at 900x700 (/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier3/design/ui/studio/tier3/rounds/round-1/expert/engineer/900x700/sessions/folder-picker-900x700/07.png)"
+ ]
+}

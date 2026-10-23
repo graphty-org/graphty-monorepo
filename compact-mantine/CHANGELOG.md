@@ -1,3 +1,25 @@
+## 0.9.33 (2026-10-21)
+
+### 🚀 Features
+
+- **compact-mantine:** menus follow the page theme, with an opt-in inverse variant ([#1](https://github.com/graphty-org/graphty-monorepo/issues/1), [#0768](https://github.com/graphty-org/graphty-monorepo/issues/0768), [#0](https://github.com/graphty-org/graphty-monorepo/issues/0))
+- **compact-mantine:** deprecate ControlSubGroup ([077224b5d](https://github.com/graphty-org/graphty-monorepo/commit/077224b5d))
+- **compact-mantine:** add danger and warning text inks to PANEL_INK ([#2981](https://github.com/graphty-org/graphty-monorepo/issues/2981))
+
+### 🩹 Fixes
+
+- **compact-mantine:** a full-width button cuts a long label with an ellipsis ([fc39f7141](https://github.com/graphty-org/graphty-monorepo/commit/fc39f7141))
+- **compact-mantine:** resolve a menu surface in the same scheme as its rows ([#008043](https://github.com/graphty-org/graphty-monorepo/issues/008043), [#79](https://github.com/graphty-org/graphty-monorepo/issues/79), [#3057](https://github.com/graphty-org/graphty-monorepo/issues/3057))
+- **compact-mantine:** read a click as a pointer when it has a click count or a pointer type ([#1515](https://github.com/graphty-org/graphty-monorepo/issues/1515))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.9.32 (2026-10-20)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.31 (2026-10-18)
 
 ### 🚀 Features

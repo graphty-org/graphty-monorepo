@@ -85,6 +85,95 @@ const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, redu
     await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
 };
 
+/**
+ * Drag a finger from the middle of the element `selector` names, `dx` pixels across, as a touch
+ * screen sends it (CDP touch events, so the browser's touch target adjustment runs as it does for
+ * a real finger).
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the element to press, inside the test frame
+ * @param dx - horizontal distance to drag, in pixels
+ */
+const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, selector, dx) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    // No Emulation.setTouchEmulationEnabled: once it has been on, Chromium answers `(hover: none)`
+    // for the rest of the run, and nothing over CDP turns that back, so every later test of a
+    // hover-only control read a touch screen. A dispatched touch arrives as a touch without it.
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    const STEPS = 8;
+    for (let i = 1; i <= STEPS; i++) {
+        await cdp.send("Input.dispatchTouchEvent", {
+            type: "touchMove",
+            touchPoints: [{ x: x + (dx * i) / STEPS, y }],
+        });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+};
+
+/**
+ * A touch tap at the center of the first element matching `selector`: a finger down and up with no
+ * move between, as a touch screen sends it (Chromium makes the click from the two).
+ * @param ctx - the browser command context
+ * @param selector - where to tap
+ */
+const touchTap: BrowserCommand<[selector: string]> = async (ctx, selector) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    // No touch emulation, as in touchDrag: it would leave `(hover: none)` on for the run.
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [point] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+};
+
+/**
+ * What the browser's accessibility tree says about the nodes with this accessible name, in every
+ * frame: the role, the name and the value a screen reader reads (CDP `getFullAXTree`).
+ * @param ctx - the browser command context
+ * @param name - the accessible name to look for
+ * @returns one entry per node with that name
+ */
+const axNodes: BrowserCommand<[name: string]> = async (ctx, name) => {
+    const cdp = await ctx.page.context().newCDPSession(ctx.page);
+    const { frameTree } = (await cdp.send("Page.getFrameTree")) as {
+        frameTree: { frame: { id: string }; childFrames?: unknown[] };
+    };
+    type Tree = { frame: { id: string }; childFrames?: Tree[] };
+    const ids: string[] = [];
+    const walk = (tree: Tree): void => {
+        ids.push(tree.frame.id);
+        tree.childFrames?.forEach(walk);
+    };
+    walk(frameTree as Tree);
+    const found: { role: string; name: string; value: string | undefined }[] = [];
+    for (const frameId of ids) {
+        const { nodes } = (await cdp.send("Accessibility.getFullAXTree", { frameId })) as {
+            nodes: { role?: { value?: string }; name?: { value?: string }; value?: { value?: unknown } }[];
+        };
+        for (const node of nodes) {
+            if (node.name?.value === name) {
+                const value = node.value?.value;
+                found.push({
+                    role: String(node.role?.value),
+                    name,
+                    value: value === undefined ? undefined : String(value),
+                });
+            }
+        }
+    }
+    await cdp.detach();
+    return found;
+};
+
 /** Release the primary mouse button. */
 const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
@@ -140,9 +229,20 @@ const browserCommands = {
     mouseAway,
     mouseDown,
     mouseUp,
+    touchDrag,
+    touchTap,
     emulateReducedMotion,
+    axNodes,
     accessibilityTree,
 };
+
+// Bundled before a browser run starts, whatever Vite's deps cache holds. A cache an earlier run left
+// in node_modules/.vite/vitest/<project> is reused without a new scan, so a dependency first
+// imported since then (react/jsx-dev-runtime from the stories, @testing-library/react from the
+// tests and their setup files) is discovered mid-run: Vite re-optimizes and reloads the page, the file
+// being imported fails with "Vitest failed to find the runner", and every story rendered after that
+// comes out empty.
+const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
 
 export default defineConfig({
     plugins: [react()],
@@ -174,10 +274,7 @@ export default defineConfig({
             },
             // Browser project - runs in real Chromium via Playwright
             {
-                // Bundled before the run starts. Discovered mid-run (the stories render through
-                // react/jsx-dev-runtime), Vite re-optimizes and reloads, and every story rendered
-                // after that comes out empty.
-                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "browser",
                     globals: true,
@@ -200,7 +297,7 @@ export default defineConfig({
             },
             // Storybook project - every story rendered and its play function run, in Chromium
             {
-                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).

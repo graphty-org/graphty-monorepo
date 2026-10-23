@@ -7,6 +7,12 @@
 export const THRESHOLDS = {
     /** Node center residual after the similarity fit, over the reference diagonal. */
     position: 0.01,
+    /**
+     * A position fit whose residual is over this share of the reference diagonal relates two
+     * unrelated layouts, so its scale says nothing: sizes, border, font and edge widths are judged
+     * by a scale fitted from the node sizes instead.
+     */
+    unrelatedLayout: 0.1,
     /** Drawn width and height ratio, each. */
     sizeRatio: [0.85, 1.18],
     /** Fill, border, label, edge and background colors. */

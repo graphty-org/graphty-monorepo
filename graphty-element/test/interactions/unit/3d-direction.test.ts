@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, test, vi } from "vitest";
 import type { OrbitCameraController } from "../../../src/cameras/OrbitCameraController";
 import type { OrbitInputController } from "../../../src/cameras/OrbitInputController";
 import type { Graph } from "../../../src/Graph";
+import { holdKey, releaseHeldKeys } from "../../helpers/real-input";
 import { setupTestGraph, teardownTestGraph } from "../helpers/interaction-helpers";
 
 /**
@@ -34,15 +35,12 @@ function get3DControllers(graph: Graph): {
 }
 
 /**
- * Helper to simulate keyboard key state
+ * Press a key and hold it on the focused canvas: a real key press through `userEvent`, which
+ * the input controller's own listeners receive. `releaseHeldKeys` lets it go after the test.
  */
-function setKeyState(inputController: OrbitInputController, key: string, pressed: boolean): void {
-    // Access private keysDown via type assertion
-    // Note: Keys are stored in lowercase in OrbitInputController
-    const controller = inputController as unknown as {
-        keysDown: Record<string, boolean>;
-    };
-    controller.keysDown[key.toLowerCase()] = pressed;
+async function pressKey(graph: Graph, key: string): Promise<void> {
+    graph.canvas.focus();
+    await holdKey(key);
 }
 
 /**
@@ -79,19 +77,20 @@ describe("3D Input Direction Verification", () => {
         graph = await setupTestGraph({ mode: "3d" });
     });
 
-    afterEach(() => {
+    afterEach(async () => {
+        await releaseHeldKeys();
         vi.restoreAllMocks();
         teardownTestGraph(graph);
     });
 
-    test("ArrowLeft rotates camera LEFT (decreases yaw)", () => {
+    test("ArrowLeft rotates camera LEFT (decreases yaw)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowLeft key press
-        setKeyState(inputController, "arrowleft", true);
+        await pressKey(graph, "ArrowLeft");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -104,14 +103,14 @@ describe("3D Input Direction Verification", () => {
         assert.isBelow(finalRotation.yaw, initialRotation.yaw, "ArrowLeft should rotate camera LEFT (decrease yaw)");
     });
 
-    test("ArrowRight rotates camera RIGHT (increases yaw)", () => {
+    test("ArrowRight rotates camera RIGHT (increases yaw)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowRight key press
-        setKeyState(inputController, "arrowright", true);
+        await pressKey(graph, "ArrowRight");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -123,14 +122,14 @@ describe("3D Input Direction Verification", () => {
         assert.isAbove(finalRotation.yaw, initialRotation.yaw, "ArrowRight should rotate camera RIGHT (increase yaw)");
     });
 
-    test("ArrowUp tilts camera UP", () => {
+    test("ArrowUp tilts camera UP", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowUp key press
-        setKeyState(inputController, "arrowup", true);
+        await pressKey(graph, "ArrowUp");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -143,14 +142,14 @@ describe("3D Input Direction Verification", () => {
         assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowUp should tilt camera UP (change pitch)");
     });
 
-    test("ArrowDown tilts camera DOWN", () => {
+    test("ArrowDown tilts camera DOWN", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate ArrowDown key press
-        setKeyState(inputController, "arrowdown", true);
+        await pressKey(graph, "ArrowDown");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -162,14 +161,14 @@ describe("3D Input Direction Verification", () => {
         assert.notEqual(finalRotation.pitch, initialRotation.pitch, "ArrowDown should tilt camera DOWN (change pitch)");
     });
 
-    test("W key zooms IN (decreases camera distance)", () => {
+    test("W key zooms IN (decreases camera distance)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
         // Simulate W key press
-        setKeyState(inputController, "w", true);
+        await pressKey(graph, "w");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -181,14 +180,14 @@ describe("3D Input Direction Verification", () => {
         assert.isBelow(finalDistance, initialDistance, "W key should zoom IN (decrease camera distance)");
     });
 
-    test("S key zooms OUT (increases camera distance)", () => {
+    test("S key zooms OUT (increases camera distance)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial camera distance
         const initialDistance = cameraController.cameraDistance;
 
         // Simulate S key press
-        setKeyState(inputController, "s", true);
+        await pressKey(graph, "s");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -200,14 +199,14 @@ describe("3D Input Direction Verification", () => {
         assert.isAbove(finalDistance, initialDistance, "S key should zoom OUT (increase camera distance)");
     });
 
-    test("A key spins camera LEFT (yaw rotation)", () => {
+    test("A key spins camera LEFT (yaw rotation)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate A key press
-        setKeyState(inputController, "a", true);
+        await pressKey(graph, "a");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);
@@ -221,14 +220,14 @@ describe("3D Input Direction Verification", () => {
         assert.isAbove(finalRotation.roll, initialRotation.roll, "A key should spin camera LEFT (increase roll)");
     });
 
-    test("D key spins camera RIGHT (yaw rotation)", () => {
+    test("D key spins camera RIGHT (yaw rotation)", async () => {
         const { cameraController, inputController } = get3DControllers(graph);
 
         // Record initial pivot rotation
         const initialRotation = getPivotRotation(cameraController);
 
         // Simulate D key press
-        setKeyState(inputController, "d", true);
+        await pressKey(graph, "d");
 
         // Run several update frames
         runUpdateFrames(inputController, 10);

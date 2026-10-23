@@ -1,7 +1,7 @@
 import { Button, Group, Paper, Text } from "@mantine/core";
-import { History } from "lucide-react";
 import React from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { discardRecovered, restoreRecovered } from "./autosave";
 import { recoveredSentence } from "./words";
@@ -22,7 +22,7 @@ export function RecoveredWork(): React.JSX.Element | null {
             <Group gap="sm" wrap="nowrap" justify="space-between">
                 <div>
                     <Text size="sm" fw={600}>
-                        <History size={14} aria-hidden /> Unsaved work from your last visit
+                        <GLYPHS.recovered size={14} aria-hidden /> Unsaved work from your last visit
                     </Text>
                     <Text size="xs" c="dimmed">
                         {recoveredSentence(entry)}

@@ -34,6 +34,8 @@ export const EDGE_CONSTANTS = {
     DEFAULT_LINE_COLOR: "#FFFFFF",
     DEFAULT_ARROW_WIDTH: 1.25,
     DEFAULT_ARROW_LENGTH: 0.5,
+    /** The "normal" (filled triangle), vee and diamond arrows' width across their line, as a fraction of their length. */
+    NORMAL_ARROW_ASPECT: 0.8,
     ARROW_CAP_WIDTH_MULTIPLIER: 20,
     ARROW_CAP_WIDTH_MINIMUM: 4,
     ARROW_CAP_LENGTH_MINIMUM: 0.5,

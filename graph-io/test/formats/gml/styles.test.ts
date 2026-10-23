@@ -12,6 +12,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GML_STYLE_BLOCK_KEY } from "../../../src/formats/gml/index.js";
+import { gmlPositions } from "../../../src/formats/gml/positions.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
     type ExtractedStyles,
@@ -59,7 +60,7 @@ describe("GML styles: who wrote the file", () => {
     it("reads yEd's keys with yEd's defaults: no fill, label color and weight, arrows by name, curves, extra labels", async () => {
         const { snapshot, styles } = await load(file("yed-labels-and-arrows.gml"));
         expect(styles.styles.source).toEqual({ format: "gml", dialect: "yed", tool: "yed" });
-        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "Dialog" });
+        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "DejaVu Sans, sans-serif" });
         const kind = (i: number): string => String(snapshot.nodes.value("label", i)).replace(/\d+$/, "");
         const opacity = resolveStyles(styles, "node", "fillOpacity", snapshot);
         const weight = resolveStyles(styles, "node", "labelWeight", snapshot);
@@ -91,28 +92,44 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[0]).toBe(snapshot.nodes.value("label", 0));
     });
 
-    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and the mixed node colors on edges", async () => {
+    it("draws Cytoscape's labels in Java's SansSerif face, so a label wraps at 200 px where Cytoscape's does", async () => {
+        // Cytoscape's default font is SansSerif, which Java draws in DejaVu Sans: "a much longer label than its node"
+        // measures 206 px there and wraps; in the browser's sans-serif (Liberation Sans) it is 180 px and does not
+        const doc = 'Creator "Cytoscape"\ngraph [ node [ id 1 label "a much longer label than its node" ] ]';
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)[0]).toBe("DejaVu Sans, sans-serif");
+        expect(resolveStyles(styles, "node", "labelWrapWidth", snapshot)[0]).toBe(200);
+    });
+
+    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and its end nodes' mixed color on edges", async () => {
         const { snapshot, styles } = await load(file("gephi-unquoted-creator.gml"));
         expect(snapshot.graph.value("Creator", 0)).toBe("Gephi");
         expect(styles.styles.source.tool).toBe("gephi");
         const fills = resolveStyles(styles, "node", "fill", snapshot);
         const colors = resolveStyles(styles, "edge", "color", snapshot);
         const arrows = resolveStyles(styles, "edge", "targetArrow", snapshot);
+        // EdgeColor MIXED: Gephi draws the mean of the end nodes' channels, whatever the edge's own color
+        const mix = (a: unknown, b: unknown): string =>
+            `#${[0, 2, 4]
+                .map((k) =>
+                    Math.floor(
+                        (Number.parseInt(String(a).slice(1 + k, 3 + k), 16) +
+                            Number.parseInt(String(b).slice(1 + k, 3 + k), 16)) /
+                            2,
+                    )
+                        .toString(16)
+                        .padStart(2, "0"),
+                )
+                .join("")}`;
         for (let e = 0; e < snapshot.edgeCount; e++) {
-            const own = e % 5 === 0;
-            const mixed = (shift: number): number =>
-                Math.floor(
-                    ((Number.parseInt(String(fills[snapshot.edgeSource(e)]).slice(1), 16) >> shift) & 255) / 2 +
-                        ((Number.parseInt(String(fills[snapshot.edgeTarget(e)]).slice(1), 16) >> shift) & 255) / 2,
-                );
-            const hex = `#${[16, 8, 0].map((s) => mixed(s).toString(16).padStart(2, "0")).join("")}`;
-            expect(colors[e]).toBe(own ? "#808080" : hex);
+            expect(colors[e]).toBe(mix(fills[snapshot.edgeSource(e)], fills[snapshot.edgeTarget(e)]));
             expect(arrows[e]).toBe("triangle");
         }
-        // labels are shown from the label key, as graph-io shows a GEXF's (formats/gexf/styles.ts)
-        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(
-            Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.nodes.value("label", i)),
-        );
+        // Gephi's preview draws each node's label key, as the GEXF reader reads it
+        const labels = resolveStyles(styles, "node", "label", snapshot);
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            expect(labels[i]).toBe(snapshot.nodes.value("label", i) ?? null);
+        }
     });
 
     it("reads OGDF's keys with OGDF's defaults and its backslash-escaped quotes", async () => {
@@ -124,7 +141,7 @@ describe("GML styles: who wrote the file", () => {
         for (let i = 0; i < snapshot.nodeCount; i++) {
             const kind = String(snapshot.nodes.value("label", i)).split(" ")[0];
             expect(shapes[i]).toBe(
-                { protein: "ellipse", gene: "rectangle", compound: "diamond", drug: "hexagon" }[kind],
+                { protein: "ellipse", gene: "rectangle", compound: "diamond", drug: "polygon" }[kind],
             );
             expect(borders[i]).toBe(kind === "drug" ? "dashed" : "solid");
         }
@@ -134,6 +151,235 @@ describe("GML styles: who wrote the file", () => {
             expect(lines[e]).toBe(e % 4 === 0 ? "dotted" : "solid");
             expect(arrows[e]).toBe(e % 2 === 1 ? "triangle" : "none");
         }
+    });
+
+    it("reads what GraphIO::writeGML writes: outline, stroke names, shape names, bends without the end points", async () => {
+        const node = (id: number, x: number, g: string): string =>
+            `node [ id ${String(id)} graphics [ x ${String(x)} y 0 w 40 h 30 fill "#FF8800" ${g} ] ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [ directed 1",
+                node(0, 0, 'outline "#0000FF" stipple "Dashdot" lineWidth 3.0 type "RoundedRect"'),
+                node(1, 100, 'outline "#000000" stipple "None" type "InvTriangle"'),
+                node(2, 200, 'stipple 2 type "Hexagon"'),
+                'edge [ source 0 target 1 graphics [ arrow "last" stipple "Dot" Line [ point [ x 50 y -40 ] ] ] ]',
+                'edge [ source 1 target 2 graphics [ arrow "none" stipple "None" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        type Property = Parameters<typeof resolveStyles>[2];
+        const node$ = (p: Property): readonly unknown[] => resolveStyles(styles, "node", p, snapshot);
+        const edge$ = (p: Property): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        expect(node$("borderColor")[0]).toBe("#0000ff");
+        expect(node$("borderStyle")).toEqual(["dash-dot", "solid", "dashed"]);
+        expect(node$("borderWidth").slice(0, 2)).toEqual([3, 0]);
+        // OGDF's triangles and hexagons are regular, their corners on the ellipse of the box: drawn where they say
+        expect(node$("shape")).toEqual(["round-rectangle", "polygon", "polygon"]);
+        expect(node$("shapePoints")[1]).toBe("0,-1 0.866,0.5 -0.866,0.5");
+        expect(node$("shapePoints")[2]).toBe("1,0 0.5,0.866 -0.5,0.866 -1,0 -0.5,-0.866 0.5,-0.866");
+        expect(node$("shapePointsStretch")).toEqual([null, false, false]);
+        expect(node$("labelSize")[0]).toBe(10);
+        expect(edge$("lineStyle")[0]).toBe("dotted");
+        expect(edge$("visible")).toEqual([null, false]);
+        // the one point is the bend, not a port: the edge runs from center to center over it
+        expect(edge$("bends")[0]).not.toBeNull();
+        expect(edge$("sourcePort")[0]).toBeNull();
+    });
+
+    it("reads a yEd label's Java font in Java's face for it, and its #RRGGBBAA text alpha", async () => {
+        const label = (font: string, color: string): string =>
+            `LabelGraphics [ text "Abc" fontName "${font}" color "${color}" ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                `node [ id 0 graphics [ x 0 y 0 w 30 h 30 ] ${label("Dialog", "#00800080")} ]`,
+                `node [ id 1 graphics [ x 50 y 0 w 30 h 30 ] ${label("Monospaced", "#FF0000")} ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "labelFont", snapshot)).toEqual([
+            "DejaVu Sans, sans-serif",
+            "DejaVu Sans Mono, monospace",
+        ]);
+        expect(resolveStyles(styles, "node", "labelColor", snapshot)).toEqual(["#008000", "#ff0000"]);
+        expect(resolveStyles(styles, "node", "labelOpacity", snapshot)[0]).toBeCloseTo(0.502, 3);
+    });
+
+    it("reads OGDF's label place: the label's center offset from the node's, y down, where drawSVG draws it", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "Abc" graphics [ x 0 y 0 label [ x 0 y -24 z 0 ] w 36 h 36 ] ]',
+                'node [ id 1 label "Abc" graphics [ x 100 y 0 label [ x 30.5 y 0 z 0 ] w 36 h 36 ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)).toEqual([0, 30.5]);
+        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([-24, 0]);
+    });
+
+    it("reads OGDF's clusters as group nodes holding their vertices, with their box, fill, outline and label", async () => {
+        const graphics = (fill: string): string =>
+            `graphics [ x 10 y 20 width 100 height 60 fill "${fill}" color "#0000FF" lineWidth 3.0 stipple "Dash" style "rectangle" ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "a" graphics [ x 30 y 40 w 18 h 18 fill "#C8C8C8" type "Ellipse" ] ]',
+                'node [ id 1 label "b" graphics [ x 60 y 40 w 18 h 18 fill "#C8C8C8" type "Ellipse" ] ]',
+                "]",
+                'rootcluster [ graphics [ x 0 y 0 width 0 height 0 ] vertex "0"',
+                `  cluster [ id 1 label "Outer" ${graphics("#F5F5F5")}`,
+                `    cluster [ id 2 label "Inner" ${graphics("#E0E0FF")} vertex "1" ] ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(snapshot.nodeCount).toBe(4);
+        const index = (id: string | number): number => snapshot.ids.requireIndex(id);
+        const parent = snapshot.nodes.byRole("parent");
+        expect(parent).not.toBeNull();
+        const parentOf = (id: string | number): unknown => {
+            const i = index(id);
+            return parent?.isSet(i) === true ? snapshot.ids.idOf(Number(parent.value(i))) : null;
+        };
+        // a vertex of the root cluster is in no group; nested clusters nest
+        expect([parentOf(0), parentOf(1), parentOf("cluster1"), parentOf("cluster2")]).toEqual([
+            null,
+            "cluster2",
+            null,
+            "cluster1",
+        ]);
+        // x and y are the box's top-left corner: the node's center is the box's middle
+        expect([...(snapshot.nodes.byRole("position")?.value(index("cluster1")) as Float64Array)]).toEqual([60, 50, 0]);
+        type Property = Parameters<typeof resolveStyles>[2];
+        const at = (p: Property): unknown => resolveStyles(styles, "node", p, snapshot)[index("cluster2")];
+        expect([at("width"), at("height"), at("fill"), at("borderColor"), at("borderWidth")]).toEqual([
+            100,
+            60,
+            "#e0e0ff",
+            "#0000ff",
+            3,
+        ]);
+        expect([at("shape"), at("label")]).toEqual(["rectangle", "Inner"]);
+        // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple
+        expect(at("borderStyle")).not.toBe("dashed");
+        // and its label one font size off the box, toward the side with more of the drawing (here a tie: above,
+        // ending at the box's right side)
+        expect([at("labelPosition"), at("labelOffsetX"), at("labelShiftX"), at("labelOffsetY")]).toEqual([
+            "center",
+            50,
+            -0.5,
+            -40,
+        ]);
+    });
+
+    it("sets an OGDF cluster's label below and from the left where more of the drawing lies there", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                "node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ]",
+                "node [ id 1 graphics [ x 500 y 500 w 10 h 10 ] ]",
+                "]",
+                'rootcluster [ cluster [ id 1 label "C" graphics [ x 400 y 50 width 60 height 40 ] vertex "1" ] ]',
+            ].join("\n"),
+        );
+        const i = snapshot.ids.requireIndex("cluster1");
+        type Property = Parameters<typeof resolveStyles>[2];
+        const at = (p: Property): unknown => resolveStyles(styles, "node", p, snapshot)[i];
+        expect([at("labelOffsetX"), at("labelShiftX"), at("labelOffsetY")]).toEqual([-30, 0.5, 30]);
+    });
+
+    it("reads what Graphviz's gv2gml writes: H, hasFill, visible, fontColor, Graphviz names, y up, dir as arrow", async () => {
+        // gv2gml 14.1.2's own output for a three-node digraph (cmd/tools/gv2gml.c), trimmed of its pass-through keys
+        const node = (id: number, x: number, g: string, label = ""): string =>
+            `node [ id ${String(id)} name "${String(id)}" ${label} graphics [ x ${String(x)} y 100 w 54 H 36 ${g} ] ]`;
+        const { snapshot, styles } = await load(
+            [
+                "graph [ version 2 directed 1",
+                node(0, 27, 'hasFill 1 type "box" fill "orange" outline "blue" width 2 outlineStyle "dashed"'),
+                node(
+                    1,
+                    127,
+                    'type "house" fill "red" outline "red"',
+                    'label "a" LabelGraphics [ text "a\\nb" fontColor "green" ]',
+                ),
+                node(2, 227, 'visible 0 hasFill 1 type "point" fill "#ff000080"'),
+                'edge [ id 1 source 0 target 1 graphics [ Line [ point [ x 54 y 100 ] point [ x 70 y 100 ] point [ x 80 y 100 ] point [ x 90 y 100 ] point [ x 100 y 100 ] ] fill "red" targetArrow "odiamond" arrow "first" ] ]',
+                'edge [ id 2 source 1 target 2 graphics [ sourceArrow "inv" style "dotted" arrow "last" ] ]',
+                "edge [ id 3 source 0 target 2 graphics [ visible 0 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(styles.styles.source).toEqual({ format: "gml", dialect: "graphviz", tool: "graphviz" });
+        expect(gmlPositions(snapshot)?.yAxis).toBe("up");
+        type Property = Parameters<typeof resolveStyles>[2];
+        const node$ = (p: Property): readonly unknown[] => resolveStyles(styles, "node", p, snapshot);
+        const edge$ = (p: Property): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        expect(node$("height")).toEqual([36, 36, 36]);
+        // filled only where hasFill says style=filled (a point always): Graphviz's unfilled node is see-through
+        expect(node$("fill")[0]).toBe("#ffa500");
+        expect(node$("fillOpacity")).toEqual([1, 0, 0.501961]);
+        expect(node$("borderColor")[0]).toBe("#0000ff");
+        expect(node$("borderStyle")[0]).toBe("dashed");
+        expect(node$("shape")).toEqual(["rectangle", "polygon", "ellipse"]);
+        expect(node$("visible")[2]).toBe(false);
+        // a bare SVG name, as Graphviz's SVG draws it: green is #008000
+        expect(node$("labelColor")[1]).toBe("#008000");
+        expect(node$("label")[1]).toBe("a\nb");
+        // arrow "first" is gv2gml's dir=forward (the head's arrow), "last" dir=back
+        expect(edge$("targetArrow")).toEqual(["diamond-open", "none", "triangle"]);
+        expect(edge$("sourceArrow")).toEqual(["none", "inverted", "none"]);
+        expect(edge$("lineStyle")[1]).toBe("dotted");
+        expect(edge$("visible")[2]).toBe(false);
+        // a straight spline is the straight edge it looks like
+        expect(edge$("bends")[0]).toBeNull();
+    });
+
+    it("reads Cytoscape's GML as Cytoscape does: its shape names alone, and a node without a label named by its id", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [",
+                'node [ id 7 label "" graphics [ type "round_rect" ] ]',
+                'node [ id 8 graphics [ type "VEE" ] ]',
+                'node [ id 9 label "Abc" graphics [ type "trapezoid_2" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["7", "8", "Abc"]);
+        const shapes = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shapes.slice(0, 2)).toEqual(["round-rectangle", "vee"]);
+        // a name Cytoscape does not know leaves its default style's shape
+        expect(shapes[2]).toBe("round-rectangle");
+    });
+
+    it("reads Gephi's GML as Gephi draws it: y up, w a radius, an edge as thick as its value", async () => {
+        const doc = [
+            "graph [",
+            '  Creator "Gephi"',
+            "  directed 0",
+            '  node [ id 0 label "a" graphics [ x 0.0 y 0.0 z 0.0 w 10.0 h 40.0 d 10.0 fill "#FF8800" ] ]',
+            '  node [ id 1 label "b" graphics [ x 100.0 y 50.0 z 0.0 w 20.0 h 20.0 d 20.0 fill "#0000FF" ] ]',
+            "  edge [ id 0 source 0 target 1 value 5.0 ]",
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "width", snapshot)).toEqual([20, 40]);
+        expect(resolveStyles(styles, "node", "height", snapshot)).toEqual([20, 40]);
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([5]);
+        // the GML reader the graphty element uses keeps `value` as plain data: the width still follows it
+        const plainValue = await registry.importGraph(doc, { format: "gml", styles: {}, weightFrom: null });
+        const plainStyles = plainValue.styles;
+        expect(plainStyles === null || plainStyles === undefined).toBe(false);
+        if (plainStyles !== null && plainStyles !== undefined) {
+            expect(resolveStyles(plainStyles, "edge", "width", plainValue.snapshot)).toEqual([5]);
+        }
+        // its Creator line sits inside the graph, and still says Gephi's y grows upward
+        expect(gmlPositions(snapshot)?.yAxis).toBe("up");
     });
 
     it("gives an unknown writer (NetworkX writes no Creator) its own values and no defaults", async () => {
@@ -170,8 +416,12 @@ describe("GML styles: yEd's flowchart shapes", () => {
             "parallelogram",
             "round-rectangle",
             "ellipse",
-            null,
+            "polygon",
         ]);
+        // stored data: its outline, a left side bulging out and a right side bulging in
+        const [, , , stored] = resolveStyles(styles, "node", "shapePoints", snapshot);
+        expect(String(stored)).toContain("0.8,0");
+        expect(String(stored)).toContain("-1,0");
     });
 });
 

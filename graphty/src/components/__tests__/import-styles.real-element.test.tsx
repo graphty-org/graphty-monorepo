@@ -21,14 +21,18 @@ import { Workspace } from "../../workspace/Workspace";
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
-/** Twelve nodes in two groups, each group with its own viz color: red for x, blue for y. */
+/**
+ * Twelve nodes in two groups, each group with its own viz color: red for x, blue for y. The first
+ * node is an image, which graphty draws as Gephi's disc and notes, so the load has a difference to
+ * tell the reader about; every other viz value here is drawn as the file says.
+ */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
 <graph defaultedgetype="undirected"><attributes class="node"><attribute id="0" title="group" type="string"/></attributes>
 <nodes>
 ${Array.from({ length: 12 }, (_unused, i) => {
     const x = i % 3 !== 0;
-    return `<node id="n${String(i)}"><attvalues><attvalue for="0" value="${x ? "x" : "y"}"/></attvalues><viz:color r="${x ? "255" : "0"}" g="0" b="${x ? "0" : "255"}"/></node>`;
+    return `<node id="n${String(i)}"><attvalues><attvalue for="0" value="${x ? "x" : "y"}"/></attvalues><viz:color r="${x ? "255" : "0"}" g="0" b="${x ? "0" : "255"}"/>${i === 0 ? '<viz:shape value="image" uri="n0.png"/>' : ""}</node>`;
 }).join("\n")}
 </nodes><edges><edge source="n0" target="n1"/></edges></graph></gexf>`;
 
@@ -93,20 +97,20 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * Waits until the element has finished the import of the styled GEXF's twelve nodes: its step is
- * in the history, which the element records only once the import, its styles included, is done.
- * Every case waits on this, with the preference on or off, so an off case cannot pass by looking
- * before the file's layers would have arrived.
+ * Waits until the element has finished the import of the styled GEXF's twelve nodes and every
+ * style write it queued has painted. Every case waits on this, with the preference on or off, so
+ * an off case cannot pass by looking before the file's layers would have arrived. (The history is
+ * no witness here: the workspace starts a newly opened graph with an empty undo list.)
  * @param session - the element's session.
  */
 async function loadedTwelve(session: GraphSession): Promise<void> {
     await waitFor(
         () => {
             assert.equal(session.data.lastImport()?.counts.nodes, 12);
-            assert.isTrue(session.history.steps.some((step) => step.ops.includes("data.import")));
         },
         { timeout: TIMEOUT_MS },
     );
+    await session.styles.settled();
 }
 
 /**
@@ -168,12 +172,8 @@ describe("import styles from files, on the real element", () => {
         assert.equal(colorOf(session, "n0"), "#0000ff");
         // The paint tree words each of the file's layers from its facts.
         assert.isNotEmpty(await screen.findAllByText(/from the file/i, {}, { timeout: TIMEOUT_MS }));
-        // Gephi's disc has no 3D counterpart: the load tells the reader the shape is drawn as the nearest one.
-        await screen.findByText(
-            /The file's styles are drawn, with these differences: A style is drawn as the nearest one graphty has \(node shape\)/,
-            {},
-            { timeout: TIMEOUT_MS },
-        );
+        // Gephi's disc is drawn as the flat ellipse of the same name, so the load names no shape drawn as a nearest one.
+        assert.isNull(screen.queryByText(/drawn as the nearest one graphty has \(node shape\)/));
     });
 
     it("the Data page loads none of the file's layers with the box unchecked, and keeps that choice", async () => {
@@ -211,7 +211,13 @@ describe("import styles from files, on the real element", () => {
             localStorage.setItem(IMPORT_FILE_STYLES.key, preference);
             render(<Workspace store={createWorkspaceStore()} />);
             dropOn(globalThis, styledGexf());
+            // A data file dropped on the start screen opens the Data page, its box set from the
+            // preference, and loads on Load.
+            await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
             const session = await elementSession();
+            const box = await screen.findByRole("checkbox", { name: CHECKBOX }, { timeout: TIMEOUT_MS });
+            assert.equal((box as HTMLInputElement).checked, preference === "on");
+            await userEvent.click(screen.getByRole("button", { name: "Load" }));
             await loadedTwelve(session);
             if (preference === "on") {
                 await waitFor(

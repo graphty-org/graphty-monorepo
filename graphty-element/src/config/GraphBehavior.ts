@@ -20,6 +20,28 @@ const NodeBehaviorOpts = z
          * on would have meant a session that froze one node per drag with no way out.
          */
         pinOnDrag: z.boolean().default(true),
+
+        /*
+         * Whether a node's drawn size ignores how far it is from the 3D camera.
+         *
+         * OFF BY DEFAULT (unset): a 3D view is a perspective, and a nearer node looks bigger, which is
+         * what a reader exploring a space expects. On, every node is drawn as if it stood at the
+         * depth of the point the camera turns about, so two drawn sizes compare as the two sizes a
+         * style gave them, at any angle -- what a size bound to data needs, because with depth a
+         * node 6% larger but 16% farther away is drawn smaller. Zooming still scales everything.
+         * The 2D view (orthographic) and an XR session ignore it.
+         */
+        depthIndependentSize: z.boolean().optional(),
+
+        /*
+         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
+         * four device pixels at 1).
+         *
+         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
+         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
+         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         */
+        outlineWidth: z.number().positive().max(10).optional(),
     })
     .prefault({});
 

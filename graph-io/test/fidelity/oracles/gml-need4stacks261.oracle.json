@@ -1,0 +1,23 @@
+{
+    "sample": "gml-need4stacks261",
+    "file": "graph-io/test/corpus/styles/gml/spupyrev_bob__need4stacks261.gml",
+    "sha256": "04c16e709e690f0443ab7b99447753dd6836d582c3639823aac20a0583da3dc1",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "gml2gv <file> | neato -n2 -Tsvg -Gsize=\"12.5,9.375!\"",
+    "standIn": true,
+    "standInReason": "yEd, which wrote this file, cannot run on this machine; this is Graphviz's own drawing of gml2gv's conversion (pinned at the file's x/y with neato -n2). gml2gv maps a GML fill to the outline color (no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (the drawing is mirrored top to bottom), and drops yEd label and edge graphics.",
+    "mirrored": true,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 526,
+        "heightPt": 675,
+        "widthPx": 701,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs gml-need4stacks261 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-need4stacks261.svg"
+}

@@ -131,8 +131,9 @@ else
     # No pile of images committed outside the folders that hold them (visual-baselines/, fixtures, public
     # assets): more than 20 new images or 20 MB since the push base fails. Design studio walk screenshots
     # go to tmp/design-studio/, never git; an `Images-Approved: <reason>` trailer passes a deliberate
-    # addition. See tools/check-committed-images.mjs.
-    run_step "No committed walk screenshots" "pnpm run check:committed-images"
+    # addition. Run from the gate's own copy, so it holds for a checkout that does not have the script yet.
+    # See tools/check-committed-images.mjs.
+    run_step "No committed walk screenshots" "node \"$GATE_TOOLS/check-committed-images.mjs\""
 
     # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
     # files on GitHub, resolved against the working tree. Offline: the network half of the check

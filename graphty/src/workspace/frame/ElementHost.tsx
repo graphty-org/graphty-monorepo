@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_GLOBE_LOOK } from "../../constants/globe";
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { loadGraphtyElement } from "../../elementLoader";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
@@ -74,8 +75,9 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     );
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
-    // The map's credits sit above the toolbar, which owns the bottom margin; and a reader who
-    // prefers less motion gets camera moves without the glide. View settings, written on the
+    // The map's credits sit above the toolbar, which owns the bottom margin; a reader who prefers
+    // less motion gets camera moves without the glide; and the globe is drawn as the earth from
+    // space (constants/globe.ts). View settings, written on the
     // element; they record no step.
     const creditOffset = viewInsets.bottom ?? 0;
     const still = useReducedMotion();
@@ -84,6 +86,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         if (element !== null && hosted !== null) {
             element.attributionOffset = creditOffset;
             element.cameraTransitionDuration = still ? 0 : undefined;
+            element.globeLook = APP_GLOBE_LOOK;
         }
     }, [hosted, creditOffset, still]);
 

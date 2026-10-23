@@ -376,7 +376,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "location-map.location": { label: "Location", empty: "Automatic" },
     "location-map.latitude": { label: "Latitude", empty: "Automatic" },
     "location-map.longitude": { label: "Longitude", empty: "Automatic" },
-    "location-map.surface": { label: "Surface", choices: { flat: "Flat map", globe: "Globe" } },
+    "location-map.mapDimension": { label: "Map type", choices: { "2d": "2D map", "3d": "3D map" } },
     "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
     "location-map.format": {
         label: "Format",

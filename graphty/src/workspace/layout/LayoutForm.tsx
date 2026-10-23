@@ -146,15 +146,23 @@ export function LayoutForm({
 
     // The view the layout would be drawn in: the 2D view draws every layout flat.
     const drawnIn = current.dimension === "2d" ? "2d" : shape;
-    // An option the 2D view does not draw (the map's Surface) offers only its default there.
-    const defaultOnly = (option: OptionDescriptor): boolean =>
-        typeof option.default === "string" &&
-        session.layout.optionInEffect(descriptor.id, option.name, drawnIn).code === "setting.notIn2d";
+    // An option the 2D view does not draw (the map's Map type) offers only the value the view
+    // draws instead, as the element names it, else its default.
+    const drawnOnly = (option: OptionDescriptor): unknown => {
+        const effect = session.layout.optionInEffect(descriptor.id, option.name, drawnIn);
+        if (typeof option.default !== "string" || effect.code !== "setting.notIn2d") {
+            return undefined;
+        }
+        return effect.params.drawn ?? option.default;
+    };
+    const defaultOnly = (option: OptionDescriptor): boolean => drawnOnly(option) !== undefined;
+    // Shown as the value the view draws; the reader's own choice is kept for the 3D view.
     const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
         const shown = { ...asked };
         for (const option of descriptor.options) {
-            if (shown[option.name] !== undefined && defaultOnly(option)) {
-                shown[option.name] = option.default;
+            const drawn = drawnOnly(option);
+            if (drawn !== undefined) {
+                shown[option.name] = drawn;
             }
         }
         return shown;
@@ -166,7 +174,8 @@ export function LayoutForm({
     };
     const apply = (asked: Record<string, unknown>): void => {
         setError(null);
-        const options = inView(asked);
+        // The reader's own values: one the 2D view does not draw is kept for the 3D view.
+        const options = asked;
         session.layout
             .set(descriptor.id, engine === undefined ? { options } : { engine, options })
             .then(onApplied, (failure: unknown) => {
@@ -183,7 +192,7 @@ export function LayoutForm({
         if (isCurrent && !differs) {
             setValues(next);
             setError(null);
-            session.layout.set(descriptor.id, { options: inView(next) }).catch(() => {
+            session.layout.set(descriptor.id, { options: next }).catch(() => {
                 setError(`${layoutName(descriptor)} could not draw this map`);
             });
             return;
@@ -205,8 +214,8 @@ export function LayoutForm({
         }
     };
 
-    // The map's form: which columns "Automatic" used, the warnings about what they held, Surface
-    // offering only the flat map in 2D, and the map it draws on.
+    // The map's form: which columns "Automatic" used, the warnings about what they held, Map type
+    // offering only the 2D map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
     const mapDrawn = isMap && isCurrent ? element : null;
     const warnings = mapDrawn?.mapFrame?.warnings ?? [];
@@ -323,7 +332,7 @@ export function LayoutForm({
                         // The map has fields of its own, below.
                         .filter((o) => o.name !== "dim" && o.name !== "seed" && o.name !== "map")
                         .map((o) =>
-                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === o.default) } : o,
+                            defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === drawnOnly(o)) } : o,
                         )}
                     values={inView(values)}
                     words={words}

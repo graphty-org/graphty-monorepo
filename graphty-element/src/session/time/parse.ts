@@ -13,13 +13,14 @@
 import type { TimeStep } from "../visibility/filter";
 
 /**
- * How numbers in a time column are read: epoch milliseconds, epoch seconds, or plain ordered
- * numbers with no calendar (a year such as `1850`, a simulation step). Strings and dates ignore it.
+ * How numbers in a time column are read: epoch milliseconds, epoch seconds, calendar years (`1995`
+ * is January 1, 1995 UTC; a fraction is that share of the year), or plain ordered numbers with no
+ * calendar (a simulation step, a tick). Strings and dates ignore it.
  */
-export type TimeUnit = "ms" | "s" | "ordinal";
+export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 /** Every time unit, for a check. */
-export const TIME_UNITS: readonly TimeUnit[] = Object.freeze(["ms", "s", "ordinal"]);
+export const TIME_UNITS: readonly TimeUnit[] = Object.freeze(["ms", "s", "year", "ordinal"]);
 
 /** How one value was read, for the counts a designation reports. */
 export type InstantReading = "strict" | "loose" | "missing" | "unparsed";
@@ -116,7 +117,56 @@ function numberOf(value: number, unit: TimeUnit): number {
         return Number.NaN;
     }
 
+    if (unit === "year") {
+        const whole = Math.floor(value);
+        const start = utc(whole, 0, 1);
+        return start + (value - whole) * (utc(whole + 1, 0, 1) - start);
+    }
+
     return unit === "s" ? value * 1000 : value;
+}
+
+/** Whole numbers in this range read as calendar years when a column is designated with no unit. */
+const YEARS = { min: 1000, max: 2999 } as const;
+
+/**
+ * The unit a column of numbers is read in when the reader gave none, from its values alone:
+ * `"year"` when every value is a whole number from 1000 to 2999, `"s"` when every one is an epoch
+ * in seconds (1973 to 2286), `"ms"` when every one is an epoch in milliseconds, else `"ordinal"`
+ * (plain numbers: steps, ticks). Undefined when a value is not a number, so text dates decide.
+ * @param values - The non-missing values.
+ * @returns The unit, or undefined.
+ */
+export function inferUnit(values: Iterable<unknown>): TimeUnit | undefined {
+    let count = 0;
+    let years = 0;
+    let seconds = 0;
+    let millis = 0;
+    for (const value of values) {
+        const number = typeof value === "string" && isNumericText(value) ? Number(value) : value;
+        if (typeof number !== "number" || !Number.isFinite(number)) {
+            return undefined;
+        }
+
+        count++;
+        years += Number.isInteger(number) && number >= YEARS.min && number <= YEARS.max ? 1 : 0;
+        seconds += number >= 1e8 && number < 1e10 ? 1 : 0;
+        millis += number >= 1e11 && number < 1e13 ? 1 : 0;
+    }
+
+    if (count === 0) {
+        return undefined;
+    }
+
+    if (years === count) {
+        return "year";
+    }
+
+    if (seconds === count) {
+        return "s";
+    }
+
+    return millis === count ? "ms" : "ordinal";
 }
 
 /**

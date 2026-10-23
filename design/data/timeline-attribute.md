@@ -131,7 +131,7 @@ interface TimeSource {
     readonly parseZone?: string; // IANA zone for date-times with no offset; default "UTC"
     readonly nodes?: "all" | "ends" | "none"; // edges only; see section 2.4
 }
-type TimeUnit = "ms" | "s" | "ordinal";
+type TimeUnit = "ms" | "s" | "year" | "ordinal"; // "year" and inference added 2026-10-22 (decisions TL-27)
 interface TimeFieldResult {
     readonly field: TimeField | null;
     readonly nodes?: { readonly timed: number; readonly untimed: number; readonly unparsed: number };

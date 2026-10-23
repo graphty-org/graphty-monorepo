@@ -1978,8 +1978,9 @@ export interface TableMapping {
     /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
     readonly time?: string | null;
     /**
-     * How the time column's numbers are read: epoch milliseconds (`"ms"`, the default), epoch
-     * seconds (`"s"`) or plain ordered numbers (`"ordinal"`, such as years). Written to
+     * How the time column's numbers are read: epoch milliseconds (`"ms"`), epoch seconds (`"s"`),
+     * calendar years (`"year"`) or plain ordered numbers (`"ordinal"`, such as steps); left out,
+     * the values decide when the column is designated. Written to
      * `data.knownFields.nodeTimeUnit` or `edgeTimeUnit`.
      */
     readonly timeUnit?: TimeUnit | null;
@@ -2511,7 +2512,9 @@ export interface ProjectConfig {
      * reads on the default background and every default palette color) and Hovered (pinned to the top, writing nothing). False by default.
      * Turned on, the rows are added in the same step, and the selection settings
      * ({@link ProjectConfig.selectionStyle}) draw nothing themselves; `styles.restoreStartingRows()`
-     * brings back any a reader deleted.
+     * brings back any a reader deleted. While a time field is designated, a fourth row, Ghost, sits
+     * directly below Selected: it paints the elements outside the time window grey at low opacity
+     * when the timeline draws them (`session.time.setSettings({ outside: "ghost" })`).
      * @since 3.26.0
      */
     readonly startingRows: boolean;

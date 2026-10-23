@@ -37,6 +37,7 @@ import {
     alignTo,
     calendarStepAtLeast,
     calendarStepNear,
+    inferUnit,
     isCalendarStep,
     isNumericText,
     niceAtLeast,
@@ -58,7 +59,11 @@ export type { TimeUnit } from "./parse";
 export interface TimeSource {
     /** The column holding the instant, such as `sent` or `data.sent`. */
     readonly start: Path;
-    /** How numbers in it are read; default `"ms"` (epoch milliseconds). Strings and dates ignore it. */
+    /**
+     * How numbers in it are read. Strings and dates ignore it. Left out, the values decide: whole
+     * numbers from 1000 to 2999 read as years, epochs in seconds as `"s"`, epochs in milliseconds
+     * as `"ms"`, and any other numbers as `"ordinal"` (steps, ticks).
+     */
     readonly unit?: TimeUnit;
 }
 
@@ -92,9 +97,10 @@ export interface TimeFieldResult {
     /**
      * `time.unparsed` (`{ path, count, examples }`; in a column mostly of date text, a bare number
      * counts here), `time.parsed-loosely` (`{ path, count }`: values only `Date.parse` understood),
-     * `time.unit-suspect` (`{ path, suggested }`: `"s"` when every number reads as 1973 to 2286 in
-     * seconds but 1970 in milliseconds, `"ordinal"` when every number is a whole number from -5000
-     * to 3000, such as a year). Suggested, never applied.
+     * `time.unit-suspect` (`{ path, suggested }`, for numbers designated as milliseconds: `"s"` when
+     * every number reads as 1973 to 2286 in seconds but 1970 in milliseconds, `"year"` when every
+     * one is a whole number from 1000 to 2999, `"ordinal"` when every one is a whole number from
+     * -5000 to 3000). Suggested, never applied.
      */
     readonly notices: readonly CodedFact<TimeNoticeCode>[];
 }
@@ -227,6 +233,8 @@ export interface TimeSettings {
     readonly step: TimeStep | "auto";
     /** Whether an element with no usable time is kept in every window. */
     readonly missing: "inside" | "outside";
+    /** Whether elements outside the window are hidden or drawn as ghosts; see {@link TimePlayback.outside}. */
+    readonly outside: "hide" | "ghost";
 }
 
 /** A column that reads as time, from {@link TimeApi.candidates}. */
@@ -410,6 +418,7 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
     mode: "sliding",
     step: "auto",
     missing: "inside",
+    outside: "hide",
 });
 
 /**
@@ -419,7 +428,13 @@ export const DEFAULT_TIME_SETTINGS: TimeSettings = Object.freeze({
  * @returns True when every member matches.
  */
 export function sameSettings(a: TimeSettings, b: TimeSettings): boolean {
-    return a.results === b.results && a.mode === b.mode && a.step === b.step && a.missing === b.missing;
+    return (
+        a.results === b.results &&
+        a.mode === b.mode &&
+        a.step === b.step &&
+        a.missing === b.missing &&
+        a.outside === b.outside
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -434,7 +449,7 @@ interface KindIndex extends TimeInstants {
     readonly loose: number;
     readonly examples: readonly string[];
     /** What every number in the column looks like, when the unit reads them as milliseconds. */
-    readonly suspect: "s" | "ordinal" | null;
+    readonly suspect: "s" | "year" | "ordinal" | null;
 }
 
 /** The index of the designated field over one snapshot. */
@@ -442,6 +457,8 @@ interface FieldIndex {
     readonly key: string;
     readonly path: string;
     readonly unit: TimeUnit;
+    /** The unit each kind's values called for, when the designation gave none and they are numbers. */
+    readonly inferred: { readonly node?: TimeUnit; readonly edge?: TimeUnit };
     readonly node: KindIndex | null;
     readonly edge: KindIndex | null;
     /** Whether every instant is a whole number, so an ordinal bin is never narrower than one. */
@@ -461,6 +478,7 @@ const NO_COUNTS: TimeCounts = Object.freeze({ timed: 0, untimed: 0, unparsed: 0 
 const NO_IDS: TimeIds = Object.freeze({ nodes: Object.freeze([]), edges: Object.freeze([]) });
 const NO_CHANGES: TimeChanges = Object.freeze({ entered: NO_IDS, left: NO_IDS });
 const MAX_BINS = 10_000;
+const MS_PER_HOUR = 3_600_000;
 const DEFAULT_INTERVAL = 1000;
 const ATTRIBUTE_PREFIX = "data.";
 /** How many windows an automatic step aims to cut the data's span into. */
@@ -546,6 +564,7 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
     let numbers = 0;
     let secondsLike = 0;
     let yearLike = 0;
+    let fourDigit = 0;
     const examples: string[] = [];
     // In a column of date text, a stray number (a "1.10") is not an epoch in 1970.
     const datesOnly = unit === "ms" && mostlyText(count, read);
@@ -569,6 +588,7 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
             numbers++;
             secondsLike += value >= 1e8 && value < 1e10 ? 1 : 0;
             yearLike += Number.isInteger(value) && value >= YEAR_LIKE.min && value <= YEAR_LIKE.max ? 1 : 0;
+            fourDigit += Number.isInteger(value) && value >= 1000 && value <= 2999 ? 1 : 0;
         }
     }
 
@@ -589,7 +609,7 @@ function buildKind(count: number, read: (row: number) => unknown, unit: TimeUnit
     if (unit === "ms" && numbers > 0 && secondsLike === numbers) {
         suspect = "s";
     } else if (unit === "ms" && numbers > 0 && yearLike === numbers) {
-        suspect = "ordinal";
+        suspect = fourDigit === numbers ? "year" : "ordinal";
     }
 
     return {
@@ -788,6 +808,37 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
     };
 
     /**
+     * The unit a column's numbers are read in when none was given, from its values.
+     * @param kind - Nodes or edges.
+     * @param column - The column.
+     * @returns The unit, or undefined for a column that is not all numbers.
+     */
+    const inferredUnit = (kind: "node" | "edge", column: string): TimeUnit | undefined => {
+        const graph = sources.snapshot();
+        const attribute = `${ATTRIBUTE_PREFIX}${column}`;
+        const count = kind === "node" ? graph.nodeCount : graph.edgeCount;
+        const present: unknown[] = [];
+        for (let row = 0; row < count; row++) {
+            const value =
+                kind === "node" ? sources.values.nodeValue(row, attribute) : sources.values.edgeValue(row, attribute);
+            if (value !== undefined && value !== null && value !== "") {
+                present.push(value);
+            }
+        }
+
+        return inferUnit(present);
+    };
+
+    /**
+     * The unit a designated source reads numbers in: its own, else the one its values call for.
+     * @param kind - Nodes or edges.
+     * @param source - The source.
+     * @returns The unit.
+     */
+    const unitOfSource = (kind: "node" | "edge", source: TimeSource): TimeUnit | undefined =>
+        source.unit === undefined ? inferredUnit(kind, columnOf(source.start)) : undefined;
+
+    /**
      * The index of the designated field over the graph as it stands, built on first use.
      * @returns The index, or null when nothing is designated.
      */
@@ -800,16 +851,22 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
         const source = (field.edges ?? field.nodes) as TimeSource;
         const path = columnOf(source.start);
-        const unit = source.unit ?? "ms";
         const graph = sources.snapshot();
         const key = `${sources.token()}|${graph.nodeCount}|${graph.edgeCount}|${field.nodes?.start ?? ""}|${field.nodes?.unit ?? ""}|${field.edges?.start ?? ""}|${field.edges?.unit ?? ""}`;
         if (index?.key === key) {
             return index;
         }
 
-        const node = field.nodes === undefined ? null : indexKind("node", path, field.nodes.unit ?? "ms");
-        const edge = field.edges === undefined ? null : indexKind("edge", path, field.edges.unit ?? "ms");
-        index = { key, path, unit, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
+        const inferred = {
+            ...(field.nodes === undefined ? {} : { node: unitOfSource("node", field.nodes) }),
+            ...(field.edges === undefined ? {} : { edge: unitOfSource("edge", field.edges) }),
+        };
+        const nodeUnit = field.nodes === undefined ? undefined : (field.nodes.unit ?? inferred.node ?? "ms");
+        const edgeUnit = field.edges === undefined ? undefined : (field.edges.unit ?? inferred.edge ?? "ms");
+        const unit = edgeUnit ?? nodeUnit ?? "ms";
+        const node = nodeUnit === undefined ? null : indexKind("node", path, nodeUnit);
+        const edge = edgeUnit === undefined ? null : indexKind("edge", path, edgeUnit);
+        index = { key, path, unit, inferred, node, edge, whole: wholeInstants(node) && wholeInstants(edge) };
         sources.emit("time:ready", { field });
 
         return index;
@@ -886,6 +943,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const span = extent === null ? 0 : extent.to - extent.from;
         if (ordinal()) {
             return span > 0 ? niceNear(span / AUTO_STEPS) : 1;
+        }
+
+        // Data spanning less than a few hours steps by a 1-2-5 number of milliseconds: an hour
+        // would hold all of it in one window that cannot move.
+        if (span > 0 && span / AUTO_STEPS < MS_PER_HOUR / 4) {
+            return Math.max(1, niceNear(span / AUTO_STEPS));
         }
 
         return span > 0 ? calendarStepNear(span / AUTO_STEPS) : "day";
@@ -1504,7 +1567,25 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
 
     const api: TimeApi = {
         get field() {
-            return fieldNow();
+            const field = fieldNow();
+            const inferred = field === null ? undefined : indexNow()?.inferred;
+            if (field === null || (inferred?.node === undefined && inferred?.edge === undefined)) {
+                return field;
+            }
+
+            // A number field designated with no unit (an element attribute, an import) reports the
+            // unit its values are read in.
+            const filled = (source: TimeSource | undefined, unit: TimeUnit | undefined): TimeSource | undefined =>
+                source === undefined || source.unit !== undefined || unit === undefined
+                    ? source
+                    : Object.freeze({ ...source, unit });
+            const nodes = filled(field.nodes, inferred?.node);
+            const edges = filled(field.edges, inferred?.edge);
+
+            return Object.freeze({
+                ...(nodes === undefined ? {} : { nodes }),
+                ...(edges === undefined ? {} : { edges }),
+            });
         },
 
         async setField(field: TimeField | null): Promise<TimeFieldResult> {
@@ -1530,16 +1611,18 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
 
             // A column designated again without a unit takes the one the reader gave it before.
-            const withUnit = (source: TimeSource | undefined): TimeSource | undefined => {
+            // Else its values decide: years, epochs, or plain numbers.
+            const withUnit = (source: TimeSource | undefined, kind: "node" | "edge"): TimeSource | undefined => {
                 if (source === undefined) {
                     return undefined;
                 }
 
-                const unit = source.unit ?? units.get(columnOf(source.start));
+                const unit =
+                    source.unit ?? units.get(columnOf(source.start)) ?? inferredUnit(kind, columnOf(source.start));
                 return unit === undefined ? source : { ...source, unit };
             };
-            const nodes = withUnit(field?.nodes);
-            const edges = withUnit(field?.edges);
+            const nodes = withUnit(field?.nodes, "node");
+            const edges = withUnit(field?.edges, "edge");
             if (nodes !== undefined && edges !== undefined && columnOf(nodes.start) !== columnOf(edges.start)) {
                 // ponytail: one path for both kinds, because a window reads one attribute; two
                 // paths need a window per kind.
@@ -1678,7 +1761,7 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
                     } else if (epochS === numbers) {
                         unit = "s";
                     } else if (years === numbers && /year|date|time|when|period/i.test(name)) {
-                        unit = "ordinal";
+                        unit = "year";
                     }
 
                     parsed = unit === undefined ? 0 : numbers;

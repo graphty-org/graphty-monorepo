@@ -1322,7 +1322,7 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
 }
 
 /** The units a time column's numbers can be read in at load. */
-const TIME_UNIT_CHOICES: ReadonlySet<unknown> = new Set(["ms", "s", "ordinal", null, undefined]);
+const TIME_UNIT_CHOICES: ReadonlySet<unknown> = new Set(["ms", "s", "year", "ordinal", null, undefined]);
 
 /**
  * A reader's time unit, checked.
@@ -1333,10 +1333,10 @@ const TIME_UNIT_CHOICES: ReadonlySet<unknown> = new Set(["ms", "s", "ordinal", n
  */
 function checkedUnit(held: HeldTable, value: unknown): unknown {
     if (!TIME_UNIT_CHOICES.has(value)) {
-        throw badCommand(`A time unit is "ms", "s", "ordinal" or null.`, {
+        throw badCommand(`A time unit is "ms", "s", "year", "ordinal" or null.`, {
             table: held.table.id,
             role: "timeUnit",
-            units: ["ms", "s", "ordinal"],
+            units: ["ms", "s", "year", "ordinal"],
         });
     }
 

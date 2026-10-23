@@ -169,13 +169,18 @@ describe("designating the time field", () => {
         session.dispose();
     });
 
-    it("suggests Number for whole numbers that read as years", async () => {
+    it("reads whole numbers that look like years as years, and suggests Year for them read as ms", async () => {
         const csv = "source,target,year\nA,B,1995\nB,C,2000\nC,D,2024\n";
         const { session } = await open(false, csv);
-        const result = await session.time.setField({ edges: { start: "year" } });
+        const read = await session.time.setField({ edges: { start: "year" } });
+        assert.deepStrictEqual(read.field, { edges: { start: "year", unit: "year" } });
+        assert.deepStrictEqual(read.notices, []);
+        assert.strictEqual(session.time.extent()?.from, Date.UTC(1995, 0, 1));
+
+        const result = await session.time.setField({ edges: { start: "year", unit: "ms" } });
         assert.deepInclude(
             result.notices.map((notice) => notice.params),
-            { path: "year", suggested: "ordinal" },
+            { path: "year", suggested: "year" },
         );
         await session.time.setField({ edges: { start: "year", unit: "ordinal" } });
         assert.deepInclude(session.time.extent(), { from: 1995, to: 2025 });
@@ -273,6 +278,7 @@ describe("the window, its step and playback", () => {
             mode: "cumulative",
             results: "keep",
             missing: "inside",
+            outside: "hide",
         });
 
         const { text } = await session.project.save();

@@ -1962,8 +1962,9 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * How numbers in the edge time column are read: `ms` (epoch milliseconds, the default), `s`
-     * (epoch seconds) or `ordinal` (plain ordered numbers such as a year). Text dates ignore it.
+     * How numbers in the edge time column are read: `ms` (epoch milliseconds), `s` (epoch seconds),
+     * `year` (calendar years) or `ordinal` (plain ordered numbers such as steps). Left unset, the
+     * values decide. Text dates ignore it.
      * @since 3.31.0
      * @example
      * ```html
@@ -1979,8 +1980,8 @@ export class Graphty extends LitElement {
      * Sets how the edge time column's numbers are read. Updates graph configuration.
      */
     set edgeTimeUnit(value: string | undefined) {
-        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "ordinal"].includes(value)) {
-            console.error(`<graphty-element>: edge-time-unit must be ms, s or ordinal, not "${value}".`);
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: edge-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
             return;
         }
@@ -1989,7 +1990,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * How numbers in the node time column are read: `ms`, `s` or `ordinal`.
+     * How numbers in the node time column are read: `ms`, `s`, `year` or `ordinal`; left unset, the
+     * values decide.
      * @since 3.31.0
      * @example
      * ```html
@@ -2005,8 +2007,8 @@ export class Graphty extends LitElement {
      * Sets how the node time column's numbers are read. Updates graph configuration.
      */
     set nodeTimeUnit(value: string | undefined) {
-        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "ordinal"].includes(value)) {
-            console.error(`<graphty-element>: node-time-unit must be ms, s or ordinal, not "${value}".`);
+        if (value !== undefined && value !== null && value !== "" && !["ms", "s", "year", "ordinal"].includes(value)) {
+            console.error(`<graphty-element>: node-time-unit must be ms, s, year or ordinal, not "${value}".`);
 
             return;
         }

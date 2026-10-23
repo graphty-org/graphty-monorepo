@@ -196,7 +196,7 @@ conditional skip from counting as a pass. Datadog, Mergify, Trunk and Meta use t
    differ.
 4. **Signature**: the cleaned line with `:line:col` dropped and other numbers as `<n>`, plus up to two
    stack frames outside `node_modules` masked the same way; for a timeout, `timeout` plus the test
-   file. Hashed.
+   file. Hashed. A timeout is a Vitest "timed out" or a Playwright `TimeoutError` / "Timeout <n>ms exceeded".
 
 Hashes are the first 16 hex of sha256. Signatures group failures for issues; exoneration and
 `failed-known` require the same test, variant and key.
@@ -401,13 +401,15 @@ nothing. Never delete `tmp/test-ledger/records/` or `issues/`. The ledger never 
 reaches master. Each decision has an off switch (`PREPUSH_EXONERATE=0`, removing the sort call,
 `PREPUSH_HISTORY_DROP=0`), and `why` shows the rows it used.
 
-## 9. No import of old results
+## 9. Import of old results, never as evidence
 
-Old JUnit files and gate logs are not imported. Attributing them takes heuristics (matching files to
-pushes by modification time) whose mistakes would persist for months, and nothing in phase 1 needs
-them: exoneration uses live golden evidence only, and later phases set their bars on live counts,
-which accumulate in days. Verification is started once (`node tools/verify.mjs start --again`) as soon
-as phase 1 is live, so evidence exists at once.
+The history already on disk was imported once (`node tools/test-ledger.mjs import`, 2026-10-23): every gate in
+`tmp/push-log.jsonl` (its `[PASS]` lines, and each failed shard's kept log in `tmp/push-gate-logs/`), and every
+shard pass in `tmp/prepush-passes/shard/`. Nothing is matched by time: each record comes from one log line that
+names its shard and commit. They carry kinds `import-<kind>` (the kind read from the worktree the gate ran in),
+which count in flaky and broken statistics but are never exoneration evidence, so a decision about a landing still
+rests only on live records. A pass learns its file list from a failed run of the same shard on the same tree,
+which ran the same files. The import is idempotent (record ids are hashes), and `prune` ages it out with the rest.
 
 ## 10. Build order
 

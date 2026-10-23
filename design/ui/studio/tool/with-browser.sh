@@ -4,7 +4,7 @@
 # On 2026-10-01 a design round ran 23 browsers at once (49 GB), filled swap and set off an alert.
 #
 # The slots are the machine-wide ones every browser-driving command takes: the main checkout's
-# tmp/browser-slots/slot1..slotN; slot1..slot4 are the same lock files as <main checkout>/tmp/with-browser.sh, which
+# tmp/browser-slots/slot1..slotN; slot1..slot4 are the same lock files as tools/with-browser.sh, which
 # the pre-push gate's browser shards and visual-preview captures take. Until 2026-10-09 this script
 # kept a pool of its own in /tmp, so study sessions and test runs each had four slots and together
 # ran eight or more browsers at once (tool/README.md, "Browsers").

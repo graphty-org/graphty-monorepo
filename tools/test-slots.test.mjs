@@ -32,7 +32,7 @@ function sleeper() {
 after(() => children.forEach((c) => c.kill("SIGKILL")));
 
 const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
-const quiet = { env: {}, poll: 10, log: () => {} };
+const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {} };
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 // Whether a promise has settled within a few polls.
 async function settled(promise) {

@@ -33,19 +33,19 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
  * (`pick`, `stopAnimation`): only a call on something named `scene` counts.
  */
 const AUGMENTATIONS = [
-    { module: "@babylonjs/core/Meshes/instancedMesh", members: ["createInstance"], receiver: /./ },
+    { module: "@babylonjs/core/Meshes/instancedMesh.js", members: ["createInstance"], receiver: /./ },
     {
-        module: "@babylonjs/core/Meshes/thinInstanceMesh",
+        module: "@babylonjs/core/Meshes/thinInstanceMesh.js",
         members: ["thinInstanceSetBuffer", "thinInstanceBufferUpdated", "thinInstanceSetMatrixAt"],
         receiver: /./,
     },
     {
-        module: "@babylonjs/core/Culling/ray",
+        module: "@babylonjs/core/Culling/ray.js",
         members: ["pick", "pickWithRay", "multiPick", "multiPickWithRay", "createPickingRay", "createPickingRayToRef"],
         receiver: /scene$/i,
     },
     {
-        module: "@babylonjs/core/Animations/animatable",
+        module: "@babylonjs/core/Animations/animatable.js",
         members: ["beginAnimation", "beginDirectAnimation", "beginWeightedAnimation", "stopAnimation"],
         receiver: /scene$/i,
     },
@@ -108,12 +108,12 @@ describe("Babylon.js side-effect imports", () => {
         // Guards the scan itself: if it stopped matching, the test above would pass vacuously.
         const meshCache = join(PACKAGE_ROOT, "src/meshes/MeshCache.ts");
         const withoutBareImports = readFileSync(meshCache, "utf8").replace(/^import "[^"]+";$/gm, "");
-        assert.deepEqual(missingImports(meshCache, withoutBareImports), ["@babylonjs/core/Meshes/instancedMesh"]);
+        assert.deepEqual(missingImports(meshCache, withoutBareImports), ["@babylonjs/core/Meshes/instancedMesh.js"]);
 
         const probe = "this.scene.pick(1, 2); scene.beginAnimation(t, 0, 1); items.pick(3);";
         assert.deepEqual(missingImports("probe.ts", probe), [
-            "@babylonjs/core/Culling/ray",
-            "@babylonjs/core/Animations/animatable",
+            "@babylonjs/core/Culling/ray.js",
+            "@babylonjs/core/Animations/animatable.js",
         ]);
     });
 });

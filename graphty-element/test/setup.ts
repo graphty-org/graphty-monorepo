@@ -1,6 +1,6 @@
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 import { EngineStore } from "@babylonjs/core/Engines/engineStore";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { Logger } from "@babylonjs/core/Misc/logger";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 

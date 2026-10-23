@@ -1,5 +1,5 @@
 // Installs scene.pickWithRay; see test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Culling/ray";
+import "@babylonjs/core/Culling/ray.js";
 
 import {
     Quaternion,

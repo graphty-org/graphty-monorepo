@@ -4,8 +4,8 @@ import "./layout/index"; // register all internal layouts
 import "./algorithms/index"; // register all internal algorithms
 // Babylon.js installs scene.pick and scene.beginAnimation / stopAnimation only when these load.
 // test/packaging/babylon-side-effects.test.ts requires them wherever those methods are called.
-import "@babylonjs/core/Culling/ray";
-import "@babylonjs/core/Animations/animatable";
+import "@babylonjs/core/Culling/ray.js";
+import "@babylonjs/core/Animations/animatable.js";
 
 import {
     AbstractMesh,

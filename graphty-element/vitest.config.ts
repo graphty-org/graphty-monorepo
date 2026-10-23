@@ -42,15 +42,15 @@ import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env
  * dependency Vite discovers mid-run makes it reload the page under the test that is running.
  */
 const BABYLON_SIDE_EFFECTS = [
-    "@babylonjs/core/Meshes/instancedMesh",
-    "@babylonjs/core/Meshes/thinInstanceMesh",
-    "@babylonjs/core/Culling/ray",
-    "@babylonjs/core/Animations/animatable",
+    "@babylonjs/core/Meshes/instancedMesh.js",
+    "@babylonjs/core/Meshes/thinInstanceMesh.js",
+    "@babylonjs/core/Culling/ray.js",
+    "@babylonjs/core/Animations/animatable.js",
     // src/meshes/bundledStandardShaders.ts
-    "@babylonjs/core/Shaders/default.vertex",
-    "@babylonjs/core/Shaders/default.fragment",
-    "@babylonjs/core/ShadersWGSL/default.vertex",
-    "@babylonjs/core/ShadersWGSL/default.fragment",
+    "@babylonjs/core/Shaders/default.vertex.js",
+    "@babylonjs/core/Shaders/default.fragment.js",
+    "@babylonjs/core/ShadersWGSL/default.vertex.js",
+    "@babylonjs/core/ShadersWGSL/default.fragment.js",
 ];
 
 /**

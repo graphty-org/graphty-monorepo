@@ -29,13 +29,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -63,7 +60,7 @@ describe("Undo, Redo and Clear selection words", () => {
 
             const undo = screen.getByRole("button", { name: "Undo changing node size on Hubs" });
             await userEvent.hover(undo);
-            await screen.findByText("Undo changing node size on Hubs", undefined, { timeout: TIMEOUT_MS });
+            await screen.findByText("Undo changing node size on Hubs", undefined);
 
             await userEvent.click(undo);
             await waitFor(() => {

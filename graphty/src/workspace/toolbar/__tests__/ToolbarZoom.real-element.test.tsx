@@ -15,9 +15,6 @@ import { render, screen, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** More Tab presses than the page has stops before the toolbar: a missing stop fails, never hangs. */
 const MAX_TABS = 80;
 
@@ -26,17 +23,14 @@ describe("the canvas toolbar at 200% zoom", () => {
         await page.viewport(720, 450);
         const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         await element?.session.data.addNodes([{ id: "a" }, { id: "b" }]);
         await element?.session.data.addEdges([{ source: "a", target: "b" }]);
-        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" }, { timeout: TIMEOUT_MS });
+        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
         const canvas = toolbar.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const tools = [...toolbar.querySelectorAll<HTMLElement>("button")];

@@ -22,9 +22,6 @@ import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables with Louvain's groups as layers in a "Louvain" folder, named as the app names
  * them.
@@ -34,14 +31,11 @@ async function openScene(): Promise<{ session: GraphSession; store: WorkspaceSto
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -74,7 +68,7 @@ async function openScene(): Promise<{ session: GraphSession; store: WorkspaceSto
  * @returns The tree.
  */
 async function tree(): Promise<HTMLElement> {
-    return screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("tree", { name: "Style layers" });
 }
 
 /**
@@ -215,15 +209,12 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
         const shapeKey = within(legend).getByRole("group", { name: "Shape: Louvain" });
         const icons = within(shapeKey).getAllByTestId("data-row-icon");
         assert.isNotEmpty(icons);
-        await waitFor(
-            () => {
-                for (const icon of icons) {
-                    const picture = icon.querySelector<HTMLImageElement>("img[data-node-picture]");
-                    assert.match(picture?.src ?? "", /^data:image\/png/, "the node's own picture");
-                }
-            },
-            { timeout: 30_000 },
-        );
+        await waitFor(() => {
+            for (const icon of icons) {
+                const picture = icon.querySelector<HTMLImageElement>("img[data-node-picture]");
+                assert.match(picture?.src ?? "", /^data:image\/png/, "the node's own picture");
+            }
+        });
 
         // Each layer's copy is the very rule one layer would get on its own: no table of its own.
         for (const each of folderRows(session)) {

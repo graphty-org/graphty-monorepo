@@ -37,16 +37,13 @@ const SAMPLES = [
  */
 async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            // The project's element, not the start page's own drawing.
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        // The project's element, not the start page's own drawing.
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -94,12 +91,9 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         // T2: a sample opens as a project on the Graph place.
         await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
         const session = await elementSession();
-        await waitFor(
-            () => {
-                assert.equal(session.data.statistics().nodeCount, 77);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.data.statistics().nodeCount, 77);
+        });
         assert.equal(session.data.statistics().edgeCount, 254);
         assert.equal(session.data.source()?.name, "Les Miserables");
         assert.deepEqual(session.runs.list(), []);
@@ -121,12 +115,9 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
 
             await userEvent.click(screen.getByRole("button", { name: `Open the ${sample.name} sample` }));
             const session = await elementSession();
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, sample.nodes);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(session.data.statistics().nodeCount, sample.nodes);
+            });
             assert.equal(session.data.statistics().edgeCount, sample.edges);
             assert.equal(store.get().project?.name, sample.name);
             assert.deepEqual(session.runs.list(), []);
@@ -155,7 +146,7 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${String(i)}" target="
             const { unmount } = render(<Workspace store={store} />);
 
             globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
-            await waitFor(() => store.get().notice !== null || assert.fail("no notice yet"), { timeout: TIMEOUT_MS });
+            await waitFor(() => store.get().notice !== null || assert.fail("no notice yet"));
 
             // Back where the reader was: no project, no empty canvas named after the file.
             assert.isNull(store.get().project);
@@ -199,12 +190,9 @@ async function lesMiserablesProjectFile(): Promise<File> {
     const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
     const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 77);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(session.data.statistics().nodeCount, 77);
+    });
     await session.project.rename("Les Miserables");
     const { text } = await session.project.save();
     unmount();
@@ -234,13 +222,10 @@ describe("Open a file and a dropped file, on the real element", () => {
                     globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
                 }
                 const session = await elementSession();
-                await waitFor(
-                    () => {
-                        assert.equal(session.data.statistics().nodeCount, 77, how);
-                        assert.equal(store.get().project?.name, "Les Miserables", how);
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
+                await waitFor(() => {
+                    assert.equal(session.data.statistics().nodeCount, 77, how);
+                    assert.equal(store.get().project?.name, "Les Miserables", how);
+                });
                 assert.isFalse(store.get().notice?.error ?? false, how);
                 unmount();
             }
@@ -257,14 +242,14 @@ describe("Open a file and a dropped file, on the real element", () => {
             chooseNextFile(new File(["from,to,km\na,b,3\nb,c,6\n"], "trail.csv", { type: "text/csv" }));
             await userEvent.click(screen.getByRole("button", { name: /^Open a file/ }));
             // The roles and the weight's meaning are asked before anything loads.
-            await screen.findByRole("heading", { name: "Open as a new graph" }, { timeout: TIMEOUT_MS });
-            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            await screen.findByRole("heading", { name: "Open as a new graph" });
+            await screen.findByText("Weight: none (each edge counts 1)", {});
             const session = await elementSession();
             assert.equal(session.data.statistics().nodeCount, 0);
             // Opening a second file from the page itself joins it as the second table, as a drop does.
             chooseNextFile(new File(["id,name\na,A\nb,B\nc,C\n"], "junctions.csv", { type: "text/csv" }));
             await userEvent.keyboard("{Control>}o{/Control}");
-            await screen.findByText("Nodes: junctions.csv", {}, { timeout: TIMEOUT_MS });
+            await screen.findByText("Nodes: junctions.csv", {});
             assert.isNotNull(screen.getByText("Edges: trail.csv"));
             // Cancel goes back to the start screen.
             await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -285,36 +270,27 @@ describe("Open a file and a dropped file, on the real element", () => {
             const { unmount } = render(<Workspace store={store} />);
             await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
             const session = await elementSession();
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 15);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(session.data.statistics().nodeCount, 15);
+            });
 
             // A table file goes through the Data page, where its roles and weight are chosen.
             chooseNextFile(new File(["source,target\nx1,x2\nx2,x3\n"], "extra.csv", { type: "text/csv" }));
             await userEvent.keyboard("{Control>}o{/Control}");
-            await screen.findByRole("heading", { name: /^Add to / }, { timeout: TIMEOUT_MS });
-            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            await screen.findByRole("heading", { name: /^Add to / });
+            await screen.findByText("Weight: none (each edge counts 1)", {});
             assert.equal(session.data.statistics().nodeCount, 15);
             // x1, x2 and x3 are in no node row and not in the graph: Add makes them.
-            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
-            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            const report = await screen.findByRole("region", { name: "Match report" });
+            await userEvent.click(await within(report).findByText("Add", {}));
             const load = await screen.findByRole("button", { name: "Load" });
-            await waitFor(
-                () => {
-                    assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
+            });
             await userEvent.click(load);
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 18);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(session.data.statistics().nodeCount, 18);
+            });
             assert.isTrue(session.project.dirty);
 
             chooseNextFile(project);
@@ -322,13 +298,10 @@ describe("Open a file and a dropped file, on the real element", () => {
             const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
             assert.equal(session.data.statistics().nodeCount, 18);
             await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 77);
-                    assert.equal(store.get().project?.name, "Les Miserables");
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(session.data.statistics().nodeCount, 77);
+                assert.equal(store.get().project?.name, "Les Miserables");
+            });
             unmount();
         },
         TIMEOUT_MS * 2,

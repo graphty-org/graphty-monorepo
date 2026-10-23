@@ -40,13 +40,10 @@ async function openFriends(
     const store = createWorkspaceStore({ project: { name: "Friends", id: 1 } });
     render(<Workspace store={store} />);
     let element: ElementUnderTest | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     const el = element as unknown as ElementUnderTest;
     const { session } = el;
     await session.data.import(
@@ -127,16 +124,13 @@ describe("the Path popover, on the real element", () => {
             await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
 
             let runId = "";
-            await waitFor(
-                () => {
-                    const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
-                    assert.equal(run?.status, "succeeded");
-                    assert.equal(run?.params.source, "Ava");
-                    assert.equal(run?.params.target, "Lee");
-                    runId = String(run?.id);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
+                assert.equal(run?.status, "succeeded");
+                assert.equal(run?.params.source, "Ava");
+                assert.equal(run?.params.target, "Lee");
+                runId = String(run?.id);
+            });
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id: runId });
             await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
             // Committing closes the popover and hands focus to the result: the inspector's title,
@@ -179,7 +173,7 @@ describe("the Path popover, on the real element", () => {
             await userEvent.keyboard("p");
             const form = await pathForm();
             await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
-            await screen.findByText("No path from Ava to Zoe.", undefined, { timeout: TIMEOUT_MS });
+            await screen.findByText("No path from Ava to Zoe.", undefined);
         },
         TIMEOUT_MS,
     );
@@ -213,14 +207,14 @@ describe("the Path popover, on the real element", () => {
             // Lee to Dev runs against two arrows (Ava -> Ben -> Lee, Ava -> Dev).
             await userEvent.click(within(follow).getByText("Out"));
             await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
-            await screen.findByText("No path from Lee to Dev.", undefined, { timeout: TIMEOUT_MS });
+            await screen.findByText("No path from Lee to Dev.", undefined);
             assert.equal(session.runs.list().at(-1)?.params.direction, "out");
 
             await userEvent.keyboard("p");
             form = await pathForm();
             assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "All" }).checked);
             await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
-            await screen.findByText("Shortest path added: Lee to Dev, 3 hops", undefined, { timeout: TIMEOUT_MS });
+            await screen.findByText("Shortest path added: Lee to Dev, 3 hops", undefined);
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
             const madeWith = within(await inspector.findByRole("group", { name: "Made with" }));
             const row = madeWith.getByText("Follow").parentElement;
@@ -367,14 +361,11 @@ describe("the Path popover, on the real element", () => {
 
             await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
             let runId = "";
-            await waitFor(
-                () => {
-                    const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
-                    assert.equal(run?.status, "succeeded");
-                    runId = String(run?.id);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
+                assert.equal(run?.status, "succeeded");
+                runId = String(run?.id);
+            });
             act(() => {
                 store.set({ inspected: { kind: "measure-row", id: runId }, tabs: { "measure-row": "values" } });
             });

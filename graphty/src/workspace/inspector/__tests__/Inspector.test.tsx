@@ -491,7 +491,7 @@ describe("the inspector", () => {
         await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
         // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
         // default 1000 ms, which races the delay.
-        const tip = await screen.findByText("Edge actions", {}, { timeout: 3000 });
+        const tip = await screen.findByText("Edge actions", {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
         await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));

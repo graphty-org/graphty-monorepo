@@ -22,14 +22,11 @@ import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions
  * @param timeout - Maximum time to wait in milliseconds (default: 5000)
  */
 export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<void> {
-    await vi.waitFor(
-        () => {
-            if (!graph.initialized) {
-                throw new Error(`Graph did not initialize within ${timeout}ms`);
-            }
-        },
-        { timeout },
-    );
+    await vi.waitFor(() => {
+        if (!graph.initialized) {
+            throw new Error(`Graph did not initialize within ${timeout}ms`);
+        }
+    });
 
     // The picture is final: queued work has run, the layout has converged and the camera has
     // finished framing it, so a test that reads positions or the camera reads where they stay

@@ -91,17 +91,14 @@ function box(el: Element): DOMRect {
 }
 
 /** Poll until `fn` returns a value. vi.waitFor keeps polling on the real clock under fake timers. */
-async function waitFor<T>(fn: () => T | null | undefined, timeout = 3000): Promise<T> {
-    return vi.waitFor(
-        () => {
-            const value = fn();
-            if (!value) {
-                throw new Error("timed out");
-            }
-            return value;
-        },
-        { timeout, interval: 10 },
-    );
+async function waitFor<T>(fn: () => T | null | undefined): Promise<T> {
+    return vi.waitFor(() => {
+        const value = fn();
+        if (!value) {
+            throw new Error("timed out");
+        }
+        return value;
+    });
 }
 
 /** Two animation frames: React has committed whatever a timer that just fired scheduled. */
@@ -364,10 +361,7 @@ describe.skipIf(!available)("8.1 inverse menu", () => {
                 expect(box(path).width).toBeCloseTo(glyph.box[2], 0);
                 expect(box(path).height).toBeCloseTo(glyph.box[3], 0);
                 await drive(parent, "hover");
-                const sub = await waitFor(
-                    () => container.querySelectorAll<HTMLElement>("[data-menu-dropdown]")[1],
-                    200,
-                );
+                const sub = await waitFor(() => container.querySelectorAll<HTMLElement>("[data-menu-dropdown]")[1]);
                 expect(box(sub).left - box(surface).right).toBeCloseTo(4, 0);
                 expect(box(row(sub, "Copy as text")).top).toBeCloseTo(box(parent).top, 0);
                 // a submenu is the same dark surface as its parent (Menu.Sub renders through a
@@ -470,7 +464,7 @@ describe("8.1 menu keyboard and scroll", () => {
         );
         // Hovering the bottom chevron scrolls the menu down; the top chevron then appears.
         await userEvent.hover(menu, { position: { x: 40, y: box(menu).height - 10 } });
-        await waitFor(() => (menu.scrollTop > 40 ? true : null), 2000);
+        await waitFor(() => (menu.scrollTop > 40 ? true : null));
         await waitFor(() => (menu.hasAttribute("data-cm-scroll-up") ? true : null));
         expect(computed(menu, "::before").height).toBe("24px");
         // The top chevron row sits flush with the top of the menu.
@@ -704,7 +698,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         // run every such timer, and the tooltip must still be hidden.
         fakeTooltipTimers();
         await userEvent.click(one);
-        await waitFor(hiddenTip, 50);
+        await waitFor(hiddenTip);
         vi.runAllTimers();
         await frames();
         expect(visibleTip()).toBeNull();
@@ -808,7 +802,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const mounted = tooltipMount("Nothing to undo");
         await userEvent.click(getByRole("button", { name: "Undo" }));
         const tip = await mounted;
-        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        await waitFor(() => (isVisible(tip) ? true : null));
     });
 
     it.each(["pointer", "keyboard"])(
@@ -823,14 +817,14 @@ describe("8.3 tooltip dismiss and focus delay", () => {
                 await userEvent.tab();
             }
             const tip = await mounted;
-            await waitFor(() => (isVisible(tip) ? true : null), 2000);
+            await waitFor(() => (isVisible(tip) ? true : null));
             if (how === "pointer") {
                 await userEvent.click(button);
             } else {
                 await userEvent.keyboard("{Enter}");
             }
             // The same tooltip element, its words changed: it shows the reason, not stays dismissed.
-            await waitFor(() => (tip.textContent === "Nothing to undo" && isVisible(tip) ? true : null), 2000);
+            await waitFor(() => (tip.textContent === "Nothing to undo" && isVisible(tip) ? true : null));
             // Pressed again, the off control does nothing: its reason stays.
             if (how === "pointer") {
                 await userEvent.click(button, { force: true });
@@ -863,7 +857,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const mounted = tooltipMount("Add a layer or a folder");
         await userEvent.hover(getByRole("button", { name: "+" }));
         const tip = await mounted;
-        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        await waitFor(() => (isVisible(tip) ? true : null));
         const box = tip.getBoundingClientRect();
         const next = getByRole("button", { name: "Next row" }).getBoundingClientRect();
         const overlaps =
@@ -903,7 +897,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         const mounted = tooltipMount("Everything in node visibility is set");
         await userEvent.hover(getByRole("button", { name: "Add to Visibility" }));
         const tip = await mounted;
-        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        await waitFor(() => (isVisible(tip) ? true : null));
         const box = tip.getBoundingClientRect();
         const heading = getByRole("heading", { name: "Visibility" });
         const words = document.createRange();
@@ -921,7 +915,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await userEvent.keyboard("{Shift}");
         expect(visibleTip()).not.toBeNull();
         await userEvent.keyboard("a");
-        await waitFor(hiddenTip, 50);
+        await waitFor(hiddenTip);
     });
 
     it("hides at once on the wheel", async () => {
@@ -930,7 +924,7 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await userEvent.hover(one);
         await waitFor(visibleTip);
         await userEvent.wheel(one, { delta: { y: 10 } });
-        await waitFor(hiddenTip, 50);
+        await waitFor(hiddenTip);
     });
 
     it("a held-open tooltip (opened prop) is left alone", async () => {
@@ -1510,9 +1504,8 @@ describe.skipIf(!available)("8.7 overlay scrollbar", () => {
         await drive(track, "hover");
         expectMeasured(track, { boxShadow: "rgb(230, 230, 230) 1px 0px 0px 0px inset" });
         await commands.mouseAway();
-        await waitFor(
-            () => (container.querySelector('.mantine-ScrollArea-scrollbar[data-state="visible"]') ? null : true),
-            500,
+        await waitFor(() =>
+            container.querySelector('.mantine-ScrollArea-scrollbar[data-state="visible"]') ? null : true,
         );
     });
 });

@@ -1394,7 +1394,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        const tip = await screen.findByRole("tooltip", {});
         expect(tip.textContent).toContain(long);
     });
 });

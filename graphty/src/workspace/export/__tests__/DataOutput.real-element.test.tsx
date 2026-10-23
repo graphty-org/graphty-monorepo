@@ -47,7 +47,7 @@ async function warningsFor(
 ): Promise<string[]> {
     const { lossNotes } = await element.exportGraph(format, options);
     assert.isNotEmpty(lossNotes, `${format} reports what it cannot hold`);
-    const note = await within(dialog).findByRole("note", {}, { timeout: TIMEOUT_MS });
+    const note = await within(dialog).findByRole("note", {});
     const lines = within(note)
         .getAllByRole("listitem")
         .map((item) => item.textContent);
@@ -68,13 +68,10 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
         async () => {
             render(<Workspace initialState={{ project: { name: "Les Miserables", id: 1 } }} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }
@@ -99,13 +96,8 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
 
             await pick(dialog, "Table", "Adjacency List");
             // The adjacency table has no header row: the preview starts with a node, not "source".
-            await waitFor(
-                () =>
-                    assert.notInclude(
-                        within(dialog).getByLabelText("Preview of the exported data").textContent,
-                        "source",
-                    ),
-                { timeout: TIMEOUT_MS },
+            await waitFor(() =>
+                assert.notInclude(within(dialog).getByLabelText("Preview of the exported data").textContent, "source"),
             );
             await warningsFor(dialog, element, "csv", { table: "adjacency" });
 

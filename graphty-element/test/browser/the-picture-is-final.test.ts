@@ -370,12 +370,9 @@ describe("knowing the picture is final", () => {
 
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await vi.waitFor(
-            () => {
-                assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
-            },
-            { timeout: STABLE_TIMEOUT_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isTrue(graph.getUpdateManager().zoomToFitCompleted, "the camera was framed");
+        });
 
         const { final, later } = await finalAndLater(shaders, "the nodes");
 

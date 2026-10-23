@@ -8,7 +8,6 @@ import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { realInput } from "../../helpers/real-input";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
 
@@ -482,17 +481,17 @@ export const ScrubAndType: Story = {
             at("pointermove", left + 32);
             at("pointerup", left + 32);
         }
-        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"), storyWaitOptions(1000));
+        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50"));
         // The scrub ends with focus in the field and, a frame later, its whole value selected.
         // Type only once that selection is there, or it lands on the first keys and they are lost.
         await waitFor(() => {
             expect(box).toHaveFocus();
             expect([box.selectionStart, box.selectionEnd]).toEqual([0, box.value.length]);
-        }, storyWaitOptions(1000));
+        });
         const keys = real?.userEvent ?? userEvent;
         await keys.click(box);
         await keys.keyboard("{Control>}a{/Control}40*2{Enter}");
-        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50, 80"), storyWaitOptions(1000));
+        await waitFor(() => expect(canvas.getByTestId("commits")).toHaveTextContent("50, 80"));
     },
 };
 

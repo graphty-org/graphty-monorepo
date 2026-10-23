@@ -17,9 +17,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * What the status lines hold now.
  * @returns their words.
@@ -35,14 +32,11 @@ function statusWords(): string[] {
 async function openPaint(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -52,7 +46,7 @@ async function openPaint(): Promise<GraphSession> {
     await session.styles.addRow({ name: "Paint", target: "both", selector: { match: "everything" } });
     await session.styles.settled();
 
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Paint, / }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -68,38 +62,30 @@ describe("a committed change is said", () => {
     it("says a color committed with Enter, with how many nodes it paints", async () => {
         await openPaint();
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-        const box = await waitFor(
-            () => {
-                const found = document.querySelector<HTMLInputElement>(
-                    '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',
-                );
-                assert.isNotNull(found);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const box = await waitFor(() => {
+            const found = document.querySelector<HTMLInputElement>(
+                '[data-testid="style-tab"] .ws-row[data-line="node.color"] [data-testid="compact-color-input-hex"]',
+            );
+            assert.isNotNull(found);
+            return found;
+        });
         if (box === null) {
             throw new Error("no color box");
         }
         await userEvent.click(box);
         await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
 
-        await waitFor(
-            () => {
-                assert.include(statusWords(), "Node color now red, on 77 nodes");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(statusWords(), "Node color now red, on 77 nodes");
+        });
     });
 
     it("says a size bound to a value, with how many nodes it sizes", async () => {
         const session = await openPaint();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        await userEvent.click(
-            await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS }),
-        );
+        await userEvent.click(await screen.findByRole("button", { name: "Node size by attribute" }));
         await userEvent.keyboard("Degree");
         await userEvent.click(await screen.findByRole("option", { name: /^Degree(,|$)/ }));
         await waitFor(() => {
@@ -111,11 +97,8 @@ describe("a committed change is said", () => {
             );
         });
 
-        await waitFor(
-            () => {
-                assert.include(statusWords(), "Node size varies by Degree, on 77 nodes");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(statusWords(), "Node size varies by Degree, on 77 nodes");
+        });
     });
 });

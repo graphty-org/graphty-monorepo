@@ -19,9 +19,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and runs finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Waits until the element holds the room the store reserves, so the camera has the insets to frame
  * with before the next stable frame is read.
@@ -29,15 +26,12 @@ const TIMEOUT_MS = 90_000;
  * @param store - the workspace store.
  */
 async function insetsInForce(element: HTMLElementTagNameMap["graphty-element"], store: WorkspaceStore): Promise<void> {
-    await waitFor(
-        () => {
-            const held = element.viewInsets;
-            for (const [side, room] of Object.entries(store.get().viewInsets)) {
-                assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
-            }
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const held = element.viewInsets;
+        for (const [side, room] of Object.entries(store.get().viewInsets)) {
+            assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
+        }
+    });
 }
 
 /** Where the pictures for the owner's review go, relative to this file. */
@@ -58,14 +52,11 @@ async function scene(
     await page.viewport(width, height);
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     const session = element?.session;
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
@@ -151,8 +142,8 @@ async function wheelOver(element: HTMLElement, deltaY: number): Promise<void> {
 describe("the canvas key on the real element", () => {
     it("keys only what a reader can read, groups in rank order, with chits ringed on the dark card", async () => {
         await scene(1440, 900);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" });
 
         const titles = within(legend)
             .getAllByRole("group")
@@ -196,8 +187,8 @@ describe("the canvas key on the real element", () => {
             set: { "edge.style": "solid", "edge.patternCount": 2 },
         });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const line = await within(legend).findByRole("group", { name: "Edge line: Bob" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const line = await within(legend).findByRole("group", { name: "Edge line: Bob" });
         const titles = within(legend)
             .getAllByRole("group")
             // A section of one row named as its title takes no name of its own: its row says it.
@@ -213,8 +204,8 @@ describe("the canvas key on the real element", () => {
 
     it("keys what encodes the data, never the Selected row's glow or halo, with a node selected", async () => {
         const { session } = await scene(1440, 900);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: "Color: Louvain" });
         await session.selection.apply({ ids: [session.data.nodes()[0]?.id ?? ""] });
         await session.styles.settled();
         await waitFor(() => {
@@ -249,19 +240,16 @@ describe("the canvas key on the real element", () => {
             encode: { "node.shape": { by: group, scale: "ordinal" } },
         });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: /^Shape: / }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: /^Shape: / });
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
         // The key's room is reserved and the graph framed clear of it: wait for the inset, then for
         // the frame after it to land and settle, and measure the drawing as it stays.
-        await waitFor(
-            () => {
-                assert.isNotEmpty(Object.keys(store.get().viewInsets));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotEmpty(Object.keys(store.get().viewInsets));
+        });
         await insetsInForce(element, store);
         await element.waitForStableFrame();
         const xs = ids.flatMap((id) => {
@@ -318,8 +306,8 @@ describe("the canvas key on the real element", () => {
         await session.runs.start("edge-betweenness");
         await session.runs.start("shortest-path", { source: String(ids[0]), target: String(ids[11]) });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: /Shortest path/ }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: /Shortest path/ });
         assert.notInclude(legend.textContent, "Shortest route");
         await page.screenshot({ path: `${SHOTS}/key-1366x768-three-runs.png` });
         await waitFor(() => {
@@ -330,7 +318,7 @@ describe("the canvas key on the real element", () => {
 
     it("at 200% zoom stays inside the canvas, clear of the inspector beside it", async () => {
         await scene(683, 384);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         const canvas = legend.closest<HTMLElement>(".ws-canvas") ?? legend.parentElement;
         await waitFor(() => {
             assert.isAtMost(
@@ -346,14 +334,11 @@ describe("the canvas key on the real element", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         const session = element?.session;
         if (element === null || session === undefined) {
             throw new Error("the element never came up");
@@ -385,15 +370,12 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.haloColor": "#ff00ff" },
         });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isDefined(
+                store.get().viewInsets.left ?? store.get().viewInsets.top,
+                "the key came up and reserved its room",
+            );
+        });
         await insetsInForce(element, store);
         await element.waitForStableFrame();
 
@@ -408,14 +390,11 @@ describe("the canvas key on the real element", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         const session = element?.session;
         if (element === null || session === undefined) {
             throw new Error("the element never came up");
@@ -447,37 +426,28 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.color": "#ff00ff" },
         });
-        await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await screen.findByRole("region", { name: "Legend" });
+        await waitFor(() => {
+            assert.isDefined(
+                store.get().viewInsets.left ?? store.get().viewInsets.top,
+                "the key came up and reserved its room",
+            );
+        });
         await unmoved("the key coming up moved the drawing");
 
         await session.runs.start("louvain");
         await session.styles.settled();
-        await waitFor(
-            () => {
-                const legend = screen.getByRole("region", { name: "Legend" });
-                assert.isAtLeast(within(legend).getAllByRole("group").length, 2, "the key grew by the run's groups");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const legend = screen.getByRole("region", { name: "Legend" });
+            assert.isAtLeast(within(legend).getAllByRole("group").length, 2, "the key grew by the run's groups");
+        });
         await unmoved("the key growing as a run ended moved the drawing");
 
         await session.undo();
         await session.undo();
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("region", { name: "Legend" }), "Undo took the key away");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Legend" }), "Undo took the key away");
+        });
         await unmoved("Undo taking the key away moved the drawing");
     });
 });

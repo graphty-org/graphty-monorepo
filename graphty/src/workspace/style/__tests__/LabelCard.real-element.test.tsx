@@ -19,9 +19,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { CARD_LOOK } from "../cardLook";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = [
     { id: "1", name: "Alpha", dept: "east" },
     { id: "2", name: "Beta", dept: "west" },
@@ -37,13 +34,10 @@ async function opened(): Promise<{ session: GraphSession; element: Element; stor
     const store = createWorkspaceStore({ project: { name: "Card", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: Element | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -57,7 +51,7 @@ async function opened(): Promise<{ session: GraphSession; element: Element; stor
  * @returns it.
  */
 async function textList(): Promise<HTMLElement> {
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+    const tab = await screen.findByTestId("style-tab", {});
     const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');
     if (nodes === null) {
         throw new Error("the Style panel draws no Nodes group");
@@ -167,12 +161,9 @@ describe("a label drawn as a card on the real element", () => {
 
         // The element draws the card's lines, in order.
         await session.styles.settled();
-        await waitFor(
-            () => {
-                assert.equal(element.labelOf("1")?.text, "Dept: east\nAlpha");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(element.labelOf("1")?.text, "Dept: east\nAlpha");
+        });
 
         // The minus removes the card: its lines and its look.
         await userEvent.keyboard("{Escape}");

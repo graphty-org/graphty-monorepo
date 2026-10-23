@@ -30,13 +30,10 @@ const K5 = IDS.flatMap((src, i) => IDS.slice(i + 1).map((dst) => ({ src, dst }))
 async function openK5(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "K5", id: 1 } })} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }

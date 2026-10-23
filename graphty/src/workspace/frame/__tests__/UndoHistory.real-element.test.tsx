@@ -20,9 +20,6 @@ import { answerUsageData, forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Les Miserables' node count, from its source. */
 const NODES = 77;
 
@@ -35,13 +32,10 @@ async function openSample(): Promise<{ session: GraphSession; store: WorkspaceSt
     render(<Workspace store={store} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.equal(session?.data.statistics().nodeCount, NODES);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.equal(session?.data.statistics().nodeCount, NODES);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }

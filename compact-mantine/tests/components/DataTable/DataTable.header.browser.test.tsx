@@ -105,12 +105,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(button).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
+        });
         expect(button).toHaveAccessibleDescription("20 values, 0 to 19");
     });
 
@@ -149,12 +146,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}{ArrowRight}");
         expect(header).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
+        });
     });
 
     it("opens the header menu from its caret, and from the keyboard on the header", async () => {

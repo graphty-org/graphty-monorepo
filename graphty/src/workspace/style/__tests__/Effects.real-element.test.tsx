@@ -22,9 +22,6 @@ import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceConte
 import { StylePanel } from "../StylePanel";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 const NODES = [{ id: "1" }, { id: "2" }, { id: "3" }];
 const EDGES = [
     { source: "1", target: "2" },
@@ -53,12 +50,9 @@ async function mountElement(): Promise<{ element: HTMLElementTagNameMap["graphty
     element.style.height = "100%";
     host.appendChild(element);
     document.body.appendChild(host);
-    await waitFor(
-        () => {
-            assert.isDefined(element.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isDefined(element.session);
+    });
     await element.session.data.addNodes(NODES);
     await element.session.data.addEdges(EDGES);
     return { element, session: element.session };
@@ -145,13 +139,10 @@ describe("effects and arrow ends on the real element", () => {
         const hex = within(row).getByRole<HTMLInputElement>("textbox", { name: /^Node glow/ });
         await userEvent.tripleClick(hex);
         await userEvent.keyboard("FF00FF{Enter}");
-        await waitFor(
-            () => {
-                assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF");
-                assert.equal(glowOf(session), "#ff00ff");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(written(session, nodeLayer, "node.glow"), "#FF00FF");
+            assert.equal(glowOf(session), "#ff00ff");
+        });
 
         // Glow is set, so "+" no longer offers it.
         await userEvent.click(within(nodeEffects()).getByRole("button", { name: "Add to node effects" }));
@@ -179,11 +170,8 @@ describe("effects and arrow ends on the real element", () => {
         const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });
         await userEvent.click(head);
         await userEvent.click(await screen.findByRole("option", { name: "None" }));
-        await waitFor(
-            () => {
-                assert.equal(written(session, edgeLayer, "edge.arrowHead"), "none");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(written(session, edgeLayer, "edge.arrowHead"), "none");
+        });
     });
 });

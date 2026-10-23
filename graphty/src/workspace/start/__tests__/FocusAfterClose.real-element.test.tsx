@@ -42,18 +42,15 @@ const TIMEOUT_MS = 60_000;
  */
 async function loaded(nodes: number): Promise<{ host: HTMLElement; session: GraphSession }> {
     let found: { host: HTMLElement; session: GraphSession } | undefined;
-    await waitFor(
-        () => {
-            const host = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            );
-            const session = host?.session;
-            assert.isDefined(session);
-            assert.equal(session.data.statistics().nodeCount, nodes);
-            found = { host: host as HTMLElement, session };
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const host = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        );
+        const session = host?.session;
+        assert.isDefined(session);
+        assert.equal(session.data.statistics().nodeCount, nodes);
+        found = { host: host as HTMLElement, session };
+    });
     if (found === undefined) {
         throw new Error("the element never came up");
     }
@@ -185,13 +182,10 @@ describe("focus after the control holding it goes away, on the real element", ()
             const { unmount } = render(<Workspace store={store} />);
             openButton().focus();
             await userEvent.keyboard("{Enter}");
-            await waitFor(
-                () => {
-                    assert.isTrue(store.get().notice?.error);
-                    assert.isNull(store.get().project);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.isTrue(store.get().notice?.error);
+                assert.isNull(store.get().project);
+            });
             await waitFor(() => {
                 assert.strictEqual(document.activeElement, openButton());
             });
@@ -242,13 +236,10 @@ describe("focus after the control holding it goes away, on the real element", ()
             row.focus();
             await userEvent.keyboard("{Enter}");
             const opened = await loaded(15);
-            await waitFor(
-                () => {
-                    assert.equal(store.get().project?.name, "Kept Florentine");
-                    assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(store.get().project?.name, "Kept Florentine");
+                assertFocusOnGraphHeading(15, opened.session.data.statistics().edgeCount);
+            });
             unmount();
         },
         // Twice the waits inside it, so a failure reports its assertion rather than the test timeout.
@@ -324,14 +315,11 @@ describe("focus after the control holding it goes away, on the real element", ()
             chooseCsv();
             openButton().focus();
             await userEvent.keyboard("{Enter}");
-            const load = await screen.findByRole("button", { name: "Load" }, { timeout: TIMEOUT_MS });
-            await waitFor(
-                () => {
-                    assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
-                    assert.strictEqual(document.activeElement, load);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const load = await screen.findByRole("button", { name: "Load" });
+            await waitFor(() => {
+                assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
+                assert.strictEqual(document.activeElement, load);
+            });
             assert.include(describedBy(load), "abc: 3 nodes, 2 edges");
             await userEvent.keyboard("{Enter}");
             await loaded(3);
@@ -357,14 +345,11 @@ describe("focus after the control holding it goes away, on the real element", ()
         openButton().focus();
         await userEvent.keyboard("{Enter}");
         // A chosen file keeps the page open on Esc (DataPage.tsx), so Cancel is the way out.
-        (await screen.findByRole("button", { name: "Cancel" }, { timeout: TIMEOUT_MS })).focus();
+        (await screen.findByRole("button", { name: "Cancel" })).focus();
         await userEvent.keyboard("{Enter}");
-        await waitFor(
-            () => {
-                assert.strictEqual(document.activeElement, openButton());
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, openButton());
+        });
         unmount();
     });
 

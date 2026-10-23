@@ -15,9 +15,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Opens Les Miserables from the start screen, as a reader does, with the starting rows on.
  * @returns the session.
@@ -25,17 +22,14 @@ const TIMEOUT_MS = 90_000;
 async function openSample(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore()} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
-    return waitFor<GraphSession>(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            if (found === undefined) {
-                throw new Error("the element is not up yet");
-            }
-            assert.equal(found.data.statistics().nodeCount, 77);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor<GraphSession>(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        if (found === undefined) {
+            throw new Error("the element is not up yet");
+        }
+        assert.equal(found.data.statistics().nodeCount, 77);
+        return found;
+    });
 }
 
 /**
@@ -62,15 +56,12 @@ describe("the Hovered row", () => {
         }
         await element.waitForSettled();
         await element.waitForStableFrame();
-        const at = await waitFor(
-            () => {
-                assert.isFalse(countsOne(), "nothing is hovered yet");
-                const drawn = element.nodeScreenPosition("Valjean");
-                assert.isDefined(drawn, "the node is drawn");
-                return drawn;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const at = await waitFor(() => {
+            assert.isFalse(countsOne(), "nothing is hovered yet");
+            const drawn = element.nodeScreenPosition("Valjean");
+            assert.isDefined(drawn, "the node is drawn");
+            return drawn;
+        });
 
         await userEvent.hover(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
         await waitFor(() => {

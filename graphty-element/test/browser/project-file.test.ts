@@ -10,9 +10,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 
-/** How long a poll below may wait for the element to finish a save or an open: the test's budget. */
-const POLL_BUDGET_MS = 10_000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -134,13 +131,10 @@ describe("the project file on a renderer", () => {
         assert.strictEqual(document.title, "* Pioneers");
 
         save.click();
-        await vi.waitFor(
-            () => {
-                assert.strictEqual(downloads.length, 1);
-                assert.strictEqual(document.title, "Pioneers", "the save cleared the unsaved mark");
-            },
-            { timeout: POLL_BUDGET_MS },
-        );
+        await vi.waitFor(() => {
+            assert.strictEqual(downloads.length, 1);
+            assert.strictEqual(document.title, "Pioneers", "the save cleared the unsaved mark");
+        });
         assert.strictEqual(downloads[0].download, "Pioneers.graphty.json");
         const { text } = await element.session.project.save();
 
@@ -150,16 +144,13 @@ describe("the project file on a renderer", () => {
         transfer.items.add(new File([text], "Pioneers.graphty.json"));
         open.files = transfer.files;
         open.dispatchEvent(new Event("change"));
-        await vi.waitFor(
-            () => {
-                assert.deepStrictEqual(
-                    element.session.data.nodes().map((node) => node.id),
-                    ["ada", "grace"],
-                );
-                assert.strictEqual(document.title, "Pioneers");
-            },
-            { timeout: POLL_BUDGET_MS },
-        );
+        await vi.waitFor(() => {
+            assert.deepStrictEqual(
+                element.session.data.nodes().map((node) => node.id),
+                ["ada", "grace"],
+            );
+            assert.strictEqual(document.title, "Pioneers");
+        });
 
         assert.deepStrictEqual(confirmed, ["Discard unsaved changes?"]);
         assert.isFalse(element.session.project.dirty);

@@ -18,9 +18,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the runs finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * The app on Les Miserables, with Degree run so a number field is listed.
  * @returns the session.
@@ -29,14 +26,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -50,9 +44,7 @@ async function openScene(): Promise<GraphSession> {
  * "+" > Layer, then Escape: a new layer, selected, its Style tab open.
  */
 async function newLayer(): Promise<void> {
-    await userEvent.click(
-        await screen.findByRole("button", { name: "Add a layer or a folder" }, { timeout: TIMEOUT_MS }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
     await screen.findByRole("textbox", { name: "Layer name" });
     await userEvent.keyboard("{Escape}");
@@ -73,7 +65,7 @@ describe("names and words", () => {
         await openScene();
         await newLayer();
         // A new layer opens its Which picker on arrival.
-        const region = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
+        const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await screen.findByLabelText("Find an attribute");
         await screen.findByRole("listbox", { name: "Attributes" });
@@ -106,10 +98,10 @@ describe("names and words", () => {
     it("gives the Vary by button, its tooltip and its pop-out one name", async () => {
         await openScene();
         await newLayer();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const vary = await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS });
+        const vary = await screen.findByRole("button", { name: "Node size by attribute" });
         await userEvent.click(vary);
         await screen.findByRole("dialog", { name: "Node size by attribute" });
         await screen.findByRole("combobox", { name: "Find an attribute" });
@@ -117,7 +109,7 @@ describe("names and words", () => {
 
     it("names the View button with the mode it shows, and separates Analyze's option names", async () => {
         await openScene();
-        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" }, { timeout: TIMEOUT_MS });
+        const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
         within(toolbar).getByRole("button", { name: /^View, (2D|3D)$/ });
 
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
@@ -132,7 +124,7 @@ describe("names and words", () => {
     it("makes each style section a heading named once", async () => {
         await openScene();
         await newLayer();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         await within(tab).findByRole("heading", { level: 3, name: "Shape" });
         assert.isNull(within(tab).queryByRole("group", { name: "Node shape" }), "no wrapper repeating the title");
         assert.lengthOf(within(tab).getAllByRole("group", { name: "Shape" }), 1);

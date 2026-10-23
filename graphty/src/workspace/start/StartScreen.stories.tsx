@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
 import { realInput } from "../../stories/real-input";
-import { storyWaitOptions } from "../../stories/wait";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
@@ -40,7 +39,7 @@ async function click(canvasElement: HTMLElement, parameters: Record<string, unkn
 async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
     await waitFor(() => {
         expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
-    }, storyWaitOptions(30_000));
+    });
     const element = canvasElement.querySelector("graphty-element");
     if (element === null) {
         throw new Error("the start page drew no <graphty-element>");
@@ -129,10 +128,7 @@ export const NetworkData: Story = {
     play: async ({ canvasElement, parameters }) => {
         await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "Open network data");
-        await waitFor(
-            () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
-            storyWaitOptions(1000),
-        );
+        await waitFor(() => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull());
     },
 };
 
@@ -147,10 +143,7 @@ export const DropTarget: Story = {
         const real = realInput(parameters);
         if (real) {
             await real.dragFileOver(root);
-            await waitFor(
-                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
-                storyWaitOptions(1000),
-            );
+            await waitFor(() => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull());
         } else {
             // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed.
             root.dispatchEvent(new DragEvent("dragover", { bubbles: true, dataTransfer: new DataTransfer() }));

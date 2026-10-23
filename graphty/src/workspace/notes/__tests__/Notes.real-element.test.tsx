@@ -28,14 +28,11 @@ const TIMEOUT_MS = 60_000;
  */
 async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-            assert.notStrictEqual(session, previous);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+        assert.notStrictEqual(session, previous);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -51,12 +48,9 @@ async function openSample(store: WorkspaceStore): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
     const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 15);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(session.data.statistics().nodeCount, 15);
+    });
     return session;
 }
 
@@ -108,40 +102,31 @@ describe("Notes, on the real element", () => {
             const dialog = await screen.findByRole("dialog", { name: /^Save .* as$/ });
             await userEvent.clear(within(dialog).getByRole("textbox", { name: "Name" }));
             await userEvent.keyboard("With a note{Enter}");
-            await waitFor(
-                () => {
-                    assert.isNull(screen.queryByRole("dialog"));
-                    assert.isFalse(session.project.dirty);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog"));
+                assert.isFalse(session.project.dirty);
+            });
             await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
             await userEvent.click(await screen.findByRole("gridcell", { name: /^With a note/ }));
             // The reopened project's element: Back to start can put up an element of its own first,
             // whose session is not the reopened project's.
             let reopened = await elementSession(session);
-            await waitFor(
-                () => {
-                    const current = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                        "graphty-element:not([data-start-page])",
-                    )?.session;
-                    assert.equal(current?.project.name, "With a note");
-                    if (current !== undefined) {
-                        reopened = current;
-                    }
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            await waitFor(
-                () => {
-                    assert.deepEqual(
-                        reopened.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
-                        [{ text: "Ask about the bank", targets: [{ node: first.id }] }],
-                    );
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                const current = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                    "graphty-element:not([data-start-page])",
+                )?.session;
+                assert.equal(current?.project.name, "With a note");
+                if (current !== undefined) {
+                    reopened = current;
+                }
+            });
+            await waitFor(() => {
+                assert.deepEqual(
+                    reopened.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
+                    [{ text: "Ask about the bank", targets: [{ node: first.id }] }],
+                );
+            });
             await userEvent.click(screen.getByRole("button", { name: "Notes" }));
             const again = await screen.findByRole("list", { name: "Notes" });
             assert.isNotNull(within(again).getByRole("listitem", { name: "Ask about the bank" }));

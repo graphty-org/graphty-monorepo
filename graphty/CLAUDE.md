@@ -101,7 +101,7 @@ The `Graphty.tsx` component wraps `<graphty-element>`:
 - Handles events from the Web Component
 - Manages React state for UI controls
 
-Acceleration: `main.tsx` imports `@graphty/graphty-element/webgpu` and that is the whole GPU integration. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
+Acceleration: the app lists `@graphty/webgpu-graph-algorithms` as a dependency and that is the whole GPU integration -- graphty-element finds and loads the installed package itself. The element probes, attaches and recovers; the app writes the reader's `acceleration` policy on the tag (`Graphty.tsx`), remembers it under `graphty.shell.acceleration.v1` (`shell/defaults/accelerationSettings.ts`), and renders `capabilities.acceleration` as the status bar's acceleration chip from the `graphty-capabilities-change` event (`AppShell.tsx`). Nothing in this app may probe, construct or catch a GPU failure.
 
 ### Changing the graph, and undo
 

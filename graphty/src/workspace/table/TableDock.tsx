@@ -63,7 +63,7 @@ interface View {
     readonly order: readonly string[];
     readonly sort: DataTableSort | null;
     /** Only the rows an open issue is on: one issue's ("Show rows"), or any ("With issues"); null for all. */
-    readonly issue: IssueId | "any" | null;
+    readonly issue: IssueId | null;
 }
 
 /** The Nodes tab narrowed to one group's members. */
@@ -260,12 +260,7 @@ function ColumnsMenu({ choices, hidden, onToggle }: Readonly<ColumnsMenuProps>):
  * @param issue - only the records an open issue is on, or null.
  * @returns the count.
  */
-function recordTotal(
-    session: GraphSession,
-    kind: RecordKind,
-    scope: ScopeInput,
-    issue: IssueId | "any" | null = null,
-): number {
+function recordTotal(session: GraphSession, kind: RecordKind, scope: ScopeInput, issue: IssueId | null = null): number {
     const counted = { limit: 0, scope, ...(issue === null ? {} : { issue }) };
     return kind === "node" ? session.data.nodePage(counted).total : session.data.edgePage(counted).total;
 }

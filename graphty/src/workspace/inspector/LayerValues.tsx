@@ -402,7 +402,12 @@ function MemberValues({
 }
 
 /** What a state layer's rule reads, by the state it follows. */
-const STATE_NAMES = { selected: "Is selected", hovered: "Is hovered", ghosted: "Is outside the time window" } as const;
+const STATE_NAMES = {
+    selected: "Is selected",
+    hovered: "Is hovered",
+    ghosted: "Is outside the time window",
+    pinned: "Is pinned",
+} as const;
 
 /**
  * Selected's and Hovered's current elements.
@@ -608,7 +613,9 @@ export function LayerValues({
                 </ControlSection>
             )}
             {[...new Set(states)].map((state) =>
-                state === "ghosted" ? null : <StateValues key={state} session={session} state={state} />,
+                state === "ghosted" || state === "pinned" ? null : (
+                    <StateValues key={state} session={session} state={state} />
+                ),
             )}
             {reads.map((read) =>
                 read.run?.shape === "path" ? (

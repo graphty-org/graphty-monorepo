@@ -1,12 +1,12 @@
 import "./start.css";
 
+import { useFileDrop } from "@graphty/compact-mantine";
 import {
     DATASET_DESCRIPTORS,
     type DatasetMeta,
     GENERATOR_DESCRIPTORS,
     type GeneratorDescriptor,
 } from "@graphty/graphty-element/catalog";
-import { useFileDrop } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";

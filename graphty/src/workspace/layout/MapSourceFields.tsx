@@ -1,7 +1,7 @@
+import { FileSource } from "@graphty/compact-mantine";
 import type { BasemapStatusEvent } from "@graphty/graphty-element";
 import { BASEMAP_SOURCE_DESCRIPTORS, type BasemapSourceDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig, BasemapSourceId } from "@graphty/graphty-element/schema";
-import { FileSource } from "@graphty/compact-mantine";
 import { Input, Select, Stack, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 

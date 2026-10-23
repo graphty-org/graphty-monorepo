@@ -15,8 +15,8 @@ import { Input, Select, Stack, Switch, Text } from "@mantine/core";
 import React, { useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
-import type { WorkspaceStore } from "../state/store";
 import { readDataUrl } from "../start/open";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
 

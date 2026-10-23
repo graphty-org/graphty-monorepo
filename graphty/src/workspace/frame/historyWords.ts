@@ -125,6 +125,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.issues": () => "changing the data issues",
     "data.fix-issue": () => "fixing a data issue",
     "data.ignore-issue": () => "ignoring a data issue",
+    "data.ignore-issues": (p) =>
+        `${p.ignored === false ? "restoring" : "ignoring"} ${Array.isArray(p.issues) ? p.issues.length : 0} data issues`,
     "data.remove-source": (p) => `removing ${text(p, "name", "a source")}`,
     "data.replace-source": (p) => `replacing ${text(p, "name", "a source")}`,
     "data.rename-column": () => "renaming a column",

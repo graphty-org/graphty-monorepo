@@ -50,10 +50,10 @@ import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
 import { writeFileStylesChoice } from "../settings/preferences";
+import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { readPasted } from "../start/open";
 import { showNotices } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {

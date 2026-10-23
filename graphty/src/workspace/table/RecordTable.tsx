@@ -56,8 +56,8 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
-    /** Only the records an open issue is on: one issue's, or any; null for every record. */
-    issue?: IssueId | "any" | null;
+    /** Only the records an open issue is on: one issue's id, or "any" for every open issue; null for every record. */
+    issue?: IssueId | null;
     /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
     issueColumns?: ReadonlyMap<string, readonly IssueId[]>;
     sort: DataTableSort | null;

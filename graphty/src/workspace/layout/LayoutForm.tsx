@@ -46,7 +46,7 @@ function drawnLine(element: GraphtyElement | null): string | undefined {
     if (location === undefined) {
         return undefined;
     }
-    return location.kind === "location" ? location.column : `${location.latitude}, ${location.longitude}`;
+    return location.kind === "columns" ? `${location.latitude}, ${location.longitude}` : location.column;
 }
 
 /** Props for LayoutForm. */

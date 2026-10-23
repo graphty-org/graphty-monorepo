@@ -171,6 +171,7 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "location",
     "latitude",
     "longitude",
+    "within",
 ]);
 
 const DECLARATION =

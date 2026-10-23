@@ -325,6 +325,8 @@ describe("the location map", () => {
                 location: "home",
                 latitude: null,
                 longitude: null,
+                role: "coords",
+                within: null,
             });
             assert.strictEqual(latitude.value, "none");
         });
@@ -363,6 +365,8 @@ describe("the location map", () => {
                 location: null,
                 latitude: "latitude",
                 longitude: "longitude",
+                role: "coords",
+                within: null,
             });
         });
 

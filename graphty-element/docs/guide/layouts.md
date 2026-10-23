@@ -311,8 +311,28 @@ are unset, and `session.layout.locationColumns()` says which columns it will rea
 
 ```ts
 await session.config.set({ data: { knownFields: { nodeLocationPath: "where" } } });
-session.layout.locationColumns(); // { from: "designated", location: "where", latitude: null, longitude: null }
+session.layout.locationColumns();
+// { from: "designated", location: "where", latitude: null, longitude: null, role: "coords", within: null }
 ```
+
+- **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
+  with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
+  placed with no settings; a column of names under any other heading is found by its values. The
+  names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
+  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
+  column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
+  `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
+  column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
+  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
+  several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
+
+    ```ts
+    await session.config.set({
+        data: { knownFields: { nodeLocationPath: "city", nodeLocationRole: "city", nodeLocationWithin: "US" } },
+    });
+    ```
 
 - **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
   (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe

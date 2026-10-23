@@ -4,13 +4,23 @@
 //   node tools/land.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
-import { noteBody } from "./branch-note.mjs";
+import { busyLine, noteBody } from "./branch-note.mjs";
+import { failedTest, moveGoldenGood, syncDue } from "./branch-sync.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
@@ -26,6 +36,8 @@ import {
 } from "./land.mjs";
 
 const dir = mkdtempSync(join(tmpdir(), "land-"));
+// The lock's waits go to a log of this test's own, never the machine's (tools/wait-log.mjs).
+process.env.PIPELINE_WAIT_LOG = join(dir, "waits.jsonl");
 const repo = join(dir, "main");
 const other = join(dir, "other");
 const env = isolatedGitEnv();
@@ -56,6 +68,9 @@ let previews;
 let previewHeads;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
+let checks; // the landing checks: the gate on golden's next commit, without the lock, sending nothing
+let verifies; // what each landing asked tools/verify.mjs to verify
+const passed = new Set(); // the trees whose check passed: a push of one takes no gate (prepush-inputs.mjs)
 let refspecs; // what each push sent
 let duringPush; // runs once inside the next push, as if the gate were running
 let installed = null; // the lockfile golden's node_modules were last installed from
@@ -109,13 +124,19 @@ before(() => {
             if (isEdit(args)) gh.body = readFileSync(args.find((a) => a.startsWith("body=@")).slice(6), "utf8");
             return "";
         },
+        // The gate of a landing runs in its check; the push of the checked commit finds its pass.
+        check: async (c) => {
+            checks++;
+            const r = await gate(c);
+            if (r.code === 0) passed.add(git(c.golden, "rev-parse", "HEAD^{tree}"));
+            return r;
+        },
+        verify: (_c, sha, branch) => verifies.push([branch, sha]),
         push: async (c, cwd = c.golden, refspec = "golden:golden") => {
             pushes++;
             refspecs.push(refspec);
-            const during = duringPush;
-            duringPush = null;
-            during?.();
-            const result = typeof pushResult === "function" ? pushResult(c) : pushResult;
+            const known = cwd === c.golden && passed.has(git(cwd, "rev-parse", "HEAD^{tree}"));
+            const result = known ? 0 : (await gate(c)).code;
             if (result !== 0) return { code: result, output: "gate failed: tmp/push-gate-logs/x.log" };
             const r = spawnSync("git", ["push", "-q", "origin", refspec], {
                 cwd,
@@ -139,8 +160,23 @@ before(() => {
     });
 });
 
+/**
+ * The fake gate: runs `duringPush` once, then answers `pushResult` (a code, or a function of the context).
+ * @param c the context of the worktree the gate runs in
+ * @returns `{ code, output }`
+ */
+const gate = async (c) => {
+    const during = duringPush;
+    duringPush = null;
+    during?.();
+    const code = typeof pushResult === "function" ? pushResult(c) : pushResult;
+    return { code, output: code ? "gate failed: tmp/push-gate-logs/x.log" : "" };
+};
+
 beforeEach(() => {
     gh = [];
+    checks = 0;
+    verifies = [];
     previews = [];
     previewHeads = [];
     pushResult = 0;
@@ -380,10 +416,80 @@ describe("landing", () => {
         };
         const r = await run("land", "feat/m");
         assert.equal(r.code, 0, r.out);
-        assert.equal(pushes, 2);
-        assert.match(r.out, /golden moved on GitHub/);
+        // The owner's push came during the check, so the landing checked again on the new golden.
+        assert.equal(checks, 2, r.out);
+        assert.equal(pushes, 1);
+        assert.match(r.out, /golden moved during the check \(try 1 of 3\)/);
         assert.equal(originGolden(), head());
         assert.ok(existsSync(join(golden, "accept.txt")) && existsSync(join(golden, "m.txt")));
+    });
+});
+
+describe("the short lock", () => {
+    // The owner's accept commit, pushed to GitHub's golden from another clone.
+    const ownerPush = (name) => {
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "golden", "origin/golden");
+        write(other, `${name}.txt`, "ok\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", `chore(visual-review): ${name}`);
+        git(other, "push", "-q", "origin", "golden");
+        git(other, "checkout", "-q", "master");
+    };
+
+    it("checks without the lock, then pushes exactly the checked commit and asks for its verification", async () => {
+        branch("short/a", { "sa.txt": "a\n" }, "feat: sa");
+        gh.open = true;
+        let lockDuringCheck;
+        let checkedTree;
+        pushResult = (c) => {
+            lockDuringCheck = readLock(ctx.lock);
+            checkedTree = git(c.golden, "rev-parse", "HEAD^{tree}");
+            return 0;
+        };
+        const r = await run("land", "short/a");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(lockDuringCheck, null, "nobody held the landing lock while the gate ran");
+        assert.equal(checks, 1);
+        assert.equal(pushes, 1);
+        assert.equal(git(golden, "rev-parse", "HEAD^{tree}"), checkedTree);
+        assert.equal(originGolden(), head());
+        assert.equal(git(golden, "log", "-1", "--format=%s"), "land: short/a");
+        assert.deepEqual(verifies, [["golden", head()]]);
+        assert.match(r.out, /short\/a\s+landed/);
+    });
+
+    it("checks in the next free slot while another landing checks in the first", async () => {
+        branch("short/b", { "sb.txt": "b\n" }, "feat: sb");
+        const slot = join(repo, "tmp/golden/check-slot-1");
+        mkdirSync(slot, { recursive: true });
+        write(slot, "owner.json", JSON.stringify({ pid: process.ppid, host: hostname(), since: "now" }));
+        try {
+            const r = await run("land", "short/b");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /land-check-2, without the landing lock/);
+        } finally {
+            rmSync(slot, { recursive: true, force: true });
+        }
+    });
+
+    it("after golden moved during three checks, holds the lock through the fourth", async () => {
+        branch("short/c", { "sc.txt": "c\n" }, "feat: sc");
+        let gates = 0;
+        let lockedGate;
+        pushResult = () => {
+            gates++;
+            if (gates <= 3) ownerPush(`moved${gates}`);
+            else lockedGate = readLock(ctx.lock);
+            return 0;
+        };
+        const r = await run("land", "short/c");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(checks, 3);
+        assert.match(r.out, /golden moved during 3 checks; this landing holds the lock through its check/);
+        assert.equal(lockedGate?.pid, process.pid, "the fourth gate ran under the landing lock");
+        assert.ok(["moved1.txt", "moved2.txt", "moved3.txt", "sc.txt"].every((f) => existsSync(join(golden, f))));
+        assert.equal(originGolden(), head());
     });
 });
 
@@ -497,8 +603,9 @@ describe("landing several branches", () => {
         pushResult = badGate;
         const r = await run("land", "multi/d", "multi/e", "multi/f");
         assert.equal(r.code, 3, r.out);
-        // d e f refused; d e refused; d lands; e refused; f lands.
-        assert.equal(pushes, 5);
+        // Checked without the lock: d e f refused; d e refused; d passes; e refused; f passes. One push.
+        assert.equal(checks, 5);
+        assert.equal(pushes, 1);
         assert.ok(existsSync(join(golden, "md.txt")) && existsSync(join(golden, "mf.txt")));
         assert.ok(!existsSync(join(golden, "bad.txt")));
         assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
@@ -520,8 +627,8 @@ describe("landing several branches", () => {
         const r = await run("land", "multi/n", "multi/o", "multi/p");
         assert.equal(r.code, 3, r.out);
         assert.match(r.out, /multi\/n\s+landed\n\s+multi\/o\s+gate failure.*\n\s+multi\/p\s+landed/);
-        // lock1; the whole batch (2); n and o (back to 1); p (2).
-        assert.deepEqual(installs, ["1", "2", "1", "2"]);
+        // The check worktree: lock1 | the whole batch (2); n and o (back to 1); p (2). Golden: lock1 | 2.
+        assert.deepEqual(installs, ["1", "1", "2", "1", "2", "2"]);
     });
 
     it("skips a first branch that is already on golden and lands the ones after it", async () => {
@@ -541,7 +648,8 @@ describe("landing several branches", () => {
         const before = head();
         const r = await run("land", "multi/g", "multi/h");
         assert.equal(r.code, 5, r.out);
-        assert.equal(pushes, 1);
+        assert.equal(checks, 1);
+        assert.equal(pushes, 0);
         assert.equal(head(), before);
         assert.match(r.out, /multi\/g\s+conflict\n\s+multi\/h\s+gate failure/);
         assert.equal(gh.length, 0);
@@ -571,6 +679,35 @@ describe("copies", () => {
         assert.equal(pushes, 1);
         assert.ok(existsSync(join(golden, "cpok.txt")) && !existsSync(join(golden, "cp.txt")));
     });
+
+    it("--allow-copies refuses an unlisted copy and a listed sha that is not a copy, golden untouched", async () => {
+        const wt = branch("copy/allow", { "cpa.txt": "own\n" }, "feat: own allowed work");
+        git(wt, "cherry-pick", git(repo, "rev-parse", "multi/c"));
+        const copy = git(wt, "rev-parse", "HEAD");
+        const own = git(wt, "rev-parse", "HEAD~1");
+        const before = head();
+        let r = await run("land", "copy/allow", "--allow-copies", own.slice(0, 7));
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /not copies of golden commits on copy\/allow: [0-9a-f]{7}/);
+        r = await run("land", "copy/allow", "--allow-copies", "abc");
+        assert.equal(r.code, 1, r.out);
+        r = await run("land", "copy/allow");
+        assert.match(r.out, /--allow-copies/);
+        assert.match(r.out, new RegExp(copy.slice(0, 10)));
+        assert.equal(head(), before);
+        assert.equal(pushes, 0);
+    });
+
+    it("--allow-copies lands the listed copy and names it in the land commit", async () => {
+        const copy = git(repo, "rev-parse", "copy/allow");
+        gh.open = true;
+        const r = await run("land", `--allow-copies=${copy.slice(0, 7)}`, "copy/allow");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(pushes, 1);
+        const msg = git(golden, "log", "-1", "--format=%B", "--first-parent", "HEAD");
+        assert.match(msg, /^land: copy\/allow\n/);
+        assert.match(msg, new RegExp(`--allow-copies\\):\\n${copy.slice(0, 10)} feat: mc$`, "m"));
+    });
 });
 
 describe("cuts", () => {
@@ -593,10 +730,13 @@ describe("cuts", () => {
         write(join(d, "graphty"), "results.json", JSON.stringify({ complete: true, items }));
     };
 
+    // Verification passed up to `sha`: golden-verified on GitHub.
+    const verifiedAt = (sha) => git(repo, "push", "-q", "-f", "origin", `${sha}:refs/heads/golden-verified`);
+
     it("refuses when no golden commit has a stable preview and no commit is given", async () => {
         const r = await run("cut");
         assert.equal(r.code, 1, r.out);
-        assert.match(r.out, /no golden commit since master has a finished screenshot preview/);
+        assert.match(r.out, /no verified golden commit since master has a finished screenshot preview/);
         assert.equal(pushes, 0);
     });
 
@@ -608,8 +748,20 @@ describe("cuts", () => {
         assert.equal(gh.length, 0);
     });
 
+    it("cuts only a verified commit: a stable preview newer than golden-verified is not taken", async () => {
+        const line = firstParents();
+        preview("103", line[0], ["unchanged"]);
+        verifiedAt(line[1]);
+        const r = await run("cut");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /no verified golden commit/);
+        assert.equal(pushes, 0);
+        rmSync(join(repo, "tmp/visual-review/local/103"), { recursive: true });
+    });
+
     it("cuts the newest golden commit whose preview has no unstable or failed images, and opens its pull request", async () => {
         const line = firstParents();
+        verifiedAt(line[0]);
         preview("101", line[0], ["changed", "unstable"]);
         preview("commit-x", line[1], ["unchanged", "changed"]);
         preview("102", line[2], ["unchanged"]);
@@ -621,6 +773,7 @@ describe("cuts", () => {
         assert.ok(create.includes("--draft") && create.includes("chore: ship a golden cut into master"));
         assert.match(gh.body, /A cut of `golden` at .*Approvals that ship are made here/);
         assert.deepEqual(previews, [9]);
+        assert.deepEqual(verifies, [["golden-cut", line[1]]], "ship waits for the cut's verification");
     });
 
     it("moves the cut worktree to a newer stable commit and refreshes the open pull request", async () => {
@@ -687,6 +840,8 @@ describe("cuts", () => {
 
     it("ship never waits behind a landing's lock, and refuses while a cut is pushing", async () => {
         const head = remote("refs/heads/golden-cut");
+        // The Finish test above left a commit on the cut that is not a Finish's: verified here by golden-cut's run.
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: head }));
         preview("9", head, ["changed"]);
         gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
         const hold = (dir) => {
@@ -712,6 +867,7 @@ describe("cuts", () => {
             assert.equal(gh.length, 0);
         } finally {
             ctx.lockOptions = saved;
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
             rmSync(ctx.lock, { recursive: true, force: true });
             rmSync(ctx.cutLock, { recursive: true, force: true });
         }
@@ -734,6 +890,23 @@ describe("cuts", () => {
         const sha = git(fake, "rev-parse", "HEAD");
         while (!existsSync(called)) await new Promise((r) => setImmediate(r));
         assert.equal(readFileSync(called, "utf8"), `42 --expect ${sha}\n`);
+    });
+
+    it("ship refuses a cut head that is not verified, and ships it once golden-cut's verification passed it", async () => {
+        const wt = branch("cut/unverified", { "uv.txt": "u\n" }, "fix: unverified", "origin/golden-cut");
+        git(wt, "push", "-q", "origin", "HEAD:golden-cut");
+        const head = git(wt, "rev-parse", "HEAD");
+        preview("9", head, ["changed"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const r = await run("ship");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /#9 is not verified yet at [0-9a-f]{10}/);
+        assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
+
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: head }));
+        const shipped = await run("ship");
+        assert.equal(shipped.code, 0, shipped.out);
+        rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
     });
 
     it("ship refuses when the cut pull request moved since its preview", async () => {
@@ -783,6 +956,14 @@ describe("cut fixes", () => {
         assert.ok(!existsSync(join(ctx.cut, "adv.txt")), "the cut did not take golden's newer landing");
         assert.deepEqual(previews, [9, 7]);
         assert.equal(previewHeads[0], git(repo, "rev-parse", "origin/golden-cut"), "--expect the pushed cut head");
+        assert.deepEqual(
+            verifies,
+            [
+                ["golden-cut", git(repo, "rev-parse", "origin/golden-cut")],
+                ["golden", git(repo, "rev-parse", "origin/golden")],
+            ],
+            "both pushes are verified",
+        );
     });
 
     it("run again, finds the fix on both and pushes nothing", async () => {
@@ -963,6 +1144,21 @@ describe("the live copy", () => {
         assert.equal(lines.length, 2);
     });
 
+    it("loads verify.mjs from the command line: status reaches its verification line", () => {
+        // A top-level await around main left land.mjs loading, so verify.mjs's import of it never settled.
+        const bin = join(dir, "no-gh-bin");
+        mkdirSync(bin, { recursive: true });
+        write(bin, "gh", "#!/bin/sh\nexit 1\n");
+        chmodSync(join(bin, "gh"), 0o755);
+        const r = spawnSync(process.execPath, [tool, "status"], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: join(dir, "no-live-here"), PATH: `${bin}:${env.PATH ?? process.env.PATH}` },
+            encoding: "utf8",
+        });
+        assert.match(r.stdout, /verification of golden/, r.stderr);
+        assert.doesNotMatch(r.stderr, /unsettled top-level await/);
+    });
+
     it("the live copy runs itself and drops the hand-off mark, so the gate it pushes through starts clean", async () => {
         const handed = { ...env, LAND_LIVE: live, LAND_LIVE_COPY: join(live, "tools/land.mjs") };
         assert.equal(await handOff(["status"], handed), null);
@@ -974,10 +1170,193 @@ describe("the live copy", () => {
         mkdirSync(join(copy, "tools"), { recursive: true });
         writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
         writeFileSync(join(copy, "tools/branch-note.mjs"), readFileSync(new URL("./branch-note.mjs", import.meta.url)));
+        writeFileSync(join(copy, "tools/wait-log.mjs"), readFileSync(new URL("./wait-log.mjs", import.meta.url)));
+        writeFileSync(join(copy, "tools/branch-sync.mjs"), readFileSync(new URL("./branch-sync.mjs", import.meta.url)));
         // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
         const r = cli(copy, "nonsense");
         assert.equal(r.status, 1, r.stderr);
         assert.equal(r.stderr.match(/usage:/g).length, 1, r.stderr);
         assert.doesNotMatch(r.stderr, /no live copy/);
+    });
+});
+
+describe("the branch sync", () => {
+    const remote = (ref) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", ref], {
+            cwd: join(dir, "origin.git"),
+            env,
+            encoding: "utf8",
+        }).stdout.trim();
+    const parents = (sha) => git(repo, "rev-list", "--parents", "-n", "1", sha).split(" ").slice(1);
+    const short = (sha) => sha.slice(0, 10);
+    // The bodies of the comments the sync posted on an issue, and of the notes it edited (any issue).
+    const bodies = (match) =>
+        gh.filter((a) => a[0] === "api" && a.some(match)).map((a) => a.find((x) => x.startsWith("body=")).slice(5));
+    const posted = (n) => bodies((x) => x.endsWith(`issues/${n}/comments`));
+    const edited = () => bodies((x) => /issues\/comments\/\d+$/.test(x));
+    const landed = {};
+    let checks;
+    let failOn;
+    let tips;
+    const work = (name, files) => {
+        const wt = branch(name, files, `feat: ${name}`, "origin/golden");
+        git(wt, "push", "-q", "origin", name);
+        return git(wt, "rev-parse", "HEAD");
+    };
+
+    before(async () => {
+        ctx.syncCheck = async (_c, job) => {
+            checks.push(job.base);
+            return failOn.has(job.base) ? { ok: false, what: "graphty-1: draws the panel" } : { ok: true };
+        };
+        git(repo, "fetch", "-q", "origin");
+        branch("sync/l0", { "s.txt": "zero\n" }, "feat: l0", "origin/golden");
+        assert.equal((await run("land", "sync/l0")).code, 0);
+        git(repo, "fetch", "-q", "origin");
+        tips = {
+            w: work("feat/4001-w", { "s.txt": "w\n" }),
+            v: work("feat/4002-v", { "v.txt": "v\n" }),
+            u: work("feat/4003-u", { "s.txt": "u\n" }),
+        };
+        // A branch with no commit for a month: stale.
+        const wt = join(dir, "wt-stale");
+        git(repo, "worktree", "add", "-q", "-b", "feat/4004-old", wt, "origin/golden");
+        write(wt, "old.txt", "old\n");
+        git(wt, "add", ".");
+        const old = new Date(Date.now() - 30 * 864e5).toISOString();
+        const r = spawnSync("git", ["commit", "-q", "-m", "feat: old"], {
+            cwd: wt,
+            env: { ...env, GIT_AUTHOR_DATE: old, GIT_COMMITTER_DATE: old },
+        });
+        assert.equal(r.status, 0);
+        git(wt, "push", "-q", "origin", "feat/4004-old");
+        // Three landings after the branches started: l2 changes the line w and u change.
+        for (const [b, files] of [
+            ["sync/l1", { "l1.txt": "1\n" }],
+            ["sync/l2", { "s.txt": "two\n" }],
+            ["sync/l3", { "l3.txt": "3\n" }],
+        ]) {
+            branch(b, files, `feat: ${b}`, "origin/golden");
+            assert.equal((await run("land", b)).code, 0);
+            git(repo, "fetch", "-q", "origin");
+            landed[b] = git(repo, "rev-parse", "origin/golden");
+        }
+        // Verification passed up to l3: golden-good takes only verified commits.
+        git(repo, "push", "-q", "-f", "origin", `${landed["sync/l3"]}:refs/heads/golden-verified`);
+        git(repo, "fetch", "-q", "origin");
+        const d = join(repo, "tmp/visual-review/local/sync-good");
+        mkdirSync(d, { recursive: true });
+        write(d, "status.json", JSON.stringify({ state: "done", head: landed["sync/l3"], projects: [] }));
+    });
+    after(() => {
+        ctx.syncCheck = undefined;
+    });
+    beforeEach(() => {
+        checks = [];
+        failOn = new Set();
+        gh.issues = {
+            4001: { comments: [] },
+            4002: { comments: [] },
+            4003: { comments: [noteBody("feat/4003-u", { busy: busyLine("1d", "a design study") })] },
+            4004: { comments: [] },
+        };
+    });
+
+    it("moves golden-good forward to the newest golden commit with a stable preview, as a tag on origin", () => {
+        assert.equal(moveGoldenGood(ctx, { dryRun: true }), landed["sync/l3"]);
+        assert.notEqual(remote("refs/tags/golden-good"), landed["sync/l3"], "a dry run pushes nothing");
+        assert.equal(moveGoldenGood(ctx), landed["sync/l3"]);
+        assert.equal(remote("refs/tags/golden-good"), landed["sync/l3"]);
+    });
+
+    it("--dry-run says what it would merge and where it is blocked, and changes nothing", async () => {
+        const r = await run("sync", "--branch", "feat/4001-w", "--dry-run");
+        assert.equal(r.code, 0, r.out);
+        assert.match(
+            r.out,
+            /feat\/4001-w: 3 landing\(s\) behind; would merge \w+ \(land: sync\/l1\), then the checks of what it changes \(\(root\)\)/,
+        );
+        assert.match(r.out, /blocked at \w+ \(land: sync\/l2\) by a conflict in s\.txt/);
+        assert.equal(remote("refs/heads/feat/4001-w"), tips.w);
+        assert.deepEqual(checks, []);
+        assert.deepEqual(posted(4001), []);
+    });
+
+    it("merges the newest landing that merges cleanly, pushes the merge, and names the landing that blocks it", async () => {
+        const r = await run("sync", "--branch", "feat/4001-w");
+        assert.equal(r.code, 0, r.out);
+        const tip = remote("refs/heads/feat/4001-w");
+        assert.deepEqual(parents(tip), [tips.w, landed["sync/l1"]], "a merge of the branch and the landing");
+        assert.deepEqual(checks, [landed["sync/l1"]], "checked once, against the landing it merged");
+        const [note, told] = posted(4001);
+        const blocked = `blocked at ${short(landed["sync/l2"])} (land: sync/l2) by a conflict in s.txt`;
+        assert.match(
+            note,
+            new RegExp(
+                `- sync: synced up to ${short(landed["sync/l1"])} \\(land: sync/l1\\); ${blocked.replace(/[()]/g, "\\$&")} \\(\\d{4}-`,
+            ),
+        );
+        assert.ok(told.startsWith(`pipeline-round: sync blocked feat/4001-w -- ${blocked}`), told);
+    });
+
+    it("steps back by binary search past landings whose checks fail, and names the failing check", async () => {
+        failOn = new Set([landed["sync/l3"]]);
+        const r = await run("sync", "--branch", "feat/4002-v");
+        assert.equal(r.code, 0, r.out);
+        assert.deepEqual(parents(remote("refs/heads/feat/4002-v")), [tips.v, landed["sync/l2"]]);
+        assert.deepEqual(checks, [landed["sync/l3"], landed["sync/l1"], landed["sync/l2"]]);
+        assert.match(
+            posted(4002)[0],
+            /blocked at \w+ \(land: sync\/l3\) by a failing check graphty-1: draws the panel/,
+        );
+    });
+
+    it("syncs up to golden-good once the checks pass, then has nothing to do", async () => {
+        assert.equal((await run("sync", "--branch", "feat/4002-v")).code, 0);
+        assert.equal(parents(remote("refs/heads/feat/4002-v"))[1], landed["sync/l3"]);
+        git(repo, "fetch", "-q", "origin");
+        const r = await run("sync", "--branch", "feat/4002-v");
+        assert.match(r.out, /feat\/4002-v: up to date with golden-good/);
+    });
+
+    it("gives a busy branch only the conflict check: no checks, no push", async () => {
+        const r = await run("sync", "--branch", "feat/4003-u");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(remote("refs/heads/feat/4003-u"), tips.u);
+        assert.deepEqual(checks, []);
+        assert.match(
+            edited()[0],
+            /- sync: busy, not synced; blocked at \w+ \(land: sync\/l2\) by a conflict in s\.txt/,
+        );
+    });
+
+    it("skips a stale branch, lists it in status, asks its issue once a week, and is due once a day", async () => {
+        const r = await run("sync");
+        assert.equal(r.code, 0, r.out);
+        assert.doesNotMatch(r.out, /feat\/4004-old:/);
+        assert.match(posted(4004).join("\n"), /^pipeline-round: stale branch feat\/4004-old -- no commit since/);
+        gh.length = 0;
+        await run("sync");
+        assert.deepEqual(posted(4004), [], "asked once a week");
+        gh.issues[4001].comments = [noteBody("feat/4001-w", { sync: "synced up to abc (land: sync/l1)" })];
+        const s = await run("status");
+        assert.match(
+            s.out,
+            /stale \(no commit in 7\+ days.*land, close or park each\n {2}feat\/4004-old \(last commit/,
+        );
+        assert.match(s.out, /branch\s+issue\s+owner\s+last commit\s+ready\s+worktree\s+sync\n/);
+        assert.match(s.out, /feat\/4001-w .*synced up to abc \(land: sync\/l1\)/);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        assert.equal(syncDue(ctx, new Date()), false, "it ran today");
+        assert.equal(syncDue(ctx, new Date(tomorrow.setHours(0, 30))), false, "not before 01:00");
+        assert.equal(syncDue(ctx, new Date(tomorrow.setHours(2, 0))), true);
+    });
+
+    it("names the failing shard and test from the gate's test stage", () => {
+        const out =
+            "Shards: graphty-1\n  [FAIL] graphty-1 (exit 1, 30s); the end of x.log:\n FAIL  src/a.test.ts > draws it\n";
+        assert.equal(failedTest(out), "graphty-1: src/a.test.ts > draws it");
+        assert.equal(failedTest(""), "tests");
     });
 });

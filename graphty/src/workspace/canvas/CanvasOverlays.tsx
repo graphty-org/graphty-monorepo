@@ -148,6 +148,53 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
     return reading;
 }
 
+/**
+ * The widest data, in degrees of latitude or longitude, the app draws over a street map rather
+ * than the bundled Natural Earth picture, which is a 2048 pixel world: at the scale of a country or
+ * a city it is a blur.
+ */
+const DETAILED_MAP_SPAN = 20;
+
+/**
+ * The street map the app draws small data over: free, keyless and credited on the canvas, as
+ * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
+ * the map only loads the tiles in view and never prefetches.
+ */
+const DETAILED_MAP_SOURCE = "openstreetmap";
+
+/**
+ * Draws data of a country or a city over a detailed street map. The element's own default is the
+ * bundled world picture, which contacts no third party; choosing a tiled source is the app's
+ * call. Made once per project, the first time a flat map is drawn while the reader has chosen no
+ * map, and as a project setting, so Graph settings > Map names it and the reader can change it.
+ */
+function useDetailedMapForSmallData(): void {
+    const { element } = useWorkspace();
+    useEffect(() => {
+        const session = element?.session;
+        if (element === null || session === undefined) {
+            return undefined;
+        }
+        let chosen = false;
+        const onBasemap = (): void => {
+            const frame = element.mapFrame;
+            if (chosen || frame?.surface !== "flat" || session.config.basemap !== undefined) {
+                return;
+            }
+            const [[west, south], [east, north]] = frame.bounds;
+            if (Math.max(east - west, north - south) > DETAILED_MAP_SPAN) {
+                return;
+            }
+            chosen = true;
+            void session.config.set({ basemap: { source: DETAILED_MAP_SOURCE } });
+        };
+        element.addEventListener("basemap-status", onBasemap);
+        return () => {
+            element.removeEventListener("basemap-status", onBasemap);
+        };
+    }, [element]);
+}
+
 /** The words a change of the map under a map layout is announced with, by its state. */
 const BASEMAP_STATE_WORDS: Readonly<Record<string, string>> = {
     ready: "Map shown",
@@ -300,6 +347,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const addData = useCommand("data.add");
     const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
     useLayoutWarningNotice();
+    useDetailedMapForSmallData();
 
     if (session === null) {
         return null;

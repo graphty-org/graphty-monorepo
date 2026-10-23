@@ -373,6 +373,34 @@ describe("the location map", () => {
         );
     });
 
+    it("draws a city's data over a street map, and a world's over the bundled picture", async () => {
+        const venice = [
+            { id: "rialto", where: "45.438, 12.336" },
+            { id: "lido", where: "45.418, 12.369" },
+            { id: "mestre", where: "45.482, 12.239" },
+        ];
+        const element = await openAirports(false, venice);
+        await layOutOnMap(element);
+        await waitFor(
+            () => {
+                assert.deepEqual(element.session.config.basemap, { source: "openstreetmap" });
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+
+    it("leaves the bundled picture under data that spans the world", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element);
+        await waitFor(
+            () => {
+                assert.notStrictEqual(element.basemapStatus.state, "off", "the map is drawn");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isUndefined(element.session.config.basemap, "no map was chosen for the reader");
+    });
+
     it("closes only the Advanced pop-out on Escape, and names its button", async () => {
         await openAirports();
         const popover = await openMapForm();

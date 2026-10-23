@@ -18,6 +18,7 @@ import {
     autoLabel,
     CALENDAR_STEPS,
     ORDINAL_STEPS,
+    OUTSIDE_CHOICES,
     RESULTS_CHOICES,
     stepLabel,
     UNIT_CHOICES,
@@ -176,6 +177,18 @@ export function TimeCard(): React.JSX.Element | null {
                                         retune(session, store, {
                                             mode: picked === "cumulative" ? "cumulative" : "sliding",
                                         });
+                                    }}
+                                />
+                            </FieldRow>
+                            <FieldRow>
+                                <SegmentedControl
+                                    label="Outside"
+                                    fullWidth
+                                    size="xs"
+                                    value={settings.outside}
+                                    data={OUTSIDE_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                    onChange={(picked) => {
+                                        retune(session, store, { outside: picked === "ghost" ? "ghost" : "hide" });
                                     }}
                                 />
                             </FieldRow>

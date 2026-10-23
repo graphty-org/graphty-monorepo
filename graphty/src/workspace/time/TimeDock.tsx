@@ -194,6 +194,7 @@ export function TimeDock(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeVersion(session);
     const speed = useWorkspaceState((state) => state.timeSpeed);
+    const open = useWorkspaceState((state) => state.timelineOpen);
     // The brush while it is dragged; written to the element once, on release.
     const [drag, setDrag] = useState<[number, number] | null>(null);
     const { ref, width } = useElementSize();
@@ -209,7 +210,7 @@ export function TimeDock(): React.JSX.Element | null {
     }, [session, store]);
 
     const extent = session?.time.field ? session.time.extent() : null;
-    if (session === null || extent === null) {
+    if (session === null || extent === null || !open) {
         return null;
     }
     const { time } = session;

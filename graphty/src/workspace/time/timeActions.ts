@@ -123,6 +123,9 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
     session.time.pause();
     session.time.setField(field).then(
         (result) => {
+            if (field !== null) {
+                store.set({ timelineOpen: true });
+            }
             showNotices(session, store, result.notices);
         },
         (error: unknown) => {

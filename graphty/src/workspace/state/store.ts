@@ -112,7 +112,10 @@ export interface WorkspaceState {
      * Role): the load is read again as edges once both are picked.
      */
     readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
-    /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
+    /**
+     * Whether the timeline dock is shown under the canvas while a time field is set;
+     * `timeline.toggle` (T) flips it, and designating a field shows it.
+     */
     readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
@@ -230,7 +233,7 @@ const INITIAL: WorkspaceState = {
     joining: null,
     editingJoin: null,
     ends: null,
-    timelineOpen: false,
+    timelineOpen: true,
     legendShown: true,
     keyHasEntries: false,
     legendAsked: false,

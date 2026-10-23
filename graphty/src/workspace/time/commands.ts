@@ -14,10 +14,23 @@ function noTimeline({ session }: CommandContext): string | null {
     return session.time.field === null ? "No time field is set" : null;
 }
 
-/** The timeline's commands: step back and forward (comma, period), jump to either end (Shift with them) and play or pause. */
+/** The timeline's commands: show or hide it (T), step back and forward (comma, period), jump to either end (Shift with them) and play or pause. */
 export const registration = defineRegistration({
     owner: "time",
     commands: [
+        {
+            id: "timeline.toggle",
+            label: "Timeline",
+            group: "View",
+            keys: ["T"],
+            keywords: ["time", "playback", "window", "dock"],
+            description: "Show or hide the timeline",
+            // Only with a time field: without one there is no timeline to show.
+            shown: ({ session }) => session !== null && session.time.field !== null,
+            run: ({ workspace }) => {
+                workspace.set((state) => ({ timelineOpen: !state.timelineOpen }));
+            },
+        },
         {
             id: "time.step-back",
             label: "Step time back",

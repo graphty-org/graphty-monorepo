@@ -65,6 +65,14 @@ export const UNTIMED_CHOICES = [
     { value: "outside", label: "Hide" },
 ] as const;
 
+/** What a suggested unit says the numbers look like. */
+const SUGGESTED_WORDS: Readonly<Record<TimeUnit, string>> = {
+    year: "years",
+    s: "seconds",
+    ms: "milliseconds",
+    ordinal: "numbers",
+};
+
 /**
  * A notice from designating a field, in words, and the unit its action sets, if any.
  * @param notice - the element's notice.
@@ -81,7 +89,7 @@ export function noticeOf(notice: CodedFact<TimeNoticeCode>): { message: string; 
             return { message: `${countWords(count ?? 0, "value")} in ${path} read loosely as dates` };
         default:
             return {
-                message: suggested === "ordinal" ? `${path} looks like years` : `${path} looks like seconds`,
+                message: `${path} looks like ${SUGGESTED_WORDS[suggested ?? "s"]}`,
                 ...(suggested === undefined ? {} : { unit: suggested }),
             };
     }
@@ -122,10 +130,17 @@ export const RESULTS_CHOICES: readonly { readonly value: TimeResultsPolicy; read
 
 /** The unit choices for a number column. */
 export const UNIT_CHOICES: readonly { readonly value: TimeUnit; readonly label: string }[] = [
+    { value: "year", label: "Year" },
     { value: "ms", label: "Epoch ms" },
     { value: "s", label: "Epoch s" },
     { value: "ordinal", label: "Number" },
 ];
+
+/** The Outside choices: whether elements outside the window are hidden or drawn as ghosts. */
+export const OUTSIDE_CHOICES = [
+    { value: "hide", label: "Hide" },
+    { value: "ghost", label: "Ghost" },
+] as const;
 
 /**
  * How finely a date is written for a step: to the minute below a day, to the month for months
@@ -151,13 +166,24 @@ function dateFormat(step: TimeStep | undefined): Intl.DateTimeFormatOptions {
  * @param at - epoch milliseconds, or a plain number for ordinal time.
  * @param unit - how the field reads numbers.
  * @param step - the window's step, which sets how finely a date is written.
- * @returns "Mar 10, 2025", or "1995" for ordinal time.
+ * @returns "Mar 10, 2025", or "1995" for ordinal time and for years.
  */
 export function instantWords(at: number, unit: TimeUnit, step?: TimeStep): string {
     if (unit === "ordinal") {
         return String(Math.round(at * 1000) / 1000);
     }
-    return Number.isFinite(at) ? new Intl.DateTimeFormat(undefined, dateFormat(step)).format(at) : "";
+    // A field of years is written as years unless a step finer than a year asks for more.
+    const grain = unit === "year" && (step === undefined || stepAtLeastYear(step)) ? "year" : step;
+    return Number.isFinite(at) ? new Intl.DateTimeFormat(undefined, dateFormat(grain)).format(at) : "";
+}
+
+/**
+ * Whether a step is a year or longer.
+ * @param step - the step.
+ * @returns true for a year or more.
+ */
+function stepAtLeastYear(step: TimeStep): boolean {
+    return step === "year" || (typeof step === "number" && step >= 365 * DAY);
 }
 
 /**

@@ -447,19 +447,108 @@ describe("the Overview and the import of time", () => {
         assert.include(edges.textContent, `${session.visibility.summary.visibleEdges.toLocaleString()} of 2,102`);
     });
 
-    it("suggests Number for a year column, and one press reads it as years", async () => {
-        const { session, store } = await open(PAPERS);
+    it("reads a year column as years, steps a year at a time, and reads it as numbers on request", async () => {
+        const { session } = await open(PAPERS);
         await pickField("year", "Node time");
-        await waitFor(() => {
-            assert.equal(store.get().notice?.action?.label, "Number");
-        });
-        act(() => {
-            store.get().notice?.action?.run();
-        });
         const dock = await screen.findByRole("region", { name: "Timeline" });
+        await waitFor(() => {
+            assert.equal(session.time.field?.nodes?.unit, "year");
+            assert.equal(readout(dock), "1995 - 2024");
+        });
+
+        // The window moves along the real years, not stuck in January 1970.
+        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await userEvent.keyboard(".");
+        await waitFor(() => {
+            assert.equal(new Date(Number(session.time.current?.from)).getUTCFullYear(), 1996);
+            assert.equal(readout(dock), "1996");
+        });
+        await userEvent.keyboard(">");
+        await waitFor(() => {
+            assert.equal(readout(dock), "2024");
+        });
+
+        // The same years as plain numbers: Unit, Number.
+        await userEvent.click(await dataPlace().findByRole("combobox", { name: "Node time unit" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Number" }));
         await waitFor(() => {
             assert.equal(session.time.field?.nodes?.unit, "ordinal");
             assert.equal(readout(dock), "1995 - 2024");
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await waitFor(() => {
+            assert.isTrue(Number.isInteger(Number(session.time.current?.from)));
+            assert.isAtLeast(Number(session.time.current?.from), 1990);
+        });
+    });
+
+    it("shows and hides the timeline from its toolbar button and the T key", async () => {
+        const { session } = await open();
+        assert.isNull(screen.queryByRole("button", { name: "Timeline" }), "no toggle without a time field");
+        await designateSent(session);
+        const toggle = await screen.findByRole("button", { name: "Timeline" });
+        assert.equal(toggle.getAttribute("aria-pressed"), "true");
+
+        await userEvent.click(toggle);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+            assert.equal(toggle.getAttribute("aria-pressed"), "false");
+        });
+        assert.isNotNull(session.time.field, "hiding the timeline keeps the field");
+
+        (document.activeElement as HTMLElement | null)?.blur();
+        await userEvent.keyboard("t");
+        await screen.findByRole("region", { name: "Timeline" });
+        assert.equal(toggle.getAttribute("aria-pressed"), "true");
+        await userEvent.keyboard("t");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Timeline" }));
+        });
+    });
+
+    it("draws the elements outside the window as ghosts with Outside: Ghost, and moves them as the window moves", async () => {
+        const { session } = await open(PAPERS);
+        await session.config.set({ startingRows: true });
+        await pickField("year", "Node time");
+        const dock = await screen.findByRole("region", { name: "Timeline" });
+        await waitFor(() => {
+            assert.include(
+                session.styles.list().map((layer) => layer.name),
+                "Ghost",
+            );
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Step forward" }));
+        await waitFor(() => {
+            assert.isNotNull(session.time.current);
+        });
+        const outside = await (await timeCard()).findByRole("radiogroup", { name: "Outside" });
+        const graph = session.data.snapshot();
+        const ghostLayer = session.styles.list().find((layer) => layer.name === "Ghost" && layer.target === "node");
+        assert.isDefined(ghostLayer);
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        assert.equal(ghosts(), 0, "hidden, not ghosted, by default");
+
+        await userEvent.click(within(outside).getByText("Ghost"));
+        await waitFor(() => {
+            assert.equal(session.time.settings.outside, "ghost");
+            assert.isAbove(ghosts(), 0);
+            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+        });
+        // Ghosts are drawn but not visible: the counts are the window's.
+        const visibleBefore = [...session.visibility.nodes].sort();
+
+        // Scrub: step forward, and the ghosts follow the window.
+        const first = Number(session.time.current?.from);
+        await userEvent.keyboard(".");
+        await waitFor(() => {
+            assert.isAbove(Number(session.time.current?.from), first);
+            assert.notDeepEqual([...session.visibility.nodes].sort(), visibleBefore);
+            assert.equal(ghosts(), graph.nodeCount - session.visibility.summary.visibleNodes);
+        });
+
+        await userEvent.click(within(outside).getByText("Hide"));
+        await waitFor(() => {
+            assert.equal(ghosts(), 0);
         });
     });
 

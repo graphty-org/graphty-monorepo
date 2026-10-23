@@ -150,7 +150,11 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
         const kind = KIND_OF[row.side];
         const offered = role === "weight" ? attributes.filter((a) => isNumeric(a) || a.name === holder) : attributes;
         if (role === "time") {
-            return timeRows(row, holder, columnChoices(offered, source, row.side, holder));
+            // Columns graphty-element reads as time come first.
+            const isTime = (name: string): boolean =>
+                offered.find((a) => a.kind === kind && a.name === name)?.measurement === "time";
+            const names = columnChoices(offered, source, row.side, holder);
+            return timeRows(row, holder, [...names.filter(isTime), ...names.filter((name) => !isTime(name))]);
         }
         return (
             <PickRow

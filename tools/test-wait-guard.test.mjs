@@ -54,6 +54,16 @@ test("withTestGuards sets the global guard on the root and every inline project,
     assert.deepEqual(withTestGuards(config).test.setupFiles, ["./a.ts", SETUP]);
 });
 
+test("a bench project is a measurement: no time limit and no guard", () => {
+    const config = withTestGuards({
+        test: { projects: [{ test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 5 } }] },
+    });
+    const [bench] = config.test.projects;
+    assert.equal(bench.test.testTimeout, 0);
+    assert.equal(bench.test.hookTimeout, 0);
+    assert.deepEqual(bench.test.setupFiles, ["./a.ts"]);
+});
+
 test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call names", () => {
     const seen = [];
     const vi = { waitFor: (_cb, o) => seen.push(o), waitUntil: (_cb, o) => seen.push(o) };

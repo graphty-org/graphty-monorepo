@@ -64,6 +64,15 @@ const browserGpu: keyof typeof BROWSER_FLAGS =
 const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
+/**
+ * A project's name. A noise-floor recording (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
+ * committed noise fixtures) is a measurement, not a test run: its writer cases measure the unscaled fixtures
+ * for up to tens of minutes. So every project is then named bench-<name> (`--project=bench-node`), and a
+ * bench project runs with no time limit, outside the one hang guard (tools/test-wait-guard.mjs).
+ * @param name - The project's name in a test run.
+ * @returns The name for this run.
+ */
+const projectName = (name: string): string => (noiseFloorWrite === "1" ? `bench-${name}` : name);
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -318,7 +327,7 @@ const config = defineConfig({
         projects: [
             {
                 test: {
-                    name: "node",
+                    name: projectName("node"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
@@ -337,7 +346,7 @@ const config = defineConfig({
                     // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
                     // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
                     // honours fileParallelism per project, so this does not serialise the `node` project.
-                    name: "node-gpu-alone",
+                    name: projectName("node-gpu-alone"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
@@ -359,7 +368,7 @@ const config = defineConfig({
                     // takes eleven files with it instead of the hundred and ten that were running beside it, the
                     // `node` project still reports and still writes its coverage, and the file that died is the one
                     // the run was on -- a dead worker leaves only "Channel closed" with no file name.
-                    name: "node-device-errors",
+                    name: projectName("node-device-errors"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
@@ -372,7 +381,7 @@ const config = defineConfig({
                 test: {
                     // The multi-gigabyte limit files. One file at a time, in an invocation of their own (serialRun
                     // above), so an out-of-memory test never shares the GPU with the main suite.
-                    name: "node-limits",
+                    name: projectName("node-limits"),
                     globals: true,
                     environment: "node",
                     pool: "forks",
@@ -387,7 +396,7 @@ const config = defineConfig({
                     "import.meta.env.GRAPHTY_NOISE_FLOOR_WRITE": JSON.stringify(noiseFloorWrite),
                 },
                 test: {
-                    name: "browser",
+                    name: projectName("browser"),
                     globals: true,
                     include: ["test/browser/**/*.test.ts"],
                     env: {

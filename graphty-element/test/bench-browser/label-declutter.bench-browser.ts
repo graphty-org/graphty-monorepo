@@ -9,7 +9,7 @@
  * GPU finishing the frame, which the pass does not touch. So the measured frames are drawn with
  * rasterization switched off: every draw call is still issued, and nothing is filled in. A
  * software GPU took about 0.6 s to fill in one 1000-label frame, so the 350 frames of that test
- * kept it busy for about 230 s of its 300 s budget, and the test timed out whenever the GPU was
+ * kept it busy for about 230 s, and the measurement ran out of time whenever the GPU was
  * any slower than that (issue #2582). The renderer also waited on that backlog inside
  * `scene.render()`, which inflated the frame times. After each block the test still waits for the
  * GPU to catch up, so no queued frame blocks the NEXT graph's first texture upload (issue #1947).
@@ -29,7 +29,7 @@ const HEIGHT = 720;
 const WARMUP_FRAMES = 10;
 const FRAMES = 60;
 // 5000 labels take most of two minutes to build, so that size runs only when asked for:
-// VITE_LABEL_DECLUTTER_BENCH_FULL=1 npx vitest run --project=browser test/performance/label-declutter-performance.test.ts
+// VITE_LABEL_DECLUTTER_BENCH_FULL=1 npx vitest run --project=bench-browser test/bench-browser/label-declutter.bench-browser.ts
 const FULL = Boolean((import.meta.env as Record<string, string | undefined>).VITE_LABEL_DECLUTTER_BENCH_FULL);
 const SIZES = FULL ? [100, 1000, 5000] : [100, 1000];
 

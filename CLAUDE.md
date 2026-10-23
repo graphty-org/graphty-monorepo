@@ -926,7 +926,8 @@ Each package has its own CLAUDE.md with package-specific guidance:
   `expect.poll`, `expect.element`, Testing Library, graphty-element's `waitForStableFrame()`) far
   above the slowest legitimate test. No test, story, helper, setup file or config sets a timeout,
   an interval or a deadline loop of its own, and no override of the guard exists. The
-  `local/no-test-timing` lint rule enforces it.
+  `local/no-test-timing` lint rule enforces it. A measurement is not a test: it goes in a project
+  named `bench*` (started by hand, never by the gate), which runs with no time limit.
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - Every `vitest run` on this machine, gate shard or ad hoc, waits for one of the machine-wide test slots

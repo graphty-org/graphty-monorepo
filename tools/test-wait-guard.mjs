@@ -8,11 +8,19 @@
  * story, helper, setup file or vitest config sets one (tools/eslint-rules/no-test-timing.mjs
  * reports every local timeout, interval and deadline loop), and these guards are set once for
  * everything: a wait gives up only after WAIT_GUARD_MS and a test or hook after TEST_GUARD_MS.
- * The test guard is above the slowest legitimate test (webgpu-graph-algorithms' hand-started
- * noise-floor recording, tens of minutes; graphty-element's lifecycle tests on the macOS iOS
- * Simulator, up to 15): the guards exist to end a hang with a message, never to judge speed.
+ * The guards exist to end a hang with a message, never to judge speed, so they sit far above
+ * what any real test needs on a loaded machine. Sized from the recorded runs (2026-10-23): the
+ * slowest single test in about 1,970 local gate logs, under heavy load, took 177 s (a trivial
+ * graphty-element browser test on a stalled machine); in CI the slowest were 237 s (the T4 lane's
+ * 1M-entry hub cell case), 107 s (Safari on the iOS Simulator) and files of up to 373 s on the
+ * GPU and host lanes. Taking 300 s as the slowest legitimate test, the test guard is 5x that;
+ * a wait is at most a test, and the slowest observed (177 s) gets 5x as well.
  * A wait's guard is below the test's so a hung wait reports its last failure instead of a bare
  * "test timed out".
+ *
+ * Measurements are not tests and carry no guard: an inline project whose name starts with
+ * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
+ * recording) is started by hand, never by the gate, and runs with no time limit at all.
  *
  * Every vitest config wraps its export in `withTestGuards`, and the setup file it adds
  * (vitest.wait-guard-setup.ts) gives `vi.waitFor` and `vi.waitUntil` the wait guard. Testing
@@ -21,10 +29,10 @@
  */
 
 /** How long one wait (waitFor, findBy*, vi.waitFor, expect.poll, expect.element) may run. */
-export const WAIT_GUARD_MS = 600_000;
+export const WAIT_GUARD_MS = 900_000;
 
 /** How long one test, hook or teardown may run. */
-export const TEST_GUARD_MS = 1_800_000;
+export const TEST_GUARD_MS = 1_500_000;
 
 // Every package sits one directory below the repository root, and vitest resolves setup files from
 // the package's root, as it does for ../vitest.browser-coverage-setup.ts.
@@ -36,6 +44,10 @@ const GUARD_SETUP = "../vitest.wait-guard-setup.ts";
  * @returns the block with the guards and the guard setup file
  */
 function guardTest(test) {
+    if (/^bench/.test(test.name ?? "")) {
+        // A measurement: no time limit, so a slow one measures instead of failing.
+        return { ...test, testTimeout: 0, hookTimeout: 0 };
+    }
     const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== GUARD_SETUP);
     return {
         ...test,

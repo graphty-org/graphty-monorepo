@@ -493,8 +493,8 @@ function SideGroup({
         entry.id === "location" ? located !== undefined && located.from !== "none" : holderOf(entry) !== null;
     const available = (entry: FieldEntry): boolean => entry.load === undefined || reloadable;
     const entries = FIELD_ENTRIES[side].filter(available);
-    const presentNow = entries.filter(present).map((entry) => entry.id);
-    const settled = adding !== null && presentNow.includes(adding);
+    const presentNow = new Set(entries.filter(present).map((entry) => entry.id));
+    const settled = adding !== null && presentNow.has(adding);
     // The entry "+" added is listed by the element now: it is no longer waiting.
     useEffect(() => {
         if (settled) {
@@ -508,10 +508,10 @@ function SideGroup({
         setAdding(null);
         focusPlus();
     };
-    const offered = entries.filter((entry) => !presentNow.includes(entry.id) && entry.id !== adding);
+    const offered = entries.filter((entry) => !presentNow.has(entry.id) && entry.id !== adding);
     const rowOf = (entry: FieldEntry): React.ReactNode => {
-        const opened = adding === entry.id && !presentNow.includes(entry.id);
-        if (!presentNow.includes(entry.id) && !opened) {
+        const opened = adding === entry.id && !presentNow.has(entry.id);
+        if (!presentNow.has(entry.id) && !opened) {
             return null;
         }
         const name = entry.load === undefined ? `${SIDE_WORD[side]} ${entry.name.toLowerCase()}` : entry.name;
@@ -708,6 +708,75 @@ function TimeEntry({
 }
 
 /**
+ * The sides Fields shows: the load's own, or for a graph not loaded from one, each side with
+ * columns.
+ * @param attributes - `data.attributes()`.
+ * @param source - the selected load.
+ * @returns the sides.
+ */
+function sidesShown(
+    attributes: ReturnType<GraphSession["data"]["attributes"]>,
+    source: LoadedSource | undefined,
+): FieldSide[] {
+    const own = sidesOf(source);
+    return (["nodes", "edges"] as const).filter((side) =>
+        own === undefined
+            ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
+            : own.includes(side),
+    );
+}
+
+/**
+ * The edge side's rows that are settings of the whole graph: the shared-ids choice when an id
+ * appears under two kinds, and the direction.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.source - the selected load
+ * @param props.onReload - reads the load again with new choices
+ * @param props.onFail - called when the element refuses a change
+ * @returns the rows
+ */
+function GraphRows({
+    session,
+    source,
+    onReload,
+    onFail,
+}: Readonly<{
+    session: GraphSession;
+    source: LoadedSource | undefined;
+    onReload: (choices: Parameters<GraphSession["data"]["reloadSource"]>[1]) => void;
+    onFail: () => void;
+}>): React.JSX.Element {
+    const { directed } = session.config.data;
+    const kinds = source?.reloadable === true ? session.data.lastImport()?.kinds : undefined;
+    return (
+        <>
+            {kinds === undefined || kinds.sharedIds === 0 ? null : (
+                <PickRow
+                    label={`${String(kinds.sharedIds)} in both`}
+                    name="Shared ids"
+                    value={source?.choices?.kindIds === "scoped" ? "Different nodes" : "Same node"}
+                    choices={SHARED_IDS}
+                    onPick={(picked) => {
+                        onReload({ kindIds: picked === "Different nodes" ? "scoped" : "shared" });
+                    }}
+                />
+            )}
+            <PickRow
+                label="Direction"
+                value={DIRECTIONS.find((d) => d.value === String(directed))?.label ?? null}
+                choices={DIRECTIONS.map((d) => d.label)}
+                onPick={(picked) => {
+                    const value = DIRECTIONS.find((d) => d.label === picked)?.value ?? "auto";
+                    const next = value === "auto" ? "auto" : value === "true";
+                    session.config.set({ data: { directed: next } }).catch(onFail);
+                }}
+            />
+        </>
+    );
+}
+
+/**
  * The Fields section (spec section 3.3), for the selected load: its name, then Rows are (for a
  * load of one table), then each side under its node or edge chip -- its fixed structure rows (the
  * node Id; an edge's Source and Target, the shared-ids choice when an id appears under two kinds,
@@ -739,15 +808,7 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
     };
     const tables = Object.values(source?.mapping?.tables ?? {});
     const ends = source !== undefined && held?.load === source.key ? held : null;
-    const own = sidesOf(source);
-    const sides: FieldSide[] =
-        ends === null
-            ? (["nodes", "edges"] as const).filter((side) =>
-                  own === undefined
-                      ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
-                      : own.includes(side),
-              )
-            : [];
+    const sides = ends === null ? sidesShown(attributes, source) : [];
     // The fixed rows read when the rows load: shown only when this load can be read again here.
     const fixedRows = (side: FieldSide): React.ReactNode[] => {
         const roles = tableRoles(source, side);
@@ -771,8 +832,6 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
         });
     };
 
-    const { directed } = session.config.data;
-    const kinds = source?.reloadable === true ? session.data.lastImport()?.kinds : undefined;
     const { totalNodes, totalEdges } = session.visibility.summary;
     const single = tables.length === 1 ? tables[0].rowsAre : undefined;
     const rowsAre = ends === null ? single : "edges";
@@ -839,27 +898,7 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
                         fixed={
                             <>
                                 {fixedRows("edges")}
-                                {kinds === undefined || kinds.sharedIds === 0 ? null : (
-                                    <PickRow
-                                        label={`${String(kinds.sharedIds)} in both`}
-                                        name="Shared ids"
-                                        value={source?.choices?.kindIds === "scoped" ? "Different nodes" : "Same node"}
-                                        choices={SHARED_IDS}
-                                        onPick={(picked) => {
-                                            reload({ kindIds: picked === "Different nodes" ? "scoped" : "shared" });
-                                        }}
-                                    />
-                                )}
-                                <PickRow
-                                    label="Direction"
-                                    value={DIRECTIONS.find((d) => d.value === String(directed))?.label ?? null}
-                                    choices={DIRECTIONS.map((d) => d.label)}
-                                    onPick={(picked) => {
-                                        const value = DIRECTIONS.find((d) => d.label === picked)?.value ?? "auto";
-                                        const next = value === "auto" ? "auto" : value === "true";
-                                        session.config.set({ data: { directed: next } }).catch(fail);
-                                    }}
-                                />
+                                <GraphRows session={session} source={source} onReload={reload} onFail={fail} />
                             </>
                         }
                         onReload={reload}

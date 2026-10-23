@@ -2289,10 +2289,10 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm\]/);
+        assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, bundlers\]/);
         assert.match(
             version,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.bundlers.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -2353,7 +2353,7 @@ describe("release.yml", () => {
     });
 
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, land\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, bundlers, version, land\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -2416,13 +2416,15 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "land"].map((j) => [
-                        j,
-                        {
-                            result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
-                        },
-                    ]),
+                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "bundlers", "version", "land"].map(
+                        (j) => [
+                            j,
+                            {
+                                result: results[j] ?? "success",
+                                outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
+                            },
+                        ],
+                    ),
                 ),
             );
         // every result a job can end with, including the ones GitHub does not document
@@ -2437,6 +2439,7 @@ describe("release.yml", () => {
                 "autosave_macos",
                 "audit",
                 "llm",
+                "bundlers",
                 "version",
                 "land",
             ]);
@@ -2472,6 +2475,7 @@ describe("release.yml", () => {
                             hosts: "skipped",
                             audit: "skipped",
                             llm: "skipped",
+                            bundlers: "skipped",
                             version: "skipped",
                             land: "skipped",
                         },
@@ -2491,6 +2495,7 @@ describe("release.yml", () => {
                         hosts: "skipped",
                         audit: "skipped",
                         llm: "skipped",
+                        bundlers: "skipped",
                         version: "skipped",
                         land: "skipped",
                     },
@@ -2580,6 +2585,7 @@ describe("release.yml", () => {
                         AUDIT_RESULT: "success",
                         LLM_RESULT: "success",
                         LLM_OWNER_ITEM: "",
+                        BUNDLERS_RESULT: "success",
                         VERSION_RESULT: "success",
                         LAND_RESULT: "skipped",
                         ...env,

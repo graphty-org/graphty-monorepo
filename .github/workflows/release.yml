@@ -14,12 +14,14 @@ name: Release
 #    path.
 # 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
 #    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
-#    full scope), graphty-element's autosave on Safari, iOS and macOS WebKit (work-protection-macos.yml), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
+#    full scope), graphty-element's autosave on Safari, iOS and macOS WebKit (work-protection-macos.yml), the security audit of the shipped dependencies, graphty-element's bundler matrix (its packed build with its
+#    optional GPU package absent, present and broken, built by Vite, webpack, Rollup, esbuild and an import map)
+#    and the LLM regression tests (graphty-element's
 #    llm-regression project: real, paid Google Gemini calls that check the model still picks the element's tools,
 #    with the GOOGLE_API_KEY repository secret; a missing secret fails the job, it never skips, and a key or balance
 #    the provider refuses holds the release as an owner item). Coverage is published from the same CI run
 #    (coverage.yml).
-# 3. Only when all six pass, the version job versions the tested commit with nx release (one local commit holding
+# 3. Only when all seven pass, the version job versions the tested commit with nx release (one local commit holding
 #    only version fields and changelogs). Anything red before the release lands holds the WHOLE release: nothing
 #    pushed, nothing published, and the held job opens or updates the one train hold, a "Release held: <what>
 #    failed on <sha>" issue for githerd to fix. A later train that lands closes it.
@@ -361,6 +363,50 @@ jobs:
                   fi
                   exit "$status"
 
+    # graphty-element's bundler matrix on exactly the candidate (graphty-element/scripts/bundler-matrix.mjs): the packed
+    # element and its @graphty dependencies installed into a fresh app with npm, built by Vite 8, webpack (current and
+    # exactly 5.90.2, the documented minimum), Rollup, esbuild and a no-bundler import-map page, with the optional
+    # @graphty/webgpu-graph-algorithms absent, present and broken, and each page checked in Chromium for the code it
+    # reports and the console line it prints. It installs toolchains from npm and builds fifteen bundles, so it runs
+    # only here, never on a pull request. A failure holds the release.
+    bundlers:
+        name: Bundler matrix
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            # Chromium's system packages come from apt, and the image's Microsoft source sometimes answers 403.
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Build graphty-element and its dependencies
+              run: pnpm exec nx run graphty-element:build
+
+            - name: Install Chromium
+              working-directory: graphty-element
+              run: pnpm exec playwright install chromium --with-deps
+
+            - name: Bundler matrix
+              working-directory: graphty-element
+              run: npm run test:bundlers
+
     # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
     # never holds the release.
     coverage:
@@ -389,7 +435,7 @@ jobs:
     # does not run, the publish job runs, and the land job reports that failure itself.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version, land]
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, bundlers, version, land]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.land.outputs.pushed != 'true')) }}
         runs-on: ubuntu-24.04
         permissions:
@@ -407,6 +453,7 @@ jobs:
             AUDIT_RESULT: ${{ needs.audit.result }}
             LLM_RESULT: ${{ needs.llm.result }}
             LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+            BUNDLERS_RESULT: ${{ needs.bundlers.result }}
             VERSION_RESULT: ${{ needs.version.result }}
             LAND_RESULT: ${{ needs.land.result }}
         steps:
@@ -431,7 +478,7 @@ jobs:
                   [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
-                      "work protection (macOS)=$AUTOSAVE_MACOS_RESULT" "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "versioning=$VERSION_RESULT" \
+                      "work protection (macOS)=$AUTOSAVE_MACOS_RESULT" "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "bundler matrix=$BUNDLERS_RESULT" "versioning=$VERSION_RESULT" \
                       "landing on master=$LAND_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
@@ -520,8 +567,8 @@ jobs:
     # holds no deploy key, because it runs the repository's install scripts and nx.
     version:
         name: Version the release
-        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
+        needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, bundlers]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' && needs.bundlers.result == 'success' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read

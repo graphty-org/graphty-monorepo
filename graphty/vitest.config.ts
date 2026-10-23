@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +14,39 @@ import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Whether a process is alive.
+ * @param pid - the process id.
+ * @returns true unless the process is gone.
+ */
+function isRunning(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        return (error as NodeJS.ErrnoException).code === "EPERM";
+    }
+}
+
+/**
+ * This vitest run's own Vite cache directory, node_modules/.vite/runs/<pid>. With optimizeDeps.force
+ * (below) every Vite server deletes its project's dependency cache when it starts and re-bundles it,
+ * so a cache directory shared with another vitest run in this checkout -- the pre-push gate runs
+ * graphty-1 to -3 side by side -- is deleted under the run already using it, whose pages then fail
+ * to import their dependency chunks ("Failed to fetch dynamically imported module", issue #3288).
+ * Forced, the cache is never reused between runs anyway. Directories of finished runs are removed.
+ * @returns the cache directory.
+ */
+function runCacheDir(): string {
+    const runs = path.join(dirname, "node_modules/.vite/runs");
+    for (const pid of fs.existsSync(runs) ? fs.readdirSync(runs) : []) {
+        if (!isRunning(Number(pid))) {
+            fs.rmSync(path.join(runs, pid), { recursive: true, force: true });
+        }
+    }
+    return path.join(runs, String(process.pid));
+}
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
@@ -50,6 +84,7 @@ export default defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
+    cacheDir: runCacheDir(),
     optimizeDeps: {
         include: ["@mantine/hooks"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached

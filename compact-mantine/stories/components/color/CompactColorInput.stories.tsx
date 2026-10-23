@@ -25,8 +25,8 @@ import { storyWaitOptions } from "../../helpers/settled";
  *
  * CompactColorInput is ColorPickerPanel inside a pop-out, plus the field that opens it. Its one
  * idea beyond the field: `undefined` means "the reader has chosen nothing here". While nothing is
- * chosen the default is drawn in italics and there is no reset; once something is set the text
- * turns upright and a reset button appears in the trailing slot. The reset reports `undefined`.
+ * chosen the default is drawn as the value and there is no reset; once something is set a reset
+ * button appears in the trailing slot. The reset reports `undefined`.
  *
  * It needs a `PopoutManager` somewhere above it, which owns the floating layer the picker opens
  * into. Without one it throws on first render.
@@ -98,7 +98,7 @@ const meta: Meta<typeof CompactColorInput> = {
 export default meta;
 type Story = StoryObj<typeof CompactColorInput>;
 
-/** Nothing has been chosen, so the color and the opacity are drawn in italics and there is no reset. */
+/** Nothing has been chosen, so the default color and opacity are drawn and there is no reset. */
 export const Default: Story = {
     args: {
         defaultColor: "#5B8FF9",
@@ -107,7 +107,7 @@ export const Default: Story = {
 };
 
 /**
- * Every state, light and dark side by side: rest, the default in italics, focus and
+ * Every state, light and dark side by side: rest, the default, focus and
  * picker open (forced, since a story cannot hold the pointer), a translucent color with the
  * checkerboard half, a near-white color with its ring, disabled, and without opacity. Hover
  * changes nothing, as on the select: the field is outlined at rest.

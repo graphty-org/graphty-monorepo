@@ -59,14 +59,6 @@ const css = `
     color: var(--cm-text-disabled);
     cursor: default;
 }
-/* The field states of StyleSelect and StyleNumberInput, drawn as the paint field draws them
-   (color.css.ts): not set, and Mixed, show what lies beneath in gray italic -- two cues, never the
-   color alone -- whether it stands as the value or as the placeholder; a set value is the body ink. */
-.cm-input-wrapper .cm-input[data-is-default="true"],
-.cm-input-wrapper .cm-input[data-is-default="true"]::placeholder {
-    color: var(--cm-text-secondary);
-    font-style: italic;
-}
 /* Disabled by its own prop, by a disabled fieldset around it (its inputs match :disabled), or by
    aria-disabled on it or around it. */
 .cm-input-wrapper .cm-input:is(:disabled, [data-disabled], [aria-disabled="true"], [aria-disabled="true"] *),
@@ -337,27 +329,6 @@ const css = `
 .cm-listbox .cm-listbox-glyph svg {
     width: 100%;
     height: 100%;
-}
-/* The letters typed into an open list (ensureListboxKeyboard), in a line held at its foot, so
-   the reader sees what the list is matching. It eats the bottom padding; a clamped list's scroll
-   chevron rises above it. */
-.cm-listbox > .cm-listbox-typed {
-    position: sticky;
-    bottom: -8px;
-    z-index: 2;
-    display: flex;
-    align-items: center;
-    height: 24px;
-    margin-bottom: -8px;
-    padding: 0 12px;
-    border-top: 1px solid var(--cm-border-menu);
-    background: var(--cm-bg-menu);
-    ${cmFont("body")}
-    color: var(--cm-text-menu-secondary);
-    white-space: pre;
-}
-.cm-menu[data-cm-scroll-down]:has(> .cm-listbox-typed)::after {
-    bottom: 16px;
 }
 .cm-listbox .cm-listbox-label {
     min-width: 0;

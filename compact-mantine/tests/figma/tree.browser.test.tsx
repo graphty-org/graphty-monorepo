@@ -363,6 +363,26 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         );
     });
 
+    it("caret: hidden at rest, drawn #0000004d while the pointer is over the panel, no tooltip", async () => {
+        const tree = await renderTree({ defaultExpanded: [] });
+        await commands.mouseAway();
+        const caret = part(row("cross-area-index"), ".cm-tree-caret");
+        expect(caret.checkVisibility({ visibilityProperty: true })).toBe(false);
+        await userEvent.hover(row("other"));
+        expect(caret.checkVisibility({ visibilityProperty: true })).toBe(true);
+        expectMeasured(caret, { color: "#0000004d", width: 16 });
+        await userEvent.hover(part(caret, ".cm-tree-caret-hit"));
+        expect(tree.ownerDocument.querySelector(".cm-tooltip")).toBeNull();
+    });
+
+    it("dragged row keeps its pill at full opacity", async () => {
+        const tree = await renderTree({ onMove: () => undefined, defaultExpanded: [] });
+        await holdDragOver(row("other"), row("cross-area-index"), { x: 50, y: 16 });
+        await within(tree).findByTestId("tree-drop-box");
+        expect(row("other")).toHaveAttribute("data-dragging");
+        expect(getComputedStyle(row("other")).opacity).toBe("1");
+    });
+
     it("dark: #2c2c2c panel text white, nested glyph #ffffff66, selected parent #394360, band #32394d, child hover #4a5878", async () => {
         // cr/dark-layer-row-parent-selected.pseudo.json and cr/dark-layer-row-child-of-selected-hover.pseudo.json.
         await renderTree({ defaultSelected: ["inner"] }, "dark");
@@ -743,15 +763,14 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         );
     };
 
-    // Heights are Figma's 32px list pitch rather than the Variables table's 40 (DataTable.tsx);
-    // everything else is the Variables table's.
-    it("header cell: 200 x 32, 11/16 600, a 1px #e6e6e6 grid line, padding 0 16", async () => {
+    it("header cell: 200 x 40, 11/16 600, a 1px #e6e6e6 grid line, padding 0 16", async () => {
         await renderTable();
         const fig = await figmaElement("ls/vars-04-table-two-modes", { index: 230 });
         const header = screen.getAllByRole("columnheader")[0];
         expectMeasured(header, {
             ...figmaSpec(fig, [
                 "width",
+                "height",
                 "backgroundColor",
                 "color",
                 "outline",
@@ -761,7 +780,6 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
                 "fontWeight",
                 "letterSpacing",
             ]),
-            height: 32,
         });
         expectMeasured(part(header, "button"), { paddingLeft: "16px", paddingRight: "16px" });
         // #233: the 'Light' mode label starts 16px into the second column's header too.
@@ -787,17 +805,14 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         });
     });
 
-    it("body cells: 32 tall, the grid line, rows 33 apart, columns 1px apart", async () => {
+    it("body cells: 40 tall, the grid line, rows 41 apart, columns 1px apart", async () => {
         await renderTable();
         const fig = await figmaElement("ls/vars-04-table-two-modes", { index: 251 });
         const rows = screen.getAllByTestId("data-table-row");
         const cells = within(rows[1]).getAllByRole("gridcell");
-        expectMeasured(cells[0], {
-            ...figmaSpec(fig, ["width", "outline", "outlineOffset", "backgroundColor"]),
-            height: 32,
-        });
+        expectMeasured(cells[0], figmaSpec(fig, ["width", "height", "outline", "outlineOffset", "backgroundColor"]));
         expect(cells[1].getBoundingClientRect().left - cells[0].getBoundingClientRect().right).toBeCloseTo(1, 1);
-        expect(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top).toBeCloseTo(33, 1);
+        expect(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top).toBeCloseTo(41, 1);
     });
 
     it("selected row: every cell #e5f4ff; hover adds no tint", async () => {
@@ -812,7 +827,7 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         expectMeasured(other, { backgroundColor: "#ffffff" });
     });
 
-    it("active cell: a 1px #0d99ff box drawn inside (278 x 30 in 280 x 32); the grid line stays", async () => {
+    it("active cell: a 1px #0d99ff box drawn inside (278 x 38 in 280 x 40); the grid line stays", async () => {
         // ls/vars-14-number-cell-focus.pseudo.json: ::before 278 x 38, border 1px solid rgb(13,153,255)
         await renderTable();
         await drive(screen.getByRole("grid"), "focus");
@@ -820,12 +835,12 @@ describe.skipIf(!(await figmaAvailable()))("DataTable against Figma's Variables 
         const cell = document.activeElement as HTMLElement;
         expect(cell).toHaveAttribute("role", "gridcell");
         expect(cell).toHaveAttribute("aria-colindex", "2");
-        expectMeasured(cell, { width: 280, height: 32, outline: "#e6e6e6 solid 1px" });
+        expectMeasured(cell, { width: 280, height: 40, outline: "#e6e6e6 solid 1px" });
         expectMeasured(
             cell,
             {
                 inlineSize: "278px",
-                blockSize: "30px",
+                blockSize: "38px",
                 borderTopWidth: "1px",
                 borderTopColor: "#0d99ff",
                 borderRadius: "0px",

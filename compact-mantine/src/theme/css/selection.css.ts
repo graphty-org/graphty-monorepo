@@ -291,11 +291,13 @@ const css = `
 }
 .cm-sc-indicator { display: none; }
 .cm-sc-control { flex: 1 1 0; min-width: 0; }
-/* A track that is not fullWidth starts each option at its content: sized by its content, the
-   track fits every label with its padding (with a 0 basis each option got the average width, so
-   "Leave out" beside "Add" lost its padding and its end); given a width, options with equal
-   content still share it equally. A full-width track keeps the equal 0 basis. */
-.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto; }
+/* A track that is not fullWidth gives every option an equal share, as Figma does, each as wide as
+   the widest label with its padding, so no label is cut ("Leave out" beside "Add"). */
+.cm-sc:not([data-full-width], [data-content-width]) {
+    display: inline-grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+}
 .cm-sc[data-content-width] .cm-sc-control { flex: 1 1 auto; min-width: 24px; }
 .cm-sc[data-content-width] .cm-sc-label { padding-inline: 0; }
 .cm-sc .cm-sc-label {
@@ -308,11 +310,8 @@ const css = `
     border-radius: 5px;
     ${cmFont("body")}
     font-size: var(--sc-font-size);
-    /* An unchosen option is a choice the reader can make, so its label is drawn in the body
-       color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
-       one ("Add" of Add / Leave out). The chosen one is marked by its face, its edge and the
-       strong weight of its label, so which side is chosen reads without zooming. */
-    color: var(--cm-text);
+    /* Figma's unchosen label: the secondary ink (bc/popover-advanced-stroke). */
+    color: var(--cm-text-secondary);
     background-color: transparent;
     outline: 1px solid transparent;
     outline-offset: 1px;

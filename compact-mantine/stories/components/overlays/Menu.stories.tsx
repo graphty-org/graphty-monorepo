@@ -348,7 +348,10 @@ export const FromAButtonInteractions: Story = {
         await userEvent.click(trigger);
         const body = within(canvasElement.ownerDocument.body);
         await waitFor(() => expect(body.getByRole("menu")).toBeVisible(), storyWaitOptions(1000));
-        // Opening focuses the first row (the theme drops Mantine's focus placeholder).
+        // Opened by a click, the menu itself has focus and no row is highlighted (Figma); ArrowDown
+        // reaches the first row.
+        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus(), storyWaitOptions(1000));
+        await userEvent.keyboard("{ArrowDown}");
         await waitFor(
             () => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus(),
             storyWaitOptions(1000),

@@ -1067,8 +1067,9 @@ must NOT close it. Prove both with a test; add no coordinator unless the test sh
 (C33; pm/ctx-canvas-frame, pm/ctx-layer-row; we build the CURRENT dark-scoped look, not the
 legacy #0d99ff one)
 
-A Menu opened at the pointer: top-left 3px right of and 5px above the pointer; the first enabled
-row is highlighted on open. Wrapper component: `<ContextMenu items|children target>` that listens
+A Menu opened at the pointer: top-left 3px right of and 5px above the pointer; no row is
+highlighted on a pointer open (pm/ctx-canvas-frame), and a keyboard open highlights the first
+enabled row. Wrapper component: `<ContextMenu items|children target>` that listens
 for `contextmenu` on its target. Unlike Figma it ALSO opens from the keyboard: Shift+F10 and the
 ContextMenu key open it at the focused element's bottom-left (section 14). Escape closes and
 returns focus to the element that had it.
@@ -1143,12 +1144,10 @@ ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
   but not dimmed; a caller dims it with `overlayProps={{ backgroundOpacity: 0.5 }}` (`--cm-modal-backdrop`).
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
-- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 48 tall,
-  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 16px`, buttons 24 tall (12 above
-  and below), end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
-  This is a deliberate departure from Figma, made for touch: Figma's desktop footer is 40 tall
-  with an 8px end inset, which puts the last button 8px from the edge inside a 13px corner and
-  leaves it cramped under a finger. The 48/16 footer applies to every pointer type.
+- Body padding 8 16. Footer (a NEW `ModalFooter` helper or documented markup): 40 tall,
+  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 8px 0 16px`, buttons 24 tall,
+  end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger
+  (pm/dialog-file--save-to-version-history).
 - Focus moves to the first field; Tab trapped; Escape closes. No animation.
 
 ### 8.6 Toast (NEW exports `Toast`, `ToastProvider`, `useToast`; Mantine `Notification` themed for the look)
@@ -1438,11 +1437,11 @@ column labels, sort caret 5 x 3. RankChip: section 9.8.
 
 - Grid lines: every cell draws `outline: 1px solid var(--cm-border)` (lines overlap instead of
   doubling); no outer `PANEL_INK.BORDER` border.
-- Header row 32, text 11/16 600 `--cm-text`; data rows 32 (Figma's list pitch, the pitch of
-  layer, page and property rows; the Variables spreadsheet itself is 40, its cells hold editable
-  fields); cell padding 0 16 (name column) / 0 8; cell text 11/16 450.
+- Header row 40, text 11/16 600 `--cm-text`; data rows 40, 41 apart (the Variables spreadsheet;
+  `rowHeight` / `headerHeight` take the 32 list pitch for a caller that wants it); cell padding
+  0 16 (name column) / 0 8; cell text 11/16 450.
 - Row hover: no tint. Selected row: every cell `--cm-bg-selected`. Active (keyboard) cell: a 1px
-  `--cm-border-selected` box drawn inset by `::before` (278 x 30 in a 280 x 32 cell); the cell's
+  `--cm-border-selected` box drawn inset by `::before` (278 x 38 in a 280 x 40 cell); the cell's
   own input shows no outline.
 - Sort indicator: 5 x 3 caret after the header label. Keyboard model unchanged (the existing
   grid navigation in `navigation.ts` / `selection.ts` stays).
@@ -1696,28 +1695,32 @@ ColorPicker (color).
 
 These are the places the result will NOT match Figma, and why. Everything else matches.
 
-| Where                                                               | Figma                                          | Ours                                                           | Why                                                                   |
-| ------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Tooltips                                                            | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
-| Layer tree                                                          | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
-| Tree rows, find results, quick actions                              | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
-| Context menu                                                        | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
-| Shortcuts sheet                                                     | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
-| Quick actions                                                       | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
-| Enter in a number / text field, rename commit                       | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
-| Resize handle                                                       | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
-| Alignment matrix                                                    | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
-| Existing props                                                      | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
-| `InfoCircle`                                                        | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
-| `ResetButton` / `CompactColorInput` reset button                    | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
-| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
-| Nested popouts                                                      | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
-| Checkbox default                                                    | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
-| `highContrast` option                                               | --                                             | section 2.9                                                    | owner decision; off by default                                        |
-| Tree row with a count                                               | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
-| Segmented control, unchecked label                                  | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
-| Context menu opened by the pointer                                  | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
-| Escape in an open list field                                        | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
+| Where                                                                   | Figma                                          | Ours                                                           | Why                                                                   |
+| ----------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tooltips                                                                | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
+| Layer tree                                                              | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
+| Tree rows, find results, quick actions                                  | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
+| Context menu                                                            | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
+| Shortcuts sheet                                                         | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
+| Quick actions                                                           | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
+| Enter in a number / text field, rename commit                           | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
+| Resize handle                                                           | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
+| Alignment matrix                                                        | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
+| Existing props                                                          | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
+| `InfoCircle`                                                            | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
+| `ResetButton` / `CompactColorInput` reset button                        | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
+| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras     | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
+| Nested popouts                                                          | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
+| Checkbox default                                                        | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
+| `highContrast` option                                                   | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Tree row with a count                                                   | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
+| Escape in a hex, opacity, number or picker value box                    | reverts and returns focus to the canvas        | reverts and keeps focus, the value selected                    | we have no canvas focus target; losing focus to `body` would be worse |
+| Menus, listboxes, context menus                                         | always the dark #1e1e1e menu                   | follow the page theme; `variant="inverse"` keeps Figma's       | owner ruling, 2026-10-18                                              |
+| Pointer targets (tree caret, toggles on touch, sm ActionIcon, xs check) | the glyph's own size                           | 24px (32 for sm ActionIcon) hit areas that draw nothing        | WCAG 2.5.8; nothing drawn changes                                     |
+| A disabled control kept in the Tab order (`aria-disabled`)              | skipped by focus                               | shows Figma's own 1px focus ring                               | WCAG 2.4.7: focus must be visible                                     |
+| States Figma never draws (mixed or empty swatch, two-line menu row)     | --                                             | built from Figma's tokens, no extra decoration                 | no Figma reference to copy                                            |
+| Toolbar narrower than its tools                                         | one row (never narrow)                         | wraps onto more rows                                           | WCAG 1.4.10 reflow; identical at Figma's sizes                        |
+| Escape in an open list field                                            | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
 
 ## 15. Breaking changes for the release notes (0.x)
 
@@ -1734,7 +1737,7 @@ These are the places the result will NOT match Figma, and why. Everything else m
 5. `focusRing` is `"never"`; the ring is ours (1px). A consumer's own `focusRing` override no
    longer controls compact-mantine components.
 6. Overlays have no transitions; Tooltip opens after 1000 ms (was immediate).
-7. `Select` defaults to `variant="outlined"`; its dropdown is the dark listbox opening over the
+7. `Select` defaults to `variant="outlined"`; its dropdown is the listbox (page-themed; `cm-menu-inverse` for Figma's dark one) opening over the
    trigger. `Tabs` default `variant="pills"`.
 8. ActionIcon `variant="light"` no longer draws the 1px accent border the old theme added for a
    3:1 state boundary (the Figma "highlighted" look replaces it). The brand glyph on

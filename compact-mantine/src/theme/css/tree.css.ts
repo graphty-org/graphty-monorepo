@@ -37,8 +37,6 @@ const css = `
     touch-action: pan-y;
 }
 .cm-tree-row[data-strong] { font-weight: 600; }
-/* The row being dragged. */
-.cm-tree-row[data-dragging] { opacity: 0.5; }
 .cm-tree-row::before,
 .cm-tree-row::after {
     content: "";
@@ -106,9 +104,9 @@ const css = `
     justify-content: center;
     width: 16px;
     height: 32px;
-    /* Drawn at rest, at 3:1 or more against the panel: a folder that hides its caret until
-       hovered reads as a leaf. */
-    color: var(--cm-icon-secondary);
+    /* Figma: hidden at rest, shown while the pointer is over the panel or the row is open. */
+    color: var(--cm-icon-tertiary);
+    visibility: hidden;
 }
 /* The caret's pointer target: 24 wide, centered on the 16px slot and over its neighbours' edges,
    and the row's full 32px height, so a click anywhere above or below the glyph opens the row. */
@@ -122,6 +120,11 @@ const css = `
     width: 24px;
     height: 32px;
 }
+.cm-tree:hover .cm-tree-caret,
+.cm-tree:focus-within .cm-tree-caret,
+.cm-tree-row:hover .cm-tree-caret,
+.cm-tree-row[data-state="hover"] .cm-tree-caret,
+.cm-tree-row[aria-expanded="true"] .cm-tree-caret { visibility: visible; }
 .cm-tree-check {
     flex: none;
     display: flex;
@@ -450,8 +453,6 @@ const css = `
 .cm-result-name,
 .cm-result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-result-match { font-weight: 600; }
-/* A result reads as the text typed to find it: "->" stays two characters, not Inter's arrow. */
-.cm-result-name { font-feature-settings: "calt" 0; }
 .cm-result-path { font-size: 10px; line-height: 16px; color: var(--cm-text-secondary); }
 /* lines={2}: the name and the path each wrap to a second line before they end in "...". */
 .cm-result-row[data-lines="2"] .cm-result-name,

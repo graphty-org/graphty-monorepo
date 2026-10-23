@@ -464,41 +464,73 @@ export function joinMatch(source: LoadedSource): string | null {
 export type FieldSide = "nodes" | "edges";
 
 /** What a Fields row sets. */
-export type FieldKey = "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "sourceKind" | "targetKind";
+export type FieldKey =
+    "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "edgeId" | "sourceKind" | "targetKind";
 
-/** One Fields row. */
+/** One fixed structure row: it always holds a value, so it is never a "+" entry. */
 export interface FieldRow {
     readonly key: FieldKey;
     readonly side: FieldSide;
-    /** The row's label, such as "Kind of source". */
+    /** The row's label, such as "Source". */
     readonly label: string;
-    /**
-     * Read when the rows load, so changing it reads the load again (`data.reloadSource`); the
-     * others are settings the element changes in place (`data.setRole`).
-     */
-    readonly atLoad: boolean;
 }
 
-/** The Fields rows, in order (section 3.3): the node roles, then the edge roles. */
+/** The fixed structure rows of each side, read when the rows load (`data.reloadSource`). */
 export const FIELD_ROWS: readonly FieldRow[] = [
-    { key: "key", side: "nodes", label: "Id", atLoad: true },
-    { key: "label", side: "nodes", label: "Label", atLoad: false },
-    { key: "kind", side: "nodes", label: "Kind", atLoad: true },
-    { key: "time", side: "nodes", label: "Node time", atLoad: false },
-    { key: "source", side: "edges", label: "Source", atLoad: true },
-    { key: "target", side: "edges", label: "Target", atLoad: true },
-    { key: "weight", side: "edges", label: "Weight", atLoad: false },
-    { key: "time", side: "edges", label: "Edge time", atLoad: false },
-    { key: "sourceKind", side: "edges", label: "Kind of source", atLoad: true },
-    { key: "targetKind", side: "edges", label: "Kind of target", atLoad: true },
+    { key: "key", side: "nodes", label: "Id" },
+    { key: "source", side: "edges", label: "Source" },
+    { key: "target", side: "edges", label: "Target" },
 ];
 
-/** What a weight means, as the element's `knownFields.edgeWeightMeaning` names it; "" is unknown. */
-export const WEIGHT_MEANINGS = [
-    { value: "", label: "unknown" },
-    { value: "distance", label: "distance" },
-    { value: "strength", label: "strength" },
-    { value: "capacity", label: "capacity" },
+/** What a Fields "+" entry is. */
+export type EntryId = "label" | "kind" | "weight" | "time" | "location" | "edgeId" | "sourceKind" | "targetKind";
+
+/** One kind of Fields "+" entry. */
+export interface FieldEntry {
+    readonly id: EntryId;
+    /** Its name in the list and in "+", such as "Time". */
+    readonly name: string;
+    /** The role the element gives its column in place (`data.setRole`), when it has one. */
+    readonly role?: ColumnRole;
+    /** The load-time role it reads the load again with (`data.reloadSource`), when it is one. */
+    readonly load?: FieldKey;
+}
+
+/** The kinds each side's "+" offers, in list order. */
+export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> = {
+    nodes: [
+        { id: "label", name: "Label", role: "label" },
+        { id: "kind", name: "Kind", load: "kind" },
+        { id: "weight", name: "Weight", role: "weight" },
+        { id: "time", name: "Time", role: "time" },
+        { id: "location", name: "Location" },
+    ],
+    edges: [
+        { id: "weight", name: "Weight", role: "weight" },
+        { id: "time", name: "Time", role: "time" },
+        { id: "kind", name: "Kind", load: "kind" },
+        { id: "edgeId", name: "Id", load: "edgeId" },
+        { id: "sourceKind", name: "Kind of source", load: "sourceKind" },
+        { id: "targetKind", name: "Kind of target", load: "targetKind" },
+    ],
+};
+
+/** How the Location entry reads a node's place: a column pair, one column of coordinates, or a place name. */
+export type LocationMode = "pair" | "coords" | "place";
+
+/** The Location entry's "Read as" choices. */
+export const LOCATION_MODES: readonly { readonly value: LocationMode; readonly label: string }[] = [
+    { value: "pair", label: "Latitude + longitude" },
+    { value: "coords", label: "Coordinates" },
+    { value: "place", label: "Place name" },
+];
+
+/** The Location entry's "Place type" choices, as `data.knownFields.nodeLocationRole` names them. */
+export const PLACE_TYPES = [
+    { value: "auto", label: "Auto" },
+    { value: "country", label: "Country" },
+    { value: "region", label: "Region" },
+    { value: "city", label: "City" },
 ] as const;
 
 /** The direction choices, as the element's `data.directed` takes them. */

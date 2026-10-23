@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { userEvent, waitFor, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
@@ -102,11 +102,65 @@ export const PlainJson: Story = {
     },
 };
 
-/** An event table: Fields shows its Source and Target, the kinds of its ends and the weight. */
+/** An event table: Fields shows its fixed rows (Source, Target, Direction) and an empty list of fields. */
 export const EventTable: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadLog(canvasElement);
+    },
+};
+
+/**
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from its list.
+ * @param canvasElement - the story's root.
+ * @param side - node or edge.
+ * @param kind - the kind, as "+" lists it.
+ * @param column - the column.
+ */
+async function addField(
+    canvasElement: HTMLElement,
+    side: "node" | "edge",
+    kind: string,
+    column: string,
+): Promise<void> {
+    const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+    await userEvent.click(await place.findByRole("button", { name: `Add to ${side} fields` }, storyWaitOptions(1000)));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }, storyWaitOptions(1000)));
+    await userEvent.click(await within(document.body).findByRole("option", { name: column }, storyWaitOptions(1000)));
+}
+
+/** The edge "+" open on an event table: the kinds of field not listed yet. */
+export const AddFieldMenu: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        await loadLog(canvasElement);
+        const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+        await userEvent.click(await place.findByRole("button", { name: "Add to edge fields" }, storyWaitOptions(1000)));
+        await within(document.body).findByRole("menuitem", { name: "Weight" }, storyWaitOptions(1000));
+    },
+};
+
+/** Fields added from "+": a weight with what a higher one means, and the kind of the source. */
+export const FieldEntries: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadLog(canvasElement);
+        // The kind first: it reads the load again.
+        await addField(canvasElement, "edge", "Kind of source", "user");
+        await addField(canvasElement, "edge", "Weight", "bytes");
+        const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
+        await userEvent.click(
+            await place.findByRole("combobox", { name: "Higher weight means" }, storyWaitOptions(1000)),
+        );
+        await userEvent.click(
+            await within(document.body).findByRole("option", { name: "farther" }, storyWaitOptions(1000)),
+        );
+        await waitFor(() => {
+            if (element.session.config.data.knownFields.edgeWeightMeaning !== "distance") {
+                throw new Error("the meaning is not written yet");
+            }
+        }, storyWaitOptions(1000));
+        await element.waitForStableFrame();
     },
 };
 
@@ -119,7 +173,7 @@ export const SourceMenu: Story = {
     },
 };
 
-/** Two sources: the Filters "+" offers Data source. */
+/** Two sources: a filter step's Add a condition offers Data source. */
 export const TwoSources: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
@@ -127,8 +181,11 @@ export const TwoSources: Story = {
         await element.session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
         await element.waitForStableFrame();
         await userEvent.click(
-            await within(canvasElement).findByRole("button", { name: "Add filter" }, storyWaitOptions(1000)),
+            await within(canvasElement).findByRole("button", { name: "Add filter step" }, storyWaitOptions(1000)),
         );
-        await within(document.body).findByRole("menuitem", { name: "Data source" }, storyWaitOptions(1000));
+        await userEvent.click(
+            await within(document.body).findByRole("button", { name: "Add a condition" }, storyWaitOptions(1000)),
+        );
+        await within(document.body).findByRole("option", { name: "Data source" }, storyWaitOptions(1000));
     },
 };

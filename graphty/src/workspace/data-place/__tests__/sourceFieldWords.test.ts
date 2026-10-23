@@ -4,6 +4,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     columnChoices,
+    FIELD_ENTRIES,
     FIELD_ROWS,
     joinMatch,
     kindChoices,
@@ -65,21 +66,18 @@ describe("the Data place's words", () => {
         assert.equal(sourceName({ ...unnamed, kind: "server", type: "source:no-such-source" }), "Server");
     });
 
-    it("lists the special fields in spec order, the node roles first", () => {
+    it("keeps the rows that always hold a value fixed, and offers the rest from each side's +", () => {
         assert.deepEqual(
             FIELD_ROWS.map((row) => `${row.side}:${row.label}`),
-            [
-                "nodes:Id",
-                "nodes:Label",
-                "nodes:Kind",
-                "nodes:Node time",
-                "edges:Source",
-                "edges:Target",
-                "edges:Weight",
-                "edges:Edge time",
-                "edges:Kind of source",
-                "edges:Kind of target",
-            ],
+            ["nodes:Id", "edges:Source", "edges:Target"],
+        );
+        assert.deepEqual(
+            FIELD_ENTRIES.nodes.map((entry) => entry.name),
+            ["Label", "Kind", "Weight", "Time", "Location"],
+        );
+        assert.deepEqual(
+            FIELD_ENTRIES.edges.map((entry) => entry.name),
+            ["Weight", "Time", "Kind", "Id", "Kind of source", "Kind of target"],
         );
     });
 

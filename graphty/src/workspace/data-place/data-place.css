@@ -125,6 +125,23 @@
     padding: 4px 0;
 }
 
+/* A side's header: its chip, and the "+" that adds a field, at the right end. */
 .dp-fields-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     padding: 6px 0 2px;
+}
+
+/* An entry's kind: its glyph and name, in the label column. */
+.dp-entry-kind {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+
+/* A setting of the entry above it, indented under it. */
+.dp-sub-label {
+    padding-inline-start: 18px;
 }

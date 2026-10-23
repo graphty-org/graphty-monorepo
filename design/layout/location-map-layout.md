@@ -395,7 +395,8 @@ On the globe the radius is set so the data's extent spans `size` scene units of 
 of the view as on the flat map, so a node is the same size on either surface.
 
 Contrast: while a map is drawn, edges no style layer outlined get a thin light casing and nodes a
-light outline (`basemap.casing`, default on), and nodes are drawn after edges, with edges writing no
+light outline (`basemap.casing`, default on; an edge left at the default gray is drawn dark gray,
+`#505050`, inside a solid white casing about a pixel wider), and nodes are drawn after edges, with edges writing no
 depth, so an arc passing in front of a hub never hides it. The Graph settings "Outline width" did
 nothing visible on the map before this because it only sets the width of outlines a style layer
 draws, and no layer drew one; the casing gives every node on a map an outline it applies to.
@@ -549,7 +550,9 @@ world sets `equal-earth` and gets the bundled image. The camera starts framing t
 On the globe, `extent: "data"` turns the globe so the data's center faces the camera and sets the
 camera distance so the data fills the view.
 
-Edge cases: a single node, or all nodes at one point, gets a minimum extent of 1 degree; data
+Edge cases: a single node, or all nodes at one point, gets the region around it, 10 degrees
+across (1 degree of the bundled picture is a blur of a few texels); any other data at least 0.01
+degree, about a kilometer, so a city is framed at its own size; data
 crossing the antimeridian (Fiji, the Aleutians) is detected by the largest longitude gap, the box's
 east edge passes 180 degrees, and longitudes are shifted by 360 into it before projecting, so an
 800 km edge is not drawn across the whole map. `basemap.beyond` defaults to `"continue"`: the map
@@ -832,8 +835,18 @@ error? }`, `error` being `{ code: "E_BASEMAP_UNREACHABLE", params: { source, sta
 - **Gray backdrop**: `natural-earth-gray`, the bundled picture desaturated and lightened in a canvas
   at load (kind `light` in the catalog); no new image file.
 - **Small fixes**: Escape in the Advanced pop-out closes only it, and its gear has the tooltip
-  Advanced; one-point data spans 1 degree; the Venice sample card is re-rendered with darker edges
-  and outlined nodes (`tools/render-sample-thumbnails.mjs`, median mark contrast 3.5:1 on white).
+  Advanced; one-point data spans 10 degrees, other data at least 0.01; the Venice sample card is
+  re-rendered with darker edges and outlined nodes (`tools/render-sample-thumbnails.mjs`, median
+  mark contrast 3.5:1 on white).
+- **From checking these on screen**: a globe with `extent: "data"` opens framed on the data (as
+  large as on the flat map), not on the whole sphere, and a globe drag turns about the globe's
+  center wherever the camera looks; a map replaced by one on the other surface (an undo from globe
+  to flat) is framed again; the edge casing is solid and drawn under its line (a see-through casing
+  went to the blended pass and covered the line); the basemap status stays `loading` while a tile's
+  shader compiles; the Map form shows the location note once, under the field the places were
+  read from. Not fixed: the tray lies on the map itself now that the map continues past the data,
+  where its row can read as places in the ocean (Select on the notice finds them); and a tile
+  service is still credited beside Natural Earth, whose picture is drawn under it.
 
 Added to the open names (15.1): the refusal code `layout.needs-location`, `recommend.location-map`,
 `location.column-unfit`, the frame facts `element.mapFrame` (`location`, `unplaced`, `warnings`),

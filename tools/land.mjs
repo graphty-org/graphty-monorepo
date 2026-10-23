@@ -620,7 +620,11 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
     // The advisory test selector (tools/test-select.mjs) asks about this landing alone: the change from the
     // tip the push replaces.
     const dst = refspec.split(":").pop().replace("refs/heads/", "");
+    // The test ledger's kind (tools/test-ledger.mjs): a golden push is a land check, which may excuse a failure
+    // already on golden; set only in the gate child's environment, so nothing else inherits it.
+    const kind = dst === CUT ? "cut" : "land-check";
     const env = { ...ctx.env, PUSH_BASE_REF: "origin/master", PREPUSH_SELECT_BASE: `origin/${dst}` };
+    Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
     const child = spawn(join(cwd, "tools/push-queue.sh"), args, {
         cwd,
@@ -635,7 +639,13 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
     };
     child.stdout.on("data", copy(process.stdout));
     child.stderr.on("data", copy(process.stderr));
-    return new Promise((resolve) => child.on("close", (code) => resolve({ code: code ?? 1, output })));
+    return new Promise((resolve) =>
+        child.on("close", (code) => {
+            // The shards the gate excused, again at the end where the summary follows.
+            for (const l of output.match(/^\s*\[(KNOWN|QUARANTINED)\].*$/gm) ?? []) console.log(`land: ${l.trim()}`);
+            resolve({ code: code ?? 1, output });
+        }),
+    );
 }
 
 function defaultGh(ctx, args) {
@@ -1170,6 +1180,18 @@ export function prepareScratch(ctx, dir, ref) {
 }
 
 /**
+ * Whether a branch changes the quarantine list (tools/test-quarantine.json) together with anything else: a branch
+ * that breaks a test must not quarantine it in the same landing (design/ci/test-ledger.md 4.4).
+ * @param ctx the run's context
+ * @param ref the branch's commit
+ * @returns true when it does
+ */
+function quarantineMixed(ctx, ref) {
+    const files = git(ctx, ctx.golden, ["diff", "--name-only", `HEAD...${ref}`], { ok: true }).stdout.split("\n");
+    return files.includes("tools/test-quarantine.json") && files.filter(Boolean).length > 1;
+}
+
+/**
  * Merges each branch onto golden in order, skipping (and undoing) one that conflicts or is already there.
  * @param ctx the run's context
  * @param run the landing's state: `refs` and `outcomes` by branch
@@ -1183,6 +1205,13 @@ function mergeEach(ctx, run, list) {
         const pre = goldenHead(ctx);
         if (git(ctx, ctx.golden, ["merge-base", "--is-ancestor", ref, "HEAD"], { ok: true }).status === 0) {
             run.outcomes.set(b, { state: "already on golden" });
+            continue;
+        }
+        if (quarantineMixed(ctx, ref)) {
+            console.error(
+                `land: ${b} changes tools/test-quarantine.json together with other files; land a quarantine entry alone`,
+            );
+            run.outcomes.set(b, { state: "refused (quarantine with other changes)" });
             continue;
         }
         const copies = copiedCommits(ctx, ref);

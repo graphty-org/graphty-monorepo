@@ -284,6 +284,11 @@ export interface OracleReport {
      */
     verdict: { pass: boolean; failing: number };
     failures: Partial<Record<OracleProperty, string[]>>;
+    /**
+     * Every element judged, by property, passing or failing: an element a property no longer judges (no oracle element
+     * to compare it with) is not measurable there, which is never a failure.
+     */
+    judged: Partial<Record<OracleProperty, string[]>>;
     association: unknown;
     transform: {
         scale: number;
@@ -2690,10 +2695,15 @@ export function compareOracle(
 
     // every failing element by property: one wrong element fails its sample, however many others pass
     const failures: OracleReport["failures"] = {};
+    const judged: OracleReport["judged"] = {};
     for (const p of ORACLE_PROPERTIES) {
-        const ids = (j.results.get(p) ?? []).filter((x) => !x.pass).map((x) => x.id);
+        const list = j.results.get(p) ?? [];
+        const ids = list.filter((x) => !x.pass).map((x) => x.id);
         if (ids.length > 0) {
             failures[p] = [...new Set(ids)].sort(cmp);
+        }
+        if (list.length > 0) {
+            judged[p] = [...new Set(list.map((x) => x.id))].sort(cmp);
         }
     }
 
@@ -2702,6 +2712,7 @@ export function compareOracle(
         standIn: options.standIn === true,
         verdict: { pass: elements.length === 0, failing: elements.length },
         failures,
+        judged,
         association,
         transform,
         counts: {

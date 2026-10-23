@@ -1,5 +1,5 @@
 {
-    "about": "The elements known to fail each property of the oracle scorecard (test/fidelity/oracle-report.test.ts), per sample (and per sample@matched, its position-matched comparison). An element failing a property that is not listed here fails its sample; recording drops an element that passes again and never adds one to a property already recorded. This is the fix list, by element id.",
+    "about": "The elements known to fail each property of the oracle scorecard (test/fidelity/oracle-report.test.ts), per sample (and per sample@matched, its position-matched comparison). This is the gate: an element failing a property that is not listed here fails its sample, whether it passed before or is new; pass rates never fail one. npm run fidelity:ratchet takes off every element that passes after a run (one that is not measurable any more stays) and adds one only with --add \"<reason>\", recorded in reasons with its date and whether the drawing or the comparator made it fail. This is the fix list, by element id.",
     "known": {
         "cx-ddram": {
             "node.present": [],
@@ -40567,5 +40567,6 @@
             "frame.zoom": [],
             "background": []
         }
-    }
+    },
+    "reasons": []
 }

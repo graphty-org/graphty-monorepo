@@ -72,6 +72,23 @@ Pass counts are "passing / compared"; ratios are graphty divided by the program,
 failing elements unless the row says otherwise. "Relative to node size" ratios divide each label's
 pixel size by its node's width on both sides, so they hold even when the two layouts differ.
 
+## How the suite decides pass and fail (from 2026-10-22)
+
+The scorecards gate on elements, not decimals. A sample fails only when an element (a node, edge, group, label or
+stray) fails a property that `graphty-element/test/fidelity/oracle-known-failures.json` (or, for the drawn-scene
+scorecard, the `known` lists of `baseline-scores.json`) does not list for it: one that passed before, or a new one.
+Pass rates, raster regions included, are a report written by every run (`gate.txt`), set against the recorded rates in
+`oracle-floors.json`, which no longer fail anything; `allowedDrops` is gone, since nothing is left for it to excuse.
+A raster region is reported when it drops more than 0.02; a property with nothing left on the other side to compare
+is reported as not measurable, never as a failure. A run given an earlier run's report directory
+(`GRAPHTY_ORACLE_BASELINE`) judges those drawings again with its own comparator and marks every change as the
+drawing's or the comparator's. `npm run fidelity:ratchet` (graphty-element) applies a run in the same commit as the
+change: it takes off what passes, raises the recorded rates, and adds an element only with `--add "<reason>"`,
+which it records. The record of rates "lowered" below is history from before this rule; the raster slack described
+in the 2026-10-20 report is replaced by the 0.02 report line.
+
+See graph-io/test/fidelity/TOOLS.md, "How the scorecards decide pass and fail".
+
 ## Final report: where every format stands (2026-10-20)
 
 The branch was merged with master and every oracle in this folder was judged again (563 samples: 461 specimen sheets

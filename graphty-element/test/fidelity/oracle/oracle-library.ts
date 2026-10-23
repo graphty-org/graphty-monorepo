@@ -215,7 +215,25 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
 /** The oracle programs that draw no group box, whatever the file says. */
 const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
 
-/** One comparison of a mounted element's drawing with the program's own. */
+/**
+ * What a comparison takes from the mounted element besides its drawing, so the same comparison can be run again on a
+ * drawing kept from another run (`judgeDrawing`): the specimen names both sides are named by, and whether graphty ran
+ * its own layout. These follow from the sample file, not from how graphty drew it.
+ */
+export interface JudgeInputs {
+    /** Node id to its specimen role name (`cap-*`, `anchor-*`), from the sample's own data. */
+    captionOf: [string, string][];
+    /** Node id to its specimen setting id, for a sheet whose format numbers its nodes. */
+    names: [string, string][];
+    /** The file placed no node: graphty laid it out itself. */
+    ownLayout: boolean;
+    /** ...and with its own layout, not the program's (Graphviz lays a DOT file out on both sides alike). */
+    ownLayouts: boolean;
+    /** How the sample was loaded, for the provenance. */
+    command: string;
+}
+
+/** One comparison of a drawing with the program's own. */
 export interface OracleComparison {
     report: OracleReport;
     /** Pass rate per judged property, rounded to 4 places; empty for a sketch no program drew. */
@@ -228,6 +246,8 @@ export interface OracleComparison {
     /** The SVG's rendered size. */
     width: number;
     height: number;
+    /** What the comparison took from the element, to judge another drawing of the same sample alike. */
+    inputs: JudgeInputs;
 }
 
 /**
@@ -236,6 +256,7 @@ export interface OracleComparison {
  * @param element - the element, the sample loaded and settled
  * @param sha256 - the sample file's sha256
  * @param command - how it was loaded, for the provenance
+ * @param mutate - a planted defect, applied to graphty's drawing before it is judged
  * @returns the comparison
  */
 export async function compareWithOracle(
@@ -264,35 +285,46 @@ export async function compareWithOracle(
     const names = id.startsWith("gml-specimen-")
         ? specimenSettingNames(element.session.data.nodes())
         : specimenNames(id);
-    const numbers = new Map([...names].map(([k, v]) => [v, k]));
     const named = namedCaptions(namedCaptions(unmutated, captionOf), names);
     const graphty = mutate === undefined ? named : mutate(structuredClone(named));
+    const ownLayout = element.session.seededNodeCount === 0;
+    return judgeDrawing(id, graphty, {
+        captionOf: [...captionOf],
+        names: [...names],
+        ownLayout,
+        // the file placed no node and graphty ran its own layout, not the program's (Graphviz lays a DOT file out on
+        // both sides alike)
+        ownLayouts: ownLayout && !GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === element.layout),
+        command,
+    });
+}
+
+/**
+ * Judges a drawing of graphty's, already read and named (`compareWithOracle`, or one kept in an earlier run's report),
+ * against the program's own SVG of the same sample: the comparator alone, so a drawing kept from another run is judged
+ * by this run's comparator exactly as this run's drawing is.
+ * @param id - the sample
+ * @param graphty - graphty's drawing, named
+ * @param inputs - what the comparison takes from the element
+ * @returns the comparison
+ */
+export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInputs): Promise<OracleComparison> {
+    const meta = oracleMeta(id);
+    const captionOf = new Map(inputs.captionOf);
+    const names = new Map(inputs.names);
+    const numbers = new Map([...names].map(([k, v]) => [v, k]));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);
     }
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
-    // TEMP-DEBUG fix-assoc-real: dump the association's inputs
-    if ((import.meta.env.VITE_ORACLE_DUMP as string | undefined) === "1" && mutate === undefined) {
-        const { commands: c } = await import("vitest/browser");
-        await c.writeFile(
-            `tmp/oracle-dump/${id}${command.includes("moved") ? "@matched" : ""}.json`,
-            JSON.stringify({
-                prims,
-                width,
-                height,
-                guide: namedCaptions(graphty, numbers),
-                ownLayout: element.session.seededNodeCount === 0,
-            }),
-        );
-    }
     const associated = await associateOracle(
         id,
         meta,
         prims,
         { width, height },
         namedCaptions(graphty, numbers),
-        element.session.seededNodeCount === 0,
+        inputs.ownLayout,
     );
     // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
     const association = {
@@ -313,17 +345,9 @@ export async function compareWithOracle(
                 width,
                 height,
             },
-            graphty: { command, width: graphty.width, height: graphty.height },
+            graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
         },
-        {
-            mirror: meta.mirrored === true,
-            standIn: isStandIn(meta),
-            // the file placed no node and graphty ran its own layout, not the program's (Graphviz lays a DOT file out
-            // on both sides alike)
-            ownLayouts:
-                element.session.seededNodeCount === 0 &&
-                !GRAPHVIZ_ENGINES.some((engine) => graphvizLayoutId(engine) === element.layout),
-        },
+        { mirror: meta.mirrored === true, standIn: isStandIn(meta), ownLayouts: inputs.ownLayouts },
     );
     // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
     // never scored; another program's real drawing standing in (draw.io for yEd) is scored.
@@ -335,5 +359,5 @@ export async function compareWithOracle(
             scores[p] = Math.round(rate * 10000) / 10000;
         }
     }
-    return { report, scores, meta, association, graphty, names, width, height };
+    return { report, scores, meta, association, graphty, names, width, height, inputs };
 }

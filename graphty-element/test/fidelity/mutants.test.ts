@@ -1,9 +1,9 @@
 /**
  * The planted-defect test of the oracle comparator: plants one visual defect at a time in graphty's drawn primitives
  * just before the comparison, and asserts that the comparison catches every defect on every sample it changes: an
- * element fails a property it passes unplanted, or the floors fail where the unplanted run passes them (a property
- * falls below its floor, is judged with no floor, or an element fails that the known failures do not list). A
- * planted defect the floors pass is a blind spot of the comparator: fix the comparator, never the defect. A defect
+ * element fails a property it passes unplanted, which is what fails a sample (`oracle/floors.ts`: pass rates never
+ * gate). A planted defect no element fails for is a blind spot of the comparator: fix the comparator, never the
+ * defect. A defect
  * is excused only where it cannot test anything: where it changes nothing, where it lands only on elements already
  * failing the property it is for (`absorbedByKnownFailures`), or where it cannot be planted (a mirror or a turn
  * between unrelated layouts).
@@ -31,14 +31,12 @@ import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
 import type { OracleReport } from "./oracle/compare-oracle";
 import {
     compareWithOracle,
-    isStandIn,
     ORACLE_CANVAS,
     oracleFormatOptions,
     oracleGraphName,
     oracleMeta,
 } from "./oracle/oracle-library";
 import type { PScene } from "./oracle/primitives";
-import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
 
 /**
  * The samples that between them exercise every planted defect: synthetic files, and the specimen sheets that hold
@@ -140,8 +138,6 @@ afterEach(() => {
     unmount();
 });
 
-const stored = await readOracleFloors();
-
 describe("comparator mutants", () => {
     it.each(IDS)("%s", async (id) => {
         const sample = [...SAMPLES, ...CORPUS_SAMPLES, ...SPECIMEN_SAMPLES].find((s) => s.id === id);
@@ -156,7 +152,6 @@ describe("comparator mutants", () => {
             oracleFormatOptions(meta, sample.format),
         );
         const out: Record<string, unknown> = {};
-        const baseline = new Set<string>();
         let base: OracleReport | null = null;
         let oracle: PScene | null = null;
         // an oracle that records only where its program drew the nodes, or the labels' words and not their geometry
@@ -183,22 +178,8 @@ describe("comparator mutants", () => {
                 after = mutate(g);
                 return after;
             });
-            const { dropped, unfloored, newlyFailing } = checkFloors(
-                id,
-                {
-                    report: r.report,
-                    scores: r.scores,
-                    sha256,
-                    oracleSha256: null,
-                    standIn: isStandIn(oracleMeta(id)),
-                    matched: null,
-                },
-                stored,
-            );
-            const fresh = [...dropped.map((d) => d.split(":")[0]), ...unfloored, ...newlyFailing];
             if (base === null) {
                 // the first is the unplanted run ("none"), the baseline every defect is judged against
-                fresh.forEach((x) => baseline.add(x));
                 base = r.report;
                 oracle = r.association.scene;
                 blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
@@ -213,13 +194,9 @@ describe("comparator mutants", () => {
                 out[name] = { outcome: "not exercised" };
                 continue;
             }
-            // what the floors fail that the unplanted run does not, and every element newly failing a property: the
-            // floors' own check where the sample is recorded, and the same judgement where it is not yet
+            // every element newly failing a property: what fails a sample, known failures or not
             const was = failingPairs(base);
-            const caughtBy = [
-                ...fresh.filter((x) => !baseline.has(x)),
-                ...[...failingPairs(r.report)].filter((x) => !was.has(x)),
-            ];
+            const caughtBy = [...failingPairs(r.report)].filter((x) => !was.has(x));
             let outcome = "caught";
             if (caughtBy.length === 0) {
                 outcome = absorbedByKnownFailures(before, after, base, targets)

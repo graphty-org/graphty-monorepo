@@ -3,8 +3,10 @@
  * real SVG export, rasterized, from the oracle library `graph-io/test/fidelity/oracles/`) with which program and
  * version drew it and whether it stands in for another program, beside graphty-element's drawing of the same file
  * with its file styles (side by side on a wide screen, stacked on a narrow one); below them the two overlaid, and
- * the comparator's table judging what graphty-element drew against that SVG property by property, with each
- * property's floor from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the oracle tests' own:
+ * the comparator's table judging what graphty-element drew against that SVG property by property, red where an element
+ * fails that `graphty-element/test/fidelity/oracle-known-failures.json` does not list (what fails the oracle tests),
+ * with each property's recorded rate from `graphty-element/test/fidelity/oracle-floors.json`. The numbers are the
+ * oracle tests' own:
  * the story mounts the element off to the side at the oracle canvas size and runs the same comparison
  * (`graphty-element/test/fidelity/oracle/oracle-library.ts`). graphty-element's drawing is its own screenshot
  * (`captureScreenshot`) at the oracle canvas size, so touch and scroll cannot move the camera; the `live` arg
@@ -30,6 +32,7 @@ import {
     oraclePngUrl,
 } from "../../../graphty-element/test/fidelity/oracle/oracle-library";
 import oracleFloors from "../../../graphty-element/test/fidelity/oracle-floors.json";
+import oracleKnown from "../../../graphty-element/test/fidelity/oracle-known-failures.json";
 import { CORPUS_SAMPLES } from "../../test/fidelity/corpus-samples";
 import { type FidelitySample, SAMPLES } from "../../test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../test/fidelity/specimens/index";
@@ -41,7 +44,7 @@ const FLOORS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
     ...oracleFloors.floors,
     ...oracleFloors.standInFloors,
 };
-const ALLOWED: Readonly<Record<string, unknown>> = oracleFloors.allowedDrops;
+const KNOWN: Readonly<Record<string, Readonly<Record<string, readonly string[]>>>> = oracleKnown.known;
 
 const esc = (s: unknown): string =>
     String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
@@ -64,7 +67,8 @@ function provenance(meta: Record<string, unknown>): string {
 }
 
 /**
- * The comparator's table: the counts and the fit, then one row per property with its pass count, rate and floor.
+ * The comparator's table: the counts and the fit, then one row per property with its pass count, rate and recorded
+ * rate, red where an element fails that the known failures do not list.
  * @param id - the sample
  * @param report - the comparison
  * @param scored - false for a sketch no program drew, which is reported but never scored
@@ -74,14 +78,15 @@ function table(id: string, report: OracleReport, scored: boolean): string {
     const c = report.counts;
     const t = report.transform;
     const floors = FLOORS[id] ?? {};
+    const known = KNOWN[id] ?? {};
     const rows = ORACLE_PROPERTIES.map((p) => {
         const r = report.properties[p];
         const floor = floors[p];
         let color: string = COLORS.unjudged;
         let shown = "not judged";
         if (r.passRate !== null) {
-            const below = floor !== undefined && r.passRate < floor - 1e-9 && !(`${id}/${p}` in ALLOWED);
-            if (below) {
+            const listed = new Set(known[p] ?? []);
+            if ((report.failures[p] ?? []).some((x) => !listed.has(x))) {
                 color = COLORS.fail;
             } else {
                 color = r.passRate >= 1 ? COLORS.pass : COLORS.partial;
@@ -100,7 +105,7 @@ function table(id: string, report: OracleReport, scored: boolean): string {
         ? `Fit residual ${(t.rms * 100).toFixed(1)}% of the diagonal${t.unrelatedLayout ? " (unrelated layouts: positions and routes not judged)" : ""}.`
         : "No fit.";
     return `<p>Nodes ${String(c.matchedNodes)} of ${String(c.oracleNodes)} matched (graphty drew ${String(c.graphtyNodes)}); edges ${String(c.matchedEdges)} of ${String(c.oracleEdges)} (drew ${String(c.graphtyEdges)}). ${fit}${scored ? "" : " A sketch no program drew: reported, never scored."}</p>
-<table><tr><th>property</th><th>passed</th><th>floor</th></tr>${rows}</table>`;
+<table><tr><th>property</th><th>passed</th><th>recorded</th></tr>${rows}</table>`;
 }
 
 const STYLE = `<style>

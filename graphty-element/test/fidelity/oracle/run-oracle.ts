@@ -3,9 +3,13 @@
  * `<graphty-element>` at the oracle canvas size, read what it drew, read the program's own SVG of
  * the same file, associate, compare, capture graphty's canvas and compare it region by region with
  * the rasterized oracle, then move graphty's nodes to where the program drew them and compare again
- * (style judged apart from layout), and (when asked) write the report files. Also the floors files
- * both tests check, which only ever ratchet up: pass rates per property (`oracle-floors.json`) and
- * the elements known to fail each property (`oracle-known-failures.json`).
+ * (style judged apart from layout), and (when asked) write the report files. With a baseline (an earlier run's report
+ * directory, `GRAPHTY_ORACLE_BASELINE`), the baseline's drawings of the same sample are judged again by this run's
+ * comparator, so a change is said to come from the drawing or from the comparator.
+ *
+ * The verdict is the elements' (`floors.ts`): a sample fails when an element fails a property that
+ * `oracle-known-failures.json` does not list; the pass rates in `oracle-floors.json` are recorded values the run is
+ * reported against, never a gate. `scripts/fidelity-ratchet.ts` applies a run's report to both files.
  *
  * Browser only.
  */
@@ -17,19 +21,21 @@ import { SAMPLES } from "../../../../graph-io/test/fidelity/samples";
 import { SPECIMEN_SAMPLES } from "../../../../graph-io/test/fidelity/specimens/index";
 import type { Graphty } from "../../../index.js";
 import { GPU, mountSample, readJson } from "../mount";
-import { pairNodes } from "./compare-oracle";
+import { type OracleReport, pairNodes } from "./compare-oracle";
 import {
-    checkScored,
-    type FloorCheck,
-    mergeRecords,
-    type OracleFloors,
-    type OracleRecord,
-    type OracleScored,
-    recordableScores,
+    type Baseline,
+    type Floors,
+    gateReportText,
+    judgeKey,
+    type Judgement,
+    type KeyGate,
+    type KnownRecords,
 } from "./floors";
 import {
     compareWithOracle,
     isStandIn,
+    judgeDrawing,
+    type JudgeInputs,
     ORACLE_CANVAS,
     type OracleComparison,
     oracleFormatOptions,
@@ -37,18 +43,21 @@ import {
     oracleMeta,
     oraclePngUrl,
 } from "./oracle-library";
-import { boxOfPoints, type Pt } from "./primitives";
+import { boxOfPoints, type PScene, type Pt } from "./primitives";
 import { RASTER_REGIONS, rasterCompare } from "./raster";
 
-export type { AllowedDrop, FloorCheck, OracleFloors, OracleRecord, OracleScored } from "./floors";
 export { ORACLE_CANVAS, ORACLE_IDS, oracleGraphName, oraclesWithoutMetadata } from "./oracle-library";
 
-/** The floors file, relative to graphty-element. */
+/** The recorded pass rates, relative to graphty-element. */
 export const ORACLE_FLOORS = "test/fidelity/oracle-floors.json";
 /** The elements known to fail, relative to graphty-element. */
 export const ORACLE_KNOWN_FAILURES = "test/fidelity/oracle-known-failures.json";
 /** Where reports are written, relative to graphty-element (gitignored). */
 export const ORACLE_OUT = "tmp/oracle-report";
+/** The run's verdicts and report, by key: what `scripts/fidelity-ratchet.ts` reads. */
+export const ORACLE_GATE = `${ORACLE_OUT}/gate.json`;
+/** An earlier run's report directory whose drawings this run judges again, relative to graphty-element (or absolute). */
+export const ORACLE_BASELINE = (import.meta.env.GRAPHTY_ORACLE_BASELINE as string | undefined) || undefined;
 /** The floors key of a sample's position-matched comparison. */
 export const matchedKey = (id: string): string => `${id}@matched`;
 
@@ -67,6 +76,14 @@ function captureCanvas(element: Graphty): string {
         throw new Error("the element has no rendering canvas");
     }
     return canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+}
+
+/** One comparison's report and its scores, and the baseline drawing's judgements when the run judged one. */
+export interface OracleScored {
+    report: OracleReport;
+    /** Pass rate per judged property, rounded to 4 places; the raster regions' similarity as `raster.<region>`. */
+    scores: Record<string, number>;
+    baseline?: Baseline;
 }
 
 /** What one comparison measured. */
@@ -202,10 +219,9 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     const pngUrl = await oraclePngUrl(id);
     const shot = captureCanvas(element);
     const raster = pngUrl === undefined ? null : await rasterCompare(shot, pngUrl, { width, height }, graphty, report);
-    // The raster regions are asserted like every property, at 2 places (a region's similarity is a mean over its
-    // pixels, which a renderer's antialiasing moves in the third), with the GPU path's slack (`rasterSlack` in
-    // floors.ts), and only where the layouts are related: between unrelated layouts the regions of one drawing fall on
-    // nothing of the other.
+    // The raster regions are reported like every property, at 2 places (a region's similarity is a mean over its
+    // pixels, which a renderer's antialiasing moves in the third), and only where the layouts are related: between
+    // unrelated layouts the regions of one drawing fall on nothing of the other. They never fail a sample.
     if (raster !== null && report.transform?.unrelatedLayout === false) {
         for (const r of RASTER_REGIONS) {
             const sim = raster.regions[r].similarity;
@@ -215,19 +231,26 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         }
     }
     const scenes = { oracle: association.scene, graphty };
-    let matched: OracleScored | null = null;
-    // graphty's drawing with its nodes moved, kept with the report: whether a routed edge follows its moved node is
-    // read off it, not guessed from the scores
-    let matchedGraphty: unknown = null;
+    let second: OracleComparison | null = null;
     if (await matchPositions(element, first, meta.mirrored === true)) {
-        const second = await compareWithOracle(
+        second = await compareWithOracle(id, element, sha256, `${command}; nodes moved to the oracle's positions`);
+    }
+    const matched: OracleScored | null =
+        second === null ? null : { report: second.report, scores: { ...second.scores } };
+    const base = ORACLE_BASELINE === undefined ? null : await readJson<BaselineReport>(`${ORACLE_BASELINE}/${id}.json`);
+    const baseline = base === null ? undefined : await rejudge(id, base, first.inputs);
+    const pm = base?.positionMatched;
+    if (matched !== null && second !== null && pm?.graphty !== undefined) {
+        matched.baseline = await rejudge(
             id,
-            element,
-            sha256,
-            `${command}; nodes moved to the oracle's positions`,
+            {
+                failures: pm.report.failures,
+                judged: pm.report.judged,
+                scores: pm.scores,
+                scenes: { graphty: pm.graphty },
+            },
+            second.inputs,
         );
-        matched = { report: second.report, scores: { ...second.scores } };
-        matchedGraphty = second.graphty;
     }
     if (options.write) {
         await commands.writeFile(`${ORACLE_OUT}/${id}.graphty.png`, shot, { encoding: "base64" });
@@ -250,14 +273,21 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
                       worst: raster.worst,
                       labelInkRatio: raster.labelInkRatio,
                   };
+        // graphty's drawing with its nodes moved is kept with the report: whether a routed edge follows its moved node
+        // is read off it, not guessed from the scores, and a later run judges it again as its baseline
+        const positionMatched =
+            matched === null || second === null
+                ? null
+                : { report: matched.report, scores: matched.scores, graphty: second.graphty };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
-            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched: matched === null ? null : { ...matched, graphty: matchedGraphty }, scenes }, null, 1)}\n`,
+            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched, scenes }, null, 1)}\n`,
         );
     }
     return {
         report,
         scores,
+        ...(baseline === undefined ? {} : { baseline }),
         sha256,
         oracleSha256: typeof meta.sha256 === "string" ? meta.sha256 : null,
         standIn: isStandIn(meta),
@@ -265,105 +295,95 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     };
 }
 
+/** What a run's report file keeps that a later run judges again: its judgement and graphty's drawing. */
+interface BaselineReport {
+    failures: OracleReport["failures"];
+    judged?: OracleReport["judged"];
+    scores: Record<string, number>;
+    scenes: { graphty: PScene };
+    positionMatched?: { report: OracleReport; scores: Record<string, number>; graphty?: PScene } | null;
+}
+
 /**
- * Reads the floors files.
- * @returns the floors
+ * A baseline drawing as its own run judged it, and as this run's comparator judges it. The raster regions are not
+ * compared again (the baseline's picture is not re-read): they keep the baseline's own values on both sides.
+ * @param id - the sample
+ * @param base - the baseline report
+ * @param inputs - this run's comparison inputs for the sample
+ * @returns both judgements
  */
-export async function readOracleFloors(): Promise<OracleFloors> {
-    const f = (await readJson<Partial<OracleFloors>>(ORACLE_FLOORS)) ?? {};
-    const k = (await readJson<{ known?: OracleFloors["known"] }>(ORACLE_KNOWN_FAILURES)) ?? {};
+async function rejudge(
+    id: string,
+    base: Pick<BaselineReport, "failures" | "judged" | "scores" | "scenes">,
+    inputs: JudgeInputs,
+): Promise<Baseline> {
+    const again = await judgeDrawing(id, base.scenes.graphty, inputs);
+    const raster = Object.fromEntries(Object.entries(base.scores).filter(([p]) => p.startsWith("raster.")));
     return {
-        about: f.about ?? "",
+        recorded: { failures: base.failures, judged: base.judged, scores: base.scores },
+        rejudged: {
+            failures: again.report.failures,
+            judged: again.report.judged,
+            scores: { ...again.scores, ...raster },
+        },
+    };
+}
+
+/** The committed records the oracle gate reads: the known failures and the recorded pass rates. */
+export interface OracleStored {
+    known: KnownRecords;
+    floors: Floors;
+    standInFloors: Floors;
+}
+
+/**
+ * Reads the known failures and the recorded pass rates.
+ * @returns them
+ */
+export async function readOracleStored(): Promise<OracleStored> {
+    const f = (await readJson<{ floors?: Floors; standInFloors?: Floors }>(ORACLE_FLOORS)) ?? {};
+    const k = (await readJson<Partial<KnownRecords>>(ORACLE_KNOWN_FAILURES)) ?? {};
+    return {
+        known: { about: k.about ?? "", known: k.known ?? {}, reasons: k.reasons ?? [] },
         floors: f.floors ?? {},
         standInFloors: f.standInFloors ?? {},
-        allowedDrops: f.allowedDrops ?? {},
-        lowered: f.lowered ?? {},
-        known: k.known ?? {},
     };
 }
 
+const judgementOf = (scored: OracleScored): Judgement => ({
+    failures: scored.report.failures,
+    judged: scored.report.judged,
+    scores: scored.scores,
+});
+
 /**
- * What fell below its floor, what is judged with no floor yet, and which elements newly fail, for a sample and its
- * position-matched comparison.
+ * The verdicts of a sample and of its position-matched comparison (`judgeKey`): which elements fail that the known
+ * failures do not list, and the report beside the recorded values.
  * @param id - the sample
  * @param run - its measurement
- * @param stored - the floors
- * @param today - `YYYY-MM-DD`, for the allowed drops' expiry
- * @returns the messages
+ * @param stored - the committed records
+ * @returns one verdict per key
  */
-export function checkFloors(
-    id: string,
-    run: OracleRun,
-    stored: OracleFloors,
-    today = new Date().toISOString().slice(0, 10),
-): FloorCheck {
-    const parts = [checkScored(id, run, run.standIn, stored, today, GPU)];
-    if (run.matched !== null) {
-        parts.push(checkScored(matchedKey(id), run.matched, run.standIn, stored, today, GPU));
-    }
-    return {
-        dropped: parts.flatMap((p) => p.dropped),
-        unfloored: parts.flatMap((p) => p.unfloored),
-        newlyFailing: parts.flatMap((p) => p.newlyFailing),
-    };
+export function gateRun(id: string, run: OracleRun, stored: OracleStored): KeyGate[] {
+    const one = (key: string, scored: OracleScored): KeyGate =>
+        judgeKey(
+            key,
+            judgementOf(scored),
+            stored.known.known[key],
+            (run.standIn ? stored.standInFloors : stored.floors)[key] ??
+                stored.floors[key] ??
+                stored.standInFloors[key],
+            { baseline: scored.baseline, standIn: run.standIn, gpu: GPU },
+        );
+    return run.matched === null ? [one(id, run)] : [one(id, run), one(matchedKey(id), run.matched)];
 }
 
 /**
- * A run's records, by floors key.
- * @param id - the sample
- * @param run - its measurement
- * @returns the records
+ * Writes a run's verdicts and report (`ORACLE_GATE`, and the same as text beside it), which the ratchet reads.
+ * @param gates - every key's verdict
  */
-export function recordOf(id: string, run: OracleRun): OracleRecord {
-    const out: OracleRecord = {
-        [id]: { scores: recordableScores(run.scores, GPU), failures: run.report.failures, standIn: run.standIn },
-    };
-    if (run.matched !== null) {
-        out[matchedKey(id)] = {
-            scores: run.matched.scores,
-            failures: run.matched.report.failures,
-            standIn: run.standIn,
-        };
-    }
-    return out;
+export async function writeOracleGate(gates: readonly KeyGate[]): Promise<void> {
+    const file = { gpu: GPU, baseline: ORACLE_BASELINE ?? null, keys: gates };
+    await commands.writeFile(ORACLE_GATE, `${JSON.stringify(file)}\n`);
+    await commands.writeFile(`${ORACLE_OUT}/gate.txt`, gateReportText(gates, GPU, ORACLE_BASELINE ?? null));
 }
-
-/**
- * Writes the floors and the known failures a run recorded (`mergeRecords`).
- * @param stored - the floors as read
- * @param recorded - the measurements by floors key
- */
-export async function writeOracleFloors(stored: OracleFloors, recorded: OracleRecord): Promise<void> {
-    const fresh = await readOracleFloors().catch(() => stored);
-    const { floors, standInFloors, known } = mergeRecords(fresh, recorded);
-    const file = {
-        about: fresh.about,
-        floors,
-        standInFloors,
-        allowedDrops: fresh.allowedDrops,
-        lowered: fresh.lowered,
-    };
-    await commands.writeFile(ORACLE_FLOORS, `${JSON.stringify(file, null, 4)}\n`);
-    await commands.writeFile(ORACLE_KNOWN_FAILURES, knownText(known));
-}
-
-/**
- * The known failures as text: one line per sample and property, so a diff shows which elements a fix took off the list.
- * @param known - the known failures
- * @returns the file's text
- */
-export function knownText(known: OracleFloors["known"]): string {
-    const lines = Object.entries(known).map(
-        ([key, props]) =>
-            `        ${JSON.stringify(key)}: {\n${Object.entries(props)
-                .map(([p, ids]) => `            ${JSON.stringify(p)}: ${JSON.stringify(ids)}`)
-                .join(",\n")}\n        }`,
-    );
-    return `{\n    "about": ${JSON.stringify(KNOWN_ABOUT)},\n    "known": {\n${lines.join(",\n")}\n    }\n}\n`;
-}
-
-const KNOWN_ABOUT =
-    "The elements known to fail each property of the oracle scorecard (test/fidelity/oracle-report.test.ts), per sample " +
-    "(and per sample@matched, its position-matched comparison). An element failing a property that is not listed here " +
-    "fails its sample; recording drops an element that passes again and never adds one to a property already recorded. " +
-    "This is the fix list, by element id.";

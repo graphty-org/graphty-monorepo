@@ -545,7 +545,8 @@ export function checkQuarantine(entries) {
     const problems = [];
     for (const q of entries) {
         const at = `${q.file} > ${q.name}`;
-        if (!q.file || !q.name || !q.family || !(Number(q.issue) > 0) || !q.reason || !q.since || !q.expires)
+        const filed = Number(q.issue) > 0;
+        if (!q.file || !q.name || !q.family || !filed || !q.reason || !q.since || !q.expires)
             problems.push(`${at}: needs file, name, family, issue, reason, since, expires`);
         if (Date.parse(q.expires) - Date.parse(q.since) > 14 * DAY) problems.push(`${at}: 14 days at most`);
         if (GPU_FAMILY.test(q.family ?? "")) problems.push(`${at}: GPU tests are never quarantined`);

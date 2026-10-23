@@ -635,6 +635,13 @@ function passed(shards, main) {
     return { run, record, keyOf: (shard) => before.get(shard.shard) };
 }
 
+// Why a gate runs no shard.
+function nothingToRun(gated, planned) {
+    if (gated.length === 0) return "No affected package has a test shard to run here.";
+    if (planned.length === 0) return "The test selection runs no shard: no test reaches this change.";
+    return "Every shard already passed on these inputs.";
+}
+
 async function main() {
     if (process.argv[2] === "--triggers") {
         const out = {};
@@ -683,13 +690,7 @@ async function main() {
     const passes = passed(planned, main);
     const shards = passes.run;
     if (shards.length === 0) {
-        let why = "Every shard already passed on these inputs.";
-        if (gated.length === 0) {
-            why = "No affected package has a test shard to run here.";
-        } else if (planned.length === 0) {
-            why = "The test selection runs no shard: no test reaches this change.";
-        }
-        console.log(why);
+        console.log(nothingToRun(gated, planned));
         return;
     }
     const tools = dirname(fileURLToPath(import.meta.url));

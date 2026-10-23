@@ -25,6 +25,10 @@
  *    tools/test-quarantine.json; commit that file alone and land it (land.mjs refuses it mixed with other
  *    changes), so CI and every other checkout apply it too. `status` prints the list and the counts.
  *
+ * OFF unless GRAPHTY_TEST_QUARANTINE=1, pending the owner's decision (design/ci/ci-cd-plan.md 9 says no
+ * automatic retries and quarantine only with the owner's yes). Off, `run` runs the shard's command and returns
+ * its exit code, nothing more: no retry, no let-through, no result file, no state, no issues.
+ *
  * Usage:
  *   node tools/test-quarantine.mjs run <shard> <command> [--via-run-tests]
  *   node tools/test-quarantine.mjs status | write
@@ -56,6 +60,13 @@ export const MAX_RETRY_FILES = 5; // more failing files than this is a breakage,
 const GPU_FAMILY = /^webgpu-graph-algorithms/;
 const FILE = "tools/test-quarantine.json";
 const RETRY_MARK = "test-quarantine: retrying";
+
+/**
+ * Whether the quarantine is switched on (GRAPHTY_TEST_QUARANTINE=1); off by default.
+ * @param [env] the environment
+ * @returns boolean
+ */
+export const quarantineEnabled = (env = process.env) => env.GRAPHTY_TEST_QUARANTINE === "1";
 
 const keyOf = (t) => `${t.family}\0${t.file}\0${t.name}`;
 const idOf = (t) => `${t.file} > ${t.name}`;
@@ -218,6 +229,7 @@ const brief = (list) => list.map((f) => ({ file: f.file, name: f.name, excerpt: 
  * @returns the exit code
  */
 export async function runShard(shardName, command, { root, viaRunTests, env = process.env, state }) {
+    if (!quarantineEnabled(env)) return (await sh(command, env, root)).code;
     const reports = { dir: join(root, "test-results"), id: env.TEST_LEDGER_RUN ?? "" };
     reports.seen = new Set(reportNames(reports.dir));
     const r1 = await sh(command, env, root);

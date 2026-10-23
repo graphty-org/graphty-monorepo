@@ -203,9 +203,10 @@ Hashes are the first 16 hex of sha256. Signatures group failures for issues; exo
 
 ### 4.4 Quarantine lives in git, read from the base
 
-Since 2026-10-22 entries are added automatically by the gate (`tools/test-quarantine.mjs`): a test that failed
-and then passed on the same inputs. The gate and CI let a quarantined test's failure through in every run, not
-only in land checks; the rest of this section still describes how land checks read the list.
+An automatic quarantine exists (`tools/test-quarantine.mjs`: it adds a test that failed and then passed on the
+same inputs, and lets a quarantined test's failure through in every gate and CI run), but it is OFF pending the
+owner's decision and runs only with `GRAPHTY_TEST_QUARANTINE=1`. Entries are added only with the owner's yes;
+this section describes how land checks read the list.
 
 `tools/test-quarantine.json` holds entries of test, family, issue, expiry and reason. The gate reads
 it **from the base, never from the tree under test** (`git show

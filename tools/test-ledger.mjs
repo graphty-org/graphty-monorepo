@@ -534,6 +534,25 @@ function pruneFiles(dir, cwd, cutoffDay) {
     return junit.length;
 }
 
+const GPU_FAMILY = /^webgpu-graph-algorithms/;
+
+/**
+ * What is wrong with quarantine entries (design 4.4, ci-cd-plan.md 9.3); tools/test-quarantine.mjs checks its list.
+ * @param entries the entries
+ * @returns problems, empty when valid
+ */
+export function checkQuarantine(entries) {
+    const problems = [];
+    for (const q of entries) {
+        const at = `${q.file} > ${q.name}`;
+        if (!q.file || !q.name || !q.family || !(Number(q.issue) > 0) || !q.reason || !q.since || !q.expires)
+            problems.push(`${at}: needs file, name, family, issue, reason, since, expires`);
+        if (Date.parse(q.expires) - Date.parse(q.since) > 14 * DAY) problems.push(`${at}: 14 days at most`);
+        if (GPU_FAMILY.test(q.family ?? "")) problems.push(`${at}: GPU tests are never quarantined`);
+    }
+    return problems;
+}
+
 // ---------------------------------------------------------------- decisions
 
 const chainOf = (cwd, tip, n = 200) =>

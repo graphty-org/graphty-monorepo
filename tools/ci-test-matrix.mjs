@@ -342,7 +342,7 @@ const coverageFile = (shard) => shard["coverage-file"] ?? shard.package + "/cove
  * @returns a matrix entry; "coverage" lists "<shard>=<lcov path>" pairs, space separated
  */
 export function groupEntry(name, members) {
-    const steps = members.map((m) => `echo "==> ${m.shard}"; (${m["test-command"]}) || failed="$failed ${m.shard}"`);
+    const steps = members.map((m) => `echo "==> ${m.shard}"; (${ciCommand(m)}) || failed="$failed ${m.shard}"`);
     return {
         shard: name,
         package: members.map((m) => m.package).join(" "),
@@ -356,13 +356,30 @@ export function groupEntry(name, members) {
 }
 
 /**
+ * A shard's command as CI's test job runs it: through the quarantine wrapper (tools/test-quarantine.mjs), as
+ * the pre-push gate runs it, so a flaky or quarantined test fails neither (the checkout's
+ * tools/test-quarantine.json; the failed test files are run once more). Off unless GRAPHTY_TEST_QUARANTINE=1,
+ * which CI does not set: then the wrapper only runs the command.
+ * @param shard a SHARDS entry
+ * @returns a shell command
+ */
+export function ciCommand(shard) {
+    const escapedQuote = String.raw`'\''`;
+    const quoted = `'${shard["test-command"].replaceAll("'", escapedQuote)}'`;
+    return `node tools/test-quarantine.mjs run ${shard.shard} ${quoted}`;
+}
+
+/**
  * The test job's matrix: every shard of an affected package, short ones folded into their group.
  * @param affected package directory names
  * @returns the matrix's include list
  */
 export function plan(affected) {
     const grouped = new Set(Object.values(GROUPS).flat());
-    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package));
+    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package)).map((s) => ({
+        ...s,
+        "test-command": ciCommand(s),
+    }));
     for (const [name, shards] of Object.entries(GROUPS)) {
         const members = shards
             .map((n) => SHARDS.find((s) => s.shard === n))

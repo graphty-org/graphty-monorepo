@@ -210,6 +210,17 @@ pass while a file with a permanent `it.skip` still counts. Datadog, Mergify, Tru
 Hashes are the first 16 hex of sha256. Signatures group failures for issues; exoneration and
 `failed-known` require the same test and key (an expired wait: the same test).
 
+### 4.4 Quarantine
+
+An automatic quarantine exists (`tools/test-quarantine.mjs`: it adds a test that failed and then passed on the
+same inputs, and lets a quarantined test's failure through in every gate and CI run), but it is OFF pending the
+owner's decision and runs only with `GRAPHTY_TEST_QUARANTINE=1`. The ledger does not excuse quarantined tests,
+and `land` does not police the list: both were cut until the owner says yes to a quarantine, when they come back
+with these rules (`ci-cd-plan.md` 9.3): an issue, 14 days at most, never a GPU correctness test
+(`webgpu-graph-algorithms*`), the visual gate or a test guarding against silent CPU-for-GPU substitution; the
+list read from golden's tip, never from the tree under test; verification and the cut never excuse a quarantined
+failure. `checkQuarantine()` in `tools/test-ledger.mjs` checks an entry's shape against them.
+
 ## 5. Decisions
 
 Every rate, flaky, broken and drop statistic counts **failure rows whatever their exoneration**: an

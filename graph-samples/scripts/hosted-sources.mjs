@@ -45,19 +45,19 @@ export async function publishedCopy(url, sha256, fetchImpl = fetch) {
  */
 export const SOURCES = {
     roadNyArcs: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz",
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.gr.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "7b2446c7ffe6179efbc42af6812448e8cb782f12968ca2bb1d50d979343056d4",
         file: "USA-road-d.NY.gr.gz",
         redistribute: true,
     },
     roadNyCoordinates: {
-        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz",
+        url: "http://www.diag.uniroma1.it/challenge9/data/USA-road-d/USA-road-d.NY.co.gz", // NOSONAR(S5332): the DIMACS host serves only http; every download is checked against the sha256 below
         sha256: "02547a628742164e02bd73f59e33a65d23dfac8fc54c09275c8b9169c38eafdf",
         file: "USA-road-d.NY.co.gz",
         redistribute: true,
     },
     arxiv: {
-        url: "http://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip",
+        url: "https://snap.stanford.edu/ogb/data/nodeproppred/arxiv.zip",
         sha256: "49f85c801589ecdcc52cfaca99693aaea7b8af16a9ac3f41dd85a5f3193fe276",
         file: "ogbn-arxiv.zip",
         redistribute: true,

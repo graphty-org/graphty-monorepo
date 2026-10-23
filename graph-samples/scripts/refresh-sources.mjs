@@ -27,7 +27,8 @@ for (const source of Object.values(SOURCES)) {
         await fetchSource(source, dir, { fromOriginalHost: true });
         sums.push(`${source.sha256}  ${source.file}\n`);
     } catch (error) {
-        console.error(`FAILED ${source.file}: ${error.message}${error.cause ? ` (${error.cause.message})` : ""}`);
+        const cause = error.cause ? " (" + error.cause.message + ")" : "";
+        console.error(`FAILED ${source.file}: ${error.message}${cause}`);
         failed++;
     }
 }

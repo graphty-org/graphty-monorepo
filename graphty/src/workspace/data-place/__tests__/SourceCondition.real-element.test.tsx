@@ -18,6 +18,7 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON } from "../fixtures";
+import { addStepCondition } from "./stepCards";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -51,9 +52,7 @@ async function openWithGraph(): Promise<GraphSession> {
  */
 async function newStepOn(name: string): Promise<void> {
     await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-    const attribute = await screen.findByRole("combobox", { name: "Attribute" });
-    await userEvent.click(attribute);
-    await userEvent.click(await screen.findByRole("option", { name }));
+    await addStepCondition(name);
 }
 
 /**
@@ -94,8 +93,8 @@ describe("picking nodes by a condition card from the Data place", () => {
         const session = await openWithGraph();
         // One load: no Data source card.
         await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-        await screen.findByRole("option", { name: "group" });
+        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await screen.findByRole("option", { name: /^group(,|$)/ });
         assert.isNull(screen.queryByRole("option", { name: "Data source" }));
         await userEvent.keyboard("{Escape}{Escape}");
 

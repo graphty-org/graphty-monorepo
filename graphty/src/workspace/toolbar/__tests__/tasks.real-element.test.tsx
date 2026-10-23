@@ -592,7 +592,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         });
     });
 
-    it("opens Filters from the Graph place with the toolbar's Filters, focus in a new step's Keep", async () => {
+    it("opens Filters from the Graph place with the toolbar's Filters, focus on a new step's Add a condition", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
         const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
@@ -601,9 +601,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         await userEvent.click(filters);
         await screen.findByRole("region", { name: "Data place" });
-        const keep = await screen.findByRole("combobox", { name: "Keep" });
+        const add = await screen.findByRole("button", { name: "Add a condition" });
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, keep);
+            assert.strictEqual(document.activeElement, add);
         });
         assert.isNotNull(screen.getByRole("button", { name: "Add step" }));
     });

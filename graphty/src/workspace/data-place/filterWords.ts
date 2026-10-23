@@ -44,6 +44,8 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
                 : `not: ${ruleWords(rule.of, names)}`;
         case "any":
             return rule.of.map((each) => ruleWords(each, names)).join(" or ");
+        case "all":
+            return rule.of.map((each) => ruleWords(each, names)).join(" and ");
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
         case "source":
@@ -104,7 +106,7 @@ function textWords(rule: Extract<RuleTree, { kind: "text" }>, names: Namer): str
  * @param rule - the rule.
  * @returns true when one does.
  */
-function readsEnds(rule: RuleTree): boolean {
+export function readsEnds(rule: RuleTree): boolean {
     switch (rule.kind) {
         case "range":
         case "categories":
@@ -113,6 +115,7 @@ function readsEnds(rule: RuleTree): boolean {
         case "not":
             return readsEnds(rule.of);
         case "any":
+        case "all":
             return rule.of.some(readsEnds);
         default:
             return false;
@@ -232,7 +235,7 @@ export type StepMissing = "attribute" | "value" | "nodes" | "change" | "none";
 export function missingTip(missing: StepMissing): string {
     switch (missing) {
         case "attribute":
-            return "Choose an attribute first";
+            return "Add a condition first";
         case "value":
             return "Type a value first";
         case "nodes":

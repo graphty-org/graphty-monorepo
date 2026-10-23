@@ -580,11 +580,11 @@ describe("the Overview and the import of time", () => {
         });
     });
 
-    it("adds a time window as a filter step: Keep a time window, its field, Add step", async () => {
+    it("adds a time window as a filter step: Filter by Time window, its field, Add step", async () => {
         const { session } = await open();
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add filter step" }));
-        await userEvent.click(await screen.findByRole("combobox", { name: "Keep" }));
-        await userEvent.click(await screen.findByRole("option", { name: "a time window" }));
+        await userEvent.click(await screen.findByRole("combobox", { name: "Filter by" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Time window" }));
         const card = within(await screen.findByTestId("time-card"));
         await userEvent.click(card.getByRole("combobox", { name: "Time field" }));
         await userEvent.click(await screen.findByRole("option", { name: "sent" }));

@@ -616,14 +616,18 @@ const conflicted = (ctx) =>
  * @returns `{ code, output }`
  */
 function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
-    // Measured from master: everything on golden that master does not have yet is this push's change.
-    // The advisory test selector (tools/test-select.mjs) asks about this landing alone: the change from the
-    // tip the push replaces.
+    // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
+    // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured
+    // from master, as CI measures it.
     const dst = refspec.split(":").pop().replace("refs/heads/", "");
     // The test ledger's kind (tools/test-ledger.mjs): a golden push is a land check, which may excuse a failure
     // golden's tip has too; set only in the gate child's environment, so nothing else inherits it.
     const kind = dst === CUT ? "cut" : "land-check";
-    const env = { ...ctx.env, PUSH_BASE_REF: "origin/master", PREPUSH_SELECT_BASE: `origin/${dst}` };
+    const env = {
+        ...ctx.env,
+        PUSH_BASE_REF: dst === GOLDEN ? `origin/${GOLDEN}` : "origin/master",
+        PREPUSH_SELECT_BASE: `origin/${dst}`,
+    };
     Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
     const child = spawn(join(cwd, "tools/push-queue.sh"), args, {

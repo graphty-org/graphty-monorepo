@@ -4302,6 +4302,7 @@ export interface SessionEventMap {
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
+    "style:batch-changed": StyleBatchChange;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
     "visibility:changed": VisibilityChange;
@@ -4801,6 +4802,13 @@ export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn"
 export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
     readonly readOver?: "row" | "everyElement";
+}
+
+// @public
+export interface StyleBatchChange {
+    readonly cause: HistoryCause;
+    readonly edits: number;
+    readonly layers: readonly LayerId[];
 }
 
 // @public

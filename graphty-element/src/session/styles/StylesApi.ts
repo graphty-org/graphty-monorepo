@@ -1278,6 +1278,23 @@ export interface StyleChange {
     readonly cause: HistoryCause;
 }
 
+/**
+ * Every `style:changed` one repaint published, told once after the last of them.
+ *
+ * One pass can carry many edits -- a grouping run adds a layer per group, a held undo passes
+ * several steps -- and `style:changed` tells each one. A consumer that only re-reads what the
+ * stack draws (`styles.legend()`, `styles.counts()`) listens here instead and reads once.
+ * @since 3.36.0
+ */
+export interface StyleBatchChange {
+    /** How many `style:changed` events this batch closes; at least 1. */
+    readonly edits: number;
+    /** Every layer those edits touched, each once, in the order the edits named them. */
+    readonly layers: readonly LayerId[];
+    /** What moved the stack: the cause of the batch's last edit. */
+    readonly cause: HistoryCause;
+}
+
 /** Everything the style stack is built from. */
 export interface StylesSources {
     /**
@@ -1411,6 +1428,11 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * Called once after the last {@link StylesSources.onChange} of one repaint.
+     * @param batch - The edits that pass told.
+     */
+    readonly onBatch?: (batch: StyleBatchChange) => void;
     /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
@@ -3971,6 +3993,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
+    // What one pass told, closed by a single `onBatch`.
+    let batch: StyleChange[] = [];
+    const flushBatch = (): void => {
+        const told = batch;
+        batch = [];
+        const last = told.at(-1);
+        if (last !== undefined) {
+            sources.onBatch?.({
+                edits: told.length,
+                layers: [...new Set(told.flatMap((each) => each.layers))],
+                cause: last.cause,
+            });
+        }
+    };
+
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
     // redo or a rollback -- from the stack the picture shows to the one state holds.
     dispatcher.lane.register("styles", async (rendered, target) => {
@@ -4002,8 +4039,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             styleRevision++;
-            sources.onChange?.({ ...each.change, painted, cause: "command" });
+            const change: StyleChange = { ...each.change, painted, cause: "command" };
+            batch.push(change);
+            sources.onChange?.(change);
         }
+        flushBatch();
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -4013,14 +4053,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
             styleRevision++;
-            sources.onChange?.({
+            const told: StyleChange = {
                 reason: lastPass.reason,
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
                 warnings: NO_WARNINGS,
                 cause: change.cause,
-            });
+            };
+            // The steps of one undo, redo or restore are told one after another in the same task.
+            if (batch.length === 0) {
+                queueMicrotask(flushBatch);
+            }
+            batch.push(told);
+            sources.onChange?.(told);
         }
     };
 

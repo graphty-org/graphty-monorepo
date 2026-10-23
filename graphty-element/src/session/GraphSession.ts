@@ -3203,6 +3203,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             layerScopes.keep(layerScopesOf(stack));
             publish(watchers, "style:changed", change);
         },
+        onBatch: (batch) => {
+            publish(watchers, "style:batch-changed", batch);
+        },
         disposed: teardown.signal,
     });
 

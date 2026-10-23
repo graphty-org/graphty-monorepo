@@ -90,7 +90,7 @@ import type {
     SourceLoadOptions,
     SourceLoadRecord,
 } from "./sources/types";
-import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
+import type { ElementPaint, SessionStylesApi, StyleBatchChange, StyleChange, StylesApi } from "./styles";
 import type { FileStyleOptions } from "./styles/fileStyles/translate";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -2011,6 +2011,15 @@ export interface SessionEventMap {
      * consumer undoes, records and mirrors.
      */
     "style:changed": StyleChange;
+    /**
+     * Once per repaint, after the last `style:changed` it published: how many edits it told and
+     * which layers they touched. A consumer that re-reads the stack's picture (`styles.legend()`,
+     * `styles.counts()`) after a change listens here, so a pass that tells 51 edits -- a grouping
+     * run adds a layer per group -- costs it one read, not 51. An undo, a redo or a restore that
+     * passes several steps closes its batch in a microtask after the last step's event.
+     * @since 3.36.0
+     */
+    "style:batch-changed": StyleBatchChange;
     /**
      * The element tried to paint something of its own and was refused.
      *

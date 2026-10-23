@@ -567,6 +567,7 @@ export type {
     SessionStylesApi,
     StyleAdjustmentCode,
     StyleAgreement,
+    StyleBatchChange,
     StyleChange,
     StyleColor,
     StyleContribution,

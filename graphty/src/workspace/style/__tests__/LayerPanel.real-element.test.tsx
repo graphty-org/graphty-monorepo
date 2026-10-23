@@ -1,11 +1,11 @@
 /**
  * The layer panel on the REAL graphty-element and Les Miserables, driven by real clicks and keys:
  * a node's "+" makes no layer until a value is picked, and the pick makes one and says so; a "+"
- * with one thing to add adds it; removing a layer's last condition is said, with Undo, and Done
- * stays; a card with no value shows no count and is dropped with a word; a layer named by default
- * follows its rule; a bare column name reads as a "Has a value" card; a new layer opens on its
- * Node tab, and the Node tab starts with node lines; the collapsed Which row of an empty layer
- * opens its list in one click.
+ * with one thing to add adds it, and its value makes a layer named by default; removing a layer's
+ * last condition is said, with Undo, and Done stays; a card with no value shows no count and is
+ * dropped with a word; a layer named by default follows its rule; a bare column name reads as a
+ * "Has a value" card; a new layer opens on its Node tab, and the Node tab starts with node lines;
+ * the collapsed Which row of an empty layer opens its list in one click.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -19,6 +19,7 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { DEFAULT_NAME_KEY } from "../cards";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
@@ -87,7 +88,10 @@ function idLayers(session: GraphSession): Layer[] {
  * @param spec - its name and selector.
  * @returns the layer.
  */
-async function openLayer(session: GraphSession, spec: Pick<Layer, "name" | "selector">): Promise<Layer> {
+async function openLayer(
+    session: GraphSession,
+    spec: Pick<Layer, "name" | "selector"> & Partial<Pick<Layer, "userData">>,
+): Promise<Layer> {
     const layer = await session.styles.add({ ...spec, target: "node", set: { "node.color": "#0072b2" } });
     await session.styles.settled();
     await clickRow(spec.name);
@@ -158,7 +162,7 @@ describe("the layer panel", () => {
         await noticeSays(/^Dropped the name condition: it was not finished/);
     });
 
-    it("a layer named by default follows its rule until the reader renames it", async () => {
+    it("a node's Fill '+' adds its one property with no menu, and its value makes a layer named by default", async () => {
         const { session, idOf } = await openScene();
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
@@ -175,6 +179,17 @@ describe("the layer panel", () => {
             assert.lengthOf(idLayers(session), 1);
         });
         const [made] = idLayers(session);
+        assert.strictEqual(made.userData?.[DEFAULT_NAME_KEY], made.name, "its name is a default");
+    });
+
+    it("a layer named by default follows its rule until the reader renames it", async () => {
+        const { session, idOf } = await openScene();
+        // The layer a selection's first edit makes: picked by hand, named by default.
+        const made = await openLayer(session, {
+            name: "Cosette",
+            selector: { match: "ids", nodes: [idOf("Cosette")] },
+            userData: { [DEFAULT_NAME_KEY]: "Cosette" },
+        });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));

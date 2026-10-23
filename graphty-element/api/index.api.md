@@ -6453,6 +6453,7 @@ export class UpdateManager implements Manager {
     stopAutoZoomToFit(): void;
     syncStyles(): void;
     syncViewMasks(): void;
+    thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
     whyFrameIsNotStable(): string;

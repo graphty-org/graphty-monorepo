@@ -236,6 +236,14 @@ const browserCommands = {
     accessibilityTree,
 };
 
+// Bundled before a browser run starts, whatever Vite's deps cache holds. A cache an earlier run left
+// in node_modules/.vite/vitest/<project> is reused without a new scan, so a dependency first
+// imported since then (react/jsx-dev-runtime from the stories, @testing-library/react from the
+// tests and their setup files) is discovered mid-run: Vite re-optimizes and reloads the page, the file
+// being imported fails with "Vitest failed to find the runner", and every story rendered after that
+// comes out empty.
+const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
+
 export default defineConfig({
     plugins: [react()],
     test: {
@@ -266,10 +274,7 @@ export default defineConfig({
             },
             // Browser project - runs in real Chromium via Playwright
             {
-                // Bundled before the run starts. Discovered mid-run (the stories render through
-                // react/jsx-dev-runtime), Vite re-optimizes and reloads, and every story rendered
-                // after that comes out empty.
-                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "browser",
                     globals: true,
@@ -292,7 +297,7 @@ export default defineConfig({
             },
             // Storybook project - every story rendered and its play function run, in Chromium
             {
-                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
+                optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).

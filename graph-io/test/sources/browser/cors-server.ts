@@ -1,11 +1,11 @@
 /**
  * A vitest globalSetup: an HTTP server on 127.0.0.1 (another origin than the test page on
  * localhost) whose /cors/ routes send CORS headers and whose /plain/ routes send none, plus the
- * address of a port nothing listens on. The browser tests read both with inject().
+ * address of a port that refuses every request. The browser tests read both with inject().
  */
 
 import { createServer, type Server } from "node:http";
-import { type AddressInfo } from "node:net";
+import { type AddressInfo, createServer as createTcpServer, type Server as TcpServer } from "node:net";
 
 import { type TestProject } from "vitest/node";
 
@@ -16,7 +16,7 @@ declare module "vitest" {
     interface ProvidedContext {
         /** The CORS test server, http://127.0.0.1:<port>. */
         corsServer: string;
-        /** An address nothing listens on. */
+        /** An address whose every connection is dropped before any answer. */
         deadServer: string;
     }
 }
@@ -26,7 +26,7 @@ declare module "vitest" {
  * @param server - the server
  * @returns its port
  */
-function listen(server: Server): Promise<number> {
+function listen(server: Server | TcpServer): Promise<number> {
     return new Promise((resolve) => {
         server.listen(0, "127.0.0.1", () => resolve((server.address() as AddressInfo).port));
     });
@@ -107,10 +107,15 @@ export default async function setup(project: TestProject): Promise<() => Promise
         res.end(JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ source: "a", target: "b" }], auth }));
     });
     const port = await listen(server);
-    const dead = createServer();
+    // Held for the whole run: a port closed after reading it could be handed to another listener
+    // (vitest's browser server, Playwright) and answer. Each connection is reset unanswered, which
+    // the browser's fetch reports as a network error, as it does a port nothing listens on.
+    const dead = createTcpServer((socket) => socket.resetAndDestroy());
     const deadPort = await listen(dead);
-    await new Promise<void>((resolve) => dead.close(() => resolve()));
     project.provide("corsServer", `http://127.0.0.1:${String(port)}`);
     project.provide("deadServer", `http://127.0.0.1:${String(deadPort)}`);
-    return () => new Promise<void>((resolve) => server.close(() => resolve()));
+    const close = (s: Server | TcpServer): Promise<void> => new Promise((resolve) => s.close(() => resolve()));
+    return async () => {
+        await Promise.all([close(server), close(dead)]);
+    };
 }

@@ -12,8 +12,9 @@ import { createCompactTheme } from "../src/theme";
 // (tools/test-wait-guard.mjs). Only in Storybook itself: under Vitest, tests/setup.browser.ts sets
 // it, and Storybook 8's @storybook/test cannot load there ("Vitest failed to find the runner").
 if (!import.meta.env.VITEST) {
-    // NOSONAR(S7785): Vite builds the preview for its default target, which has no top-level await
-    void import("@storybook/test").then(({ configure }) => configure({ asyncUtilTimeout: WAIT_GUARD_MS }));
+    // Vite builds the preview for its default target, which has no top-level await.
+    const loaded = import("@storybook/test");
+    void loaded.then(({ configure }) => configure({ asyncUtilTimeout: WAIT_GUARD_MS })); // NOSONAR(S7785): no top-level await in the build target
 }
 
 // One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object

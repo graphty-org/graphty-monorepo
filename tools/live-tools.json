@@ -23,5 +23,10 @@
         "worktree": ".worktrees/sonar-baseline-runner",
         "servers": ["sonar-baseline"],
         "test": "node tools/sonar/sonar-baseline.test.mjs"
+    },
+    "worktree-cleanup": {
+        "worktree": ".worktrees/worktree-cleanup-live",
+        "servers": ["worktree-cleanup"],
+        "test": "node tools/worktree-cleanup.test.mjs"
     }
 }

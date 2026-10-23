@@ -158,7 +158,7 @@ function prepare() {
     writeFileSync(path.join(app, "src", "page.js"), PAGE_SCRIPT);
     writeFileSync(
         path.join(app, "index.html"),
-        '<!doctype html><html><body><script type="module" src="/src/main.js"></script></body></html>\n',
+        '<!doctype html><html><head><meta charset="utf-8"></head><body><script type="module" src="/src/main.js"></script></body></html>\n',
     );
     writeFileSync(path.join(app, "rollup.config.mjs"), ROLLUP_CONFIG);
     writeFileSync(path.join(app, "webpack.mjs"), WEBPACK_RUNNER);
@@ -277,7 +277,8 @@ function setPeer(state) {
 function build(bundler, out) {
     rmSync(out, { recursive: true, force: true });
     mkdirSync(out, { recursive: true });
-    const moduleHtml = '<!doctype html><html><body><script type="module" src="./main.js"></script></body></html>\n';
+    const moduleHtml =
+        '<!doctype html><html><head><meta charset="utf-8"></head><body><script type="module" src="./main.js"></script></body></html>\n';
 
     switch (bundler) {
         case "vite-8": {
@@ -294,7 +295,7 @@ function build(bundler, out) {
             run("node", ["webpack.mjs", name, out], app);
             writeFileSync(
                 path.join(out, "index.html"),
-                '<!doctype html><html><body><script src="./main.js"></script></body></html>\n',
+                '<!doctype html><html><head><meta charset="utf-8"></head><body><script src="./main.js"></script></body></html>\n',
             );
             return { root: out, page: "index.html" };
         }
@@ -356,7 +357,7 @@ function importMapPage(out) {
         imports["@graphty/graph-format"] = `${modules}@graphty/graph-format/dist/graph-format.js`;
     }
 
-    const html = `<!doctype html><html><head><script type="importmap">${JSON.stringify({ imports })}</script></head><body>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><script type="importmap">${JSON.stringify({ imports })}</script></head><body>
 <script type="module">
 import "${modules}@graphty/graphty-element/dist/graphty.bundle.js";
 ${PAGE_SCRIPT}</script></body></html>
@@ -375,9 +376,9 @@ const ATTACHED = new Set(["idle", "active"]);
 const ORIGIN = "https://bundler-matrix.test";
 
 const CONTENT_TYPES = {
-    ".js": "text/javascript",
-    ".mjs": "text/javascript",
-    ".html": "text/html",
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
     ".json": "application/json",
     ".wasm": "application/wasm",
     ".css": "text/css",

@@ -41,9 +41,9 @@ describe("ControlSection summary layout", () => {
     });
 });
 
-afterEach(() => {
+afterEach(async () => {
     vi.useRealTimers();
-    resetHarness();
+    await resetHarness();
 });
 
 /**

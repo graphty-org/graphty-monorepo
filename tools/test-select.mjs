@@ -659,24 +659,40 @@ function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, b
     const out = [];
     for (const file of changed) {
         const fdir = pkgOf(file);
-        if (!fdir || fdir === dir) {
-            continue;
-        }
-        const target = nameOf.get(fdir);
-        // the source of a build this package depends on is followed by throughSources, not as a read
-        const viaBuild = upstream.has(target) && buildInput(file.slice(fdir.length + 1));
-        if (!viaBuild && gs?.some((g) => knows(g, file))) {
-            out.push({ file, holder: file });
-        }
-        for (const r of refs.get(name) ?? []) {
-            if (!r.build && r.target === target && file.startsWith(r.prefix)) {
-                out.push({ file, holder: r.holder });
-            }
+        if (fdir && fdir !== dir) {
+            out.push(...readsOf(file, fdir, { gs, upstream, target: nameOf.get(fdir), refs: refs.get(name) ?? [] }));
         }
     }
     for (const r of refs.get(name) ?? []) {
         if (r.build && built.has(r.target)) {
             out.push({ file: `the build of ${r.target}`, holder: r.holder });
+        }
+    }
+    return out;
+}
+
+/**
+ * The reads of one changed file of another package: the file itself when a graph of the reader holds it
+ * (except the source of a build the reader depends on, which throughSources follows), and each holder of a
+ * literal path the file is under.
+ * @param file the changed file
+ * @param fdir its package directory
+ * @param ctx `{ gs, upstream, target, refs }`
+ * @param ctx.gs the reader's usable graphs, or null
+ * @param ctx.upstream Set of the packages the reader depends on, itself included
+ * @param ctx.target the changed file's package name
+ * @param ctx.refs the reader's testRefs()
+ * @returns `[{ file, holder }]`
+ */
+function readsOf(file, fdir, { gs, upstream, target, refs }) {
+    const out = [];
+    const viaBuild = upstream.has(target) && buildInput(file.slice(fdir.length + 1));
+    if (!viaBuild && gs?.some((g) => knows(g, file))) {
+        out.push({ file, holder: file });
+    }
+    for (const r of refs) {
+        if (!r.build && r.target === target && file.startsWith(r.prefix)) {
+            out.push({ file, holder: r.holder });
         }
     }
     return out;

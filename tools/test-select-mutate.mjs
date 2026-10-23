@@ -147,6 +147,41 @@ function runShard(wt, shard, command, browser) {
 }
 
 /**
+ * A function that breaks some of a batch's files and puts the rest back, then builds the package the reader
+ * loads through its build when the broken set changed (nx's cache restores the unbroken build).
+ * @param wt the scratch worktree
+ * @param files the batch's repo-relative files
+ * @param rebuild the package to build, or null
+ * @returns `(broken) => void`; throws BuildBroken when the package does not build
+ */
+function breaker(wt, files, rebuild) {
+    // kept as bytes, so a binary file (a font) is put back exactly
+    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f))]));
+    let builtWith = "";
+    return (broken) => {
+        files.forEach((f) =>
+            writeFileSync(
+                join(wt, f),
+                broken.includes(f) ? mutant(f, originals.get(f).toString("utf8")) : originals.get(f),
+            ),
+        );
+        const key = broken.join("\n");
+        if (!rebuild || key === builtWith) {
+            return;
+        }
+        builtWith = key;
+        const r = spawnSync(
+            "pnpm",
+            ["exec", "nx", "run", `${rebuild}:build`, "--exclude-task-dependencies", "--outputStyle=static"],
+            { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 },
+        );
+        if (r.status !== 0) {
+            throw new BuildBroken(`${rebuild} does not build with ${broken.join(", ") || "nothing"} broken`);
+        }
+    };
+}
+
+/**
  * Breaks a batch of files, runs the shards once and reports what the selection missed.
  * @param m what to mutate
  * @param m.wt the scratch worktree
@@ -167,31 +202,7 @@ async function mutateBatch({ wt, files, shards, allShards, graphs, rebuild }) {
         const s = sels.get(f).find((x) => x.shard === shard.shard);
         return s.mode === "all" ? null : new Set(s.files.map((x) => x.file));
     };
-    // kept as bytes, so a binary file (a font) is put back exactly
-    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f))]));
-    let builtWith = "";
-    const put = (broken) => {
-        files.forEach((f) =>
-            writeFileSync(
-                join(wt, f),
-                broken.includes(f) ? mutant(f, originals.get(f).toString("utf8")) : originals.get(f),
-            ),
-        );
-        // the reader loads the package through its build: build what is broken now (nx's cache restores the
-        // unbroken build)
-        const key = rebuild ? broken.join("\n") : "";
-        if (rebuild && key !== builtWith) {
-            builtWith = key;
-            const r = spawnSync(
-                "pnpm",
-                ["exec", "nx", "run", `${rebuild}:build`, "--exclude-task-dependencies", "--outputStyle=static"],
-                { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 },
-            );
-            if (r.status !== 0) {
-                throw new BuildBroken(`${rebuild} does not build with ${broken.join(", ") || "nothing"} broken`);
-            }
-        }
-    };
+    const put = breaker(wt, files, rebuild);
     const browserOf = (shard) => shardSpecs(shardRuns(shard), graphs.get(shard.package) ?? []).browser;
     const failing = (shard, list, broken) => {
         put(broken);

@@ -20,6 +20,7 @@ import type { RenderManager } from "../../src/managers/RenderManager";
 import { drawnFrames } from "../helpers/drawn-frames";
 import {
     click,
+    doubleClick,
     drag,
     hover,
     nextFrame,
@@ -402,9 +403,10 @@ describe("the mouse", () => {
                 fetchNodes: () => [{ id: "x" }],
             });
 
-            const point = at(element, "b");
-            await click(element, point);
-            await click(element, point);
+            // One batch of four events, as a hand double-clicks: two awaited clicks leave the test's own
+            // round trips between them, and on a loaded machine that gap passes the scene's 300 ms
+            // double-click delay, so the second click is just a click.
+            await doubleClick(element, at(element, "b"));
             await vi.waitFor(() => {
                 assert.isDefined(element.getNode("x"), "the fetched neighbour was added");
             });

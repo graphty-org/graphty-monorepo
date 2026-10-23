@@ -717,8 +717,7 @@ async function main() {
             const secs = Math.round((Date.now() - t0) / 1000);
             // The verdict reads the whole log, so only once the log stream has finished (end() never calls
             // back on a log stream destroyed before it finished). The shard counts as running until then,
-            // so no other shard's close ends the stage before this one's verdict.
-            // The shard counts as running until its verdict, a re-run on golden's tip included, is in.
+            // so no other shard's close ends the stage before this one's verdict, a re-run on golden's tip included.
             const settle = async () => {
                 const text = existsSync(log) ? readFileSync(log, "utf8") : "";
                 const facts = { code, log: text, runId, startedAt: t0, logFile: log };
@@ -752,7 +751,6 @@ async function main() {
                     // Every failing test fails on golden's tip too: no shard pass is recorded, and the stage exits 3
                     // so prepush.sh records the gate's pass only for this landing's own push (gate-known).
                     known.push(shard.shard);
-                    warmed.add(family(shard));
                     console.log(ledger.knownLines(rec).join("\n"));
                 } else {
                     failed.push(shard.shard);
@@ -760,16 +758,7 @@ async function main() {
                     console.log(`  [FAIL] ${shard.shard} (${verdict.cause}, ${secs}s); the end of ${log}:`);
                     console.log(text.split("\n").slice(-80).join("\n"));
                 }
-                if (stopping) {
-                    if (running.size === 0) finish();
-                } else if (excused.length || process.env.PREPUSH_ALL === "1") {
-                    // Verification (PREPUSH_ALL=1) runs every shard to the end, so one failure cannot hide another;
-                    // the failed family counts as warmed, so the rest of its package still starts.
-                    warmed.add(family(shard));
-                    next();
-                } else {
-                    stopAll();
-                }
+                goOn(shard, excused.length > 0);
             };
             if (out.destroyed) {
                 settle();
@@ -777,6 +766,20 @@ async function main() {
                 out.end(settle);
             }
         });
+    };
+
+    // After a shard that did not pass: the stage goes on when it was excused, and in verification (PREPUSH_ALL=1),
+    // which runs every shard to the end so one failure cannot hide another; the shard's family counts as warmed,
+    // so the rest of its package still starts. Otherwise everything stops.
+    const goOn = (shard, excused) => {
+        if (stopping) {
+            if (running.size === 0) finish();
+        } else if (excused || process.env.PREPUSH_ALL === "1") {
+            warmed.add(family(shard));
+            next();
+        } else {
+            stopAll();
+        }
     };
 
     const stopAll = () => {

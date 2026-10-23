@@ -676,20 +676,7 @@ async function checkShard(ctx, { dir, opts, shard, plan, target }) {
     let runs = 0;
     let retried = false;
     while (runs < n) {
-        const runId = ledger?.newRunId(shard.shard) ?? "";
-        const env = { ...ctx.env, TEST_LEDGER_RUN: runId, TEST_LEDGER_KIND: "bisect", TEST_LEDGER_BRANCH: ctx.branch };
-        const startedAt = Date.now();
-        const args = command ? ["--command", shard.shard, command] : [shard.shard];
-        const r = await runLogged(join(dir, "tools/run-tests.sh"), args, { ...opts, env });
-        const cmd = command ?? shard["test-command"];
-        const facts = { shard: shard.shard, code: r.code, log: r.output, root: dir, runId, startedAt, env };
-        Object.assign(facts, { runs: cmd ? expectedRuns(cmd) : 1, main: ctx.main, logFile: opts.log });
-        Object.assign(facts, { selected: command ? files : null });
-        const verdict = pointVerdict(
-            r.code,
-            ledgerDo(ctx, (l) => l.record(facts)),
-            target,
-        );
+        const verdict = await bisectRun(ctx, { dir, opts, shard, target, command, files });
         if (verdict === "unknown" && !retried) {
             retried = true;
             continue;
@@ -700,6 +687,24 @@ async function checkShard(ctx, { dir, opts, shard, plan, target }) {
         if (hits + (n - runs) < threshold) return true;
     }
     return true;
+}
+
+// One run of a shard (or of `command`, its failing files) at a bisect point, recorded; its pointVerdict.
+async function bisectRun(ctx, { dir, opts, shard, target, command, files }) {
+    const runId = ledger?.newRunId(shard.shard) ?? "";
+    const env = { ...ctx.env, TEST_LEDGER_RUN: runId, TEST_LEDGER_KIND: "bisect", TEST_LEDGER_BRANCH: ctx.branch };
+    const startedAt = Date.now();
+    const args = command ? ["--command", shard.shard, command] : [shard.shard];
+    const r = await runLogged(join(dir, "tools/run-tests.sh"), args, { ...opts, env });
+    const cmd = command ?? shard["test-command"];
+    const facts = { shard: shard.shard, code: r.code, log: r.output, root: dir, runId, startedAt, env };
+    Object.assign(facts, { runs: cmd ? expectedRuns(cmd) : 1, main: ctx.main, logFile: opts.log });
+    Object.assign(facts, { selected: command ? files : null });
+    return pointVerdict(
+        r.code,
+        ledgerDo(ctx, (l) => l.record(facts)),
+        target,
+    );
 }
 
 // golden-verified on GitHub, which branches merge. No gate: the commit is on golden, gated and its LFS

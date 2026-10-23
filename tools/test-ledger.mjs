@@ -16,17 +16,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    renameSync,
-    rmSync,
-    statSync,
-    unlinkSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
@@ -508,29 +498,40 @@ export function prune(env = process.env, cwd = process.cwd()) {
         n = Number(db.prepare(del).run(cutoff).changes);
         rows += n;
     } while (n > 0);
-    const old = (p, days = 1) => Date.now() - statSync(p).mtimeMs > days * DAY;
-    for (const d of list(join(dir, "records"))) {
-        if (d < cutoff.slice(0, 10)) rmSync(join(dir, "records", d), { recursive: true });
-        else
-            for (const t of list(join(dir, "records", d)).filter((f) => f.startsWith("."))) {
-                if (old(join(dir, "records", d, t))) rmSync(join(dir, "records", d, t), { force: true });
-            }
-    }
-    const current = readFileSync(join(dir, "CURRENT"), "utf8").trim();
-    for (const f of list(dir).filter((n) => /^ledger-.*\.db(-wal|-shm)?$/.test(n) && !n.startsWith(current))) {
-        if (old(join(dir, f))) rmSync(join(dir, f), { force: true });
-    }
-    let junit = 0;
-    for (const [, wt] of git(cwd, ["worktree", "list", "--porcelain"]).matchAll(/^worktree (.+)$/gm)) {
-        const results = join(wt, "test-results");
-        for (const f of list(results).filter((n) => n.startsWith("junit-") && old(join(results, n), 2))) {
-            unlinkSync(join(results, f));
-            junit++;
-        }
-    }
+    const junit = pruneFiles(dir, cwd, cutoff.slice(0, 10));
     db.prepare("INSERT OR REPLACE INTO meta VALUES ('last_prune', ?)").run(new Date().toISOString());
     db.close();
     return `ledger: pruned ${rows} invocation rows and ${junit} old JUnit files`;
+}
+
+const olderThan = (p, days) => Date.now() - statSync(p).mtimeMs > days * DAY;
+
+// prune()'s files: record days before the cutoff, temporary files and databases older than a day, JUnit older than 2.
+function pruneFiles(dir, cwd, cutoffDay) {
+    const records = join(dir, "records");
+    const days = list(records);
+    days.filter((d) => d < cutoffDay).forEach((d) => rmSync(join(records, d), { recursive: true }));
+    const temps = days
+        .filter((d) => d >= cutoffDay)
+        .flatMap((d) =>
+            list(join(records, d))
+                .filter((f) => f.startsWith("."))
+                .map((f) => join(records, d, f)),
+        );
+    const current = readFileSync(join(dir, "CURRENT"), "utf8").trim();
+    const dbs = list(dir).filter((n) => /^ledger-.*\.db(-wal|-shm)?$/.test(n) && !n.startsWith(current));
+    [...temps, ...dbs.map((n) => join(dir, n))]
+        .filter((p) => olderThan(p, 1))
+        .forEach((p) => rmSync(p, { force: true }));
+    const junit = [...git(cwd, ["worktree", "list", "--porcelain"]).matchAll(/^worktree (.+)$/gm)]
+        .flatMap(([, wt]) =>
+            list(join(wt, "test-results"))
+                .filter((n) => n.startsWith("junit-"))
+                .map((n) => join(wt, "test-results", n)),
+        )
+        .filter((p) => olderThan(p, 2));
+    junit.forEach((p) => rmSync(p, { force: true }));
+    return junit.length;
 }
 
 // ---------------------------------------------------------------- decisions
@@ -761,43 +762,54 @@ export function fileIssues(dir, failures, info, gh) {
     const out = {};
     for (const sig of new Set(failures.map((f) => f.signature))) {
         const path = join(dir, "issues", `${sig}.json`);
-        const tests = failures.filter((f) => f.signature === sig);
-        const claim = { signature: sig, issue: 0, opened_at: new Date().toISOString(), pid: process.pid };
-        try {
-            writeFileSync(path, JSON.stringify(claim), { flag: "wx" });
-        } catch {
-            const had = readJson(path);
-            if (had?.issue > 0) {
-                out[sig] = had.issue;
-                continue;
-            }
-            if (Date.now() - Date.parse(had?.opened_at) < 600_000 && pidAlive(had.pid)) continue;
-            writeFileSync(path, JSON.stringify({ ...had, ...claim }));
-        }
-        try {
-            const body = [
-                `Golden at ${info.commit} fails this way (\`node tools/test-ledger.mjs why '${tests[0].file}'\`):`,
-                "",
-                ...tests.map((t) => `- \`${t.file} > ${t.name}\` (key ${t.key}): ${t.line}`),
-                "",
-                `Log: ${info.log ?? "-"}`,
-                "",
-                `<!-- test-ledger signature=${sig} -->`,
-            ].join("\n");
-            const title = `Failing on golden: ${tests[0].line}`.slice(0, 200);
-            const labels = ["--label", "bug", "--label", "priority:high", "--label", "effort:medium"];
-            const url = gh(["issue", "create", "--title", title, ...labels, "--body", body]);
-            const issue = Number(/\/issues\/(\d+)/.exec(url)?.[1]);
-            writeFileSync(path, JSON.stringify({ ...readJson(path), issue: issue > 0 ? issue : 0, pid: null }));
-            if (issue > 0) out[sig] = issue;
-        } catch (e) {
-            writeFileSync(path, JSON.stringify({ ...readJson(path), pid: null }));
-            console.error(
-                `ledger: could not file the issue for ${sig}: ${e.message.split("\n")[0]}; the next run retries`,
-            );
-        }
+        const had = claimIssue(path, sig);
+        const issue = had === MINE ? fileIssue(path, sig, failures, info, gh) : had;
+        if (issue > 0) out[sig] = issue;
     }
     return out;
+}
+
+const MINE = "mine";
+
+// The signature's issue number; 0 when another live process claimed it in the last 10 minutes (it files it); MINE
+// when this process now holds the claim and files it.
+function claimIssue(path, sig) {
+    const claim = { signature: sig, issue: 0, opened_at: new Date().toISOString(), pid: process.pid };
+    try {
+        writeFileSync(path, JSON.stringify(claim), { flag: "wx" });
+        return MINE;
+    } catch {
+        const had = readJson(path);
+        if (had?.issue > 0) return had.issue;
+        if (Date.now() - Date.parse(had?.opened_at) < 600_000 && pidAlive(had.pid)) return 0;
+        writeFileSync(path, JSON.stringify({ ...had, ...claim }));
+        return MINE;
+    }
+}
+
+function fileIssue(path, sig, failures, info, gh) {
+    const tests = failures.filter((f) => f.signature === sig);
+    try {
+        const body = [
+            `Golden at ${info.commit} fails this way (\`node tools/test-ledger.mjs why '${tests[0].file}'\`):`,
+            "",
+            ...tests.map((t) => `- \`${t.file} > ${t.name}\` (key ${t.key}): ${t.line}`),
+            "",
+            `Log: ${info.log ?? "-"}`,
+            "",
+            `<!-- test-ledger signature=${sig} -->`,
+        ].join("\n");
+        const title = `Failing on golden: ${tests[0].line}`.slice(0, 200);
+        const labels = ["--label", "bug", "--label", "priority:high", "--label", "effort:medium"];
+        const url = gh(["issue", "create", "--title", title, ...labels, "--body", body]);
+        const issue = Math.max(Number(/\/issues\/(\d+)/.exec(url)?.[1] ?? 0), 0);
+        writeFileSync(path, JSON.stringify({ ...readJson(path), issue, pid: null }));
+        return issue;
+    } catch (e) {
+        writeFileSync(path, JSON.stringify({ ...readJson(path), pid: null }));
+        console.error(`ledger: could not file the issue for ${sig}: ${e.message.split("\n")[0]}; the next run retries`);
+        return 0;
+    }
 }
 
 /**

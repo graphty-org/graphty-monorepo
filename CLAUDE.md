@@ -1232,18 +1232,18 @@ none is live; a run goes on to anything newer before it ends.
 
 - **Pass:** the ref `golden-verified` on GitHub moves to the commit. Branches start from it and merge
   it; `cut` takes only commits up to it.
-- **Failure:** the run bisects the landings since the last verified commit (first parent), re-running
-  only the failing test shard (the whole gate when another step failed), two points at a time, and
-  records the culprit landing. It re-runs the failing commit first: a failure that does not come back is
-  recorded as not reproduced, never called a flake. A failure that needs two landings names the later.
+- **Failure:** the run first confirms it: only the failing test files, up to 5 runs on the failing commit. A
+  test that passes any of them is intermittent: quarantined (when the quarantine is on, with its issue; status
+  `flaky`) or recorded as not reproduced, never bisected or reverted. A test that fails all 5 is bisected over
+  golden's first-parent `land:` merges only (never a sync merge of master), each point bad only when it fails
+  all 5 runs, and the culprit landing is named only when its parent passes all 5, with that evidence in
+  `culprit.evidence`; otherwise no landing is named (`noLanding`). A failure that needs two landings names the later.
   Verification never reverts; the pipeline round reverts the culprit at once with `land.mjs revert` and
   comments on its issue and on the issues of open branches that contain it. Every shard runs to the end
   (one failure cannot hide another). A bisect point is bad only when one of the failures verification saw
   fails there; a run that fails for another reason is run once more and never counted. A failure that is
   not reproduced, or that the next verification sees again, gets one `Failing on golden` issue; a culprit's
-  failure gets none, and `handled` closes the issues a land check filed for it. A shard whose failing tests
-  are all flaky in the test ledger runs only those files, up to 10 times per bisect point, and is bad only
-  above its history's rate.
+  failure gets none, and `handled` closes the issues a land check filed for it.
 - **A failure already on golden** never blocks an unrelated landing and is never hidden: when a land check's
   shard fails, the gate runs the failing test files again on golden's tip (in `.worktrees/land-check-<n>-base`,
   up to twice), and excuses the shard when every failing test fails there too (the same message; for an
@@ -1292,8 +1292,8 @@ Rules:
   directly, and the next landing merges it into golden. A big change lands in small pieces, ideally
   behind a switch that is off by default.
 - A landing check may defer the test shards of packages affected only as downstream dependents (a
-  graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); the switch
-  `PREPUSH_DEFER_DOWNSTREAM` stays off until bisect confirms failures before a revert.
+  graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); on by default,
+  `PREPUSH_DEFER_DOWNSTREAM=0` turns it off for one push.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.
 - Where this file asks for something in a pull request description (a breaking change's list, a

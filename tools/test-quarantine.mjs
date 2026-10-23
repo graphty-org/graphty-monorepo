@@ -496,23 +496,65 @@ export function afterShard({ main, root, shard, inputKey, result, gh = ghCli, da
             const ran = list.filter((e) => e.family === family && result.ran?.includes(e.file));
             out.left = countPasses(state, ran, failedNow, day);
         });
-        // Issues outside the lock: one call each, and only for a test that is newly quarantined.
-        for (const e of fresh) {
-            const issue = fileIssue(e, e.issue || undefined, gh);
-            if (!issue) continue;
-            const entry = { ...e, issue };
-            updateState(main, (state) => {
-                state.added[keyOf(entry)] = entry;
-                state.issues[idOf(entry)] = issue;
-                delete state.removed[keyOf(entry)];
-                state.passes[keyOf(entry)] = 0;
-            });
-            out.added.push(entry);
-        }
+        out.added.push(...addEntries(main, fresh, gh));
     } catch (e) {
         console.log(`test-quarantine: ${shard}: bookkeeping failed (${e.message.split("\n")[0]})`);
     }
     return out;
+}
+
+// Files each new entry's issue (one call each, outside the state lock) and adds the entry to this machine's list;
+// an entry GitHub refused is left out. Returns the entries added.
+function addEntries(main, fresh, gh) {
+    const added = [];
+    for (const e of fresh) {
+        const issue = fileIssue(e, e.issue || undefined, gh);
+        if (!issue) continue;
+        const entry = { ...e, issue };
+        updateState(main, (state) => {
+            state.added[keyOf(entry)] = entry;
+            state.issues[idOf(entry)] = issue;
+            delete state.removed[keyOf(entry)];
+            state.passes[keyOf(entry)] = 0;
+        });
+        added.push(entry);
+    }
+    return added;
+}
+
+/**
+ * Quarantines tests another tool proved flaky (verification's confirming runs: a test that failed, then passed on
+ * the same commit), as afterShard does for the gate's own: an entry and its issue each. GPU tests never.
+ * @param main the main checkout
+ * @param tests `[{ file, name, family, how, excerpt }]`
+ * @param [gh] `(args) => stdout`
+ * @param [day] ISO date
+ * @returns the tests' entries now in force (added now or already listed); a test left out was refused
+ */
+export function quarantineTests(main, tests, gh = ghCli, day = today()) {
+    const list = activeList(committedList(main, day), readState(main), day);
+    const state = readState(main);
+    const listed = [];
+    const fresh = [];
+    for (const t of tests.filter((x) => !GPU_FAMILY.test(x.family))) {
+        const had = quarantined(list, t.family, t);
+        if (had) listed.push(had);
+        else if (!fresh.some((e) => keyOf(e) === keyOf(t))) {
+            const { file, name, family, excerpt } = t;
+            const reason = `is flaky: it ${t.how}`;
+            fresh.push({
+                file,
+                name,
+                family,
+                issue: state.issues[idOf(t)] ?? 0,
+                reason,
+                since: day,
+                expires: plusDays(day, 14),
+                excerpt,
+            });
+        }
+    }
+    return [...listed, ...addEntries(main, fresh, gh)];
 }
 
 /**

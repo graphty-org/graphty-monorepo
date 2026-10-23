@@ -27,7 +27,9 @@ engine.runRenderLoop(() => scene.render());
 ```
 
 The globe sits at the origin with the north pole up and longitude 0 facing a camera on the scene's
-default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both work.
+default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both work. The map is
+wrapped onto the sphere and needs no light: it is drawn at full brightness where the globe faces the
+camera and darker toward its rim, so it reads as a ball.
 
 ## A flat map
 

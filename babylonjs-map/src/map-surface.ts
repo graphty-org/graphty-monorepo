@@ -2,6 +2,8 @@ import {
     type BaseTexture,
     BoundingInfo,
     Camera,
+    Color3,
+    FresnelParameters,
     Frustum,
     type Matrix,
     Mesh,
@@ -111,6 +113,21 @@ const MAX_RETRY_MS = 60_000;
 const viewProjection = (camera: Camera): Matrix => camera.getViewMatrix().multiply(camera.getProjectionMatrix());
 
 const tileKey = (layer: Layer, t: TileId, copy: number): string => `${layer.key}|${copy}|${t.z}/${t.x}/${t.y}`;
+
+/**
+ * A globe's shading, independent of the scene's lights: the picture at full brightness where the
+ * surface faces the eye, falling to about half at the rim. (Babylon's fresnel term is
+ * `(bias + |view . normal|) ^ power`, blended from `leftColor` at 0 to `rightColor` at 1.)
+ * @returns The fresnel parameters for a tile's emissive picture.
+ */
+function rimShade(): FresnelParameters {
+    return new FresnelParameters({
+        bias: 0.2,
+        power: 1,
+        leftColor: new Color3(0.35, 0.37, 0.42),
+        rightColor: Color3.White(),
+    });
+}
 
 /**
  * Loads a URL as a Babylon.js texture; rejects when the image fails (CORS, 403, 404, 429).
@@ -432,6 +449,15 @@ export abstract class MapSurface {
      * @returns True for a globe.
      */
     protected fillsPoles(): boolean {
+        return false;
+    }
+
+    /**
+     * Whether the surface is shaded as a ball: full brightness where it faces the eye, darker toward
+     * its rim, so an unlit picture wrapped on a sphere reads as round rather than as a flat disc.
+     * @returns True for a globe.
+     */
+    protected shadesAsSphere(): boolean {
         return false;
     }
 
@@ -815,10 +841,21 @@ export abstract class MapSurface {
         vertexData.positions = positions;
         vertexData.uvs = uvs;
         vertexData.indices = indices;
+        const sphere = this.shadesAsSphere();
+        if (sphere) {
+            // A ball centered on the root: every point's normal is its own direction.
+            vertexData.normals = positions.map((v, i) => {
+                const at = i - (i % 3);
+                return v / (Math.hypot(positions[at], positions[at + 1], positions[at + 2]) || 1);
+            });
+        }
         vertexData.applyToMesh(mesh);
         const material = new StandardMaterial(`${mesh.name}-material`, this.scene);
         material.disableLighting = true;
         material.emissiveTexture = texture;
+        if (sphere) {
+            material.emissiveFresnelParameters = rimShade();
+        }
         material.backFaceCulling = false;
         // Higher layers and finer tiles win where they overlap a coarser tile still shown.
         material.zOffsetUnits = 2 * (255 - Math.min(255, layer.index * 32 + z));

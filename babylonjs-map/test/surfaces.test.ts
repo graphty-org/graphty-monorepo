@@ -1,4 +1,14 @@
-import { ArcRotateCamera, BaseTexture, Camera, type Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import {
+    ArcRotateCamera,
+    BaseTexture,
+    Camera,
+    type Mesh,
+    NullEngine,
+    Scene,
+    type StandardMaterial,
+    Vector3,
+    VertexBuffer,
+} from "@babylonjs/core";
 
 import { FlatMap, Globe, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
 
@@ -71,6 +81,7 @@ describe("FlatMap", () => {
         const [mesh] = shownMeshes(scene);
         expect(mesh.getTotalVertices()).toBe(2 * 33);
         expect(mesh.isPickable).toBe(false);
+        expect((mesh.material as StandardMaterial).emissiveFresnelParameters, "a flat map is not shaded").toBeFalsy();
         const box = mesh.getBoundingInfo().boundingBox;
         expect(box.minimum.x).toBeCloseTo(-50);
         expect(box.maximum.y).toBeCloseTo(50);
@@ -467,6 +478,43 @@ describe("Globe", () => {
         globe.update();
         const [mesh] = shownMeshes(scene);
         expect(mesh.getBoundingInfo().boundingBox.maximum.length()).toBeLessThanOrEqual(100 * Math.SQRT2 + 1e-6);
+        scene.getEngine().dispose();
+    });
+
+    it("wraps the world picture onto a sphere, each point at its own place, shaded round", async () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { loadTexture: tiles.load });
+        globe.update();
+        await tiles.answerAll();
+        globe.update();
+        const [mesh] = shownMeshes(scene);
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const normals = mesh.getVerticesData(VertexBuffer.NormalKind) ?? [];
+        const uvs = mesh.getVerticesData(VertexBuffer.UVKind) ?? [];
+        expect(positions.length).toBe(3 * 65 * 61);
+        const vs: number[] = [];
+        for (let i = 0; i < positions.length / 3; i++) {
+            const p = new Vector3(positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]);
+            expect(p.length(), "on the sphere").toBeCloseTo(100, 6);
+            expect(normals[3 * i] * 100, "facing out").toBeCloseTo(p.x, 6);
+            expect(normals[3 * i + 1] * 100).toBeCloseTo(p.y, 6);
+            const { lat, lon } = globe.fromScene(p);
+            if (Math.abs(lat) < 89) {
+                // the picture's column is the point's longitude (the seam's two ends both fit)
+                const u = uvs[2 * i];
+                expect(Math.min(Math.abs(u - (lon + 180) / 360), Math.abs(u - 1 - (lon + 180) / 360))).toBeLessThan(
+                    1e-6,
+                );
+            }
+            vs.push(uvs[2 * i + 1] - (lat + 90) / 180);
+        }
+        // the picture's row is the point's latitude, the same way up everywhere
+        expect(Math.max(...vs) - Math.min(...vs)).toBeLessThan(1e-6);
+        const material = mesh.material as StandardMaterial;
+        expect(material.emissiveTexture).toBeInstanceOf(BaseTexture);
+        expect(material.emissiveFresnelParameters.isEnabled, "darker toward the rim").toBe(true);
         scene.getEngine().dispose();
     });
 

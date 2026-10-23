@@ -94,6 +94,10 @@ export class Globe extends MapSurface {
         return true;
     }
 
+    protected override shadesAsSphere(): boolean {
+        return true;
+    }
+
     /**
      * Behind the horizon: no sample point faces the eye.
      * @param samples - Points on the tile, in the globe's own space.

@@ -1,9 +1,10 @@
 {
-    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; an interpolated font size is rounded to a whole number, as Cytoscape draws its integer visual properties; edge curved only where EDGE_CURVED rounds bends the edge has (#2489)",
+    "source": "tmp/style-import/spike/cytoscape.mjs (resolveCytoscape) through readers.mjs cx and cx2, run on 2026-10-11; each column run-length encoded as [value, count]; the labelFont of a CX2 font face naming its desktop font (FONT_NAME) is that font, as Cytoscape desktop reads it back; edge curved only where EDGE_CURVED rounds bends the edge has (#2489); labelWrapWidth (NODE_LABEL_WIDTH, CX2 NODE_LABEL_MAX_WIDTH) added from graph-io's own resolver on 2026-10-16; node borderOpacity (NODE_BORDER_TRANSPARENCY, CX2 NODE_BORDER_OPACITY) added from graph-io's own resolver on 2026-10-17; edge curved also where Cytoscape desktop fans a bundle of parallel edges (graph-io's resolver, 2026-10-17); edge fanSpacing (the curves' middle spacing desktop fans parallel edges by: the larger side of the two nodes times EDGE_STACKING_DENSITY) from graph-io's readers, 2026-10-17; edge arrowSize (EDGE_TARGET_ARROW_SIZE, else EDGE_SOURCE_ARROW_SIZE, over Cytoscape's normal 6) from graph-io's own resolver, 2026-10-17; edge curved also where the style leaves EDGE_CURVED unset, which Cytoscape defaults to true, and the edge bends or is fanned, and the fanned edges of a node pair are all but its newest, which desktop draws straight (graph-io's resolver, 2026-10-18); a HEXAGON node's height is the height Cytoscape desktop squashes it to (sqrt(3)/2 of its height inside its border), from graph-io's own resolver on 2026-10-18; edge bends and curved of each self-loop without handles (the two handles desktop loops it round) added from graph-io's own resolver on 2026-10-18; label opacities, label boxes (only with a *_LABEL_BACKGROUND_SHAPE other than NONE), label positions read whole (labelPosition, labelOffsetX/Y, labelShiftX/Y), edge label rotations, wrap widths and centered edge label places added from graph-io's own resolver on 2026-10-19; labelWeight of a desktop font face from its name's .bold suffix only, the style word after it unread (Cytoscape 3.10.5 FontVisualProperty.parseSerializableString), from graph-io's own resolver on 2026-10-19",
     "files": {
         "cx/ndex2-client/glypican2_no_cartesian_layout.cx": {
             "node": {
                 "borderColor": [["#ffffff", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[2.5, 2]],
                 "fill": [["#00cccc", 2]],
@@ -14,21 +15,23 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["ellipse", 2]],
                 "tooltip": [["Protein", 2]],
                 "visible": [[true, 2]],
-                "width": [[35, 2]]
+                "width": [[35, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "edge": {
                 "color": [["#999999", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -40,13 +43,16 @@
                 "targetArrowColor": [["#999999", 1]],
                 "tooltip": [["in complex with", 1]],
                 "visible": [[true, 1]],
-                "width": [[2, 1]]
+                "width": [[2, 1]],
+                "labelWrapWidth": [[200, 1]],
+                "labelOpacity": [[1, 1]]
             },
             "background": "#cccccc"
         },
         "cx/cx2js/primitive_attributes.cx": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -57,20 +63,22 @@
                     ["Node 2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
-                "width": [[75, 2]]
+                "width": [[75, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "edge": {
                 "color": [["#848484", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -81,7 +89,10 @@
                 "targetArrow": [["none", 1]],
                 "targetArrowColor": [["#000000", 1]],
                 "visible": [[true, 1]],
-                "width": [[2, 1]]
+                "width": [[2, 1]],
+                "arrowSize": [[1, 1]],
+                "labelWrapWidth": [[200, 1]],
+                "labelOpacity": [[1, 1]]
             },
             "background": "#ffffff"
         },
@@ -91,6 +102,11 @@
                     ["#000000", 2],
                     ["#0000ff", 1],
                     ["#000000", 3]
+                ],
+                "borderOpacity": [
+                    [1, 4],
+                    [0, 1],
+                    [1, 1]
                 ],
                 "borderStyle": [["solid", 6]],
                 "borderWidth": [
@@ -121,14 +137,12 @@
                     ["#0000ff", 1],
                     ["#000000", 3]
                 ],
-                "labelFont": [
-                    ["Dialog.plain", 4],
-                    ["sans-serif", 2]
-                ],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelPosition": [["center", 6]],
                 "labelSize": [[10, 6]],
                 "labelWeight": [["normal", 6]],
+                "labelWrapWidth": [[200, 6]],
                 "shape": [
                     ["rectangle", 4],
                     ["ellipse", 2]
@@ -141,9 +155,15 @@
                     [80, 1],
                     [2, 1],
                     [139, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 6]]
             },
             "edge": {
+                "bends": [
+                    [null, 1],
+                    ["0.9532,-0.2111 0.9532,-0.2111", 1],
+                    [null, 2]
+                ],
                 "color": [["#000000", 4]],
                 "curved": [
                     [false, 1],
@@ -151,7 +171,7 @@
                     [false, 2]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelSize": [[10, 4]],
                 "labelWeight": [["normal", 4]],
@@ -169,7 +189,10 @@
                     ["Straight", 2]
                 ],
                 "visible": [[true, 4]],
-                "width": [[1, 4]]
+                "width": [[1, 4]],
+                "arrowSize": [[1, 4]],
+                "labelWrapWidth": [[200, 4]],
+                "labelOpacity": [[1, 4]]
             },
             "background": "#ffffff"
         },
@@ -181,6 +204,7 @@
                     ["#aaaaaa", 8],
                     ["#000000", 37]
                 ],
+                "borderOpacity": [[1, 81]],
                 "borderStyle": [
                     ["solid", 36],
                     ["dotted", 8],
@@ -301,9 +325,9 @@
                     ["#000000", 37]
                 ],
                 "labelFont": [
-                    ["Arial Bold", 20],
-                    ["sans-serif", 24],
-                    ["Arial Bold", 37]
+                    ["Arial Bold, DejaVu Sans, sans-serif", 20],
+                    ["DejaVu Sans, sans-serif", 24],
+                    ["Arial Bold, DejaVu Sans, sans-serif", 37]
                 ],
                 "labelItalic": [[false, 81]],
                 "labelPosition": [["center", 81]],
@@ -313,6 +337,7 @@
                     [18, 37]
                 ],
                 "labelWeight": [["normal", 81]],
+                "labelWrapWidth": [[200, 81]],
                 "shape": [
                     ["rectangle", 20],
                     ["round-rectangle", 16],
@@ -364,13 +389,14 @@
                     [88.2029, 1],
                     [80, 1],
                     [124.28, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 81]]
             },
             "edge": {
                 "color": [["#000000", 56]],
                 "curved": [[false, 56]],
                 "labelColor": [["#000000", 56]],
-                "labelFont": [["sans-serif", 56]],
+                "labelFont": [["DejaVu Sans, sans-serif", 56]],
                 "labelItalic": [[false, 56]],
                 "labelSize": [[10, 56]],
                 "labelWeight": [["normal", 56]],
@@ -399,13 +425,17 @@
                 ],
                 "targetArrowColor": [["#000000", 56]],
                 "visible": [[true, 56]],
-                "width": [[2, 56]]
+                "width": [[2, 56]],
+                "arrowSize": [[1, 56]],
+                "labelWrapWidth": [[200, 56]],
+                "labelOpacity": [[1, 56]]
             },
             "background": "#ffffff"
         },
         "cx/cx2js/simple_bundled_edges.cx": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -416,20 +446,26 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
-                "width": [[75, 2]]
+                "width": [[75, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "edge": {
                 "color": [["#848484", 4]],
-                "curved": [[false, 4]],
+                "curved": [
+                    [true, 1],
+                    [false, 1],
+                    [true, 2]
+                ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelSize": [[10, 4]],
                 "labelWeight": [["normal", 4]],
@@ -440,7 +476,21 @@
                 "targetArrow": [["none", 4]],
                 "targetArrowColor": [["#000000", 4]],
                 "visible": [[true, 4]],
-                "width": [[2, 4]]
+                "width": [[2, 4]],
+                "arrowSize": [[1, 4]],
+                "labelWrapWidth": [[200, 4]],
+                "labelOpacity": [[1, 4]],
+                "bends": [
+                    ["0.5,0.431006", 1],
+                    [null, 1],
+                    ["0.5,0.431006", 1],
+                    ["0.5,0.862012", 1]
+                ],
+                "bendCurve": [
+                    ["bezier", 1],
+                    [null, 1],
+                    ["bezier", 2]
+                ]
             },
             "background": "#ffffff"
         },
@@ -453,6 +503,13 @@
                     ["#000000", 10],
                     ["#c0c0c0", 1],
                     ["#aaaaaa", 2]
+                ],
+                "borderOpacity": [
+                    [1, 4],
+                    [0, 1],
+                    [1, 16],
+                    [0, 1],
+                    [1, 2]
                 ],
                 "borderStyle": [
                     ["solid", 22],
@@ -524,13 +581,7 @@
                     ["#c0c0c0", 1],
                     ["#aaaaaa", 2]
                 ],
-                "labelFont": [
-                    ["sans-serif", 8],
-                    ["Dialog.plain", 2],
-                    ["Dialog.bold", 1],
-                    ["Dialog.plain", 10],
-                    ["sans-serif", 3]
-                ],
+                "labelFont": [["DejaVu Sans, sans-serif", 24]],
                 "labelItalic": [[false, 24]],
                 "labelPosition": [["center", 24]],
                 "labelSize": [
@@ -542,10 +593,11 @@
                     [0, 2]
                 ],
                 "labelWeight": [
-                    ["normal", 4],
-                    ["bold", 4],
-                    ["normal", 16]
+                    ["normal", 10],
+                    ["bold", 1],
+                    ["normal", 13]
                 ],
+                "labelWrapWidth": [[200, 24]],
                 "shape": [
                     ["octagon", 4],
                     ["hexagon", 1],
@@ -581,9 +633,16 @@
                     [2, 1],
                     [184, 1],
                     [91, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 24]]
             },
             "edge": {
+                "bends": [
+                    [null, 3],
+                    ["0.1587,0.3654 0.1587,0.3654", 1],
+                    ["0.844,-0.3628 0.844,-0.3628", 1],
+                    [null, 3]
+                ],
                 "color": [["#000000", 8]],
                 "curved": [
                     [false, 3],
@@ -591,7 +650,7 @@
                     [false, 3]
                 ],
                 "labelColor": [["#000000", 8]],
-                "labelFont": [["sans-serif", 8]],
+                "labelFont": [["DejaVu Sans, sans-serif", 8]],
                 "labelItalic": [[false, 8]],
                 "labelSize": [[10, 8]],
                 "labelWeight": [["normal", 8]],
@@ -609,13 +668,24 @@
                 "targetArrowColor": [["#000000", 8]],
                 "tooltip": [["Straight", 8]],
                 "visible": [[true, 8]],
-                "width": [[1, 8]]
+                "width": [[1, 8]],
+                "arrowSize": [[1, 8]],
+                "labelWrapWidth": [[200, 8]],
+                "labelOpacity": [[1, 8]],
+                "targetArrowGap": [
+                    [null, 3],
+                    [4, 1],
+                    [null, 2],
+                    [4, 1],
+                    [null, 1]
+                ]
             },
             "background": "#ffffff"
         },
         "cx/cx2js/default_edge_bends.cx": {
             "node": {
                 "borderColor": [["#cccccc", 4]],
+                "borderOpacity": [[1, 4]],
                 "borderStyle": [["solid", 4]],
                 "borderWidth": [[0, 4]],
                 "fill": [["#89d0f5", 4]],
@@ -628,20 +698,27 @@
                     ["Node 3", 1]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelPosition": [["center", 4]],
                 "labelSize": [[12, 4]],
                 "labelWeight": [["normal", 4]],
+                "labelWrapWidth": [[200, 4]],
                 "shape": [["round-rectangle", 4]],
                 "visible": [[true, 4]],
-                "width": [[75, 4]]
+                "width": [[75, 4]],
+                "labelOpacity": [[1, 4]]
             },
             "edge": {
+                "bends": [
+                    ["-0.001,0.301 0.991,0.3089", 1],
+                    ["0.346,0.484 0.6654,-0.5562", 1],
+                    ["-0.001,0.301 0.991,0.3089", 1]
+                ],
                 "color": [["#848484", 3]],
                 "curved": [[true, 3]],
                 "labelColor": [["#000000", 3]],
-                "labelFont": [["sans-serif", 3]],
+                "labelFont": [["DejaVu Sans, sans-serif", 3]],
                 "labelItalic": [[false, 3]],
                 "labelSize": [[10, 3]],
                 "labelWeight": [["normal", 3]],
@@ -652,13 +729,17 @@
                 "targetArrow": [["none", 3]],
                 "targetArrowColor": [["#000000", 3]],
                 "visible": [[true, 3]],
-                "width": [[2, 3]]
+                "width": [[2, 3]],
+                "arrowSize": [[1, 3]],
+                "labelWrapWidth": [[200, 3]],
+                "labelOpacity": [[1, 3]]
             },
             "background": "#ffffff"
         },
         "cx/ndex-object-model/10_networks_new.cx": {
             "node": {
                 "borderColor": [["#cccccc", 1]],
+                "borderOpacity": [[1, 1]],
                 "borderStyle": [["solid", 1]],
                 "borderWidth": [[0, 1]],
                 "fill": [["#89d0f5", 1]],
@@ -666,14 +747,16 @@
                 "height": [[35, 1]],
                 "label": [["Node 7", 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelPosition": [["center", 1]],
                 "labelSize": [[12, 1]],
                 "labelWeight": [["normal", 1]],
+                "labelWrapWidth": [[200, 1]],
                 "shape": [["round-rectangle", 1]],
                 "visible": [[true, 1]],
-                "width": [[75, 1]]
+                "width": [[75, 1]],
+                "labelOpacity": [[1, 1]]
             },
             "edge": {},
             "background": "#ffffff"
@@ -681,6 +764,7 @@
         "cx/ndex-object-model/network1_3n2e_no_numVerification.cx": {
             "node": {
                 "borderColor": [["#000000", 3]],
+                "borderOpacity": [[1, 3]],
                 "borderStyle": [["solid", 3]],
                 "borderWidth": [[2, 3]],
                 "fill": [["#ff9999", 3]],
@@ -692,20 +776,22 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 3]],
-                "labelFont": [["sans-serif", 3]],
+                "labelFont": [["DejaVu Sans, sans-serif", 3]],
                 "labelItalic": [[false, 3]],
                 "labelPosition": [["center", 3]],
                 "labelSize": [[12, 3]],
                 "labelWeight": [["normal", 3]],
+                "labelWrapWidth": [[200, 3]],
                 "shape": [["ellipse", 3]],
                 "visible": [[true, 3]],
-                "width": [[60, 3]]
+                "width": [[60, 3]],
+                "labelOpacity": [[1, 3]]
             },
             "edge": {
                 "color": [["#003399", 2]],
                 "curved": [[false, 2]],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelSize": [[10, 2]],
                 "labelWeight": [["normal", 2]],
@@ -716,7 +802,10 @@
                 "targetArrow": [["none", 2]],
                 "targetArrowColor": [["#003399", 2]],
                 "visible": [[true, 2]],
-                "width": [[4, 2]]
+                "width": [[4, 2]],
+                "arrowSize": [[1, 2]],
+                "labelWrapWidth": [[200, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "background": "#ffffff"
         },
@@ -727,6 +816,7 @@
                     ["#d0d378", 1],
                     ["#666666", 69]
                 ],
+                "borderOpacity": [[1, 145]],
                 "borderStyle": [["solid", 145]],
                 "borderWidth": [
                     [0, 75],
@@ -901,7 +991,7 @@
                     ["#262626", 1],
                     ["#000000", 49]
                 ],
-                "labelFont": [["HelveticaNeue-Medium", 145]],
+                "labelFont": [["HelveticaNeue-Medium, DejaVu Sans, sans-serif", 145]],
                 "labelItalic": [[false, 145]],
                 "labelPosition": [["center", 145]],
                 "labelSize": [
@@ -912,6 +1002,7 @@
                     [12, 49]
                 ],
                 "labelWeight": [["normal", 145]],
+                "labelWrapWidth": [[200, 145]],
                 "shape": [
                     ["ellipse", 75],
                     ["diamond", 1],
@@ -924,13 +1015,18 @@
                     [60, 19],
                     [40, 1],
                     [60, 49]
-                ]
+                ],
+                "labelOpacity": [[1, 145]]
             },
             "edge": {
                 "color": [["#404040", 213]],
-                "curved": [[false, 213]],
+                "curved": [
+                    [false, 14],
+                    [true, 1],
+                    [false, 198]
+                ],
                 "labelColor": [["#000000", 213]],
-                "labelFont": [["sans-serif", 213]],
+                "labelFont": [["DejaVu Sans, sans-serif", 213]],
                 "labelItalic": [[false, 213]],
                 "labelSize": [[10, 213]],
                 "labelWeight": [["normal", 213]],
@@ -967,7 +1063,20 @@
                 ],
                 "targetArrowColor": [["#404040", 213]],
                 "visible": [[true, 213]],
-                "width": [[1, 213]]
+                "width": [[1, 213]],
+                "arrowSize": [[1, 213]],
+                "labelWrapWidth": [[200, 213]],
+                "labelOpacity": [[1, 213]],
+                "bends": [
+                    [null, 14],
+                    ["0.5,-0.589738", 1],
+                    [null, 198]
+                ],
+                "bendCurve": [
+                    [null, 14],
+                    ["bezier", 1],
+                    [null, 198]
+                ]
             },
             "background": "#ffffff"
         },
@@ -998,6 +1107,7 @@
                     ["#14961e", 2],
                     ["#000000", 1]
                 ],
+                "borderOpacity": [[1, 58]],
                 "borderStyle": [["solid", 58]],
                 "borderWidth": [
                     [1, 15],
@@ -1112,23 +1222,24 @@
                     ["#000000", 1]
                 ],
                 "labelFont": [
-                    ["sans-serif", 15],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 3],
-                    ["ArialMT", 9],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 15],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 1]
+                    ["DejaVu Sans, sans-serif", 15],
+                    ["ArialMT, DejaVu Sans, sans-serif", 7],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 2],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 3],
+                    ["ArialMT, DejaVu Sans, sans-serif", 9],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 15],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 58]],
                 "labelPosition": [["center", 58]],
                 "labelSize": [[12, 58]],
                 "labelWeight": [["normal", 58]],
+                "labelWrapWidth": [[200, 58]],
                 "shape": [
                     ["rectangle", 15],
                     ["ellipse", 1],
@@ -1183,21 +1294,36 @@
                     [90, 1],
                     [302.276, 1],
                     [34.5833, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 58]]
             },
             "edge": {
+                "bends": [
+                    [null, 2],
+                    ["0.3263,-0.0022 0.3263,-0.0022 0.3236,-0.4002 0.3236,-0.4002 0.8962,-0.4041 0.8962,-0.4041", 1],
+                    [null, 17],
+                    ["0.5,-0.152836", 1],
+                    ["0.0708,-0.0695 0.466,0.0502 0.886,0.1179", 1],
+                    [null, 15],
+                    ["0.5,0.521414", 1],
+                    [null, 3],
+                    ["0.9105,0.2854 0.9105,0.2854", 1],
+                    [null, 6]
+                ],
                 "color": [["#000000", 48]],
                 "curved": [
                     [false, 2],
                     [true, 1],
-                    [false, 18],
+                    [false, 17],
+                    [true, 2],
+                    [false, 15],
                     [true, 1],
-                    [false, 19],
+                    [false, 3],
                     [true, 1],
                     [false, 6]
                 ],
                 "labelColor": [["#000000", 48]],
-                "labelFont": [["sans-serif", 48]],
+                "labelFont": [["DejaVu Sans, sans-serif", 48]],
                 "labelItalic": [[false, 48]],
                 "labelSize": [[10, 48]],
                 "labelWeight": [["normal", 48]],
@@ -1237,13 +1363,24 @@
                 "targetArrowColor": [["#000000", 48]],
                 "tooltip": [["Straight", 48]],
                 "visible": [[true, 48]],
-                "width": [[1, 48]]
+                "width": [[1, 48]],
+                "arrowSize": [[1, 48]],
+                "labelWrapWidth": [[200, 48]],
+                "labelOpacity": [[1, 48]],
+                "bendCurve": [
+                    [null, 20],
+                    ["bezier", 1],
+                    [null, 16],
+                    ["bezier", 1],
+                    [null, 10]
+                ]
             },
             "background": "#ffffff"
         },
         "cx/ndex/ITCR-connectivity-map.cx": {
             "node": {
                 "borderColor": [["#000000", 93]],
+                "borderOpacity": [[1, 93]],
                 "borderStyle": [["solid", 93]],
                 "borderWidth": [
                     [15, 11],
@@ -1465,9 +1602,10 @@
                     ["XNAT", 1]
                 ],
                 "labelColor": [["#000000", 93]],
-                "labelFont": [["sans-serif", 93]],
+                "labelFont": [["DejaVu Sans, sans-serif", 93]],
                 "labelItalic": [[false, 93]],
                 "labelPosition": [["center", 93]],
+                "labelRotation": [[0, 93]],
                 "labelSize": [
                     [21, 1],
                     [22, 2],
@@ -1549,6 +1687,86 @@
                     [26, 1]
                 ],
                 "labelWeight": [["normal", 93]],
+                "labelWrapWidth": [
+                    [147.733, 1],
+                    [151.6, 2],
+                    [163.2, 1],
+                    [155.467, 1],
+                    [143.867, 2],
+                    [167.067, 1],
+                    [140, 3],
+                    [143.867, 2],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [201.867, 1],
+                    [182.533, 1],
+                    [143.867, 2],
+                    [140, 5],
+                    [155.467, 1],
+                    [140, 2],
+                    [232.8, 1],
+                    [186.4, 1],
+                    [151.6, 3],
+                    [143.867, 2],
+                    [209.6, 1],
+                    [151.6, 1],
+                    [167.067, 2],
+                    [209.6, 1],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [190.267, 1],
+                    [151.6, 1],
+                    [163.2, 1],
+                    [151.6, 1],
+                    [147.733, 1],
+                    [205.733, 1],
+                    [174.8, 1],
+                    [151.6, 1],
+                    [201.867, 1],
+                    [151.6, 1],
+                    [163.2, 1],
+                    [182.533, 1],
+                    [314, 1],
+                    [174.8, 1],
+                    [155.467, 1],
+                    [217.333, 1],
+                    [151.6, 1],
+                    [190.267, 1],
+                    [182.533, 1],
+                    [236.667, 1],
+                    [155.467, 1],
+                    [209.6, 1],
+                    [163.2, 1],
+                    [155.467, 1],
+                    [143.867, 1],
+                    [283.067, 1],
+                    [217.333, 1],
+                    [198, 1],
+                    [240.533, 1],
+                    [205.733, 1],
+                    [271.467, 1],
+                    [267.6, 1],
+                    [228.933, 1],
+                    [430, 1],
+                    [143.867, 1],
+                    [225.067, 1],
+                    [205.733, 1],
+                    [213.467, 1],
+                    [178.667, 1],
+                    [143.867, 1],
+                    [151.6, 1],
+                    [155.467, 1],
+                    [205.733, 1],
+                    [317.867, 1],
+                    [163.2, 1],
+                    [283.067, 1],
+                    [163.2, 1],
+                    [170.933, 1],
+                    [174.8, 1],
+                    [279.2, 1],
+                    [163.2, 1],
+                    [174.8, 1]
+                ],
                 "shape": [["ellipse", 93]],
                 "visible": [[true, 93]],
                 "width": [
@@ -1630,7 +1848,8 @@
                     [318, 1],
                     [178, 1],
                     [192, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 93]]
             },
             "edge": {
                 "color": [
@@ -1754,7 +1973,7 @@
                 ],
                 "curved": [[false, 247]],
                 "labelColor": [["#000000", 247]],
-                "labelFont": [["sans-serif", 247]],
+                "labelFont": [["DejaVu Sans, sans-serif", 247]],
                 "labelItalic": [[false, 247]],
                 "labelSize": [[10, 247]],
                 "labelWeight": [["normal", 247]],
@@ -2217,7 +2436,12 @@
                     [2, 3],
                     [10, 2],
                     [2, 3]
-                ]
+                ],
+                "arrowSize": [[1, 247]],
+                "labelWrapWidth": [[200, 247]],
+                "labelRotation": [[0, 247]],
+                "labelOpacity": [[1, 247]],
+                "labelPosition": [["center", 247]]
             },
             "background": "#ffffff"
         },
@@ -2237,6 +2461,7 @@
                     ["#0099ff", 1],
                     ["#2b8cb3", 18]
                 ],
+                "borderOpacity": [[1, 42]],
                 "borderStyle": [["solid", 42]],
                 "borderWidth": [
                     [8, 1],
@@ -2361,15 +2586,10 @@
                     ["#262626", 1],
                     ["#000000", 21]
                 ],
-                "labelFont": [["sans-serif", 42]],
+                "labelFont": [["DejaVu Sans, sans-serif", 42]],
                 "labelItalic": [[false, 42]],
-                "labelPosition": [
-                    ["center", 18],
-                    ["bottom", 1],
-                    ["center", 1],
-                    ["bottom", 1],
-                    ["center", 21]
-                ],
+                "labelPosition": [["center", 42]],
+                "labelRotation": [[0, 42]],
                 "labelSize": [
                     [14, 1],
                     [12, 1],
@@ -2390,6 +2610,7 @@
                     [12, 18]
                 ],
                 "labelWeight": [["normal", 42]],
+                "labelWrapWidth": [[200, 42]],
                 "shape": [
                     ["ellipse", 2],
                     ["round-rectangle", 3],
@@ -2420,6 +2641,28 @@
                     [60, 1],
                     [120, 1],
                     [60, 18]
+                ],
+                "labelOpacity": [[1, 42]],
+                "labelOffsetY": [
+                    [0, 18],
+                    [7.5, 1],
+                    [0, 1],
+                    [30, 1],
+                    [0, 21]
+                ],
+                "labelShiftX": [
+                    [0, 18],
+                    [0.5, 1],
+                    [0, 1],
+                    [0.5, 1],
+                    [0, 21]
+                ],
+                "labelShiftY": [
+                    [0, 18],
+                    [0.5, 1],
+                    [0, 1],
+                    [0.5, 1],
+                    [0, 21]
                 ]
             },
             "edge": {
@@ -2436,7 +2679,7 @@
                 ],
                 "curved": [[false, 61]],
                 "labelColor": [["#000000", 61]],
-                "labelFont": [["sans-serif", 61]],
+                "labelFont": [["DejaVu Sans, sans-serif", 61]],
                 "labelItalic": [[false, 61]],
                 "labelSize": [[10, 61]],
                 "labelWeight": [["normal", 61]],
@@ -2510,13 +2753,39 @@
                     ["#0099ff", 1]
                 ],
                 "visible": [[true, 61]],
-                "width": [[1, 61]]
+                "width": [[1, 61]],
+                "arrowSize": [[1, 61]],
+                "labelWrapWidth": [[200, 61]],
+                "labelRotation": [[0, 61]],
+                "labelOpacity": [[1, 61]],
+                "targetArrowGap": [
+                    [null, 4],
+                    [0.25, 2],
+                    [null, 4],
+                    [0.25, 1],
+                    [null, 14],
+                    [0.25, 2],
+                    [null, 2],
+                    [0.25, 1],
+                    [null, 4],
+                    [0.25, 2],
+                    [null, 5],
+                    [0.25, 3],
+                    [null, 1],
+                    [0.25, 2],
+                    [null, 8],
+                    [0.25, 3],
+                    [null, 1],
+                    [0.25, 1],
+                    [null, 1]
+                ]
             },
             "background": "#ffffff"
         },
         "cx/ndex/parkinson-cytoscape-analysis.cx": {
             "node": {
                 "borderColor": [["#2b8cb3", 18]],
+                "borderOpacity": [[1, 18]],
                 "borderStyle": [["solid", 18]],
                 "borderWidth": [
                     [0.5, 2],
@@ -2579,15 +2848,10 @@
                     ["#191919", 1],
                     ["#000000", 8]
                 ],
-                "labelFont": [["sans-serif", 18]],
+                "labelFont": [["DejaVu Sans, sans-serif", 18]],
                 "labelItalic": [[false, 18]],
-                "labelPosition": [
-                    ["center", 2],
-                    ["bottom", 1],
-                    ["center", 1],
-                    ["bottom", 1],
-                    ["center", 13]
-                ],
+                "labelPosition": [["center", 18]],
+                "labelRotation": [[0, 18]],
                 "labelSize": [
                     [12, 2],
                     [10, 1],
@@ -2598,6 +2862,7 @@
                     [12, 8]
                 ],
                 "labelWeight": [["normal", 18]],
+                "labelWrapWidth": [[200, 18]],
                 "shape": [
                     ["ellipse", 2],
                     ["triangle", 1],
@@ -2616,6 +2881,28 @@
                     [60, 4],
                     [120, 1],
                     [60, 8]
+                ],
+                "labelOpacity": [[1, 18]],
+                "labelOffsetY": [
+                    [0, 2],
+                    [30, 1],
+                    [0, 1],
+                    [30, 1],
+                    [0, 13]
+                ],
+                "labelShiftX": [
+                    [0, 2],
+                    [0.5, 1],
+                    [0, 1],
+                    [0.5, 1],
+                    [0, 13]
+                ],
+                "labelShiftY": [
+                    [0, 2],
+                    [0.5, 1],
+                    [0, 1],
+                    [0.5, 1],
+                    [0, 13]
                 ]
             },
             "edge": {
@@ -2642,9 +2929,23 @@
                     ["#990066", 1],
                     ["#0099ff", 1]
                 ],
-                "curved": [[false, 35]],
+                "curved": [
+                    [false, 14],
+                    [true, 1],
+                    [false, 1],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1],
+                    [false, 3],
+                    [true, 1],
+                    [false, 3],
+                    [true, 2],
+                    [false, 2],
+                    [true, 3],
+                    [false, 1]
+                ],
                 "labelColor": [["#000000", 35]],
-                "labelFont": [["sans-serif", 35]],
+                "labelFont": [["DejaVu Sans, sans-serif", 35]],
                 "labelItalic": [[false, 35]],
                 "labelSize": [[10, 35]],
                 "labelWeight": [["normal", 35]],
@@ -2715,7 +3016,55 @@
                     ["#0099ff", 1]
                 ],
                 "visible": [[true, 35]],
-                "width": [[1, 35]]
+                "width": [[1, 35]],
+                "arrowSize": [[1, 35]],
+                "bends": [
+                    [null, 14],
+                    ["0.5,0.088549", 1],
+                    [null, 1],
+                    ["-3.025,0 0,5.1857", 1],
+                    ["0.5,-0.178871", 1],
+                    [null, 1],
+                    ["0.5,0.128926", 1],
+                    [null, 3],
+                    ["0.5,0.206336", 1],
+                    [null, 3],
+                    ["0.5,0.115056", 1],
+                    ["0.5,-0.178871", 1],
+                    [null, 2],
+                    ["-5.0417,0 0,8.6429", 1],
+                    ["-4.0333,0 0,6.9143", 1],
+                    ["-3.025,0 0,5.1857", 1],
+                    [null, 1]
+                ],
+                "labelWrapWidth": [[200, 35]],
+                "labelRotation": [[0, 35]],
+                "labelOpacity": [[1, 35]],
+                "labelPosition": [["center", 35]],
+                "targetArrowGap": [
+                    [null, 1],
+                    [0.25, 1],
+                    [null, 6],
+                    [0.25, 1],
+                    [null, 1],
+                    [0.25, 1],
+                    [null, 10],
+                    [0.25, 2],
+                    [null, 12]
+                ],
+                "bendCurve": [
+                    [null, 14],
+                    ["bezier", 1],
+                    [null, 2],
+                    ["bezier", 1],
+                    [null, 1],
+                    ["bezier", 1],
+                    [null, 3],
+                    ["bezier", 1],
+                    [null, 3],
+                    ["bezier", 2],
+                    [null, 6]
+                ]
             },
             "background": "#ffffff"
         },
@@ -2728,6 +3077,7 @@
                     ["#3030f0", 1],
                     ["#000000", 3]
                 ],
+                "borderOpacity": [[1, 47]],
                 "borderStyle": [["solid", 47]],
                 "borderWidth": [
                     [2, 2],
@@ -2840,11 +3190,13 @@
                     ]
                 ],
                 "labelColor": [["#000000", 47]],
-                "labelFont": [["sans-serif", 47]],
+                "labelFont": [["DejaVu Sans, sans-serif", 47]],
                 "labelItalic": [[false, 47]],
                 "labelPosition": [["center", 47]],
+                "labelRotation": [[0, 47]],
                 "labelSize": [[25, 47]],
                 "labelWeight": [["normal", 47]],
+                "labelWrapWidth": [[200, 47]],
                 "shape": [["round-rectangle", 47]],
                 "visible": [[true, 47]],
                 "width": [
@@ -2879,7 +3231,8 @@
                     [122.5, 1],
                     [105, 1],
                     [200, 4]
-                ]
+                ],
+                "labelOpacity": [[1, 47]]
             },
             "edge": {
                 "color": [
@@ -2896,7 +3249,7 @@
                 ],
                 "curved": [[false, 49]],
                 "labelColor": [["#000000", 49]],
-                "labelFont": [["sans-serif", 49]],
+                "labelFont": [["DejaVu Sans, sans-serif", 49]],
                 "labelItalic": [[false, 49]],
                 "labelSize": [[10, 49]],
                 "labelWeight": [["normal", 49]],
@@ -2918,20 +3271,35 @@
                     [3, 1],
                     [1, 19],
                     [3, 1]
-                ]
+                ],
+                "arrowSize": [[1, 49]],
+                "labelWrapWidth": [[200, 49]],
+                "labelRotation": [[0, 49]],
+                "labelOpacity": [[1, 49]],
+                "labelPosition": [["center", 49]]
             },
             "background": "#ffffff"
         },
         "cx/authored/bypass-name-collision.cx": {
             "node": {
-                "fill": [["#ff0000", 1]]
+                "fill": [["#ff0000", 1]],
+                "height": [[40, 1]],
+                "width": [[40, 1]]
             },
             "edge": {},
             "background": null
         },
         "cx/authored/old-aspect-names.cx": {
             "node": {
-                "shape": [["ellipse", 2]]
+                "height": [
+                    [35, 1],
+                    [null, 1]
+                ],
+                "shape": [["ellipse", 2]],
+                "width": [
+                    [35, 1],
+                    [null, 1]
+                ]
             },
             "edge": {},
             "background": null
@@ -2944,11 +3312,11 @@
                 ],
                 "height": [[35, 2]],
                 "labelFont": [
-                    ["sans-serif", 1],
+                    ["DejaVu Sans, sans-serif", 1],
                     [null, 1]
                 ],
                 "labelItalic": [
-                    [false, 1],
+                    [true, 1],
                     [null, 1]
                 ],
                 "labelWeight": [
@@ -2959,13 +3327,16 @@
                 "width": [[35, 2]]
             },
             "edge": {
-                "width": [[2, 1]]
+                "bends": [["0.25,-0.25", 1]],
+                "width": [[2, 1]],
+                "curved": [[true, 1]]
             },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/demo.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 6]],
+                "borderOpacity": [[1, 6]],
                 "borderStyle": [["solid", 6]],
                 "borderWidth": [[0, 6]],
                 "fill": [
@@ -2987,7 +3358,7 @@
                     ["COMP:737", 1]
                 ],
                 "labelColor": [["#000000", 6]],
-                "labelFont": [["sans-serif", 6]],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelPosition": [["center", 6]],
                 "labelSize": [
@@ -2998,11 +3369,26 @@
                     [8, 2]
                 ],
                 "labelWeight": [["normal", 6]],
+                "labelWrapWidth": [[200, 6]],
                 "shape": [["ellipse", 6]],
                 "visible": [[true, 6]],
                 "width": [
                     [35, 2],
                     [20, 4]
+                ],
+                "labelOpacity": [[1, 6]],
+                "labelOffsetX": [
+                    [0, 1],
+                    [0.25, 2],
+                    [0, 2],
+                    [-4.44, 1]
+                ],
+                "labelOffsetY": [
+                    [0, 1],
+                    [7.65, 1],
+                    [10.86, 1],
+                    [0, 2],
+                    [14.57, 1]
                 ]
             },
             "edge": {
@@ -3011,9 +3397,13 @@
                     ["#cccccc", 1],
                     ["#666666", 3]
                 ],
-                "curved": [[false, 6]],
+                "curved": [
+                    [false, 2],
+                    [true, 1],
+                    [false, 3]
+                ],
                 "labelColor": [["#000000", 6]],
-                "labelFont": [["sans-serif", 6]],
+                "labelFont": [["DejaVu Sans, sans-serif", 6]],
                 "labelItalic": [[false, 6]],
                 "labelSize": [[10, 6]],
                 "labelWeight": [["normal", 6]],
@@ -3028,13 +3418,22 @@
                 "targetArrow": [["none", 6]],
                 "targetArrowColor": [["#000000", 6]],
                 "visible": [[true, 6]],
-                "width": [[2, 6]]
+                "width": [[2, 6]],
+                "arrowSize": [[1, 6]],
+                "labelWrapWidth": [[200, 6]],
+                "labelOpacity": [[1, 6]],
+                "bends": [
+                    [null, 2],
+                    ["0.5974,-0.3648", 1],
+                    [null, 3]
+                ]
             },
             "background": "#ffffff"
         },
         "cx2/ndex2-client/glypican2.cx2": {
             "node": {
                 "borderColor": [["#ffffff", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[2.5, 2]],
                 "fill": [["#00cccc", 2]],
@@ -3045,21 +3444,23 @@
                     ["GPC2", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["Eras Medium ITC", 2]],
+                "labelFont": [["Eras Medium ITC, DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["ellipse", 2]],
                 "tooltip": [["Protein", 2]],
                 "visible": [[true, 2]],
-                "width": [[35, 2]]
+                "width": [[35, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "edge": {
                 "color": [["#999999", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -3071,13 +3472,16 @@
                 "targetArrowColor": [["#999999", 1]],
                 "tooltip": [["in complex with", 1]],
                 "visible": [[true, 1]],
-                "width": [[2, 1]]
+                "width": [[2, 1]],
+                "labelWrapWidth": [[200, 1]],
+                "labelOpacity": [[1, 1]]
             },
             "background": "#cccccc"
         },
         "cx2/ndex2-client/no_edge_style2.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 2]],
+                "borderOpacity": [[1, 2]],
                 "borderStyle": [["solid", 2]],
                 "borderWidth": [[0, 2]],
                 "fill": [["#89d0f5", 2]],
@@ -3088,20 +3492,23 @@
                     ["Node 1", 1]
                 ],
                 "labelColor": [["#000000", 2]],
-                "labelFont": [["sans-serif", 2]],
+                "labelFont": [["DejaVu Sans, sans-serif", 2]],
                 "labelItalic": [[false, 2]],
                 "labelPosition": [["center", 2]],
+                "labelRotation": [[0, 2]],
                 "labelSize": [[12, 2]],
                 "labelWeight": [["normal", 2]],
+                "labelWrapWidth": [[200, 2]],
                 "shape": [["round-rectangle", 2]],
                 "visible": [[true, 2]],
-                "width": [[75, 2]]
+                "width": [[75, 2]],
+                "labelOpacity": [[1, 2]]
             },
             "edge": {
                 "color": [["#848484", 1]],
                 "curved": [[false, 1]],
                 "labelColor": [["#000000", 1]],
-                "labelFont": [["sans-serif", 1]],
+                "labelFont": [["DejaVu Sans, sans-serif", 1]],
                 "labelItalic": [[false, 1]],
                 "labelSize": [[10, 1]],
                 "labelWeight": [["normal", 1]],
@@ -3112,7 +3519,11 @@
                 "targetArrow": [["none", 1]],
                 "targetArrowColor": [["#000000", 1]],
                 "visible": [[true, 1]],
-                "width": [[2, 1]]
+                "width": [[2, 1]],
+                "arrowSize": [[1, 1]],
+                "labelWrapWidth": [[200, 1]],
+                "labelRotation": [[0, 1]],
+                "labelOpacity": [[1, 1]]
             },
             "background": "#ffffff"
         },
@@ -3170,6 +3581,7 @@
         "cx2/cytoscape-web/svg-passthrough.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 330]],
+                "borderOpacity": [[1, 330]],
                 "borderStyle": [["solid", 330]],
                 "borderWidth": [[2, 330]],
                 "fill": [
@@ -4057,9 +4469,10 @@
                     ["GCN3", 1]
                 ],
                 "labelColor": [["#333333", 330]],
-                "labelFont": [["sans-serif", 330]],
+                "labelFont": [["DejaVu Sans, sans-serif", 330]],
                 "labelItalic": [[false, 330]],
                 "labelPosition": [["center", 330]],
+                "labelRotation": [[0, 330]],
                 "labelSize": [
                     [10, 1],
                     [12, 1],
@@ -4283,6 +4696,7 @@
                     [10, 1]
                 ],
                 "labelWeight": [["normal", 330]],
+                "labelWrapWidth": [[200, 330]],
                 "shape": [["ellipse", 330]],
                 "visible": [[true, 330]],
                 "width": [
@@ -4506,13 +4920,23 @@
                     [40, 1],
                     [52.9412, 1],
                     [40, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 330]]
             },
             "edge": {
                 "color": [["#999999", 359]],
-                "curved": [[false, 359]],
+                "curved": [
+                    [false, 116],
+                    [true, 1],
+                    [false, 242]
+                ],
+                "fanSpacing": [
+                    [null, 116],
+                    [52.353, 1],
+                    [null, 242]
+                ],
                 "labelColor": [["#000000", 359]],
-                "labelFont": [["sans-serif", 359]],
+                "labelFont": [["DejaVu Sans, sans-serif", 359]],
                 "labelItalic": [[false, 359]],
                 "labelSize": [[10, 359]],
                 "labelWeight": [["normal", 359]],
@@ -4523,7 +4947,12 @@
                 "targetArrow": [["none", 359]],
                 "targetArrowColor": [["#000000", 359]],
                 "visible": [[true, 359]],
-                "width": [[2, 359]]
+                "width": [[2, 359]],
+                "arrowSize": [[1, 359]],
+                "labelWrapWidth": [[200, 359]],
+                "labelRotation": [[0, 359]],
+                "labelOpacity": [[1, 359]],
+                "labelPosition": [["center", 359]]
             },
             "background": "#ffffff"
         },
@@ -4550,6 +4979,7 @@
                     ["#14961e", 1],
                     ["#000000", 1]
                 ],
+                "borderOpacity": [[1, 45]],
                 "borderStyle": [
                     ["solid", 14],
                     ["dashed", 5],
@@ -4657,25 +5087,26 @@
                     ["#000000", 1]
                 ],
                 "labelFont": [
-                    ["sans-serif", 4],
-                    ["Arial-BoldMT", 10],
-                    ["sans-serif", 5],
-                    ["ArialMT", 7],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 2],
-                    ["ArialMT", 2],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 3],
-                    ["Arial-BoldMT", 1],
-                    ["ArialMT", 1]
+                    ["DejaVu Sans, sans-serif", 4],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 10],
+                    ["DejaVu Sans, sans-serif", 5],
+                    ["ArialMT, DejaVu Sans, sans-serif", 7],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 2],
+                    ["ArialMT, DejaVu Sans, sans-serif", 2],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 3],
+                    ["Arial-BoldMT, DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1]
                 ],
                 "labelItalic": [[false, 45]],
                 "labelPosition": [["center", 45]],
                 "labelSize": [[12, 45]],
                 "labelWeight": [["normal", 45]],
+                "labelWrapWidth": [[200, 45]],
                 "shape": [
                     ["rectangle", 4],
                     ["ellipse", 10],
@@ -4715,13 +5146,23 @@
                     [90, 3],
                     [76.907, 1],
                     [90, 1]
-                ]
+                ],
+                "labelOpacity": [[1, 45]]
             },
             "edge": {
                 "color": [["#000000", 30]],
-                "curved": [[false, 30]],
+                "curved": [
+                    [false, 10],
+                    [true, 1],
+                    [false, 19]
+                ],
+                "fanSpacing": [
+                    [null, 10],
+                    [45, 1],
+                    [null, 19]
+                ],
                 "labelColor": [["#000000", 30]],
-                "labelFont": [["sans-serif", 30]],
+                "labelFont": [["DejaVu Sans, sans-serif", 30]],
                 "labelItalic": [[false, 30]],
                 "labelSize": [[10, 30]],
                 "labelWeight": [["normal", 30]],
@@ -4740,13 +5181,23 @@
                 "targetArrowColor": [["#000000", 30]],
                 "tooltip": [["Straight", 30]],
                 "visible": [[true, 30]],
-                "width": [[1, 30]]
+                "width": [[1, 30]],
+                "arrowSize": [[1, 30]],
+                "labelWrapWidth": [[200, 30]],
+                "labelOpacity": [[1, 30]],
+                "targetArrowGap": [
+                    [4, 1],
+                    [null, 16],
+                    [4, 1],
+                    [null, 12]
+                ]
             },
             "background": "#ffffff"
         },
         "cx2/cytoscape-web/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 70]],
+                "borderOpacity": [[1, 70]],
                 "borderStyle": [["solid", 70]],
                 "borderWidth": [[2, 70]],
                 "fill": [
@@ -4902,9 +5353,10 @@
                     ["Ribosome biogenesis community", 1]
                 ],
                 "labelColor": [["#000000", 70]],
-                "labelFont": [["sans-serif", 70]],
+                "labelFont": [["DejaVu Sans, sans-serif", 70]],
                 "labelItalic": [[false, 70]],
                 "labelPosition": [["center", 70]],
+                "labelRotation": [[0, 70]],
                 "labelSize": [
                     [11, 1],
                     [10, 1],
@@ -4935,6 +5387,7 @@
                     [11, 1]
                 ],
                 "labelWeight": [["normal", 70]],
+                "labelWrapWidth": [[200, 70]],
                 "shape": [["ellipse", 70]],
                 "visible": [[true, 70]],
                 "width": [
@@ -4978,13 +5431,145 @@
                     [50, 1],
                     [20, 1],
                     [50, 1]
+                ],
+                "labelOpacity": [[1, 70]],
+                "labelOffsetX": [
+                    [14.46, 1],
+                    [-30.11, 1],
+                    [0, 1],
+                    [4.76, 1],
+                    [7.94, 1],
+                    [0, 1],
+                    [1.06, 1],
+                    [0, 2],
+                    [15.48, 1],
+                    [0.81, 1],
+                    [1.29, 1],
+                    [-1.59, 1],
+                    [-20.53, 1],
+                    [1.11, 1],
+                    [6.48, 1],
+                    [8.36, 1],
+                    [7.03, 1],
+                    [-41.95, 1],
+                    [2.55, 1],
+                    [2.35, 1],
+                    [0.32, 1],
+                    [-9.11, 1],
+                    [60.26, 1],
+                    [5.02, 1],
+                    [49.55, 1],
+                    [9.27, 1],
+                    [15, 1],
+                    [0, 1],
+                    [-20.15, 1],
+                    [-3.06, 1],
+                    [21.11, 1],
+                    [-10.46, 1],
+                    [0, 1],
+                    [0.27, 1],
+                    [2.59, 1],
+                    [0, 1],
+                    [14.22, 1],
+                    [-0.9, 1],
+                    [6.03, 1],
+                    [-26.69, 1],
+                    [6.79, 1],
+                    [-13.43, 1],
+                    [11.08, 1],
+                    [73.82, 1],
+                    [0.8, 1],
+                    [-3.62, 1],
+                    [0, 1],
+                    [74.78, 1],
+                    [-0.81, 1],
+                    [-0.38, 1],
+                    [27.42, 1],
+                    [60.08, 1],
+                    [2, 1],
+                    [0, 1],
+                    [5.31, 1],
+                    [0, 3],
+                    [-1.58, 1],
+                    [0, 4],
+                    [3.75, 1],
+                    [0, 3],
+                    [11.98, 1],
+                    [0, 1]
+                ],
+                "labelOffsetY": [
+                    [17.95, 1],
+                    [-5.08, 1],
+                    [0, 1],
+                    [6.02, 1],
+                    [2.54, 1],
+                    [0, 1],
+                    [-2.41, 1],
+                    [0, 2],
+                    [-2.32, 1],
+                    [3.23, 1],
+                    [4.49, 1],
+                    [-0.1, 1],
+                    [2.87, 1],
+                    [-3.87, 1],
+                    [13.83, 1],
+                    [3.44, 1],
+                    [-5.11, 1],
+                    [-1.93, 1],
+                    [9.62, 1],
+                    [-3.53, 1],
+                    [5.48, 1],
+                    [2.68, 1],
+                    [13.5, 1],
+                    [-8, 1],
+                    [6.93, 1],
+                    [-8.83, 1],
+                    [5.62, 1],
+                    [0, 1],
+                    [-0.81, 1],
+                    [2.13, 1],
+                    [2.37, 1],
+                    [-2.81, 1],
+                    [0, 1],
+                    [-7.35, 1],
+                    [0, 2],
+                    [6.94, 1],
+                    [-0.72, 1],
+                    [-4.57, 1],
+                    [-1.38, 1],
+                    [-2.71, 1],
+                    [-2.62, 1],
+                    [-6.1, 1],
+                    [1.64, 1],
+                    [0.7, 1],
+                    [-4.34, 1],
+                    [0, 1],
+                    [-0.78, 1],
+                    [-0.81, 1],
+                    [0.81, 1],
+                    [3.52, 1],
+                    [8.94, 1],
+                    [-8.65, 1],
+                    [0, 1],
+                    [5.31, 1],
+                    [0, 3],
+                    [2.29, 1],
+                    [0, 4],
+                    [-11.78, 1],
+                    [0, 3],
+                    [8.56, 1],
+                    [0, 1]
                 ]
             },
             "edge": {
                 "color": [["#cccccc", 87]],
-                "curved": [[false, 87]],
+                "curved": [
+                    [false, 5],
+                    [true, 1],
+                    [false, 81]
+                ],
                 "labelColor": [["#000000", 87]],
-                "labelFont": [["sans-serif", 87]],
+                "labelFont": [["DejaVu Sans, sans-serif", 87]],
                 "labelItalic": [[false, 87]],
                 "labelSize": [[10, 87]],
                 "labelWeight": [["normal", 87]],
@@ -4995,13 +5580,24 @@
                 "targetArrow": [["triangle", 87]],
                 "targetArrowColor": [["#cccccc", 87]],
                 "visible": [[true, 87]],
-                "width": [[2, 87]]
+                "width": [[2, 87]],
+                "arrowSize": [[1, 87]],
+                "labelWrapWidth": [[200, 87]],
+                "labelRotation": [[0, 87]],
+                "labelOpacity": [[1, 87]],
+                "labelPosition": [["center", 87]],
+                "bends": [
+                    [null, 5],
+                    ["0.3864,0.2885", 1],
+                    [null, 81]
+                ]
             },
             "background": "#ffffff"
         },
         "cx2/cytoscape-web/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2": {
             "node": {
                 "borderColor": [["#cccccc", 4]],
+                "borderOpacity": [[1, 4]],
                 "borderStyle": [["solid", 4]],
                 "borderWidth": [[0, 4]],
                 "fill": [["#f0f0f0", 4]],
@@ -5014,14 +5610,20 @@
                     ["POLB", 1]
                 ],
                 "labelColor": [["#000000", 4]],
-                "labelFont": [["sans-serif", 4]],
+                "labelFont": [["DejaVu Sans, sans-serif", 4]],
                 "labelItalic": [[false, 4]],
                 "labelPosition": [["center", 4]],
+                "labelRotation": [[0, 4]],
                 "labelSize": [[20, 4]],
                 "labelWeight": [["normal", 4]],
+                "labelWrapWidth": [[200, 4]],
                 "shape": [["rectangle", 4]],
                 "visible": [[true, 4]],
-                "width": [[25, 4]]
+                "width": [[25, 4]],
+                "labelOpacity": [[1, 4]],
+                "labelBackground": [["#f0f0f0", 4]],
+                "labelBackgroundOpacity": [[1, 4]],
+                "labelCornerRadius": [[2.91, 4]]
             },
             "edge": {
                 "color": [
@@ -5037,7 +5639,7 @@
                 ],
                 "curved": [[false, 10]],
                 "labelColor": [["#000000", 10]],
-                "labelFont": [["sans-serif", 10]],
+                "labelFont": [["DejaVu Sans, sans-serif", 10]],
                 "labelItalic": [[false, 10]],
                 "labelSize": [[10, 10]],
                 "labelWeight": [["normal", 10]],
@@ -5048,7 +5650,12 @@
                 "targetArrow": [["none", 10]],
                 "targetArrowColor": [["#000000", 10]],
                 "visible": [[true, 10]],
-                "width": [[2, 10]]
+                "width": [[2, 10]],
+                "arrowSize": [[1, 10]],
+                "labelWrapWidth": [[200, 10]],
+                "labelRotation": [[0, 10]],
+                "labelOpacity": [[1, 10]],
+                "labelPosition": [["center", 10]]
             },
             "background": "#ffffff"
         },
@@ -5156,6 +5763,7 @@
                     ["#ff3300", 1],
                     ["#000000", 3]
                 ],
+                "borderOpacity": [[1, 161]],
                 "borderStyle": [
                     ["solid", 2],
                     ["dashed", 4],
@@ -5457,10 +6065,10 @@
                     ["#000000", 3]
                 ],
                 "labelFont": [
-                    ["sans-serif", 1],
-                    ["ArialMT", 1],
-                    ["sans-serif", 8],
-                    ["ArialMT", 151]
+                    ["DejaVu Sans, sans-serif", 1],
+                    ["ArialMT, DejaVu Sans, sans-serif", 1],
+                    ["DejaVu Sans, sans-serif", 8],
+                    ["ArialMT, DejaVu Sans, sans-serif", 151]
                 ],
                 "labelItalic": [[false, 161]],
                 "labelPosition": [["center", 161]],
@@ -5471,6 +6079,7 @@
                     [10, 151]
                 ],
                 "labelWeight": [["normal", 161]],
+                "labelWrapWidth": [[200, 161]],
                 "shape": [
                     ["rectangle", 1],
                     ["ellipse", 1],
@@ -5510,7 +6119,8 @@
                     [80, 49],
                     [65.3333, 1],
                     [80, 54]
-                ]
+                ],
+                "labelOpacity": [[1, 161]]
             },
             "edge": {
                 "color": [
@@ -5524,9 +6134,50 @@
                     ["#009999", 1],
                     ["#000000", 7]
                 ],
-                "curved": [[false, 118]],
+                "curved": [
+                    [true, 1],
+                    [false, 2],
+                    [true, 5],
+                    [false, 1],
+                    [true, 9],
+                    [false, 1],
+                    [true, 2],
+                    [false, 1],
+                    [true, 8],
+                    [false, 1],
+                    [true, 2],
+                    [false, 4],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 3],
+                    [true, 7],
+                    [false, 1],
+                    [true, 6],
+                    [false, 1],
+                    [true, 1],
+                    [false, 2],
+                    [true, 3],
+                    [false, 1],
+                    [true, 10],
+                    [false, 2],
+                    [true, 1],
+                    [false, 1],
+                    [true, 2],
+                    [false, 2],
+                    [true, 7],
+                    [false, 3],
+                    [true, 10],
+                    [false, 1],
+                    [true, 7],
+                    [false, 2],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1],
+                    [false, 1]
+                ],
                 "labelColor": [["#000000", 118]],
-                "labelFont": [["sans-serif", 118]],
+                "labelFont": [["DejaVu Sans, sans-serif", 118]],
                 "labelItalic": [[false, 118]],
                 "labelSize": [[10, 118]],
                 "labelWeight": [["normal", 118]],
@@ -5658,7 +6309,148 @@
                     ["Curved", 2]
                 ],
                 "visible": [[true, 118]],
-                "width": [[1, 118]]
+                "width": [[1, 118]],
+                "arrowSize": [[1, 118]],
+                "labelWrapWidth": [[200, 118]],
+                "labelOpacity": [[1, 118]],
+                "bends": [
+                    ["0.3462,0.0241 0.3462,0.0241 0.351,-0.0452 0.351,-0.0452", 1],
+                    [null, 2],
+                    ["0.2423,-0.0321 0.2423,-0.0321 0.3937,0.2369 0.3937,0.2369", 1],
+                    ["0.3541,-0.0879 0.3541,-0.0879 0.377,-0.0042 0.377,-0.0042", 1],
+                    ["0.2438,-0.0481 0.2438,-0.0481 0.2438,-0.0481 0.2438,-0.0481", 1],
+                    ["0.4599,-0.0146 0.4599,-0.0146 0.4599,-0.0146 0.4599,-0.0146", 1],
+                    ["0.3508,-0.3418 0.3508,-0.3418 0.8378,0.1581 0.8378,0.1581", 1],
+                    [null, 1],
+                    ["0.3329,-0.1236 0.3329,-0.1236 0.454,0.2027 0.454,0.2027", 1],
+                    ["0.1963,-0.0957 0.1963,-0.0957 0.2016,-0.0229 0.2016,-0.0229", 1],
+                    ["0.1257,-0.1532 0.1257,-0.1532 0.7234,0.3371 0.7234,0.3371", 1],
+                    ["0.2115,-0.32 0.2115,-0.32 0.9654,0.1784 0.9654,0.1784", 1],
+                    ["0.5322,-0.499 0.5322,-0.499", 1],
+                    ["0.5109,-0.1133 0.5109,-0.1133 0.6095,0.0312 0.6095,0.0312", 1],
+                    ["0.4014,0.2739 0.4014,0.2739 0.719,-0.1917 0.719,-0.1917", 1],
+                    ["0.241,0.2303 0.241,0.2303 0.8437,-0.0444 0.8437,-0.0444", 1],
+                    ["0.3312,-0.4706 0.3312,-0.4706", 1],
+                    [null, 1],
+                    ["0.1342,-0.0054 0.1342,-0.0054 0.1272,-0.1799 0.1272,-0.1799 0.9913,-0.2147 0.9913,-0.2147", 1],
+                    ["0.1571,-0.0344 0.1571,-0.0344 0.4389,0.3808 0.4389,0.3808", 1],
+                    [null, 1],
+                    ["0.6957,0 0.6957,0 0.6957,0 0.6957,0", 1],
+                    ["0.5504,-0.0266 0.5504,-0.0266 0.5528,0.0216 0.5528,0.0216", 1],
+                    ["0.33,0.3541 0.33,0.3541", 1],
+                    ["0.2566,-0.2307 0.2566,-0.2307 0.8456,0.0596 0.8456,0.0596", 1],
+                    ["0.6199,0.4854 0.6199,0.4854", 1],
+                    ["-0.0313,0.2041 -0.0313,0.2041 0.9922,-0.0336 0.9922,-0.0336", 1],
+                    ["0.4538,0.219 0.4538,0.219 0.6426,-0.1724 0.6426,-0.1724", 1],
+                    ["0.1984,-0.1291 0.1984,-0.1291 0.7231,0.2405 0.7231,0.2405", 1],
+                    [null, 1],
+                    ["0.6193,0.4379 0.6193,0.4379", 1],
+                    ["0.2244,-0.3547 0.2244,-0.3547", 1],
+                    [null, 4],
+                    ["0.2604,0 0.2604,0 0.2604,0 0.2604,0", 1],
+                    [null, 1],
+                    ["0.1949,-0.2949 0.1949,-0.2949 0.7729,0.0872 0.7729,0.0872", 1],
+                    [null, 3],
+                    ["0.6551,0.0431 0.6551,0.0431 0.6594,-0.0224 0.6594,-0.0224", 1],
+                    ["0.2451,0.2009 0.2451,0.2009 0.647,-0.2893 0.647,-0.2893", 1],
+                    ["0.9609,-0.1939 0.9609,-0.1939", 1],
+                    ["0.8197,-0.2664 0.8197,-0.2664 0.8197,-0.2664 0.8197,-0.2664", 1],
+                    ["0.4282,0.3315 0.4282,0.3315 0.599,0.1109 0.599,0.1109", 1],
+                    ["0.0136,-0.1157 0.0136,-0.1157", 1],
+                    ["0.5647,-0.0053 0.5647,-0.0053 0.5647,-0.0041 0.5647,-0.0041", 1],
+                    [null, 1],
+                    ["0.1016,0.1416 0.1016,0.1416 0.9186,-0.0599 0.9186,-0.0599", 1],
+                    ["0.5445,-0.3777 0.5445,-0.3777 0.8693,0.0906 0.8693,0.0906", 1],
+                    ["0.3425,0.1284 0.3425,0.1284 0.4144,-0.0634 0.4144,-0.0634", 1],
+                    ["0.5699,-0.4215 0.5699,-0.4215", 1],
+                    ["0.3744,0.1421 0.3744,0.1421 0.8324,-0.3561 0.8324,-0.3561", 1],
+                    ["0.4529,0.071 0.4529,0.071 0.6268,-0.2217 0.6268,-0.2217", 1],
+                    [null, 1],
+                    ["0.853,-0.3039 0.853,-0.3039", 1],
+                    [null, 2],
+                    ["0.2483,-0.2207 0.2483,-0.2207", 1],
+                    ["0.7177,-0.277 0.7177,-0.277", 1],
+                    ["1.4262,0.2517 1.4262,0.2517 1.4564,0.0805 1.4564,0.0805", 1],
+                    [null, 1],
+                    ["0.7421,-0.0554 0.7421,-0.0554 0.7477,0.0188 0.7477,0.0188", 1],
+                    ["0.7829,0.3047 0.7829,0.3047", 1],
+                    ["0.1657,-0.0388 0.1657,-0.0388 0.2178,0.1833 0.2178,0.1833", 1],
+                    ["0.2702,-0.2648 0.2702,-0.2648 0.7602,0.2351 0.7602,0.2351", 1],
+                    ["0.3838,0.3589 0.3838,0.3589 0.8503,-0.14 0.8503,-0.14", 1],
+                    ["0.3476,0.0852 0.3476,0.0852 0.3485,0.0918 0.3485,0.0918", 1],
+                    ["0.6299,0 0.6299,0 0.6299,0 0.6299,0", 1],
+                    ["0.3379,-0.69 0.3379,-0.69 1.1702,0.2308 1.1702,0.2308", 1],
+                    ["0.4132,0 0.4132,0 0.4132,0 0.4132,0", 1],
+                    ["0.8138,0.1655 0.8138,0.1655 0.8535,-0.0298 0.8535,-0.0298", 1],
+                    [null, 2],
+                    ["0.1596,0.2419 0.1596,0.2419 0.7596,-0.1539 0.7596,-0.1539", 1],
+                    [null, 1],
+                    ["0.1565,0.0178 0.1565,0.0178 0.3257,-0.2965 0.3257,-0.2965", 1],
+                    ["0.4904,-0.3014 0.4904,-0.3014 0.7646,0.1447 0.7646,0.1447", 1],
+                    [null, 2],
+                    ["0.5383,0.4778 0.5383,0.4778", 1],
+                    ["0.1834,-0.0261 0.1834,-0.0261 0.3978,0.3465 0.3978,0.3465", 1],
+                    ["0.1309,-0.2887 0.1309,-0.2887", 1],
+                    ["0.9116,-0.1455 0.9116,-0.1455", 1],
+                    ["0.3154,0.1602 0.3154,0.1602 0.5205,-0.2435 0.5205,-0.2435", 1],
+                    ["0.2772,0.0612 0.2772,0.0612 0.2257,0.2941 0.2257,0.2941 0.902,0.4435 0.902,0.4435", 1],
+                    ["0.0335,-0.1523 0.0335,-0.1523", 1],
+                    [null, 3],
+                    ["0.0798,0.0088 0.0798,0.0088 0.1352,0.2087 0.1352,0.2087", 1],
+                    ["0.1802,-0.0078 0.1802,-0.0078 0.1852,0.1075 0.1852,0.1075", 1],
+                    ["0.0729,0.1017 0.0729,0.1017 0.9254,-0.1084 0.9254,-0.1084", 1],
+                    ["0.3994,0.4652 0.3994,0.4652 0.975,-0.0291 0.975,-0.0291", 1],
+                    ["0.1358,0.1354 0.1358,0.1354 0.8488,-0.1714 0.8488,-0.1714", 1],
+                    ["0.8329,-0.3483 0.8329,-0.3483", 1],
+                    ["0.1086,0.0216 0.1086,0.0216 0.1271,0.1207 0.1271,0.1207", 1],
+                    ["0.0756,0.0317 0.0756,0.0317 0.0764,-0.0155 0.0764,-0.0155", 1],
+                    ["0.0739,0.031 0.0739,0.031 0.5238,-0.4265 0.5238,-0.4265", 1],
+                    ["0.4363,0.2042 0.4363,0.2042 0.616,-0.1797 0.616,-0.1797", 1],
+                    [null, 1],
+                    ["0.1443,0.5522 0.1443,0.5522 1.0804,0.3077 1.0804,0.3077", 1],
+                    ["0.961,-0.4379 0.961,-0.4379", 1],
+                    ["0.6489,-0.3205 0.6489,-0.3205 0.7494,-0.1172 0.7494,-0.1172", 1],
+                    ["0.3912,-0.0309 0.3912,-0.0309 0.4508,0.1175 0.4508,0.1175", 1],
+                    ["0.127,-0.0174 0.127,-0.0174 0.1407,0.0823 0.1407,0.0823", 1],
+                    ["0.2982,-0.0189 0.2982,-0.0189 0.3705,-0.223 0.3705,-0.223", 1],
+                    ["0.1997,0.23 0.1997,0.23 0.7059,-0.2096 0.7059,-0.2096", 1],
+                    [null, 2],
+                    ["0.4381,-0.0412 0.4381,-0.0412 0.4469,0.052 0.4469,0.052", 1],
+                    ["0.6574,-0.2246 0.6574,-0.2246 0.6595,-0.7724 0.6595,-0.7724 1.0029,-0.7711 1.0029,-0.7711", 1],
+                    [null, 1],
+                    ["0.4373,0.4961 0.4373,0.4961", 1],
+                    [null, 1]
+                ],
+                "sourceArrowGap": [
+                    [null, 48],
+                    [4, 1],
+                    [null, 69]
+                ],
+                "targetArrowGap": [
+                    [null, 15],
+                    [4, 1],
+                    [null, 4],
+                    [4, 1],
+                    [null, 7],
+                    [4, 1],
+                    [null, 20],
+                    [4, 1],
+                    [null, 1],
+                    [4, 2],
+                    [null, 28],
+                    [4, 1],
+                    [null, 12],
+                    [4, 1],
+                    [null, 7],
+                    [4, 5],
+                    [null, 1],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 2],
+                    [4, 1],
+                    [null, 2]
+                ]
             },
             "background": "#ffffff"
         },
@@ -5702,6 +6494,7 @@
                     ["#0000ff", 1],
                     ["#000000", 5]
                 ],
+                "borderOpacity": [[1, 267]],
                 "borderStyle": [["solid", 267]],
                 "borderWidth": [
                     [1, 31],
@@ -6021,14 +6814,17 @@
                     ["#0000ff", 1],
                     ["#000000", 5]
                 ],
-                "labelFont": [["sans-serif", 267]],
+                "labelFont": [["DejaVu Sans, sans-serif", 267]],
                 "labelItalic": [[false, 267]],
                 "labelPosition": [["center", 267]],
+                "labelRotation": [[0, 267]],
                 "labelSize": [[12, 267]],
                 "labelWeight": [["normal", 267]],
+                "labelWrapWidth": [[200, 267]],
                 "shape": [["ellipse", 267]],
                 "visible": [[true, 267]],
-                "width": [[50, 267]]
+                "width": [[50, 267]],
+                "labelOpacity": [[1, 267]]
             },
             "edge": {
                 "color": [
@@ -6173,9 +6969,18 @@
                     ["#cccccc", 1],
                     ["#000000", 1]
                 ],
-                "curved": [[false, 319]],
+                "curved": [
+                    [false, 97],
+                    [true, 1],
+                    [false, 221]
+                ],
+                "fanSpacing": [
+                    [null, 97],
+                    [25, 1],
+                    [null, 221]
+                ],
                 "labelColor": [["#000000", 319]],
-                "labelFont": [["sans-serif", 319]],
+                "labelFont": [["DejaVu Sans, sans-serif", 319]],
                 "labelItalic": [[false, 319]],
                 "labelSize": [[10, 319]],
                 "labelWeight": [["normal", 319]],
@@ -6907,6 +7712,81 @@
                     [1.00962, 1],
                     [2, 1],
                     [1.00986, 1]
+                ],
+                "arrowSize": [[1, 319]],
+                "labelWrapWidth": [[200, 319]],
+                "labelRotation": [[0, 319]],
+                "labelOpacity": [[1, 319]],
+                "targetArrowGap": [
+                    [null, 1],
+                    [4, 1],
+                    [null, 5],
+                    [4, 1],
+                    [null, 2],
+                    [4, 1],
+                    [null, 1],
+                    [4, 1],
+                    [null, 8],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 22],
+                    [4, 1],
+                    [null, 4],
+                    [4, 5],
+                    [null, 21],
+                    [4, 1],
+                    [null, 1],
+                    [4, 4],
+                    [null, 2],
+                    [4, 1],
+                    [null, 4],
+                    [4, 1],
+                    [null, 4],
+                    [4, 1],
+                    [null, 10],
+                    [4, 2],
+                    [null, 6],
+                    [4, 1],
+                    [null, 10],
+                    [4, 2],
+                    [null, 2],
+                    [4, 3],
+                    [null, 8],
+                    [4, 2],
+                    [null, 3],
+                    [4, 1],
+                    [null, 6],
+                    [4, 1],
+                    [null, 31],
+                    [4, 1],
+                    [null, 18],
+                    [4, 1],
+                    [null, 18],
+                    [4, 2],
+                    [null, 8],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 12],
+                    [4, 2],
+                    [null, 5],
+                    [4, 2],
+                    [null, 8],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 7],
+                    [4, 2],
+                    [null, 5],
+                    [4, 1],
+                    [null, 13],
+                    [4, 1],
+                    [null, 10],
+                    [4, 1],
+                    [null, 2]
                 ]
             },
             "background": "#ffffff"
@@ -6914,11 +7794,22 @@
         "cx2/ndex/c370fda6-c69c-11e8-aaa6-0ac135e8bacf.cx2": {
             "node": {
                 "borderColor": [["#999999", 75]],
+                "borderOpacity": [[1, 75]],
                 "borderStyle": [["solid", 75]],
                 "borderWidth": [[8, 75]],
                 "fill": [["#ffffff", 75]],
                 "fillOpacity": [[1, 75]],
-                "height": [[40, 75]],
+                "height": [
+                    [40, 5],
+                    [35.712812921102035, 1],
+                    [40, 2],
+                    [35.712812921102035, 1],
+                    [40, 4],
+                    [35.712812921102035, 1],
+                    [40, 17],
+                    [35.712812921102035, 1],
+                    [40, 43]
+                ],
                 "label": [
                     ["AKT1", 1],
                     ["RAD51", 1],
@@ -6997,11 +7888,12 @@
                     ["SH", 1]
                 ],
                 "labelColor": [["#000000", 75]],
-                "labelFont": [["sans-serif", 75]],
+                "labelFont": [["DejaVu Sans, sans-serif", 75]],
                 "labelItalic": [[false, 75]],
                 "labelPosition": [["center", 75]],
                 "labelSize": [[28, 75]],
                 "labelWeight": [["normal", 75]],
+                "labelWrapWidth": [[200, 75]],
                 "shape": [
                     ["round-rectangle", 5],
                     ["hexagon", 1],
@@ -7030,7 +7922,8 @@
                     ["round-rectangle", 9]
                 ],
                 "visible": [[true, 75]],
-                "width": [[145, 75]]
+                "width": [[145, 75]],
+                "labelOpacity": [[1, 75]]
             },
             "edge": {
                 "color": [
@@ -7101,9 +7994,84 @@
                     ["#cc0033", 1],
                     ["#009900", 1]
                 ],
-                "curved": [[false, 117]],
+                "curved": [
+                    [false, 8],
+                    [true, 2],
+                    [false, 2],
+                    [true, 1],
+                    [false, 3],
+                    [true, 2],
+                    [false, 18],
+                    [true, 2],
+                    [false, 3],
+                    [true, 1],
+                    [false, 2],
+                    [true, 1],
+                    [false, 5],
+                    [true, 2],
+                    [false, 5],
+                    [true, 2],
+                    [false, 5],
+                    [true, 3],
+                    [false, 5],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 8],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 7],
+                    [true, 2],
+                    [false, 1],
+                    [true, 1],
+                    [false, 8],
+                    [true, 2],
+                    [false, 6],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 1]
+                ],
+                "fanSpacing": [
+                    [null, 8],
+                    [72.5, 2],
+                    [null, 2],
+                    [72.5, 1],
+                    [null, 3],
+                    [72.5, 2],
+                    [null, 18],
+                    [72.5, 2],
+                    [null, 3],
+                    [72.5, 1],
+                    [null, 2],
+                    [72.5, 1],
+                    [null, 5],
+                    [72.5, 2],
+                    [null, 5],
+                    [72.5, 2],
+                    [null, 5],
+                    [72.5, 3],
+                    [null, 5],
+                    [72.5, 1],
+                    [null, 1],
+                    [72.5, 1],
+                    [null, 10],
+                    [72.5, 1],
+                    [null, 7],
+                    [72.5, 2],
+                    [null, 1],
+                    [72.5, 1],
+                    [null, 8],
+                    [72.5, 2],
+                    [null, 6],
+                    [72.5, 1],
+                    [null, 1],
+                    [72.5, 1],
+                    [null, 1]
+                ],
                 "labelColor": [["#000000", 117]],
-                "labelFont": [["sans-serif", 117]],
+                "labelFont": [["DejaVu Sans, sans-serif", 117]],
                 "labelItalic": [[false, 117]],
                 "labelSize": [[10, 117]],
                 "labelWeight": [["normal", 117]],
@@ -7433,6 +8401,49 @@
                     [1, 3],
                     [3, 1],
                     [1, 1]
+                ],
+                "arrowSize": [[1, 117]],
+                "bends": [
+                    [null, 83],
+                    ["-3.1655,0 0,11.475", 1],
+                    [null, 33]
+                ],
+                "labelWrapWidth": [[200, 117]],
+                "labelOpacity": [[1, 117]],
+                "targetArrowGap": [
+                    [null, 2],
+                    [4, 1],
+                    [null, 4],
+                    [4, 1],
+                    [null, 10],
+                    [4, 3],
+                    [null, 4],
+                    [4, 1],
+                    [null, 4],
+                    [4, 2],
+                    [null, 2],
+                    [4, 2],
+                    [null, 6],
+                    [4, 1],
+                    [null, 1],
+                    [4, 1],
+                    [null, 1],
+                    [4, 1],
+                    [null, 3],
+                    [4, 1],
+                    [null, 2],
+                    [4, 1],
+                    [null, 2],
+                    [4, 1],
+                    [null, 7],
+                    [4, 2],
+                    [null, 28],
+                    [4, 3],
+                    [null, 11],
+                    [4, 2],
+                    [null, 5],
+                    [4, 1],
+                    [null, 1]
                 ]
             },
             "background": "#ffffff"
@@ -7440,6 +8451,7 @@
         "cx2/ndex/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf.cx2": {
             "node": {
                 "borderColor": [["#000000", 16]],
+                "borderOpacity": [[1, 16]],
                 "borderStyle": [["solid", 16]],
                 "borderWidth": [[2, 16]],
                 "fill": [["#33ffff", 16]],
@@ -7464,14 +8476,16 @@
                     ["Grhl2", 1]
                 ],
                 "labelColor": [["#000000", 16]],
-                "labelFont": [["sans-serif", 16]],
+                "labelFont": [["DejaVu Sans, sans-serif", 16]],
                 "labelItalic": [[false, 16]],
                 "labelPosition": [["center", 16]],
                 "labelSize": [[12, 16]],
                 "labelWeight": [["normal", 16]],
+                "labelWrapWidth": [[200, 16]],
                 "shape": [["ellipse", 16]],
                 "visible": [[true, 16]],
-                "width": [[60, 16]]
+                "width": [[60, 16]],
+                "labelOpacity": [[1, 16]]
             },
             "edge": {
                 "color": [
@@ -7494,9 +8508,40 @@
                     ["#990000", 1],
                     ["#009900", 2]
                 ],
-                "curved": [[false, 59]],
+                "curved": [
+                    [true, 1],
+                    [false, 4],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 3],
+                    [true, 1],
+                    [false, 4],
+                    [true, 1],
+                    [false, 7],
+                    [true, 1],
+                    [false, 1],
+                    [true, 1],
+                    [false, 16],
+                    [true, 1],
+                    [false, 7],
+                    [true, 1],
+                    [false, 7]
+                ],
+                "fanSpacing": [
+                    [30, 1],
+                    [null, 4],
+                    [30, 1],
+                    [null, 5],
+                    [30, 1],
+                    [null, 4],
+                    [30, 1],
+                    [null, 9],
+                    [30, 1],
+                    [null, 32]
+                ],
                 "labelColor": [["#000000", 59]],
-                "labelFont": [["sans-serif", 59]],
+                "labelFont": [["DejaVu Sans, sans-serif", 59]],
                 "labelItalic": [[false, 59]],
                 "labelSize": [[10, 59]],
                 "labelWeight": [["normal", 59]],
@@ -7564,7 +8609,40 @@
                     ["#009900", 2]
                 ],
                 "visible": [[true, 59]],
-                "width": [[2, 59]]
+                "width": [[2, 59]],
+                "bends": [
+                    [null, 7],
+                    ["-3.1,0 0,4.65", 1],
+                    [null, 16],
+                    ["-3.1,0 0,4.65", 1],
+                    [null, 18],
+                    ["-3.1,0 0,4.65", 1],
+                    [null, 7],
+                    ["-3.1,0 0,4.65", 1],
+                    [null, 7]
+                ],
+                "labelWrapWidth": [[200, 59]],
+                "labelOpacity": [[1, 59]],
+                "targetArrowGap": [
+                    [4, 1],
+                    [null, 26],
+                    [4, 1],
+                    [null, 3],
+                    [4, 2],
+                    [null, 4],
+                    [4, 4],
+                    [null, 2],
+                    [4, 2],
+                    [null, 1],
+                    [4, 2],
+                    [null, 2],
+                    [4, 1],
+                    [null, 1],
+                    [4, 2],
+                    [null, 2],
+                    [4, 1],
+                    [null, 2]
+                ]
             },
             "background": "#ffffff"
         },
@@ -7584,7 +8662,7 @@
                 ],
                 "labelFont": [
                     [null, 1],
-                    ["serif", 1]
+                    ["DejaVu Serif, serif", 1]
                 ],
                 "labelItalic": [
                     [null, 1],

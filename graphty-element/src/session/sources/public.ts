@@ -1,0 +1,72 @@
+/**
+ * @file The network-source surface the element publishes from `.`, `./extend` and `./session`:
+ * graph-io's source contract (so a consumer never installs graph-io to write a source) and the
+ * element's own load, expand and record types. Experimental.
+ */
+
+export { SOURCE_ATTR, SOURCE_EVENT_DOM_NAMES, SOURCE_RECORD_MEMBER, SOURCE_RECORD_VERSION } from "./ids";
+export type {
+    CollapseResult,
+    ExpandBehavior,
+    ExpandOptions,
+    PendingSourceLoad,
+    SourceCredentialIdentity,
+    SourceExpanded,
+    SourceExpandFailed,
+    SourceExpandStart,
+    SourceExpansionRecord,
+    SourceInput,
+    SourceLoadOptions,
+    SourceLoadRecord,
+} from "./types";
+export type {
+    AwsCredentials,
+    Credential,
+    CredentialKind,
+    ExpandRequest,
+    GraphSource,
+    LazySource,
+    LoadFromSourceOptions,
+    QueryLanguage,
+    RecordBatch,
+    Recording,
+    ReplayFetch,
+    ReplayOptions,
+    RetryOptions,
+    SourceContext,
+    SourceCursor,
+    SourceDescriptor,
+    EdgeRecord as SourceEdgeRecord,
+    SourceFeature,
+    SourceFile,
+    SourceFinish,
+    SourceFreshness,
+    SourceInfo,
+    SourceIssueCode,
+    SourceIssueParams,
+    SourceKind,
+    SourceLimitOptions,
+    SourceLimits,
+    SourceListing,
+    SourceListItem,
+    SourceListQuery,
+    NodeRecord as SourceNodeRecord,
+    SourceParamDescriptor,
+    SourceParamType,
+    SourceProbe,
+    SourceReportInfo,
+    SourceRequestInit,
+    SourceRuntime,
+    SourceRuntimeReason,
+    SourceSample,
+    SourceValidators,
+} from "@graphty/graph-io";
+export {
+    credentials,
+    defineSource,
+    listSources,
+    recordingFrom,
+    registerSource,
+    replayFetch,
+    SOURCE_ISSUE,
+} from "@graphty/graph-io";

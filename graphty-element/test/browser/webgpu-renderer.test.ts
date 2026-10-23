@@ -211,7 +211,7 @@ function shaderFailures(graph: Graph): string[] {
 describe("the renderer a graph is drawn with", () => {
     it("is WebGL unless something else is asked for", async () => {
         const graph = await open();
-        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null });
+        assert.deepEqual(graph.rendererStatus, { requested: "webgl", active: "webgl", reason: null, drawing: true });
         assert.notInstanceOf(graph.engine, WebGPUEngine);
     });
 
@@ -383,7 +383,12 @@ describe.skipIf(!GPU_LANE)(`the WebGPU renderer on a real adapter (${ADAPTER})`,
     it("opens a WebGPU engine when asked, and under auto", async () => {
         for (const renderer of ["webgpu", "auto"] as const) {
             const graph = await open(renderer);
-            assert.deepEqual(graph.rendererStatus, { requested: renderer, active: "webgpu", reason: null });
+            assert.deepEqual(graph.rendererStatus, {
+                requested: renderer,
+                active: "webgpu",
+                reason: null,
+                drawing: true,
+            });
             assert.instanceOf(graph.engine, WebGPUEngine);
             assert.strictEqual(graph.canvas.isConnected, true, "the WebGPU canvas is the one in the page");
         }

@@ -13,14 +13,14 @@
 # conda-graphviz/ (Graphviz 14.1.2 CLI), npm-graphviz/ (@hpcc-js/wasm-graphviz 1.29.2), sigma/
 # (graphology-gexf, sigma), py/ (networkx 3.7), drawio/ (draw.io 32.4.1 source). Cytoscape desktop
 # must already run under servherd with CyREST on $CYREST_PORT. Browser steps run under
-# $WITH_BROWSER (default <main checkout>/tmp/with-browser.sh), the machine's
+# $WITH_BROWSER (default tools/with-browser.sh of this checkout), the machine's
 # shared browser slots.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
 TOOLS=${STYLE_FIDELITY_TOOLS:-$main/tmp/style-fidelity/tools}
-WITH_BROWSER=${WITH_BROWSER:-$main/tmp/with-browser.sh}
+WITH_BROWSER=${WITH_BROWSER:-$(git -C "$here" rev-parse --show-toplevel)/tools/with-browser.sh}
 C=$here/../corpus/styles
 R=$here/references
 mode=${1:-all}

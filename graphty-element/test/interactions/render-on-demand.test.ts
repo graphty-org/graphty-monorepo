@@ -15,8 +15,8 @@
 
 import "../../src/graphty-element";
 
-import { MeshBuilder } from "@babylonjs/core";
-import { afterEach, assert, describe, it } from "vitest";
+import { CreateScreenshotAsync, MeshBuilder } from "@babylonjs/core";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
@@ -353,6 +353,34 @@ describe("renderOnDemand", () => {
         const shot = await element.captureScreenshot({ multiplier: 1 });
 
         assert.isAbove(shot.blob.size, 0, "the screenshot holds an image");
+        await restsOnTheCurrentPicture(element);
+    });
+
+    it("takes a see-through screenshot of a resting graph, at the size and quality asked for", async () => {
+        const element = await mounted(true, "2d");
+        await untilResting(element);
+        // The real canvas read, not test/setup.ts's stand-in picture.
+        const babylon = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
+        vi.mocked(CreateScreenshotAsync).mockImplementationOnce(babylon.CreateScreenshotAsync);
+
+        const shot = await element.captureScreenshot({
+            format: "webp",
+            quality: 0.5,
+            width: 320,
+            height: 240,
+            transparentBackground: true,
+        });
+
+        // Quality is the encoder's: it does not shrink the picture.
+        const picture = await createImageBitmap(shot.blob);
+        assert.strictEqual(picture.width, 320);
+        assert.strictEqual(picture.height, 240);
+        // The resting graph drew a frame with the background cleared, rather than handing back its
+        // last frame with the background in it.
+        const corner = new OffscreenCanvas(1, 1).getContext("2d");
+        assert.isNotNull(corner);
+        corner.drawImage(picture, 0, 0);
+        assert.strictEqual(corner.getImageData(0, 0, 1, 1).data[3], 0, "the corner is see-through");
         await restsOnTheCurrentPicture(element);
     });
 

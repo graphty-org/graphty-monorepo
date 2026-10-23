@@ -1,4 +1,4 @@
-import { ActionIcon, Box } from "@mantine/core";
+import { ActionIcon, Box, Tooltip } from "@mantine/core";
 import React, { forwardRef } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
@@ -314,23 +314,26 @@ export const ResetButton = forwardRef<HTMLButtonElement, ResetButtonProps>(
         const labels = useLabels();
         const name = labels.resetToDefault(label);
 
+        // An icon-only button says what it does on hover, not only to a screen reader, with the
+        // same tooltip as the color field's reset (a native title is no tooltip a reader can rely on).
         return (
-            <ActionIcon
-                {...rest}
-                ref={ref}
-                type="button"
-                variant="subtle"
-                size={PANEL_GRID.TRAIL}
-                c={PANEL_INK.CHROME}
-                title={name}
-                aria-label={name}
-                disabled={disabled}
-                data-testid="reset-button"
-                onClick={onClick}
-                style={{ flex: "0 0 auto", ...style }}
-            >
-                <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
-            </ActionIcon>
+            <Tooltip label={name}>
+                <ActionIcon
+                    {...rest}
+                    ref={ref}
+                    type="button"
+                    variant="subtle"
+                    size={PANEL_GRID.TRAIL}
+                    c={PANEL_INK.CHROME}
+                    aria-label={name}
+                    disabled={disabled}
+                    data-testid="reset-button"
+                    onClick={onClick}
+                    style={{ flex: "0 0 auto", ...style }}
+                >
+                    <UiGlyph name="reset" size={PANEL_GRID.CHEVRON} />
+                </ActionIcon>
+            </Tooltip>
         );
     },
 );

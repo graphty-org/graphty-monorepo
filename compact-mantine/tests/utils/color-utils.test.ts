@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    colorWord,
     isLightColor,
     isValidHex,
     MAX_ALPHA_HEX,
@@ -179,5 +180,36 @@ describe("mixHex", () => {
         expect(mixHex("#000000", "#FFFFFF", 0.5)).toBe("#808080");
         expect(mixHex("#FF0000", "#0000FF", 0)).toBe("#FF0000");
         expect(mixHex("#FF0000", "#0000FF", 1)).toBe("#0000FF");
+    });
+});
+
+describe("colorWord", () => {
+    it("says the CSS keyword, in words, for a color that is exactly one", () => {
+        expect(colorWord("#800080")).toBe("purple");
+        expect(colorWord("0000FF")).toBe("blue");
+        expect(colorWord("#006400")).toBe("dark green");
+        expect(colorWord("#663399FF")).toBe("rebecca purple");
+        expect(colorWord("#00FFFF")).toBe("cyan");
+        expect(colorWord("#808080")).toBe("gray");
+    });
+
+    it("gives indigo, violet and purple words of their own, so a blue-violet is not blue", () => {
+        expect(colorWord("#6366F1")).toBe("indigo");
+        expect(colorWord("#7C3AED")).toBe("violet");
+        expect(colorWord("#9B59B6")).toBe("purple");
+        expect(colorWord("#810081")).toBe("dark purple");
+    });
+
+    it("calls a bluish green green, and keeps teal for blue-greens and blues for blues", () => {
+        // The categorical palette's green (Okabe-Ito), as the key draws it beside "agency".
+        expect(colorWord("#009E73")).toBe("green");
+        expect(colorWord("#14B8A6")).toBe("teal");
+        expect(colorWord("#3B82F6")).toBe("blue");
+        expect(colorWord("#56B4E9")).toBe("blue");
+        expect(colorWord("#E69F00")).toBe("orange");
+    });
+
+    it("says nothing for text that is not a hex color", () => {
+        expect(colorWord("purple")).toBe("");
     });
 });

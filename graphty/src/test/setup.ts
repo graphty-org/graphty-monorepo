@@ -3,12 +3,39 @@ import "@testing-library/jest-dom";
 import "@mantine/core/styles.css";
 
 import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, beforeAll, vi } from "vitest";
+
+import { loadFrame } from "../workspace/frameLoader";
+
+// The app defines <graphty-element> on demand (elementLoader.ts). Here it never loads it: a test
+// that wants the real element imports "@graphty/graphty-element" itself (the real-element
+// project), and every other test keeps the tag an empty box.
+vi.mock("../elementLoader", () => ({ loadGraphtyElement: () => Promise.resolve() }));
+
+// The project frame loads on demand in the app (workspace/frameLoader.ts); a test has it from the
+// start, so a project it opens shows at once. Loaded before the file's tests and after its imports,
+// so the file's own module mocks (Sentry's, most of all) are the ones the frame gets.
+// A file that mocks a module the frame needs, and never opens a project, cannot load it, and does
+// not need it.
+beforeAll(async () => {
+    await loadFrame().catch(() => undefined);
+});
 
 // Strict state: every graphty-element these tests create checks that its project state changes
 // only through the element's dispatcher. Set before any test file loads the element, which reads
 // it once. A plain global, so this file imports nothing from the element.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+
+// These tests drive the page with real input (userEvent from vitest/browser, through the DevTools
+// protocol), so every update it causes lands outside act() by design, and React, told this is an act
+// environment, logged an "update ... not wrapped in act(...)" warning for each one: 435,000 in one
+// run of the app's tests, which made every real-element test about 1.8 times slower and filled each
+// shard's log with 90 MB (issue #3271). Testing Library's own render, fireEvent and waitFor still
+// switch the act environment on for their duration. Registered after Testing Library's beforeAll,
+// which sets the flag, so this runs second.
+beforeAll(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+});
 
 // Cleanup after each test case
 afterEach(() => {

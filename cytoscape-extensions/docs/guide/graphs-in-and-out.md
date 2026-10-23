@@ -297,7 +297,7 @@ The stylesheet alone draws what the file's rules say; an element the rules canno
 
 What the file leaves to the program that wrote it gets that program's default, so the graph looks
 as it does there (a Gephi node with no size is drawn 10 wide, and a Gephi edge with no color takes
-its source node's color; graph-io's
+the mix of its two nodes' colors, as Gephi's Preview draws it; graph-io's
 [Styles guide](https://graphty.app/docs/graph-io/guide/styles.html) lists every program's defaults): Gephi's for GEXF, yEd's for yEd GraphML, Graphviz's for DOT, Cytoscape desktop's
 for XGMML, CX, CX2 and sessions, Cytoscape.js's for Cytoscape JSON. `styles: { toolDefaults: false }`
 leaves the defaults out. CSV, Neo4j, OBO and NetworkX or d3 JSON carry no styles, so

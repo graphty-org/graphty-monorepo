@@ -1,4 +1,7 @@
 #!/bin/sh
+# Never copy, always merge: refuses a commit made during a cherry-pick or a rebase (tools/no-copy.sh).
+./tools/no-copy.sh || exit 1
+
 # Refuses a commit whose staged files hold something shaped like a credential.
 # A false positive: add its path to .secretlintignore. Last resort: git commit --no-verify
 ./tools/scan-secrets.sh --cached || exit 1

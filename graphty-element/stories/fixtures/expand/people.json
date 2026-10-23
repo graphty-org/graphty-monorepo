@@ -1,0 +1,149 @@
+{
+    "endpoint": "https://people.example.test/api/",
+    "seed": {
+        "id": "valjean",
+        "name": "Jean Valjean"
+    },
+    "recordings": [
+        {
+            "url": "https://people.example.test/api/neighbors?id=valjean&page=1",
+            "body": {
+                "seed": {
+                    "id": "valjean",
+                    "name": "Jean Valjean",
+                    "degree": 6
+                },
+                "neighbors": [
+                    {
+                        "id": "javert",
+                        "name": "Javert",
+                        "degree": 2
+                    },
+                    {
+                        "id": "cosette",
+                        "name": "Cosette",
+                        "degree": 3
+                    },
+                    {
+                        "id": "marius",
+                        "name": "Marius",
+                        "degree": 4
+                    },
+                    {
+                        "id": "fantine",
+                        "name": "Fantine",
+                        "degree": 1
+                    }
+                ],
+                "next": 2
+            }
+        },
+        {
+            "url": "https://people.example.test/api/neighbors?id=valjean&page=2",
+            "body": {
+                "seed": {
+                    "id": "valjean",
+                    "name": "Jean Valjean",
+                    "degree": 6
+                },
+                "neighbors": [
+                    {
+                        "id": "myriel",
+                        "name": "Myriel",
+                        "degree": 1
+                    },
+                    {
+                        "id": "thenardier",
+                        "name": "Thenardier",
+                        "degree": 4
+                    }
+                ],
+                "next": null
+            }
+        },
+        {
+            "url": "https://people.example.test/api/neighbors?id=cosette&page=1",
+            "body": {
+                "seed": {
+                    "id": "cosette",
+                    "name": "Cosette",
+                    "degree": 3
+                },
+                "neighbors": [
+                    {
+                        "id": "valjean",
+                        "name": "Jean Valjean",
+                        "degree": 6
+                    },
+                    {
+                        "id": "marius",
+                        "name": "Marius",
+                        "degree": 4
+                    },
+                    {
+                        "id": "thenardier",
+                        "name": "Thenardier",
+                        "degree": 4
+                    }
+                ],
+                "next": null
+            }
+        },
+        {
+            "url": "https://people.example.test/api/neighbors?id=javert&page=1",
+            "body": {
+                "seed": {
+                    "id": "javert",
+                    "name": "Javert",
+                    "degree": 2
+                },
+                "neighbors": [
+                    {
+                        "id": "valjean",
+                        "name": "Jean Valjean",
+                        "degree": 6
+                    },
+                    {
+                        "id": "thenardier",
+                        "name": "Thenardier",
+                        "degree": 4
+                    }
+                ],
+                "next": null
+            }
+        },
+        {
+            "url": "https://people.example.test/api/neighbors?id=marius&page=1",
+            "body": {
+                "seed": {
+                    "id": "marius",
+                    "name": "Marius",
+                    "degree": 4
+                },
+                "neighbors": [
+                    {
+                        "id": "valjean",
+                        "name": "Jean Valjean",
+                        "degree": 6
+                    },
+                    {
+                        "id": "cosette",
+                        "name": "Cosette",
+                        "degree": 3
+                    },
+                    {
+                        "id": "eponine",
+                        "name": "Eponine",
+                        "degree": 2
+                    },
+                    {
+                        "id": "gavroche",
+                        "name": "Gavroche",
+                        "degree": 2
+                    }
+                ],
+                "next": null
+            }
+        }
+    ]
+}

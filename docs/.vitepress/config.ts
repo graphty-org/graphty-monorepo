@@ -148,9 +148,11 @@ export default defineConfig({
                         { text: "Styles from Files", link: "/graphty-element/guide/file-styles" },
                         { text: "Style Helpers & Palettes", link: "/graphty-element/guide/style-helpers" },
                         { text: "Layouts", link: "/graphty-element/guide/layouts" },
+                        { text: "Graphviz Layouts", link: "/graphty-element/guide/graphviz-layouts" },
                         { text: "Acceleration", link: "/graphty-element/guide/acceleration" },
                         { text: "Algorithms", link: "/graphty-element/guide/algorithms" },
                         { text: "Data Sources", link: "/graphty-element/guide/data-sources" },
+                        { text: "Network Sources", link: "/graphty-element/guide/network-sources" },
                         { text: "Events", link: "/graphty-element/guide/events" },
                         { text: "Columns, Runs & Progress", link: "/graphty-element/guide/vocabulary" },
                         { text: "Undo & History", link: "/graphty-element/guide/undo" },
@@ -232,6 +234,8 @@ export default defineConfig({
                     text: "Using graph-io",
                     items: [
                         { text: "Loading graphs", link: "/graph-io/guide/loading" },
+                        { text: "Loading from a service", link: "/graph-io/guide/loading-from-a-service" },
+                        { text: "Cypher: Neo4j and Neptune", link: "/graph-io/guide/sources/cypher" },
                         { text: "Reading the graph", link: "/graph-io/guide/reading" },
                         { text: "Saving graphs", link: "/graph-io/guide/saving" },
                         { text: "Styles", link: "/graph-io/guide/styles" },
@@ -250,6 +254,7 @@ export default defineConfig({
                     items: [
                         { text: "Writing a format plugin", link: "/graph-io/guide/extending/new-format" },
                         { text: "Extending an existing format", link: "/graph-io/guide/extending/existing-format" },
+                        { text: "Writing a source", link: "/graph-io/guide/writing-a-source" },
                     ],
                 },
                 {

@@ -1,0 +1,600 @@
+{
+    "options": {
+        "type": "mixed",
+        "multi": true,
+        "allowSelfLoops": true
+    },
+    "attributes": {
+        "name": "specimen-edges-lines-p2"
+    },
+    "nodes": [
+        {
+            "key": "anchor-nw",
+            "attributes": {
+                "x": 20,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-ne",
+            "attributes": {
+                "x": 1180,
+                "y": 880,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-sw",
+            "attributes": {
+                "x": 20,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "anchor-se",
+            "attributes": {
+                "x": 1180,
+                "y": 20,
+                "size": 3,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default-s",
+            "attributes": {
+                "x": 114,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "default-t",
+            "attributes": {
+                "x": 190,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-name-mixed-case-s",
+            "attributes": {
+                "x": 338,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-name-mixed-case-t",
+            "attributes": {
+                "x": 414,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex3-s",
+            "attributes": {
+                "x": 562,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex3-t",
+            "attributes": {
+                "x": 638,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex6-upper-s",
+            "attributes": {
+                "x": 786,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex6-upper-t",
+            "attributes": {
+                "x": 862,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-s",
+            "attributes": {
+                "x": 1010,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-t",
+            "attributes": {
+                "x": 1086,
+                "y": 737.3333333333334,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgba-zero-s",
+            "attributes": {
+                "x": 114,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgba-zero-t",
+            "attributes": {
+                "x": 190,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex4-s",
+            "attributes": {
+                "x": 338,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hex4-t",
+            "attributes": {
+                "x": 414,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-spaces-s",
+            "attributes": {
+                "x": 562,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-spaces-t",
+            "attributes": {
+                "x": 638,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-percent-s",
+            "attributes": {
+                "x": 786,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-rgb-percent-t",
+            "attributes": {
+                "x": 862,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hsl-s",
+            "attributes": {
+                "x": 1010,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-hsl-t",
+            "attributes": {
+                "x": 1086,
+                "y": 464,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-unknown-name-s",
+            "attributes": {
+                "x": 114,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-unknown-name-t",
+            "attributes": {
+                "x": 190,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-empty-s",
+            "attributes": {
+                "x": 338,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-color-empty-t",
+            "attributes": {
+                "x": 414,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-size-negative-s",
+            "attributes": {
+                "x": 562,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-size-negative-t",
+            "attributes": {
+                "x": 638,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-size-string-s",
+            "attributes": {
+                "x": 786,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-size-string-t",
+            "attributes": {
+                "x": 862,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-no-key-s",
+            "attributes": {
+                "x": 1010,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "edge-no-key-t",
+            "attributes": {
+                "x": 1086,
+                "y": 190.66666666666674,
+                "size": 5,
+                "color": "#c8c8c8"
+            }
+        },
+        {
+            "key": "cap-default",
+            "attributes": {
+                "x": 107.6,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "nothing=set"
+            }
+        },
+        {
+            "key": "cap-edge-color-name-mixed-case",
+            "attributes": {
+                "x": 301,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=CornflowerBlue"
+            }
+        },
+        {
+            "key": "cap-edge-color-hex3",
+            "attributes": {
+                "x": 559,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#f80"
+            }
+        },
+        {
+            "key": "cap-edge-color-hex6-upper",
+            "attributes": {
+                "x": 772.8,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#E76F51"
+            }
+        },
+        {
+            "key": "cap-edge-color-rgb",
+            "attributes": {
+                "x": 969.6,
+                "y": 697.3333333333334,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb(106,76,147)"
+            }
+        },
+        {
+            "key": "cap-edge-color-rgba-zero",
+            "attributes": {
+                "x": 73.60000000000001,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgba(0,128,0,0)"
+            }
+        },
+        {
+            "key": "cap-edge-color-hex4",
+            "attributes": {
+                "x": 331.6,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=#f80c"
+            }
+        },
+        {
+            "key": "cap-edge-color-rgb-spaces",
+            "attributes": {
+                "x": 501.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb( 25 , 130 , 196 )"
+            }
+        },
+        {
+            "key": "cap-edge-color-rgb-percent",
+            "attributes": {
+                "x": 742.2,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=rgb(100%,50%,0%)"
+            }
+        },
+        {
+            "key": "cap-edge-color-hsl",
+            "attributes": {
+                "x": 962.8,
+                "y": 424,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=hsl(120,100%,25%)"
+            }
+        },
+        {
+            "key": "cap-edge-color-unknown-name",
+            "attributes": {
+                "x": 94,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color=notacolor"
+            }
+        },
+        {
+            "key": "cap-edge-color-empty",
+            "attributes": {
+                "x": 348.6,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "color="
+            }
+        },
+        {
+            "key": "cap-edge-size-negative",
+            "attributes": {
+                "x": 569.2,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=-4"
+            }
+        },
+        {
+            "key": "cap-edge-size-string",
+            "attributes": {
+                "x": 789.8,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "size=\"6\""
+            }
+        },
+        {
+            "key": "cap-edge-no-key",
+            "attributes": {
+                "x": 1013.8,
+                "y": 150.66666666666674,
+                "size": 7,
+                "color": "transparent",
+                "label": "key=none"
+            }
+        }
+    ],
+    "edges": [
+        {
+            "key": "default",
+            "source": "default-s",
+            "target": "default-t"
+        },
+        {
+            "key": "edge-color-name-mixed-case",
+            "source": "edge-color-name-mixed-case-s",
+            "target": "edge-color-name-mixed-case-t",
+            "attributes": {
+                "size": 3,
+                "color": "CornflowerBlue"
+            }
+        },
+        {
+            "key": "edge-color-hex3",
+            "source": "edge-color-hex3-s",
+            "target": "edge-color-hex3-t",
+            "attributes": {
+                "size": 3,
+                "color": "#f80"
+            }
+        },
+        {
+            "key": "edge-color-hex6-upper",
+            "source": "edge-color-hex6-upper-s",
+            "target": "edge-color-hex6-upper-t",
+            "attributes": {
+                "size": 3,
+                "color": "#E76F51"
+            }
+        },
+        {
+            "key": "edge-color-rgb",
+            "source": "edge-color-rgb-s",
+            "target": "edge-color-rgb-t",
+            "attributes": {
+                "size": 3,
+                "color": "rgb(106,76,147)"
+            }
+        },
+        {
+            "key": "edge-color-rgba-zero",
+            "source": "edge-color-rgba-zero-s",
+            "target": "edge-color-rgba-zero-t",
+            "attributes": {
+                "size": 3,
+                "color": "rgba(0,128,0,0)"
+            }
+        },
+        {
+            "key": "edge-color-hex4",
+            "source": "edge-color-hex4-s",
+            "target": "edge-color-hex4-t",
+            "attributes": {
+                "size": 3,
+                "color": "#f80c"
+            }
+        },
+        {
+            "key": "edge-color-rgb-spaces",
+            "source": "edge-color-rgb-spaces-s",
+            "target": "edge-color-rgb-spaces-t",
+            "attributes": {
+                "size": 3,
+                "color": "rgb( 25 , 130 , 196 )"
+            }
+        },
+        {
+            "key": "edge-color-rgb-percent",
+            "source": "edge-color-rgb-percent-s",
+            "target": "edge-color-rgb-percent-t",
+            "attributes": {
+                "size": 3,
+                "color": "rgb(100%,50%,0%)"
+            }
+        },
+        {
+            "key": "edge-color-hsl",
+            "source": "edge-color-hsl-s",
+            "target": "edge-color-hsl-t",
+            "attributes": {
+                "size": 3,
+                "color": "hsl(120,100%,25%)"
+            }
+        },
+        {
+            "key": "edge-color-unknown-name",
+            "source": "edge-color-unknown-name-s",
+            "target": "edge-color-unknown-name-t",
+            "attributes": {
+                "size": 3,
+                "color": "notacolor"
+            }
+        },
+        {
+            "key": "edge-color-empty",
+            "source": "edge-color-empty-s",
+            "target": "edge-color-empty-t",
+            "attributes": {
+                "size": 3,
+                "color": ""
+            }
+        },
+        {
+            "key": "edge-size-negative",
+            "source": "edge-size-negative-s",
+            "target": "edge-size-negative-t",
+            "attributes": {
+                "size": -4,
+                "color": "#505050"
+            }
+        },
+        {
+            "key": "edge-size-string",
+            "source": "edge-size-string-s",
+            "target": "edge-size-string-t",
+            "attributes": {
+                "size": "6",
+                "color": "#505050"
+            }
+        },
+        {
+            "source": "edge-no-key-s",
+            "target": "edge-no-key-t",
+            "attributes": {
+                "size": 1.5,
+                "color": "#505050"
+            }
+        }
+    ]
+}

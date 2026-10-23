@@ -9,8 +9,8 @@ import type { DataTableValue } from "./types";
  * The formatters and words one table draws its values with.
  */
 export interface ValueFormat {
-    /** Formats a number for the active locale. */
-    number: Intl.NumberFormat;
+    /** Formats a number: for the active locale, or as the application writes it. */
+    number: { format(value: number): string };
     /** Formats a date for the active locale. */
     date: Intl.DateTimeFormat;
     /** How a value of true is written. */

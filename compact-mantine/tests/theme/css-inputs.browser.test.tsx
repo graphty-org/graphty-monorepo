@@ -111,7 +111,7 @@ function expectLegendLabel(style: CSSStyleDeclaration): void {
     expect(style.lineHeight).toBe("14px");
     expect(style.fontWeight).toBe("500");
     expect(style.letterSpacing).toBe("0.27px");
-    expect(hex(style.color)).toBe("#00000080");
+    expect(hex(style.color)).toBe("#0000008c");
     expect(style.minHeight).toBe("16px");
     expect(style.alignItems).toBe("center");
     expect(style.marginBottom).toBe("4px");

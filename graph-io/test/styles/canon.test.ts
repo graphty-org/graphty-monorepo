@@ -83,12 +83,38 @@ describe("canonColor: CSS dialects, as graphty-element draws them", () => {
     ]);
 });
 
+describe("canonColor: graphology, as sigma.js 4.0.1 draws it (graphology-specimen-node-fills-borders)", () => {
+    colorTable([
+        ["red", "graphology", "#ff0000"],
+        ["CornflowerBlue", "graphology", "#6495ed"],
+        ["transparent", "graphology", "#000000", 0],
+        ["#f80", "graphology", "#ff8800"],
+        ["#E76F51", "graphology", "#e76f51"],
+        ["#1d3557cc", "graphology", "#1d3557", 0.8],
+        ["rgb(106,76,147)", "graphology", "#6a4c93"],
+        ["rgba(255,0,0,0.5)", "graphology", "#ff0000", 127 / 255],
+        ["rgba(0,128,0,0)", "graphology", "#008000", 0],
+        // what sigma cannot read is black (or read two hex digits a channel)
+        ["#f80c", "graphology", "#f80c00", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb( 25 , 130 , 196 )", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb(100%,50%,0%)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb(10.5,200.5,90.5)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["hsl(120,100%,25%)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["notacolor", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        [" red", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        [12, "graphology", null, 1, "W_STYLE_BAD_VALUE"],
+    ]);
+});
+
 describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
     // Every expectation below was measured with `dot -Txdot`.
     colorTable([
         ["red", "graphviz", "#ff0000"],
         ["RED", "graphviz", "#ff0000"],
-        ["gray", "graphviz", "#c0c0c0"],
+        // Graphviz's SVG writes a bare SVG name as it is, drawn as SVG's gray; "/x11/gray" is X11's
+        ["gray", "graphviz", "#808080"],
+        ["/x11/gray", "graphviz", "#c0c0c0"],
         ["bisque4", "graphviz", "#8b7d6b"],
         ["none", "graphviz", "#fffffe", 0],
         ["NONE", "graphviz", "#fffffe", 0],
@@ -116,9 +142,11 @@ describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
         ["/svg/gray", "graphviz", "#808080"],
         ["/nosuch/red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["red;0.3", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
-        // A list as an outline or font color: the text before the first ":" is one color.
-        ["red:blue", "graphviz", "#ff0000"],
-        ["red:", "graphviz", "#ff0000"],
+        // A list as an outline or font color: the text before the first ":" is one color, except where it is a bare
+        // SVG name, which Graphviz's SVG writes with the whole list (stroke="red:blue"): no outline is drawn.
+        ["red:blue", "graphviz", "#fffffe", 0],
+        ["red:", "graphviz", "#fffffe", 0],
+        ["/x11/red:blue", "graphviz", "#ff0000"],
         [":red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["red;0.3:blue", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["nosuch:blue", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
@@ -126,11 +154,13 @@ describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
 
     describe("with a color scheme", () => {
         colorTable([["3", "graphviz", "#c6dbef"]], { scheme: "Blues9" });
-        colorTable([["red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "blues9" });
+        // an SVG name is drawn whatever the scheme; any other name is looked up in the scheme alone
+        colorTable([["red", "graphviz", "#ff0000"]], { scheme: "blues9" });
+        colorTable([["peachpuff1", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "blues9" });
         colorTable([["//4", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "accent3" });
         colorTable([["1", "graphviz", "#7fc97f"]], { scheme: "accent3" });
         colorTable([["gray", "graphviz", "#808080"]], { scheme: "svg" });
-        colorTable([["red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "nosuch" });
+        colorTable([["peachpuff1", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "nosuch" });
         colorTable([["none", "graphviz", "#fffffe", 0]], { scheme: "blues9" });
     });
 
@@ -270,6 +300,11 @@ describe("canonEnum", () => {
         ["shape", "roundrectangle", "yed", "round-rectangle"],
         ["shape", "Mdiamond", "graphviz", "diamond"],
         ["shape", "Database", "vis", "other:Database"],
+        ["shape", "concavehexagon", "cytoscape-js", "hexagon"],
+        ["shape", "cutrectangle", "cytoscape-js", "octagon"],
+        ["shape", "cut-rectangle", "cytoscape-js", "octagon"],
+        ["shape", "bottomroundrectangle", "cytoscape-js", "round-rectangle"],
+        ["shape", "right-rhomboid", "cytoscape-js", "parallelogram"],
         ["arrow", "normal", "graphviz", "triangle"],
         ["arrow", "inv", "graphviz", "inverted"],
         ["arrow", "odot", "graphviz", "circle-open"],
@@ -326,6 +361,19 @@ describe("text", () => {
         expect(s.notes.list()[0].elements).toEqual([2]);
     });
 
+    it("reads an HTML-like table's rows as lines and a row's cells parted by a space, as Graphviz lays them out", () => {
+        const table =
+            '<<TABLE BORDER="2">\n  <TR><TD>A</TD><TD BGCOLOR="pink">B</TD></TR>\n  <TR><TD COLSPAN="2">wide</TD></TR></TABLE>>';
+        expect(htmlLabelText(table, site())).toBe("A B\nwide");
+        // a table inside a cell, and text beside a table
+        expect(
+            htmlLabelText(
+                "<x<TABLE><TR><TD>h</TD></TR><TR><TD><TABLE><TR><TD>p</TD><TD>q</TD></TR></TABLE></TD></TR></TABLE>>",
+                site(),
+            ),
+        ).toBe("x\nh\np q");
+    });
+
     it("joins a record label's fields with ' | ' and notes it", () => {
         const s = site();
         expect(recordLabelText("<f0> left|<f1> mid\\|dle|{a|b}| ", s)).toBe("left | mid|dle | a | b");
@@ -380,8 +428,9 @@ describe("hostile values return null with a note and never throw", () => {
             for (const use of ["line", "fill", "edge"] as const) {
                 const s = site();
                 const c = canonColor(raw, dialect, s, { use });
-                // Graphviz draws an unknown color black; every other dialect gives no color.
-                if (dialect === "graphviz" && c !== null) {
+                // Graphviz and sigma (a graphology string) draw an unknown color black; every other dialect gives no
+                // color.
+                if ((dialect === "graphviz" || (dialect === "graphology" && typeof raw === "string")) && c !== null) {
                     expect(c.color).toBe("#000000");
                 } else if (!(dialect === "java" && raw === -1)) {
                     expect(c).toBeNull();

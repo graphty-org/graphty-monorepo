@@ -12,7 +12,8 @@
         "./react.ts",
         "./jsx.ts",
         "./webgpu.ts",
-        "./ai.ts"
+        "./ai.ts",
+        "./credentials.ts"
     ],
     "entryPointStrategy": "resolve",
     "out": "./docs/api/generated",

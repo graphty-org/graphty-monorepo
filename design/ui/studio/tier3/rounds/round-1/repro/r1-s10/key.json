@@ -1,0 +1,22 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Layer 1",
+   "rows": [
+    {
+     "text": "Color: Layer 1",
+     "color": "#dc63f1"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#dc63f1": 331
+  },
+  "edges": {
+   "#a9a9a9": 361
+  }
+ }
+}

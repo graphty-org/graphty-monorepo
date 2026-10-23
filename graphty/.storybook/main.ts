@@ -3,8 +3,13 @@ import type { StorybookConfig } from "@storybook/react-vite";
 const config: StorybookConfig = {
     stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
     addons: ["@storybook/addon-docs"],
-    // the brand logo and favicon (manager.ts)
-    staticDirs: [{ from: "./brand", to: "/" }],
+    staticDirs: [
+        // the brand logo and favicon (manager.ts)
+        { from: "./brand", to: "/" },
+        // the sample datasets and their pictures, from graph-samples' build (the files graphty.app
+        // publishes), so the start page's library reads them with no internet (open.ts)
+        { from: "../../graph-samples/dist/data/v1", to: "/data/graph-samples/v1" },
+    ],
     framework: {
         name: "@storybook/react-vite",
         options: {},
@@ -29,8 +34,8 @@ const config: StorybookConfig = {
             return config;
         }
 
-        const fs = await import("fs");
-        const path = await import("path");
+        const fs = await import("node:fs");
+        const path = await import("node:path");
         const { mergeConfig, loadEnv } = await import("vite");
 
         // Load env file from monorepo root (one level up from this package)
@@ -65,6 +70,8 @@ const config: StorybookConfig = {
         const merged = mergeConfig(config, {
             // Your environment configuration here
             server,
+            // The sample datasets are served beside the Storybook (staticDirs), not read from graphty.app.
+            define: { "import.meta.env.VITE_LOCAL_SAMPLE_DATA": JSON.stringify("true") },
         });
         return merged;
     },

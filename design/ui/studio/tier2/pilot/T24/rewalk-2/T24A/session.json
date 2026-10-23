@@ -1,0 +1,23 @@
+{
+    "commit": "c6740214710b811ab2e50bb1b13052c2b51730ec",
+    "uncommittedChanges": true,
+    "buildStamp": "75cbc3a9a0e9 graphty@0.8.55",
+    "url": "/?next",
+    "screenReaderMode": false,
+    "viewport": {
+        "width": 1440,
+        "height": 900
+    },
+    "started": "2026-10-08T04:26:04.857Z",
+    "setup": [
+        "--click No thanks",
+        "--click Open project or file...",
+        "--upload friends.csv",
+        "--click Everything",
+        "--click role=tab:Style",
+        "--click Add label line",
+        "--click role=option:id",
+        "--click Show all labels",
+        "--key Escape"
+    ]
+}

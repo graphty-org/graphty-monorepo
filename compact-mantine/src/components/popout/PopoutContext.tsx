@@ -180,11 +180,19 @@ export function PopoutProvider({
         [setOpenState],
     );
 
+    // Focus goes back to the trigger BEFORE the state changes. A trigger that is shown only while
+    // hovered, focused or open (a field's "vary" button) is hidden by the same render that closes
+    // the panel, and focusing a hidden button after that render does nothing: focus fell to the
+    // page. Only when focus is inside this panel, so a click elsewhere keeps its own focus.
     const close = useCallback(
         (event?: SyntheticEvent) => {
+            const panel = document.getElementById(`popout-panel-${id}`);
+            if (panel?.contains(document.activeElement)) {
+                triggerRef.current?.focus();
+            }
             setOpenState(false, event);
         },
-        [setOpenState],
+        [id, setOpenState],
     );
 
     const toggle = useCallback(

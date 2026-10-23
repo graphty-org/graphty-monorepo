@@ -11,6 +11,7 @@ export {
     compactColors,
     compactDarkColors,
     compactGlobalCss,
+    compactGraphtyColors,
     compactTheme,
     compactThemeOverride,
     createCompactTheme,
@@ -32,6 +33,7 @@ export {
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";
+export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
 export { ToggleWithContent } from "./components/ToggleWithContent";
@@ -39,14 +41,18 @@ export { ToggleWithContent } from "./components/ToggleWithContent";
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6).
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), and focus put on
+// a field by program with its ring drawn.
 export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
+export { focusWithRing } from "./components/inputs/listbox";
 
-// Overlays: the context menu, the checkable menu row, the modal footer, the toast and the
-// tooltip's shortcut label (8.1-8.6).
+// Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
+// the toast and the tooltip's shortcut label (8.1-8.6).
 export {
     ContextMenu,
     MenuCheckItem,
+    MenuItemDescription,
+    MenuShortcut,
     ModalFooter,
     Toast,
     ToastProvider,
@@ -97,6 +103,7 @@ export {
     CompoundRow,
     DataRow,
     DataRowHeader,
+    EllipsizedName,
     FieldRow,
     HistogramRow,
     MetricRow,
@@ -171,7 +178,7 @@ export {
     parseHexaColor,
     toHexaColor,
 } from "./utils";
-export { isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
+export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-utils";
 export { isRtl } from "./utils/rtl";
 
 // Type exports
@@ -184,6 +191,7 @@ export type {
     AdvancedButtonProps,
     ChangeHandler,
     ColorStop,
+    CompactAccent,
     CompactColorInputProps,
     CompactMantineLabels,
     CompactThemeOptions,
@@ -242,6 +250,11 @@ export type {
     PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
+    RampEditorBin,
+    RampEditorHandle,
+    RampEditorLabels,
+    RampEditorPalette,
+    RampEditorProps,
     RampRowProps,
     RankChipProps,
     ResetButtonProps,
@@ -295,6 +308,7 @@ export type {
     TreeMove,
     TreeNodeData,
     TreeProps,
+    TreeRowActions,
     TreeRowTint,
 } from "./types";
 export type {

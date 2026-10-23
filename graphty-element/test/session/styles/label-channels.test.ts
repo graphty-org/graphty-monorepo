@@ -14,7 +14,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../../src/catalog/types";
-import { NodeStyle } from "../../../src/config";
+import { EdgeStyle, NodeStyle } from "../../../src/config";
 import { StylePainter } from "../../../src/managers/StylePainter";
 import { labelFieldOf } from "../../../src/session/styles/channels";
 import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
@@ -171,9 +171,39 @@ describe("a rule bound to a whole label style", () => {
                     fieldChannels: [
                         "node.labelColor",
                         "node.labelSize",
+                        "node.labelLetterSize",
                         "node.labelFont",
                         "node.labelWeight",
                         "node.labelItalic",
+                        "node.labelWrapWidth",
+                        "node.labelWrapTrailingSpace",
+                        "node.labelWrapEllipsis",
+                        "node.labelWrapAnywhere",
+                        "node.labelWrapSpaceCount",
+                        "node.labelRunAlign",
+                        "node.labelMinScreenSize",
+                        "node.labelOnTop",
+                        "node.labelRotation",
+                        "node.labelBackground",
+                        "node.labelOutline",
+                        "node.labelOutlineWidth",
+                        "node.labelBorder",
+                        "node.labelBorderWidth",
+                        "node.labelOpacity",
+                        "node.labelBackgroundOpacity",
+                        "node.labelOutlineOpacity",
+                        "node.labelBorderOpacity",
+                        "node.labelPadding",
+                        "node.labelCornerRadius",
+                        "node.labelLineHeight",
+                        "node.labelOffsetX",
+                        "node.labelOffsetY",
+                        "node.labelShiftX",
+                        "node.labelShiftY",
+                        "node.labelDeclutter",
+                        "node.labelMinNodeScreenSize",
+                        "node.labelTextAlign",
+                        "node.labelLocation",
                     ],
                 },
             },
@@ -269,5 +299,113 @@ describe("label field channels take a rule", () => {
         assert.deepEqual(labelFieldOf("edge.labelColor"), { into: "edge.labelStyle", field: "color" });
         assert.isUndefined(labelFieldOf("node.labelStyle"));
         assert.isUndefined(labelFieldOf("node.label"));
+        assert.deepEqual(labelFieldOf("edge.labelTextAlign"), { into: "edge.labelStyle", field: "textAlign" });
+    });
+
+    it("lines up a label's lines as labelTextAlign says, beside the other fields", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: { "node.label": "one\ntwo", "node.labelStyle": { sizePx: 24 }, "node.labelTextAlign": "left" },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(held.styles.explain({ node: "a" }).merged["node.labelStyle"], {
+            sizePx: 24,
+            textAlign: "left",
+        });
+        assert.strictEqual(drawnLabel(held, 0).textAlign, "left");
+    });
+
+    it("gives each node its own label place from a column through labelLocation, however many places", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: { "node.label": "hi", "node.labelStyle": { sizePx: 24 } },
+            encode: {
+                "node.labelLocation": {
+                    by: "data.id",
+                    scale: "passthrough",
+                    map: { a: "inside-top-left", b: "bottom-right", c: "top" },
+                },
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("node.labelLocation"), { into: "node.labelStyle", field: "location" });
+        assert.deepEqual(held.styles.explain({ node: "a" }).merged["node.labelStyle"], {
+            sizePx: 24,
+            location: "inside-top-left",
+        });
+        assert.deepEqual(
+            [0, 1, 2].map((i) => drawnLabel(held, i).location),
+            ["inside-top-left", "bottom-right", "top"],
+        );
+    });
+
+    it("draws an end caption in its own face, color, weight and opacity", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "captions",
+            target: "edge",
+            selector: { match: "everything" },
+            set: {
+                "edge.arrowHeadText": "T",
+                "edge.arrowHeadTextFont": "DejaVu Sans",
+                "edge.arrowHeadTextColor": "#ff0000",
+                "edge.arrowHeadTextWeight": "bold",
+                "edge.arrowHeadTextOpacity": 0.5,
+            },
+        });
+        await held.paintAll();
+
+        const text = EdgeStyle.parse(held.painter.edgePaint(0)?.style).arrowHead?.text;
+        assert.strictEqual(text?.text, "T");
+        assert.strictEqual(text?.font, "DejaVu Sans");
+        assert.strictEqual(String(text?.textColor).toLowerCase(), "#ff0000");
+        assert.strictEqual(text?.fontWeight, "bold");
+        assert.strictEqual(text?.textOpacity, 0.5);
+    });
+
+    it("draws a line round the label's box as labelBorder and labelBorderWidth say", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: {
+                "node.label": "hi",
+                "node.labelBackground": "#b7c9e3",
+                "node.labelBorder": "#25537a",
+                "node.labelBorderWidth": 2,
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("edge.labelBorderWidth"), { into: "edge.labelStyle", field: "borderWidth" });
+        const drawn = drawnLabel(held, 0);
+        assert.strictEqual(drawn.borderColor, "#25537A");
+        assert.strictEqual(drawn.borderWidth, 2);
+    });
+
+    it("draws the words and their box translucent, and moves the label, as the new label fields say", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: {
+                "node.label": "hi",
+                "node.labelBackground": "#b7c9e3",
+                "node.labelOpacity": 0.25,
+                "node.labelBackgroundOpacity": 0.5,
+                "node.labelOffsetX": 1.5,
+                "node.labelOffsetY": -2,
+                "node.labelShiftX": -0.5,
+                "node.labelShiftY": 0.5,
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("edge.labelOffsetY"), { into: "edge.labelStyle", field: "offsetY" });
+        const drawn = drawnLabel(held, 0);
+        assert.strictEqual(drawn.textOpacity, 0.25);
+        assert.strictEqual(drawn.backgroundOpacity, 0.5);
+        assert.strictEqual(drawn.offsetX, 1.5);
+        assert.strictEqual(drawn.offsetY, -2);
+        assert.strictEqual(drawn.shiftX, -0.5);
+        assert.strictEqual(drawn.shiftY, 0.5);
     });
 });

@@ -4427,13 +4427,14 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-* each change with no step.
+* edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
+* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`). View state: the layer
+* follows each change with no step.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered";
+    state: "selected" | "hovered" | "ghosted";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
@@ -5643,6 +5644,7 @@ export type TimeNoticeCode = "time.unparsed" | "time.parsed-loosely" | "time.uni
 export interface TimePlayback {
     readonly missing?: "inside" | "outside";
     readonly mode?: "sliding" | "cumulative";
+    readonly outside?: "hide" | "ghost";
     readonly results?: TimeResultsPolicy;
     readonly step?: TimeStep | "auto";
 }
@@ -5666,6 +5668,7 @@ export type TimeResultsPolicy = "keep" | "stale" | "rerun";
 export interface TimeSettings {
     readonly missing: "inside" | "outside";
     readonly mode: TimePlayMode;
+    readonly outside: "hide" | "ghost";
     readonly results: TimeResultsPolicy;
     readonly step: TimeStep | "auto";
 }
@@ -5699,7 +5702,7 @@ export interface TimeStepEvent {
 }
 
 // @public
-export type TimeUnit = "ms" | "s" | "ordinal";
+export type TimeUnit = "ms" | "s" | "year" | "ordinal";
 
 // @public
 export interface TimeWindow {

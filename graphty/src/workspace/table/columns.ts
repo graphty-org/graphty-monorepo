@@ -20,7 +20,7 @@ import type {
     ValueType,
 } from "@graphty/graphty-element/session";
 
-import { type FieldKey, loadValue, tableRoles } from "../data-place/words";
+import { loadValue, tableRoles } from "../data-place/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 
@@ -112,9 +112,7 @@ function roleOf(
     }
     const side = LOAD_TABLE[attribute.kind];
     const mine = sources.filter((source) => attribute.sources?.includes(source.key) ?? true);
-    return roles.find((role) =>
-        mine.some((source) => loadValue(tableRoles(source, side), role as FieldKey) === attribute.name),
-    );
+    return roles.find((role) => mine.some((source) => loadValue(tableRoles(source, side), role) === attribute.name));
 }
 
 /**

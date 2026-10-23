@@ -312,15 +312,16 @@ describe("the location map", () => {
     it("designates Location in Data > Fields over what the element found, and Map reads it", async () => {
         const element = await openAirports(false, CITIES);
         const place = await openDataPlace();
-        // Preselected: the pair the element finds by name.
-        const latitude = (await place.findByRole("combobox", { name: "Latitude" })) as HTMLInputElement;
-        assert.strictEqual(latitude.value, "lat");
+        // Listed with no action from the reader: the pair the element finds by name.
+        const readAs = (await place.findByRole("combobox", { name: "Location read as" })) as HTMLInputElement;
+        assert.strictEqual(readAs.value, "Latitude + longitude");
+        assert.strictEqual((place.getByRole("combobox", { name: "Latitude" }) as HTMLInputElement).value, "lat");
         assert.strictEqual((place.getByRole("combobox", { name: "Longitude" }) as HTMLInputElement).value, "lng");
-        assert.strictEqual((place.getByRole("combobox", { name: "Location" }) as HTMLInputElement).value, "none");
 
-        await pickField(place, "Location", "home");
+        await pickField(place, "Location read as", "Coordinates");
+        await pickField(place, "Location column", "home");
         await waitFor(() => {
-            assert.deepEqual(element.session.layout.locationColumns(), {
+            assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
                 location: "home",
                 latitude: null,
@@ -328,7 +329,8 @@ describe("the location map", () => {
                 role: "coords",
                 within: null,
             });
-            assert.strictEqual(latitude.value, "none");
+            assert.strictEqual(readAs.value, "Coordinates");
+            assert.isNull(place.queryByRole("combobox", { name: "Latitude" }));
         });
 
         const popover = await openMapForm();
@@ -360,7 +362,7 @@ describe("the location map", () => {
         await pickField(place, "Latitude", "latitude");
         await pickField(place, "Longitude", "longitude");
         await waitFor(() => {
-            assert.deepEqual(element.session.layout.locationColumns(), {
+            assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
                 location: null,
                 latitude: "latitude",

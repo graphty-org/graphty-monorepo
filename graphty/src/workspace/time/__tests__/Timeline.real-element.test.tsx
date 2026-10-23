@@ -64,12 +64,22 @@ function dataPlace(): ReturnType<typeof within> {
 }
 
 /**
- * Picks a column in the Data place's Fields, Edge time (or Node time), as the reader does.
+ * Picks a column as the Data place's Fields entry Edge time (or Node time), as the reader does:
+ * in the entry's list, or, with no entry yet, from the side's "+" and then the list it opens.
  * @param column - the option's name.
- * @param row - the Fields row.
+ * @param row - the Fields entry.
  */
 async function pickField(column: string, row: "Edge time" | "Node time" = "Edge time"): Promise<void> {
-    await userEvent.click(await dataPlace().findByRole("combobox", { name: row }));
+    const plus = await dataPlace().findByRole("button", {
+        name: `Add to ${row === "Edge time" ? "edge" : "node"} fields`,
+    });
+    const entry = dataPlace().queryByRole("combobox", { name: row });
+    if (entry === null) {
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+    } else {
+        await userEvent.click(entry);
+    }
     await userEvent.click(await screen.findByRole("option", { name: column }));
 }
 

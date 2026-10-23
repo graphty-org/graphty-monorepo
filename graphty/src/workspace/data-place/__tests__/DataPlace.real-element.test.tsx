@@ -89,6 +89,19 @@ const shown = (label: string): string =>
     within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
 
 /**
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * opens.
+ * @param side - node or edge.
+ * @param kind - the kind of field, as "+" lists it.
+ * @param column - the column.
+ */
+async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
+    await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} fields` }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("option", { name: column }));
+}
+
+/**
  * Drops the auth log, whose ends the element cannot find from its values, and reads it as edges
  * from user to host in Fields, as a reader does.
  * @param session - the session.
@@ -128,17 +141,17 @@ describe("the Data place's sidebar on the real element", () => {
         await waitFor(() => {
             assert.equal(shown("Source"), "user");
             assert.equal(shown("Target"), "host");
-            assert.equal(shown("Kind of source"), "none");
         });
+        // The kinds of the ends are not set, so they are not listed: "+" offers them.
+        assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Kind of source" }));
         assert.isNull(screen.queryByRole("tree", { name: "Attributes" }));
         // The section names the load it edits, and shows only that load's edge rows, under an edge chip.
         const fields = fieldsGroup();
         assert.include(fields.textContent, "auth-log.csv");
         assert.isNotNull(fields.querySelector('[data-kind="edge"]'));
         assert.isNull(fields.querySelector('[data-kind="node"]'));
-        within(fields).getByRole("combobox", { name: "Edge time" });
-        assert.isNull(within(fields).queryByRole("combobox", { name: "Time" }));
-        assert.isNull(within(fields).queryByRole("combobox", { name: "Node time" }));
+        within(fields).getByRole("button", { name: "Add to edge fields" });
+        assert.isNull(within(fields).queryByRole("button", { name: "Add to node fields" }));
     });
 
     it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
@@ -155,7 +168,7 @@ describe("the Data place's sidebar on the real element", () => {
         await pick("Rows are", "nodes");
         await waitFor(() => {
             assert.equal(shown("Rows are"), "nodes");
-            within(fieldsGroup()).getByRole("combobox", { name: "Node time" });
+            within(fieldsGroup()).getByRole("button", { name: "Add to node fields" });
         });
         assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Source" }));
 
@@ -209,10 +222,10 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers only number columns as the weight", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        const fields = fieldsGroup();
-        await userEvent.click(within(fields).getByRole("combobox", { name: "Weight" }));
+        await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge fields" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
         const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
-        assert.includeMembers(options, ["none", "time", "bytes"]);
+        assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
         await userEvent.keyboard("{Escape}");
     });
@@ -233,23 +246,23 @@ describe("the Data place's sidebar on the real element", () => {
         );
     });
 
-    it("makes a column the weight and its meaning distance, each one undo step", async () => {
+    it('adds a column as the weight from "+" and says a higher weight means farther, each one undo step', async () => {
         const session = await openDataPlace();
         await loadLog(session);
         const steps = (): number => session.history.steps.length;
         const before = steps();
 
-        await pick("Weight", "bytes");
+        await addField("edge", "Weight", "bytes");
         await waitFor(() => {
             assert.equal(steps(), before + 1);
             assert.include(
                 session.data.attributes().find((a) => a.kind === "edge" && a.name === "bytes")?.roles ?? [],
                 "weight",
             );
-            assert.equal(shown("Weight"), "bytes");
+            assert.equal(shown("Edge weight"), "bytes");
         });
 
-        await pick("Meaning", "distance");
+        await pick("Higher weight means", "farther");
         await waitFor(() => {
             assert.equal(steps(), before + 2);
             assert.equal(session.config.data.knownFields.edgeWeightMeaning, "distance");
@@ -258,7 +271,7 @@ describe("the Data place's sidebar on the real element", () => {
         await session.undo();
         await session.undo();
         await waitFor(() => {
-            assert.equal(shown("Weight"), "none");
+            assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Edge weight" }));
         });
     });
 
@@ -267,13 +280,13 @@ describe("the Data place's sidebar on the real element", () => {
         await loadLog(session);
         const before = session.history.steps.length;
 
-        await pick("Kind of source", "user");
+        await addField("edge", "Kind of source", "user");
         await waitFor(() => {
             assert.equal(session.history.steps.length, before + 1);
             assert.equal(session.data.node("alice")?.kind, "user");
             assert.equal(shown("Kind of source"), "user");
         });
-        await pick("Kind of target", "host");
+        await addField("edge", "Kind of target", "host");
         // The shared-ids row appears once the load is read again with both kinds.
         await within(fieldsGroup()).findByRole("combobox", { name: "Shared ids" });
         await pick("Shared ids", "Different nodes");

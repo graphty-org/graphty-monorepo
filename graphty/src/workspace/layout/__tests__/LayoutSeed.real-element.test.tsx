@@ -34,13 +34,10 @@ describe("the app's layout seed", () => {
             const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
             render(<Workspace store={store} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }

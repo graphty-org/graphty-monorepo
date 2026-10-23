@@ -14,21 +14,15 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { ACCELERATION } from "../preferences";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace with a project open and waits for the element's session.
  * @returns the element.
  */
 async function openWorkspace(): Promise<NonNullable<ReturnType<typeof findElement>>> {
     ({ unmount } = render(<Workspace store={createWorkspaceStore({ project: { name: "Ring", id: 1 } })} />));
-    await waitFor(
-        () => {
-            assert.isDefined(findElement()?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isDefined(findElement()?.session);
+    });
     const element = findElement();
     if (element === null) {
         throw new Error("the element never came up");

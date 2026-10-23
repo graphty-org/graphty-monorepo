@@ -61,7 +61,7 @@ describe("node shaders", () => {
         element.style.width = "100%";
         element.style.height = "100%";
         container.appendChild(element);
-        await vi.waitFor(() => assert.isTrue(element.graph.initialized), { timeout: MOUNT_TIMEOUT_MS });
+        await vi.waitFor(() => assert.isTrue(element.graph.initialized));
 
         element.nodeData = [{ id: "a" }, { id: "b" }, { id: "c" }];
         element.edgeData = [

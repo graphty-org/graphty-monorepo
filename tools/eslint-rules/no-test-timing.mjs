@@ -27,6 +27,14 @@
  *   to `evaluate`, `evaluateHandle`, `$eval`, `$$eval`, `addInitScript` or `evaluateOnNewDocument`.
  *   The page then runs its steps on the clock instead of on the events they wait on (#2422, #2447).
  *
+ * - a time budget on a wait: a `timeout` or `interval` option (or a number in its place) on `waitFor`,
+ *   `waitForElementToBeRemoved`, `vi.waitFor`, `vi.waitUntil`, `expect.poll`, `expect.element`,
+ *   `find*By*`, a Playwright locator action or assertion, `toPass`, `waitForFunction`,
+ *   `waitForSelector`, `waitForEvent` and the other `waitFor*` calls, or a helper that builds one
+ *   (`storyWaitOptions(n)`). A wait's deadline decides pass or fail on a busy machine while the work
+ *   it waits on still finishes; each project sets one hang guard for every wait in its config
+ *   (tools/test-wait-guard.mjs), far above normal. Fixable: `--fix` removes the option.
+ *
  * Zero-delay timers (`setTimeout(r, 0)`) yield to the event loop and are not reported, and neither
  * is a sleep inside a callback handed to the code under test, which simulates slow work.
  */
@@ -38,6 +46,8 @@ const SLEEP_HINT =
 const TIMEOUT_HINT = "Do not set a per-test timeout; find what the test waits on and wait on that condition instead.";
 const FRAMES_HINT =
     "Count the work the test waits for (input updates, renders, events) and wait until that count is reached; a busy machine skips or adds animation frames.";
+const WAIT_HINT =
+    "Remove it: every wait shares the project's one hang guard (tools/test-wait-guard.mjs). If the wait runs out under load, wait on the event or state that settles it.";
 const PAGE_TIMER_HINT =
     "Drive each step in the page from the event it waits on (an awaited waitForFunction, a promise the test resolves) instead of a timer.";
 
@@ -63,13 +73,64 @@ const FUNCTION_TYPES = new Set(["ArrowFunctionExpression", "FunctionExpression",
 const ONE_FRAME_NAMES = new Set(["nextFrame", "nextAnimationFrame", "animationFrame", "waitFrame", "waitForFrame"]);
 // Calls that run a function in the page rather than in the test.
 const NUMBER_OPS = { "+": (a, b) => a + b, "-": (a, b) => a - b, "*": (a, b) => a * b };
+// Waits whose options take a deadline. A Playwright action or matcher takes one too, judged separately.
+const WAIT_CALLS = new Set([
+    "waitFor",
+    "waitForElementToBeRemoved",
+    "waitUntil",
+    "poll",
+    "element",
+    "toPass",
+    "waitForFunction",
+    "waitForSelector",
+    "waitForEvent",
+    "waitForURL",
+    "waitForLoadState",
+    "waitForResponse",
+    "waitForRequest",
+]);
+const LOCATOR_ACTIONS = new Set([
+    "click",
+    "dblclick",
+    "fill",
+    "hover",
+    "press",
+    "pressSequentially",
+    "type",
+    "check",
+    "uncheck",
+    "setChecked",
+    "selectOption",
+    "selectText",
+    "tap",
+    "dragTo",
+    "focus",
+    "blur",
+    "clear",
+    "setInputFiles",
+    "scrollIntoViewIfNeeded",
+    "textContent",
+    "innerText",
+    "inputValue",
+    "getAttribute",
+]);
+// Matchers whose argument is the expected value, not options: `expect(x).toEqual({ timeout: 5000 })`.
+const VALUE_MATCHER =
+    /^to(Be|Equal|StrictEqual|MatchObject|ContainEqual|Contain|HaveProperty|HaveBeen.*|HaveReturned.*|HaveLastReturned.*|HaveNthReturned.*|Throw.*|Match.*Snapshot|Satisfy|HaveLength)$/;
+const FIND_QUERY = /^find(All)?By[A-Z]/;
+const WAIT_KEYS = new Set(["timeout", "interval"]);
+// Helpers that build a wait's deadline from a number.
+const WAIT_BUILDERS = new Set(["storyWaitOptions"]);
 const PAGE_CALLS = new Set(["evaluate", "evaluateHandle", "$eval", "$$eval", "addInitScript", "evaluateOnNewDocument"]);
 
 /** @type {import("eslint").Rule.RuleModule} */
 const rule = {
     meta: {
         type: "problem",
-        docs: { description: "Disallow wall-clock assertions, fixed sleeps and per-test timeouts in tests" },
+        fixable: "code",
+        docs: {
+            description: "Disallow wall-clock assertions, fixed sleeps, per-test timeouts and wait deadlines in tests",
+        },
         schema: [
             {
                 type: "object",
@@ -87,6 +148,7 @@ const rule = {
             timeout: `Per-test timeout override. ${TIMEOUT_HINT}`,
             frames: `Animation frames counted as a wait. ${FRAMES_HINT}`,
             pageTimer: `Timer in code handed to the page. ${PAGE_TIMER_HINT}`,
+            waitBudget: `Time budget on a wait. ${WAIT_HINT}`,
         },
     },
     create(context) {
@@ -532,6 +594,79 @@ const rule = {
             return name === "setConfig" && args.some((a) => hasTimeoutKey(a, CONFIG_KEYS));
         };
 
+        // ---- Time budgets on waits.
+        const keyName = (p) => p.type === "Property" && !p.computed && (p.key.name ?? p.key.value);
+        const budgetProps = (obj) =>
+            obj?.type === "ObjectExpression" ? obj.properties.filter((p) => WAIT_KEYS.has(keyName(p))) : [];
+        // A const holding a budget object: `const WAIT = { timeout: 2000 }`.
+        const budgetConst = (id) => {
+            const def = id?.type === "Identifier" ? resolve(id)?.defs[0] : undefined;
+            return def?.type === "Variable" && def.parent.kind === "const" && budgetProps(def.node.init).length > 0;
+        };
+        const isBuilder = (n) =>
+            n?.type === "CallExpression" && n.callee.type === "Identifier" && WAIT_BUILDERS.has(n.callee.name);
+        // Removes an argument with the comma before it (or after it, when it is first).
+        const removeArg = (fixer, args, i) => {
+            const tokens = sourceCode;
+            if (i > 0) {
+                return fixer.removeRange([args[i - 1].range[1], args[i].range[1]]);
+            }
+            const next = args[1];
+            return fixer.removeRange([args[0].range[0], next ? next.range[0] : tokens.getTokenAfter(args[0]).range[0]]);
+        };
+        // Removes a property; the whole argument when nothing else is left in it.
+        const removeProps = (fixer, args, i, props) => {
+            const obj = args[i];
+            if (props.length === obj.properties.length) {
+                return removeArg(fixer, args, i);
+            }
+            return props.map((p) => {
+                const after = sourceCode.getTokenAfter(p);
+                const end = after.value === "," ? sourceCode.getTokenAfter(after).range[0] : p.range[1];
+                const before = sourceCode.getTokenBefore(p);
+                return after.value === ","
+                    ? fixer.removeRange([p.range[0], end])
+                    : fixer.removeRange([before.range[0], p.range[1]]);
+            });
+        };
+        const isWaitCall = (node, name) => {
+            if (WAIT_CALLS.has(name) || FIND_QUERY.test(name ?? "")) {
+                return true;
+            }
+            // locator.click({ timeout }), expect(x).toBeVisible({ timeout }): a member call only.
+            if (node.callee.type !== "MemberExpression") {
+                return false;
+            }
+            return (
+                LOCATOR_ACTIONS.has(name) ||
+                (/^to[A-Z]/.test(name ?? "") && !VALUE_MATCHER.test(name) && baseName(node.callee) === "expect")
+            );
+        };
+        // `vi.waitFor(fn, 5000)`, `vi.waitUntil(fn, 5000)`: a number where the options go.
+        const NUMBER_BUDGET = new Set(["waitFor", "waitUntil"]);
+        const checkWaitBudget = (node, name) => {
+            if (!name || !isWaitCall(node, name)) {
+                return;
+            }
+            const args = node.arguments;
+            args.forEach((arg, i) => {
+                const props = budgetProps(arg);
+                if (props.length > 0) {
+                    context.report({
+                        node: arg,
+                        messageId: "waitBudget",
+                        fix: (fixer) => removeProps(fixer, args, i, props),
+                    });
+                } else if (isBuilder(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget", fix: (fixer) => removeArg(fixer, args, i) });
+                } else if (budgetConst(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget" });
+                } else if (i === 1 && NUMBER_BUDGET.has(name) && baseName(node.callee) === "vi" && isNumeric(arg)) {
+                    context.report({ node: arg, messageId: "waitBudget", fix: (fixer) => removeArg(fixer, args, i) });
+                }
+            });
+        };
+
         return {
             ForStatement(node) {
                 frameLoops.push(node);
@@ -567,6 +702,7 @@ const rule = {
                 const { callee } = node;
                 const name = callee.type === "Identifier" ? callee.name : propName(callee);
                 checkClockMatcher(node, name);
+                checkWaitBudget(node, name);
                 collectCall(node, name);
                 if (isSleepCall(node, name)) {
                     reportSleep(node);

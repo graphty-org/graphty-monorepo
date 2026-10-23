@@ -43,9 +43,6 @@ import { isUnderRunner, isVisualCapture } from "./helpers";
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
 
-/** How often to look again while waiting. */
-const POLL_MS = 50;
-
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
 
@@ -272,8 +269,24 @@ function listed(offenders: readonly string[]): string {
 async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
     while (!done()) {
         await holds(Date.now() <= deadline, complaint);
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        // Once a frame: what is waited for changes as the element draws.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
     }
+}
+
+/**
+ * Wait until something the story caused has happened -- the camera moved, a step was recorded --
+ * and fail with a sentence when it never does (a deadline only in the interactive Storybook; under
+ * a runner its own hang guard is the backstop).
+ * @param done - What is being waited for.
+ * @param complaint - What to say when it never happened.
+ */
+export async function eventually(done: () => boolean, complaint: string): Promise<void> {
+    await until(done, isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS, complaint);
 }
 
 /**

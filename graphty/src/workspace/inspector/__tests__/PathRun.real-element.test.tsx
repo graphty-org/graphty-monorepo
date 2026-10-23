@@ -34,13 +34,10 @@ describe("a path run's Values", () => {
             const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
             const view = render(<Workspace store={store} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }
@@ -79,13 +76,10 @@ describe("a path run's Values", () => {
             const store = createWorkspaceStore({ project: { name: "Trail", id: 1 } });
             const view = render(<Workspace store={store} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }
@@ -131,13 +125,10 @@ describe("a path run's Values", () => {
             const store = createWorkspaceStore({ project: { name: "Line", id: 1 } });
             const view = render(<Workspace store={store} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }

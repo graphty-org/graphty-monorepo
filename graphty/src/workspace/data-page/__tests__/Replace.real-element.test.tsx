@@ -63,13 +63,10 @@ describe("Replace with file...", () => {
             const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
             render(<Workspace store={store} />);
             let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                session = document.querySelector("graphty-element")?.session;
+                assert.isDefined(session);
+            });
             if (session === undefined) {
                 throw new Error("the element never came up");
             }
@@ -86,7 +83,7 @@ describe("Replace with file...", () => {
                 replaceSource(store, live.data.sources()[0], new File([FRIENDS_V2], "friends-v2.csv"));
             });
             await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
-            const report = await screen.findByTestId("replace-report", {}, { timeout: TIMEOUT_MS });
+            const report = await screen.findByTestId("replace-report", {});
             assert.equal(report.textContent, "Was 4 nodes, 4 edges; now 4, 4");
             // Every column matches, so Replace has focus and one Enter replaces.
             const load = screen.getByRole("button", { name: "Replace" });
@@ -95,12 +92,9 @@ describe("Replace with file...", () => {
             });
             await userEvent.keyboard("{Enter}");
 
-            await waitFor(
-                () => {
-                    assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 run out of date");
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.equal(store.get().announcement, "friends.csv replaced: 4 nodes, 4 edges. 1 run out of date");
+            });
             // Load hands focus to the graph's heading, never to the drawing's outline.
             await waitFor(() => {
                 assert.equal(document.activeElement?.id, INSPECTOR_TITLE_ID, "focus is not on the graph's heading");

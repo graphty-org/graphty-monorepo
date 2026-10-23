@@ -24,7 +24,6 @@ import {
     renderGraph,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -251,6 +250,6 @@ export const PageRank: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("computed");
-        }, storyWaitOptions(5000));
+        });
     },
 };

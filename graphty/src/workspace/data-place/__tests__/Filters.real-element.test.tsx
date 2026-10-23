@@ -30,13 +30,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -100,7 +97,6 @@ describe("Filters on the real element", () => {
             await screen.findByText(
                 'Showing only: "value is between 9 and 31". Click to open Filters, where you can turn it off.',
                 {},
-                { timeout: 3000 },
             );
             await userEvent.unhover(chip);
             await waitFor(() => {
@@ -124,7 +120,7 @@ describe("Filters on the real element", () => {
             // The checkbox's tooltip says what a click does.
             const tick = screen.getByRole("checkbox", { name: "Apply step: value is between 9 and 31" });
             await userEvent.hover(tick);
-            await screen.findByText("Turn this step off", {}, { timeout: 3000 });
+            await screen.findByText("Turn this step off", {});
             await userEvent.unhover(tick);
 
             // Untick: the full graph, the chip gone, the row and the editor say off.
@@ -204,7 +200,7 @@ describe("Filters on the real element", () => {
 
             // Hover names the missing attribute; a click adds nothing.
             await userEvent.hover(add);
-            await screen.findByText("Choose an attribute first", {}, { timeout: 3000 });
+            await screen.findByText("Choose an attribute first", {});
             await userEvent.click(add);
             assert.lengthOf(session.visibility.steps, 0);
             await userEvent.unhover(add);
@@ -219,7 +215,7 @@ describe("Filters on the real element", () => {
             await userEvent.tab();
             await userEvent.tab();
             assert.equal(document.activeElement, add);
-            await screen.findByText("Type a value first", {}, { timeout: 3000 });
+            await screen.findByText("Type a value first", {});
 
             // A whole rule enables it, and it adds the step.
             await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");

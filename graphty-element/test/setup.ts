@@ -1,3 +1,5 @@
+import "../../vitest.wait-guard-setup";
+
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
 import { EngineStore } from "@babylonjs/core/Engines/engineStore";
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";

@@ -4,7 +4,16 @@ import { DirectionProvider, type MantineThemeOverride, MantineProvider } from "@
 import type { Preview, StoryContext } from "@storybook/react";
 import { type ReactNode, useRef } from "react";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { createCompactTheme } from "../src/theme";
+
+// A play function's waitFor and findBy* wait until the monorepo's one hang guard, not Testing
+// Library's 1000 ms: a deadline on a wait fails a story whenever the machine is busy
+// (tools/test-wait-guard.mjs). Only in Storybook itself: under Vitest, tests/setup.browser.ts sets
+// it, and Storybook 8's @storybook/test cannot load there ("Vitest failed to find the runner").
+if (!import.meta.env.VITEST) {
+    void import("@storybook/test").then(({ configure }) => configure({ asyncUtilTimeout: WAIT_GUARD_MS }));
+}
 
 // One theme per contrast mode and accent, built once: MantineProvider re-resolves when the object
 // changes.

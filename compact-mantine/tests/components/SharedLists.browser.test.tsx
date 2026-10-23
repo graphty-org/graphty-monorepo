@@ -224,7 +224,7 @@ describe("table rows", () => {
         const arrow = within(header).getByTestId("data-table-sort-glyph");
         expect(menu.querySelector("svg")?.innerHTML).not.toBe(arrow.querySelector("svg")?.innerHTML);
         await userEvent.hover(menu);
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Options for hours");
+        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Options for hours");
     });
 });
 
@@ -238,7 +238,7 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Style nodes" }), { force: true });
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Stays on");
+        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Stays on");
     });
 
     it("an aria-disabled icon button shows its reason", async () => {
@@ -250,7 +250,7 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Undo" }));
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Nothing to undo");
+        expect(await screen.findByRole("tooltip", {})).toHaveTextContent("Nothing to undo");
     });
 });
 

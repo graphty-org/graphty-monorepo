@@ -242,12 +242,9 @@ describe("progress counters", () => {
  * @returns {Promise<void>} once it holds
  */
 function until(ok) {
-    return vi.waitFor(
-        () => {
-            if (!ok()) throw new Error("condition never held");
-        },
-        { timeout: 5000, interval: 20 },
-    );
+    return vi.waitFor(() => {
+        if (!ok()) throw new Error("condition never held");
+    });
 }
 
 describe("watchWanted", () => {

@@ -6,7 +6,7 @@ import { ComboInput } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions, untilPasses } from "../../helpers/settled";
+import { untilPasses } from "../../helpers/settled";
 
 /**
  * A value you can type or pick from a list of presets: a filled 24px field with a chevron that
@@ -152,7 +152,7 @@ export const OpenOverTheField: Story = {
         const box = canvas.getByRole("combobox", { name: "Font size" });
         await userEvent.click(canvas.getByRole("button", { name: "Open list" }));
         const body = within(canvasElement.ownerDocument.body);
-        const checked = await body.findByRole("option", { name: "24" }, storyWaitOptions(1000));
+        const checked = await body.findByRole("option", { name: "24" });
         // floating-ui places the list on a later frame: wait on the placement, not a deadline (#2719).
         const offset = (option: HTMLElement): number =>
             Math.abs(
@@ -165,7 +165,7 @@ export const OpenOverTheField: Story = {
         await expect(box).toHaveValue("32");
         // Reopen, so the story rests on the open list with the new value's row over the field.
         await userEvent.click(canvas.getByRole("button", { name: "Open list" }));
-        const now = await body.findByRole("option", { name: "32" }, storyWaitOptions(1000));
+        const now = await body.findByRole("option", { name: "32" });
         await untilPasses(() => offset(now) <= 1);
         await expect(offset(now)).toBeLessThanOrEqual(1);
     },

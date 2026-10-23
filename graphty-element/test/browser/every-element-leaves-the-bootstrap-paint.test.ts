@@ -48,9 +48,6 @@ const CATS = `data:application/json,${encodeURIComponent(JSON.stringify(cats))}`
 /** What the fixture declares, so a short load cannot pass by drawing nothing. */
 const EXPECTED = { nodes: 20, edges: 29 };
 
-/** How long the element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 15000;
-
 /** How long the picture may take to stop changing. */
 const STABLE_TIMEOUT_MS = 20000;
 
@@ -76,12 +73,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }

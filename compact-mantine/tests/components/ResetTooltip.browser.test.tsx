@@ -45,6 +45,6 @@ describe("an icon-only reset button", () => {
             </PopoutManager>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Reset Shape to default" }));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe("Reset Shape to default");
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("Reset Shape to default");
     });
 });

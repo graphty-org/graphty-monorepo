@@ -64,25 +64,19 @@ describe("VariablePill", () => {
         const fill = screen.getByRole("button", { name: "Edge color: Edge betweenness" });
         await userEvent.hover(fill);
         // The theme opens tooltips after a delay and mounts them hidden first.
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("Edge betweenness");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("Edge betweenness");
+        });
     });
 
     it("takes the tooltip's words from the caller", async () => {
         renderPill(<VariablePill swatch="#0d99ff" name="<Layer>" tooltip={"Layer\nEach layer's own value"} />);
         await userEvent.hover(screen.getByRole("button", { name: "<Layer>" }));
-        await waitFor(
-            () => {
-                const tip = screen.getByRole("tooltip", { hidden: true });
-                expect(tip).toHaveTextContent("Layer Each layer's own value");
-                expect(tip.textContent).not.toContain("<");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            const tip = screen.getByRole("tooltip", { hidden: true });
+            expect(tip).toHaveTextContent("Layer Each layer's own value");
+            expect(tip.textContent).not.toContain("<");
+        });
     });
 
     it("the property chip carries its kind", () => {

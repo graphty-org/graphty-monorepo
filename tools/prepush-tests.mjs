@@ -59,7 +59,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-inputs.mjs";
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
-import { afterShard, closeFinished, shQuote, splitLog } from "./test-quarantine.mjs";
+import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, startAdvisory } from "./test-select.mjs";
 import { markGate } from "./test-slots.mjs";
 
@@ -802,7 +802,10 @@ async function main() {
 
     // While the shards run, every test run and browser command outside a gate waits in the low lane (tools/test-slots.mjs).
     process.on("exit", markGate());
-    quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));
+    // Off by default (GRAPHTY_TEST_QUARANTINE=1 turns it on): then the wrapper writes no result and nothing here runs.
+    if (quarantineEnabled()) {
+        quarantineLines.push(...closeFinished(main, ROOT).map((left) => `  [QUARANTINE-] ${left}`));
+    }
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed.push(signal);

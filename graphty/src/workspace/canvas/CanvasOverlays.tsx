@@ -215,7 +215,10 @@ function useLayoutWarningNotice(): void {
             if (words === null || layoutType !== session.layout.id) {
                 return;
             }
-            const key = JSON.stringify([layoutType, session.layout.options, words]);
+            // The picture under the map (`map`, which the app may choose after the first run)
+            // places no node, so it does not make a count new.
+            const { map: _map, ...placing } = session.layout.options;
+            const key = JSON.stringify([layoutType, placing, words]);
             if (key === posted) {
                 return;
             }

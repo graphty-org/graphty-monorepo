@@ -121,9 +121,12 @@ async function switchView(mode: "2D" | "3D"): Promise<void> {
  * Lays the airports out on the map, its Location column picked.
  * @param element - the element.
  */
-async function layOutOnMap(element: Element): Promise<void> {
+async function layOutOnMap(element: Element, mapType?: "2D map"): Promise<void> {
     const popover = await openMapForm();
     await pick(popover, "Location", /where/i);
+    if (mapType !== undefined) {
+        await pick(popover, "Map type", mapType);
+    }
     await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
     await waitFor(
         () => {
@@ -231,7 +234,7 @@ describe("the location map", () => {
         await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
         assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "Graph settings has no map");
 
-        await layOutOnMap(element);
+        await layOutOnMap(element, "2D map");
         const where = (): string => JSON.stringify(element.nodeScreenPosition("JFK"));
         const before = where();
         const popover = await openMapForm();
@@ -445,7 +448,9 @@ describe("the location map", () => {
     it("closes only the Advanced pop-out on Escape, and names its button", async () => {
         await openAirports();
         const popover = await openMapForm();
-        const advanced = within(popover).getByRole("button", { name: "Advanced" });
+        // The app opens the map with nodes kept one size on screen, an advanced setting, so the
+        // button's name also says a setting behind it is changed.
+        const advanced = within(popover).getByRole("button", { name: /^Advanced/ });
         await userEvent.hover(advanced);
         const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
         assert.strictEqual(tip.textContent, "Advanced");

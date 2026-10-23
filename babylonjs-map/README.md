@@ -75,15 +75,16 @@ gives) is drawn from both sides of the line.
 
 ## Map sources
 
-| Source                        | What it shows                                       | Deepest zoom |
-| ----------------------------- | --------------------------------------------------- | ------------ |
-| `natural-earth` (the default) | A 4096 x 2048 world picture shipped in the package  | one picture  |
-| `natural-earth-gray`          | The same picture as a plain light gray backdrop     | one picture  |
-| `openstreetmap`               | Streets                                             | 19           |
-| `opentopomap`                 | Topographic                                         | 17           |
-| `nasa-gibs-blue-marble`       | Satellite mosaic of the whole earth, poles included | 7            |
-| `usgs-topo`, `usgs-imagery`   | US topographic maps and imagery                     | 16           |
-| `eox-s2cloudless-2016`        | Cloudless satellite imagery                         | 15           |
+| Source                             | What it shows                                       | Deepest zoom |
+| ---------------------------------- | --------------------------------------------------- | ------------ |
+| `natural-earth` (the default)      | A 4096 x 2048 world picture shipped in the package  | one picture  |
+| `natural-earth-gray`               | The same picture as a plain light gray backdrop     | one picture  |
+| `openstreetmap`                    | Streets                                             | 19           |
+| `opentopomap`                      | Topographic                                         | 17           |
+| `nasa-gibs-blue-marble`            | Satellite mosaic of the whole earth, poles included | 7            |
+| `nasa-gibs-blue-marble-bathymetry` | The same mosaic with the sea floor's relief         | 7            |
+| `usgs-topo`, `usgs-imagery`        | US topographic maps and imagery                     | 16           |
+| `eox-s2cloudless-2016`             | Cloudless satellite imagery                         | 15           |
 
 None needs a key. `natural-earth` contacts no one; the others are public services that ask for light
 use, and this package only ever requests the tiles in view. Sources are layered bottom first:

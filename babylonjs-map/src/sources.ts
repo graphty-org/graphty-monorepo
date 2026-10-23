@@ -58,6 +58,7 @@ export type MapSourceId =
     | "openstreetmap"
     | "opentopomap"
     | "nasa-gibs-blue-marble"
+    | "nasa-gibs-blue-marble-bathymetry"
     | "usgs-topo"
     | "usgs-imagery"
     | "eox-s2cloudless-2016";
@@ -101,6 +102,15 @@ export const mapSources: Readonly<Record<MapSourceId, MapSource>> = {
     },
     "nasa-gibs-blue-marble": {
         tiles: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_NextGeneration/default/2004-08-01/500m/{z}/{y}/{x}.jpeg",
+        attribution: "NASA EOSDIS GIBS",
+        attributionUrl: "https://earthdata.nasa.gov/gibs",
+        projection: "equirectangular",
+        tileSize: 512,
+        tileExtent: 0.8,
+        maxZoom: 7,
+    },
+    "nasa-gibs-blue-marble-bathymetry": {
+        tiles: "https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/BlueMarble_ShadedRelief_Bathymetry/default/2004-08-01/500m/{z}/{y}/{x}.jpeg",
         attribution: "NASA EOSDIS GIBS",
         attributionUrl: "https://earthdata.nasa.gov/gibs",
         projection: "equirectangular",

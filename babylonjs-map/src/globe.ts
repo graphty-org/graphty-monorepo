@@ -127,11 +127,14 @@ export class Globe extends MapSurface {
         material.disableLighting = true;
         material.emissiveColor = new Color3(0.42, 0.66, 1);
         material.alphaMode = Constants.ALPHA_ADD;
+        // The fresnel term is added to the material's alpha: 0, so the glow is the term alone,
+        // nothing at the shell's own edge and most at the globe's rim.
+        material.alpha = 0;
         material.opacityFresnelParameters = new FresnelParameters({
             bias: 0,
-            power: 2,
+            power: 1.5,
             leftColor: Color3.Black(),
-            rightColor: new Color3(8, 8, 8),
+            rightColor: new Color3(4, 4, 4),
         });
         air.material = material;
         air.parent = this.root;

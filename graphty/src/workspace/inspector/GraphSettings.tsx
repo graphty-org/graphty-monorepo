@@ -16,7 +16,6 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 import { useSizeBound } from "../frame/useSizeBound";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { MapSettings } from "./MapSettings";
 import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
 
 const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
@@ -217,7 +216,6 @@ export function GraphSettings(): React.JSX.Element | null {
                     )}
                 </Stack>
             </ControlSection>
-            {session.config.inEffect("basemap").inEffect && <MapSettings session={session} />}
             <ControlSection label="Labels" collapsible={false} headingLevel={3}>
                 <Stack gap={6}>
                     <Switch

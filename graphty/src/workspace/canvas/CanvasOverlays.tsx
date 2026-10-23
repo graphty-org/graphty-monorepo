@@ -152,7 +152,7 @@ const DETAILED_MAP_SOURCE = "openstreetmap";
  * Draws data of a country or a city over a detailed street map. The element's own default is the
  * bundled world picture, which contacts no third party; choosing a tiled source is the app's
  * call. Made once per project, the first time a flat map is drawn while the reader has chosen no
- * map, and as a project setting, so Graph settings > Map names it and the reader can change it.
+ * map, as the layout's `map` option, so the Map form names it and the reader can change it.
  */
 function useDetailedMapForSmallData(): void {
     const { element } = useWorkspace();
@@ -164,7 +164,13 @@ function useDetailedMapForSmallData(): void {
         let chosen = false;
         const onBasemap = (): void => {
             const frame = element.mapFrame;
-            if (chosen || frame?.surface !== "flat" || session.config.basemap !== undefined) {
+            const { layout } = session;
+            if (
+                chosen ||
+                frame?.surface !== "flat" ||
+                layout.id !== "location-map" ||
+                (layout.options.map ?? null) !== null
+            ) {
                 return;
             }
             const [[west, south], [east, north]] = frame.bounds;
@@ -172,7 +178,8 @@ function useDetailedMapForSmallData(): void {
                 return;
             }
             chosen = true;
-            void session.config.set({ basemap: { source: DETAILED_MAP_SOURCE } });
+            // Only the map changes: the element swaps it under nodes that stay where they are.
+            void layout.set("location-map", { options: { ...layout.options, map: { source: DETAILED_MAP_SOURCE } } });
         };
         element.addEventListener("basemap-status", onBasemap);
         return () => {

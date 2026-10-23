@@ -1,13 +1,34 @@
-import { ControlSection } from "@graphty/compact-mantine";
 import type { BasemapStatusEvent } from "@graphty/graphty-element";
 import { BASEMAP_SOURCE_DESCRIPTORS, type BasemapSourceDescriptor } from "@graphty/graphty-element/catalog";
 import type { BasemapConfig, BasemapSourceId } from "@graphty/graphty-element/schema";
-import type { GraphSession } from "@graphty/graphty-element/session";
 import { Select, Stack, TextInput } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { choiceOf, type Custom, CUSTOM_WORDS, MAP_SOURCE_FIELD_ID } from "./mapSource";
+
+/** The list's values for a map of the reader's own, beside the catalog's source ids. */
+type Custom = "tiles" | "image";
+
+/** The app's word for a map of the reader's own, by kind. */
+const CUSTOM_WORDS: Readonly<Record<Custom, string>> = { tiles: "Tiles", image: "Image" };
+
+/** The bundled world map, drawn when no map is set. */
+const DEFAULT_SOURCE = "natural-earth";
+
+/**
+ * Which list entry a map is.
+ * @param basemap - the layout's map, or null or undefined for the bundled world.
+ * @returns the entry's value.
+ */
+function choiceOf(basemap: BasemapConfig | null | undefined): string {
+    if (basemap === undefined || basemap === null) {
+        return DEFAULT_SOURCE;
+    }
+    if ("source" in basemap) {
+        return basemap.source;
+    }
+    return "tiles" in basemap ? "tiles" : "image";
+}
 
 /** The app's word for each kind of map the element's catalog names, in the order the list shows them. */
 const KIND_WORDS: Readonly<Record<BasemapSourceDescriptor["kind"], string>> = {
@@ -38,12 +59,12 @@ const CHOICES = [
 ];
 
 /**
- * The address a custom basemap draws from.
- * @param basemap - the project's basemap, or undefined.
+ * The address a custom map draws from.
+ * @param basemap - the layout's map, or null or undefined.
  * @returns the tile template or image URL, or "" for a named source.
  */
-function addressOf(basemap: BasemapConfig | undefined): string {
-    if (basemap === undefined || "source" in basemap) {
+function addressOf(basemap: BasemapConfig | null | undefined): string {
+    if (basemap === undefined || basemap === null || "source" in basemap) {
         return "";
     }
     return "tiles" in basemap ? basemap.tiles : basemap.image;
@@ -59,7 +80,7 @@ function sourceId(value: string): BasemapSourceId | undefined {
 }
 
 /**
- * The basemap a custom address and credit make.
+ * The map a custom address and credit make.
  * @param kind - tiles or one image.
  * @param address - the URL (a tile template for tiles).
  * @param credit - the credit the provider requires.
@@ -111,87 +132,86 @@ function CommitField({
 }
 
 /**
- * The Map section of Graph settings, drawn while the layout draws a map: which map lies under the
- * graph (the element's named sources by kind, None, or the reader's own tiles or image with its
- * credit). The basemap is the project's and goes through the session, one undo step per change.
- * The element draws the map's credits on the canvas.
+ * The Map layout's map: which map lies under the graph (the element's named sources by kind, None,
+ * or the reader's own tiles or image with its credit), written as the layout's `map` option. The
+ * element draws the map's credits on the canvas.
  * @param props - Component props
- * @param props.session - The element's session
- * @returns The section
+ * @param props.value - The `map` option, or null or undefined for the bundled world
+ * @param props.onChange - Writes a new map
+ * @returns The fields
  */
-export function MapSettings({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
-    const { basemap } = session.config;
+export function MapSourceFields({
+    value,
+    onChange,
+}: Readonly<{ value: BasemapConfig | null | undefined; onChange: (next: BasemapConfig) => void }>): React.JSX.Element {
     const unreachable = useBasemapUnreachable();
-    const set = choiceOf(basemap);
+    const set = choiceOf(value);
     // A custom entry is picked before its address is typed: an empty address is refused, so the
     // choice waits here until the address is written.
     const [picked, setPicked] = useState<Custom | null>(null);
     // A credit typed before the address waits here for it.
     const [pendingCredit, setPendingCredit] = useState("");
-    // Once the setting changes (written here, undone, or a project opened), it is what shows.
+    // Once the map changes (written here, undone, or a project opened), it is what shows.
     useEffect(() => {
         setPicked(null);
     }, [set]);
     const shown = picked ?? set;
     const custom: Custom | null = shown === "tiles" || shown === "image" ? shown : null;
-    const address = addressOf(basemap);
-    const credit = basemap !== undefined && !("source" in basemap) ? (basemap.attribution ?? "") : "";
+    const address = addressOf(value);
+    const credit = value !== undefined && value !== null && !("source" in value) ? (value.attribution ?? "") : "";
     const sameKind = custom !== null && custom === set;
 
     return (
-        <ControlSection label="Map" collapsible={false} headingLevel={3}>
-            <Stack gap={6}>
-                <Select
-                    id={MAP_SOURCE_FIELD_ID}
-                    size="xs"
-                    label="Source"
-                    allowDeselect={false}
-                    value={shown}
-                    data={CHOICES}
-                    onChange={(value) => {
-                        if (value === null) {
-                            return;
-                        }
-                        if (value === "tiles" || value === "image") {
-                            setPicked(value);
-                            return;
-                        }
-                        const source = sourceId(value);
-                        setPicked(null);
-                        if (source !== undefined) {
-                            void session.config.set({ basemap: { source } });
-                        }
-                    }}
-                />
-                {custom === null ? null : (
-                    <>
-                        <CommitField
-                            label="Address"
-                            error={sameKind && unreachable ? "Not reachable" : undefined}
-                            value={sameKind ? address : ""}
-                            onCommit={(next) => {
-                                if (next !== "") {
-                                    void session.config.set({
-                                        basemap: customBasemap(custom, next, sameKind ? credit : pendingCredit),
-                                    });
-                                }
-                            }}
-                        />
-                        <CommitField
-                            label="Credit"
-                            value={sameKind ? credit : pendingCredit}
-                            onCommit={(next) => {
-                                if (sameKind && address !== "") {
-                                    void session.config.set({ basemap: customBasemap(custom, address, next) });
-                                } else {
-                                    setPendingCredit(next);
-                                }
-                            }}
-                        />
-                    </>
-                )}
-            </Stack>
-        </ControlSection>
+        <Stack gap={6}>
+            <Select
+                size="xs"
+                label="Map"
+                allowDeselect={false}
+                // The list stays inside the popover, so picking from it is not an outside click.
+                comboboxProps={{ withinPortal: false }}
+                value={shown}
+                data={CHOICES}
+                onChange={(next) => {
+                    if (next === null) {
+                        return;
+                    }
+                    if (next === "tiles" || next === "image") {
+                        setPicked(next);
+                        return;
+                    }
+                    const source = sourceId(next);
+                    setPicked(null);
+                    if (source !== undefined) {
+                        onChange({ source });
+                    }
+                }}
+            />
+            {custom === null ? null : (
+                <>
+                    <CommitField
+                        label="Address"
+                        error={sameKind && unreachable ? "Not reachable" : undefined}
+                        value={sameKind ? address : ""}
+                        onCommit={(next) => {
+                            if (next !== "") {
+                                onChange(customBasemap(custom, next, sameKind ? credit : pendingCredit));
+                            }
+                        }}
+                    />
+                    <CommitField
+                        label="Credit"
+                        value={sameKind ? credit : pendingCredit}
+                        onCommit={(next) => {
+                            if (sameKind && address !== "") {
+                                onChange(customBasemap(custom, address, next));
+                            } else {
+                                setPendingCredit(next);
+                            }
+                        }}
+                    />
+                </>
+            )}
+        </Stack>
     );
 }
 

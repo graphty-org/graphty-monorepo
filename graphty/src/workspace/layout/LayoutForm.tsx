@@ -1,26 +1,19 @@
-import {
-    DataRow,
-    FieldRow,
-    PanelField,
-    PanelLabelsProvider,
-    ResetButton,
-    SegmentedControl,
-} from "@graphty/compact-mantine";
+import { FieldRow, PanelField, PanelLabelsProvider, ResetButton, SegmentedControl } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
+import type { BasemapConfig } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { costLine, optionWords } from "../analyze/words";
-import { MAP_SOURCE_FIELD_ID, mapSourceName } from "../inspector/mapSource";
 import { OptionsForm } from "../options/OptionsForm";
-import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { MapSourceFields } from "./MapSourceFields";
 import { LAYOUT_SEED, layoutName, randomSeed, startingValues, unavailable } from "./methods";
 import { columnFitWords, layoutErrorWords, locationFieldWords, optionEffectWords } from "./refusalWords";
 
-/** The location map's id, whose form names the columns it read and the map it draws on. */
+/** The location map's id, whose form names the columns it read and picks the map it draws on. */
 const MAP_LAYOUT = "location-map";
 
 /** The map's Latitude and Longitude share one row, as X and Y do; Location stands apart. */
@@ -45,25 +38,6 @@ function columnUsed(element: GraphtyElement | null, option: string): string | un
         return location.latitude;
     }
     return option === "longitude" ? location.longitude : undefined;
-}
-
-/**
- * Opens Graph settings on its Style tab and moves focus to the Map section's Source select, once
- * it is drawn.
- * @param store - the chrome store.
- */
-function openMapSource(store: WorkspaceStore): void {
-    store.set({ inspected: { kind: "graph", tab: "style" } });
-    let frames = 0;
-    const focus = (): void => {
-        const field = document.getElementById(MAP_SOURCE_FIELD_ID);
-        if (field !== null) {
-            field.focus();
-        } else if (frames++ < 30) {
-            requestAnimationFrame(focus);
-        }
-    };
-    requestAnimationFrame(focus);
 }
 
 /** Props for LayoutForm. */
@@ -93,7 +67,10 @@ interface LayoutFormProps {
  * @returns true when every key holds the same value.
  */
 function sameValues(a: Readonly<Record<string, unknown>>, b: Readonly<Record<string, unknown>>): boolean {
-    return [...new Set([...Object.keys(a), ...Object.keys(b)])].every((key) => Object.is(a[key], b[key]));
+    return [...new Set([...Object.keys(a), ...Object.keys(b)])].every(
+        // An object value (the map's `map`) is the same when it says the same.
+        (key) => Object.is(a[key], b[key]) || JSON.stringify(a[key]) === JSON.stringify(b[key]),
+    );
 }
 
 /**
@@ -135,7 +112,7 @@ export function LayoutForm({
     onKeyDown,
     shapeChoice = true,
 }: Readonly<LayoutFormProps>): React.JSX.Element {
-    const { element, store } = useWorkspace();
+    const { element } = useWorkspace();
     const current = session.layout;
     const isCurrent = descriptor.id === current.id;
     const [start] = useState(() => ({
@@ -199,6 +176,20 @@ export function LayoutForm({
                 );
             });
     };
+    // A new map is drawn under nodes that stay where they are, so on the applied map with nothing
+    // else edited it applies at once, and the form stays open.
+    const pickMap = (map: BasemapConfig): void => {
+        const next = { ...values, map };
+        if (isCurrent && !differs) {
+            setValues(next);
+            setError(null);
+            session.layout.set(descriptor.id, { options: inView(next) }).catch(() => {
+                setError(`${layoutName(descriptor)} could not draw this map`);
+            });
+            return;
+        }
+        edit(next);
+    };
     const pickShape = (picked: "2d" | "3d"): void => {
         if (picked === startShape) {
             // Back to what is drawn: its own dim (or none) and engine.
@@ -215,7 +206,7 @@ export function LayoutForm({
     };
 
     // The map's form: which columns "Automatic" used, the warnings about what they held, Surface
-    // offering only the flat map in 2D, and a row naming the map it draws on.
+    // offering only the flat map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
     const mapDrawn = isMap && isCurrent ? element : null;
     const warnings = mapDrawn?.mapFrame?.warnings ?? [];
@@ -329,7 +320,8 @@ export function LayoutForm({
                     session={session}
                     // Shape is the dim control; Seed is drawn with Reshuffle below.
                     options={descriptor.options
-                        .filter((o) => o.name !== "dim" && o.name !== "seed")
+                        // The map has fields of its own, below.
+                        .filter((o) => o.name !== "dim" && o.name !== "seed" && o.name !== "map")
                         .map((o) =>
                             defaultOnly(o) ? { ...o, values: o.values?.filter((v) => v.value === o.default) } : o,
                         )}
@@ -345,16 +337,8 @@ export function LayoutForm({
                     choiceNote={(_option, refusal) => columnFitWords(refusal) ?? ""}
                     rows={isMap ? MAP_ROWS : undefined}
                 />
-                {isMap && session.config.inEffect("basemap").inEffect ? (
-                    // The map is a graph setting, chosen in Graph settings: this row names it and goes there.
-                    <DataRow
-                        stat
-                        name="Map"
-                        value={mapSourceName(session.config.basemap)}
-                        onClick={() => {
-                            openMapSource(store);
-                        }}
-                    />
+                {isMap ? (
+                    <MapSourceFields value={values.map as BasemapConfig | null | undefined} onChange={pickMap} />
                 ) : null}
                 {error === null ? null : (
                     <Text size="xs" c="red" role="alert">

@@ -1,7 +1,7 @@
 /**
  * The location map on the REAL graphty-element, driven by real input: Map picked in the Layout
  * popover with its Location column chosen, Surface switched between a flat map and a globe, and
- * the map under the graph chosen in Graph settings.
+ * the map under the graph chosen in the same form.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -174,45 +174,49 @@ describe("the location map", () => {
         });
     });
 
-    it("chooses the map under the graph in Graph settings, shown only while the layout draws one", async () => {
+    it("chooses the map in the Map form, swapping it at once under nodes that stay where they are", async () => {
         const element = await openAirports(true);
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
         await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByRole("combobox", { name: "Source" }), "no map under a force layout");
+        assert.isNull(screen.queryByRole("combobox", { name: "Map" }), "Graph settings has no map");
 
         await layOutOnMap(element);
-        const map = await screen.findByRole<HTMLInputElement>("combobox", { name: "Source" });
+        const where = (): string => JSON.stringify(element.nodeScreenPosition("JFK"));
+        const before = where();
+        const popover = await openMapForm();
+        const map = within(popover).getByRole<HTMLInputElement>("combobox", { name: "Map" });
         assert.strictEqual(map.value, "Natural Earth", "the bundled world map until one is chosen");
-        const panel = map.closest("section") ?? document.body;
 
-        await pick(panel, "Source", "None");
+        await pick(popover, "Map", "None");
         await waitFor(() => {
-            assert.deepStrictEqual(element.session.config.basemap, { source: "none" });
+            assert.deepStrictEqual(element.session.layout.options.map, { source: "none" });
         });
+        assert.strictEqual(where(), before, "no node moved");
 
         // A map of the reader's own: tiles from an address, with the credit it requires, which
         // the element draws on the canvas.
-        await pick(panel, "Source", "Tiles");
-        await userEvent.fill(within(panel).getByRole("textbox", { name: "Credit" }), "Test tiles");
+        await pick(popover, "Map", "Tiles");
+        await userEvent.fill(within(popover).getByRole("textbox", { name: "Credit" }), "Test tiles");
         await userEvent.fill(
-            within(panel).getByRole("textbox", { name: "Address" }),
+            within(popover).getByRole("textbox", { name: "Address" }),
             "http://127.0.0.1:9/{z}/{x}/{y}.png",
         );
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
-            assert.deepStrictEqual(element.session.config.basemap, {
+            assert.deepStrictEqual(element.session.layout.options.map, {
                 tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png",
                 attribution: "Test tiles",
             });
         });
         // Nothing answers at that address: the field says so, and the canvas credits only what drew.
-        await within(panel).findByText("Not reachable", undefined, { timeout: TIMEOUT_MS });
+        await within(popover).findByText("Not reachable", undefined, { timeout: TIMEOUT_MS });
         assert.notInclude(element.basemapStatus.attribution, "Test tiles");
 
-        await pick(panel, "Source", "Natural Earth");
+        await pick(popover, "Map", "Natural Earth");
         await waitFor(() => {
-            assert.deepStrictEqual(element.session.config.basemap, { source: "natural-earth" });
+            assert.deepStrictEqual(element.session.layout.options.map, { source: "natural-earth" });
         });
+        assert.strictEqual(where(), before, "still no node moved");
     });
 
     it("greys Map out with its reason on a graph with no location, and the element refuses it", async () => {
@@ -383,7 +387,7 @@ describe("the location map", () => {
         await layOutOnMap(element);
         await waitFor(
             () => {
-                assert.deepEqual(element.session.config.basemap, { source: "openstreetmap" });
+                assert.deepEqual(element.session.layout.options.map, { source: "openstreetmap" });
             },
             { timeout: TIMEOUT_MS },
         );
@@ -398,7 +402,7 @@ describe("the location map", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isUndefined(element.session.config.basemap, "no map was chosen for the reader");
+        assert.notExists(element.session.layout.options.map, "no map was chosen for the reader");
     });
 
     it("closes only the Advanced pop-out on Escape, and names its button", async () => {
@@ -415,21 +419,5 @@ describe("the location map", () => {
             assert.isNull(within(popover).queryByRole("combobox", { name: "Format" }), "the pop-out closed");
         });
         assert.isNotNull(within(popover).queryByRole("combobox", { name: "Surface" }), "still in the Map form");
-    });
-
-    it("names the map on the Map form, and its row moves focus to Graph settings' Source", async () => {
-        const element = await openAirports();
-        await layOutOnMap(element);
-        const popover = await openMapForm();
-        const row = within(popover).getByRole("button", { name: /^Map/ });
-        assert.include(row.textContent, "Natural Earth");
-        await userEvent.click(row);
-        await waitFor(
-            () => {
-                const focused = document.activeElement;
-                assert.strictEqual(focused?.getAttribute("id"), "graph-settings-map-source");
-            },
-            { timeout: TIMEOUT_MS },
-        );
     });
 });

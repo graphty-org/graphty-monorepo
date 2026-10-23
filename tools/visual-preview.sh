@@ -32,8 +32,10 @@
 # most VISUAL_PREVIEW_HEAD_WAIT seconds (default 600), then fails.
 #
 # Refuses a pull request from a fork: its code would run on this machine. One preview runs at a
-# time (a lock), and each capture goes through tmp/with-browser.sh when this machine has it (the
-# shared cap on browsers).
+# time (a lock), and each capture goes through tools/with-browser.sh (the shared cap on browsers;
+# WITH_BROWSER names another wrapper, for tests). A wait for the lock is recorded in the wait log
+# with the preview that held it (tools/wait-log.mjs, <main checkout>/tmp/waits.jsonl), as the
+# browser cap records a wait for a browser slot.
 #
 # VISUAL_PREVIEW_TIMEOUT (default 45m; a whole number with s, m, h or d) bounds the work, not the
 # waits: it starts once this preview holds the lock, and each capture's share of it starts once that
@@ -177,7 +179,14 @@ fetch_main() { # <refspec>...
 
 status running
 exec 9> "$ROOT/.lock"
-flock -n 9 || { say "waiting for another preview to finish (the lock; not counted against $LIMIT)"; flock 9; }
+if ! flock -n 9; then
+    WAIT_START=$(date +%s%3N)
+    HELD_BY="$(cat "$ROOT/.lock.holder" 2>/dev/null || echo unknown)"
+    say "waiting for another preview to finish (the lock; not counted against $LIMIT)"
+    flock 9
+    node "$HERE/tools/wait-log.mjs" preview-lock "$WAIT_START" "$KEY at ${HEAD:0:10}" "$HELD_BY" 2>/dev/null || true
+fi
+echo "$KEY at ${HEAD:0:10} (pid $$, since $(date -u +%Y-%m-%dT%H:%M:%SZ))" > "$ROOT/.lock.holder"
 DEADLINE=$(($(date +%s) + LIMIT_S))
 : > "$LOG"
 say "working (limit $LIMIT, from now; the waits for browser slots are not counted)"
@@ -252,7 +261,7 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
 fi
 
 WRAP=()
-[[ -x "$MAIN/tmp/with-browser.sh" ]] && WRAP=("$MAIN/tmp/with-browser.sh")
+[[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.
 PREVIEW_ENV=()
 [[ -n "$PR" ]] && PREVIEW_ENV=(VISUAL_REVIEW_PREVIEW_PR="$PR" VISUAL_REVIEW_PREVIEW_HEAD="$HEAD")

@@ -11,8 +11,8 @@
  *
  * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict).
  *
- * Usage: node tools/shard-verdict.mjs <shard> <exit-status> <log-file> <start-ms>
- *   prints the cause and exits 1 when the run did not pass; exits with 0 when it did.
+ * Usage: node tools/shard-verdict.mjs <shard> <exit-status> <log-file> <start-ms> [<command>]
+ *   <command> replaces the shard's own (a run of selected test files); prints the cause and exits 1 when the run did not pass; exits with 0 when it did.
  */
 
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
@@ -99,10 +99,11 @@ export function checkShard(shard, code, log, root, startMs) {
 
 // Run only as the entry point, not when imported.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    const [name, status, logFile, start] = process.argv.slice(2);
+    const [name, status, logFile, start, command] = process.argv.slice(2);
     const root = join(fileURLToPath(import.meta.url), "../..");
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-    const shard = SHARDS.find((s) => s.shard === name);
+    const found = SHARDS.find((s) => s.shard === name);
+    const shard = command ? { ...found, "test-command": command } : found;
     const v = checkShard(shard, Number(status), readFileSync(logFile, "utf8"), root, Number(start));
     if (!v.pass) {
         console.error(`tools/run-tests.sh: ${name} FAILED: ${v.cause}`);

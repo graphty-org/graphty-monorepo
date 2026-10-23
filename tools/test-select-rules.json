@@ -61,7 +61,7 @@
     },
     "fileLevelBrowser": {
         "$comment": "Packages of fileLevel whose shards that run a browser project may also run a list of test files (design/ci/minimal-tests.md section 3). A package joins only after tools/test-select-mutate.mjs finds no miss in its browser projects.",
-        "packages": ["compact-mantine"]
+        "packages": ["compact-mantine", "graphty", "graphty-element"]
     },
     "alsoRun": {
         "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",

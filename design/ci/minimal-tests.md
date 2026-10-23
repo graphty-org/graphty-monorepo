@@ -120,21 +120,41 @@ Vitest drops: imports with a query suffix (`?raw`, `?url`, `?worker`, `?inline`)
 loaded. A change that reaches a project's setup files runs that whole project. The graphs are
 cached by the tree of the package, so a second push of the same package reuses them.
 
-### 2.2 Across packages: whole packages, never files
+### 2.2 Across packages: builds run dependents whole, reads by path select the readers
 
-Every package reads the others through their built `dist/` (the `@graphty/*` exports point there,
-and no vitest config aliases a workspace package to its source). So a change to
+Every package reads the others through their built `dist/` (the `@graphty/*` exports point there;
+the one alias to source is graphty's, which reads graphty-element's source). So a change to
 `graph-format/src/views/csr.ts` appears in no other package's module graph: downstream tests import
-`graph-format/dist/graph-format.js`. File-level selection across packages is therefore impossible
-with any import-graph or recorded-dependency tool, and the selector never tries.
+`graph-format/dist/graph-format.js`. When a package changes a file that goes into its build
+(anything outside its tests, stories and docs), every package that depends on it in nx's graph runs
+all of its affected shards.
 
-Instead, when a package changes a file that goes into its build (anything outside its tests,
-stories and docs), every package that depends on it runs all of its affected shards. The
-dependency closure is the one `tools/prepush-inputs.mjs` computes: nx's project graph, plus every
-package another one reaches by a relative path (`../graph-io/test/corpus/...`,
-`{workspaceRoot}/graph-samples/dist/data/v1`). Today that relative-path scan finds edges nx does
-not have: graph-io's tests read graphty-element files, graphty reads algorithms and layout, and
-visual-review reads layout. Section 4 moves those edges into nx.
+A package that reads another package's files without going through its build (graph-io's corpus
+read by graphty-element's tests, visual-review's test helpers imported by githerd's) is judged path
+by path:
+
+- a test whose imports reach the changed file is selected (graphty's tests import graphty-element's
+  source through the alias, and githerd's import visual-review's helpers, so those are graph edges);
+- every literal path a file of the reader's graph names inside another package
+  (`"../../graph-io/test/corpus/styles"`, `join(__dirname, "..", "..", "..", "graph-io", "test")`,
+  `resolve(pkg, "..", "graph-io", ...)`, `{workspaceRoot}/...`) is a prefix; a changed file under it
+  selects the tests that reach the file holding the literal. A script a test runs is read on its
+  behalf, with its relative imports. A regex replacement (`"../graphty-element/$1.ts"`, a Vite alias)
+  is not a read: what it resolves is in the graph;
+- a literal in a test config or Storybook setup, or a package without a graph, runs the reader whole;
+- a literal naming a build output (a path git ignores, such as `graph-samples/dist/data/v1`) is read
+  when that package's build changes; a literal that names nothing tracked stands for the whole package;
+- a read by one of the reader's own build inputs counts as a change to the reader's build, so its
+  dependents run whole.
+
+A change to a graphty-element test therefore runs graphty's one test that reads graphty-element's
+root (`test/config/element-source.test.ts`), not all of graphty. Section 4 moves the remaining
+cross-package edges into nx.
+
+An import graph is only used when Vite transformed every file it reached. A file Vite cannot
+transform (usually an import of a workspace package whose `dist/` is not built) used to stay in the
+graph as a leaf, silently losing its imports; now the whole graph is discarded and its package runs
+whole, and the graph is not cached. A stylesheet's `@import` and `url()` (fonts, images) are edges.
 
 ### 2.3 What no graph shows: hand-kept rules
 
@@ -193,9 +213,9 @@ gate's time. They are also where hidden inputs are most common: the label font l
 the font helper and app modules into every story, and `staticDirs` serve graph-samples' build.
 
 So a shard that runs a browser project is selected file by file only when its package is on the
-browser allow list in `tools/test-select-rules.json` (a new `fileLevelBrowser` list, empty at
-first), and a package goes on it only after mutation testing (section 5) of its browser projects
-finds no miss. Until then such a shard runs whole whenever its package is affected, as it does
+browser allow list in `tools/test-select-rules.json` (`fileLevelBrowser`), and a package goes on it
+only after mutation testing (section 5) of its browser projects finds no miss. compact-mantine,
+graphty and graphty-element joined on 2026-10-22 (section 5.2). Until then such a shard runs whole whenever its package is affected, as it does
 today. The Storybook projects are judged the same way, with one extra rule already in the rules
 file: a change to `.storybook/` or to any file the preview imports runs the whole Storybook
 project.
@@ -282,8 +302,12 @@ argument has holes wherever a reader is not recognised, so three checks look for
   file is emptied (`{}` for JSON), so every test that reads it fails. Every failing test file must be
   in the selection for that one-file change. A failing file outside it is run again on the
   unbroken tree; if it still fails it is flaky, otherwise it is a miss. The script also reports how
-  much was selected that did not fail, the measure of over-selection. A run over the Node packages
-  takes minutes; browser projects take longer and run in the background, a few mutants each.
+  much was selected that did not fail, the measure of over-selection. `--batch K` breaks K files at
+  once and runs the shards once: a failing test file is explained only by the broken files that
+  selected it, so the files that did not are broken again without the others (one run for the
+  group, then one per file): what fails then, and not on the unbroken tree, is a miss. `--reader
+<package>` runs another package's shards, for files it reads by path. Every package and every
+  import graph is built first, as in the gate, and browser shards take a shared browser slot.
 - **Verification**, the backstop: the full gate on golden's newest commit after landings. A failure
   there that the landing's selected run passed is a miss by definition.
 
@@ -309,6 +333,25 @@ Every miss caused by a change becomes, in the same fix, a rule in `tools/test-se
 an nx input, section 4), a mutation case that reproduces it, and an entry in
 `design/ci/test-selection-replay.md` naming the reader that was not seen. A package with a second
 miss of a kind the rules cannot express goes back to whole-package selection.
+
+### 5.2 Path-level reads and browser projects, 2026-10-22
+
+Every run broke its files together (`--batch`) and broke the files that did not select a failing
+test again alone. None found a miss.
+
+| Shards run                                              | Broken files                                                                                                                                              | Result                                                     |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| cytoscape-extensions                                    | 6 graph-io test files: the Pajek file it names, and five it does not                                                                                      | the named one selects its 1 reader; the others select none |
+| githerd                                                 | 5 visual-review test files and fixtures                                                                                                                   | its 19 tests that import visual-review's helpers           |
+| visual-review                                           | layout's `project.json` (named) and 2 layout tests                                                                                                        | 1 test; none                                               |
+| compact-mantine (all projects)                          | 12: components, a shared helper, theme styles, the font a stylesheet loads, a test harness helper, the browser setup                                      | no miss                                                    |
+| graphty-element default and mesh                        | 17: meshes, managers, session styles and sets, data and catalog code, test and story helpers, 7 graph-io files it reads by path                           | no miss                                                    |
+| graphty (all but Storybook, and Storybook)              | 14: components, a stylesheet and the font and image it loads, shared helpers, test and story helpers, the browser setup, and 3 graphty-element test files | no miss; an element test file selects 1 graphty test       |
+| graphty-element browser, interactions, xr and Storybook | 14: four source files, test and story helpers, a JSON fixture, a test, and 5 graph-io files it reads by path                                              | no miss (one test failed unbroken too: flaky)              |
+
+Selections are wide for source files that a package's barrel exports (a graphty-element mesh
+selects 376 of its 416 browser tests), and narrow for tests, helpers and data, which is where most
+landings' changes are.
 
 ## 6. Rollout
 

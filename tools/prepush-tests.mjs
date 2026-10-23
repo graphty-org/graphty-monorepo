@@ -440,7 +440,7 @@ const baseChildren = new Set();
  * @param main the main checkout
  * @returns the record, or null when it could not run
  */
-function rerunOnBase(shard, base, files, main) {
+export function rerunOnBase(shard, base, files, main) {
     const run = async () => {
         const dir = join(main, ".worktrees", `${basename(ROOT)}-base`);
         const orig = SHARDS.find((s) => s.shard === shard.shard) ?? shard;

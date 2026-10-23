@@ -2190,7 +2190,7 @@ export function isRunId(value: unknown): value is RunId;
 export function isRunStatus(value: unknown): value is RunStatus;
 
 // @public
-export type IssueCode = "not-a-number" | "decimal-comma" | "unknown-end" | "repeated-edge" | "repeated-id" | "padded-space" | "case-variant" | "blank-id" | "refused-row" | "mixed-type" | "could-be-yes-no";
+export type IssueCode = "not-a-number" | "decimal-comma" | "unknown-end" | "repeated-edge" | "repeated-id" | "padded-space" | "case-variant" | "blank-id" | "refused-row" | "mixed-type" | "could-be-yes-no" | "location-unmatched" | "location-ambiguous";
 
 // @public
 export type IssueId = string;
@@ -2687,6 +2687,8 @@ export interface LocationColumns {
     readonly latitude: string | null;
     readonly location: string | null;
     readonly longitude: string | null;
+    readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
+    readonly within: string | null;
 }
 
 // @public

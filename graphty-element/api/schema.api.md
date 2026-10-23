@@ -1425,6 +1425,15 @@ export type LocationSourceFact = {
     readonly kind: "location";
     readonly column: string;
     readonly format: LocationFormat;
+} | {
+    readonly kind: "place";
+    readonly column: string;
+    readonly role: "country" | "region" | "city" | null;
+    readonly within: string | null;
+    readonly attribution: readonly {
+        readonly text: string;
+        readonly url: string;
+    }[];
 };
 
 // @public

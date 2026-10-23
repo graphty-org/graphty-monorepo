@@ -10,6 +10,16 @@
 
 import { angleFromColumn, detectLocationFormat } from "babylonjs-map/location";
 
+import {
+    type Gazetteer,
+    hasLayers,
+    PLACE_ROLES,
+    type PlaceReading,
+    type PlaceRole,
+    placeShare,
+    readPlaces,
+} from "./gazetteer";
+
 /** One attribute of the nodes: its name and its values, by row. */
 export interface ColumnValues {
     readonly name: string;
@@ -19,8 +29,35 @@ export interface ColumnValues {
 /** The three location options of the layout, as roles a column can play. */
 export type LocationRole = "latitude" | "longitude" | "location";
 
-/** Where the locations come from: one column holding whole locations, or two numeric columns. */
+/**
+ * How the designated location is read (`data.knownFields.nodeLocationRole`): `auto` reads
+ * coordinates first, then place names; `coords` only coordinates; `country`, `region` and `city`
+ * read place names of that kind; `none` reads nothing and finds nothing.
+ */
+export type LocationRoleSetting = "auto" | "coords" | PlaceRole | "none";
+
+/** What narrows a place name: a column of values by row, or a fixed country code. */
+export type PlaceWithinSource =
+    { readonly column: string; readonly values: readonly unknown[] } | { readonly code: string } | null;
+
+/** A column of place names, read through the gazetteer. */
+export interface PlaceSource {
+    readonly kind: "place";
+    readonly column: string;
+    readonly values: readonly unknown[];
+    /** The kind of place, or auto for the kind most of its values name. */
+    readonly role: PlaceRole | "auto";
+    readonly within: PlaceWithinSource;
+    /** False when the column was found by its name or values. */
+    readonly named: boolean;
+}
+
+/**
+ * Where the locations come from: one column holding whole locations, two numeric columns, or a
+ * column of place names.
+ */
 export type LocationSource =
+    | PlaceSource
     | {
           readonly kind: "location";
           readonly column: string;
@@ -36,18 +73,30 @@ export type LocationSource =
           readonly lon: readonly unknown[];
       };
 
+/** A source of coordinates: a location column or a latitude and longitude pair. */
+export type CoordinateSource = Exclude<LocationSource, PlaceSource>;
+
 /** The location options as set: a column name, or null for "find it". */
 export interface LocationChoice {
     readonly location: string | null;
     readonly latitude: string | null;
     readonly longitude: string | null;
+    /** How the location column is read; auto when absent. */
+    readonly role?: LocationRoleSetting;
+    /** The column that narrows a place name, or null to find one. */
+    readonly within?: string | null;
+    /** A fixed country code that narrows every place name. */
+    readonly withinCode?: string | null;
 }
 
-/** The designation `data.knownFields` holds, as the three paths. */
+/** The designation `data.knownFields` holds. */
 export interface LocationDesignation {
     readonly nodeLocationPath?: string | null;
     readonly nodeLatitudePath?: string | null;
     readonly nodeLongitudePath?: string | null;
+    readonly nodeLocationRole?: LocationRoleSetting | null;
+    readonly nodeLocationWithinPath?: string | null;
+    readonly nodeLocationWithin?: string | null;
 }
 
 /**
@@ -57,14 +106,26 @@ export interface LocationDesignation {
  * @returns The choice.
  */
 export function chosenLocation(options: LocationChoice, designated: LocationDesignation | undefined): LocationChoice {
+    const role = designated?.nodeLocationRole ?? "auto";
+    const place = {
+        role,
+        within: designated?.nodeLocationWithinPath ?? null,
+        withinCode: designated?.nodeLocationWithin ?? null,
+    };
     if (options.location !== null || options.latitude !== null || options.longitude !== null) {
-        return options;
+        return { ...options, ...place };
+    }
+
+    // The reader removed the field: nothing designated is read and nothing is found.
+    if (role === "none") {
+        return { location: null, latitude: null, longitude: null, ...place };
     }
 
     return {
         location: designated?.nodeLocationPath ?? null,
         latitude: designated?.nodeLatitudePath ?? null,
         longitude: designated?.nodeLongitudePath ?? null,
+        ...place,
     };
 }
 
@@ -91,6 +152,12 @@ export const MIN_DETECTED_SHARE = 0.5;
 
 const LAT_NAMES = new Set(["lat", "latitude"]);
 const LON_NAMES = new Set(["lon", "lng", "long", "longitude"]);
+/** The column names each kind of place is found by. */
+const PLACE_NAMES: Readonly<Record<PlaceRole, ReadonlySet<string>>> = {
+    country: new Set(["country", "iso2", "iso3"]),
+    region: new Set(["state", "province", "region"]),
+    city: new Set(["city", "town"]),
+};
 
 /**
  * Whether a value holds nothing.
@@ -135,28 +202,112 @@ export function locationShare(values: readonly unknown[]): number {
 /**
  * Finds the location among the nodes' attributes when no option names it: a latitude and a
  * longitude column by name, else the column a location format reads best, when it reads at
- * least half its values ({@link MIN_DETECTED_SHARE}).
+ * least half its values ({@link MIN_DETECTED_SHARE}), else a column of place names.
  * @param columns - Each attribute's name and values, by row.
+ * @param places - The gazetteer layers at hand, for finding place columns by their values;
+ *     false to find no place column.
+ * @param role - The kind of location to look for (`data.knownFields.nodeLocationRole`).
  * @returns The source, or null when nothing looks like a location.
  */
-export function detectSource(columns: readonly ColumnValues[]): LocationSource | null {
-    const lat = columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()));
-    const lon = columns.find((c) => LON_NAMES.has(c.name.toLowerCase()));
-    if (lat !== undefined && lon !== undefined) {
-        return { kind: "columns", latitude: lat.name, longitude: lon.name, lat: lat.values, lon: lon.values };
+export function detectSource(
+    columns: readonly ColumnValues[],
+    places: Gazetteer | false = {},
+    role: LocationRoleSetting = "auto",
+): LocationSource | null {
+    if (role === "none") {
+        return null;
     }
 
-    let best: { column: ColumnValues; share: number } | null = null;
-    for (const column of columns) {
-        const share = locationShare(column.values);
-        if (share >= MIN_DETECTED_SHARE && share > (best?.share ?? 0)) {
-            best = { column, share };
+    if (role === "auto" || role === "coords") {
+        const lat = columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()));
+        const lon = columns.find((c) => LON_NAMES.has(c.name.toLowerCase()));
+        if (lat !== undefined && lon !== undefined) {
+            return { kind: "columns", latitude: lat.name, longitude: lon.name, lat: lat.values, lon: lon.values };
+        }
+
+        let best: { column: ColumnValues; share: number } | null = null;
+        for (const column of columns) {
+            const share = locationShare(column.values);
+            if (share >= MIN_DETECTED_SHARE && share > (best?.share ?? 0)) {
+                best = { column, share };
+            }
+        }
+
+        if (best !== null) {
+            return { kind: "location", column: best.column.name, values: best.column.values, named: false };
         }
     }
 
-    return best === null
-        ? null
-        : { kind: "location", column: best.column.name, values: best.column.values, named: false };
+    if (places === false || role === "coords") {
+        return null;
+    }
+
+    const found = placeColumns(columns, places);
+    const wanted = role === "auto" ? (["city", "region", "country"] as const) : [role];
+    const kind = wanted.find((each) => found[each] !== undefined);
+    if (kind === undefined) {
+        return null;
+    }
+
+    const column = found[kind] as ColumnValues;
+    return {
+        kind: "place",
+        column: column.name,
+        values: column.values,
+        role: kind,
+        within: narrowingColumn(found, kind),
+        named: false,
+    };
+}
+
+/**
+ * The place columns among the attributes, one per kind: by name (country, iso2, iso3; state,
+ * province, region; city, town), else by their values, when a gazetteer layer knows at least half
+ * of them ({@link MIN_DETECTED_SHARE}), in the kind that knows the most, the coarser on a tie.
+ * @param columns - The attributes.
+ * @param places - The gazetteer layers at hand.
+ * @returns The column of each kind found.
+ */
+function placeColumns(columns: readonly ColumnValues[], places: Gazetteer): Partial<Record<PlaceRole, ColumnValues>> {
+    const found: Partial<Record<PlaceRole, ColumnValues>> = {};
+    for (const kind of PLACE_ROLES) {
+        found[kind] = columns.find((c) => PLACE_NAMES[kind].has(c.name.toLowerCase()));
+    }
+
+    const taken = new Set(Object.values(found).map((c) => c?.name));
+    for (const column of columns) {
+        if (taken.has(column.name)) {
+            continue;
+        }
+
+        let best: { kind: PlaceRole; share: number } | null = null;
+        for (const kind of PLACE_ROLES) {
+            const layer = places[kind];
+            const share = layer === undefined || found[kind] !== undefined ? 0 : placeShare(column.values, layer);
+            if (share >= MIN_DETECTED_SHARE && share > (best?.share ?? 0)) {
+                best = { kind, share };
+            }
+        }
+
+        if (best !== null) {
+            found[best.kind] = column;
+            taken.add(column.name);
+        }
+    }
+
+    return found;
+}
+
+/**
+ * The column that narrows a place column of one kind: a city by its country, else its region; a
+ * region by its country.
+ * @param found - The place columns found.
+ * @param kind - The kind narrowed.
+ * @returns The narrowing column, or null.
+ */
+function narrowingColumn(found: Partial<Record<PlaceRole, ColumnValues>>, kind: PlaceRole | "auto"): PlaceWithinSource {
+    const by = kind === "country" ? undefined : (found.country ?? (kind === "region" ? undefined : found.region));
+    return by === undefined ? null : { column: by.name, values: by.values };
 }
 
 /**
@@ -168,16 +319,22 @@ export function detectSource(columns: readonly ColumnValues[]): LocationSource |
  * - Location set: that column.
  * - None set: {@link detectSource}.
  *
- * A named column that no node carries is refused too.
+ * A named column that no node carries is refused too. The Location column is read as `role`
+ * says: under `auto`, as coordinates when half its values read as one, else as place names; under
+ * `country`, `region` or `city`, as place names, narrowed by the `within` column or code, else by
+ * a country or region column found by name. With `places` false, place names are never read.
  * @param choice - The options.
  * @param columns - The nodes' attributes, for finding what is unset.
  * @param read - The values of a named column, by row, or null when no node carries it.
+ * @param places - The gazetteer layers at hand (for finding place columns by their values), or
+ *     false when place names are not read.
  * @returns The source, or the refusal.
  */
 export function resolveLocation(
     choice: LocationChoice,
     columns: readonly ColumnValues[],
     read: (name: string) => readonly unknown[] | null,
+    places: Gazetteer | false = {},
 ): ResolvedLocation | LocationRefusal {
     const attributes = columns.map((c) => c.name);
     const refuse = (missing: LocationRole): LocationRefusal => ({
@@ -213,15 +370,70 @@ export function resolveLocation(
         return { source: { kind: "columns", latitude: latName, longitude: lonName, lat, lon }, filled };
     }
 
+    const role = choice.role ?? "auto";
     if (location !== null) {
         const values = carried(location);
-        return values === null
-            ? refuse("location")
-            : { source: { kind: "location", column: location, values, named: true }, filled: null };
+        if (values === null) {
+            return refuse("location");
+        }
+
+        const asPlace =
+            role !== "coords" && role !== "none" && (role !== "auto" || locationShare(values) < MIN_DETECTED_SHARE);
+        if (!asPlace || places === false) {
+            return { source: { kind: "location", column: location, values, named: true }, filled: null };
+        }
+
+        const others = columns.filter((c) => c.name !== location);
+        const within = designatedWithin(choice, carried) ?? narrowingColumn(placeColumns(others, {}), role);
+        return { source: { kind: "place", column: location, values, role, within, named: true }, filled: null };
     }
 
-    const found = detectSource(columns);
+    const found = detectSource(columns, places, role);
+    if (found?.kind === "place") {
+        return { source: { ...found, within: designatedWithin(choice, carried) ?? found.within }, filled: null };
+    }
+
     return found === null ? refuse("location") : { source: found, filled: null };
+}
+
+/**
+ * The narrowing the reader designated: a column (`nodeLocationWithinPath`) some node carries, else
+ * a fixed country code (`nodeLocationWithin`).
+ * @param choice - The choice.
+ * @param carried - The values of a column, or null when no node carries it.
+ * @returns The narrowing, or null when none is designated.
+ */
+function designatedWithin(
+    choice: LocationChoice,
+    carried: (name: string) => readonly unknown[] | null,
+): PlaceWithinSource {
+    const column = choice.within ?? null;
+    const values = column === null ? null : carried(column);
+    if (column !== null && values !== null) {
+        return { column, values };
+    }
+
+    const code = choice.withinCode ?? "";
+    return code === "" ? null : { code };
+}
+
+/**
+ * Read a place column through the gazetteer.
+ * @param source - The place column.
+ * @param gazetteer - The layers; those the role needs must be here.
+ * @returns The reading, or null when a layer it needs is not here yet.
+ */
+export function readPlaceSource(source: PlaceSource, gazetteer: Gazetteer): PlaceReading | null {
+    if (!hasLayers(gazetteer, source.role)) {
+        return null;
+    }
+
+    let within: readonly unknown[] | string | null = null;
+    if (source.within !== null) {
+        within = "code" in source.within ? source.within.code : source.within.values;
+    }
+
+    return readPlaces(source.values, source.role, within, gazetteer);
 }
 
 /**

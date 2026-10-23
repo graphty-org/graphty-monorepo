@@ -204,6 +204,24 @@ jobs:
             - name: Build graph-samples hosted datasets
               run: node graph-samples/scripts/build-hosted.mjs
 
+            # The gazetteer the location map reads place names with (Natural Earth and GeoNames),
+            # published at /data/gazetteer/v1/. GeoNames republishes its cities daily, so the cache
+            # key carries the date: the files follow GeoNames within a day, and fail the deploy rather
+            # than publishing a site whose place names cannot be read.
+            - name: Date for the gazetteer sources
+              id: gazetteer-date
+              run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+            - name: Cache gazetteer sources
+              uses: actions/cache@v4
+              with:
+                  path: tmp/gazetteer-sources
+                  key: gazetteer-sources-${{ hashFiles('graphty-element/scripts/build-gazetteer.mjs') }}-${{ steps.gazetteer-date.outputs.day }}
+                  restore-keys: gazetteer-sources-${{ hashFiles('graphty-element/scripts/build-gazetteer.mjs') }}-
+
+            - name: Build the gazetteer
+              run: node graphty-element/scripts/build-gazetteer.mjs
+
             # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
             # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which
             # CI's link check also runs, so every link to graphty.app is checked against this site.

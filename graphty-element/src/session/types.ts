@@ -3422,6 +3422,15 @@ export interface LocationColumns {
     readonly latitude: string | null;
     /** The longitude column of a pair, or null. */
     readonly longitude: string | null;
+    /**
+     * How the location is read: `coords` for coordinates (a pair or one column of them), or the
+     * kind of place `location` names (`country`, `region`, `city`; `auto` until the gazetteer that
+     * decides it is loaded); null when nothing is read.
+     * @since 3.31.0
+     */
+    readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
+    /** The column that narrows each place name (a city's country), or null. @since 3.31.0 */
+    readonly within: string | null;
 }
 
 /**

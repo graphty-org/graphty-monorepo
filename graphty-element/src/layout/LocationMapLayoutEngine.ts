@@ -5,13 +5,18 @@ import { defineOptions, type OptionsSchema } from "../config";
 import { Basemap } from "../config/Basemap";
 import { GraphtyError } from "../errors";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
-import type { LocationMapFrame, PlaceOptions } from "./locationMap/place";
+import { cachedGazetteer, type Gazetteer, GAZETTEER_URL, hasLayers, loadGazetteer } from "./locationMap/gazetteer";
+import type { LocationMapFrame, Placement, PlaceOptions } from "./locationMap/place";
 import {
     chosenLocation,
     type ColumnValues,
+    type CoordinateSource,
     isLocationRefusal,
     type LocationChoice,
     type LocationRefusal,
+    type PlaceSource,
+    readPlaceSource,
+    type ResolvedLocation,
     resolveLocation,
 } from "./locationMap/source";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
@@ -139,6 +144,16 @@ const locationMapOptionsSchema = defineOptions({
                 "({ tiles, attribution }) or one picture ({ image, bounds }); null for the bundled world image",
         },
     },
+    gazetteer: {
+        schema: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
+        meta: {
+            label: "Gazetteer",
+            description:
+                "Where place names (countries, regions, cities) are looked up: the address of the gazetteer " +
+                "files, fetched on first use; false to read no place names",
+            advanced: true,
+        },
+    },
     nodeScale: {
         schema: z.enum(["scene", "screen"]).default("scene"),
         meta: {
@@ -165,6 +180,7 @@ const LocationMapLayoutConfig = z.strictObject({
     overlap: z.enum(["spread", "stack"]).default("spread"),
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
     map: Basemap.nullable().default(null),
+    gazetteer: z.union([z.string().min(1), z.literal(false)]).default(GAZETTEER_URL),
     dim: z.number().default(3),
 });
 type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
@@ -176,6 +192,9 @@ type LocationMapLayoutConfigType = z.infer<typeof LocationMapLayoutConfig>;
  * longitude attribute; with neither option set, it reads the columns designated in
  * `data.knownFields` (`nodeLocationPath`, or `nodeLatitudePath` and `nodeLongitudePath`), and with
  * none designated it finds them by name or by their values (`session.layout.locationColumns()`).
+ * A column of place names (countries, regions or cities, `nodeLocationRole`) is looked up in the
+ * gazetteer the `gazetteer` option names, fetched on first use; a city is narrowed by a country
+ * or region column (`nodeLocationWithinPath`, else one found by name).
  *
  * Nodes with no usable location go to a tray below the map (or stay where they were) and are
  * reported as `W_LOCATION_UNPARSED` and `W_LOCATION_OUT_OF_RANGE`; they are never put at latitude
@@ -261,9 +280,23 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         }
 
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name));
+        const read = (name: string): readonly unknown[] | null => named(columns, name);
+        let answer = resolveLocation(this.#choice(), columns, read, this.#places());
+        const url = this.config.gazetteer;
+        if (isLocationRefusal(answer) && url !== false && !hasLayers(cachedGazetteer(url), "auto")) {
+            // A column of place names is found by its values only with the gazetteer here.
+            const loaded = await loadGazetteer(url, "auto").catch(() => null);
+            if (loaded !== null) {
+                answer = resolveLocation(this.#choice(), columns, read, this.#places());
+            }
+        }
+
         if (isLocationRefusal(answer)) {
             throw refusalError(answer);
+        }
+
+        if (answer.source.kind === "place" && url !== false) {
+            await loadGazetteer(url, answer.source.role);
         }
 
         // Loaded here, before the layout becomes the active one: a load that fails in the run
@@ -281,7 +314,12 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
         const n = input.graph.nodeCount;
         const ids = Array.from({ length: n }, (_, row) => input.graph.ids.idOf(row));
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.#choice(), columns, (name) => this.#optionColumn(input, columns, name));
+        const answer = resolveLocation(
+            this.#choice(),
+            columns,
+            (name) => this.#optionColumn(input, columns, name),
+            this.#places(),
+        );
         if (isLocationRefusal(answer)) {
             this.geoFrame = null;
             if (n === 0) {
@@ -291,12 +329,24 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
             throw refusalError(answer);
         }
 
-        const placement = placeOnMap(
-            answer.source,
-            { ids, sizes: input.nodeSizes?.() ?? null, initial: input.initial },
-            this.#placeOptions(),
-            answer.filled,
-        );
+        const url = this.config.gazetteer;
+        if (answer.source.kind === "place" && url !== false) {
+            await loadGazetteer(url, answer.source.role);
+        }
+
+        const placement = this.#place(placeOnMap, answer, {
+            ids,
+            sizes: input.nodeSizes?.() ?? null,
+            initial: input.initial,
+        });
+        if (placement === null) {
+            this.geoFrame = null;
+            throw refusalError({
+                code: "layout.needs-location",
+                params: { missing: "location", attributes: columns.map((c) => c.name) },
+            });
+        }
+
         for (const warning of placement.warnings) {
             input.warn(warning);
         }
@@ -338,20 +388,71 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
     #restoreFrame(m: typeof import("./locationMap/place")): void {
         const n = this.graph.nodeCount;
         const columns = this.#dataColumns(n);
-        const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name));
+        const answer = resolveLocation(this.#choice(), columns, (name) => named(columns, name), this.#places());
         if (isLocationRefusal(answer)) {
             this.geoFrame = null;
             return;
         }
 
         const ids = Array.from({ length: n }, (_, row) => this.graph.ids.idOf(row));
-        const placement = m.placeOnMap(
-            answer.source,
-            { ids, sizes: null, initial: new Float32Array(this.dimensions * n).fill(Number.NaN) },
-            this.#placeOptions(),
-            answer.filled,
-        );
-        this.geoFrame = placement.frame;
+        const placement = this.#place(m.placeOnMap, answer, {
+            ids,
+            sizes: null,
+            initial: new Float32Array(this.dimensions * n).fill(Number.NaN),
+        });
+        this.geoFrame = placement?.frame ?? null;
+    }
+
+    /**
+     * The gazetteer layers here, or false when the layout reads no place names.
+     * @returns The layers.
+     */
+    #places(): Gazetteer | false {
+        const url = this.config.gazetteer;
+        return url === false ? false : cachedGazetteer(url);
+    }
+
+    /**
+     * Place the nodes from a resolved source: a place column is read through the gazetteer first,
+     * and the frame then says so, with the credits its data owes.
+     * @param placeOnMap - The placement.
+     * @param answer - The resolved source.
+     * @param nodes - The nodes.
+     * @returns The placement, or null when the place layers it needs are not here.
+     */
+    #place(
+        placeOnMap: typeof import("./locationMap/place").placeOnMap,
+        answer: ResolvedLocation,
+        nodes: Parameters<typeof import("./locationMap/place").placeOnMap>[1],
+    ): Placement | null {
+        const { source } = answer;
+        if (source.kind !== "place") {
+            return placeOnMap(source, nodes, this.#placeOptions(), answer.filled);
+        }
+
+        const places = this.#places();
+        const reading = places === false ? null : readPlaceSource(source, places);
+        if (reading === null) {
+            return null;
+        }
+
+        // An unmatched name stays as written, so it is reported as unparsed, not as missing.
+        const coordinates: CoordinateSource = {
+            kind: "columns",
+            latitude: source.column,
+            longitude: source.column,
+            lat: reading.lat.map((lat, row) => lat ?? source.values[row]),
+            lon: reading.lon.map((lon, row) => lon ?? source.values[row]),
+        };
+        const placement = placeOnMap(coordinates, nodes, this.#placeOptions(), null);
+        const location = {
+            kind: "place" as const,
+            column: source.column,
+            role: reading.role,
+            within: withinColumn(source),
+            attribution: reading.attribution,
+        };
+        return { ...placement, frame: { ...placement.frame, location } };
     }
 
     /**
@@ -408,6 +509,15 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
 
         return [...names].map((name) => ({ name, values: rows.map((data) => data?.[name]) }));
     }
+}
+
+/**
+ * The column that narrowed a place column's names.
+ * @param source - The place column.
+ * @returns The column, or null for none or a fixed code.
+ */
+function withinColumn(source: PlaceSource): string | null {
+    return source.within !== null && "column" in source.within ? source.within.column : null;
 }
 
 /**

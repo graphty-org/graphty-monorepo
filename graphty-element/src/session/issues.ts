@@ -50,6 +50,11 @@ export type IssueId = string;
  *   `params.types` counts each.
  * - `could-be-yes-no`: a text column holds only yes and no (or true and false); `count` is the
  *   values, `params.values` the spellings.
+ * - `location-unmatched`: place names in the location column no place in the gazetteer matches,
+ *   so those nodes have no place on the map; `count` is the rows, `params.examples` a few names.
+ *   Read once the location map has loaded the gazetteer.
+ * - `location-ambiguous`: place names more than one place matches even after narrowing, so the
+ *   most populous was taken; `count` is the rows, `params.examples` a few names.
  *
  * OPEN UNION: codes may be added in a minor release; handle unknown codes.
  * @since 3.30.0
@@ -65,7 +70,9 @@ export type IssueCode =
     | "blank-id"
     | "refused-row"
     | "mixed-type"
-    | "could-be-yes-no";
+    | "could-be-yes-no"
+    | "location-unmatched"
+    | "location-ambiguous";
 
 /**
  * A fix `data.fix` can apply to an issue that lists it.
@@ -272,6 +279,54 @@ export interface IssueInput {
     readonly edges: readonly EdgeRecord[];
     readonly directed: boolean;
     readonly state: IssueState;
+    /** The node location column of place names, and its rows the gazetteer could not place. */
+    readonly places?: PlaceRows | null;
+}
+
+/** A node column of place names read through the gazetteer: its unmatched and ambiguous rows. */
+export interface PlaceRows {
+    readonly column: string;
+    /** Rows of `nodes` whose name no place matches. */
+    readonly unmatched: readonly number[];
+    /** Rows of `nodes` whose name several places match. */
+    readonly ambiguous: readonly number[];
+}
+
+/**
+ * The issues of the location column of place names: names nothing matched, and names several
+ * places matched. Neither has a fix; the reader edits the names or narrows them.
+ * @param input - The records and the place rows.
+ * @returns The issues found.
+ */
+function placeIssues(input: IssueInput): FoundIssue[] {
+    const { places, nodes, state } = input;
+    if (places === undefined || places === null) {
+        return [];
+    }
+
+    const ref = Object.freeze({ kind: "node" as const, name: places.column });
+    const found: FoundIssue[] = [];
+    const add = (code: IssueCode, rows: readonly number[]): void => {
+        if (rows.length === 0) {
+            return;
+        }
+
+        const examples = [...new Set(rows.map((row) => nodes[row]?.[places.column]))].slice(0, EXAMPLES);
+        found.push({
+            issue: {
+                id: `${code}:node:${places.column}`,
+                code,
+                column: ref,
+                count: rows.length,
+                params: { examples },
+                fixes: [],
+            },
+            plan: () => ({ steps: [], state, result: { nodes: 0, edges: 0 } }),
+        });
+    };
+    add("location-unmatched", places.unmatched);
+    add("location-ambiguous", places.ambiguous);
+    return found;
 }
 
 /** What a fix does: the commands, the state after, and what it touched. */
@@ -766,6 +821,7 @@ export function findIssues(input: IssueInput): FoundIssue[] {
     return [
         ...loadIssues(input),
         ...repeatedEdges(input),
+        ...placeIssues(input),
         ...input.columns.flatMap((column) =>
             column.origin === "imported" || column.origin === "joined"
                 ? columnIssues(column, rows[column.kind], input.state)

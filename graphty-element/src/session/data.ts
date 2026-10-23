@@ -47,6 +47,8 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
+import { cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
+import { chosenLocation, isLocationRefusal, readPlaceSource, resolveLocation } from "../layout/locationMap/source";
 import { eachAdjacentArc } from "./adjacency";
 import { describeAttributes } from "./attributes";
 import {
@@ -498,6 +500,44 @@ interface Derived {
 /** The edge roles read only when edges load: what the edges are. */
 const STRUCTURAL_EDGE_ROLES: ReadonlySet<ColumnRole> = new Set(["source", "target", "edgeId"]);
 
+/**
+ * The node location column of place names and the rows the gazetteer could not place, once the
+ * location map has loaded the layers it needs; null before then, or when the location is not
+ * place names.
+ * @param columns - The attributes.
+ * @param nodes - The node records.
+ * @param known - `data.knownFields`.
+ * @returns The rows, or null.
+ */
+function placeRows(
+    columns: readonly AttributeDescriptor[],
+    nodes: readonly NodeRecord[],
+    known: Parameters<typeof chosenLocation>[1],
+): { column: string; unmatched: readonly number[]; ambiguous: readonly number[] } | null {
+    const places = cachedGazetteer();
+    if (Object.keys(places).length === 0) {
+        return null;
+    }
+
+    const values = columns.flatMap((c) =>
+        c.kind === "node" ? [{ name: c.name, values: nodes.map((row) => row[c.name]) }] : [],
+    );
+    const answer = resolveLocation(
+        chosenLocation({ location: null, latitude: null, longitude: null }, known),
+        values,
+        (name) => values.find((c) => c.name === name)?.values ?? null,
+        places,
+    );
+    if (isLocationRefusal(answer) || answer.source.kind !== "place") {
+        return null;
+    }
+
+    const reading = readPlaceSource(answer.source, places);
+    return reading === null
+        ? null
+        : { column: answer.source.column, unmatched: reading.unmatched, ambiguous: reading.ambiguous };
+}
+
 /** The `data.knownFields` key each role of each kind is written to. */
 const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<ColumnRole, string>>>>> = {
     node: { key: "nodeIdPath", label: "nodeLabelPath", weight: "nodeWeightPath", time: "nodeTimePath" },
@@ -578,6 +618,8 @@ export class SessionData implements SessionDataApi {
         readonly state: IssueState;
         readonly snapshot: GraphSnapshot;
         readonly columns: readonly AttributeDescriptor[];
+        readonly known: object;
+        readonly gazetteer: number;
         readonly found: readonly FoundIssue[];
     } | null = null;
     /** `sources()` with its counts, and what they were counted from. */
@@ -2110,19 +2152,29 @@ export class SessionData implements SessionDataApi {
         const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
         const snapshot = this.current();
         const columns = this.attributes();
+        const known = this.readConfig().knownFields;
+        const gazetteer = gazetteerGeneration();
         const memo = this.issuesMemo;
-        if (memo?.state === state && memo.snapshot === snapshot && memo.columns === columns) {
+        if (
+            memo?.state === state &&
+            memo.snapshot === snapshot &&
+            memo.columns === columns &&
+            memo.known === known &&
+            memo.gazetteer === gazetteer
+        ) {
             return memo.found;
         }
 
+        const nodes = this.nodes();
         const found = findIssues({
             columns,
-            nodes: this.nodes(),
+            nodes,
             edges: this.edges(),
             directed: snapshot.directed,
             state,
+            places: placeRows(columns, nodes, known),
         });
-        this.issuesMemo = { state, snapshot, columns, found };
+        this.issuesMemo = { state, snapshot, columns, known, gazetteer, found };
         return found;
     }
 

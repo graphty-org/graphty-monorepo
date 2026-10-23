@@ -10,7 +10,8 @@ import {
     VertexBuffer,
 } from "@babylonjs/core";
 
-import { FlatMap, Globe, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
+import { sunShade } from "../src/globe.js";
+import { FlatMap, Globe, latLonToSphere, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
 
 interface Request {
     url: string;
@@ -552,6 +553,83 @@ describe("Globe", () => {
         expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
         expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
         expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
+        scene.getEngine().dispose();
+    });
+
+    it("loads finer tiles as the camera nears the surface, only around the point below it", async () => {
+        const scene = new Scene(new NullEngine({ renderWidth: 1200, renderHeight: 900, textureSize: 512 }));
+        const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 400, Vector3.Zero(), scene);
+        camera.minZ = 0.01;
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+        const deepest = (): number => Math.max(...tiles.requests.map((r) => zoomOf(r.url)));
+        globe.update();
+        const far = deepest();
+        await tiles.answerAll();
+
+        // 1 unit above the surface at latitude 0, longitude 0 (the radius is 100)
+        camera.radius = 101;
+        globe.update();
+        const near = deepest();
+        expect(near, "much finer near the surface").toBeGreaterThanOrEqual(far + 4);
+        for (const { url } of tiles.requests.filter((r) => zoomOf(r.url) === near)) {
+            const [, z, x] = /\/(\d+)\/(\d+)\/\d+\.png$/.exec(url) ?? [];
+            const lon = ((Number(x) + 0.5) / 2 ** Number(z)) * 360 - 180;
+            expect(Math.abs(lon), url).toBeLessThan(10);
+        }
+        await tiles.answerAll();
+        globe.update();
+        const drawn = shownMeshes(scene).map((m) => Number(/\|(\d+)\/\d+\/\d+$/.exec(m.name)?.[1]));
+        expect(Math.max(...drawn), "the fine tiles are drawn once loaded").toBe(near);
+        scene.getEngine().dispose();
+    });
+
+    it("shades the side away from a sun dark, with a soft twilight, and none without one", async () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { loadTexture: tiles.load });
+        globe.update();
+        await tiles.answerAll();
+        globe.update();
+        expect(shownMeshes(scene)[0].getVerticesData(VertexBuffer.ColorKind), "no sun, no shading").toBeNull();
+
+        globe.sun = { lat: 0, lon: 0 };
+        globe.update();
+        const [mesh] = shownMeshes(scene);
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const colors = mesh.getVerticesData(VertexBuffer.ColorKind) ?? [];
+        const sun = latLonToSphere({ lat: 0, lon: 0 }, 1);
+        for (let i = 0; i < positions.length / 3; i++) {
+            const p = { x: positions[3 * i], y: positions[3 * i + 1], z: positions[3 * i + 2] };
+            expect(colors[4 * i]).toBeCloseTo(sunShade(p, sun), 6);
+        }
+        const at = (lat: number, lon: number): number => sunShade(latLonToSphere({ lat, lon }, 100), sun);
+        expect(at(0, 0), "noon").toBe(1);
+        expect(at(0, 180), "midnight").toBeCloseTo(0.2);
+        expect(at(0, 88)).toBeGreaterThan(at(0, 92));
+        expect(at(0, 92)).toBeGreaterThan(at(0, 100));
+        scene.getEngine().dispose();
+    });
+
+    it("draws the air's glow around the rim when asked, at the globe's radius, and removes it", () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const globe = new Globe(scene, { atmosphere: true, loadTexture: loader(scene).load });
+        const air = (): Mesh | undefined =>
+            scene.meshes.find((m) => m.name.endsWith("-atmosphere")) as Mesh | undefined;
+        expect(globe.atmosphere).toBe(true);
+        expect(air()?.parent).toBe(globe.root);
+        expect(air()?.isPickable).toBe(false);
+        expect(air()?.scaling.x).toBeCloseTo(106);
+        expect((air()?.material as StandardMaterial).alphaMode, "added onto what is behind").toBe(1);
+        globe.radius = 10;
+        expect(air()?.scaling.x).toBeCloseTo(10.6);
+        globe.atmosphere = false;
+        expect(air()).toBeUndefined();
+        expect(new Globe(scene, { name: "plain", loadTexture: loader(scene).load }).atmosphere, "off by default").toBe(
+            false,
+        );
         scene.getEngine().dispose();
     });
 });

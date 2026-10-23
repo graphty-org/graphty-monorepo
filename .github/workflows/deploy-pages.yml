@@ -156,9 +156,11 @@ jobs:
             # graph-samples' datasets, every one of them: no package bundles their data. scripts/build-hosted.mjs
             # needs only Node and the builds of graph-format, graph-io (the Cytoscape and ontology datasets are
             # read by graph-io's own importers) and graph-samples (whose dist/data/v1/ holds the small datasets,
-            # packed from the repository's data/, which the script copies beside the large ones it builds); it
-            # records every source's URL and SHA-256, so its hash keys the download cache and an older cache
-            # still serves the sources that did not change.
+            # packed from the repository's data/, which the script copies beside the large ones it builds). With
+            # --reuse-published it takes each large dataset already on graphty.app whose SHA-256 is the one
+            # src/datasets/hosted.ts records, so a deploy never depends on the third-party source hosts (#3302);
+            # only a dataset whose recorded checksum changed is built from its sources. The script records every
+            # source's URL and SHA-256, so its hash keys the download cache for those builds.
             - name: Download graph-format build
               uses: actions/download-artifact@v4
               with:
@@ -202,7 +204,7 @@ jobs:
 
             # Fails the deploy rather than publishing a site without the data fetchDataset() loads
             - name: Build graph-samples hosted datasets
-              run: node graph-samples/scripts/build-hosted.mjs
+              run: node graph-samples/scripts/build-hosted.mjs --reuse-published
 
             # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
             # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which

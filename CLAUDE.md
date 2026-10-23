@@ -1311,6 +1311,9 @@ Rules:
   request that `visual-seed.yml` opens for the owner (see "Visual review"); it merges into master
   directly, and the next landing merges it into golden. A big change lands in small pieces, ideally
   behind a switch that is off by default.
+- A landing check may defer the test shards of packages affected only as downstream dependents (a
+  graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); the switch
+  `PREPUSH_DEFER_DOWNSTREAM` stays off until bisect confirms failures before a revert.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.
 - Where this file asks for something in a pull request description (a breaking change's list, a

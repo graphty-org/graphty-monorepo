@@ -280,6 +280,21 @@ export function selectionOn(env, base) {
     return Boolean(base) && !cut && env.PREPUSH_ALL !== "1" && (env.PREPUSH_SELECT ?? SELECT_DEFAULT) === "1";
 }
 
+// PREPUSH_DEFER_DOWNSTREAM's default. The owner agreed (2026-10-23) that a landing check need not run the
+// tests of packages reached only as dependents of the change (a graph-io change no longer runs graphty-element's
+// shards); verification of golden runs them. Off until verification confirms a failure before a culprit is
+// reverted (design/ci/fast-pipeline.md, section 9, decision 8); PREPUSH_DEFER_DOWNSTREAM=1 turns it on.
+const DEFER_DEFAULT = "0";
+
+/**
+ * Whether a selecting gate leaves out the packages reached only as dependents or readers of a changed package.
+ * @param env the environment
+ * @returns boolean
+ */
+export function deferDownstreamOn(env) {
+    return (env.PREPUSH_DEFER_DOWNSTREAM ?? DEFER_DEFAULT) === "1";
+}
+
 /**
  * The shards to run under selection (design/ci/minimal-tests.md, section 1.2): a shard the selector marks
  * "none" is left out, "files" becomes a copy of the shard whose command runs only those files (`selected`
@@ -319,9 +334,10 @@ function selectRuns(gated, base) {
     let selection;
     try {
         const select = join(dirname(fileURLToPath(import.meta.url)), "test-select.mjs");
+        const defer = deferDownstreamOn(process.env) ? ["--defer-downstream"] : [];
         const out = execFileSync(
             process.execPath,
-            [select, "--root", ROOT, "--base", selectBaseOf(ROOT, base), "--json"],
+            [select, "--root", ROOT, "--base", selectBaseOf(ROOT, base), "--json", ...defer],
             {
                 cwd: ROOT,
                 encoding: "utf8",
@@ -336,6 +352,11 @@ function selectRuns(gated, base) {
         return gated;
     }
     console.log("Test selection (PREPUSH_SELECT=1; PREPUSH_SELECT=0 runs every shard whole):");
+    if (deferDownstreamOn(process.env)) {
+        console.log(
+            "  Packages reached only as dependents of the change are left to verification (PREPUSH_DEFER_DOWNSTREAM=1).",
+        );
+    }
     return selectedShards(planRuns(ROOT, gated, selection));
 }
 

@@ -10,8 +10,8 @@ test("vi.waitFor and vi.waitUntil get the wait guard unless a call names its own
     guardViWaits(vi);
     guardViWaits(vi);
     vi.waitFor(() => {});
-    vi.waitUntil(() => {});
-    vi.waitFor(() => {});
+    vi.waitUntil(() => {}, { interval: 5 });
+    vi.waitFor(() => {}, { timeout: 10 });
     assert.deepEqual(seen, [{ timeout: WAIT_GUARD_MS }, { timeout: WAIT_GUARD_MS, interval: 5 }, { timeout: 10 }]);
     assert.ok(WAIT_GUARD_MS < TEST_GUARD_MS);
 });

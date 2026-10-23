@@ -373,6 +373,8 @@ export default tseslint.config(
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
+            // The wait guard's own test passes explicit wait options to check the guard keeps them.
+            "tools/test-wait-guard.test.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },

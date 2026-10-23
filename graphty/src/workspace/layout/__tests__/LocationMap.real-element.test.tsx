@@ -275,6 +275,22 @@ describe("the location map", () => {
         assert.closeTo(latitude.getBoundingClientRect().top, longitude.getBoundingClientRect().top, 2);
     });
 
+    it("says once, under Location, what the locations held", async () => {
+        const element = await openAirports();
+        await layOutOnMap(element);
+        const popover = await openMapForm();
+        // One node has no place: one note, under the field the places were read from.
+        const notes = await within(popover).findAllByText("1 unreadable or empty", undefined, { timeout: TIMEOUT_MS });
+        assert.lengthOf(notes, 1);
+        const location = within(popover).getByRole("combobox", { name: "Location" });
+        const latitude = within(popover).getByRole("combobox", { name: "Latitude" });
+        const at = notes[0].getBoundingClientRect().top;
+        assert.isTrue(
+            Math.abs(at - location.getBoundingClientRect().top) < Math.abs(at - latitude.getBoundingClientRect().top),
+            "the note sits with Location",
+        );
+    });
+
     it("puts Select on the unplaced notice, and posts it once across a 2D/3D switch", async () => {
         const { element, store } = await openWorkspace(false, NODES);
         let posted = 0;

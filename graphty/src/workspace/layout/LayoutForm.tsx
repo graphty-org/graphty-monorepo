@@ -26,9 +26,6 @@ const MAP_LAYOUT = "location-map";
 /** The map's Latitude and Longitude share one row, as X and Y do; Location stands apart. */
 const MAP_ROWS = [["latitude", "longitude"]] as const;
 
-/** The map's options that name a column, each with the role the element's frame names it by. */
-const LOCATION_OPTIONS: ReadonlySet<string> = new Set(["location", "latitude", "longitude"]);
-
 /**
  * The column the map read for a location option it was left to find itself, from the element's
  * frame of the map it drew, or undefined when it has not drawn one.
@@ -205,8 +202,10 @@ export function LayoutForm({
     const isMap = descriptor.id === MAP_LAYOUT;
     const mapDrawn = isMap && isCurrent ? element : null;
     const warnings = mapDrawn?.mapFrame?.warnings ?? [];
+    // One note, under the field the locations were read from: Location, or Latitude for a pair.
+    const notedField = mapDrawn?.mapFrame?.location.kind === "location" ? "location" : "latitude";
     const fieldNote = (option: OptionDescriptor): string | null => {
-        if (!LOCATION_OPTIONS.has(option.name) || option.name === "location") {
+        if (option.name !== notedField) {
             return null;
         }
         const lines = warnings.flatMap((w) => locationFieldWords(w.code, w.params) ?? []);

@@ -476,19 +476,34 @@ function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }
             whole(dir, `depends on ${viaBuild}, whose build changed`);
             continue;
         }
-        const gs = usable(graphs.get(dir));
-        for (const { file, holder } of reads.get(name)) {
-            const known = holder && gs?.filter((g) => knows(g, holder));
-            if (!known?.length) {
-                whole(dir, `${holder ?? "a file of it"} reads ${file} by relative path`);
-                continue;
-            }
-            for (const g of known) {
-                selectInGraph(g, [holder], false).specs.forEach((why, spec) =>
-                    addSpec(out.get(dir), spec, holder === file ? why : `${why}, which names ${file}`),
-                );
-            }
+        for (const read of reads.get(name)) {
+            selectReader(dir, read, { graphs, whole, out });
         }
+    }
+}
+
+/**
+ * The tests of a package that one read of another package's file needs: those that reach the reading file,
+ * or the whole package when no graph of it has that file (a config read it, or there is no graph).
+ * @param dir the reading package
+ * @param read `{ file, holder }` from foreignReads()
+ * @param read.file the changed file it reads
+ * @param read.holder the file that reads it, or null
+ * @param ctx `{ graphs, whole, out }`
+ * @param ctx.graphs Map of package directory to its import graphs
+ * @param ctx.whole marks a package to run whole
+ * @param ctx.out each package's selection
+ */
+function selectReader(dir, { file, holder }, { graphs, whole, out }) {
+    const known = holder ? (usable(graphs.get(dir)) ?? []).filter((g) => knows(g, holder)) : [];
+    if (known.length === 0) {
+        whole(dir, `${holder ?? "a file of it"} reads ${file} by relative path`);
+        return;
+    }
+    for (const g of known) {
+        selectInGraph(g, [holder], false).specs.forEach((why, spec) =>
+            addSpec(out.get(dir), spec, holder === file ? why : `${why}, which names ${file}`),
+        );
     }
 }
 
@@ -1426,44 +1441,87 @@ export function testRefs(root, roots, graphs, fallback) {
     for (const [name, dir] of roots) {
         const gs = usable(graphs.get(dir));
         if (!gs) {
+            const pkgs = [...(fallback.get(name) ?? [])];
             refs.set(
                 name,
-                [...(fallback.get(name) ?? [])].map((t) => ({ target: t, prefix: `${roots.get(t)}/`, holder: null })),
+                pkgs.map((t) => ({ target: t, prefix: `${roots.get(t)}/`, holder: null })),
             );
             continue;
         }
         const inGraph = new Set(gs.flatMap((g) => Object.keys(g.imports)));
         const found = new Map();
         for (const holder of [...inGraph, ...configFiles(root, dir)]) {
-            const seen = new Set([holder]);
-            const todo = [holder];
-            while (todo.length > 0) {
-                const file = todo.pop();
-                const { paths, runs, imports } = literals(file);
-                for (const path of paths) {
-                    const pkg = path.split("/")[0];
-                    const target = byDir.get(pkg);
-                    if (target && target !== name) {
-                        // a build output (ignored by git) changes with the package's build; a path that names
-                        // nothing else (a file built from parts) stands for the whole package
-                        const build = !index.has(path) && ignoredPath(root, path);
-                        const prefix = index.has(path) ? stripExt(path) : `${pkg}/`;
-                        found.set(`${target}\0${prefix}\0${holder}\0${build}`, { target, prefix, holder, build });
-                    }
-                }
-                // a script a test runs, and what a file outside the graph (a config, a script) imports: what
-                // they read counts as read by the holder
-                for (const next of [...runs, ...(inGraph.has(file) ? [] : imports)]) {
-                    if (!seen.has(next)) {
-                        seen.add(next);
-                        todo.push(next);
-                    }
+            for (const path of readThrough(holder, inGraph, literals)) {
+                const ref = refOf(root, path, { byDir, index, name, holder });
+                if (ref) {
+                    found.set(`${ref.target}\0${ref.prefix}\0${holder}\0${ref.build}`, ref);
                 }
             }
         }
         refs.set(name, [...found.values()]);
     }
     return refs;
+}
+
+/**
+ * Every path one holder names, with what a script it runs names, and what a file outside the graph (a
+ * config, a script) imports: what they read counts as read by the holder.
+ * @param holder a file of a package's graph, or one of its configs
+ * @param inGraph Set of the files of the package's graphs (their imports are already edges)
+ * @param literals (file) => literalPaths()
+ * @returns Set of repo-relative paths
+ */
+function readThrough(holder, inGraph, literals) {
+    const out = new Set();
+    const seen = new Set([holder]);
+    const todo = [holder];
+    while (todo.length > 0) {
+        const file = todo.pop();
+        const { paths, runs, imports } = literals(file);
+        paths.forEach((p) => out.add(p));
+        for (const next of [...runs, ...(inGraph.has(file) ? [] : imports)].filter((n) => !seen.has(n))) {
+            seen.add(next);
+            todo.push(next);
+        }
+    }
+    return out;
+}
+
+/**
+ * The reference a named path makes into another package, or null when it names the reader itself or no
+ * package. A build output (ignored by git) changes with the package's build; a path that names nothing else
+ * (a file built from parts) stands for the whole package.
+ * @param root the checkout
+ * @param path a repo-relative path
+ * @param ctx `{ byDir, index, name, holder }`
+ * @param ctx.byDir Map of package directory to its name
+ * @param ctx.index pathIndex(root)
+ * @param ctx.name the reading package
+ * @param ctx.holder the file that names it
+ * @returns `{ target, prefix, holder, build }` or null
+ */
+function refOf(root, path, { byDir, index, name, holder }) {
+    const pkg = path.split("/")[0];
+    const target = byDir.get(pkg);
+    if (!target || target === name) {
+        return null;
+    }
+    const known = index.has(path);
+    return { target, prefix: known ? stripExt(path) : `${pkg}/`, holder, build: !known && ignoredPath(root, path) };
+}
+
+/**
+ * A string without the given characters at its end.
+ * @param s the string
+ * @param chars the characters to drop
+ * @returns the trimmed string
+ */
+function trimEnd(s, chars) {
+    let end = s.length;
+    while (end > 0 && chars.includes(s[end - 1])) {
+        end--;
+    }
+    return s.slice(0, end);
 }
 
 const PATH_TOKEN = /(?:\.\.\/)+[\w@.+-]+(?:\/[\w@.+-]+)*|\{workspaceRoot\}\/[\w@.+-]+(?:\/[\w@.+-]+)*/gu;
@@ -1496,12 +1554,16 @@ export function literalPaths(root, file, index) {
     const runs = new Set();
     const add = (token) => {
         if (token.startsWith("{workspaceRoot}/")) {
-            paths.add(token.slice("{workspaceRoot}/".length).replace(/\.+$/u, ""));
+            paths.add(trimEnd(token.slice("{workspaceRoot}/".length), "."));
             return;
         }
-        const clean = token.replace(/\.+$/u, "").replace(/\/+$/u, "");
+        const clean = trimEnd(token, "./");
         const near = posix.normalize(posix.join(posix.dirname(file), clean));
-        const sibling = posix.normalize(clean.replace(/^(?:\.\.\/)+/u, ""));
+        let sibling = clean;
+        while (sibling.startsWith("../")) {
+            sibling = sibling.slice(3);
+        }
+        sibling = posix.normalize(sibling);
         const pick =
             [near, sibling].find((p) => !p.startsWith("..") && index.has(p)) ??
             (near.startsWith("..") ? sibling : near);

@@ -198,24 +198,9 @@ async function mutateBatch({ wt, files, shards, allShards, graphs }) {
         }
         const found = [];
         for (const g of unexplained(run.files, files, (m) => chosen(m, shard))) {
-            // with only the files that did not select them broken: what still fails is a miss of one of those
-            const again = failing(shard, g.files, g.non).files.filter((x) => g.files.includes(x));
-            if (again.length === 0) {
-                continue;
-            }
-            const flaky = new Set(failing(shard, again, []).files);
-            const alone = new Map(g.non.map((m) => [m, new Set(failing(shard, again, [m]).files)]));
-            for (const f of again) {
-                const by = g.non.filter((m) => alone.get(m).has(f));
-                if (flaky.has(f)) {
-                    console.log(`${shard.shard}: flaky ${f} (fails unbroken)`);
-                } else if (by.length === 0) {
-                    console.log(`${shard.shard}: ${f} fails only with several of ${g.non.join(" ")} broken together`);
-                    inconclusive++;
-                } else {
-                    by.forEach((m) => found.push(`${m} -> ${f}`));
-                }
-            }
+            const r = crossCheck(shard, g, failing);
+            found.push(...r.found);
+            inconclusive += r.inconclusive;
         }
         misses += found.length;
         const selected = new Set(files.flatMap((m) => [...(chosen(m, shard) ?? [])]));
@@ -229,6 +214,37 @@ async function mutateBatch({ wt, files, shards, allShards, graphs }) {
         );
     }
     return { misses, inconclusive };
+}
+
+/**
+ * Breaks again only the files that did not select a group of failing test files: what still fails is a miss
+ * of one of them, found by breaking each alone; what fails unbroken too is flaky.
+ * @param shard the shard
+ * @param g `{ non, files }` from unexplained()
+ * @param failing (shard, test files, broken files) => the run's failing test files
+ * @returns `{ found: ["broken -> test"], inconclusive }`
+ */
+function crossCheck(shard, g, failing) {
+    const found = [];
+    let inconclusive = 0;
+    const again = failing(shard, g.files, g.non).files.filter((x) => g.files.includes(x));
+    if (again.length === 0) {
+        return { found, inconclusive };
+    }
+    const flaky = new Set(failing(shard, again, []).files);
+    const alone = new Map(g.non.map((m) => [m, new Set(failing(shard, again, [m]).files)]));
+    for (const f of again) {
+        const by = g.non.filter((m) => alone.get(m).has(f));
+        if (flaky.has(f)) {
+            console.log(`${shard.shard}: flaky ${f} (fails unbroken)`);
+        } else if (by.length === 0) {
+            console.log(`${shard.shard}: ${f} fails only with several of ${g.non.join(" ")} broken together`);
+            inconclusive++;
+        } else {
+            by.forEach((m) => found.push(`${m} -> ${f}`));
+        }
+    }
+    return { found, inconclusive };
 }
 
 async function main(argv) {

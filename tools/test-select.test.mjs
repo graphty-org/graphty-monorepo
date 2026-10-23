@@ -30,6 +30,7 @@ import {
     selectShards,
     selectedCommand,
     shardRuns,
+    sourceOf,
     startAdvisory,
     testRefs,
     wholePackageRule,
@@ -122,13 +123,15 @@ describe("selectPackages", () => {
         assert.equal(select([".github/workflows/ci.yml"]).everything, ".github/workflows/ci.yml");
     });
 
-    it("selects files inside the changed package and runs its build dependents whole", () => {
+    it("selects files inside the changed package, and in its build dependents the tests that reach the source", () => {
         const sel = select(["pa/src/z.ts"]).packages;
         assert.equal(sel.get("pa").mode, "files");
         assert.deepEqual([...sel.get("pa").specs.keys()].sort(), ["pa/test/b.test.ts", "pa/test/c.test.ts"]);
-        assert.equal(sel.get("pb").mode, "all");
-        assert.match(sel.get("pb").reasons[0], /depends on pa/u);
+        assert.equal(sel.get("pb").mode, "none", "no test of pb reaches pa/src/z.ts");
+        assert.match(sel.get("pb").reasons[0], /no test reaches the changed source of pa/u);
+        assert.equal(sel.get("pb").fileLevel, true, "a file-level answer, so it waits for pb's allow-list entry");
         assert.equal(sel.get("pc").mode, "all", "pc reads pa's files by relative path");
+        assert.equal(select(["pa/scripts/bundle.js"]).packages.get("pb").mode, "all", "a build script runs it whole");
     });
 
     it("a test-only change in a package does not run what depends on its build", () => {
@@ -833,6 +836,139 @@ describe("misses found by mutation testing", () => {
 
     it("does not count a benchmark as a build input", () => {
         assert.ok(!buildInput("benchmarks/harness.ts"));
+    });
+});
+
+describe("changes to another package's build, followed through its source", () => {
+    const pkgs = new Map([
+        ["pa", "pa"],
+        ["pz", "pz"],
+        ["pb", "pb"],
+    ]);
+    // pz (a dataset package) depends on pa; pb depends on both
+    const deps = new Map([
+        ["pa", new Set()],
+        ["pz", new Set(["pa"])],
+        ["pb", new Set(["pa", "pz"])],
+    ]);
+    const pb = {
+        package: "pb",
+        config: null,
+        projects: {
+            unit: {
+                specs: ["pb/test/one.test.ts", "pb/test/two.test.ts", "pb/test/data.test.ts", "pb/test/read.test.ts"],
+                setup: [],
+                browser: false,
+            },
+            "storybook (chromium)": { specs: ["pb/stories/a.stories.ts"], setup: ["pb/.storybook/vitest.setup.ts"] },
+        },
+        imports: {
+            // pa's build outputs, walked as the source they are built from
+            "pb/test/one.test.ts": ["pa/src/one.ts"],
+            "pa/src/one.ts": ["pa/src/shared.ts"],
+            "pa/src/shared.ts": [],
+            "pb/test/two.test.ts": ["pa/src/two.ts"],
+            "pa/src/two.ts": [],
+            // a file pz's build writes, whose source is unknown
+            "pb/test/data.test.ts": ["pz/dist/data/x.gz"],
+            "pz/dist/data/x.gz": [],
+            "pb/test/read.test.ts": [],
+            "pb/stories/a.stories.ts": [],
+            "pb/.storybook/vitest.setup.ts": [],
+        },
+        aliased: ["pa/src/one.ts", "pa/src/shared.ts", "pa/src/two.ts"],
+        opaque: ["pb/test/read.test.ts"],
+    };
+    const empty = (dir) => [{ package: dir, config: null, projects: {}, imports: {}, opaque: [] }];
+    const graphs = new Map([
+        ["pa", empty("pa")],
+        ["pz", empty("pz")],
+        ["pb", [pb]],
+    ]);
+    const run = (changed, refs = new Map()) =>
+        selectPackages({ changed, packages: pkgs, deps, refs, graphs, rules }).packages.get("pb");
+    const specs = (p) => [...p.specs.keys()].sort();
+
+    it("runs the tests whose imports reach the changed source, and the tests that read files", () => {
+        const p = run(["pa/src/two.ts"]);
+        assert.equal(p.mode, "files");
+        // data.test.ts loads a file pz builds, and pz depends on pa
+        assert.deepEqual(specs(p), ["pb/test/data.test.ts", "pb/test/read.test.ts", "pb/test/two.test.ts"]);
+        assert.ok(!p.specs.has("pb/test/one.test.ts"));
+    });
+
+    it("runs the tests that load a build output of a package that holds the change", () => {
+        assert.deepEqual(specs(run(["pa/src/shared.ts"])), [
+            "pb/test/data.test.ts",
+            "pb/test/one.test.ts",
+            "pb/test/read.test.ts",
+        ]);
+    });
+
+    it("a source file no test reaches runs only the tests that read files; a build file runs the package", () => {
+        assert.deepEqual(specs(run(["pa/src/unused.ts"])), ["pb/test/data.test.ts", "pb/test/read.test.ts"]);
+        assert.equal(run(["pa/tsconfig.build.json"]).mode, "all");
+        assert.match(run(["pa/tsconfig.build.json"]).reasons[0], /is in no test's import graph/u);
+    });
+
+    it("a build output read by the Storybook setup runs only the projects that run the Storybook", () => {
+        const refs = new Map([["pb", [{ target: "pz", prefix: "pz/", holder: "pb/.storybook/main.ts", build: true }]]]);
+        const p = run(["pz/src/meta.ts"], refs);
+        assert.equal(p.mode, "files");
+        assert.ok(p.specs.has("pb/stories/a.stories.ts"), specs(p).join(" "));
+        assert.ok(!p.specs.has("pb/test/one.test.ts"));
+    });
+
+    it("a path the ESLint config names is not read into the package's build", () => {
+        const deps2 = new Map([...deps, ["pd", new Set(["pb"])]]);
+        const refs = new Map([["pb", [{ target: "pa", prefix: "pa", holder: "pb/eslint.config.js", build: false }]]]);
+        const sel = selectPackages({
+            changed: ["pa/src/two.ts"],
+            packages: new Map([...pkgs, ["pd", "pd"]]),
+            deps: deps2,
+            refs,
+            graphs: new Map([...graphs, ["pd", empty("pd")]]),
+            rules,
+        }).packages;
+        assert.equal(sel.get("pd").mode, "none", "pb's build did not change, and pd's tests reach nothing of pa");
+        assert.ok(sel.get("pb").specs.has("pb/test/two.test.ts"));
+    });
+
+    it("a build output read by the ESLint config runs only the tests that read files (those that run ESLint)", () => {
+        const refs = new Map([["pb", [{ target: "pz", prefix: "pz/", holder: "pb/eslint.config.js", build: true }]]]);
+        const p = run(["pz/src/meta.ts"], refs);
+        assert.equal(p.mode, "files");
+        assert.deepEqual(specs(p), ["pb/test/data.test.ts", "pb/test/read.test.ts"]);
+    });
+
+    it("finds the source of a build output from its source map, its type shim or the build's one entry", () => {
+        const fixture = mkdtempSync(join(ROOT, "tmp", "test-select-sources-"));
+        const put = (path, text) => {
+            mkdirSync(dirname(join(fixture, path)), { recursive: true });
+            writeFileSync(join(fixture, path), text);
+        };
+        try {
+            put("pq/package.json", JSON.stringify({ exports: { ".": { import: "./dist/index.js" } } }));
+            put("pq/vite.config.ts", 'export default { build: { lib: { entry: "src/main.ts" } } };');
+            for (const f of ["src/main.ts", "src/one.ts", "src/formats/dot/index.ts"]) {
+                put(`pq/${f}`, "export {};");
+            }
+            put("pq/dist/index.js", "");
+            put("pq/dist/src/one.js", "");
+            put("pq/dist/src/one.js.map", JSON.stringify({ sources: ["../../src/one.ts"] }));
+            put("pq/dist/dot.js", "");
+            put("pq/dist/dot.d.ts", '// shim\nexport * from "./src/formats/dot/index.js";\n');
+            put("pq/dist/chunks/big.js", "");
+            put("pq/dist/chunks/big.js.map", JSON.stringify({ sources: ["../../src/one.ts", "../../src/main.ts"] }));
+            const of = (f) => sourceOf(fixture, join(fixture, f))?.slice(fixture.length + 1) ?? null;
+            assert.equal(of("pq/dist/src/one.js"), "pq/src/one.ts");
+            assert.equal(of("pq/dist/dot.js"), "pq/src/formats/dot/index.ts");
+            assert.equal(of("pq/dist/index.js"), "pq/src/main.ts");
+            assert.equal(of("pq/dist/chunks/big.js"), null, "a bundle of many modules stays a build output");
+            assert.equal(of("pq/src/one.ts"), null);
+        } finally {
+            rmSync(fixture, { recursive: true, force: true });
+        }
     });
 });
 

@@ -120,14 +120,42 @@ Vitest drops: imports with a query suffix (`?raw`, `?url`, `?worker`, `?inline`)
 loaded. A change that reaches a project's setup files runs that whole project. The graphs are
 cached by the tree of the package, so a second push of the same package reuses them.
 
-### 2.2 Across packages: builds run dependents whole, reads by path select the readers
+### 2.2 Across packages: builds followed to their source, reads by path select the readers
 
-Every package reads the others through their built `dist/` (the `@graphty/*` exports point there;
-the one alias to source is graphty's, which reads graphty-element's source). So a change to
-`graph-format/src/views/csr.ts` appears in no other package's module graph: downstream tests import
-`graph-format/dist/graph-format.js`. When a package changes a file that goes into its build
-(anything outside its tests, stories and docs), every package that depends on it in nx's graph runs
-all of its affected shards.
+Every package's tests read the others through their built `dist/` (the `@graphty/*` exports point
+there; the one alias to source is graphty's, which reads graphty-element's source). The tests keep
+doing that. Only the selector's graph changes: while it walks a package's imports, each build
+output of another package is replaced by the source file it was built from, and the walk goes on
+through that source. The source of a build output is known from:
+
+1. a source map that names exactly one source (tsc's output, file for file, and a one-module chunk);
+2. an entry's type shim that re-exports one module (`dist/dot.d.ts` holding
+   `export * from "./src/formats/dot/index.js"`, written by the bundle-types scripts of graph-io,
+   graph-samples, graph-format and webgpu-graph-algorithms);
+3. the `"."` export of a package whose build names exactly one entry (`entry: "src/index.ts"` in its
+   Vite config or `scripts/build-bundle.js`: compact-mantine, layout).
+
+Every export of graph-format, graph-io, graph-samples, algorithms, layout, compact-mantine,
+remote-logger, webgpu-graph-algorithms and cytoscape-extensions maps this way; graphty-element's
+bundles do not (graphty reads its source anyway). So a change to `graph-io/src/formats/dot/styles.ts`
+appears in graphty-element's graph, and a change to the build of a package another depends on is
+judged like this (`throughSources` in `tools/test-select.mjs`):
+
+- every test whose imports reach a changed source file is selected;
+- every test that loads a build output whose source is unknown (graphty-element's bundles, the
+  dataset files graph-samples' build writes) is selected when that output's package, or a package it
+  depends on, holds the change;
+- the tests that read files or run programs at run time are selected (one may load the other
+  package's build by path);
+- a changed code file under `src/` that no test reaches selects nothing more: a bundle holds only
+  modules its entry imports, and Vite's walk sees literal, glob and template imports;
+- any other changed build input no graph holds (a build script, `package.json`, a tsconfig, a data
+  file the build reads) runs the dependent package whole, and so does a package without a graph or a
+  build that changed for another reason than its own files (a read into it, below).
+
+A source file the reading project cannot transform does not discard the graph: it stands for its
+package's whole build, like a build output of unknown source. Whether a package may use the file
+list is still decided by `fileLevel` (section 3); elsewhere it is logged as measured.
 
 A package that reads another package's files without going through its build (graph-io's corpus
 read by graphty-element's tests, visual-review's test helpers imported by githerd's) is judged path
@@ -141,7 +169,9 @@ by path:
   selects the tests that reach the file holding the literal. A script a test runs is read on its
   behalf, with its relative imports. A regex replacement (`"../graphty-element/$1.ts"`, a Vite alias)
   is not a read: what it resolves is in the graph;
-- a literal in a test config or Storybook setup, or a package without a graph, runs the reader whole;
+- a literal in a test config, or a package without a graph, runs the reader whole; a literal in the
+  Storybook setup (`.storybook/main.ts` serving graph-samples' datasets as static files) runs only the
+  projects that run the Storybook (those with a setup file in `.storybook/`);
 - a literal naming a build output (a path git ignores, such as `graph-samples/dist/data/v1`) is read
   when that package's build changes; a literal that names nothing tracked stands for the whole package;
 - a read by one of the reader's own build inputs counts as a change to the reader's build, so its
@@ -203,6 +233,36 @@ through the pnpm catalog, with a patch on `@vitest/browser@4.1.11`. A major upgr
 not trivial, so it is out of scope here and is the first improvement after rollout. It would not
 help the heaviest shards in any case: a test file in a browser pool gets no record and always runs,
 and recorded paths for other packages are `dist/` files, so 2.2 stays as it is.
+
+### 2.6 Re-exports: not followed, and why
+
+A graphty-element source file selects most of its package's browser tests (a mesh: 406 of 1,138 test
+files across the projects), and an upstream source file reached through a package's index selects most
+of its dependents' tests. It looks like barrel files (modules that only re-export) widen the
+selection, so following each import through a barrel to the module that defines the names the importer
+uses was tried on 2026-10-22, and dropped:
+
+- **Unsound on its own.** Importing one name from a barrel evaluates every module the barrel
+  re-exports. A change at a module's top level (a registration, a thrown error, a changed constant
+  that a top-level call reads) is seen by every importer of the barrel, whether or not it uses the
+  module. The selector's own mutants (a top-level `throw`) are exactly such a change, so plain
+  re-export following misses by construction.
+- **The safe form gains nothing.** Following is right only for a change confined to function bodies
+  (the module's tokens outside function, method and arrow bodies unchanged) in a module whose top
+  level runs no code, and only if every module the barrel evaluates that does run code stays an edge
+  (it may hand the changed function to code that never imports it). Built from Vite's record of the
+  names each import uses (`importedNames` in the SSR transform) and a TypeScript syntax check, that
+  graph selected 4,478 test files where the plain graph selects 4,479, over seven sample files in
+  graphty-element (a mesh, a manager, a layout engine, and graph-io, graph-samples, algorithms and
+  layout sources), even with built-ins such as `Object.freeze` and `new Set` counted as running no
+  code. Half of graphty-element's source modules run code at their top level, and the modules that
+  register layouts, algorithms and data sources import nearly everything by name; the shortest path
+  from a test to `graph-samples/src/datasets/remote.ts` is `session/data.ts`, which imports
+  `fetchDataset` directly.
+
+The wide selections are real dependencies: almost every graphty-element test loads the element, and
+the element loads almost everything. Narrowing them needs smaller test entry points in
+graphty-element, not a cleverer graph.
 
 ## 3. Browser, Storybook and screenshots
 
@@ -352,6 +412,34 @@ test again alone. None found a miss.
 Selections are wide for source files that a package's barrel exports (a graphty-element mesh
 selects 376 of its 416 browser tests), and narrow for tests, helpers and data, which is where most
 landings' changes are.
+
+### 5.3 Upstream source followed into its readers, 2026-10-22
+
+Each run broke 8 source files under one package's `src/` (seeded), built that package with the
+mutants in it, and ran the reader's shards whole on its build, four or eight files at a time. None
+found a miss.
+
+| Broken package  | Reader's shards                                  | Selected (of the shard's test files) | Result                        |
+| --------------- | ------------------------------------------------ | ------------------------------------ | ----------------------------- |
+| graph-format    | graphty-element-default                          | 506 of 646 (204 for a types module)  | 472 failed, all selected      |
+| graph-format    | cytoscape-extensions, layout, algorithms-default | 19 of 20, 29 of 36, 48 of 51         | 17, 25 and 47 failed, no miss |
+| graph-io        | graphty-element-default, cytoscape-extensions    | 373 of 646; 19 of 20                 | 335 and 5 failed, no miss     |
+| algorithms      | graphty-element-default, cytoscape-extensions    | 414 of 646; 19 of 20                 | 372 and 17 failed, no miss    |
+| layout          | graphty-element-default, cytoscape-extensions    | 351 of 646; 19 of 20                 | 307 and 17 failed, no miss    |
+| compact-mantine | graphty (all projects, Storybook)                | 164 of 164, 21 of 21                 | 133 and 21 failed, no miss    |
+| graphty-element | graphty (all projects, Storybook)                | all (twice)                          | no miss                       |
+
+Two over-selections the runs showed were fixed: webgpu-graph-algorithms' ESLint config names
+`"../algorithms/*"` as a restricted import pattern, which counted as its build reading algorithms (a
+test or lint config never goes into a build now), and graphty's ESLint config imports a rule that
+reads graphty-element's built door list, which ran all of graphty (an ESLint config's read now selects
+only the tests that read files, the ones that run ESLint).
+
+The gain is small: the six recent landings priced at 368 minutes of shard time with the previous
+selector and 354 with this one (same shard times). An upstream source file reaches most of its
+readers' tests (section 2.6), so the saving is in packages whose tests use little of the upstream
+package (cytoscape-extensions' 20 test files, graphty-element's Node tests for a graph-format types
+module).
 
 ## 6. Rollout
 

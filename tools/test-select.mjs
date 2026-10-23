@@ -434,10 +434,12 @@ function namesIn(dir, graphs) {
 }
 
 /**
- * Packages that depend on a changed package's build run whole. A package that reads another package's files
- * runs only the tests that read the changed file: the tests whose imports reach it (graphty imports
- * graphty-element's source), and the tests that reach a file holding a literal path the changed file is
- * under (`"../../graph-io/test/corpus"`); a literal in a config file, or a package without a graph, runs it
+ * Packages that depend on a changed package's build run the tests whose imports reach the changed source
+ * files, through the source each build output was built from (sourceOf), plus their tests that read files at
+ * run time; they run whole when that cannot be followed (throughSources). A package that reads another
+ * package's files runs only the tests that read the changed file: the tests whose imports reach it (graphty
+ * imports graphty-element's source), and the tests that reach a file holding a literal path the changed file
+ * is under (`"../../graph-io/test/corpus"`); a literal in a config file, or a package without a graph, runs it
  * whole. A read that goes into the reader's own build (its source imports or names the file) counts as a
  * change to the reader's build, so its dependents run whole too.
  * @param root0 the inputs
@@ -453,16 +455,18 @@ function namesIn(dir, graphs) {
 function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }) {
     const nameOf = new Map([...packages].map(([n, d]) => [d, n]));
     const built = new Set();
+    const builtFiles = new Map();
     for (const f of changed) {
         const dir = pkgOf(f);
         if (dir && buildInput(f.slice(dir.length + 1))) {
             built.add(nameOf.get(dir));
+            builtFiles.set(nameOf.get(dir), [...(builtFiles.get(nameOf.get(dir)) ?? []), f]);
         }
     }
     const reads = new Map(
         [...packages].map(([name, dir]) => [
             name,
-            foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, built: new Set(built) }),
+            foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built: new Set(built) }),
         ]),
     );
     for (const [name, dir] of packages) {
@@ -471,15 +475,94 @@ function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }
         }
     }
     for (const [name, dir] of packages) {
-        const viaBuild = [...closure(name, deps)].find((q) => q !== name && built.has(q));
-        if (viaBuild) {
-            whole(dir, `depends on ${viaBuild}, whose build changed`);
+        const upstream = [...closure(name, deps)].filter((q) => q !== name && built.has(q));
+        const why =
+            upstream.length > 0 ? throughSources(dir, upstream, { builtFiles, deps, packages, graphs, out }) : null;
+        if (why) {
+            whole(dir, why);
             continue;
         }
         for (const read of reads.get(name)) {
             selectReader(dir, read, { graphs, whole, out });
         }
     }
+}
+
+/**
+ * The tests of a package that changes to the build of packages it depends on need, through the source those
+ * builds are made from: every test whose imports reach a changed source file; every test that loads a build
+ * output whose source is unknown (graphty-element's bundles, a dataset file graph-samples' build writes) or a
+ * source the project could not transform, when the package it belongs to holds the change; and the tests that
+ * read files or run programs at run time (one may load the other package's build by path). Returns why the
+ * package must run whole instead: it has no graph, a build changed for a reason other than its own files (a
+ * read into it), or a changed file is in none of its graphs (build configuration, package.json, a file only a
+ * computed import loads).
+ * @param dir the package
+ * @param upstream the packages it depends on whose build changed
+ * @param ctx `{ builtFiles, deps, packages, graphs, out }`
+ * @param ctx.builtFiles Map of package name to its changed build inputs
+ * @param ctx.deps Map of package name to its nx dependencies
+ * @param ctx.packages Map of package name to directory
+ * @param ctx.graphs Map of package directory to its import graphs
+ * @param ctx.out each package's selection
+ * @returns a reason to run it whole, or null when its tests were selected
+ */
+function throughSources(dir, upstream, { builtFiles, deps, packages, graphs, out }) {
+    const gs = usable(graphs.get(dir));
+    if (!gs) {
+        return `depends on ${upstream[0]}, whose build changed`;
+    }
+    for (const u of upstream) {
+        const files = builtFiles.get(u) ?? [];
+        // a source file no test reaches is in no build output they load, as long as it is code under src/: a
+        // bundle holds only modules its entry imports (Vite's walk sees literal, glob and template imports)
+        const src = (f) => CODE.test(f) && f.startsWith(`${packages.get(u)}/src/`);
+        const lost = files.find((f) => !src(f) && !gs.some((g) => f in g.imports));
+        if (files.length === 0 || lost) {
+            return `depends on ${u}, whose build changed (${lost ?? "a read into it"} is in no test's import graph)`;
+        }
+    }
+    const result = out.get(dir);
+    result.upstream = true;
+    const select = (file, why) =>
+        gs.forEach((g) =>
+            selectInGraph(g, [file], false).specs.forEach((w, spec) => addSpec(result, spec, `${w}${why}`)),
+        );
+    const hidden = hiddenBuilds(gs, packages);
+    for (const u of upstream) {
+        builtFiles.get(u).forEach((f) => select(f, `, from ${u}'s build`));
+        for (const h of hidden.filter((x) => closure(x.owner, deps).has(u))) {
+            select(h.file, `, built from ${h.owner}, whose build holds ${u}`);
+        }
+        gs.flatMap((g) => g.opaque ?? []).forEach((spec) =>
+            addSpec(result, spec, `reads files at run time; ${u}'s build changed`),
+        );
+    }
+    if (result.specs.size === 0) {
+        result.reasons.push(`no test reaches the changed source of ${upstream.join(", ")}`);
+    }
+    return null;
+}
+
+/**
+ * The files of a package's graphs that stand for another package's whole build: a build output whose source
+ * is unknown, and a source the project could not transform.
+ * @param gs the package's graphs
+ * @param packages Map of package name to directory
+ * @returns `[{ file, owner }]`, owner the package name
+ */
+function hiddenBuilds(gs, packages) {
+    const byDir = new Map([...packages].map(([n, d]) => [d, n]));
+    const hidden = new Map();
+    for (const g of gs) {
+        for (const f of [...Object.keys(g.imports), ...(g.blind ?? [])]) {
+            const [d, out] = f.split("/");
+            if (d !== g.package && byDir.has(d) && (out === "dist" || g.blind?.includes(f))) {
+                hidden.set(f, { file: f, owner: byDir.get(d) });
+            }
+        }
+    }
+    return [...hidden.values()];
 }
 
 /**
@@ -496,6 +579,16 @@ function dependents({ changed, packages, deps, refs, graphs, pkgOf, whole, out }
  */
 function selectReader(dir, { file, holder }, { graphs, whole, out }) {
     const known = holder ? (usable(graphs.get(dir)) ?? []).filter((g) => knows(g, holder)) : [];
+    const stories = known.length === 0 ? storybookSpecs(dir, holder, graphs.get(dir)) : null;
+    if (stories) {
+        stories.forEach((spec) => addSpec(out.get(dir), spec, `its Storybook config ${holder} reads ${file}`));
+        return;
+    }
+    const linters = known.length === 0 ? lintSpecs(dir, holder, graphs.get(dir)) : null;
+    if (linters) {
+        linters.forEach((spec) => addSpec(out.get(dir), spec, `runs ESLint, whose config ${holder} reads ${file}`));
+        return;
+    }
     if (known.length === 0) {
         whole(dir, `${holder ?? "a file of it"} reads ${file} by relative path`);
         return;
@@ -505,6 +598,41 @@ function selectReader(dir, { file, holder }, { graphs, whole, out }) {
             addSpec(out.get(dir), spec, holder === file ? why : `${why}, which names ${file}`),
         );
     }
+}
+
+/**
+ * The tests of the Vitest projects that run a package's Storybook, when `holder` is a file of its Storybook
+ * setup (`.storybook/main.ts` serving graph-samples' datasets as static files): only those projects load it.
+ * A project runs the Storybook when one of its setup files is in `.storybook/`.
+ * @param dir the package
+ * @param holder the file that reads another package's file, or null
+ * @param gs the package's graphs
+ * @returns the test files, or null when the holder is not Storybook setup or no project runs it
+ */
+function storybookSpecs(dir, holder, gs) {
+    if (!holder?.startsWith(`${dir}/.storybook/`) || !usable(gs)) {
+        return null;
+    }
+    const projects = gs
+        .flatMap((g) => Object.values(g.projects))
+        .filter((p) => p.setup.some((f) => f.startsWith(`${dir}/.storybook/`)));
+    return projects.length > 0 ? projects.flatMap((p) => p.specs) : null;
+}
+
+/**
+ * The tests of a package that may run ESLint, when `holder` is its ESLint config (graphty's lint rules read
+ * graphty-element's build): Vitest never loads that config, only a test that runs ESLint does, and such a
+ * test reads files at run time (the rules file's opaqueTest pattern counts `new ESLint(` and `loadESLint`).
+ * @param dir the package
+ * @param holder the file that reads another package's file, or null
+ * @param gs the package's graphs
+ * @returns the test files, or null when the holder is not an ESLint config
+ */
+function lintSpecs(dir, holder, gs) {
+    if (!holder || !/^eslint\.config\.[cm]?[jt]s$/u.test(holder.slice(dir.length + 1)) || !usable(gs)) {
+        return null;
+    }
+    return gs.flatMap((g) => g.opaque ?? []);
 }
 
 const usable = (gs) => (gs && gs.length > 0 && !gs.includes(null) ? gs : null);
@@ -521,30 +649,50 @@ const knows = (g, f) => f in g.imports || Object.values(g.projects).some((p) => 
  * @param ctx.graphs Map of package directory to its import graphs
  * @param ctx.pkgOf the package directory of a path
  * @param ctx.nameOf Map of package directory to its name
+ * @param ctx.deps Map of package name to its nx dependencies
  * @param ctx.built Set of the packages whose build inputs changed
  * @returns `[{ file, holder }]`; holder null when the package has no graph to say which file reads it
  */
-function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, built }) {
+function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, deps, built }) {
     const gs = usable(graphs.get(dir));
+    const upstream = closure(name, deps);
     const out = [];
     for (const file of changed) {
         const fdir = pkgOf(file);
-        if (!fdir || fdir === dir) {
-            continue;
-        }
-        if (gs?.some((g) => knows(g, file))) {
-            out.push({ file, holder: file });
-        }
-        const target = nameOf.get(fdir);
-        for (const r of refs.get(name) ?? []) {
-            if (!r.build && r.target === target && file.startsWith(r.prefix)) {
-                out.push({ file, holder: r.holder });
-            }
+        if (fdir && fdir !== dir) {
+            out.push(...readsOf(file, fdir, { gs, upstream, target: nameOf.get(fdir), refs: refs.get(name) ?? [] }));
         }
     }
     for (const r of refs.get(name) ?? []) {
         if (r.build && built.has(r.target)) {
             out.push({ file: `the build of ${r.target}`, holder: r.holder });
+        }
+    }
+    return out;
+}
+
+/**
+ * The reads of one changed file of another package: the file itself when a graph of the reader holds it
+ * (except the source of a build the reader depends on, which throughSources follows), and each holder of a
+ * literal path the file is under.
+ * @param file the changed file
+ * @param fdir its package directory
+ * @param ctx `{ gs, upstream, target, refs }`
+ * @param ctx.gs the reader's usable graphs, or null
+ * @param ctx.upstream Set of the packages the reader depends on, itself included
+ * @param ctx.target the changed file's package name
+ * @param ctx.refs the reader's testRefs()
+ * @returns `[{ file, holder }]`
+ */
+function readsOf(file, fdir, { gs, upstream, target, refs }) {
+    const out = [];
+    const viaBuild = upstream.has(target) && buildInput(file.slice(fdir.length + 1));
+    if (!viaBuild && gs?.some((g) => knows(g, file))) {
+        out.push({ file, holder: file });
+    }
+    for (const r of refs) {
+        if (!r.build && r.target === target && file.startsWith(r.prefix)) {
+            out.push({ file, holder: r.holder });
         }
     }
     return out;
@@ -560,6 +708,10 @@ function foreignReads(name, dir, { changed, refs, graphs, pkgOf, nameOf, built }
  */
 function intoBuild(holder, dir, graphs) {
     const own = (f) => f.startsWith(`${dir}/`) && buildInput(f.slice(dir.length + 1));
+    // a test or lint config never goes into a build (a Vite config may: it is not one of these)
+    if (holder && /^(vitest[^/]*|eslint)\.config\.[cm]?[jt]s$/u.test(holder.slice(dir.length + 1))) {
+        return false;
+    }
     if (!holder || own(holder)) {
         return true;
     }
@@ -607,7 +759,7 @@ function filesInPackage(dir, changed, graphs, rules, result, whole, deleted) {
     if (result.mode !== "all") {
         result.mode = result.specs.size > 0 ? "files" : "none";
         // decided file by file: a "none" here is a changed package none of whose tests reach the change
-        result.fileLevel = result.mode === "files" || mine.length > 0;
+        result.fileLevel = result.mode === "files" || mine.length > 0 || Boolean(result.upstream);
         if (result.mode === "none" && mine.length > 0) {
             result.reasons.push("no test imports or reads what changed");
         }
@@ -927,9 +1079,19 @@ async function buildGraph(root, pkg, config) {
     const imports = {};
     const projects = {};
     const failed = [];
+    const ctx = {
+        walked: new Set(),
+        imports,
+        rel,
+        failed,
+        root,
+        pkg,
+        aliases: {},
+        viaAlias: new Set(),
+        blind: new Set(),
+    };
     try {
-        const walked = new Set();
-        const walk = (project, file) => walkFile(project, file, { walked, imports, rel, failed });
+        const walk = (project, file) => walkFile(project, file, ctx);
         for (const spec of await vitest.globTestSpecifications()) {
             const name = spec.project.name;
             projects[name] ??= { specs: [], setup: [] };
@@ -947,7 +1109,17 @@ async function buildGraph(root, pkg, config) {
     } finally {
         await vitest.close();
     }
-    return { package: pkg, config, projects, imports, opaque: opaqueSpecs(root, pkg, projects, imports), failed };
+    return {
+        package: pkg,
+        config,
+        projects,
+        imports,
+        opaque: opaqueSpecs(root, pkg, projects, imports),
+        failed,
+        aliases: ctx.aliases,
+        aliased: [...ctx.viaAlias].map(rel).sort(),
+        blind: [...ctx.blind].sort(),
+    };
 }
 
 /**
@@ -963,10 +1135,11 @@ async function walkFile(project, file, ctx) {
     ctx.walked.add(file);
     let deps = new Set();
     if (CODE.test(file)) {
-        deps = await edgesOf(project, file, ctx.failed);
+        deps = await edgesOf(project, file, ctx);
     } else if (STYLE.test(file)) {
         deps = styleEdges(file);
     }
+    deps = new Set([...deps].map((d) => throughSource(d, file, ctx)));
     ctx.imports[ctx.rel(file)] = [...deps].map(ctx.rel);
     for (const d of deps) {
         await walkFile(project, d, ctx);
@@ -974,23 +1147,55 @@ async function walkFile(project, file, ctx) {
 }
 
 /**
+ * Another package's build output, as the source file it was built from, when that is known: the selection
+ * graph then follows a change to that package's source to exactly the tests that load it (design/ci/
+ * minimal-tests.md section 2.2). Only the graph is changed; the tests themselves still run the build. A file
+ * reached this way, and what it reaches outside the package under test, is kept in `viaAlias`: it is the
+ * other package's code, not a file this package's tests read.
+ * @param dep an absolute path the file imports
+ * @param from the importing file
+ * @param ctx shared state of the run
+ * @returns the path to walk instead (dep itself when it is not a build output or its source is unknown)
+ */
+function throughSource(dep, from, ctx) {
+    const own = (f) => f.startsWith(join(ctx.root, ctx.pkg) + "/");
+    const src = own(dep) ? null : sourceOf(ctx.root, dep);
+    if (src) {
+        ctx.aliases[ctx.rel(dep)] = ctx.rel(src);
+        ctx.viaAlias.add(src);
+        return src;
+    }
+    if (ctx.viaAlias.has(from) && !own(dep)) {
+        ctx.viaAlias.add(dep);
+    }
+    return dep;
+}
+
+/**
  * One code file's edges: what Vite's transform says it imports (static and literal dynamic imports, with
  * any `?raw`-style query dropped), plus `new URL("./file", import.meta.url)`.
  * @param project the Vitest project whose Vite server transforms the file
  * @param file an absolute path
- * @param failed the files Vite could not transform, with why, added to
+ * @param ctx shared state of the run: `failed` (the files Vite could not transform, with why), `viaAlias` and
+ *   `blind` (the packages whose source could not be walked)
  * @returns Set of absolute paths of files in the checkout
  */
-async function edgesOf(project, file, failed) {
+async function edgesOf(project, file, ctx) {
     const deps = new Set();
     let transformed = null;
     try {
         const env = project.vite.environments.ssr;
         transformed = env.moduleGraph.getModuleById(file)?.transformResult || (await env.transformRequest(file));
     } catch (e) {
+        if (ctx.viaAlias.has(file)) {
+            // another package's source this project cannot transform: what it imports is unknown, so it is
+            // treated as that package's whole build (blind); the graph still holds for this package's own files
+            ctx.blind.add(ctx.rel(file));
+            return deps;
+        }
         // its imports are unknown, so the graph cannot say what reaches what (an unbuilt dependency's dist is
         // the usual cause): the graph is not used
-        failed.push(`${relative(project.config.root, file)}: ${String(e?.message ?? e).split("\n")[0]}`);
+        ctx.failed.push(`${relative(project.config.root, file)}: ${String(e?.message ?? e).split("\n")[0]}`);
     }
     for (const dep of [...(transformed?.deps ?? []), ...(transformed?.dynamicDeps ?? [])]) {
         const path = (dep.startsWith("/@fs/") ? dep.slice(4) : join(project.config.root, dep)).split("?", 1)[0];
@@ -1041,6 +1246,97 @@ const safeRead = (p) => {
         return "";
     }
 };
+
+const SOURCE_EXT = ["", ".ts", ".tsx", ".mts", ".js", ".mjs"];
+const sourceCache = new Map();
+
+/**
+ * The source file a package's build output was built from, or null when that is not known for certain:
+ *  1. a source map that names exactly one source (tsc's output, file for file, and a one-module chunk);
+ *  2. an entry whose type shim only re-exports one module (`export * from "./src/formats/dot/index.js";`,
+ *     written beside each entry by graph-io's, graph-samples', graph-format's and webgpu-graph-algorithms'
+ *     bundle-types scripts);
+ *  3. the `"."` export of a package whose build names exactly one entry (`entry: "src/index.ts"` in its Vite
+ *     config or scripts/build-bundle.js: compact-mantine, layout).
+ * A bundle of many modules with none of these (graphty-element's) stays a build output, so a change to that
+ * package runs its readers whole.
+ * @param root the checkout
+ * @param file an absolute path
+ * @returns an absolute path or null
+ */
+export function sourceOf(root, file) {
+    if (!sourceCache.has(file)) {
+        sourceCache.set(file, findSource(root, file));
+    }
+    return sourceCache.get(file);
+}
+
+function findSource(root, file) {
+    const [pkg, out] = relative(root, file).split("/");
+    const pkgDir = join(root, pkg);
+    if (out !== "dist" || !/\.[cm]?js$/u.test(file) || !isFile(join(pkgDir, "package.json"))) {
+        return null;
+    }
+    const inPkg = (f) => f && f.startsWith(`${pkgDir}/`) && !f.startsWith(`${pkgDir}/dist/`) && isFile(f);
+    let map = null;
+    try {
+        map = JSON.parse(readFileSync(`${file}.map`, "utf8"));
+    } catch {
+        // no source map
+    }
+    if (map?.sources?.length === 1) {
+        const src = resolve(dirname(file), map.sourceRoot ?? "", map.sources[0]);
+        return inPkg(src) ? src : null;
+    }
+    const shim = safeRead(file.replace(/\.[cm]?js$/u, ".d.ts"))
+        .replaceAll(/\/\/[^\n]*|\/\*[\s\S]*?\*\//gu, "")
+        .trim();
+    const one = /^export \* from ["'](\.\/[^"']+)\.js["'];?$/u.exec(shim);
+    if (one) {
+        const base = join(pkgDir, relative(join(pkgDir, "dist"), join(dirname(file), one[1])));
+        return SOURCE_EXT.map((e) => base + e).find(inPkg) ?? null;
+    }
+    return rootEntry(pkgDir, file, inPkg);
+}
+
+/**
+ * The single build entry of a package, when `file` is what its `"."` export points at.
+ * @param pkgDir the package's absolute directory
+ * @param file an absolute path in its dist/
+ * @param inPkg (path) => whether it is a source file of the package
+ * @returns an absolute path or null
+ */
+function rootEntry(pkgDir, file, inPkg) {
+    const targets = [];
+    const collect = (t) => (typeof t === "string" ? targets.push(t) : t && Object.values(t).forEach((v) => collect(v)));
+    try {
+        const exp = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8")).exports;
+        collect(typeof exp === "string" ? exp : exp?.["."]);
+    } catch {
+        return null;
+    }
+    if (!targets.some((t) => join(pkgDir, t) === file)) {
+        return null;
+    }
+    const entries = new Set();
+    for (const cfg of ["vite.config.ts", "vite.config.js", "vite.config.mjs", "scripts/build-bundle.js"]) {
+        const text = safeRead(join(pkgDir, cfg));
+        for (const m of text.matchAll(/\bentry\s*:\s*(?:path\.resolve\(\s*__dirname\s*,\s*)?["'`]([^"'`]+)["'`]/gu)) {
+            entries.add(
+                m[1].startsWith(".") && cfg.includes("/") ? join(pkgDir, dirname(cfg), m[1]) : join(pkgDir, m[1]),
+            );
+        }
+        if (
+            /\bentry\s*:\s*[^"'`\s]/u.test(
+                text.replaceAll(/\bentry\s*:\s*path\.resolve\(\s*__dirname\s*,\s*["'`]/gu, ""),
+            )
+        ) {
+            // an entry built from a variable (several entries): not one this can read
+            return null;
+        }
+    }
+    return entries.size === 1 && inPkg([...entries][0]) ? [...entries][0] : null;
+}
 
 /**
  * Test files whose own files (in the package, outside src/) read files or run programs at run time.
@@ -1348,7 +1644,7 @@ function graphCache(root) {
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;
-                if (cached && sameOutside(root, cached.outside)) {
+                if (cached && sameOutside(root, cached.outside) && sameAliases(root, cached.aliases)) {
                     return cached;
                 }
             }
@@ -1376,7 +1672,7 @@ function graphCache(root) {
 }
 
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
-const GRAPH_VERSION = 5;
+const GRAPH_VERSION = 6;
 
 const fileHash = (root, f) => {
     try {
@@ -1417,6 +1713,17 @@ export const sameOutside = (root, outside) =>
     Boolean(outside) && Object.entries(outside).every(([f, h]) => fileHash(root, f) === h);
 
 /**
+ * Whether every build output a cached graph followed to its source still maps to that source (a package
+ * that moved an entry, or a build that changed shape, must be walked again).
+ * @param root the checkout
+ * @param aliases the graph's `aliases` (build output -> source), or undefined
+ * @returns boolean
+ */
+export const sameAliases = (root, aliases) =>
+    Boolean(aliases) &&
+    Object.entries(aliases).every(([out, src]) => sourceOf(root, join(root, out)) === join(root, src));
+
+/**
  * The literal paths each package's tests and test configs name inside other packages
  * (`"../../graph-io/test/corpus"`, `join(__dirname, "..", "..", "graph-io", "test")`,
  * `{workspaceRoot}/graph-samples/dist/data/v1`), each with the file that holds it. Every file of the package's
@@ -1449,8 +1756,10 @@ export function testRefs(root, roots, graphs, fallback) {
             continue;
         }
         const inGraph = new Set(gs.flatMap((g) => Object.keys(g.imports)));
+        // another package's source reached through its build is that package's code, not a read of this one
+        const aliased = new Set(gs.flatMap((g) => g.aliased ?? []));
         const found = new Map();
-        for (const holder of [...inGraph, ...configFiles(root, dir)]) {
+        for (const holder of [...[...inGraph].filter((f) => !aliased.has(f)), ...configFiles(root, dir)]) {
             for (const path of readThrough(holder, inGraph, literals)) {
                 const ref = refOf(root, path, { byDir, index, name, holder });
                 if (ref) {

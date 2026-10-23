@@ -14,7 +14,10 @@
  * then explained only by the broken files that selected it, so the files that did NOT select it are broken
  * again alone (as a group, then one by one): a test file that fails with one of them alone and not on the
  * unbroken tree is a MISS of that file. A failing file that fails unbroken too is flaky. Browser shards run in
- * one of the shared browser slots (tools/with-browser.sh). Exit 1 on any miss or inconclusive run.
+ * one of the shared browser slots (tools/with-browser.sh). With --reader, a broken source file of a package the
+ * reader loads through its build is built into that package's dist/ before each run (and the unbroken build
+ * put back after), so the reader's tests load the broken code as the gate's would; only source files under
+ * src/ are picked then. Exit 1 on any miss or inconclusive run.
  *
  * Usage: node tools/test-select-mutate.mjs <package> [--count N] [--seed S] [--files a,b,...] [--batch K]
  *            [--reader <package>] [--shard <name>]... [--worktree <name>]
@@ -98,6 +101,8 @@ export function unexplained(failing, broken, chosen) {
     return [...groups.values()];
 }
 
+class BuildBroken extends Error {}
+
 function scratch(head, name) {
     const main = dirname(
         execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
@@ -142,6 +147,66 @@ function runShard(wt, shard, command, browser) {
 }
 
 /**
+ * A function that breaks some of a batch's files and puts the rest back, then builds the package the reader
+ * loads through its build when the broken set changed (nx's cache restores the unbroken build).
+ * @param wt the scratch worktree
+ * @param files the batch's repo-relative files
+ * @param rebuild the package to build, or null
+ * @returns `(broken) => void`; throws BuildBroken when the package does not build
+ */
+function breaker(wt, files, rebuild) {
+    // kept as bytes, so a binary file (a font) is put back exactly
+    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f))]));
+    let builtWith = "";
+    return (broken) => {
+        files.forEach((f) =>
+            writeFileSync(
+                join(wt, f),
+                broken.includes(f) ? mutant(f, originals.get(f).toString("utf8")) : originals.get(f),
+            ),
+        );
+        const key = broken.join("\n");
+        if (!rebuild || key === builtWith) {
+            return;
+        }
+        builtWith = key;
+        const r = spawnSync(
+            "pnpm",
+            ["exec", "nx", "run", `${rebuild}:build`, "--exclude-task-dependencies", "--outputStyle=static"],
+            { cwd: wt, encoding: "utf8", maxBuffer: 1 << 28 },
+        );
+        if (r.status !== 0) {
+            throw new BuildBroken(`${rebuild} does not build with ${broken.join(", ") || "nothing"} broken`);
+        }
+    };
+}
+
+/**
+ * The run of a shard with the whole batch broken, or null (printed) when the package does not build with
+ * it (the gate stops at the build; no test could run) or the run printed no summary.
+ * @param shard the shard
+ * @param run () => failing() of the batch
+ * @param put breaker() of the batch
+ * @returns the run or null
+ */
+function firstRun(shard, run, put) {
+    try {
+        const r = run();
+        if (r.summary) {
+            return r;
+        }
+        console.log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
+    } catch (e) {
+        if (!(e instanceof BuildBroken)) {
+            throw e;
+        }
+        console.log(`${shard.shard}: SKIPPED, ${e.message}`);
+        put([]);
+    }
+    return null;
+}
+
+/**
  * Breaks a batch of files, runs the shards once and reports what the selection missed.
  * @param m what to mutate
  * @param m.wt the scratch worktree
@@ -149,9 +214,10 @@ function runShard(wt, shard, command, browser) {
  * @param m.shards the plain shards to run, one per command
  * @param m.allShards every shard of the matrix
  * @param m.graphs buildGraphs() of the unbroken packages
+ * @param m.rebuild the package to build after breaking files (the reader loads it through its build), or null
  * @returns `{ misses, inconclusive }`
  */
-async function mutateBatch({ wt, files, shards, allShards, graphs }) {
+async function mutateBatch({ wt, files, shards, allShards, graphs, rebuild }) {
     const sels = new Map();
     for (const f of files) {
         // asked about every shard, so every package is one (a file of another package is not a root file)
@@ -161,15 +227,7 @@ async function mutateBatch({ wt, files, shards, allShards, graphs }) {
         const s = sels.get(f).find((x) => x.shard === shard.shard);
         return s.mode === "all" ? null : new Set(s.files.map((x) => x.file));
     };
-    // kept as bytes, so a binary file (a font) is put back exactly
-    const originals = new Map(files.map((f) => [f, readFileSync(join(wt, f))]));
-    const put = (broken) =>
-        files.forEach((f) =>
-            writeFileSync(
-                join(wt, f),
-                broken.includes(f) ? mutant(f, originals.get(f).toString("utf8")) : originals.get(f),
-            ),
-        );
+    const put = breaker(wt, files, rebuild);
     const browserOf = (shard) => shardSpecs(shardRuns(shard), graphs.get(shard.package) ?? []).browser;
     const failing = (shard, list, broken) => {
         put(broken);
@@ -190,9 +248,8 @@ async function mutateBatch({ wt, files, shards, allShards, graphs }) {
     let misses = 0;
     let inconclusive = 0;
     for (const shard of shards) {
-        const run = failing(shard, null, files);
-        if (!run.summary) {
-            console.log(`${shard.shard}: INCONCLUSIVE, the run printed no summary`);
+        const run = firstRun(shard, () => failing(shard, null, files), put);
+        if (!run) {
             inconclusive++;
             continue;
         }
@@ -280,6 +337,7 @@ async function main(argv) {
     const candidates = execFileSync("git", ["ls-files", "--", pkg], { cwd: wt, encoding: "utf8" })
         .split("\n")
         .filter((f) => f && buildInput(f.slice(pkg.length + 1)) && (CODE.test(f) || DATA.test(f)))
+        .filter((f) => reader === pkg || f.startsWith(`${pkg}/src/`))
         .filter((f) => !f.endsWith(".d.ts") && !/\.config\.[cm]?[jt]s$/u.test(f));
     const given = opt("--files", null);
     const picked = given
@@ -291,13 +349,19 @@ async function main(argv) {
         console.error(`the import graph of ${reader} could not be built; the selection would run it whole`);
         return 2;
     }
+    // the reader's graphs walk the package's source in place of its build: its tests load the build
+    const rebuild =
+        reader !== pkg &&
+        (graphs.get(reader) ?? []).some((g) => Object.keys(g.aliases ?? {}).some((k) => k.startsWith(`${pkg}/`)))
+            ? pkg
+            : null;
     const size = Number(opt("--batch", "1"));
     let misses = 0;
     let inconclusive = 0;
     for (let i = 0; i < picked.length; i += size) {
         const batch = picked.slice(i, i + size);
         console.log(`Batch ${i / size + 1}: ${batch.length} broken file(s)`);
-        const r = await mutateBatch({ wt, files: batch, shards, allShards: SHARDS, graphs });
+        const r = await mutateBatch({ wt, files: batch, shards, allShards: SHARDS, graphs, rebuild });
         misses += r.misses;
         inconclusive += r.inconclusive;
     }

@@ -29,6 +29,7 @@ import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { WebGpuChip } from "./WebGpuChip";
 
 /** What each rail place draws in the left panel. */
 const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
@@ -200,8 +201,18 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 )}
             </div>
             {/* State the reader reads rather than acts on: the autosave state (with the workspace's
-                polite status region) and the privacy chip. */}
-            <StatusBar role="contentinfo" aria-label="Status" left={<AutosaveChip />} right={<PrivacyChip />} />
+                polite status region), whether WebGPU is on, and the privacy chip. */}
+            <StatusBar
+                role="contentinfo"
+                aria-label="Status"
+                left={
+                    <>
+                        <AutosaveChip />
+                        <WebGpuChip />
+                    </>
+                }
+                right={<PrivacyChip />}
+            />
         </div>
     );
 }

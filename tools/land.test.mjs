@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { busyLine, noteBody } from "./branch-note.mjs";
-import { failedTest, moveGoldenGood, syncDue } from "./branch-sync.mjs";
+import { failedTest, moveGoldenGood, syncDue, testStage } from "./branch-sync.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
@@ -1489,6 +1489,30 @@ describe("the light gate", () => {
             assert.match((await run("status")).out, /^gate: light /m);
         } finally {
             rmSync(state);
+        }
+    });
+
+    it("keeps the nightly sync's test shards off while CI verifies golden", () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        const log = join(repo, "tmp/golden/sync-test.log");
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        const ran = [];
+        const step = (cmd) => {
+            ran.push(cmd);
+            return { status: 0, out: "" };
+        };
+        const run = { dir: repo, log, projects: ["layout"], job: { branch: "b", base: "abc" } };
+        try {
+            writeFileSync(log, "");
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the local backend runs the gate's test stage");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the light gate runs no shard");
+            assert.match(readFileSync(log, "utf8"), /\[LIGHT\] no test shards/);
+        } finally {
+            rmSync(state, { force: true });
+            rmSync(log, { force: true });
         }
     });
 });

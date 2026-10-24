@@ -9,6 +9,12 @@ Last updated: 2026-10-21 (tier 3 round 1 closed; insights read).
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Location as one "+" pick per kind. My position: Figma's effect
+  rows (type select + gear) were the closest precedent for the gear, but Figma only puts settings
+  in a gear when the row's shape does not change with them; latitude and longitude are two
+  inputs, like X and Y, so they are two rows. Adopted; the in-row kind select was rejected for
+  width (two selects in 240 px).
+
 1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; studio stopped.
    55 of 56 sessions succeeded: the round is at its ceiling, so signal lives in cost, routes and
    problems, not success. Bar 5 fails only on two pre-round severity 3 backlog items (the node's

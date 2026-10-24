@@ -15,6 +15,12 @@ save and reopen.
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Location entries behave exactly like Label and Weight: "+"
+  picks the kind, the new entry's column list opens focused, Escape with no pick drops it and
+  focus returns to "+", the minus moves focus to "+". My argument, adopted: a gear makes the
+  number of column pickers depend on a closed popout, so the row changes shape from a control the
+  reader cannot see; changing a column's kind is minus and "+", as for every other entry.
+
 1. (2026-10-21) **Tier 3 round 1 closed; the studio stopped at its 1-round cap with bar 5 still
    failing**, only on the two pre-round severity 3 backlog items (a node's own Fill "+" making a
    one-node layer; the folder's chain icon painting every cluster one color). 55 of 56 succeeded:

@@ -7,6 +7,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Location splits into six Fields kinds (Latitude, Longitude,
+  Coordinates, Country, Region, City), each one column. My argument, adopted: an entry is "a role a
+  column has"; Location was the only entry whose control was a mode, so it broke the list's one
+  rule. Within is structure the list already holds (City + Country), not a setting. The "+" menu
+  stays flat, no group label, so the menu has one rule too.
+
 1. (2026-10-21, tier 3 round 1 closed, studio stopped at its 1-round cap) 55 of 56 sessions
    succeeded; no new severity 3. The round is at its ceiling on success, so judge structure by
    cost (steps over the key), routes and wrong first places, not by pass rate.

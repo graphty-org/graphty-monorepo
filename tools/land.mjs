@@ -577,41 +577,61 @@ export function sync(ctx) {
     return null;
 }
 
+// The branch the main checkout follows: golden-verified, the newest golden commit verification passed, so
+// new sessions read instructions (CLAUDE.md) and run tools that passed, days before a cut reaches master.
+// To follow master again, set this to "master": the next update switches the main checkout back.
+export const MAIN_FOLLOWS = VERIFIED;
+const FOLLOWABLE = new Set(["master", VERIFIED]);
+
 /**
- * Fast-forwards the main checkout's master to origin/master after a fetch, so new sessions read
- * current instructions (CLAUDE.md) from it. Changes nothing, with one warning line, when it is on
- * another branch, has tracked changes or has commits origin/master lacks; never throws.
+ * Brings the main checkout to origin/<MAIN_FOLLOWS> (origin/master while GitHub has no golden-verified)
+ * after a fetch: fast-forwards that branch when it is checked out, or switches to it from the other one
+ * of master and golden-verified. Changes nothing, with one warning line, when it is on any other branch,
+ * has tracked changes, would overwrite an untracked or ignored file, or either branch has commits its
+ * origin lacks; untracked files stay as they are. Never throws.
  * @param ctx the run's context
  */
 export function updateMainCheckout(ctx) {
     try {
+        const target = hasRef(ctx, ctx.main, `origin/${MAIN_FOLLOWS}`).status === 0 ? MAIN_FOLLOWS : "master";
+        const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
         const from = git(ctx, ctx.main, ["rev-parse", "HEAD"]);
-        const to = git(ctx, ctx.main, ["rev-parse", "origin/master"]);
-        if (from === to) return;
-        const why = mainCheckoutBlocker(ctx, from);
+        const to = git(ctx, ctx.main, ["rev-parse", `origin/${target}`]);
+        if (branch === target && from === to) return;
+        const why = mainCheckoutBlocker(ctx, branch, target);
         if (why) {
             console.error(`land: warning: left the main checkout ${ctx.main} alone: ${why}`);
             return;
         }
-        git(ctx, ctx.main, ["merge", "-q", "--ff-only", "origin/master"]);
-        console.log(`land: moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
+        const [a, b] = [from.slice(0, 10), to.slice(0, 10)];
+        if (branch === target) {
+            git(ctx, ctx.main, ["merge", "-q", "--ff-only", "--no-overwrite-ignore", `origin/${target}`]);
+            console.log(`land: moved the main checkout's ${target} from ${a} to ${b}`);
+        } else {
+            git(ctx, ctx.main, ["switch", "-q", "--no-overwrite-ignore", "-C", target, `origin/${target}`]);
+            console.log(`land: switched the main checkout from ${branch} (${a}) to ${target} (${b})`);
+        }
     } catch (e) {
         console.error(`land: warning: could not update the main checkout ${ctx.main}: ${e.message}`);
     }
 }
 
 /**
- * Why the main checkout cannot be fast-forwarded to origin/master.
+ * Why the main checkout cannot be brought to origin/<target>.
  * @param ctx the run's context
- * @param head its HEAD commit
+ * @param branch the branch it has checked out ("" for a detached HEAD)
+ * @param target the branch it should follow
  * @returns the reason, or null when it can be
  */
-function mainCheckoutBlocker(ctx, head) {
-    const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
-    if (branch !== "master") return `it is on ${branch || "a detached HEAD"}, not master`;
+function mainCheckoutBlocker(ctx, branch, target) {
+    if (!FOLLOWABLE.has(branch)) return `it is on ${branch || "a detached HEAD"}, not ${target}`;
     if (git(ctx, ctx.main, ["status", "--porcelain", "--untracked-files=no"])) return "it has uncommitted changes";
-    const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", head, "origin/master"], { ok: true });
-    return ff.status === 0 ? null : "its master has commits origin/master does not";
+    for (const b of new Set([branch, target])) {
+        if (hasRef(ctx, ctx.main, `refs/heads/${b}`).status !== 0) continue;
+        const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", `refs/heads/${b}`, `origin/${b}`], { ok: true });
+        if (ff.status !== 0) return `its ${b} has commits origin/${b} does not`;
+    }
+    return null;
 }
 
 const conflicted = (ctx) =>

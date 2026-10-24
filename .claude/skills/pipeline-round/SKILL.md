@@ -311,8 +311,10 @@ This step only checks that it runs:
   reason to force anything.
 - `node tools/worktree-cleanup.mjs` (a dry run, from any checkout) prints the plan with every reason.
 
-Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
-`git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.
+The main checkout follows `golden-verified`: every `land`, `revert`, `ship` and `status` run switches it from
+master to the local branch `golden-verified` and fast-forwards it to `origin/golden-verified`, and warns when it
+cannot (another branch, tracked changes, local commits). Read that warning in the run's output; do not move the
+main checkout by hand.
 
 ### 8. Nightly branch sync
 

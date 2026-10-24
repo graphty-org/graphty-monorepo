@@ -219,6 +219,79 @@ describe("the location map layout", () => {
         assert.isNull(longestCurve(edges));
     });
 
+    it("draws a globe globeScale times larger under nodes, edges and arcs that keep their size", async () => {
+        await graph.setViewMode("3d");
+        const id = String(FLIGHTS.ids.idOf(0));
+        const edges = (): Edge[] => [...graph.getDataManager().edges.values()];
+        /** What the globe and the drawing measure at one globeScale, at the default view. */
+        async function measure(
+            globeScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{
+            radius: number;
+            lift: number;
+            nodeWorld: number;
+            nodeOverHeight: number;
+            widths: number[];
+            arcRise: number;
+        }> {
+            await graph.setLayout("location-map", { globeScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
+                .geoFrame;
+            const p = at(id);
+            const mesh = graph.getNode(id)?.mesh;
+            assert.isDefined(mesh);
+            const curve = longestCurve(edges()) ?? [];
+            const first = curve[0];
+            const last = curve.at(-1) ?? first;
+            const surface = Math.max(Math.hypot(first.x, first.y, first.z), Math.hypot(last.x, last.y, last.z));
+            const rise = Math.max(...curve.map((q) => Math.hypot(q.x, q.y, q.z))) - surface;
+            const chord = Math.hypot(first.x - last.x, first.y - last.y, first.z - last.z);
+            return {
+                radius: frame.radius,
+                lift: Math.hypot(p.x, p.y, p.z) - frame.radius,
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                // a node's scene size over the camera's height above the globe: what one size on
+                // screen holds fixed, however the camera stands
+                nodeOverHeight:
+                    mesh.getBoundingInfo().boundingBox.extendSizeWorld.length() /
+                    ((graph.getScene().activeCamera?.globalPosition.length() ?? Number.NaN) - frame.radius),
+                widths: edges().map((e) => e.drawnLine?.width ?? Number.NaN),
+                arcRise: rise / chord,
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const three = await measure(3, "scene");
+        assert.closeTo(three.radius / one.radius, 3, 1e-9, "the globe is three times larger");
+        assert.closeTo(three.lift, one.lift, 1e-3, "a node stands the same height above it");
+        assert.closeTo(three.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(three.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(three.arcRise, one.arcRise, 0.02, "an arc still rises in proportion to the distance it spans");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not grow with the globe
+        const screenOne = await measure(1, "screen");
+        const screenThree = await measure(3, "screen");
+        assert.isAbove(screenOne.nodeOverHeight, 0);
+        assert.closeTo(
+            screenThree.nodeOverHeight / screenOne.nodeOverHeight,
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
+
+        // the 2D map ignores it
+        await graph.setLayout("location-map", { mapDimension: "2d", globeScale: 1 });
+        await settled();
+        const flatOne = at(id);
+        await graph.setLayout("location-map", { mapDimension: "2d", globeScale: 3 });
+        await settled();
+        assert.deepEqual([at(id).x, at(id).y], [flatOne.x, flatOne.y]);
+    });
+
     it("puts nodes with no usable location in a tray and reports them", async () => {
         await graph.addNodes([
             { id: "JFK", where: "40.64, -73.78" },

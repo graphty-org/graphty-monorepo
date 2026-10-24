@@ -1865,8 +1865,11 @@ export class UpdateManager implements Manager {
         }
 
         // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
+        // A globe drawn `globeScale` times larger keeps its nodes their size on screen, so they
+        // spread apart rather than grow with it.
+        const extent = frame.surface === "globe" ? frame.size / frame.globeScale : frame.size;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
-            return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, frame.size);
+            return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }
 
         // Nodes stand on the map's surface: the flat map at the point the camera turns about, the
@@ -1876,7 +1879,7 @@ export class UpdateManager implements Manager {
         const target =
             orbit instanceof OrbitCameraController && !globe ? orbit.pivot.getAbsolutePosition() : Vector3.Zero();
         const eye = Vector3.Distance(camera.globalPosition, target);
-        return screenNodeScale({ fov: camera.fov, depth: mapDepth(eye, globe ? frame.radius : 0) }, frame.size);
+        return screenNodeScale({ fov: camera.fov, depth: mapDepth(eye, globe ? frame.radius : 0) }, extent);
     }
 
     /**

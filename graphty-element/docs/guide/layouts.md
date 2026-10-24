@@ -314,6 +314,11 @@ should not decide.
   the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
   when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
   the whole globe, which fills the view.
+- **Globe scale.** `globeScale` (default 1) draws the globe that many times larger than `size`
+  makes it while nodes and edges keep their size (in scene units, or on screen with
+  `nodeScale: "screen"`), so a dense region (an airline network over the
+  United States or Europe) draws its nodes further apart instead of as one grey patch:
+  `{ globeScale: 3 }` gives three times the room between neighbors. The 2D map ignores it.
 - **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
   so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
   whatever the zoom, measured at the map's surface, with its arrowheads in proportion.

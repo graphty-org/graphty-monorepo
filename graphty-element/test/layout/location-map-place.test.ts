@@ -21,6 +21,7 @@ const OPTIONS: PlaceOptions = {
     projection: "auto",
     extent: "data",
     size: 100,
+    globeScale: 1,
     unplaced: "tray",
     overlap: "spread",
     dimensions: 2,
@@ -360,6 +361,30 @@ describe("placeOnMap's edges of the world", () => {
             lon: ["-74.0060", "0.1278 W", "2,3522", "151.21"],
         };
         assert.deepEqual(placeOnMap(text, nodes(4, 2), OPTIONS).unplacedRows, []);
+    });
+
+    it("draws the globe globeScale times larger, its nodes still half their size above it", () => {
+        const globe = { ...OPTIONS, surface: "globe" as const, dimensions: 3 as const };
+        const one = placeOnMap(columns, nodes(4, 3), globe);
+        const three = placeOnMap(columns, nodes(4, 3), { ...globe, globeScale: 3 });
+        assert.equal(three.frame.surface, "globe");
+        if (one.frame.surface !== "globe" || three.frame.surface !== "globe") {
+            return;
+        }
+
+        assert.closeTo(three.frame.radius, 3 * one.frame.radius, 1e-9);
+        assert.strictEqual(three.frame.globeScale, 3);
+        for (let row = 0; row < 4; row++) {
+            const r = Math.hypot(three.positions[3 * row], three.positions[3 * row + 1], three.positions[3 * row + 2]);
+            assert.closeTo(r, three.frame.radius + 0.5, 1e-3, "a node of size 1 still stands half its size above");
+        }
+
+        const flat = placeOnMap(columns, nodes(4, 2), OPTIONS).positions;
+        assert.deepEqual(
+            placeOnMap(columns, nodes(4, 2), { ...OPTIONS, globeScale: 3 }).positions,
+            flat,
+            "the 2D map ignores it",
+        );
     });
 
     it("sizes the globe so the data spans the same scene units as on the flat map", () => {

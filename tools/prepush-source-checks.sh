@@ -235,6 +235,11 @@ else
     # See tools/check-committed-images.mjs.
     run_step "No committed walk screenshots" "node \"$GATE_TOOLS/check-committed-images.mjs\""
 
+    # compact-mantine is locked to its Figma spec (owner, 2026-10-23): a change to the spec, the Figma tests,
+    # their harness or the theme's token values needs a `Figma-Approved: <reason>` trailer, which only the
+    # owner adds, on the commit that makes it. See tools/check-figma-lock.mjs.
+    run_step "compact-mantine Figma lock" "node \"$GATE_TOOLS/check-figma-lock.mjs\""
+
     # Dead relative links and #anchors in the Markdown, MDX and HTML, and links to this repository's own
     # files on GitHub, resolved against the working tree. Offline: the network half of the check
     # (github.com/graphty-org, and graphty.app against the assembled site) runs in CI's "Links" job,

@@ -700,6 +700,12 @@ jobs:
             - name: No committed walk screenshots
               run: pnpm run check:committed-images
 
+            # compact-mantine is locked to its Figma spec: a change to the spec, the Figma tests, their harness
+            # or the theme's token values needs the owner's `Figma-Approved: <reason>` trailer on the commit
+            # that makes it. The same check runs in tools/prepush-source-checks.sh.
+            - name: compact-mantine Figma lock
+              run: pnpm run check:figma-lock
+
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now

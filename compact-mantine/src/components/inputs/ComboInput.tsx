@@ -2,7 +2,7 @@ import { Combobox, TextInput, useCombobox } from "@mantine/core";
 import { useId, useMergedRef, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useRef, useState } from "react";
 
-import { PANEL_GRID } from "../../constants/panel";
+import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels, useNumberParser } from "../../i18n";
 import type { ChangeHandler } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
@@ -65,12 +65,13 @@ export interface ComboInputProps {
     width?: number | string;
     /** The field cannot be used. */
     disabled?: boolean;
-    /**
-     * Text shown in an empty field. An empty field with a placeholder is drawn in the not-set
-     * look every style field shares (gray italic): what it shows is what is in force without it,
-     * such as the value the layers beneath give.
-     */
+    /** Text shown in an empty field, in Figma's placeholder color. */
     placeholder?: string;
+    /**
+     * The selection disagrees: the empty field reads "Mixed" in the value's ink, as Figma draws
+     * it, and typing a value replaces it.
+     */
+    mixed?: boolean;
     /**
      * The field's surface: `"filled"`, Figma's gray number field, or `"outlined"`, the panel's
      * background inside a 1px edge, as the select and the style fields draw it.
@@ -216,7 +217,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         divided = false,
         width = PANEL_GRID.FIELD,
         disabled = false,
-        placeholder,
+        placeholder: placeholderProp,
+        mixed = false,
         variant = "filled",
         openLabel = "Open list",
         className,
@@ -224,6 +226,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
     } = props;
     const parse = useNumberParser();
     const labels = useLabels();
+    const placeholder = mixed ? labels.mixed : placeholderProp;
     const direction = useDirection();
     const [current, setCurrent] = useUncontrolled<string | number>({ value, defaultValue, finalValue: "", onChange });
     const [textDraft, setTextDraft] = useState<string | null>(null);
@@ -434,6 +437,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     }
                     className={className}
                     style={{ width, ...style }}
+                    styles={mixed ? { wrapper: { "--input-placeholder-color": PANEL_INK.VALUE } } : undefined}
                     classNames={{ wrapper: ["cm-combo", divided ? "cm-combo-divided" : ""].filter(Boolean).join(" ") }}
                     leftSection={glyph === undefined ? undefined : <ScrubSlot glyph={glyph} scrub={scrub} />}
                     leftSectionPointerEvents={scrub ? "all" : "none"}

@@ -177,6 +177,7 @@ import type {
     FindResult,
     GraphSession,
     GraphSettingKey,
+    HistoryClearOptions,
     HistoryOutcome,
     PositionEntry,
     ProjectConfig,
@@ -1487,8 +1488,8 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
         },
         restoreTo: (step: string | null) => dispatcher.restoreTo(step) as Promise<HistoryOutcome>,
         cancel: (pending: string) => dispatcher.cancel(pending) as Published["pending"],
-        clear: () => {
-            dispatcher.clear();
+        clear: (options?: HistoryClearOptions) => {
+            dispatcher.clear(options?.pending === "keep");
         },
     });
 }

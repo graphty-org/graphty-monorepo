@@ -2,6 +2,7 @@ import {
     type AbstractMesh,
     Camera,
     type EffectLayer,
+    Frustum,
     type Mesh,
     type Nullable,
     type Observer,
@@ -1152,6 +1153,11 @@ export class UpdateManager implements Manager {
             return false;
         }
 
+        // An edge on screen not yet cut back to the nodes at the scale the zoom stopped at.
+        if (this.retrimPending) {
+            return false;
+        }
+
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
             return false;
@@ -1279,12 +1285,20 @@ export class UpdateManager implements Manager {
         this.refreshScreenBorders();
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
-        if (this.sizeNodesForDepth()) {
-            for (const edge of this.dataManager.edges.values()) {
-                edge.invalidatePositionCache();
+        const scaled = this.sizeNodesForDepth();
+        if (this.screenScaled !== null && this.depthSizingPivot() === null) {
+            this.retrimForScreenScale(this.screenScaled, scaled);
+        } else {
+            this.trimmedAt = new WeakMap();
+            this.retrimPending = false;
+            if (scaled) {
+                this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, this.dataManager.edges.size);
+                for (const edge of this.dataManager.edges.values()) {
+                    edge.invalidatePositionCache();
+                }
+                this.forceEdgeWalk();
+                this.updateEdges();
             }
-            this.forceEdgeWalk();
-            this.updateEdges();
         }
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
@@ -1827,6 +1841,105 @@ export class UpdateManager implements Manager {
 
     /** The screen scale the node meshes were last given on a map with `nodeScale: "screen"`. */
     private screenScaled: number | null = null;
+
+    /** The screen scale each edge was last cut back to its nodes' surfaces at. */
+    private trimmedAt = new WeakMap<Edge, number>();
+
+    /**
+     * The counter (`StatsManager`, when profiling) of edges cut back to their nodes' surfaces
+     * because the nodes' scale changed: the work a zoom step costs.
+     */
+    static readonly RETRIM_COUNTER = "edges.retrimmedForNodeScale";
+
+    /**
+     * How far the nodes' screen scale may drift, as a ratio, while a zoom is under way before an
+     * edge is cut back to its nodes' new surfaces. Between, an edge ends up to this share of a
+     * node's radius short of it or inside it, about a pixel at the sizes nodes are drawn on a map;
+     * once the zoom stops each edge on screen is cut exactly.
+     */
+    private static readonly RETRIM_BAND = 0.5;
+
+    /** Whether an edge on screen was left cut at a scale near, not at, the nodes' own. */
+    private retrimPending = false;
+
+    /** Passes in a row the view and the nodes' scale held still. */
+    private stillPasses = 0;
+
+    /** How many passes in a row the view holds still before edges are cut exactly. */
+    private static readonly STILL_PASSES = 8;
+
+    /** The view matrix the last pass saw, to tell a view that moved from one holding still. */
+    private readonly lastView = new Float32Array(16);
+
+    /**
+     * Cut edges back to their nodes' surfaces after `nodeScale: "screen"` scaled the nodes. Every
+     * zoom step scales every node, and cutting all 36,906 routes of the OpenFlights sample (each
+     * a raised arc) on every one took about 300 ms a step, so zooming was slow and choppy while
+     * turning, which keeps the scale, stayed smooth. Only an edge with an end on screen is cut (an
+     * end off screen shows no gap), and while the zoom is under way only once the scale has
+     * drifted past {@link RETRIM_BAND} from the one it was cut at; once the view holds still,
+     * exactly. An edge left uncut off screen is cut when the view brings an end of it on screen.
+     *
+     * ponytail: O(nodes + edges) a frame while the option is on, a test per node and a look-up per
+     * edge; an index of edges by node would make it O(edges of the nodes on screen).
+     * @param scale - The nodes' screen scale now.
+     * @param scaled - Whether the scale changed this pass.
+     */
+    private retrimForScreenScale(scale: number, scaled: boolean): void {
+        const camera = this.graphContext.getScene().activeCamera;
+        if (camera === null) {
+            return;
+        }
+
+        const view = camera.getViewMatrix().m;
+        let moved = scaled;
+        for (let i = 0; i < 16; i++) {
+            if (this.lastView[i] !== Math.fround(view[i])) {
+                moved = true;
+                this.lastView[i] = view[i];
+            }
+        }
+
+        // A wheel's notches come a few frames apart: the view counts as still only after it held
+        // for STILL_PASSES passes, so a zoom by notches is not cut exactly between each two.
+        this.stillPasses = moved ? 0 : this.stillPasses + 1;
+        const moving = this.stillPasses < UpdateManager.STILL_PASSES;
+
+        const planes = Frustum.GetPlanes(camera.getViewMatrix().multiply(camera.getProjectionMatrix()));
+        const onScreen = new Set<Node>();
+        for (const node of this.layoutManager.nodes) {
+            if (node.mesh.isInFrustum(planes)) {
+                onScreen.add(node);
+            }
+        }
+
+        const tolerance = moving ? UpdateManager.RETRIM_BAND : 0;
+        let cut = 0;
+        this.retrimPending = false;
+        for (const edge of this.dataManager.edges.values()) {
+            if (!onScreen.has(edge.srcNode) && !onScreen.has(edge.dstNode)) {
+                continue;
+            }
+
+            const at = this.trimmedAt.get(edge);
+            const drift = at === undefined ? Infinity : Math.abs(scale / at - 1);
+            if (drift <= tolerance) {
+                // Within the band while moving: cut exactly once the view holds still.
+                this.retrimPending ||= drift > 0;
+                continue;
+            }
+
+            edge.invalidatePositionCache();
+            this.trimmedAt.set(edge, scale);
+            cut++;
+        }
+
+        if (cut > 0) {
+            this.statsManager.incrementCounter(UpdateManager.RETRIM_COUNTER, cut);
+            this.forceEdgeWalk();
+            this.updateEdges();
+        }
+    }
 
     /** The map frame the camera last turned to face, so a new map is faced once. */
     private facedFrame: LocationMapFrame | null = null;

@@ -572,6 +572,45 @@ describe("W and S on the globe", () => {
     });
 });
 
+describe("zooming a map whose nodes keep their size on screen", () => {
+    // With nodeScale: "screen" every zoom step scales every node, and every edge used to be cut
+    // back to its nodes' new surfaces on each one: on the OpenFlights sample's 36,906 routes that
+    // was about 300 ms a step, so the wheel and W zoomed slow and choppy while turning stayed
+    // smooth. The work is counted: edges cut per zoom step.
+    it("cuts edges back to the nodes only as the scale drifts, then exactly where the zoom stops", async () => {
+        const element = await mounted("3d", { mapDimension: "3d", nodeScale: "screen" });
+        const stats = element.getStatsManager();
+        stats.enableProfiling();
+        cleanups.push(() => {
+            stats.disableProfiling();
+        });
+        const counter = "edges.retrimmedForNodeScale";
+        const edges = element.graph.getDataManager().edges.size;
+        const scale = (): number => element.graph.getNode("CHI")?.mesh.scaling.x ?? Number.NaN;
+        stats.resetCounter(counter);
+        const steps = 12;
+        let scaledSteps = 0;
+        for (let step = 0; step < steps; step++) {
+            const before = scale();
+            await wheel(element, CENTER, -100);
+            // Two drawn frames a notch, as a wheel's notches come: far fewer than a held view's.
+            await drawnFrames(element.graph.getScene(), 2);
+            scaledSteps += scale() === before ? 0 : 1;
+        }
+
+        const whileZooming = stats.getCounter(counter);
+        assert.isAtLeast(scaledSteps, steps - 1, "every notch scaled the nodes");
+        // Cut on every step, the zoom cut every edge each time: steps * edges.
+        assert.isAtMost(whileZooming, (steps * edges) / 2, "edges are cut at most every other step");
+
+        await applied(element);
+        assert.isAbove(stats.getCounter(counter), whileZooming, "the edges are cut again once the zoom stops");
+        const held = stats.getCounter(counter);
+        await applied(element);
+        assert.strictEqual(stats.getCounter(counter), held, "and not again while the view holds still");
+    });
+});
+
 describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
         const element = await mounted("3d", { mapDimension: "3d", extent: "world" });

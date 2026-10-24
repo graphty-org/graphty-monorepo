@@ -1830,7 +1830,7 @@ export class Dispatcher {
     }
 
     /**
-     * A queued job's turn has come: start it, or put it on the wait list off the queue.
+     * A queued job's turn has come: start it, or put it on the wait list until its key frees.
      * @param job - The job.
      * @param context - What the queue handed the slot.
      * @returns Settles when the slot can be given up.
@@ -1841,13 +1841,14 @@ export class Dispatcher {
         }
 
         job.slotContext = context;
-        // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
-        return this.admit(job) === "waiting"
-            ? Promise.resolve()
-            : job.promise.then(
-                  () => undefined,
-                  () => undefined,
-              );
+        // Waiting on a key, the job keeps the slot until it lands: the key's holder runs beside the
+        // queue and depends on nothing, so it finishes. Giving the slot up let the queue go idle
+        // with the command still owed, so a settle wait returned before it ran.
+        this.admit(job);
+        return job.promise.then(
+            () => undefined,
+            () => undefined,
+        );
     }
 
     /**

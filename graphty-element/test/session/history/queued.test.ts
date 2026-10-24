@@ -207,6 +207,31 @@ describe("key holds", () => {
         assert.lengthOf(dispatcher.pending, 0);
     });
 
+    it("keeps a queued command's slot while it waits for a writer beside the queue", async () => {
+        const { dispatcher, queue } = setup();
+
+        const writer = outcome(
+            dispatcher.dispatch({ op: "fake.import", name: "big", gate: "chunk" }, { beside: true }),
+        );
+        const queued = outcome(dispatcher.dispatch({ op: "fake.import", name: "small" }));
+        let slotFreed = false;
+        const turn = queue.next().then(() => {
+            slotFreed = true;
+        });
+        await tick();
+
+        // The queue going idle here is what let a settle wait return with the command still owed.
+        assert.isFalse(slotFreed, "the slot is held while its command waits for the key");
+        assert.deepEqual(executions, ["import:big"]);
+
+        gates.open("chunk");
+        await turn;
+        assert.deepEqual(await writer, { value: undefined });
+        assert.deepEqual(await queued, { value: undefined });
+        assert.deepEqual(executions, ["import:big", "import:small"], "and is given up once the command landed");
+        assert.strictEqual(dispatcher.state.config.get("graph"), "small");
+    });
+
     it("drops a dispatch waiting on a chunked writer that rolls back", async () => {
         const { dispatcher, queue } = setup();
 

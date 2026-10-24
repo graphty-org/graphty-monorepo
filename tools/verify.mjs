@@ -1241,11 +1241,15 @@ export function nonGatingJobs(yml) {
         if (id) jobs.push({ name: id[1], lenient: false });
         const job = jobs.at(-1);
         if (!inJobs || !job) continue;
-        const name = /^ {8}name:\s*(.+?)\s*$/.exec(line);
-        if (name) job.name = name[1].replace(/^(["'])(.*)\1$/, "$2");
+        const NAME = "        name:";
+        if (line.startsWith(NAME))
+            job.name = line
+                .slice(NAME.length)
+                .trim()
+                .replace(/^(["'])(.*)\1$/, "$2");
         if (/^ {8}continue-on-error:/.test(line)) job.lenient = true;
     }
-    const escape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escape = (t) => t.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     const pattern = (n) =>
         new RegExp(
             `^${n

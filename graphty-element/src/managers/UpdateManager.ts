@@ -1865,9 +1865,9 @@ export class UpdateManager implements Manager {
         }
 
         // The data's extent as drawn, on either map: a globe's radius is set so it spans `size` too.
-        // A globe drawn `globeScale` times larger keeps its nodes their size on screen, so they
-        // spread apart rather than grow with it.
-        const extent = frame.surface === "globe" ? frame.size / frame.globeScale : frame.size;
+        // A map drawn `mapScale` times larger keeps its nodes their size on screen, so they spread
+        // apart rather than grow with it.
+        const extent = frame.size / frame.mapScale;
         if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
             return screenNodeScale({ orthoHeight: (camera.orthoTop ?? 0) - (camera.orthoBottom ?? 0) }, extent);
         }

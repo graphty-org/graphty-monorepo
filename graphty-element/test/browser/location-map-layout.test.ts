@@ -219,13 +219,13 @@ describe("the location map layout", () => {
         assert.isNull(longestCurve(edges));
     });
 
-    it("draws a globe globeScale times larger under nodes, edges and arcs that keep their size", async () => {
+    it("draws a globe mapScale times larger under nodes, edges and arcs that keep their size", async () => {
         await graph.setViewMode("3d");
         const id = String(FLIGHTS.ids.idOf(0));
         const edges = (): Edge[] => [...graph.getDataManager().edges.values()];
-        /** What the globe and the drawing measure at one globeScale, at the default view. */
+        /** What the globe and the drawing measure at one mapScale, at the default view. */
         async function measure(
-            globeScale: number,
+            mapScale: number,
             nodeScale: "scene" | "screen",
         ): Promise<{
             radius: number;
@@ -235,7 +235,7 @@ describe("the location map layout", () => {
             widths: number[];
             arcRise: number;
         }> {
-            await graph.setLayout("location-map", { globeScale, nodeScale });
+            await graph.setLayout("location-map", { mapScale, nodeScale });
             await settled();
             await drawnFrames(graph.getScene(), 2);
             const frame = (graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { radius: number } })
@@ -282,14 +282,54 @@ describe("the location map layout", () => {
             0.01,
             "a node keeps its size on screen",
         );
+    });
 
-        // the 2D map ignores it
-        await graph.setLayout("location-map", { mapDimension: "2d", globeScale: 1 });
-        await settled();
-        const flatOne = at(id);
-        await graph.setLayout("location-map", { mapDimension: "2d", globeScale: 3 });
-        await settled();
-        assert.deepEqual([at(id).x, at(id).y], [flatOne.x, flatOne.y]);
+    it("draws the 2D map mapScale times larger under nodes and edges that keep their size, framed whole", async () => {
+        await graph.setViewMode("2d");
+        const ids = [String(FLIGHTS.ids.idOf(0)), String(FLIGHTS.ids.idOf(57))];
+        /** What the map and the drawing measure at one mapScale, at the default view. */
+        async function measure(
+            mapScale: number,
+            nodeScale: "scene" | "screen",
+        ): Promise<{ apart: number; nodeWorld: number; viewHeight: number; mapHeight: number; widths: number[] }> {
+            await graph.setLayout("location-map", { mapScale, nodeScale });
+            await settled();
+            await drawnFrames(graph.getScene(), 2);
+            const frame = (
+                graph.getLayoutManager().layoutEngine as unknown as { geoFrame: { mapFrame: { height: number } } }
+            ).geoFrame;
+            const camera = graph.getScene().activeCamera;
+            const [a, b] = ids.map((id) => at(id));
+            const mesh = graph.getNode(ids[0])?.mesh;
+            assert.isDefined(mesh);
+            return {
+                apart: Math.hypot(a.x - b.x, a.y - b.y),
+                nodeWorld: mesh.getBoundingInfo().boundingBox.extendSizeWorld.length(),
+                viewHeight: (camera?.orthoTop ?? Number.NaN) - (camera?.orthoBottom ?? Number.NaN),
+                mapHeight: frame.mapFrame.height,
+                widths: [...graph.getDataManager().edges.values()].map((e) => e.drawnLine?.width ?? Number.NaN),
+            };
+        }
+
+        await placeAirports({}, 60);
+        const one = await measure(1, "scene");
+        const six = await measure(6, "scene");
+        assert.closeTo(six.apart / one.apart, 6, 0.01, "nodes are drawn six times further apart");
+        assert.closeTo(six.mapHeight / one.mapHeight, 6, 1e-6, "on a map six times larger");
+        assert.closeTo(six.nodeWorld, one.nodeWorld, 1e-6, "a node keeps its size in scene units");
+        assert.deepEqual(six.widths, one.widths, "an edge keeps its width");
+        assert.closeTo(six.viewHeight / one.viewHeight, 6, 0.6, "the default view still frames the whole map");
+        assert.isAtLeast(six.viewHeight, six.mapHeight, "the whole map is in view");
+
+        // on screen: a screen-sized node keeps its size on screen, so it does not shrink with the map
+        const screenOne = await measure(1, "screen");
+        const screenSix = await measure(6, "screen");
+        assert.closeTo(
+            screenSix.nodeWorld / screenSix.viewHeight / (screenOne.nodeWorld / screenOne.viewHeight),
+            1,
+            0.01,
+            "a node keeps its size on screen",
+        );
     });
 
     it("puts nodes with no usable location in a tray and reports them", async () => {

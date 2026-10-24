@@ -13,11 +13,13 @@ import "../../src/graphty-element";
 import { Matrix } from "@babylonjs/core";
 import { raySphere } from "babylonjs-map/projection";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, drag, type Point, wheel } from "../helpers/real-input";
+import { click, drag, nextFrame, type Point, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -55,12 +57,17 @@ async function applied(element: Graphty): Promise<void> {
 }
 
 /**
- * A mounted element holding the cities, laid out on the map.
+ * A mounted element holding the cities (or other places), laid out on the map.
  * @param viewMode - The view mode.
  * @param options - The layout's options.
+ * @param places - The nodes, a latitude and longitude each; routes join the cities only.
  * @returns The element.
  */
-async function mounted(viewMode: "2d" | "3d", options: Record<string, unknown> = {}): Promise<Graphty> {
+async function mounted(
+    viewMode: "2d" | "3d",
+    options: Record<string, unknown> = {},
+    places: readonly { id: string; latitude: number; longitude: number }[] = CITIES,
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
@@ -71,12 +78,14 @@ async function mounted(viewMode: "2d" | "3d", options: Record<string, unknown> =
     });
     await element.updateComplete;
     await operationQueueOf(element.graph).waitForCompletion();
-    await element.session.data.addNodes(CITIES);
-    await element.session.data.addEdges([
-        { src: "SEA", dst: "NYC" },
-        { src: "SFO", dst: "BOS" },
-        { src: "LAX", dst: "MIA" },
-    ]);
+    await element.session.data.addNodes(places);
+    if (places === CITIES) {
+        await element.session.data.addEdges([
+            { src: "SEA", dst: "NYC" },
+            { src: "SFO", dst: "BOS" },
+            { src: "LAX", dst: "MIA" },
+        ]);
+    }
     await element.setViewMode(viewMode);
     await element.session.layout.set("location-map", { options });
     await applied(element);
@@ -464,6 +473,105 @@ function globeTiles(element: Graphty): { source: string; z: number; textured: bo
         });
 }
 
+/**
+ * The camera's height above the globe, as a share of its radius, before a key is pressed and after
+ * each of the first `count` camera updates it is held for. The key is real input; the render loop
+ * is held from the last counted update until the key-up arrives, so the key moves the camera
+ * exactly `count` times.
+ * @param element - The element, its canvas focused.
+ * @param key - The key, as userEvent names it.
+ * @param count - How many updates to hold it for.
+ * @returns The heights, the one before the press first.
+ */
+async function heightsWhileHeld(element: Graphty, key: string, count: number): Promise<number[]> {
+    const frame = element.mapFrame;
+    const radius = frame?.mapDimension === "3d" ? frame.radius : Number.NaN;
+    const scene = element.graph.getScene();
+    const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
+    const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get("orbit");
+    assert.isDefined(input);
+    const { renderManager } = element.graph as unknown as { renderManager: RenderManager };
+    const update = input.update.bind(input);
+    const heights = [height()];
+    let held = false;
+    let release = (): void => undefined;
+    input.update = (): void => {
+        update();
+        if (held && heights.length <= count) {
+            heights.push(height());
+            if (heights.length > count) {
+                release = renderManager.holdFrames();
+            }
+        }
+    };
+    const press = (): void => {
+        held = true;
+    };
+    element.graph.canvas.addEventListener("keydown", press);
+    try {
+        await userEvent.keyboard(`{${key}>}`);
+        while (heights.length <= count) {
+            await nextFrame();
+        }
+        held = false;
+        await userEvent.keyboard(`{/${key}}`);
+    } finally {
+        release();
+        input.update = update;
+        element.graph.canvas.removeEventListener("keydown", press);
+    }
+    await applied(element);
+    return heights;
+}
+
+describe("W and S on the globe", () => {
+    // The camera turns about the globe's center, so its distance from the pivot is the radius plus
+    // its height. A zoom by a share of that distance moved the camera near the surface by most of
+    // its height in one step: one press jumped it to the surface (and S jumped it far out).
+    it("zoom by a share of the camera's height above the surface, slower near it, never jumping", async () => {
+        const element = await mounted("3d", { mapDimension: "3d" });
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await click(element, { x: 6, y: 6 });
+        await applied(element);
+        const start = element.getCameraState().cameraDistance ?? Number.NaN;
+        const runs: Record<string, number[]> = {};
+        for (const [name, distance] of [
+            ["far", start],
+            ["near", radius * 1.1],
+        ] as const) {
+            for (const key of ["w", "s"]) {
+                await element.setCameraState({ cameraDistance: distance });
+                await applied(element);
+                runs[`${key} ${name}`] = await heightsWhileHeld(element, key, 12);
+            }
+        }
+
+        for (const key of ["w", "s"]) {
+            const far = runs[`${key} far`];
+            const near = runs[`${key} near`];
+            assert.isBelow(near[0], far[0] / 10, "the near run starts close to the surface");
+            for (let k = 1; k < near.length; k++) {
+                assert.closeTo(
+                    near[k] / near[k - 1],
+                    far[k] / far[k - 1],
+                    1e-6,
+                    `${key}, update ${String(k)}: the height changes by the same share near the surface as far out`,
+                );
+                assert.isBelow(
+                    Math.abs(near[k] - near[k - 1]),
+                    Math.abs(far[k] - far[k - 1]) + 1e-12,
+                    `${key}, update ${String(k)}: the camera moves less near the surface`,
+                );
+            }
+            // The first update holds the press: no more than one wheel notch (1.1) of the height.
+            const first = near[1] / near[0];
+            assert.isAtLeast(Math.min(first, 1 / first), 1 / 1.1 - 1e-9, `${key}: no jump on the press`);
+            assert.notStrictEqual(near.at(-1), near[0], `${key} moved the camera`);
+        }
+    });
+});
+
 describe("the globe's map", () => {
     it("wraps every kind of source onto the sphere, switched live without moving a node, refining as it nears", async () => {
         const element = await mounted("3d", { mapDimension: "3d", extent: "world" });
@@ -520,6 +628,60 @@ describe("the globe's map", () => {
         // The map is saved with the layout.
         const saved = await element.session.project.save({ markSaved: false });
         assert.include(saved.text.replace(/\s/g, ""), '"map":{"source":"openstreetmap"}');
+    });
+});
+
+describe("the globe's map near its surface", () => {
+    // Near the surface the camera sees a small cap of the globe, inside one coarse tile and far
+    // from the nine points the tile was judged by: the tile was dropped as behind the horizon, so
+    // the street tiles under the camera were never asked for and the bundled picture showed.
+    it("draws street tiles under the whole view after W is pressed down to the surface", async () => {
+        // Two Caribbean cities: the view comes down between the nine points of the coarse tiles
+        // around them, about 30 degrees from the nearest, where the cap seen is 11 degrees across.
+        const element = await mounted("3d", { mapDimension: "3d", map: { source: "openstreetmap" } }, [
+            { id: "SJU", latitude: 18.47, longitude: -66.1 },
+            { id: "SDQ", latitude: 18.49, longitude: -69.9 },
+        ]);
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await click(element, { x: 6, y: 6 });
+        const scene = element.graph.getScene();
+        const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
+        let presses = 0;
+        while (height() > 0.021) {
+            await userEvent.keyboard("w");
+            await applied(element);
+            presses++;
+            assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
+        }
+        while (element.basemapStatus.state !== "ready") {
+            await applied(element);
+        }
+
+        // Every spot of the view on the globe has a street tile drawn over it.
+        const street = (m: { name: string; isEnabled(): boolean }): boolean =>
+            m.name.startsWith("graphty-globe-tile-") && m.name.includes("openstreetmap") && m.isEnabled();
+        const { engine } = element.graph;
+        let seen = 0;
+        let covered = 0;
+        for (let j = 1; j < 10; j++) {
+            for (let i = 1; i < 10; i++) {
+                const ray = scene.createPickingRay(
+                    (engine.getRenderWidth() * i) / 10,
+                    (engine.getRenderHeight() * j) / 10,
+                    Matrix.Identity(),
+                    scene.activeCamera,
+                );
+                if (raySphere(ray.origin, ray.direction, radius) === null) {
+                    continue;
+                }
+                seen++;
+                covered += scene.pickWithRay(ray, street)?.hit === true ? 1 : 0;
+            }
+        }
+        assert.isAbove(seen, 0, "the view is on the globe");
+        assert.strictEqual(covered, seen, "a street tile under every spot of the view");
+        assert.isAtLeast(Math.max(...globeTiles(element).map((t) => t.z)), 6, "fine tiles near the surface");
     });
 });
 

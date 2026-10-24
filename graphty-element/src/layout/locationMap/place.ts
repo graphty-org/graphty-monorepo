@@ -42,6 +42,8 @@ interface FrameCommon {
     readonly unplacedIds: ReadonlySet<unknown>;
     /** The warnings the run reported. */
     readonly warnings: readonly PlaceWarning[];
+    /** How many times larger than `size` makes it the map is drawn (the layout's `mapScale`). */
+    readonly mapScale: number;
 }
 
 /** How the location map layout lays a flat map or a globe in the scene. */
@@ -52,7 +54,7 @@ export type LocationMapFrame =
           readonly projection: ProjectionId;
           /** The box shown, `[[west, south], [east, north]]` in degrees. */
           readonly bounds: GeoBounds;
-          /** Scene units across the box's longer side. */
+          /** Scene units across the box's longer side, `mapScale` times the layout's `size`. */
           readonly size: number;
           /** The projection placed in the scene, which the map is drawn with. */
           readonly mapFrame: MapFrame;
@@ -65,8 +67,6 @@ export type LocationMapFrame =
           readonly bounds: GeoBounds;
           /** Scene units across the data as drawn: its chord, or the globe's width for world data. */
           readonly size: number;
-          /** How many times larger than `size` makes it the globe is drawn (the layout's `globeScale`). */
-          readonly globeScale: number;
           /** Whether the whole globe is the view's subject (world data or `extent: "world"`), not the data on it. */
           readonly world: boolean;
           /**
@@ -83,8 +83,8 @@ export interface PlaceOptions {
     readonly projection: ProjectionId | "auto";
     readonly extent: "data" | "world";
     readonly size: number;
-    /** How many times larger the globe is drawn than `size` makes it; nodes keep their size. */
-    readonly globeScale: number;
+    /** How many times larger the map is drawn than `size` makes it; nodes keep their size. */
+    readonly mapScale: number;
     readonly unplaced: "tray" | "leave";
     readonly overlap: "spread" | "stack";
     readonly dimensions: 2 | 3;
@@ -402,8 +402,9 @@ function drawnAcross(radius: number, angle: number): number {
  * the data does, and a point past the latitude Web Mercator reaches (+/-85.05 degrees) goes to the
  * tray as out of range rather than onto the map's edge. On a globe the radius is at least `size`
  * and large enough that the data's extent is drawn `size` scene units across ({@link globeRadius}),
- * so world data makes a globe `2 size` wide, then times `globeScale`, and the data's center is turned to face the camera
- * (world data at the equator, north up).
+ * so world data makes a globe `2 size` wide, and the data's center is turned to face the camera
+ * (world data at the equator, north up). Either map is then drawn `mapScale` times larger, its
+ * nodes kept their size.
  * Unplaced nodes sit in one row below the map.
  * @param source - Where the locations are.
  * @param nodes - Ids, sizes and current positions by row.
@@ -452,6 +453,7 @@ export function placeOnMap(
         location: locationFact(source, readings.format, filled),
         unplacedIds: new Set(unplacedRows.map((row) => nodes.ids[row])),
         warnings,
+        mapScale: options.mapScale,
     };
     let frame: LocationMapFrame;
     let trayWidth: number;
@@ -459,14 +461,16 @@ export function placeOnMap(
     if (flat) {
         const bounds =
             options.extent === "world" ? worldBounds(projection) : (dataBounds(placed) ?? worldBounds(projection));
-        const mapFrame = createMapFrame({ projection, bounds, size: options.size });
+        // A larger map spreads the same nodes further apart: their sizes stay in scene units.
+        const size = options.size * options.mapScale;
+        const mapFrame = createMapFrame({ projection, bounds, size });
         frame = {
             ...common,
             surface: "flat",
             dimensions: dim,
             projection,
             bounds: mapFrame.bounds,
-            size: options.size,
+            size,
             mapFrame,
         };
         // A box across the date line runs east past 180: a point west of the line moves a turn east.
@@ -497,7 +501,7 @@ export function placeOnMap(
         const world = bounds[1][0] - bounds[0][0] >= WORLD_SPAN;
         const angle = world ? Math.PI : spanOf(bounds);
         // A larger globe spreads the same nodes further apart: their sizes stay in scene units.
-        const radius = globeRadius(options.size, angle) * options.globeScale;
+        const radius = globeRadius(options.size, angle) * options.mapScale;
         const center = placed.length > 0 ? centerOf(placed) : { lat: 0, lon: 0 };
         const rotation = facing(world ? { lat: 0, lon: center.lon } : center);
         frame = {
@@ -507,7 +511,6 @@ export function placeOnMap(
             radius,
             bounds,
             size: drawnAcross(radius, angle),
-            globeScale: options.globeScale,
             world,
             rotation,
         };

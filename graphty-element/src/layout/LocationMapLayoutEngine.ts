@@ -109,13 +109,13 @@ const locationMapOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    globeScale: {
+    mapScale: {
         schema: z.number().positive().default(1),
         meta: {
-            label: "Globe Scale",
+            label: "Map Scale",
             description:
-                "How many times larger the globe is drawn than Size makes it, with nodes and edges kept " +
-                "their size, so nodes close together draw further apart; the 2D map ignores it",
+                "How many times larger the map (flat or globe) is drawn than Size makes it, with nodes " +
+                "and edges kept their size, so nodes close together draw further apart",
             advanced: true,
         },
     },
@@ -166,7 +166,7 @@ const LocationMapLayoutConfig = z.strictObject({
     projection: z.enum(["auto", "web-mercator", "equirectangular"]).default("auto"),
     extent: z.enum(["data", "world"]).default("data"),
     size: z.number().positive().default(100),
-    globeScale: z.number().positive().default(1),
+    mapScale: z.number().positive().default(1),
     unplaced: z.enum(["tray", "leave"]).default("tray"),
     overlap: z.enum(["spread", "stack"]).default("spread"),
     nodeScale: z.enum(["scene", "screen"]).default("scene"),
@@ -332,14 +332,14 @@ export class LocationMapLayout extends SnapshotLayoutEngine {
      * @returns The options and the view's dimension.
      */
     #placeOptions(): PlaceOptions {
-        const { format, mapDimension, projection, extent, size, globeScale, unplaced, overlap } = this.config;
+        const { format, mapDimension, projection, extent, size, mapScale, unplaced, overlap } = this.config;
         return {
             format,
             surface: mapDimension === "3d" ? "globe" : "flat",
             projection,
             extent,
             size,
-            globeScale,
+            mapScale,
             unplaced,
             overlap,
             dimensions: this.dimensions,

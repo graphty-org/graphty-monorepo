@@ -242,11 +242,27 @@ export class OrbitCameraController {
     }
 
     /**
-     * Zoom by a factor of the current distance, within the same limits as `zoom`.
+     * Zoom by a factor of the current distance, within the same limits as `zoom`. Over a globe the
+     * factor scales the camera's height above its surface instead; see {@link zoomDelta}.
      * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)
      */
     public zoomBy(factor: number): void {
-        this.zoom(this.cameraDistance * (factor - 1));
+        this.zoom(this.zoomDelta(factor));
+    }
+
+    /**
+     * How far a zoom by a factor moves the camera: that share of its distance from the pivot, or,
+     * over a globe ({@link grabSphere} or {@link surfaceFloor}), of its height above the surface
+     * along the view. The camera turns about the globe's center, so its distance is the radius
+     * plus its height, and a share of that moved it near the surface by most of its height in one
+     * step; a share of the height slows as the surface nears and never jumps onto it.
+     * @param factor - The multiplier (< 1 zooms in, > 1 zooms out).
+     * @returns The distance delta for {@link zoom}.
+     */
+    public zoomDelta(factor: number): number {
+        const sphere = this.grabSphere ?? this.surfaceFloor;
+        const span = sphere === null ? this.cameraDistance : this.cameraDistance - this.#outside(sphere.radius);
+        return Math.max(0, span) * (factor - 1);
     }
 
     /**
@@ -329,14 +345,23 @@ export class OrbitCameraController {
             return this.config.minZoomDistance;
         }
 
+        return Math.max(this.config.minZoomDistance, this.#outside(floor.radius));
+    }
+
+    /**
+     * The least distance from the pivot, looking the way the camera looks now, that keeps the
+     * camera outside a sphere at the origin; 0 when its line of sight misses the sphere.
+     * @param radius - The sphere's radius.
+     * @returns The distance.
+     */
+    #outside(radius: number): number {
         // The camera stands at pivot - forward * distance; solve |q - f d| >= R for d.
         const world = this.pivot.computeWorldMatrix(true);
         const forward = Vector3.TransformNormal(Vector3.Forward(), world).normalize();
         const q = this.pivot.position;
         const along = Vector3.Dot(q, forward);
-        const disc = along * along - q.lengthSquared() + floor.radius * floor.radius;
-        const outside = disc < 0 ? 0 : along + Math.sqrt(disc);
-        return Math.max(this.config.minZoomDistance, outside);
+        const disc = along * along - q.lengthSquared() + radius * radius;
+        return disc < 0 ? 0 : Math.max(0, along + Math.sqrt(disc));
     }
 
     /**

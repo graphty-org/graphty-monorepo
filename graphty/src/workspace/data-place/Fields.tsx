@@ -1,5 +1,5 @@
 import { ControlSection, EntityChip, FieldRow } from "@graphty/compact-mantine";
-import type { GraphSession, LoadedSource, LocationColumns } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -25,14 +25,13 @@ import {
     KIND_OF,
     kindChoices,
     loadValue,
-    LOCATION_MODES,
-    type LocationMode,
-    PLACE_TYPES,
+    LOCATION_ENTRIES,
     remap,
     roleHolder,
     ROWS_ARE,
     sidesOf,
     tableRoles,
+    unusedWords,
 } from "./words";
 
 /** The Select value that means no column. */
@@ -47,7 +46,12 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
     kind: GLYPHS.category,
     weight: GLYPHS.weight,
     time: GLYPHS.time,
-    location: GLYPHS.location,
+    latitude: GLYPHS.location,
+    longitude: GLYPHS.location,
+    coordinates: GLYPHS.location,
+    country: GLYPHS.location,
+    region: GLYPHS.location,
+    city: GLYPHS.location,
     edgeId: GLYPHS.key,
     sourceKind: GLYPHS.category,
     targetKind: GLYPHS.category,
@@ -55,12 +59,6 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
 
 /** A side's word in a control's name. */
 const SIDE_WORD: Readonly<Record<FieldSide, string>> = { nodes: "Node", edges: "Edge" };
-
-/** The knownFields the Location entry writes; each write names them all, so one form replaces another. */
-type LocationWrite = Pick<
-    GraphSession["config"]["data"]["knownFields"],
-    "nodeLocationPath" | "nodeLatitudePath" | "nodeLongitudePath" | "nodeLocationRole" | "nodeLocationWithinPath"
->;
 
 /**
  * One dropdown row: its label and a pick list of the choices, with `none` when asked for.
@@ -130,9 +128,9 @@ function PickRow({
 }
 
 /**
- * One entry of the Fields list: its kind's glyph and name, its control (a column, or for Location
- * how it is read), and a minus. An entry just picked from "+" opens its control's list; closing it
- * with no pick drops the entry.
+ * One entry of the Fields list: its kind's glyph and name, its column, and a minus. An entry just
+ * picked from "+" opens its control's list; closing it with no pick drops the entry. An entry the
+ * element lists but does not read is dimmed, and says why in a tooltip and its description.
  * @param props - Component props
  * @param props.side - nodes or edges
  * @param props.entry - the kind of entry
@@ -141,6 +139,7 @@ function PickRow({
  * @param props.choices - what the control offers
  * @param props.opened - open the control's list when drawn (the entry was just added)
  * @param props.repick - whether picking the value shown again counts
+ * @param props.note - why the element does not read it, when it does not
  * @param props.onPick - takes a pick
  * @param props.onDropped - the list closed with no pick on an entry just added
  * @param props.onRemove - the minus
@@ -154,6 +153,7 @@ function EntryRow({
     choices,
     opened,
     repick = false,
+    note,
     onPick,
     onDropped,
     onRemove,
@@ -165,6 +165,7 @@ function EntryRow({
     choices: readonly (string | { readonly value: string; readonly label: string })[];
     opened: boolean;
     repick?: boolean;
+    note?: string;
     onPick: (value: string) => void;
     onDropped: () => void;
     onRemove: () => void;
@@ -174,6 +175,8 @@ function EntryRow({
     return (
         <FieldRow
             data-entry={entry.id}
+            data-unused={note === undefined ? undefined : true}
+            className={note === undefined ? undefined : "dp-entry-unused"}
             trailing={
                 <Tooltip label={`Remove ${noun}`}>
                     <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${noun}`} onClick={onRemove}>
@@ -182,15 +185,18 @@ function EntryRow({
                 </Tooltip>
             }
         >
-            <span className="dp-entry-kind">
-                {React.createElement(ENTRY_GLYPHS[entry.id], { size: 14, "aria-hidden": true })}
-                <Text size="xs" truncate>
-                    {entry.name}
-                </Text>
-            </span>
+            <Tooltip label={note} disabled={note === undefined}>
+                <span className="dp-entry-kind">
+                    {React.createElement(ENTRY_GLYPHS[entry.id], { size: 14, "aria-hidden": true })}
+                    <Text size="xs" truncate>
+                        {entry.name}
+                    </Text>
+                </span>
+            </Tooltip>
             <Select
                 size="xs"
                 aria-label={name}
+                aria-description={note}
                 allowDeselect={false}
                 data={choices.map((choice) => (typeof choice === "string" ? { value: choice, label: choice } : choice))}
                 value={value}
@@ -215,181 +221,6 @@ function EntryRow({
                 }}
             />
         </FieldRow>
-    );
-}
-
-/**
- * How the element reads the nodes' locations now, as the Location entry's "Read as" says it.
- * @param shown - `layout.locationColumns()`.
- * @returns the form.
- */
-function modeOf(shown: LocationColumns): LocationMode {
-    if (shown.latitude !== null || shown.longitude !== null) {
-        return "pair";
-    }
-    // A place name's role is its place type (`auto` until the gazetteer decides it).
-    return shown.within !== null || (shown.role !== null && shown.role !== "coords") ? "place" : "coords";
-}
-
-/**
- * The Location entry: how its column is read, then that form's own rows -- the latitude and
- * longitude pair, one column of coordinates, or a column of place names with its place type and
- * the column that narrows it. Each pick designates it in the element (`data.knownFields`), one
- * undo step; until then the columns the element found are shown. The minus writes
- * `nodeLocationRole: "none"`, so the element stops finding one.
- * @param props - Component props
- * @param props.session - the element's session
- * @param props.shown - `layout.locationColumns()`
- * @param props.choices - the node columns offered
- * @param props.opened - the entry was just added: its "Read as" list opens
- * @param props.onDropped - the list closed with no pick on an entry just added
- * @param props.onRemove - called once the minus was pressed
- * @param props.onFail - called when the element refuses the change
- * @returns the entry and its rows
- */
-function LocationEntry({
-    session,
-    shown,
-    choices,
-    opened,
-    onDropped,
-    onRemove,
-    onFail,
-}: Readonly<{
-    session: GraphSession;
-    shown: LocationColumns;
-    choices: readonly string[];
-    opened: boolean;
-    onDropped: () => void;
-    onRemove: () => void;
-    onFail: () => void;
-}>): React.JSX.Element {
-    // A form picked before any of its columns is: the element still reads the old one.
-    const [asked, setAsked] = useState<LocationMode | null>(null);
-    const present = shown.from !== "none";
-    const mode = asked ?? (present ? modeOf(shown) : null);
-    // What the element found is only preselected: picking it designates it.
-    const repick = shown.from === "detected";
-    const pair = present && modeOf(shown) === "pair";
-    const column = present && !pair ? shown.location : null;
-    const placeType = PLACE_TYPES.find((type) => type.value === shown.role)?.value ?? "auto";
-    const write = (fields: Partial<LocationWrite>): void => {
-        session.config
-            .set({
-                data: {
-                    knownFields: {
-                        nodeLocationPath: null,
-                        nodeLatitudePath: null,
-                        nodeLongitudePath: null,
-                        nodeLocationWithinPath: null,
-                        nodeLocationRole: "coords",
-                        ...fields,
-                    },
-                },
-            })
-            .catch(onFail);
-    };
-    const place = (at: string | null, role: LocationWrite["nodeLocationRole"], within: string | null): void => {
-        if (at !== null) {
-            write({ nodeLocationPath: at, nodeLocationRole: role, nodeLocationWithinPath: within });
-        }
-    };
-    const entry = FIELD_ENTRIES.nodes.find((each) => each.id === "location") ?? { id: "location", name: "Location" };
-    return (
-        <>
-            <EntryRow
-                side="nodes"
-                entry={entry}
-                name="Location read as"
-                value={mode}
-                choices={LOCATION_MODES}
-                opened={opened}
-                onPick={(next) => {
-                    setAsked(next as LocationMode);
-                }}
-                onDropped={onDropped}
-                onRemove={() => {
-                    setAsked(null);
-                    onRemove();
-                    write({ nodeLocationRole: "none" });
-                }}
-            />
-            {mode === "pair" ? (
-                <>
-                    <PickRow
-                        sub
-                        label="Latitude"
-                        repick={repick}
-                        value={pair ? shown.latitude : null}
-                        choices={choices}
-                        onPick={(picked) => {
-                            write({ nodeLatitudePath: picked, nodeLongitudePath: pair ? shown.longitude : null });
-                        }}
-                    />
-                    <PickRow
-                        sub
-                        label="Longitude"
-                        repick={repick}
-                        value={pair ? shown.longitude : null}
-                        choices={choices}
-                        onPick={(picked) => {
-                            write({ nodeLatitudePath: pair ? shown.latitude : null, nodeLongitudePath: picked });
-                        }}
-                    />
-                </>
-            ) : null}
-            {mode === "coords" ? (
-                <PickRow
-                    sub
-                    label="Column"
-                    name="Location column"
-                    repick={repick}
-                    value={column}
-                    choices={choices}
-                    onPick={(picked) => {
-                        write({ nodeLocationPath: picked });
-                    }}
-                />
-            ) : null}
-            {mode === "place" ? (
-                <>
-                    <PickRow
-                        sub
-                        label="Column"
-                        name="Location column"
-                        repick={repick}
-                        value={column}
-                        choices={choices}
-                        onPick={(picked) => {
-                            place(picked, placeType, shown.within);
-                        }}
-                    />
-                    <PickRow
-                        sub
-                        label="Place type"
-                        value={placeType}
-                        choices={PLACE_TYPES}
-                        onPick={(picked) => {
-                            place(
-                                column,
-                                PLACE_TYPES.find((type) => type.value === picked)?.value ?? "auto",
-                                shown.within,
-                            );
-                        }}
-                    />
-                    <PickRow
-                        sub
-                        label="Within"
-                        withNone
-                        value={column === null ? null : shown.within}
-                        choices={choices}
-                        onPick={(picked) => {
-                            place(column, placeType, picked);
-                        }}
-                    />
-                </>
-            ) : null}
-        </>
     );
 }
 
@@ -481,16 +312,24 @@ function SideGroup({
     const kind = KIND_OF[side];
     const roles = tableRoles(source, side);
     const reloadable = source?.reloadable === true && roles !== undefined;
-    // Read once a render: it reads every node's values.
+    // `located` is read once a render: it reads every node's values.
     const located = side === "nodes" ? session?.layout.locationColumns() : undefined;
+    const locationOf = (entry: FieldEntry): string | null | undefined =>
+        located === undefined || !LOCATION_ENTRIES.some((each) => each.id === entry.id)
+            ? undefined
+            : (located.kinds[entry.id as keyof typeof located.kinds] ?? null);
     const holderOf = (entry: FieldEntry): string | null => {
+        const location = locationOf(entry);
+        if (location !== undefined) {
+            return location;
+        }
+
         if (entry.role !== undefined) {
             return roleHolder(attributes, side, entry.role);
         }
         return entry.load !== undefined && reloadable ? loadValue(roles, entry.load) : null;
     };
-    const present = (entry: FieldEntry): boolean =>
-        entry.id === "location" ? located !== undefined && located.from !== "none" : holderOf(entry) !== null;
+    const present = (entry: FieldEntry): boolean => holderOf(entry) !== null;
     const available = (entry: FieldEntry): boolean => entry.load === undefined || reloadable;
     const entries = FIELD_ENTRIES[side].filter(available);
     const presentNow = new Set(entries.filter(present).map((entry) => entry.id));
@@ -514,23 +353,9 @@ function SideGroup({
         if (!presentNow.has(entry.id) && !opened) {
             return null;
         }
-        const name = entry.load === undefined ? `${SIDE_WORD[side]} ${entry.name.toLowerCase()}` : entry.name;
-        if (entry.id === "location" && located !== undefined) {
-            return (
-                <LocationEntry
-                    key={entry.id}
-                    session={session}
-                    shown={located}
-                    choices={columnChoices(attributes, source, "nodes", null)}
-                    opened={opened}
-                    onDropped={drop}
-                    onRemove={() => {
-                        setAdding(null);
-                        focusPlus();
-                    }}
-                    onFail={onFail}
-                />
-            );
+        let name = entry.load === undefined ? `${SIDE_WORD[side]} ${entry.name.toLowerCase()}` : entry.name;
+        if (locationOf(entry) !== undefined) {
+            name = `${name} column`;
         }
         const holder = holderOf(entry);
         const common = {
@@ -580,10 +405,15 @@ function SideGroup({
             );
         }
         const meaning = session.config.data.knownFields.edgeWeightMeaning ?? null;
+        const isLocation = locationOf(entry) !== undefined;
+        const unused = located?.unused.find((fact) => fact.params.kind === entry.id);
         return (
             <React.Fragment key={entry.id}>
                 <EntryRow
                     {...common}
+                    // A location the element found is only preselected: picking it designates it.
+                    repick={isLocation && located?.from === "detected"}
+                    note={unused === undefined ? undefined : unusedWords(unused)}
                     choices={columnChoices(offeredColumns, source, side, holder)}
                     onPick={(picked) => {
                         session.data.setRole({ kind, name: picked }, role).catch(onFail);
@@ -781,7 +611,8 @@ function GraphRows({
  * load of one table), then each side under its node or edge chip -- its fixed structure rows (the
  * node Id; an edge's Source and Target, the shared-ids choice when an id appears under two kinds,
  * and the graph's direction), which always hold a value, then its list of special fields with a
- * "+" at the chip's right end (Label, Kind, Weight, Time and Location of nodes; Weight, Time,
+ * "+" at the chip's right end (Label, Kind, Weight, Time, and Latitude, Longitude, Coordinates,
+ * Country, Region and City of nodes; Weight, Time,
  * Kind, Id and the kinds of the two ends of edges), each with its settings indented under it. A
  * setting row changes the element's role in place (`data.setRole`); a row read when the rows load
  * reads the load again (`data.reloadSource`). Rows are: edges on a table of nodes asks for Source

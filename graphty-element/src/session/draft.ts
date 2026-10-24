@@ -1246,7 +1246,7 @@ function missingRoles(mapping: LoadMappingRead): Readonly<Record<string, readonl
                 id,
                 Object.freeze(
                     LOAD_ROLES[roles.rowsAre].requires.filter((role) => {
-                        const value = roles[role];
+                        const value: unknown = roles[role as keyof TableMappingRead];
                         return value === undefined || value === null;
                     }),
                 ),

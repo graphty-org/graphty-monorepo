@@ -1522,11 +1522,25 @@ export interface FunctionDescriptor {
  * What a column does for the graph, beyond holding values: the node ids were read from it
  * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
  * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
- * (`"edgeId"`).
+ * (`"edgeId"`), or node locations are read from it, one column per kind (`"latitude"`,
+ * `"longitude"`, `"coordinates"`, `"country"`, `"region"`, `"city"`).
  *
  * OPEN UNION: roles may be added in a minor release; handle unknown roles.
  */
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+export type AttributeRole =
+    | "key"
+    | "label"
+    | "weight"
+    | "source"
+    | "target"
+    | "time"
+    | "edgeId"
+    | "latitude"
+    | "longitude"
+    | "coordinates"
+    | "country"
+    | "region"
+    | "city";
 
 /**
  * One thing that reads a column: a style layer whose selector or bindings read it, or a finished

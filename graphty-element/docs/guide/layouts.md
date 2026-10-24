@@ -310,10 +310,19 @@ in the data settings; the layout reads it whenever its own `location`, `latitude
 are unset, and `session.layout.locationColumns()` says which columns it will read:
 
 ```ts
-await session.config.set({ data: { knownFields: { nodeLocationPath: "where" } } });
-session.layout.locationColumns();
-// { from: "designated", location: "where", latitude: null, longitude: null, role: "coords", within: null }
+await session.data.setRole({ kind: "node", name: "town" }, "city");
+await session.data.setRole({ kind: "node", name: "nation" }, "country");
+const { kinds, using, unused } = session.layout.locationColumns();
+// kinds: { city: "town", country: "nation" }, using: "city", unused: []
 ```
+
+Each kind of location is a role of its own, one column each: `latitude`, `longitude`,
+`coordinates` (one column of whole locations), `country`, `region` and `city`. The layout reads a
+full latitude and longitude pair first, else the coordinates, else the finest place kind given,
+narrowed by the next coarser one (a city by its region, else its country). A kind given but not
+read is listed in `unused` as `{ code: "location.unused", params: { kind, using } }`. Taking the
+last kind away (`setRole(column, null)`) turns the search off. Before any kind is given,
+`kinds` lists what the layout found by itself. The single `nodeLocationPath` form below still works.
 
 - **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
   with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and

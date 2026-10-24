@@ -142,6 +142,11 @@
 }
 
 /* A setting of the entry above it, indented under it. */
+/* An entry the element lists but does not read; its tooltip and description say why. */
+.dp-entry-unused {
+    opacity: 0.55;
+}
+
 .dp-sub-label {
     padding-inline-start: 18px;
 }

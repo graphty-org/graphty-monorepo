@@ -313,13 +313,22 @@ describe("the location map", () => {
         const element = await openAirports(false, CITIES);
         const place = await openDataPlace();
         // Listed with no action from the reader: the pair the element finds by name.
-        const readAs = (await place.findByRole("combobox", { name: "Location read as" })) as HTMLInputElement;
-        assert.strictEqual(readAs.value, "Latitude + longitude");
-        assert.strictEqual((place.getByRole("combobox", { name: "Latitude" }) as HTMLInputElement).value, "lat");
-        assert.strictEqual((place.getByRole("combobox", { name: "Longitude" }) as HTMLInputElement).value, "lng");
+        const latitude = (await place.findByRole("combobox", { name: "Node latitude column" })) as HTMLInputElement;
+        assert.strictEqual(latitude.value, "lat");
+        assert.strictEqual(
+            (place.getByRole("combobox", { name: "Node longitude column" }) as HTMLInputElement).value,
+            "lng",
+        );
 
-        await pickField(place, "Location read as", "Coordinates");
-        await pickField(place, "Location column", "home");
+        // One kind replaces another as everywhere else: the minuses, then "+".
+        await userEvent.click(place.getByRole("button", { name: "Remove node latitude" }));
+        await userEvent.click(await place.findByRole("button", { name: "Remove node longitude" }));
+        await waitFor(() => {
+            assert.isNull(place.queryByRole("combobox", { name: "Node longitude column" }));
+        });
+        await userEvent.click(place.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Coordinates" }));
+        await userEvent.click(await screen.findByRole("option", { name: "home" }));
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",
@@ -329,8 +338,11 @@ describe("the location map", () => {
                 role: "coords",
                 within: null,
             });
-            assert.strictEqual(readAs.value, "Coordinates");
-            assert.isNull(place.queryByRole("combobox", { name: "Latitude" }));
+            assert.strictEqual(
+                (place.getByRole("combobox", { name: "Node coordinates column" }) as HTMLInputElement).value,
+                "home",
+            );
+            assert.isNull(place.queryByRole("combobox", { name: "Node latitude column" }));
         });
 
         const popover = await openMapForm();
@@ -359,8 +371,8 @@ describe("the location map", () => {
             await opened.session.data.loadDataset("openflights", datasetBase());
         });
         const place = await openDataPlace();
-        await pickField(place, "Latitude", "latitude");
-        await pickField(place, "Longitude", "longitude");
+        await pickField(place, "Node latitude column", "latitude");
+        await pickField(place, "Node longitude column", "longitude");
         await waitFor(() => {
             assert.deepInclude(element.session.layout.locationColumns(), {
                 from: "designated",

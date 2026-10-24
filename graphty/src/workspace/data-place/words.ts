@@ -14,6 +14,9 @@ import type {
     ImportReport,
     LeftOutEdge,
     LoadedSource,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
     TableMapping,
     TableMappingRead,
 } from "@graphty/graphty-element/session";
@@ -483,7 +486,7 @@ export const FIELD_ROWS: readonly FieldRow[] = [
 ];
 
 /** What a Fields "+" entry is. */
-export type EntryId = "label" | "kind" | "weight" | "time" | "location" | "edgeId" | "sourceKind" | "targetKind";
+export type EntryId = "label" | "kind" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
 
 /** One kind of Fields "+" entry. */
 export interface FieldEntry {
@@ -496,6 +499,16 @@ export interface FieldEntry {
     readonly load?: FieldKey;
 }
 
+/** The node location entries, one per kind, as the element names the kinds (`ColumnRole`). */
+export const LOCATION_ENTRIES = [
+    { id: "latitude", name: "Latitude", role: "latitude" },
+    { id: "longitude", name: "Longitude", role: "longitude" },
+    { id: "coordinates", name: "Coordinates", role: "coordinates" },
+    { id: "country", name: "Country", role: "country" },
+    { id: "region", name: "Region", role: "region" },
+    { id: "city", name: "City", role: "city" },
+] as const satisfies readonly FieldEntry[];
+
 /** The kinds each side's "+" offers, in list order. */
 export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> = {
     nodes: [
@@ -503,7 +516,7 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
         { id: "kind", name: "Kind", load: "kind" },
         { id: "weight", name: "Weight", role: "weight" },
         { id: "time", name: "Time", role: "time" },
-        { id: "location", name: "Location" },
+        ...LOCATION_ENTRIES,
     ],
     edges: [
         { id: "weight", name: "Weight", role: "weight" },
@@ -515,23 +528,23 @@ export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> =
     ],
 };
 
-/** How the Location entry reads a node's place: a column pair, one column of coordinates, or a place name. */
-export type LocationMode = "pair" | "coords" | "place";
+/** The entries a location is read from, by what the element reads (`LocationUsing`). */
+const USING_ENTRIES: Readonly<Record<LocationUsing, string>> = {
+    pair: "Latitude and Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
+};
 
-/** The Location entry's "Read as" choices. */
-export const LOCATION_MODES: readonly { readonly value: LocationMode; readonly label: string }[] = [
-    { value: "pair", label: "Latitude + longitude" },
-    { value: "coords", label: "Coordinates" },
-    { value: "place", label: "Place name" },
-];
-
-/** The Location entry's "Place type" choices, as `data.knownFields.nodeLocationRole` names them. */
-export const PLACE_TYPES = [
-    { value: "auto", label: "Auto" },
-    { value: "country", label: "Country" },
-    { value: "region", label: "Region" },
-    { value: "city", label: "City" },
-] as const;
+/**
+ * The words for a listed location kind the element does not read (`location.unused`).
+ * @param fact - The element's fact.
+ * @returns Such as "Not used: the location comes from City".
+ */
+export function unusedWords(fact: LocationUnused): string {
+    return `Not used: the location comes from ${USING_ENTRIES[fact.params.using]}`;
+}
 
 /** The direction choices, as the element's `data.directed` takes them. */
 export const DIRECTIONS = [
@@ -556,7 +569,7 @@ export function tableRoles(source: LoadedSource | undefined, side: FieldSide): T
  * @param key - the row.
  * @returns the column or kind name, or null for none.
  */
-export function loadValue(roles: TableMappingRead | undefined, key: FieldKey): string | null {
+export function loadValue(roles: TableMappingRead | undefined, key: FieldKey | ColumnRole): string | null {
     const value: unknown = roles?.[key as keyof TableMappingRead];
     if (typeof value === "string") {
         return value;

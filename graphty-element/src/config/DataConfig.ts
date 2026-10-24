@@ -61,6 +61,14 @@ const GraphKnownFields = z.strictObject({
     // region column found by name.
     nodeLocationWithinPath: z.string().or(z.null()).optional(),
     nodeLocationWithin: z.string().or(z.null()).optional(),
+    // One column per kind of location, as `data.setRole` designates them (with nodeLatitudePath
+    // and nodeLongitudePath): a column of whole coordinates, and columns of country, region and
+    // city names. The location map reads a full pair first, else the coordinates, else the finest
+    // place kind, narrowed by the next coarser one. Ignored while nodeLocationPath is set.
+    nodeCoordinatesPath: z.string().or(z.null()).optional(),
+    nodeCountryPath: z.string().or(z.null()).optional(),
+    nodeRegionPath: z.string().or(z.null()).optional(),
+    nodeCityPath: z.string().or(z.null()).optional(),
     // Null means "probe": the element reads source/target, then src/dst, then from/to, once per
     // batch of edge records, and throws E_EDGE_ENDPOINTS_UNRESOLVED when none of them answers.
     // Naming an expression here settles the question and turns the probe off -- a record that does

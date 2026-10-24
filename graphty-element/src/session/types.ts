@@ -1945,9 +1945,11 @@ export interface DraftColumn extends Pick<
 /**
  * What a column can be to a load. `kind` is the column whose values name each row's kind: a
  * node's, which loads as its `kind` attribute and keeps ids of different kinds apart under
- * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute.
+ * `LoadChoices.kindIds` `"scoped"`, or an edge's, which loads as its `kind` attribute. The
+ * {@link LocationKind}s (`latitude`, `longitude`, `coordinates`, `country`, `region`, `city`) are
+ * where a node's location is read from, one column per kind (`data.setRole` only).
  */
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind";
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind;
 
 /** One row of a draft table. */
 export interface DraftRow {
@@ -3493,6 +3495,39 @@ export interface LocationColumns {
     readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
     /** The column that narrows each place name (a city's country), or null. @since 3.31.0 */
     readonly within: string | null;
+    /**
+     * The column of each kind of location listed for the nodes: the kinds designated with
+     * `data.setRole` (one column per kind), else the kinds of what is read now (a detected city
+     * column and the country column narrowing it). A form lists one entry per kind.
+     */
+    readonly kinds: Readonly<Partial<Record<LocationKind, string>>>;
+    /** What the location is read from: `pair`, `coordinates` or a place kind; null when nothing is. */
+    readonly using: LocationUsing | null;
+    /**
+     * The listed kinds the element does not read, because another listed source wins (a full
+     * pair over coordinates over place names, the finest place kind narrowed by the next coarser),
+     * each as the coded fact `location.unused` naming the source in use.
+     */
+    readonly unused: readonly LocationUnused[];
+}
+
+/** A kind of location a node column can be given with `data.setRole`. */
+export type LocationKind = "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+/** What a node location is read from: a latitude and longitude pair, coordinates, or place names of a kind. */
+export type LocationUsing = "pair" | "coordinates" | "country" | "region" | "city";
+
+/** A listed kind of location the element does not read: `{ code: "location.unused", params }`. */
+export interface LocationUnused {
+    /** The fact's code. */
+    readonly code: "location.unused";
+    /** The kind not read, and what is read instead. */
+    readonly params: {
+        /** The kind not read. */
+        readonly kind: LocationKind;
+        /** What is read instead. */
+        readonly using: LocationUsing;
+    };
 }
 
 /**

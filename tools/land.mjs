@@ -2472,7 +2472,7 @@ const UNLOCKED = {
     ship: (ctx) => ship(ctx),
     "auto-ship": async (ctx, pr, argv) => {
         if (!argv.includes("--after-preview")) return autoShip(ctx);
-        const head = argv.filter((a) => !a.startsWith("--")).at(-1);
+        const head = argv.findLast((a) => !a.startsWith("--"));
         return (await previewSettled(ctx, pr, head)) ? autoShip(ctx) : 0;
     },
     cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),

@@ -1191,7 +1191,7 @@ Parameters (id: type, default, range):
 
 | Id             | Parameters                                                                                                                                                                              |
 | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `icon-sticker` | `icon` V: integer, 0, 0..11; `finish` P: enum, `none`, {`none`, `shiny`, `holographic`}; `finishSpeed`: number, 0.5, 0..2; `foil`: number, 0.85, 0..1; `borderColor`: color, `#fbfaf6`  |
+| `icon-sticker` | `icon` V: integer, 0, 0..11; `finish` P (Foil): enum, `holographic`, {`none`, `shiny`, `holographic`}; `foil` (Foil strength): number, 0.85, 0..1; `borderColor`: color, `#fbfaf6`      |
 | `mandala`      | `folds` V: integer, 0, 0..12 (extra folds); `hueShift` V: number, 0, 0..1; `detail` P: number, 5, 1..12; `spin`: number, 0.25, -2..2; `flow`: number, 0.3, 0..2; `rim`: number, 1, 0..1 |
 
 **Pie, one implementation.** graph-io maps Cytoscape pies to the `node.pie*` channels, which

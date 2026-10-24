@@ -88,11 +88,10 @@ export function Workspace({
         loading.current = true;
         defaults
             .then(() => opening.load(session, host))
-            // A graph opened as a new project starts its history: Undo has nothing to take back
-            // until the reader changes something, so one Undo too many never unloads the graph.
-            // Focus goes to the graph's heading once it is read, so its size is heard.
+            // Each load starts the project's history itself (open.ts passes the element's
+            // `history: "start"`; a project file or kept work does so on opening). Focus goes to
+            // the graph's heading once it is read, so its size is heard.
             .then(() => {
-                session.history.clear();
                 if (store.get().page === "panels") {
                     focusOpenedGraph();
                 }

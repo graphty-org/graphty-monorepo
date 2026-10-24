@@ -275,6 +275,8 @@ export interface TransactionOptions {
     readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it commits into the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: never undone or cancelled by undo, and the steps before it go when it commits. */
+    readonly starts?: boolean;
     /**
      * A batch's transaction: its members are known when it opens and it settles by itself, so a
      * command needing a key it holds waits for it instead of being refused.
@@ -591,6 +593,8 @@ interface Group {
     view: PendingStep | undefined;
     /** Declared at construction: commits into the baseline while the window is open. */
     readonly setup: boolean;
+    /** Starts the history (`ImportOptions.history`): undo passes over it, and it commits into the baseline. */
+    readonly starts: boolean;
     /** A batch's transaction, which a command needing its keys waits for. */
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
@@ -761,6 +765,15 @@ function refuses(group: Group): boolean {
  */
 function isSetup(command: CommandLike): boolean {
     return (command as { readonly setup?: unknown }).setup === true;
+}
+
+/**
+ * Whether a command starts the history: `startsHistory: true` among its arguments.
+ * @param command - The command.
+ * @returns True for a command that starts the history.
+ */
+function startsHistory(command: CommandLike): boolean {
+    return (command as { readonly startsHistory?: unknown }).startsHistory === true;
 }
 
 /**
@@ -1058,7 +1071,7 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            { setup: options.setup === true, compound: options.compound === true },
+            { setup: options.setup === true, compound: options.compound === true, starts: options.starts === true },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1626,7 +1639,7 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound, tx, isSetup(concrete), options.beside === true);
+            return this.compound(compound, tx, isSetup(concrete), options.beside === true, startsHistory(concrete));
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1666,7 +1679,7 @@ export class Dispatcher {
                 origin?.step ?? null,
                 this.tick,
                 null,
-                { setup: isSetup(concrete) || origin?.setup === true },
+                { setup: isSetup(concrete) || origin?.setup === true, starts: startsHistory(concrete) },
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -1724,6 +1737,7 @@ export class Dispatcher {
      * @param setup - Whether it was declared at construction.
      * @param beside - Whether its queued members start at once, beside the queue, as a
      *     synchronous door's must.
+     * @param starts - Whether it starts the history.
      * @returns Settles when every member has.
      */
     private compound(
@@ -1731,6 +1745,7 @@ export class Dispatcher {
         tx: Group | null,
         setup: boolean,
         beside: boolean,
+        starts = false,
     ): Promise<unknown> {
         const options = beside ? { beside } : {};
         if (tx !== null) {
@@ -1744,6 +1759,7 @@ export class Dispatcher {
                 setup,
                 compound: true,
                 fact,
+                starts,
             },
         );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
@@ -2267,6 +2283,18 @@ export class Dispatcher {
             this.baselineOpen = false;
         }
 
+        if (group.starts) {
+            // Every step recorded before the load was dispatched goes; work dispatched while it
+            // was pending stays as its own steps.
+            let before = 0;
+            const { steps } = this.history;
+            while (before < steps.length && (this.steps.get(steps[before].id)?.recorded ?? -1) < group.seq) {
+                before++;
+            }
+            this.history.dropOldest(before);
+            return true;
+        }
+
         if (group.setup) {
             return this.history.length === 0;
         }
@@ -2486,12 +2514,14 @@ export class Dispatcher {
         // step touched can be, so only those are looked at, not every pending group.
         if (meta !== undefined && meta.oplog.length > 0) {
             const touchesGraph = meta.oplog.some((key) => sliceOf(key) === "graph");
-            const inWay = this.holdingAny(meta.oplog).filter((group) =>
-                [...group.holds].some(
-                    ([key, at]) =>
-                        meta.oplog.some((touched) => overlaps(key, touched)) ||
-                        (touchesGraph && sliceOf(key) === "graph" && at > since),
-                ),
+            const inWay = this.holdingAny(meta.oplog).filter(
+                (group) =>
+                    !group.starts &&
+                    [...group.holds].some(
+                        ([key, at]) =>
+                            meta.oplog.some((touched) => overlaps(key, touched)) ||
+                            (touchesGraph && sliceOf(key) === "graph" && at > since),
+                    ),
             );
             if (inWay.length > 0) {
                 return { cancel: this.cascade(inWay) };
@@ -2501,11 +2531,12 @@ export class Dispatcher {
         // Rule 1: pending work newer than the step. None was listed after it, and no pending
         // group amends it: a run of queued commands behind the step is not walked on every read.
         if (this.newestEntered <= since && (direction !== "undo" || this.openAfter === 0)) {
-            return target === undefined ? null : { step: target };
+            return this.movable(target, meta?.recorded);
         }
 
+        // A load that starts the history is never cancelled by undo or redo.
         const newer = this.ordered().filter(
-            (group) => group.seq > since || (direction === "undo" && group.after === target?.id),
+            (group) => !group.starts && (group.seq > since || (direction === "undo" && group.after === target?.id)),
         );
         const newest = newer.at(-1);
         if (newest !== undefined) {
@@ -2513,7 +2544,28 @@ export class Dispatcher {
         }
 
         // Rule 2.
-        return target === undefined ? null : { step: target };
+        return this.movable(target, meta?.recorded);
+    }
+
+    /**
+     * The step undo or redo would move, unless a pending load that starts the history was
+     * dispatched after it was recorded: that load drops it, so it is not the reader's to move.
+     * @param target - The step next to the cursor.
+     * @param recorded - When it was recorded.
+     * @returns The step, or null when there is nothing to move.
+     */
+    private movable(target: HistoryStepView | undefined, recorded = -1): { step: HistoryStepView } | null {
+        if (target === undefined) {
+            return null;
+        }
+
+        for (const group of this.open) {
+            if (group.starts && group.seq > recorded) {
+                return null;
+            }
+        }
+
+        return { step: target };
     }
 
     /**
@@ -2656,6 +2708,7 @@ export class Dispatcher {
      * @param flags - What kind of group it is.
      * @param flags.setup - Declared at construction.
      * @param flags.compound - A batch's transaction.
+     * @param flags.starts - Starts the history.
      * @returns The group.
      */
     private group(
@@ -2665,7 +2718,11 @@ export class Dispatcher {
         after: string | null,
         seq: number,
         tx: Group["tx"],
-        { setup = false, compound = false }: { readonly setup?: boolean; readonly compound?: boolean } = {},
+        {
+            setup = false,
+            compound = false,
+            starts = false,
+        }: { readonly setup?: boolean; readonly compound?: boolean; readonly starts?: boolean } = {},
     ): Group {
         return {
             seq,
@@ -2686,6 +2743,7 @@ export class Dispatcher {
             view: undefined,
             setup,
             compound,
+            starts,
             onSeal: new Map(),
             executed: [],
             arrangement: null,

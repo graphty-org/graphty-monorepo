@@ -205,6 +205,43 @@ describe("data.import", () => {
         session.dispose();
     });
 
+    it("an import that starts the history is never undone: nothing to undo while it waits or after", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: "n9" }]);
+        assert.isTrue(session.canUndo, "a step from before the load");
+        const load = session.data.import({ type: "json", config: { data: DOCUMENT } }, { history: "start" });
+
+        assert.isFalse(session.canUndo, "the load is not offered to undo while it waits");
+        assert.strictEqual((await session.undo()).kind, "nothing");
+        await load;
+
+        assert.deepEqual(ids(session), ["a", "b"]);
+        assert.lengthOf(session.history.steps, 0, "the history starts at the loaded graph");
+        assert.isFalse(session.canUndo);
+        session.dispose();
+    });
+
+    it("an import that starts the history keeps work dispatched while it waits, as that work's own step", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: "n9" }]);
+        const load = session.data.import({ type: "json", config: { data: DOCUMENT } }, { history: "start" });
+        const layers = session.styles.list().length;
+        const styled = session.styles.add({
+            name: "during",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await Promise.all([load, styled]);
+
+        assert.lengthOf(session.history.steps, 1, "the reader's edit, and nothing from before the load");
+        await session.undo();
+        assert.lengthOf(session.styles.list(), layers, "undo takes back the edit");
+        assert.deepEqual(ids(session), ["a", "b"], "and leaves the loaded graph");
+        assert.isFalse(session.canUndo);
+        session.dispose();
+    });
+
     it("two imports under one coalesce key in one tick are one load and one step", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);

@@ -671,7 +671,7 @@ export class SessionData implements SessionDataApi {
 
     /**
      * The body of `import`, dispatching through an importer taken before any await.
-     * @param send - The importer, taken when the verb was called.
+     * @param importer - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
      * @param fromFile - Whether the source is a graph file the caller opened (not a generated
@@ -679,11 +679,15 @@ export class SessionData implements SessionDataApi {
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
-        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        importer: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
         fromFile = true,
     ): Promise<void> {
+        const send =
+            options.history === "start"
+                ? (command: DataImportCommand | BatchCommand) => importer({ ...command, startsHistory: true })
+                : importer;
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.

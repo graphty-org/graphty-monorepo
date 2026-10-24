@@ -71,6 +71,16 @@ returns to the baseline, not to an empty element.
 
 `session.history.clear()` makes the current state the new baseline.
 
+To open a graph as a new project, pass `history: "start"` to `session.data.import`, `generate`
+or `loadDataset`. The loaded graph becomes the baseline: Undo never cancels the load while it
+is pending, and never undoes it after. Steps recorded before the call are dropped once the load
+is in. Work done while it loads is kept, and each piece is its own step.
+
+```ts
+await session.data.import({ config: { url: "graph.graphml" } }, { history: "start" });
+session.canUndo; // false
+```
+
 ## Steps
 
 One call is one step, and a node drag is one step, and so is one message to the AI assistant.

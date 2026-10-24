@@ -618,6 +618,30 @@ export class History<P> {
     }
 
     /**
+     * Drop the oldest steps, as eviction does: what they did stays, and they can no longer be
+     * undone. Undone steps among them are dropped with the rest.
+     * @param count - How many, from the oldest.
+     */
+    dropOldest(count: number): void {
+        if (count <= 0) {
+            return;
+        }
+
+        for (const [index, step] of this.entries.slice(0, count).entries()) {
+            const done = index < this.cursor;
+            this.total -= this.size(step, done);
+            if (done) {
+                this.fold(step);
+            }
+        }
+
+        this.entries.splice(0, count);
+        this.cursor = Math.max(0, this.cursor - count);
+        this.counted = null;
+        this.changed("evict");
+    }
+
+    /**
      * Merge a patch into a done top step: the first prior, the last written value.
      * @param top - The top step.
      * @param input - The patch and what describes it.

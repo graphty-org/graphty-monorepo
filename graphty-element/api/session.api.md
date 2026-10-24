@@ -2035,6 +2035,7 @@ export type HistoryStepId = string & {
 
 // @public
 export interface ImportOptions {
+    readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
     readonly mode?: "replace" | "merge";
 }

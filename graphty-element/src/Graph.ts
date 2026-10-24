@@ -450,6 +450,20 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
+/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
+const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+
+/**
+ * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
+ * not reached the queue yet: the element's page loads, held while autosave decides its restore.
+ * No entry point exports it.
+ * @param graph - The graph.
+ * @param pending - Settles once those loads are queued.
+ */
+export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
+    loadsAhead.set(graph, pending);
+}
+
 /**
  * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
  * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
@@ -5042,6 +5056,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        await loadsAhead.get(this)?.();
         // Suggested styles first: their reordering moves reach the queue only once they are due.
         await this.#suggestionsStacked;
         // Wait for operation queue to complete all operations
@@ -5151,6 +5166,8 @@ export class Graph implements GraphContext {
         // The queue first: a layout change or a data load that has not run yet is going to move
         // the picture, so a frame that is final right now is final about the wrong graph. Suggested
         // styles before the queue, because they queue their reordering only once they are due.
+        // Loads not queued yet (the element's, held behind the autosave restore) before both.
+        await loadsAhead.get(this)?.();
         await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 

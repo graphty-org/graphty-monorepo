@@ -155,6 +155,21 @@ function comboboxAttributes(
 }
 
 /**
+ * The number a numeric field's text holds, for its number handling.
+ * @param numeric - whether the field is numeric
+ * @param text - the field's current text
+ * @param parse - the locale's number parser
+ * @returns the number, or null when the field is not numeric, is empty or holds no number
+ */
+function numberOf(numeric: boolean, text: string, parse: (text: string) => number): number | null {
+    if (!numeric || text === "") {
+        return null;
+    }
+    const value = parse(text);
+    return Number.isNaN(value) ? null : value;
+}
+
+/**
  * The width of a field's right section: its suffix and its chevron.
  * @param hasList - whether the field has a chevron
  * @param divided - whether a rule divides the chevron from the value
@@ -327,9 +342,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         document.querySelector(`[id="${listId}"] [data-combobox-selected]`)?.id || undefined;
 
     const currentText = String(current);
-    const numberValue = numeric && currentText !== "" ? parse(currentText) : Number.NaN;
     const number = useNumberField({
-        value: Number.isNaN(numberValue) ? null : numberValue,
+        value: numberOf(numeric, currentText, parse),
         display: currentText,
         onCommit: (next, event) => {
             setCurrent(next, event);

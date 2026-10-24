@@ -2949,10 +2949,10 @@ export class Graphty extends LitElement {
      * Every fit keeps the graph out of them: the framing after a load or a layout change,
      * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
      * at on the part left free. Changing them moves nothing: what is drawn stays where it is, and
-     * the next fit keeps clear of the new margins. {@link reframeOnViewInsets} frames the graph
-     * again on every change instead, while the element's own framing holds the camera. To frame the graph at once only when the
-     * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`,
-     * unless {@link cameraPlaced} says the reader has placed the camera since the last framing.
+     * the next fit keeps clear of the new margins. An overlay that reports its margins around a
+     * load can arrive before or after the load's framing lands; set {@link reframeOnViewInsets} so
+     * the element frames the graph again on a change while its own framing holds the camera, and
+     * both orders end on the same picture.
      * A preference of this view, not part of the project: not saved in a project file. A side
      * left out is 0.
      * @since 3.17.0

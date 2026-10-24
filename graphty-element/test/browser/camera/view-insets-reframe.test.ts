@@ -16,6 +16,7 @@ import "../../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";
+import { nextFrame, wheel } from "../../helpers/real-input";
 
 const WIDTH = 900;
 const HEIGHT = 600;
@@ -94,14 +95,37 @@ describe("reframeOnViewInsets", () => {
     it("leaves a camera the reader placed where it is", async () => {
         const element = create();
         await load(element);
-        const before = element.getCameraState();
-        await element.setCameraState({ ...before, zoom: (before.zoom ?? 1) * 1.5 });
+        assert.isFalse(element.cameraPlaced, "the element framed the graph itself");
+        await wheel(element.graph.canvas, { x: 100, y: 100 }, -400);
+        await nextFrame();
         await element.waitForStableFrame();
+        assert.isTrue(element.cameraPlaced, "the reader's wheel placed the camera");
         const placed = framing(element);
 
         element.viewInsets = { left: LEFT };
         await element.waitForStableFrame();
         assert.strictEqual(framing(element), placed);
+        element.remove();
+    });
+
+    it("frames nothing for a capture's own margins, even when the capture fails", async () => {
+        const element = create();
+        element.viewInsets = { left: LEFT };
+        await load(element);
+        const updates = element.graph.getUpdateManager();
+        assert.isFalse(updates.isZoomToFitEnabled(), "the load's framing has landed");
+        const framed = framing(element);
+
+        // A named view swaps the screen's margins for the capture's and back; an unknown one throws.
+        let failed = false;
+        await element.captureScreenshot({ camera: { preset: "no-such-view" } }).catch(() => {
+            failed = true;
+        });
+        assert.isTrue(failed, "the unknown view was refused");
+        assert.isFalse(updates.isZoomToFitEnabled(), "no framing was left pending");
+        assert.strictEqual(element.viewInsets.left, LEFT, "the screen's margins are back");
+        await element.waitForStableFrame();
+        assert.strictEqual(framing(element), framed);
         element.remove();
     });
 });

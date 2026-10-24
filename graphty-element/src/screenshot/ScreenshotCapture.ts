@@ -215,11 +215,14 @@ export class ScreenshotCapture {
 
         let cameraState: CameraState;
         let insets: Required<ViewInsets> | undefined;
+        const reframeOnViewInsets = this.graph.getReframeOnViewInsets();
         if ("preset" in camera) {
             // A named view frames the graph for the picture, and the picture has none of the
             // screen's chrome in it: the only thing over it is the key this capture draws, so that
-            // is the one margin the framing keeps clear.
+            // is the one margin the framing keeps clear. The margins are the capture's for a
+            // moment, not a change of the screen's, so they frame nothing on their own.
             insets = this.graph.getViewInsets();
+            this.graph.setReframeOnViewInsets(false);
             const legend = options.legend ?? [];
             this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
             try {
@@ -230,6 +233,7 @@ export class ScreenshotCapture {
                 );
             } catch (error: unknown) {
                 this.graph.setViewInsets(insets);
+                this.graph.setReframeOnViewInsets(reframeOnViewInsets);
                 throw error;
             }
         } else {
@@ -238,7 +242,7 @@ export class ScreenshotCapture {
 
         await this.graph.setCameraState(cameraState);
         await this.waitForRender();
-        return { original, insets, zoomToFitWasEnabled };
+        return { original, insets, reframeOnViewInsets, zoomToFitWasEnabled };
     }
 
     /**
@@ -249,6 +253,7 @@ export class ScreenshotCapture {
     private async restoreCamera(override: CameraOverride): Promise<void> {
         if (override.insets) {
             this.graph.setViewInsets(override.insets);
+            this.graph.setReframeOnViewInsets(override.reframeOnViewInsets);
         }
 
         await this.graph.setCameraState(override.original);
@@ -875,6 +880,7 @@ export class ScreenshotCapture {
 interface CameraOverride {
     readonly original: CameraState;
     readonly insets: Required<ViewInsets> | undefined;
+    readonly reframeOnViewInsets: boolean;
     readonly zoomToFitWasEnabled: boolean;
 }
 

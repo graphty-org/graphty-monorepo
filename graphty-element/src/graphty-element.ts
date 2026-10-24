@@ -2949,7 +2949,8 @@ export class Graphty extends LitElement {
      * Every fit keeps the graph out of them: the framing after a load or a layout change,
      * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
      * at on the part left free. Changing them moves nothing: what is drawn stays where it is, and
-     * the next fit keeps clear of the new margins. To frame the graph at once only when the
+     * the next fit keeps clear of the new margins. {@link reframeOnViewInsets} frames the graph
+     * again on every change instead, while the element's own framing holds the camera. To frame the graph at once only when the
      * overlay now hides a node, ask {@link nodesInRect} for its rectangle and call `zoomToFit()`,
      * unless {@link cameraPlaced} says the reader has placed the camera since the last framing.
      * A preference of this view, not part of the project: not saved in a project file. A side
@@ -2973,6 +2974,47 @@ export class Graphty extends LitElement {
         const oldValue = this.viewInsets;
         this.#graph.setViewInsets(value);
         this.requestUpdate("viewInsets", oldValue);
+    }
+
+    /**
+     * Whether a change of {@link viewInsets} frames the graph again.
+     * @remarks
+     * Off (the default), changing the insets moves nothing. On, an inset change frames the graph
+     * again inside the new margins, as long as the element's own framing still holds the camera:
+     * {@link autoFrame} is on, no `startingCameraDistance` is set, and {@link cameraPlaced} is
+     * false. A framing after a load or a layout change lands on a later frame, so without this an
+     * overlay that reports its margins at about the same time gets one of two pictures, depending
+     * on which came first; with it, both orders end on the framing inside the free area. A
+     * preference of this view, not part of the project: not saved in a project file.
+     *
+     * The attribute is off unless it is present and not `"false"`.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * element.reframeOnViewInsets = true;
+     * element.viewInsets = { left: key.offsetWidth };
+     * ```
+     * ```html
+     * <graphty-element reframe-on-view-insets></graphty-element>
+     * ```
+     * @returns True when an inset change frames the graph again
+     */
+    @property({
+        attribute: "reframe-on-view-insets",
+        converter: {
+            fromAttribute: (value: string | null): boolean => value !== null && value !== "false",
+        },
+    })
+    get reframeOnViewInsets(): boolean {
+        return this.#graph.getReframeOnViewInsets();
+    }
+    /**
+     * Switches framing again on an inset change on or off.
+     */
+    set reframeOnViewInsets(value: boolean) {
+        const oldValue = this.reframeOnViewInsets;
+        this.#graph.setReframeOnViewInsets(value);
+        this.requestUpdate("reframeOnViewInsets", oldValue);
     }
 
     /**

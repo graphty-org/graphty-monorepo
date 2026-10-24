@@ -546,6 +546,8 @@ export class Graph implements GraphContext {
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
+    /** Whether a change of the view insets frames the graph again; see {@link setReframeOnViewInsets}. */
+    #reframeOnViewInsets = false;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
     /** How the 3D nodes are lit; see {@link setLighting}. */
@@ -4268,13 +4270,41 @@ export class Graph implements GraphContext {
      * Reserve margins of the canvas that something laid over it covers -- a key, a toolbar --
      * so no fit puts a node under them: the automatic framing after a load or a layout,
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
-     * the part left free. Does not move the camera by itself; the element's own framing, when on,
-     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * the part left free. Does not move the camera by itself, unless {@link setReframeOnViewInsets}
+     * is on; the element's own framing, when on, picks the margins up at its next fit. A
+     * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */
     setViewInsets(insets: ViewInsets | undefined): void {
+        const before = JSON.stringify(this.#viewInsets);
         this.#viewInsets = fullInsets(insets);
         this.camera.setViewInsets(this.#viewInsets);
+        // A framing that already landed read the old margins. While it still holds the camera,
+        // frame again, so the picture does not depend on which of the two came first.
+        if (this.#reframeOnViewInsets && !this.#cameraPlaced && JSON.stringify(this.#viewInsets) !== before) {
+            this.autoFrame();
+        }
+    }
+
+    /**
+     * Whether a change of the view insets frames the graph again; see {@link setReframeOnViewInsets}.
+     * @returns False (the default) when an inset change leaves the camera where it is.
+     */
+    getReframeOnViewInsets(): boolean {
+        return this.#reframeOnViewInsets;
+    }
+
+    /**
+     * Frame the graph again when the view insets change, as long as the element's own framing
+     * still holds the camera: framing is on ({@link setAutoFrame}), no `startingCameraDistance` is
+     * set, and the camera was not placed since the last load or layout change. Then the picture is
+     * the same whether the insets arrive before the element's framing lands or after it. Off (the
+     * default), an inset change moves nothing. A preference of the view, not saved in a project
+     * file.
+     * @param on - True to frame again on an inset change.
+     */
+    setReframeOnViewInsets(on: boolean): void {
+        this.#reframeOnViewInsets = on;
     }
 
     /**

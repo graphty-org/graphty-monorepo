@@ -186,6 +186,10 @@ export interface GraphtyElementJSXProps {
      */
     viewInsets?: Graphty["viewInsets"];
     /**
+     * Switches framing again on an inset change on or off.
+     */
+    reframeOnViewInsets?: Graphty["reframeOnViewInsets"];
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
@@ -335,6 +339,10 @@ export interface GraphtyElementJSXProps {
      * Switches zooming toward the pointer on or off.
      */
     "zoom-to-pointer"?: boolean;
+    /**
+     * Switches framing again on an inset change on or off.
+     */
+    "reframe-on-view-insets"?: boolean;
     /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */

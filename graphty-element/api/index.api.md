@@ -2272,6 +2272,7 @@ export class Graph implements GraphContext {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getReframeOnViewInsets(): boolean;
     getScene(): Scene;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
@@ -2412,6 +2413,7 @@ export class Graph implements GraphContext {
     setLighting(lighting: Lighting): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
+    setReframeOnViewInsets(on: boolean): void;
     setRenderer(request: RendererRequest): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
     setRunning(running: boolean): void;
@@ -2822,6 +2824,8 @@ export class Graphty extends LitElement {
     set pixelRatio(value: PixelRatio);
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get reframeOnViewInsets(): boolean;
+    set reframeOnViewInsets(value: boolean);
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;

@@ -19,6 +19,7 @@ import {
     type TreeNodeData,
 } from "../../../src/components/tree";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -1394,7 +1395,7 @@ describe("ResultRow", () => {
         expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
         expect(name.getBoundingClientRect().right).toBeLessThanOrEqual(viewport.getBoundingClientRect().right);
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        const tip = await screen.findByRole("tooltip", {}, TOOLTIP_WAIT);
         expect(tip.textContent).toContain(long);
     });
 });

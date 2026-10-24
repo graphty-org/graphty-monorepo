@@ -5,7 +5,7 @@
 //   node tools/verify.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
@@ -20,6 +20,7 @@ import {
     failedTargets,
     failingShards,
     handled,
+    MAX_SWITCHES,
     nextPoints,
     readState,
     requestVerification,
@@ -66,6 +67,8 @@ let gated; // the commits the full gate ran on
 let checked; // the bisect points
 let flaky; // commits whose full gate fails once although nothing is broken
 let hold; // when set, the gate waits for this promise
+let checkHold; // when set, a check (a confirming run, a bisect point) waits for this promise
+let checkStarted;
 let gateStarted;
 let concurrent;
 let most;
@@ -92,10 +95,14 @@ const judge = (targets, full, fails) => {
 };
 
 const fake = {
-    gate: async (_c, sha) => {
+    gate: async (c, sha, name = "golden-verify") => {
         gated.push(sha);
         gateStarted?.();
         if (hold) await hold;
+        // As tools/prepush-tests.mjs at its next shard boundary, in the full gate only.
+        if (!name.startsWith("golden-bisect") && existsSync(c.supersededFile)) {
+            return { code: 1, output: "  [SUPERSEDED] a newer commit is wanted", log: `log-${sha.slice(0, 7)}` };
+        }
         const fail = broken(sha) || flaky.delete(sha);
         return {
             code: fail ? 1 : 0,
@@ -106,6 +113,8 @@ const fake = {
     check: async (_c, sha, { failing, targets, full }) => {
         assert.deepEqual(failing, ["s1"], "only the failing shard runs again");
         checked.push(sha);
+        checkStarted?.();
+        if (checkHold) await checkHold;
         most = Math.max(most, ++concurrent);
         await new Promise((r) => setImmediate(r));
         concurrent--;
@@ -141,6 +150,8 @@ beforeEach(() => {
     flaky = new Set();
     hold = null;
     gateStarted = null;
+    checkHold = null;
+    checkStarted = null;
     concurrent = 0;
     most = 0;
     published = [];
@@ -160,7 +171,7 @@ describe("a run", () => {
         assert.equal(s.run, null, "the run marked itself ended");
     });
 
-    it("goes on to what a landing wanted while it ran, with no second run", async () => {
+    it("leaves a commit a newer landing supersedes at the next shard boundary, records it, and goes on", async () => {
         let release;
         hold = new Promise((r) => (release = r));
         const started = new Promise((r) => (gateStarted = r));
@@ -168,12 +179,21 @@ describe("a run", () => {
         await requestVerification(ctx, first);
         await started;
         const second = land("a3", { "a3.txt": "3\n" });
-        assert.match(await requestVerification(ctx, second), /is running/);
+        const said = await requestVerification(ctx, second);
+        assert.match(said, new RegExp(`leaves ${first.slice(0, 10)} at its next test shard and goes on to`));
         assert.equal(runs.length, 1, "no second run");
+        hold = null;
         release();
         await settle();
-        assert.deepEqual(gated, [first, second]);
-        assert.equal(readState(ctx).verified, second);
+        const s = readState(ctx);
+        assert.deepEqual(gated, [first, second], "the newer commit's gate, in the same run");
+        assert.equal(s.superseded.commit, first);
+        assert.equal(s.superseded.by, second);
+        assert.deepEqual(published, [second], "the superseded commit is neither passed...");
+        assert.equal(s.last.status, "passed");
+        assert.equal(s.last.commit, second, "...nor failed");
+        assert.equal(s.verified, second);
+        assert.ok(!existsSync(ctx.supersededFile), "the next gate starts without the marker");
     });
 
     it("bisects a failure to the landing that broke it, re-running only the failing shard, two points at once", async () => {
@@ -246,6 +266,59 @@ describe("a run", () => {
         await settle();
         assert.deepEqual(gated, [tip]);
         assert.equal(readState(ctx).verified, tip);
+    });
+});
+
+describe("landings faster than a run", () => {
+    it("never starve it: after MAX_SWITCHES switches it finishes its commit, and golden-verified moves", async () => {
+        const tips = [land("t0", { "t0.txt": "0\n" })];
+        // Every gate start brings a new landing before the gate reaches its shard boundary, six times.
+        gateStarted = () => {
+            if (tips.length > 6) return void (hold = null);
+            const n = tips.length;
+            tips.push(land(`t${n}`, { [`t${n}.txt`]: `${n}\n` }));
+            hold = requestVerification(ctx, tips.at(-1));
+        };
+        await requestVerification(ctx, tips[0]);
+        await settle();
+        assert.equal(MAX_SWITCHES, 2);
+        assert.equal(published[0], tips[2], "two switches, then the third commit is finished and verified");
+        assert.equal(published.at(-1), tips.at(-1), "and the run still ends on the newest");
+        assert.equal(readState(ctx).verified, tips.at(-1));
+        assert.ok(gated.length < tips.length * 2, "each commit's gate ran at most once");
+    });
+});
+
+describe("a confirming run and a bisect", () => {
+    it("are never superseded: the run finishes the bisect on its commit, then goes on to the newer one", async () => {
+        const verified = readState(ctx).verified;
+        land("g1", { "g1.txt": "1\n" });
+        const culprit = land("g2", { "bad.txt": "g\n" });
+        const tip = land("g3", { "g3.txt": "3\n" });
+        let release;
+        checkHold = new Promise((r) => (release = r));
+        const confirming = new Promise((r) => (checkStarted = r));
+        await requestVerification(ctx, tip);
+        await confirming;
+        assert.equal(readState(ctx).run.step, "confirm");
+        git(repo, "revert", "--no-edit", "-m", "1", culprit);
+        git(repo, "push", "-q", "origin", "golden");
+        const fixed = git(repo, "rev-parse", "HEAD");
+        assert.match(await requestVerification(ctx, fixed), /it goes on to/);
+        assert.ok(!existsSync(ctx.supersededFile), "no marker for a confirming run");
+        // The newer commit's gate starts only after the bisect ended: look at the state there.
+        let atNext;
+        gateStarted = () => (atNext = readState(ctx));
+        checkHold = null;
+        release();
+        await settle();
+        assert.equal(atNext.last.commit, tip);
+        assert.equal(atNext.last.status, "failed");
+        assert.equal(atNext.last.culprit.sha, culprit, "the bisect ran to its end on the failing commit");
+        assert.equal(atNext.last.from, verified);
+        assert.notEqual(atNext.superseded?.commit, tip, "a bisected commit is never recorded as superseded");
+        assert.deepEqual(gated, [tip, fixed]);
+        assert.equal(readState(ctx).verified, fixed);
     });
 });
 

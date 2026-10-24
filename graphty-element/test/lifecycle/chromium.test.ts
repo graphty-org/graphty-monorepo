@@ -491,13 +491,16 @@ describe("Chrome for Testing, without Playwright's lifecycle flags", () => {
         await saved(tab("a"), await next(back), mark);
     });
 
-    it("reports a private window as ephemeral and warns once", async () => {
+    it("warns once in a private window, which it cannot tell from a normal one", async () => {
         const key = "private";
         const tab = labels(key);
         const chrome = await start();
         const { browserContextId } = (await chrome.send("Target.createBrowserContext")) as { browserContextId: string };
         const a = await openFixture(chrome, { key, tab: tab("a") }, { browserContextId });
-        assert.strictEqual(fx.events(tab("a"), "ready")[0]?.ephemeral, "likely", "ephemeral is likely");
+        // Incognito's quota is sized from memory, as a normal profile's on a small disk can be: not a signal.
+        const ready = fx.events(tab("a"), "ready")[0];
+        assert.strictEqual(ready?.ephemeral, "unknown", "ephemeral is unknown");
+        assert.strictEqual(ready?.persisted, false, "Incognito never persists, so it still warns");
         await saved(tab("a"), await next(a));
         await saved(tab("a"), await next(a));
         assert.strictEqual(fx.events(tab("a"), "at-risk").length, 1, "the at-risk fact fired once");

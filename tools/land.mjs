@@ -625,14 +625,6 @@ export function lightGate(ctx) {
 }
 
 /**
- * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
- * @param ctx the run's context
- * @param [cwd] the worktree to push from (golden's)
- * @param [refspec] what to push (golden to golden)
- * @param [dryRun] run the gate and send nothing (a landing's check)
- * @returns `{ code, output }`
- */
-/**
  * The snapshot of the gate's live copy this run's pushes all use (tools/gate-snapshot.sh --hold), taken at the
  * first push and held until this process ends: a landing's check and its push run one version of the gate,
  * so a `tools/live.sh gate` between them cannot re-run the check under a new rule (2026-10-23, #3284). Without
@@ -666,6 +658,14 @@ export async function gateSnapshot(ctx) {
     return ctx.gateSnapshot;
 }
 
+/**
+ * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
+ * @param ctx the run's context
+ * @param [cwd] the worktree to push from (golden's)
+ * @param [refspec] what to push (golden to golden)
+ * @param [dryRun] run the gate and send nothing (a landing's check)
+ * @returns `{ code, output }`
+ */
 async function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
     // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
     // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured
@@ -1837,23 +1837,36 @@ export async function cut(ctx, given) {
 }
 
 /**
- * Why the cut must not move now: its pull request awaits the owner -- a draft whose screenshot preview of
- * its head is done (cutMoved) and whose baselines carry no Finish yet (no signed approval of the head's
- * visual-baselines tree). Moving it then would make the owner review a target that moved under them.
+ * Why the cut must not move now, by `cut` or by `cut-fix`. It is frozen while its pull request is shipped
+ * (ready: its CI is running or it is about to merge, and a new head would cancel that run), and while it
+ * awaits the owner -- a draft whose screenshot preview of its head is done (cutMoved) and whose baselines
+ * carry no Finish yet (no signed approval of the head's visual-baselines tree): a new head would make the
+ * owner review a target that moved under them.
  * @param ctx the run's context (origin fetched)
  * @returns the refusal, or null when the cut may move
  */
 function frozenCut(ctx) {
     const pr = goldenPr(ctx, CUT);
-    if (!pr?.isDraft || !pr.headRefOid || cutMoved(ctx, pr)) return null;
+    if (!pr?.headRefOid) return null;
+    const after =
+        "Every other fix lands on golden and ships with the next cut; a fix for a red master, a failed deploy " +
+        "or a release hold goes in with cut-fix once the cut is no longer frozen.";
+    if (!pr.isDraft) {
+        return (
+            `#${pr.number} is shipped (ready, its CI running or about to merge), so ${CUT} stays frozen: a new ` +
+            `head would cancel that run.\nCut again after it merges. If its CI failed, it goes back to draft ` +
+            `first (gh pr ready --undo ${pr.number}). ${after}`
+        );
+    }
+    if (cutMoved(ctx, pr)) return null;
     const [baselines, approvals] = reviewDirs(ctx);
     const tree = git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${pr.headRefOid}:${baselines}`], { ok: true });
     const signed = `${pr.headRefOid}:${approvals}/${tree.stdout}.json`;
     if (tree.status === 0 && git(ctx, ctx.main, ["cat-file", "-e", signed], { ok: true }).status === 0) return null;
     return (
         `#${pr.number} awaits the owner's review: its preview of ${pr.headRefOid.slice(0, 10)} is done and it has ` +
-        `no Finish yet, so ${CUT} stays frozen.\nCut again after the owner's Finish and ship, or after the cut ` +
-        "pull request is closed. A fix the cut itself needs goes in with cut-fix."
+        `no Finish yet, so ${CUT} stays frozen.\nCut again after the owner's Finish, or after the cut ` +
+        `pull request is closed. ${after}`
     );
 }
 
@@ -1951,6 +1964,8 @@ export async function cutFix(ctx, branch, opts = {}) {
         console.log(`land: ${branch} is already on ${CUT}`);
         return 0;
     }
+    const frozen = frozenCut(ctx);
+    if (frozen) return fail(`${branch} cannot go into the cut now: ${frozen}`);
     const why = notOnCut(ctx, ref);
     if (why) return fail(`${branch} cannot go into the cut: ${why}`);
     const before = git(ctx, ctx.main, ["rev-parse", cutRef]);

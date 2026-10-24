@@ -1,10 +1,9 @@
-// The reporters every vitest run adds in CI: the JUnit report for Mergify Test Insights (flaky-test
-// detection) and the slow-test report (tools/vitest-time-budget.mjs).
+// The reporters every vitest run adds in CI: the JUnit report (read by the flaky-test quarantine and
+// tools/restricted-cpu-stress.mjs) and the slow-test report (tools/vitest-time-budget.mjs).
 //
 // Each package's vitest config spreads ciReporters() into its `reporters`. In CI (CI set) every
 // vitest run then writes test-results/junit-<package>-[<TEST_LEDGER_RUN>-]<pid>.xml at the repository root -- one file
-// per run, because one CI shard can run vitest several times -- and ci.yml's test job uploads
-// test-results/junit-*.xml to Mergify. With VITEST_BUDGET_CHECK=1 (ci.yml's test job sets it; set
+// per run, because one CI shard can run vitest several times. With VITEST_BUDGET_CHECK=1 (ci.yml's test job sets it; set
 // it locally to see it) the run also reports every passing test over 10 s or over 3 times its recorded
 // median, and never fails for one. Otherwise it returns nothing, so local output is unchanged.
 //

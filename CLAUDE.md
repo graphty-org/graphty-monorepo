@@ -355,7 +355,7 @@ The `tools/` directory contains build scripts:
 | `gate-snapshot.sh` | `<live copy>` (`--hold`: until its stdin closes): a sparse, locked worktree `.worktrees/gate-snapshot-<sha>` of the live gate's HEAD (tools/, .husky/, root files, what the tools import). Every push through the queue runs from one, and `land.mjs` holds one for a landing's check and its push, so a `tools/live.sh gate` mid-run never mixes two versions of the gate. A new snapshot removes older ones nobody holds |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when they already passed under the checkout's gate key (`prepush-inputs.mjs`) |
-| `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run, AND an output under 12 MB (about 3 times the largest normal shard's; a run over it fails naming its most repeated lines, so a warning flood fails its first run). `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
+| `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run, AND an output under 12 MB (about 3 times the largest normal shard's; a run over it fails naming its most repeated lines, so a warning flood fails its first run). `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one). CI's test job runs every shard through `test-quarantine.mjs`, which applies the same 12 MB budget |
 | `prepush-inputs.mjs` | Content hashes for the gate, never of the branch or the commit: the checkout's gate key (every file git does not ignore, the installed lockfile `node_modules/.pnpm/lock.yaml`, the gate's own `tools/` and `.husky/`, the Node version, the `GRAPHTY_*`, `VK_*` and `PREPUSH_ALL` environment), and each test shard's input key (its package and the packages it depends on or reads by relative path, their build outputs, the root files, the installed lockfile, the gate's version, the Node version). Passes are kept by key in the main checkout's `tmp/prepush-passes/` (source, gate, shard) and reused by every worktree, so golden's land commit of a branch that merged golden first reuses the branch's passes: the source-only checks and `prepush.sh` skip on a recorded pass, and `prepush-tests.mjs` skips a shard that passed with the same key and prints `[SKIP]` with when and where. `PREPUSH_RERUN_ALL=1` runs the whole gate and every shard |
 | `with-browser.sh` | `tools/with-browser.sh <command>`: runs a browser-driving command in one of the machine's four shared browser slots (lock files in the main checkout's `tmp/browser-slots/`, slots 1 to 4 of the design studio's gate too), waiting for one. The gate's browser shards and the screenshot previews take their browsers through it; `BROWSER_SLOT_PRIORITY=low` (the branch sync, `low-priority.sh`) waits for slot 4 only, and so does every command outside a gate while a gate runs its test shards (the design studio's `with-browser.sh` then keeps to slot 4 and its own 5 and up) |
 | `low-priority.sh` | `tools/low-priority.sh <command>`: runs a command that should yield to the pre-push gate -- an agent's build (`vite build`, `nx run-many -t build`) or test run outside the gate -- at niceness 10 and in the low lane of the test and browser slots. Never for the gate, which runs at normal priority (`prepush.sh` warns when it was started niced) |
@@ -1379,6 +1379,12 @@ Rules:
   graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); on by default,
   `PREPUSH_DEFER_DOWNSTREAM=0` turns it off for one push. With the light gate (verification in CI) no
   shard runs in a landing check, so there is nothing to defer.
+- Dependabot's pull requests are branches like any other, never merged on GitHub. `.github/dependabot.yml`
+  opens its version updates (weekly, minor and patch grouped per ecosystem) against `golden`; security
+  updates always open against master, a GitHub rule. Either way the pipeline-round skill lands the
+  `dependabot/*` branch with `land.mjs` through the gate and then closes the pull request with a comment
+  naming the land commit. The review page never lists them (`"ignoreBranches": ["dependabot/"]` in
+  `visual-review.config.json`): their screenshots are reviewed on the cut.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.
 - Where this file asks for something in a pull request description (a breaking change's list, a
@@ -1393,8 +1399,10 @@ Rules:
   commit you name, or else the newest verified golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
   are made on the cut pull request. While the cut pull request awaits the owner (a draft whose preview of its
-  head is done, with no Finish yet) `cut` refuses to move `golden-cut`: the cut is frozen until Finish and ship,
-  or until its pull request is closed. Every fix lands on golden and reaches master with the next cut. Only a
+  head is done, with no Finish yet) or is shipped (ready, its CI running), `cut` and `cut-fix` both refuse to
+  move `golden-cut`: the cut is frozen until Finish, until it merges, or until its pull request is closed (a
+  new head would restart the review or cancel the ship CI). Every fix lands on golden and reaches master with
+  the next cut. Only a
   fix for a red master, a failed deploy or a release hold goes into the cut itself: it starts from the cut,
   `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with
   `node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>`, where the reason is an open

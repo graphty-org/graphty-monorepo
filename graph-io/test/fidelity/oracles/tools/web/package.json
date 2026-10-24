@@ -1,5 +1,6 @@
 {
     "name": "fidelity-web-oracles",
+    "version": "0.0.0",
     "private": true,
     "type": "module",
     "description": "Pinned browser libraries that draw the web-library oracle SVGs (regenerate-web.sh)",

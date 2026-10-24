@@ -469,7 +469,9 @@ async function cutByItsOwnCi(ctx, { target, from, cannot }) {
 /**
  * Records a passed commit and moves golden-verified. In CI, verification also judges golden's screenshots
  * (design/ci/integrated-cicd-plan-v2.md, step 3): `captures[commit]` says whether the run's captures were clean,
- * and `land.mjs cut` takes only a commit whose captures were. Screenshots never fail verification.
+ * and `land.mjs cut` takes only a commit whose captures were. It also lists the images CI draws differently from
+ * the baselines (`changed`) and the flaky ones, for golden and golden-cut alike, which `land.mjs ship` reads
+ * (#3363). Screenshots never fail verification.
  * @param ctx the context
  * @param job what passed
  * @param job.target the commit
@@ -479,7 +481,7 @@ async function cutByItsOwnCi(ctx, { target, from, cannot }) {
 async function passedCommit(ctx, { target, from, r }) {
     if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
     const ci = backendOf(ctx) === "ci";
-    const captures = ci && ctx.branch === GOLDEN ? await ctx.captures(ctx, target) : null;
+    const captures = ci ? await ctx.captures(ctx, target) : null;
     await withState(ctx, (s) => {
         s.verified = target;
         s.last = { commit: target, from, status: "passed", at: now(), log: r.log, verifiedBy: backendOf(ctx) };
@@ -1729,15 +1731,18 @@ export function captureProblems(jobs, dir) {
     const problems = projects
         .filter(([j]) => j.conclusion !== "success")
         .map(([j, p]) => `visual (${p}) ended ${j.conclusion ?? j.status}`);
-    const names = existsSync(dir) ? readdirSync(dir) : [];
-    for (const [, p] of projects) {
-        const prefix = `visual-${p}-`;
-        const attempt = (n) => Number(n.slice(prefix.length));
-        const mine = names.filter((n) => n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)));
-        const newest = mine.sort((a, b) => attempt(b) - attempt(a))[0];
-        problems.push(...resultProblems(p, newest && join(dir, newest)));
-    }
+    for (const [, p] of projects) problems.push(...resultProblems(p, newestCapture(dir, p)));
     return problems;
+}
+
+// A project's newest `visual-<project>-<attempt>` artifact directory, or undefined.
+function newestCapture(dir, project) {
+    const prefix = `visual-${project}-`;
+    const attempt = (n) => Number(n.slice(prefix.length));
+    const names = existsSync(dir) ? readdirSync(dir) : [];
+    const mine = names.filter((n) => n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)));
+    const newest = mine.sort((a, b) => attempt(b) - attempt(a))[0];
+    return newest && join(dir, newest);
 }
 
 function resultProblems(project, dir) {
@@ -1751,13 +1756,40 @@ function resultProblems(project, dir) {
     return out;
 }
 
+// The statuses the visual gate passes (visual-review/trusted/gate.mjs PASSING): anything else fails it.
+const GATE_PASSES = new Set(["unchanged", "excluded"]);
+
+/**
+ * What CI's capture says against the baselines it compared with, as the visual gate reads it: `changed` is every
+ * image the gate would not pass (it differs from its committed baseline, has none, or did not capture), `flaky`
+ * every image that matched only on its second capture. Each is `{ project, file, status, baseline, capture }`, the
+ * baseline and capture as SHA-256 (a baseline's Git LFS oid), so `land.mjs ship` can tell whether the owner has
+ * approved that picture since.
+ * @param jobs the run's jobs (all of them)
+ * @param dir where the run's `visual-*` artifacts were downloaded, one directory each
+ * @returns `{ changed, flaky }`
+ */
+export function captureChanges(jobs, dir) {
+    const changed = [];
+    const flaky = [];
+    for (const p of jobs.map((j) => CAPTURE_JOB.exec(jobName(j))?.[1]).filter(Boolean)) {
+        const at = newestCapture(dir, p);
+        for (const i of (at && readJsonFile(join(at, "results.json"))?.items) ?? []) {
+            const item = { project: p, file: i.file, status: i.status, baseline: i.baseline, capture: i.capture };
+            if (!GATE_PASSES.has(i.status)) changed.push(item);
+            else if (i.flaky) flaky.push(item);
+        }
+    }
+    return { changed, flaky };
+}
+
 /**
  * The screenshot verdict of a commit CI verified: its golden-verify.yml run (pushed to golden-candidate, or
  * dispatched with the commit in its name), every job of it, and its `visual-*` artifacts (small: only changed
  * images are in them). Anything unread is not clean, so such a commit is never cut.
  * @param ctx the context
  * @param commit the commit
- * @returns `{ clean, problems, run, at }`
+ * @returns `{ clean, problems, run, at, changed, flaky }` (captureChanges; neither when the run was not read)
  */
 async function defaultCaptures(ctx, commit) {
     const verdict = (problems, run = null) => ({ clean: problems.length === 0, problems, run, at: now() });
@@ -1774,7 +1806,10 @@ async function defaultCaptures(ctx, commit) {
         mkdirSync(dir, { recursive: true });
         // No artifact at all is no error here: captureProblems names each project that has none.
         ghTry(ctx, ["run", "download", String(run.id), "-p", "visual-*", "-D", dir]);
-        return verdict(captureProblems(jobs.jobs ?? [], dir), run.html_url);
+        return {
+            ...verdict(captureProblems(jobs.jobs ?? [], dir), run.html_url),
+            ...captureChanges(jobs.jobs ?? [], dir),
+        };
     } catch (e) {
         return verdict([`the run's screenshots could not be read: ${e.message.split("\n")[0]}`]);
     }

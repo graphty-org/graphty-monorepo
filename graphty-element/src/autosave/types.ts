@@ -186,7 +186,11 @@ export interface AutosaveStatus {
         readonly entries: number;
         readonly bytes: number;
     } | null;
-    /** `"likely"` when the storage is probably deleted with the window (a private window). */
+    /**
+     * `"likely"` when the storage is probably deleted with the window: a Safari or Firefox private
+     * window, or another site's frame. Never inferred from the quota, so Chrome's Incognito is
+     * `"unknown"`.
+     */
     readonly ephemeral: "likely" | "unknown";
     /** Why the state is `"failing"` (or `"off"`), or null. */
     readonly problem: CodedFact<AutosaveCode> | null;

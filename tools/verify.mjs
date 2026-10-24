@@ -78,7 +78,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquireLock, CUT, git, GOLDEN, handOff, mainCheckout, prepareScratch } from "./land.mjs";
+import { acquireLock, CUT, CUT_CI_VERIFIES, git, GOLDEN, handOff, mainCheckout, prepareScratch } from "./land.mjs";
 import { expectedRuns } from "./shard-verdict.mjs";
 import { selectedCommand } from "./test-select.mjs";
 
@@ -400,6 +400,8 @@ function base(ctx, target) {
 }
 
 async function verifyCommit(ctx, { target, from }) {
+    const cannot = ctx.branch !== GOLDEN && backendOf(ctx) === "ci" ? ciCannotRun(ctx, target) : null;
+    if (cannot) return cutByItsOwnCi(ctx, { target, from, cannot });
     const started = new Date().toISOString();
     const r = await ctx.gate(ctx, target);
     if (r.code !== 0 && /\[SUPERSEDED\]/.test(r.output ?? "")) {
@@ -440,6 +442,28 @@ async function verifyCommit(ctx, { target, from }) {
         if (s.run) Object.assign(s.run, { step: again ? "failed-known" : "confirm", switches: 0 });
     });
     if (!again) await bisect(ctx);
+}
+
+/**
+ * A cut CI cannot run golden-verify.yml on (its tree predates the workflow, and master lacks it) gets no
+ * candidate push and no 1.5-hour local gate: the cut pull request's own CI run, once ship marks it ready, is its
+ * verification, and master gets only what that run passes. The record is `ciCannotRun`, which `land.mjs ship`
+ * takes as verified (cutUnverified). Every fix in a cut went in through a cut-fix gate already.
+ * @param ctx the context
+ * @param job what to record
+ * @param job.target the cut's head
+ * @param job.from its range's start
+ * @param job.cannot why CI cannot run it
+ */
+async function cutByItsOwnCi(ctx, { target, from, cannot }) {
+    console.log(`verify: ${cannot}: ${CUT_CI_VERIFIES}`);
+    await withState(ctx, (s) => {
+        s.last = { commit: target, from, status: "ciCannotRun", at: now(), reason: cannot };
+        delete s.noRun;
+        delete s.ciUnavailable;
+        if (s.run) Object.assign(s.run, { step: "ciCannotRun", switches: 0 });
+    });
+    ctx.onVerified(ctx, target);
 }
 
 /**
@@ -1065,10 +1089,15 @@ const NO_ANSWER = Symbol("no answer");
  */
 export const backendOf = (ctx) => readJsonFile(ctx.backendFile)?.backend?.name ?? DEFAULT_BACKEND;
 
-// The gate verification runs: a bisect point (named) always runs here; a verification runs on the backend.
+// The gate verification runs: a bisect point (named) always runs here; a verification runs on the backend. A golden
+// commit CI cannot run (ciCannotRun) is judged here, as a bisect point is; a cut's is settled before the gate
+// (cutByItsOwnCi).
 function defaultGate(ctx, commit, name) {
     if (name || backendOf(ctx) !== "ci") return localGate(ctx, commit, name);
-    return ciGate(ctx, commit);
+    const cannot = ciCannotRun(ctx, commit);
+    if (!cannot) return ciGate(ctx, commit);
+    console.log(`verify: ${cannot}: the full local gate judges it`);
+    return localGate(ctx, commit, name);
 }
 
 /**
@@ -2102,6 +2131,7 @@ function verdict(l) {
 function lastLine(l) {
     const head = `${l.status} ${short(l.commit)} at ${l.at}`;
     if (l.status === "passed") return head;
+    if (l.status === "ciCannotRun") return `${head}: verification: ${CUT_CI_VERIFIES}`;
     if (l.status === "failed-known") {
         const issues = [...new Set(Object.values(l.issues ?? {}))].map((n) => `#${n}`).join(", ");
         return `${head}: the same failures as the verification before (issues ${issues}), not bisected again; log ${l.log}`;

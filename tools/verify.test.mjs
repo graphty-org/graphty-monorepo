@@ -1628,6 +1628,88 @@ describe("verification in CI (ciGate)", () => {
             });
         });
 
+        // A cut's head off origin/master, pushed to golden-cut: with the workflow in its tree or without.
+        const cutOffMaster = (name, files) => {
+            git(repo, "checkout", "-q", "-b", name, "origin/master");
+            for (const [f, text] of Object.entries(files)) {
+                mkdirSync(join(repo, f, ".."), { recursive: true });
+                writeFileSync(join(repo, f), text);
+            }
+            git(repo, "add", ".");
+            git(repo, "commit", "-q", "-m", `fix: ${name}`);
+            git(repo, "push", "-q", "-f", "origin", "HEAD:golden-cut");
+            const head = git(repo, "rev-parse", "HEAD");
+            git(repo, "checkout", "-q", "golden");
+            return head;
+        };
+
+        it("before golden-verify.yml: a cut CI cannot run gets no candidate push and no local gate; its pull request's CI verifies it", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c, calls } = ciCtx([releaseIdle], undefined, { branch: "golden-cut" });
+                await setBackend(c, "ci");
+                const head = cutOffMaster("cut-no-workflow", { "cnw.txt": "c\n" });
+                await withState(c, (s) => {
+                    s.noRun = { commit: head, ref: "golden-cut-candidate", attempt: 30, at: "t" };
+                    s.ciUnavailable = { since: "t", cause: "no CI run created twice" };
+                });
+                await requestVerification(c, head);
+                await settle();
+                const s = readState(c);
+                assert.equal(s.last.status, "ciCannotRun");
+                assert.equal(s.last.commit, head);
+                assert.match(s.last.reason, /CI cannot run \w+: it predates golden-verify\.yml/);
+                assert.notEqual(remoteAt("golden-cut-candidate"), head, "never pushed to the candidate branch");
+                assert.ok(!calls.some((l) => /golden-verify\.yml\/runs/.test(l)), "no run is looked for");
+                assert.deepEqual(gated, [], "the local gate does not run it");
+                assert.equal(s.verified, undefined, "not recorded as verified: its pull request's CI is");
+                assert.equal(s.noRun, undefined, "the stuck run's trouble is cleared");
+                assert.equal(s.ciUnavailable, undefined);
+                assert.equal(s.run, null, "the run ended");
+                assert.deepEqual(onVerified, [["golden-cut", head]], "auto-ship is told, as after a pass");
+                assert.match(
+                    describeState(c),
+                    /last: ciCannotRun \w+ at .*: verification: the cut pull request's CI is the verification \(its tree predates golden-verify\.yml\)/,
+                );
+            });
+        });
+
+        it("before golden-verify.yml: a cut whose tree has the workflow still goes to CI", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                let head;
+                const script = [
+                    releaseIdle,
+                    [
+                        /golden-verify\.yml\/runs/,
+                        (line) => runOf(head, { status: "completed", conclusion: "success" })(line),
+                    ],
+                ];
+                const { c } = ciCtx(script, undefined, { branch: "golden-cut" });
+                await setBackend(c, "ci");
+                head = cutOffMaster("cut-with-workflow", {
+                    "cww.txt": "c\n",
+                    ".github/workflows/golden-verify.yml": "name: Golden verify\n",
+                });
+                await requestVerification(c, head);
+                await settle();
+                const s = readState(c);
+                assert.equal(remoteAt("golden-cut-candidate"), head, "pushed to the candidate branch");
+                assert.equal(s.last.status, "passed");
+                assert.equal(s.verified, head);
+            });
+        });
+
+        it("before golden-verify.yml: a golden commit whose tree has the workflow still goes to CI", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c } = recorded("golden-with-workflow", { ciFails: () => false });
+                await verifyFrom(c);
+                const tip = land("gw1", { ".github/workflows/golden-verify.yml": "name: Golden verify\n" });
+                await requestVerification(c, tip);
+                await settle();
+                assert.equal(remoteAt("golden-candidate"), tip, "pushed to the candidate branch");
+                assert.equal(readState(c).verified, tip);
+            });
+        });
+
         it("an environment change: the verified commit fails in CI too, so no landing is named and it gets an issue", async () => {
             const { c, pushes, filed } = recorded("environment", { ciFails: () => true, rerunFails: true });
             const from = await verifyFrom(c);

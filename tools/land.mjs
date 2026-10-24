@@ -1829,21 +1829,28 @@ function cutMoved(ctx, pr) {
     return `moved since its preview of ${status.head.slice(0, 10)}: ${pr.headRefOid.slice(0, 10)} changes more than ${what}`;
 }
 
+/** What ship and status say of a cut whose verification is its pull request's own CI run (verify.mjs). */
+export const CUT_CI_VERIFIES = "the cut pull request's CI is the verification (its tree predates golden-verify.yml)";
+
 /**
  * Whether the cut's head is verified: its files are those of a commit golden-verified holds, or of the
  * commit golden-cut's own verification passed (after a cut-fix), outside the screenshot review's own
  * directories (sameOutsideReview), so the owner's Finish and an update of the baselines from master
- * need no new verification.
+ * need no new verification. A cut CI cannot run golden-verify.yml on (verify.mjs records `ciCannotRun`;
+ * its fixes went in through cut-fix gates) is verified by its pull request's own CI run, which ship starts.
  * @param ctx the run's context
  * @param head the cut pull request's head
  * @returns what is wrong, or null when it is verified
  */
 function cutUnverified(ctx, head) {
-    const cutVerified = readJson(join(ctx.main, `tmp/golden/verify-${CUT}.json`))?.verified;
-    for (const v of [`origin/${VERIFIED}`, cutVerified]) {
+    const state = readJson(join(ctx.main, `tmp/golden/verify-${CUT}.json`));
+    const byItsCi = state?.last?.status === "ciCannotRun" ? state.last.commit : null;
+    for (const v of [`origin/${VERIFIED}`, state?.verified, byItsCi]) {
         if (!v || hasRef(ctx, ctx.main, v).status !== 0) continue;
         const base = git(ctx, ctx.main, ["merge-base", head, v], { ok: true }).stdout;
-        if (base && sameOutsideReview(ctx, base, head)) return null;
+        if (!base || !sameOutsideReview(ctx, base, head)) continue;
+        if (v === byItsCi) console.log(`land: verification: ${CUT_CI_VERIFIES}`);
+        return null;
     }
     return `is not verified yet at ${head.slice(0, 10)} (node tools/verify.mjs status --branch ${CUT}); ship once it is`;
 }

@@ -1181,6 +1181,27 @@ describe("cuts", () => {
         rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
     });
 
+    it("ship takes a cut head CI cannot verify (ciCannotRun): its pull request's CI is the verification", async () => {
+        const wt = branch("cut/ci-cannot-run", { "ccr.txt": "c\n" }, "fix: ci cannot run", "origin/golden-cut");
+        git(wt, "push", "-q", "origin", "HEAD:golden-cut");
+        const head = git(wt, "rev-parse", "HEAD");
+        preview("9", head, ["changed"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const state = { last: { status: "ciCannotRun", commit: head, reason: "CI cannot run" } };
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify(state));
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(
+                r.out,
+                /verification: the cut pull request's CI is the verification \(its tree predates golden-verify\.yml\)/,
+            );
+            assert.ok(gh.some((a) => a[1] === "ready"));
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
     it("ship refuses when the cut pull request moved since its preview", async () => {
         const line = firstParents();
         preview("9", line[1], ["changed"]);
@@ -1265,6 +1286,20 @@ describe("cuts", () => {
             const k = await run("auto-ship");
             assert.match(k.out, /owner's go on a breaking commit: feat\(x\)!: drop y/);
             assert.deepEqual(shipped(), []);
+        });
+
+        it("ships a cut whose verification is its own pull request's CI (ciCannotRun)", async () => {
+            const sha = cutHead("auto/ci-cannot-run", { "accr.txt": "c\n" }, false);
+            const state = { last: { status: "ciCannotRun", commit: sha, reason: "CI cannot run" } };
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify(state));
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /verification: the cut pull request's CI is the verification/);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
         });
 
         it("ships a cut whose changed baselines tree carries the owner's approval of exactly that tree", async () => {

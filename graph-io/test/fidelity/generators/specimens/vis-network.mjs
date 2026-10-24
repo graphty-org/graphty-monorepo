@@ -7,7 +7,7 @@
 //
 // The vocabulary is vis-network's own option table (`networkOptions.allOptions`, the table its option validator
 // checks every option against: each node, edge and group option, its accepted types and its enumerated values),
-// read from the pinned vis-network 9.1.9 of ../../oracles/tools/web on every run and compared with
+// read from the pinned vis-network 9.1.9 of graph-io's devDependencies on every run and compared with
 // vis-network-vocabulary.json beside this script: an option or value that appears or disappears in a new version
 // fails the run until --vocabulary rewrites the file. Options the table types only as "string" but whose values the
 // documentation lists (node font.align, heightConstraint.valign, font.multi) are added from DOC_VALUES. Every
@@ -34,7 +34,7 @@ const out = resolve(here, "../../specimens/vis-network");
 const VOCAB = join(here, "vis-network-vocabulary.json");
 const COVERAGE = join(here, "vis-network-coverage.json");
 const PINNED = "9.1.9";
-const web = resolve(here, "../../oracles/tools/web/node_modules/vis-network");
+const web = resolve(here, "../../../../node_modules/vis-network"); // pinned in graph-io's devDependencies
 const version = JSON.parse(readFileSync(join(web, "package.json"), "utf8")).version;
 if (version !== PINNED) throw new Error(`vis-network.mjs: vis-network ${version}, the sheets are made with ${PINNED}`);
 const { networkOptions } = await import(pathToFileURL(join(web, "standalone/esm/vis-network.js")).href);

@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { holdAllBut, problems, releaseProjects } from "./release-hold.mjs";
+import { holdAllBut, privateProjects, problems, releaseProjects, unversionable } from "./release-hold.mjs";
 
 const PROJECTS = ["graphty-element", "algorithms", "@graphty/remote-logger"];
 const held = (entry) => ({
@@ -94,5 +94,38 @@ describe("holdAllBut", () => {
     it("rejects a name that is not an nx project, and an empty list", () => {
         assert.match(holdAllBut(empty, PROJECTS, ["algorithms", "algorithm"], "x").problems.join(), /algorithm$/);
         assert.equal(holdAllBut(empty, PROJECTS, [], "x").problems.length, 1);
+    });
+});
+
+describe("unversionable", () => {
+    const project = (entry) => ({ name: "x", version: "1.0.0", tagged: false, ...entry });
+
+    it("accepts a project with a tag, a version on disk, or both", () => {
+        assert.deepEqual(unversionable([project({ tagged: true, version: undefined })]), []);
+        assert.deepEqual(unversionable([project({ version: "0.0.0" })]), []);
+        assert.deepEqual(unversionable([project({ tagged: true })]), []);
+    });
+
+    it("rejects a project with no tag and no version on disk", () => {
+        assert.match(
+            unversionable([project({ version: undefined })]).join(),
+            /x has no x@<version> tag and no version/,
+        );
+        assert.equal(unversionable([project({ version: "" }), project({ name: "y", tagged: true })]).length, 1);
+    });
+});
+
+describe("privateProjects", () => {
+    it("accepts projects that are not private", () => {
+        assert.deepEqual(privateProjects([{ name: "x", isPrivate: false }, { name: "y" }]), []);
+    });
+
+    it("rejects a private project", () => {
+        const found = privateProjects([
+            { name: "x", isPrivate: true },
+            { name: "y", isPrivate: false },
+        ]);
+        assert.equal(found.length, 1);
+        assert.match(found[0], /x is private/);
     });
 });

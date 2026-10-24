@@ -477,6 +477,13 @@ export function ensureListboxKeyboard(): void {
     let closedTrigger: EventTarget | null = null;
     // The trigger whose last run matched no option: its Enter is used up, writing nothing.
     let missOn: EventTarget | null = null;
+    // The walk owed to letters that opened a closed trigger's list, run once Mantine's own update
+    // for the open has run, or at once by an Enter that comes first.
+    let walkOwed: (() => void) | null = null;
+    // The trigger whose Enter came before the list its letters opened was drawn.
+    let enterOwed: EventTarget | null = null;
+    // The closed trigger a letter is opening the list of, until its run is walked.
+    let opening: EventTarget | null = null;
 
     // Opening: note a closed trigger before Mantine handles the event (capture), then, after
     // Mantine's own zero-delay index update has run, walk to the checked option.
@@ -556,13 +563,16 @@ export function ensureListboxKeyboard(): void {
 
     let runOn: EventTarget | null = null;
     /**
-     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field.
+     * Adds a key to the type-ahead run, or starts a new one after a pause or on another field. The
+     * pause runs from when the page took the last letter, not from when it was typed: letters
+     * typed while the page was busy (opening the list, redrawing the panel around it) are one run
+     * however late each is handled.
      * @param event - the key
      */
     const extendRun = (event: KeyboardEvent): void => {
         const now = event.timeStamp;
         typed = now - lastAt > TYPEAHEAD_RESET_MS || event.target !== runOn ? event.key : typed + event.key;
-        lastAt = now;
+        lastAt = Math.max(now, performance.now());
         runOn = event.target;
     };
     /**
@@ -585,6 +595,7 @@ export function ensureListboxKeyboard(): void {
                 showRun(list, typed);
                 speak(list, "");
                 walkHighlight(input, list, option);
+                lastAt = performance.now();
                 return;
             }
         }
@@ -597,6 +608,7 @@ export function ensureListboxKeyboard(): void {
         speak(list, words);
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
+        lastAt = performance.now();
     };
     /**
      * Draws a line at the foot of the open list: the run while it matches, so the reader sees what
@@ -622,28 +634,52 @@ export function ensureListboxKeyboard(): void {
     const printable = (event: KeyboardEvent): boolean =>
         event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey;
 
-    // A closed trigger a letter is opening, until its run is walked in the drawn list.
-    let opening: EventTarget | null = null;
-    // An Enter typed on it before then: held back, and pressed again once the run is walked, so
-    // it takes the option the letters name instead of whatever the list opened on (or nothing).
-    let enterOwed: EventTarget | null = null;
+    /**
+     * Takes an Enter on a select-only trigger. Letters that opened the list are walked first, so
+     * Enter takes the option they name; before the list is drawn, Enter waits for that walk. Then
+     * Enter presses the highlight shown, or nothing after a run that matched nothing. Mantine's
+     * own Enter presses the option at its stored index, which its zero-delay update for the open
+     * resets to the checked option (none, on a field set nowhere) when that update runs after the
+     * walk, as it does on a busy page, where input is handled before timers.
+     * @param event - the Enter
+     * @param list - the trigger's open list, or null
+     * @param input - the trigger
+     * @returns whether the Enter was used up here
+     */
+    const takeEnter = (event: KeyboardEvent, list: HTMLElement | null, input: EventTarget | null): boolean => {
+        if (list === null) {
+            if (opening === null || opening !== input) {
+                return false;
+            }
+            enterOwed = input;
+        } else {
+            walkOwed?.();
+            const highlight = missOn === input ? null : list.querySelector<HTMLElement>("[data-combobox-selected]");
+            if (missOn !== input && highlight === null) {
+                return false;
+            }
+            highlight?.click();
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        return true;
+    };
+
     document.addEventListener(
         "keydown",
         (event) => {
-            if (event.key === "Enter" && opening !== null && event.target === opening) {
-                event.preventDefault();
-                event.stopPropagation();
-                enterOwed = opening;
+            if (
+                event.key === "Enter" &&
+                !event.ctrlKey &&
+                !event.metaKey &&
+                !event.altKey &&
+                takeEnter(event, openSelectList(event.target), event.target)
+            ) {
                 return;
             }
             const list = openSelectList(event.target);
             const input = event.target as HTMLInputElement;
             if (!list || event.ctrlKey || event.metaKey || event.altKey) {
-                return;
-            }
-            if (event.key === "Enter" && missOn === input) {
-                event.preventDefault();
-                event.stopPropagation();
                 return;
             }
             if (!printable(event)) {
@@ -715,17 +751,30 @@ export function ensureListboxKeyboard(): void {
                 }
                 return;
             }
-            globalThis.setTimeout(() => {
+            const walk = (): void => {
+                if (walkOwed !== walk) {
+                    return;
+                }
+                walkOwed = null;
                 opening = null;
-                const current = inForce(input, list);
-                typeAhead(input, list, options, current === null ? -1 : options.indexOf(current));
+                // An Enter or Escape already closed the list: walking now would open it again.
+                const shown = openSelectList(input);
+                if (shown === null) {
+                    enterOwed = null;
+                    return;
+                }
+                const current = inForce(input, shown);
+                const choices = enabledOptions(shown);
+                typeAhead(input, shown, choices, current === null ? -1 : choices.indexOf(current));
                 if (enterOwed === input) {
                     enterOwed = null;
-                    input.dispatchEvent(
-                        new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }),
-                    );
+                    if (missOn !== input) {
+                        shown.querySelector<HTMLElement>("[data-combobox-selected]")?.click();
+                    }
                 }
-            }, 0);
+            };
+            walkOwed = walk;
+            globalThis.setTimeout(walk, 0);
         };
         walkWhenDrawn(OPEN_FRAMES);
     });

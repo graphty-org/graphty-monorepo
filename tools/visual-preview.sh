@@ -6,8 +6,8 @@
 # Usage:
 #   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
 #   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
-#   ./tools/visual-preview.sh --promote <commit>   (tools/prepush.sh, once every check passed)
-#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when the push was refused)
+#   ./tools/visual-preview.sh --promote <commit>   (tools/push-queue.sh, once GitHub accepted the push)
+#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh or push-queue.sh, when it was refused)
 #
 # --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
 # fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in

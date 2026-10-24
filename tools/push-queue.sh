@@ -278,10 +278,26 @@ done
 # Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
 cmd=("$@")
 [ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
+# The gate stages its screenshot capture under the pushed checkout's HEAD and leaves it for this script
+# (PUSH_QUEUE_PROMOTES): it becomes the branch's preview only once GitHub accepted the push, and a
+# rejected push throws it away, so the preview of the head GitHub already has stays. 2026-10-24: the
+# gate promoted before the push, the push of golden-cut was rejected, and the cut's owner-reviewed
+# preview was replaced by one of a commit GitHub never got, which kept ship from shipping.
+preview="$top/tools/visual-preview.sh"
+[ "$use_gate" = 1 ] && preview="$gate_dir/tools/visual-preview.sh"
+head_sha=$(git rev-parse -q --verify HEAD 2>/dev/null)
 if [ "$rc" = 0 ]; then
     gate_tree=$(gate_tree_of)
-    logged "${cmd[@]}"
+    PUSH_QUEUE_PROMOTES=1 logged "${cmd[@]}"
     rc=$?
+    if [ -n "$sha" ] && [ -n "$head_sha" ] && [ -x "$preview" ]; then
+        if [ "$rc" = 0 ]; then
+            PREPUSH_ROOT="$top" "$preview" --promote "$head_sha" ||
+                echo "push-queue: could not promote the screenshot preview of ${head_sha:0:10}" >&2
+        else
+            PREPUSH_ROOT="$top" "$preview" --discard "$head_sha" >/dev/null 2>&1
+        fi
+    fi
 fi
 if [ "$rc" != 0 ] && grep -qaE "$KILLED_RE" "$gate_log" 2>/dev/null; then
     echo "push-queue: a process in the gate was killed by a signal from outside it (\"Terminated\", \"Killed\" or exit 143/137 in $gate_log):" \

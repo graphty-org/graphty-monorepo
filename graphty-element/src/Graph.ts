@@ -252,6 +252,17 @@ interface RunnableAlgorithm {
     readonly params: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Whether a graph whose `rendering.onDemand` was never set draws on demand. Off, as documented,
+ * unless the test-only global `globalThis.__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true` is set: the
+ * test setups set it so a still graph in a headless (software-rendered) browser stops drawing every
+ * frame. A test that needs continuous frames sets `renderOnDemand = false` explicitly.
+ * @returns True when an unset `onDemand` means on.
+ */
+function onDemandWhenUnset(): boolean {
+    return (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: unknown }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ === true;
+}
+
 /** The configuration document at its defaults: what the frozen view is merged over. */
 const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTemplate: true, majorVersion: "1" }));
 
@@ -663,7 +674,8 @@ export class Graph implements GraphContext {
      * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
      * @returns True when the render loop may skip frames.
      */
-    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    private readonly drawsOnDemand = (): boolean =>
+        this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only

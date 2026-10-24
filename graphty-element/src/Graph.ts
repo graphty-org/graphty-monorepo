@@ -597,6 +597,19 @@ export class Graph implements GraphContext {
     };
 
     /**
+     * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
+     * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
+     * the element's ResizeObserver.
+     * @internal
+     */
+    resize(): void {
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        this.renderManager.drawNow();
+    }
+
+    /**
      * The one acceleration controller this graph, its session and its element share.
      *
      * Built here because it is the earliest owner both the element's `acceleration` attribute and

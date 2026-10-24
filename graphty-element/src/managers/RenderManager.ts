@@ -682,6 +682,34 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
+     *
+     * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
+     * resize found by a ResizeObserver lands after the step's animation frames have run, so
+     * without this the page paints that step with an empty canvas -- and a full-page screenshot,
+     * which resizes the page, captures it (#3373). Drawn regardless of {@link gpuBehind}: one
+     * frame queued is a frame on screen, where waiting for the GPU left the canvas blank.
+     * @internal
+     */
+    drawNow(): void {
+        if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
+            return;
+        }
+
+        try {
+            this.drawOwed = false;
+            const drawnReady = this.readyToDrawChange();
+            this.scene.render();
+            this.fenceFrame();
+            this.noteDrawnFrom(drawnReady);
+        } catch (error) {
+            // Asked again by the loop's next tick, which reports what it throws.
+            this.drawOwed = true;
+            reportCaught(error);
+        }
+    }
+
+    /**
      * Whether the GPU is still drawing the last frame, so drawing another now would only queue it.
      *
      * Nothing else stops the loop from issuing frames faster than the GPU finishes them, and the

@@ -535,25 +535,16 @@ export class ElementAutosave {
             ephemeral = "likely";
         } else if (this.#env.storage?.getDirectory !== undefined) {
             try {
-                // Safari's private windows refuse the origin private file system.
+                // Safari's and Firefox's private windows refuse the origin private file system.
                 await this.#env.storage.getDirectory();
             } catch {
                 ephemeral = "likely";
             }
         }
 
-        // ponytail: Chrome sizes an Incognito origin's quota from memory and a normal one from the
-        // disk (60% of it). A quota under twice the JavaScript heap limit is the memory kind: the
-        // test private-window detectors use. A fixed 1 GiB missed Incognito on any machine with
-        // more than about 16 GB of memory (6.5 GB on a 94 GB one, found by the lifecycle tests).
-        // 1 GiB where the engine reports no heap limit.
-        const heapLimit = (globalThis.performance as { memory?: { jsHeapSizeLimit?: number } } | undefined)?.memory
-            ?.jsHeapSizeLimit;
-        const memorySized = typeof heapLimit === "number" && heapLimit > 0 ? heapLimit * 2 : 2 ** 30;
-        if (storage !== null && storage.quota > 0 && storage.quota < memorySized) {
-            ephemeral = "likely";
-        }
-
+        // The quota is never a signal. Chrome sizes an Incognito origin's quota from memory and a
+        // normal one from the disk, so a small quota is also what a normal profile on a small disk
+        // has. Incognito reads "unknown"; its storage is never persisted, so it still warns.
         this.#estimatedAt = this.#env.clock.now();
         return { persisted, ephemeral, storage };
     }

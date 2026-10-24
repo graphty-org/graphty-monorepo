@@ -278,10 +278,11 @@ done
 # Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
 cmd=("$@")
 [ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
-# The gate stages its screenshot capture under the pushed checkout's HEAD and leaves it for this script
-# (PUSH_QUEUE_PROMOTES): it becomes the branch's preview only once GitHub accepted the push, and a
-# rejected push throws it away, so the preview of the head GitHub already has stays. 2026-10-24: the
-# gate promoted before the push, the push of golden-cut was rejected, and the cut's owner-reviewed
+# The gate stages its screenshot capture under the pushed checkout's HEAD and, told
+# PUSH_QUEUE_PROMOTES=1, leaves it staged (visual-preview.sh --promote does nothing then). This script
+# promotes it to the branch's preview only once GitHub accepted the push, and throws it away when the
+# push was rejected, so the preview of the head GitHub already has stays. 2026-10-24: the gate
+# promoted before the push, the push of golden-cut was then rejected, and the cut's owner-reviewed
 # preview was replaced by one of a commit GitHub never got, which kept ship from shipping.
 preview="$top/tools/visual-preview.sh"
 [ "$use_gate" = 1 ] && preview="$gate_dir/tools/visual-preview.sh"
@@ -292,7 +293,7 @@ if [ "$rc" = 0 ]; then
     rc=$?
     if [ -n "$sha" ] && [ -n "$head_sha" ] && [ -x "$preview" ]; then
         if [ "$rc" = 0 ]; then
-            PREPUSH_ROOT="$top" "$preview" --promote "$head_sha" ||
+            PUSH_QUEUE_PROMOTES= PREPUSH_ROOT="$top" "$preview" --promote "$head_sha" ||
                 echo "push-queue: could not promote the screenshot preview of ${head_sha:0:10}" >&2
         else
             PREPUSH_ROOT="$top" "$preview" --discard "$head_sha" >/dev/null 2>&1

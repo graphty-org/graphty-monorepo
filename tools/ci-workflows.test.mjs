@@ -655,7 +655,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
             prepush,
-            /if \[ "\$\{PUSH_QUEUE_PROMOTES:-\}" = 1 \]; then\n\s+SCREENSHOTS_STAGED=0\n\s+else\n\s+PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+fi\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
+            /PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
         );
         // The EXIT trap, run for real: a failed step exits; the capture's process group dies and its
         // staged preview is discarded.

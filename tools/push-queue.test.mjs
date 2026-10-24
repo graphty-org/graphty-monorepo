@@ -149,10 +149,11 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         const local = join(ctx.repo, "tmp/visual-review/local");
         mkdirSync(join(local, "77"), { recursive: true });
         writeFileSync(join(local, "77/status.json"), JSON.stringify({ head: "old" }));
-        // The gate's part: stage a capture of HEAD, and say whether the queue told it to leave it staged.
+        // The gate's part, as tools/prepush.sh does it once every check passed: stage a capture of HEAD
+        // and promote it.
         writeFileSync(
             join(ctx.repo, ".git/hooks/pre-push"),
-            `#!/bin/sh\nd=tmp/visual-review/local/.pending-$(git rev-parse HEAD)\nmkdir -p $d\necho "{\\"head\\":\\"$(git rev-parse HEAD)\\"}" > $d/status.json\necho "\${PUSH_QUEUE_PROMOTES:-}" > promotes\n`,
+            `#!/bin/sh\nd=tmp/visual-review/local/.pending-$(git rev-parse HEAD)\nmkdir -p $d\necho "{\\"head\\":\\"$(git rev-parse HEAD)\\"}" > $d/status.json\nPREPUSH_ROOT=$PWD tools/visual-preview.sh --promote $(git rev-parse HEAD)\n`,
             { mode: 0o755 },
         );
         const sha = ctx.git("rev-parse", "HEAD").stdout.trim();
@@ -164,7 +165,6 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         const ctx = setup();
         const { local, sha, head } = withPreview(ctx);
         drive(ctx, `"$Q" git push -q origin HEAD:main`);
-        assert.equal(readFileSync(join(ctx.repo, "promotes"), "utf8"), "1\n");
         assert.equal(head(), sha);
         assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
     });
@@ -179,7 +179,6 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
             env: ctx.env,
         });
         assert.notEqual(r.status, 0, r.stdout + r.stderr);
-        assert.equal(readFileSync(join(ctx.repo, "promotes"), "utf8"), "1\n");
         assert.equal(head(), "old");
         assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
     });

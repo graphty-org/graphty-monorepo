@@ -289,8 +289,7 @@ fi
 # with the pinned fonts and master's capture code, exactly as CI's visual job will -- in its own
 # worktree (.worktrees/visual-preview), so nothing here touches this checkout. The capture is staged
 # under the commit and promoted to the branch's preview (its open pull request's, which the owner's
-# review page offers for review and Finish before CI's capture exists) only when every check passed
-# and GitHub accepted the push (tools/push-queue.sh promotes it after the push),
+# review page offers for review and Finish before CI's capture exists) only when every check passed,
 # so a refused push never replaces the preview of the head already on GitHub. Changed or new images
 # never block the push (the owner reviews them); a capture that crashes, a story that fails to render,
 # or a capture that works longer than PREPUSH_SCREENSHOTS_TIMEOUT (default 45m) does. The limit counts
@@ -373,16 +372,10 @@ echo ""
 echo "========================================"
 sonar_reminder
 if [ $FAILED -eq 0 ]; then
-    # Every check passed, so the push goes ahead. Recorded only when the inputs are still the ones the
-    # run started on (prepush-inputs.mjs compares). The staged capture is left for tools/push-queue.sh,
-    # which promotes it to the branch's preview only after GitHub accepts the push and discards it when
-    # the push is rejected. A push made without the queue has no step after the push, so it promotes here.
+    # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
+    # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
     [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
-    if [ "${PUSH_QUEUE_PROMOTES:-}" = 1 ]; then
-        SCREENSHOTS_STAGED=0
-    else
-        PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
-    fi
+    PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
 else

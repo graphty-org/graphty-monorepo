@@ -103,6 +103,7 @@ import { fileURLToPath } from "node:url";
 
 import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
 import { ACTIVE_DAYS, defaultCheck, moveGoldenGood, syncCommand } from "./branch-sync.mjs";
+import { printRisks } from "./ship-risks.mjs";
 import { logWait } from "./wait-log.mjs";
 
 export const GOLDEN = "golden";
@@ -1665,6 +1666,7 @@ export async function revert(ctx, branch) {
 export async function ship(ctx) {
     const r = shipReady(ctx);
     if (r.error) return fail(r.error);
+    printRisks(ctx.main, { cut: r.pr.headRefOid, golden: `origin/${GOLDEN}`, master: "origin/master" });
     markReady(ctx, r.pr);
     console.log(
         "CI (ci.yml) now runs the affected suite on it once, on clean machines, and the visual gate checks\n" +
@@ -2069,6 +2071,7 @@ export async function cut(ctx, given) {
     const picked = pickCut(ctx, given);
     if (picked.error) return fail(picked.error);
     const { sha } = picked;
+    printRisks(ctx.main, { cut: sha, golden: `origin/${GOLDEN}`, master: "origin/master" });
     const why = cutWorktree(ctx, sha);
     if (why) return fail(why);
     const { code, output } = await ctx.push(ctx, ctx.cut, `${sha}:refs/heads/${CUT}`);

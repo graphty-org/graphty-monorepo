@@ -360,6 +360,7 @@ describe("the pre-push gate matches CI", () => {
         "land.mjs",
         "branch-sync.mjs",
         "branch-note.mjs",
+        "ship-risks.mjs",
     ];
     const runStage = (runTests, env = {}, opts = {}) => {
         const { shards = [["broken"], ["slow"]], setup } = opts;

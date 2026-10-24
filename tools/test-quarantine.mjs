@@ -243,13 +243,14 @@ export async function runShard(
     const reports = { dir: join(root, "test-results"), id: env.TEST_LEDGER_RUN ?? "" };
     reports.seen = new Set(reportNames(reports.dir));
     const r1 = await sh(command, env, root);
+    const flood = floodCode(shardName, r1.text, logBudget, env);
     let result = { shard: shardName, firstCode: r1.code, retried: false, flaky: [], excused: [], failing: [] };
     let code = r1.code;
     try {
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);
-        if (r1.code === 0) return floodCode(shardName, r1.text, logBudget, env);
+        if (r1.code === 0) return flood;
         const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
         const shard = SHARDS.find((s) => s.shard === shardName);
         const family = familyOf(shardName);
@@ -264,7 +265,7 @@ export async function runShard(
         const d = decide({ family, first, firstOutcome, second: retry?.second, list });
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         printDecision(shardName, d, env);
-        if (d.pass) code = floodCode(shardName, r1.text, logBudget, env);
+        if (d.pass) code = flood;
     } catch (e) {
         console.log(
             `test-quarantine: ${shardName}: no decision (${e.message.split("\n")[0]}); the shard's own result stands`,
@@ -272,7 +273,7 @@ export async function runShard(
     } finally {
         if (env.TEST_QUARANTINE_RESULT) writeFileSync(env.TEST_QUARANTINE_RESULT, JSON.stringify(result));
     }
-    return code;
+    return code || flood;
 }
 
 /**

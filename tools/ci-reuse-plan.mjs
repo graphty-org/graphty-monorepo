@@ -219,7 +219,8 @@ if (isMain) {
         };
     }
     const url = result.reuse ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${result.reuse}` : "";
-    out(`marker=ci-tested-${tree}${result.reuse ? `-from-${result.reuse}` : ""}`);
+    const from = result.reuse ? "-from-" + result.reuse : "";
+    out(`marker=ci-tested-${tree}${from}`);
     out(`reuse-run=${result.reuse ?? ""}`);
     out(`reuse-url=${url}`);
     out(`artifacts-run=${result.artifacts ?? ""}`);

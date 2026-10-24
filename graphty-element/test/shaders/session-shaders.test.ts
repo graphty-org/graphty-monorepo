@@ -405,6 +405,25 @@ describe("session.shaders", () => {
         assert.lengthOf(host.drawn, 2, "other values draw again");
     });
 
+    it("check with picture draws text that passes, adding nothing; text that fails draws nothing", async () => {
+        const { session: s } = await session();
+        const host = fakeHost();
+        shadersControllerOf(s)?.attach(host);
+
+        const checked = await s.shaders.check(TINT, { picture: true });
+        assert.isTrue(checked.ok);
+        assert.instanceOf(checked.ok ? checked.picture : undefined, Blob);
+        assert.lengthOf(host.drawn, 1);
+        assert.lengthOf(s.shaders.list(), 0, "nothing joined the project");
+
+        const plain = await s.shaders.check(TINT);
+        assert.notProperty(plain, "picture", "no picture unless asked");
+
+        const broken = await s.shaders.check(TINT.replace("vec4", "vec9"), { picture: true });
+        assert.isFalse(broken.ok);
+        assert.lengthOf(host.drawn, 1, "broken text is not drawn");
+    });
+
     it("draws a shader with no picture at its preview's values and time", async () => {
         const { session: s } = await session();
         const host = fakeHost();

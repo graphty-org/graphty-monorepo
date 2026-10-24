@@ -435,6 +435,13 @@
 }
 
 /* Paste shader's problems: one row each, its place first. */
+/* The code dialog's live picture of the text, at the element's thumbnail size. */
+.ws-paste-preview {
+    flex: none;
+    width: 128px;
+    aspect-ratio: 1;
+}
+
 .ws-paste-problems {
     display: flex;
     flex-direction: column;

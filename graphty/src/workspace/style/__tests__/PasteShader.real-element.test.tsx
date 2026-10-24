@@ -112,6 +112,22 @@ function addButton(): HTMLElement {
     return within(screen.getByRole("dialog", { name: DIALOG })).getByRole("button", { name: "Add" });
 }
 
+/**
+ * The pixels of the dialog's preview picture, once it shows one.
+ * @returns the picture's address and its RGBA bytes.
+ */
+async function previewPixels(): Promise<{ src: string; pixels: number[] }> {
+    const picture = within(screen.getByRole("dialog", { name: DIALOG })).getByRole<HTMLImageElement>("img", {
+        name: "Preview",
+    });
+    const bitmap = await createImageBitmap(await (await fetch(picture.src)).blob());
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    assert.isNotNull(context);
+    context?.drawImage(bitmap, 0, 0);
+    return { src: picture.src, pixels: [...(context?.getImageData(0, 0, bitmap.width, bitmap.height).data ?? [])] };
+}
+
 /** Waits for the checks to settle with Add enabled, then presses it. */
 async function pressAdd(): Promise<void> {
     await waitFor(
@@ -357,6 +373,52 @@ describe("the code dialog on the real element", () => {
         assert.strictEqual(addButton().getAttribute("aria-disabled"), "true");
         assert.strictEqual(JSON.stringify(session.styles.get(id)), before);
         assert.lengthOf(session.shaders.list(), 0);
+    });
+
+    it("the preview draws the text as the element would and follows edits; broken text shows its error and leaves the preview and the graph alone", async () => {
+        const { session, id } = await mount();
+        const before = JSON.stringify(session.styles.get(id));
+        const box = await openNew();
+        const dialog = screen.getByRole("dialog", { name: "New shader" });
+        await userEvent.fill(box, FIXED_TEXT);
+        const first = await waitFor(
+            async () => {
+                const shown = await previewPixels();
+                assert.isTrue(
+                    shown.pixels.some((value, at) => at % 4 === 3 && value > 0),
+                    "the picture has something drawn",
+                );
+                return shown;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+
+        // A change typed into the box: the tint, from orange to blue.
+        const tint = box.value.indexOf("#FFAA00") + 1;
+        box.setSelectionRange(tint, tint + 6);
+        await userEvent.keyboard("0055FF");
+        const second = await waitFor(
+            async () => {
+                const shown = await previewPixels();
+                assert.notStrictEqual(shown.src, first.src, "a new picture");
+                return shown;
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.notDeepEqual(second.pixels, first.pixels, "the picture follows the edit");
+
+        await userEvent.fill(box, COMPILE_TEXT);
+        await waitFor(
+            () => {
+                assert.isNotNull(dialog.querySelector('[data-code="shader.compile"]'), "the compile problem shows");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const third = await previewPixels();
+        assert.strictEqual(third.src, second.src, "the preview is unchanged");
+        assert.deepEqual(third.pixels, second.pixels);
+        assert.strictEqual(JSON.stringify(session.styles.get(id)), before, "the graph's layer is untouched");
+        assert.lengthOf(session.shaders.list(), 0, "nothing joined the project");
     });
 
     it("a problem with no line is words, not a button", async () => {

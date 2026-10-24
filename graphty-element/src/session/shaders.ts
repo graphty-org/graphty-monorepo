@@ -130,6 +130,11 @@ export type ShaderAddResult =
           readonly descriptor: ShaderDescriptor;
           /** The body equals a known shader's body: that id, and the defaults the text differs by. */
           readonly sameAs?: { readonly id: string; readonly params: ShaderParams };
+          /**
+           * `check` with `picture: true`: the text's still picture, drawn as `thumbnail` draws a
+           * project shader, before anything is added. Absent with no canvas.
+           */
+          readonly picture?: Blob;
       }
     | { readonly ok: false; readonly problems: readonly ShaderProblem[] };
 
@@ -167,9 +172,15 @@ export interface SessionShaders {
      * @param options - The options `add` would be given, and whether to compile.
      * @param options.compile - Compile it and run its test frame on the canvas. Default true when a
      *   canvas is attached; with none only the static checks run.
+     * @param options.picture - Also draw the text's still picture when it passes (`picture` on the
+     *   result), framed as `thumbnail` frames it, so an editor can show what it will look like
+     *   before `add`. Nothing is written and the graph is not redrawn. Default false.
      * @returns What the checks found.
      */
-    check(text: ShaderText, options?: ShaderAddOptions & { readonly compile?: boolean }): Promise<ShaderAddResult>;
+    check(
+        text: ShaderText,
+        options?: ShaderAddOptions & { readonly compile?: boolean; readonly picture?: boolean },
+    ): Promise<ShaderAddResult>;
     /**
      * Replace a project shader's text, keeping its id. One undoable step.
      * @param id - The project shader.
@@ -1363,7 +1374,12 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             if (copy !== undefined) {
                 const descriptor = shaderDescriptor(copy.id) as ShaderDescriptor;
                 const problems = targetProblems(descriptor.target, options);
-                return problems.length > 0 ? { ok: false, problems } : { ok: true, descriptor, sameAs: copy };
+                if (problems.length > 0) {
+                    return { ok: false, problems };
+                }
+
+                const shown = options.picture === true ? await api.thumbnail(copy.id, copy.params) : undefined;
+                return { ok: true, descriptor, sameAs: copy, ...(shown instanceof Blob ? { picture: shown } : {}) };
             }
 
             const { shader, problems } = admit(read, text, options);
@@ -1375,7 +1391,18 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 }
             }
 
-            return problems.length > 0 ? { ok: false, problems } : passed(shader);
+            if (problems.length > 0) {
+                return { ok: false, problems };
+            }
+
+            const result = await passed(shader);
+            // Only text that compiled and passed its test frame is drawn; held text never runs.
+            const drawer = host;
+            if (options.picture !== true || drawer === null || held || options.compile === false) {
+                return result;
+            }
+
+            return { ...result, picture: await picture(drawer, shader.descriptor.id, shader, shader.descriptor, {}) };
         },
 
         async replace(id, text) {
@@ -1559,21 +1586,36 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return Promise.resolve({ code: "shader.no-canvas", params: { id } });
             }
 
-            const values = { ...descriptor.preview?.params, ...params };
-            const time = descriptor.preview?.time ?? THUMBNAIL_TIME;
-            return drawnFor(id, project).then((drawn) => {
-                const key = [drawn.hash, SHADER_THUMBNAIL_SIZE, drawer.theme ?? "", time, stableJson(values)].join(
-                    "\u0000",
-                );
-                return cached(key, () =>
-                    drawer.thumbnail(
-                        { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
-                        values,
-                        time,
-                    ),
-                );
-            });
+            return drawnFor(id, project).then((drawn) => picture(drawer, id, drawn, descriptor, params));
         },
+    };
+
+    /**
+     * A shader's still picture drawn in the host's engine, at its preview's values and time, cached.
+     * @param drawer - The host.
+     * @param id - The shader.
+     * @param drawn - Its text, read.
+     * @param descriptor - Its descriptor, for the preview.
+     * @param params - Values over the preview's.
+     * @returns The picture.
+     */
+    const picture = (
+        drawer: ShaderHost,
+        id: string,
+        drawn: ReadText,
+        descriptor: ShaderDescriptor,
+        params: ShaderParams,
+    ): Promise<Blob> => {
+        const values = { ...descriptor.preview?.params, ...params };
+        const time = descriptor.preview?.time ?? THUMBNAIL_TIME;
+        const key = [drawn.hash, SHADER_THUMBNAIL_SIZE, drawer.theme ?? "", time, stableJson(values)].join("\u0000");
+        return cached(key, () =>
+            drawer.thumbnail(
+                { id, hash: drawn.hash, registration: drawn.registration, bodyLine: drawn.bodyLine },
+                values,
+                time,
+            ),
+        ) as Promise<Blob>;
     };
 
     /**

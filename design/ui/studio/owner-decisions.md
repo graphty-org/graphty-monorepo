@@ -4,6 +4,16 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-23 -- Owner approval: compact-mantine is locked to its Figma spec (compact-mantine)
+
+Owner approved the 24 departures in figma-spec.md section 14; any other departure, or a change to one
+of these, needs the owner. In the owner's words, on the design of branch
+`fix/compact-mantine-figma-drift`: "I agree with your decisions ... lock in this design so that we
+don't drift from it". compact-mantine draws and behaves exactly as Figma does except for those rows.
+`tools/check-figma-lock.mjs` (pre-push gate and CI's Checks job) fails a push that changes the spec,
+the Figma tests or their harness, or the theme's token values, unless the commit making the change
+carries the owner's `Figma-Approved: <reason>` trailer.
+
 ## 2026-10-22 -- Owner rule: compact-mantine is strict Figma (compact-mantine, graphty app)
 
 compact-mantine draws and behaves exactly as Figma does unless there is a good reason to depart,

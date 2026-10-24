@@ -371,6 +371,7 @@ describe("prepush.sh with a gate that already passed", () => {
         const ran = join(TMP, `steps-${made}.log`);
         writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
+        writeFileSync(join(r.dir, "tools/check-figma-lock.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
         writeFileSync(
             join(r.dir, "tools/sonar-gate.mjs"),

@@ -3983,6 +3983,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
+            writeFileSync(
+                join(dir, "tools/check-figma-lock.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
@@ -4054,6 +4058,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -4077,6 +4082,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const calls = readFileSync(join(dir, "calls"), "utf8");
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
+            assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);

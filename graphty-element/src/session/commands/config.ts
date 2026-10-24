@@ -200,6 +200,16 @@ function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
 }
 
 /**
+ * The value at a dotted path of the settings in effect.
+ * @param config - The settings.
+ * @param path - The key, such as `data.knownFields.nodeTimePath`.
+ * @returns The value, or undefined.
+ */
+function readPath(config: ProjectConfig, path: string): unknown {
+    return path.split(".").reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], config);
+}
+
+/**
  * The step's name: the one setting it changed, or how many.
  * @param command - The command.
  * @returns The label.
@@ -236,14 +246,14 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
         const effective = ctx.services.config?.();
         let restore = false;
         for (const [path, value] of configLeaves(command.values)) {
-            if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
+            // What the key reads as now, and whether this write changes it.
+            const current = effective === undefined ? undefined : readPath(effective, path);
+            const same =
+                effective !== undefined &&
+                deepEquals(value === undefined ? undefined : CONFIG_KEYS.get(path)?.schema.parse(value), current);
+            if (same && value !== undefined && !ctx.state.config.has(path)) {
                 // An unset key already reads as its default: writing that default changes nothing.
-                const current = path
-                    .split(".")
-                    .reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], effective);
-                if (deepEquals(CONFIG_KEYS.get(path)?.schema.parse(value), current)) {
-                    continue;
-                }
+                continue;
             }
 
             if (value === undefined) {
@@ -254,11 +264,14 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
 
             restore ||= (path === "startingRows" || path === "editableBase") && value === true;
             // Designating or clearing a time field adds or takes away the Ghost row, and setting or
-            // clearing the pinned look the Pinned row.
+            // clearing the pinned look the Pinned row. Only a change does: writing the value already
+            // in effect (a project opened over the same settings) adds nothing, so a project read
+            // into a cleared tree gets exactly the rows it saved.
             restore ||=
-                path === "data.knownFields.nodeTimePath" ||
-                path === "data.knownFields.edgeTimePath" ||
-                path === "pinnedStyle";
+                !same &&
+                (path === "data.knownFields.nodeTimePath" ||
+                    path === "data.knownFields.edgeTimePath" ||
+                    path === "pinnedStyle");
         }
 
         // The starting rows arrive with the setting, in its step: undo takes both back. Added once

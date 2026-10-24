@@ -129,4 +129,20 @@ describe("the Pinned row", () => {
         plain.dispose();
         reopened.dispose();
     });
+
+    it("reopens a project into a session with the same settings with exactly its saved rows", async () => {
+        const session = await triangle();
+        await session.config.set({ pinnedStyle: LOOK });
+        const saved = session.styles.toDocument();
+        const reopened = createGraphSession();
+        await reopened.config.set({ startingRows: true, pinnedStyle: LOOK });
+        await reopened.project.open((await session.project.save()).text, { discard: true });
+        assert.deepStrictEqual(
+            reopened.styles.tree().map((each) => each.name),
+            ["Everything", "Pinned", "Selected", "Hovered"],
+        );
+        assert.deepStrictEqual(reopened.styles.toDocument(), saved);
+        session.dispose();
+        reopened.dispose();
+    });
 });

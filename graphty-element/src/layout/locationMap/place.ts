@@ -171,7 +171,7 @@ interface Readings {
  * @returns The format; `decimal` when none reads any value.
  */
 function detectedFormat(
-    source: Extract<LocationSource, { kind: "location" }>,
+    source: Extract<CoordinateSource, { kind: "location" }>,
     warnings: PlaceWarning[],
 ): LocationFormat {
     const found = detectLocationFormat(source.values);

@@ -252,6 +252,16 @@ run's code):
   the next round finds `ready` without an outcome: a branch whose tip is on `origin/golden` landed; otherwise land it
   again only if it has one `landing` marker for that sha, never two.
 - A landed issue keeps its `in-progress` label until a cut holding it ships and `Fixes #N` closes it.
+- **Dependabot.** Every open pull request whose head is `dependabot/*` (from `tmp/pr-status/status.json`; version
+  updates target `golden`, security updates target master) is a ready branch with no issue: run `git fetch origin`
+  first (land.mjs looks the branch up before it fetches), then add each `dependabot/...` branch to the same
+  background `land` run as the other ready branches. Write the `landing`, `landed` and `land failed` markers on the
+  golden pull request. When a branch's summary row says `landed` or `already on golden`, close its pull request
+  with the land commit:
+  `gh pr close <n> --comment "Landed on golden through the gate in $(git log origin/golden --merges -1 --format=%h --grep='^land: <branch>$')."`
+  Never merge a Dependabot pull request on GitHub, and never send a fix subagent for one: a Dependabot branch that
+  conflicts or fails the gate gets a one-line comment naming the cause and the gate log, and stays open (Dependabot
+  rebases it, or a later bump supersedes it); the next round lands it again only when its tip changed.
 
 ### 5. Stale issues
 

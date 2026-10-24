@@ -1326,6 +1326,12 @@ Rules:
 - A landing check may defer the test shards of packages affected only as downstream dependents (a
   graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); on by default,
   `PREPUSH_DEFER_DOWNSTREAM=0` turns it off for one push.
+- Dependabot's pull requests are branches like any other, never merged on GitHub. `.github/dependabot.yml`
+  opens its version updates (weekly, minor and patch grouped per ecosystem) against `golden`; security
+  updates always open against master, a GitHub rule. Either way the pipeline-round skill lands the
+  `dependabot/*` branch with `land.mjs` through the gate and then closes the pull request with a comment
+  naming the land commit. The review page never lists them (`"ignoreBranches": ["dependabot/"]` in
+  `visual-review.config.json`): their screenshots are reviewed on the cut.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.
 - Where this file asks for something in a pull request description (a breaking change's list, a

@@ -159,7 +159,7 @@ export const GATE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 /**
  * The environment that chooses what the gate runs: GRAPHTY_* and VK_* (lanes, GPU and browser
  * choices), PREPUSH_ALL and PREPUSH_SELECT (a gate that ran only selected tests is not a gate that ran
- * every shard), without the test-slot bookkeeping.
+ * every shard), PREPUSH_LIGHT=1 (a gate that ran no shard), without the test-slot bookkeeping.
  * @param env the environment
  * @returns sorted `[name, value]` pairs
  */
@@ -169,6 +169,8 @@ export function laneEnv(env = process.env) {
         .filter((k) => !k.startsWith("GRAPHTY_TEST_SLOT"))
         .sort()
         .map((k) => [k, env[k]]);
+    // the light gate (no shard, no screenshot) is never the full one; unset and 0 are both the full gate
+    if (env.PREPUSH_LIGHT === "1") pairs.push(["PREPUSH_LIGHT", "1"]);
     // a push to the cut or master never selects (prepush-tests.mjs selectionOn), so its gate is not one that did
     if (/(^|\/)(golden-cut|master)$/u.test(env.PREPUSH_SELECT_BASE ?? "")) {
         pairs.push(["PREPUSH_SELECT_BASE", "cut"]);

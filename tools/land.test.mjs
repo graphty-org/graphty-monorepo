@@ -1002,6 +1002,39 @@ describe("cuts", () => {
         rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
     });
 
+    it("keeps a shipped cut frozen even with no accept commits, and freezes cut-fix with it", async () => {
+        const held = remote("refs/heads/golden-cut");
+        gh.open = true;
+        gh.issueApi = { 500: { state: "open", title: "CI red on master", labels: [{ name: "priority:critical" }] } };
+        branch("frozen/shipped", { "fs.txt": "s\n" }, "feat: after the shipped cut", "origin/golden");
+        assert.equal((await run("land", "frozen/shipped")).code, 0);
+        const next = git(golden, "rev-parse", "HEAD");
+        verifiedAt(next);
+        preview("110", next, ["unchanged"]);
+        branch("frozen/cutfix", { "fc.txt": "c\n" }, "fix: the cut", "origin/golden-cut");
+        pushes = 0;
+        // Shipped: ready, its CI running. Nothing on golden-cut that the newer golden commit lacks.
+        gh.cut = { number: 9, isDraft: false, url: "u/pull/9", headRefOid: held };
+        const shipped = await run("cut");
+        assert.equal(shipped.code, 1, shipped.out);
+        assert.match(
+            shipped.out,
+            /#9 is shipped \(ready, its CI running or about to merge\), so golden-cut stays frozen/,
+        );
+        const fixShipped = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixShipped.code, 1, fixShipped.out);
+        assert.match(fixShipped.out, /frozen\/cutfix cannot go into the cut now: #9 is shipped/);
+        // In review: a draft whose preview of its head is done, with no Finish.
+        preview("9", held, ["changed"]);
+        gh.cut = { ...gh.cut, isDraft: true };
+        const fixReview = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixReview.code, 1, fixReview.out);
+        assert.match(fixReview.out, /frozen\/cutfix cannot go into the cut now: #9 awaits the owner's review/);
+        assert.equal(remote("refs/heads/golden-cut"), held);
+        assert.equal(pushes, 0);
+        rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
+    });
+
     it("ship marks the cut pull request ready with auto-merge when its preview is of its head", async () => {
         const head = remote("refs/heads/golden-cut");
         preview("9", head, ["changed"]);
@@ -1382,7 +1415,7 @@ describe("cut fixes", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(
             r.out,
-            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 2 commits of golden or master/,
+            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 4 commits of golden or master/,
         );
         assert.match(r.out, /\n {2}[0-9a-f]{10} land: cutfix\/advance\n {2}[0-9a-f]{10} feat: after the cut\n/);
         assert.match(r.out, /Any other fix lands on golden: node tools\/land\.mjs land <branch>/);

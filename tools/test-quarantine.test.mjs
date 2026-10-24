@@ -270,6 +270,15 @@ describe("runShard", () => {
         );
     });
 
+    it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {
+        const flood = `for i in 1 2 3 4 5 6 7 8; do echo 'Warning: An update was not wrapped in act(...)'; done; echo ' Test Files  1 passed (1)'`;
+        const opts = (env) => ({ root: fresh(), env: { ...process.env, ...env }, state: emptyState(), logBudget: 200 });
+        for (const env of [{ GRAPHTY_TEST_QUARANTINE: undefined }, { GRAPHTY_TEST_QUARANTINE: "0" }]) {
+            assert.equal(await runShard("graphty-1", flood, opts(env)), 1, JSON.stringify(env));
+            assert.equal(await runShard("graphty-1", "echo ok", opts(env)), 0, "within the budget it passes");
+        }
+    });
+
     it("splits a log at the retry for the ledger", () => {
         assert.deepEqual(splitLog("a\ntest-quarantine: retrying x\nb"), {
             first: "a\n",

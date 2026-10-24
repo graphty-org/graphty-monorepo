@@ -9,6 +9,9 @@
 # no package included: they check the whole repository, root files (knip.config.ts, package.json
 # scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
+# PREPUSH_LIGHT=1 is the light gate: everything above but the test shards and the screenshots, which CI's
+# verification of golden runs instead (tools/verify.mjs backend ci; design/ci/ci-full-testing.md). The NVIDIA
+# GPU step still runs when webgpu-graph-algorithms is affected. Unset or 0 is the full gate.
 # This script avoids nx to work around git hook issues with nx daemon
 
 # A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
@@ -28,6 +31,7 @@ ROOT_DIR="$(cd "${PREPUSH_ROOT:-$(dirname "$SCRIPT_DIR")}" && pwd)" || exit 1
 unset PREPUSH_ROOT
 
 cd "$ROOT_DIR"
+LIGHT="${PREPUSH_LIGHT:-0}"
 
 # git runs this hook with GIT_DIR and friends exported, pointing at the real repository. Any step
 # that runs git in a temporary directory -- a test building a throwaway repository -- would then act
@@ -298,13 +302,16 @@ fi
 # says when it waits and when it works). Its own process group, killed by the EXIT trap,
 # so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
 # never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
-SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
-mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
-echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
-SCREENSHOTS_PGID=$!
-SCREENSHOTS_STAGED=1
-echo ""
+# The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
+if [ "$LIGHT" != 1 ]; then
+    SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
+    echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
+    setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    SCREENSHOTS_PGID=$!
+    SCREENSHOTS_STAGED=1
+    echo ""
+fi
 
 # The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
 # CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
@@ -338,8 +345,11 @@ fi
 # prepush-tests.mjs stops every shard's process group itself.
 # Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
 # step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
-run_step "Tests (the CI shards of the affected packages)" \
-    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
+# The light gate runs no shard (so it never records gate-known): CI's verification of golden runs them all.
+if [ "$LIGHT" != 1 ]; then
+    run_step "Tests (the CI shards of the affected packages)" \
+        "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
+fi
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
@@ -355,27 +365,30 @@ if [ -n "$GPU_PGID" ]; then
     GPU_PGID=""
 fi
 
-echo -e "${YELLOW}> Screenshots${NC}"
-if wait "$SCREENSHOTS_PGID"; then
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${GREEN}[PASS] Screenshots captured${NC}"
-else
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
-    FAILED=1
+if [ -n "$SCREENSHOTS_PGID" ]; then
+    echo -e "${YELLOW}> Screenshots${NC}"
+    if wait "$SCREENSHOTS_PGID"; then
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${GREEN}[PASS] Screenshots captured${NC}"
+    else
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
+        FAILED=1
+    fi
+    SCREENSHOTS_PGID=""
+    echo ""
 fi
-SCREENSHOTS_PGID=""
-echo ""
 
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.
 echo "========================================"
 sonar_reminder
+[ "$LIGHT" = 1 ] && echo -e "${YELLOW}[LIGHT] tests run in CI verification (tools/verify.mjs); no shard and no screenshot ran here${NC}"
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
     # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
     [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
-    PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
+    [ "$SCREENSHOTS_STAGED" = 1 ] && PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
 else

@@ -1202,6 +1202,45 @@ describe("cuts", () => {
         }
     });
 
+    it("ship prints CI's changed and flaky screenshots and refuses a changed one the owner has not approved", async () => {
+        const wt = branch("cut/ci-drawn", { "cd.txt": "c\n" }, "fix: ci draws it otherwise", "origin/golden-cut");
+        git(wt, "push", "-q", "origin", "HEAD:golden-cut");
+        const head = git(wt, "rev-parse", "HEAD");
+        preview("9", head, ["unchanged"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const fresh = {
+            project: "graphty",
+            file: "a.dark.png",
+            status: "new",
+            baseline: null,
+            capture: "c".repeat(64),
+        };
+        const flaky = { project: "graphty", file: "b.light.png", status: "unchanged", baseline: "b", capture: "b" };
+        const captures = { [head]: { clean: true, run: "https://r/1", changed: [fresh], flaky: [flaky] } };
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: head, captures }));
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 1, r.out);
+            assert.match(r.out, /CI screenshot changed: graphty\/a\.dark\.png new/);
+            assert.match(r.out, /CI screenshot flaky: graphty\/b\.light\.png unchanged/);
+            assert.match(r.out, /#9 draws 1 screenshot\(s\) differently in CI \(https:\/\/r\/1\) from the approved/);
+            assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
+
+            // The owner approves CI's picture: the baseline at the head is now exactly that capture.
+            mkdirSync(join(wt, "visual-baselines/graphty"), { recursive: true });
+            write(wt, "visual-baselines/graphty/a.dark.png", `version x\noid sha256:${fresh.capture}\nsize 1\n`);
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept a.dark.png");
+            const accepted = git(wt, "rev-parse", "HEAD");
+            gh.cut = { ...gh.cut, headRefOid: accepted };
+            const shipped = await run("ship");
+            assert.equal(shipped.code, 0, shipped.out);
+            assert.match(shipped.out, /CI screenshot changed, approved again since: graphty\/a\.dark\.png new/);
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
     it("ship refuses when the cut pull request moved since its preview", async () => {
         const line = firstParents();
         preview("9", line[1], ["changed"]);
@@ -1285,6 +1324,18 @@ describe("cuts", () => {
             preview("9", bang, ["unchanged"]);
             const k = await run("auto-ship");
             assert.match(k.out, /owner's go on a breaking commit: feat\(x\)!: drop y/);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits while CI's own capture of the verified cut changed an image", async () => {
+            const sha = cutHead("auto/ci-changed", { "acc.txt": "c\n" }, false);
+            const item = { project: "graphty", file: "n.dark.png", status: "new", baseline: null, capture: "d" };
+            const captures = { [sha]: { clean: true, run: "https://r/2", changed: [item], flaky: [] } };
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha, captures }));
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /waiting: #9 draws 1 screenshot\(s\) differently in CI/);
             assert.deepEqual(shipped(), []);
         });
 

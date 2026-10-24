@@ -1695,7 +1695,51 @@ function shipReady(ctx) {
         return { pr, error: `#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it` };
     const unverified = cutUnverified(ctx, pr.headRefOid);
     if (unverified) return { pr, error: `#${pr.number} ${unverified}` };
+    const drawnOtherwise = ciScreenshots(ctx, pr.headRefOid);
+    if (drawnOtherwise) return { pr, error: `#${pr.number} ${drawnOtherwise}` };
     return { pr };
+}
+
+/**
+ * What CI's own capture of the cut's verified commit found (verify.mjs captureChanges, #3363), printed: the images
+ * CI draws differently from the baselines it compared with, and the flaky ones. A changed image whose baseline at
+ * the cut's head is still the one CI compared with fails the cut's visual gate, so ship and auto-ship refuse it
+ * (auto-ship ships only cuts with no changed screenshot); one whose baseline the owner replaced since is the
+ * gate's to judge. A cut with no CI capture (local verification, a tree CI cannot run) is refused nothing here.
+ * @param ctx the run's context
+ * @param head the cut pull request's head
+ * @returns the refusal, or null
+ */
+function ciScreenshots(ctx, head) {
+    const record = cutCaptures(ctx, head);
+    if (!record?.changed) return null;
+    const [baselines] = reviewDirs(ctx);
+    const oid = (i) => {
+        const pointer = git(ctx, ctx.main, ["show", `${head}:${baselines}/${i.project}/${i.file}`], { ok: true });
+        return /^oid sha256:(\w+)$/m.exec(pointer.stdout ?? "")?.[1] ?? null;
+    };
+    const name = (i) => `${i.project}/${i.file} ${i.status}`;
+    const open = record.changed.filter((i) => oid(i) === (i.baseline ?? null));
+    for (const i of record.changed) {
+        console.log(
+            `land: CI screenshot ${open.includes(i) ? "changed" : "changed, approved again since"}: ${name(i)}`,
+        );
+    }
+    for (const i of record.flaky ?? []) console.log(`land: CI screenshot flaky: ${name(i)}`);
+    if (!open.length) return null;
+    const list = open.slice(0, 5).map(name).join("; ");
+    return (
+        `draws ${open.length} screenshot(s) differently in CI (${record.run}) from the approved baselines, so ` +
+        `its visual gate would fail: ${list}. Fix the story and cut-fix it, or have the owner approve CI's picture`
+    );
+}
+
+// The CI capture record (verify.mjs passedCommit) of a commit with the cut head's files outside the screenshot
+// review's own directories: golden-cut's own verification first, then golden's, newest first.
+function cutCaptures(ctx, head) {
+    const of = (file) => Object.entries(readJson(join(ctx.main, `tmp/golden/${file}`))?.captures ?? {}).reverse();
+    const found = [...of(`verify-${CUT}.json`), ...of("verify.json")].find(([c]) => sameOutsideReview(ctx, c, head));
+    return found?.[1] ?? null;
 }
 
 function markReady(ctx, pr) {

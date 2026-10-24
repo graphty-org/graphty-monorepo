@@ -24,6 +24,7 @@ import { failureHashes, newRunId, rebuild, writeRecord } from "./test-ledger.mjs
 import {
     backendOf,
     bounds,
+    captureChanges,
     captureProblems,
     brokerVerdict,
     ciGate,
@@ -1070,6 +1071,23 @@ describe("verification in CI (ciGate)", () => {
         assert.match(describeState(d), /screenshots: NOT clean, so never cut: visual \(graphty\) ended failure/);
     });
 
+    it("reads a project's newest capture attempt for its changed images", () => {
+        const at = join(dir, "changes");
+        const write1 = (name, items) => {
+            mkdirSync(join(at, name), { recursive: true });
+            writeFileSync(join(at, name, "results.json"), JSON.stringify({ complete: true, items }));
+        };
+        write1("visual-graphty-1", [{ file: "x.png", status: "changed", flaky: false }]);
+        write1("visual-graphty-2", [{ file: "x.png", status: "unchanged", flaky: true }]);
+        const jobs = [{ name: "Verify / visual (graphty)" }, { name: "Verify / visual (layout)" }];
+        const r = captureChanges(jobs, at);
+        assert.deepEqual(r.changed, []);
+        assert.deepEqual(
+            r.flaky.map((i) => i.file),
+            ["x.png"],
+        );
+    });
+
     it("finds no capture job in a run without one, which is not clean", () => {
         assert.deepEqual(captureProblems([{ name: "Verify / Build", conclusion: "success" }], join(dir, "none")), [
             "the run has no screenshot capture job",
@@ -1278,6 +1296,47 @@ describe("verification in CI (ciGate)", () => {
         const point = await ciGate(c, tip, { ref: "golden-bisect-1", kind: "bisect", shards: ["s1"] });
         assert.equal(point.code, 0);
         assert.ok(calls.includes(`workflow run golden-verify.yml -f ref=${tip} -f shards=["s1"]`), "with its shards");
+    });
+
+    it("records the images CI draws differently from their baselines, and the flaky ones, for golden-cut too", async () => {
+        // After the test above put golden-verify.yml on master, so CI can run the cut.
+        const cut = land("cap3", { "cap3.txt": "3\n" });
+        const item = (file, status, flaky = false) => ({ id: file, file, status, flaky, baseline: "b", capture: "c" });
+        const results = {
+            complete: true,
+            items: [
+                item("a.dark.png", "unchanged"),
+                item("a.light.png", "unchanged", true),
+                item("b.dark.png", "changed"),
+                item("c.dark.png", "excluded"),
+                item("d.dark.png", "new"),
+            ],
+        };
+        const { c } = ciCtx(
+            [
+                releaseIdle,
+                [/workflows\/golden-verify\.yml\/runs/, runOf(cut, { status: "completed", conclusion: "success" })],
+                [/actions\/runs\/7\/jobs/, { jobs: visualJobs() }],
+                [/^run download 7 /, artifacts({ "visual-graphty-1/results.json": results })],
+            ],
+            undefined,
+            { branch: "golden-cut" },
+        );
+        await setBackend(c, "ci");
+        await requestVerification(c, cut);
+        await settle();
+        const s = readState(c);
+        assert.equal(s.verified, cut);
+        const name = (i) => `${i.project}/${i.file} ${i.status}`;
+        assert.deepEqual(s.captures[cut].changed.map(name), ["graphty/b.dark.png changed", "graphty/d.dark.png new"]);
+        assert.deepEqual(s.captures[cut].flaky.map(name), ["graphty/a.light.png unchanged"]);
+        assert.deepEqual(s.captures[cut].changed[0], {
+            project: "graphty",
+            file: "b.dark.png",
+            status: "changed",
+            baseline: "b",
+            capture: "c",
+        });
     });
 
     it("quarantines the tests a green run let through as flaky, with the range's landings as suspects", async () => {

@@ -327,6 +327,9 @@ Flaky is a fact about history, not a diagnosis: the issue still goes to an agent
 
 ### 5.4 History adds and drops tests
 
+Superseded by `design/ci/history-selection.md` (phase 2, issue #3324), which redoes adds and drops for the
+light gate of `design/ci/ci-full-testing.md`. The text below is the earlier plan, kept for its reasoning.
+
 **Adds (phase 3).** For a land check with selection on, the gate adds every test file with a miss in
 90 days from a file this change touches, and every test file in an affected package that failed on
 golden in 7 days and passed since (flaky ones excluded). Only shards where the selector allows file
@@ -442,9 +445,10 @@ Each phase lands alone and is useful alone.
    points; kinds; verification running every shard; issue files; the re-run on golden's tip with
    `[KNOWN]`; `gate-known` and the gate-key change; the 2026-10-22 replay.
 2. **Flaky and broken**: classification, point verdicts, the flaky bisect, `failed-known`.
-3. **History adds**, with misses.
-4. **History drops in shadow**, switched on once 5.4's bar is met.
-5. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
+3. **History-based selection** (`design/ci/history-selection.md`): miss files after a bisect, relative
+   test paths, retry-passes never let through unseen, and a ranking in `test:changed` only; no gate step,
+   no adds, no drops (the replay found nothing worth either).
+4. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
    quarantine itself is on since 2026-10-22, 4.4).
 
 ## 11. Decisions for the owner, and what this changes

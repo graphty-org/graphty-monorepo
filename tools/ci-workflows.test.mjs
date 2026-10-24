@@ -4352,6 +4352,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(
                 join(dir, "tools/check-figma-lock.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
+            );
+            writeFileSync(
                 join(dir, "tools/release-dry-run.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );

@@ -4,6 +4,10 @@ Status: Built, 2026-10-22: `pnpm run test:changed`, selection in the gate (on by
 misses mutation testing found were fixed; section 5.1) and `tools/test-select-mutate.mjs`. Issue #3276,
 part of the fast pipeline (#3262, `design/ci/fast-pipeline.md`, section 5).
 
+Partly superseded on 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the gate no longer
+runs tests, so selection in the gate (section 1.2) stops applying to pushes, and verification (1.3)
+is a full CI run. Selection stays for `pnpm run test:changed`, hand runs and bisect.
+
 Running tests is the slowest part of getting a change into graphty-monorepo. A golden landing waits
 for every test shard of every package nx calls affected, and graphty-element's ten browser and
 Storybook shards alone take most of an hour. Most of those tests cannot fail because of the change:
@@ -61,6 +65,8 @@ run here does.
 
 ### 1.2 Landing check: selection in the gate
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the landing check runs no test shards (the light gate). Selection in the gate applies only with `PREPUSH_LIGHT=0`.
+
 `tools/prepush-tests.mjs` computes the selector's answer for every push and writes it to
 `tmp/test-select/advisory.jsonl` beside what it actually ran. By default (`PREPUSH_SELECT` unset or `1`) it
 asks about every shard of the matrix but the "never" ones -- not only the shards of nx's affected packages
@@ -92,6 +98,8 @@ counts as a pass of the whole shard, so a later full run, or verification, canno
 because a subset of it passed.
 
 ### 1.3 Verification, the cut and the release train stay full
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): verification is a full `ci.yml` run in GitHub CI on golden's newest commit; coverage thresholds are checked there. The cut's gate is light; the cut pull request's CI run and the release train are unchanged.
 
 Verification sets `PREPUSH_ALL=1`, and the gate ignores `PREPUSH_SELECT` whenever `PREPUSH_ALL` is
 set. A push to golden-cut or master (`land.mjs cut` and `cut-fix` set `PREPUSH_SELECT_BASE` to

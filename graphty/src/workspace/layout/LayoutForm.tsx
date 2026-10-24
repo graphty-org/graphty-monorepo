@@ -163,6 +163,34 @@ function mapFieldWords(
 }
 
 /**
+ * What picking a shape asks for.
+ * @param picked - The shape picked.
+ * @param start - What the form started with, when the shape picked is the one it is drawn in.
+ * @param start.values - Its values.
+ * @param start.engine - Its engine.
+ * @param values - The form's values.
+ * @param engine - The form's engine.
+ * @returns The values and the engine (undefined: the layout's default).
+ */
+function shapePicked(
+    picked: "2d" | "3d",
+    start: { values: Record<string, unknown>; engine: string | undefined } | null,
+    values: Record<string, unknown>,
+    engine: string | undefined,
+): { values: Record<string, unknown>; engine: string | undefined } {
+    if (start !== null) {
+        // Back to what is drawn: its own dim (or none) and engine.
+        const { dim: _dim, ...rest } = values;
+        return {
+            values: start.values.dim === undefined ? rest : { ...rest, dim: start.values.dim },
+            engine: start.engine,
+        };
+    }
+    // A flat-only engine cannot draw 3D: the layout's default engine does.
+    return { values: { ...values, dim: picked === "2d" ? 2 : 3 }, engine: picked === "3d" ? undefined : engine };
+}
+
+/**
  * Shape: whether the layout is drawn in 3D or flat in the 3D view.
  * @param props - Component props
  * @param props.id - The layout's id, for the label's id
@@ -343,18 +371,9 @@ export function LayoutForm({
         edit(next);
     };
     const pickShape = (picked: "2d" | "3d"): void => {
-        if (picked === startShape) {
-            // Back to what is drawn: its own dim (or none) and engine.
-            const { dim: _dim, ...rest } = values;
-            edit(start.values.dim === undefined ? rest : { ...rest, dim: start.values.dim });
-            setEngine(start.engine);
-            return;
-        }
-        edit({ ...values, dim: picked === "2d" ? 2 : 3 });
-        // A flat-only engine cannot draw 3D: the layout's default engine does.
-        if (picked === "3d") {
-            setEngine(undefined);
-        }
+        const next = shapePicked(picked, picked === startShape ? start : null, values, engine);
+        edit(next.values);
+        setEngine(next.engine);
     };
 
     // The map's form: which columns "Automatic" used, the warnings about what they held, Map type

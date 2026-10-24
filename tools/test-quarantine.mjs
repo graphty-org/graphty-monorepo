@@ -52,7 +52,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
 import { expectedRuns } from "./shard-verdict.mjs";
-import { checkQuarantine, familyOf, outcomeOf, parseJunit } from "./test-ledger.mjs";
+import {
+    checkQuarantine,
+    failuresBefore,
+    familyOf,
+    headFacts,
+    openLedger,
+    outcomeOf,
+    parseJunit,
+} from "./test-ledger.mjs";
 import { selectedCommand } from "./test-select.mjs";
 
 const DAY = 86_400_000;
@@ -252,8 +260,9 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
                 ? await retryFailed({ root, shard, first, family, list, env, viaRunTests, reports })
                 : null;
         if (retry) result = { ...result, ...retry.facts };
-        const d = decide({ family, first, firstOutcome, second: retry?.second, list });
+        const d = blameChange(decide({ family, first, firstOutcome, second: retry?.second, list }), root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
+        result.suspects = d.suspects;
         printDecision(shardName, d, env);
         if (d.pass) code = 0;
     } catch (e) {
@@ -264,6 +273,38 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
         if (env.TEST_QUARANTINE_RESULT) writeFileSync(env.TEST_QUARANTINE_RESULT, JSON.stringify(result));
     }
     return code;
+}
+
+/**
+ * A land check's flaky tests that the ledger has no failure of before this change: the change made them
+ * intermittent, so they fail the land check (`[NEW-FLAKY]`) instead of going to the quarantine, and the rest are
+ * quarantined with the landing as suspect (design/ci/history-selection.md, section 6). Elsewhere, or with no
+ * ledger, decide() stands, with the landing still named as suspect.
+ * ponytail: an earlier land check of the same branch counts as a failure before; a re-land after a retry is
+ * quarantined, not blamed.
+ * @param d decide()
+ * @param root the checkout
+ * @param family the shard's family
+ * @param env the environment (TEST_LEDGER_KIND)
+ * @param [ledger] openLedger (tests replace it)
+ * @returns decide() with `caused` and `suspects`
+ */
+export function blameChange(d, root, family, env, ledger = openLedger) {
+    if (env.TEST_LEDGER_KIND !== "land-check" || d.flaky.length === 0) return { ...d, caused: [] };
+    const head = headFacts(root, env);
+    const suspects = [{ sha: head.commit, branch: head.branch }];
+    const l = ledger(env, root);
+    if (!l.db) return { ...d, caused: [], suspects };
+    let caused;
+    try {
+        const range = { from: "", before: new Date().toISOString(), commits: [head.commit] };
+        caused = d.flaky.filter((f) => failuresBefore(l.db, { ...f, family }, range) === 0);
+    } finally {
+        l.db.close();
+    }
+    if (caused.length === 0) return { ...d, caused, suspects };
+    const flaky = d.flaky.filter((f) => !caused.includes(f));
+    return { ...d, pass: false, flaky, failing: [...d.failing, ...caused], caused, suspects };
 }
 
 /**
@@ -324,7 +365,14 @@ function printDecision(shard, d, env) {
         const line = `[QUARANTINED] ${shard}: ${idOf(f)} failed again; it is quarantined, so it does not fail the shard`;
         console.log(gh ? `::warning::${line}` : `test-quarantine: ${line}`);
     }
-    for (const f of d.failing) console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} failed every time`);
+    for (const f of d.caused ?? []) {
+        console.log(
+            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
+        );
+    }
+    for (const f of d.failing.filter((x) => !d.caused?.includes(x))) {
+        console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} failed every time`);
+    }
 }
 
 /**
@@ -428,7 +476,7 @@ export function fileIssue(t, had, gh) {
         ...(t.suspects?.length
             ? [
                   "",
-                  "Suspects, the landings in the range it failed in:",
+                  "Suspects, the landings that may have made it intermittent:",
                   ...t.suspects.map((l) => `- ${l.sha} ${l.branch}`),
               ]
             : []),
@@ -497,6 +545,7 @@ export function afterShard({ main, root, shard, inputKey, result, gh = ghCli, da
                     since: day,
                     expires: plusDays(day, 14),
                     excerpt: f.excerpt,
+                    suspects: result.suspects,
                 });
             }
             if (inputKey && result.failing?.length) state.failedByKey[inputKey] = result.failing;

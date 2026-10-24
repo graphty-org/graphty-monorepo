@@ -1,29 +1,30 @@
 # History-based test selection
 
-Status: Proposed, 2026-10-23. Issue #3324. Phase 2 of the test ledger (`design/ci/test-ledger.md`):
-the ledger's first phase records every test result; this phase uses those results to choose and
-rank tests. It replaces the "history adds" and "history drops" parts of that document (its sections
-5.4 and 10, items 3 and 4), which were written for a gate that ran test shards.
+Status: Built, 2026-10-23, small. Issue #3324. Phase 2 of the test ledger (`design/ci/test-ledger.md`):
+the ledger's first phase records every test result; this phase uses those results to rank the tests a
+developer runs by hand, fixes the data defects that split its history, and closes the quarantine's gap
+where a change that makes a test intermittent got through unseen. It replaces the "history adds" and
+"history drops" parts of that document (its sections 5.4 and 10, items 3 and 4), which were written for a
+gate that ran test shards.
 
 Words used throughout:
 
 - **the light gate**: `tools/prepush.sh` with its test stage off (`PREPUSH_LIGHT=1`), the gate every
-  push and landing runs once `design/ci/ci-full-testing.md` is switched on. It builds, lints, runs
-  SonarQube and the NVIDIA GPU tests, and no test shard.
+  landing runs once `design/ci/ci-full-testing.md` is switched on. It builds, lints, runs SonarQube and the
+  NVIDIA GPU tests, and no test shard.
 - **CI verification**: the full `ci.yml` run on golden's newest commit (`golden-verify.yml`, started by
   `tools/verify.mjs`). It runs every test, and a failure is bisected to the landing that caused it.
 - **import selection**: `tools/test-select.mjs`, which maps changed files to the test files that
   import them (`design/ci/minimal-tests.md`).
-- **a change-caused failure**: a test file that failed because of a change, not because it is flaky
-  or was already failing on golden. The evidence is a bisect that names the landing, or a land check
-  that failed a test that golden's tip passed.
+- **a retry-pass**: a test that failed and then passed when the quarantine wrapper
+  (`tools/test-quarantine.mjs`) ran its file once more.
+- **a change-caused failure**: a test file that failed because of a change, not because it is flaky or
+  was already failing on golden. Only a bisect that names the landing proves one.
 
 ## 1. What the history says
 
-Measured from the ledger on 2026-10-23 (`node tools/test-ledger.mjs sql`; 13,586 invocations from
-2026-10-08 to 2026-10-24, imported history included; the script is
-`tmp/history-selection-3324/measure.mjs` in the main checkout). One "failure" below is one test file
-failing on one commit.
+Measured from the ledger on 2026-10-23 (13,586 invocations from 2026-10-08 to 2026-10-24, imported
+history included). One "failure" is one test file failing on one commit.
 
 | Measure                                                                                                   | Count       |
 | --------------------------------------------------------------------------------------------------------- | ----------- |
@@ -33,233 +34,131 @@ failing on one commit.
 | Predicted by history from other branches: the file failed in 7 days, in a touched package                 | 35          |
 | Predicted by co-failure: the file failed in 90 days on another branch's change that shared a changed file | 19          |
 | Predicted by either                                                                                       | 40 (18%)    |
-| No change computable (commit no longer exists)                                                            | 19          |
 
-The import selector's replay (`design/ci/test-selection-replay.md`) found 11 misses in 1,185 gate
-runs. History explains all of the 9 that name a test file, and none of them was the change's fault:
+The import selector's replay (`design/ci/test-selection-replay.md`) found 11 misses in 1,185 gate runs.
+All 9 that name a test file were the change's fault in none of the cases: 6 were flaky tests that had
+failed on another branch in the 7 days before, and 3 were tests already failing on golden. So **import
+selection has no change-caused miss on record**, and history does not find tests that import selection
+misses. Section 5 replays the ledger again with the inputs that survive the new regime, and confirms it.
 
-- 6 were flaky tests that had failed on another branch in the 7 days before
-  (`coverage-frees-removed-pages.test.ts` three times, `render-budget.test.ts`, `page.test.mjs`,
-  `PaintTreeStyle.real-element.test.tsx`).
-- 3 were tests already failing on golden, 14 to 17 minutes earlier (the start-page tests on
-  2026-10-20 and 2026-10-21).
-- The other 2 name no test file, so no history can point at them.
+## 2. Review: what changed in this design, and why
 
-So the import selector has no change-caused misses on record. History does not find tests that import
-selection misses; it tells us **which of the selected tests are most likely to fail**, and which are
-flaky or already broken. That decides the design: history ranks within a budget, it is not a second
-selector.
+The first draft (2026-10-23, commit e6b33107a8) put a budgeted "likely tests" step into the light gate,
+added co-failure tests outside import selection, and added a drop switch in shadow. Its review raised
+nine problems. Each is settled here.
 
-Unbudgeted, history would add a median of 13 and a 90th percentile of 62 test files per change, most
-of them flaky tests in a big package. Adds are therefore capped and ranked, never run wholesale.
+| #   | Problem                                                                                                                                           | Settled                                                                                                                                                                                                                                                                                                                            |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | (blocker) The gate step puts tests back into the light gate, which the owner asked to be lint, build, SonarQube and GPU only                      | **Fixed: the step is deleted.** No gate runs history ranking. Tests in landings would be a change to `design/decisions/2026-10-23-full-tests-in-ci-adopted.md`, for the owner, not for this design.                                                                                                                                |
+| 2   | (blocker) Tests beside lint on this machine would block landings on load failures, and spread quarantine decisions across every landing           | **Fixed with 1.** Confirmation, quarantine and revert stay in `verify.mjs`.                                                                                                                                                                                                                                                        |
+| 3   | (major) The step would run inside verification's bisect gates (`localGate`, `PREPUSH_LIGHT=1`, `PREPUSH_ALL=1`) and could blame the wrong landing | **Fixed with 1:** with no step there is nothing to run at a bisect point. No `PREPUSH_LIKELY` switch exists to set; `localGate` is unchanged.                                                                                                                                                                                      |
+| 4   | (major) A change that makes a test fail some of the time got through: a retry-pass was quarantined, CI counted it as passed, no miss, no bisect   | **Fixed, section 6**, for both places a retry-pass happens: a land check (`PREPUSH_LIGHT=0`) fails on one with no failure before the change and names the landing as suspect for the rest; CI verification keeps retry-passes as failures, and reads a green run's `[FLAKY]` warnings.                                             |
+| 5   | (major) The numbers argue against co-failure adds: no change-caused miss on record, history predicted 18%                                         | **Fixed: co-failure adds are cut.** Ranking stays only in `pnpm run test:changed --dry-run` and `--budget`, as an aid for the developer. The replay (section 5) measures what adds would have cost and caught: 217 minutes, 0 of 9 misses.                                                                                         |
+| 6   | (major) Most inputs stop arriving once tests leave branches: co-failure and "recent" were measured from branch-side runs                          | **Fixed: the inputs are re-derived** from what the new regime produces: CI verification (kinds `verify`, `bisect`, `cut`, `base`) and bisect culprits (miss files). Every branch-side measure is dropped.                                                                                                                          |
+| 7   | (major) The drop switch has almost nowhere to run, and its bar counts CI runs that CI never makes                                                 | **Fixed: the drop switch is deleted.** Would-drops are computed offline, in `node tools/test-history.mjs replay`, from the ledger. Section 5 has the numbers: the rule drops nothing on golden-side history, and a looser one saves 21 of 429 minutes with 5 misses.                                                               |
+| 8   | (major) Over-built: a 250-line tool, a four-term score, a budget, exclusions, shadow mode and two bars, to rank tests CI runs 37 minutes later    | **Fixed: shrunk** to the data fixes (relative paths, misses with `ran`), the quarantine fix, a three-term ranking in `test:changed`, and an offline replay. The `changed` column is **rejected**: its only reader was co-failure, which is cut; a miss carries its culprit's changed files, and the replay takes changes from git. |
+| 9   | (major) The 30-day bar may never decide, and a `[LIKELY]` failure is not proven change-caused                                                     | **Fixed: the default is deletion** (section 7). Only bisect-proven change-caused failures (miss files) count.                                                                                                                                                                                                                      |
 
-Two data defects must be fixed first, because each splits or empties a history:
+## 3. What runs where
 
-- Some webgpu-graph-algorithms file names hold an absolute worktree path
-  (`webgpu-graph-algorithms/no-subgroups//home/.../.worktrees/land-check-2/.../bfs.test.ts`), so the
-  same test has one history per worktree. The JUnit parser must make paths relative to the package.
-- 589 invocations this week are `unattributed` (no JUnit carries their run id), and the `miss` table of
-  the ledger's section 4.1 does not exist yet, so no miss has ever been recorded.
+| Place                                      | What history does                                                                            |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| The light gate, land checks, bisect points | Nothing. No history step exists.                                                             |
+| `pnpm run test:changed`                    | Ranks the import-selected files and prints why; `--budget <s>` runs the top ones that fit    |
+| CI verification                            | Nothing is ranked or ordered: the 25 test jobs run at once and each runs to the end          |
+| After a bisect names a culprit             | `verify.mjs` writes a miss file, the only proof of a change-caused failure the ranking reads |
+| A retry-pass (gate or CI)                  | Section 6: it is never silently let through as someone else's flake                          |
 
-## 2. What others do
+History never adds a test import selection did not pick and never drops one, except where a developer
+asks `test:changed --budget` to cut.
 
-- **Anthropic** picks each pull request's tests with a "deterministic test selection service" from
-  package relevance and past results. A listener records every CI result; when it lagged, flaky tests
-  blocked merges and bad merges spread failures. Misses are caught after merge by automated bisect and
-  revert. Our match: import selection is finer than package relevance, the ledger is the listener (it
-  cannot lag: the run writes its own record), and CI verification with bisect is the backstop.
-- **Google TAP** selects by the build graph, runs the affected targets after submit in batches, and
-  finds culprits. Its published analysis found that tests far from the change in the dependency graph
-  and with no failure history rarely fail, which is the rule behind our drop switch (section 4.3).
-- **Meta's predictive test selection** trains a model on changed files, test history and graph
-  distance, and catches over 95% of individual failures and over 99.9% of faulty changes while running
-  a fraction of the tests. It needs years of data and a training pipeline; we have weeks, so we use
-  counts.
-- **Launchable (CloudBees)** ranks tests by predicted failure for the change and runs a subset with a
-  time target ("the most likely to fail in 10 minutes") before merge and the full suite later. Our
-  budget is that idea without the model.
+## 4. The ranking
 
-## 3. Where selection runs
-
-| Place                                   | What history does                                                     | Default                     |
-| --------------------------------------- | --------------------------------------------------------------------- | --------------------------- |
-| The light gate (every landing and push) | Runs the highest-ranked test files for the change, in a fixed budget  | On, 180 s budget            |
-| `pnpm run test:changed`                 | `--budget <s>` runs exactly what the gate would; `--dry-run` explains | Unbudgeted, as today        |
-| CI verification                         | Nothing: it runs every test to the end                                | -                           |
-| The drop switch                         | Leaves out import-selected files history says never fail              | Off (`shadow` logging only) |
-
-### 3.1 The light gate: likely tests in a budget
-
-The owner asked for landing checks under 10 minutes that test the exact change, and later for a
-light gate of lint, build, SonarQube and GPU with the full tests in CI. A small budgeted test step
-serves both: it tests the exact change, and it cannot grow past its budget.
-
-**The step, "Likely tests".** After the build (the tests read other packages' `dist/`), beside lint
-and knip, as the NVIDIA step already runs beside other steps:
-
-1. The change is the push's files since its push base (`tools/push-base.mjs`); for a land check,
-   the branch against golden's tip.
-2. The candidates are import selection's file-level answer for that change, plus at most 20
-   co-failure adds (section 4.1), only in shards whose command is a plain vitest run
-   (`selectedCommand()` in `tools/test-select.mjs`). A shard whose selection is "all" contributes its
-   files, not the whole shard.
-3. Left out, each printed once: tests in `tools/test-quarantine.json` or the gate's local quarantine
-   state, tests failing on golden right now (the open `Failing on golden` signatures and the last CI
-   verification's failures), and the lifecycle and GPU families (the NVIDIA step owns the GPU tests).
-   A test already failing on golden would block every unrelated landing, which the owner's rule forbids;
-   verification and its issue own it.
-4. The candidates are ranked (section 4.1) and taken in order until their recorded durations add up to
-   `PREPUSH_LIKELY` seconds (default 180; `0` turns the step off). A file with no recorded duration
-   counts 30 s. One file is always taken, even past the budget.
-5. They run as one `vitest run` per shard (`selectedCommand()`), no coverage, under one test slot,
-   through `tools/test-quarantine.mjs`, so a failing file gets the quarantine's one retry and a test
-   that then passes is quarantined with its issue, as in every other gate run. A failure that the retry
-   confirms fails the gate. The step records its runs in the ledger as kind `land-check` or `push`.
-6. It prints one line per file run: `[LIKELY] graphty/src/a.test.tsx score 7 (co-failed 2x with
-src/a.tsx, edited)`, and one summary: `[LIKELY] 9 of 41 selected files, 172 s of 180 s`.
-
-`PREPUSH_LIKELY` joins `laneEnv()` in `tools/prepush-inputs.mjs`, so a pass with one budget never
-stands in for another. Wall time is about the budget divided by the vitest workers, mostly hidden
-behind lint.
-
-**What the budget leaves out is not lost.** CI verification runs every test about 37 minutes later. A
-change-caused failure the step did not run is bisected to its landing and reverted, and verify writes a
-miss (section 4.2), which raises that test's score for the next change to the same files.
-
-### 3.2 `pnpm run test:changed`
-
-Unchanged by default: it runs every import-selected file. `--budget <s>` runs exactly the gate's
-likely-tests set, so passing it means the gate's step passes. `--dry-run` prints every candidate with
-its score, the reasons and the budget line. It reads the ledger, never writes it.
-
-### 3.3 CI verification: no ordering
-
-Ordering shards or files by failure likelihood in CI buys nothing: the 25 test jobs run at once, each
-runs to the end with no bail, and `verify.mjs` already fails fast on the first failed job. So CI is not
-touched. Its results do feed the history: section 5.
-
-## 4. The scoring
-
-### 4.1 Score
-
-For candidate test file `t` and a change `C` (its changed files minus the lockfile, root configs,
-`.github/`, `design/`, `reports/` and `visual-baselines/`, which change for everything):
+`tools/test-history.mjs`, for candidate test file `t` and a change `C` (its changed files):
 
 ```
-score(t) = 3 x causes(t, C)    // bisect named a landing that changed a file in C and t failed
-         + 1 x cofail(t, C)    // t failed on another change that shared a file with C, capped at 5
-         + 2 x edited(t)       // C edits t itself
-         + 1 x recent(t)       // t failed anywhere in the last 7 days
+score(t) = 3 x culprits(t, C)   // a miss file names t, and its culprit changed a file in C (90 days)
+         + 2 x edited(t)        // C edits t itself
+         + 1 x golden(t)        // t failed in a golden-side run (verify, bisect, cut, base) in 7 days
 ```
 
-- `causes`: miss and cause records (section 4.2) from 90 days, distinct landings.
-- `cofail`: distinct changes in 90 days, on another branch, of at most 30 files (a bigger change
-  pairs everything with everything), in which `t` failed with outcome `failed`, not on golden at the
-  time, and not proven flaky (the ledger's section 4.2).
-- `recent`: any failure, flaky included; it ranks the test up, and the quarantine retry absorbs a
-  flake.
+Ties go to the shorter file, then the name. A file's time is the median of its last 5 recorded runs, or
+30 s. Every term is printed beside the file: `layout/test/a.test.ts  score 3, 4 s (failed after landing
+fix/1-x, which also changed layout/src/x.ts)`. `--budget <s>` takes files in rank order until their
+times reach `s` seconds (the first always), and a whole-shard run is never cut.
 
-Ties go to the shorter file (more tests in the budget), then the name. Every term is a count anyone can
-check with `node tools/test-ledger.mjs why <file>`. No weights are learned and no library is added; if
-the replay (section 5) shows a weight is wrong, it is changed by hand.
+- **Cold start** (an empty ledger): every score is `edited` only, so edited files come first, then by name.
+- **Ledger unavailable** (missing, locked, incomplete, `node:sqlite` absent) or `TEST_HISTORY=0`: one line,
+  `history: unavailable (<why>); ranking by import selection only`, and the cold-start order. Nothing waits
+  more than the ledger's 10 s lock, and nothing is blocked.
 
-**Co-failure adds.** A test file outside import selection with `causes + cofail >= 2` is a candidate
-too, at most 20 per change, in shards that allow file lists. Elsewhere it is logged as `would-add`.
+**Misses.** When a bisect names a culprit, `verify.mjs` writes `misses/<culprit>-<time>.json` in the
+ledger directory: the culprit, its landed branch, the files it changed, and each failing test file with
+`ran`, whether the culprit's own land check ran it (`false` is a miss of the selection). Under the light
+gate every miss has `ran: false`. The ranking reads the files directly; there is no new table.
 
-### 4.2 The data it reads
+**Relative paths.** A `classnameTemplate` of `{filepath}` (webgpu-graph-algorithms' no-subgroups pass)
+wrote `<pkg>/no-subgroups//home/.../.worktrees/<n>/<pkg>/test/x.test.ts`, so one test had one history per
+worktree (249 such file names). `relFile()` in `tools/test-ledger.mjs` makes them
+`<pkg>/no-subgroups/test/x.test.ts`, in the JUnit parser and when the index ingests a record, so a
+`rebuild` fixes the existing rows too.
 
-From the ledger, in one query per gate:
+## 5. The replay
 
-- `failure` joined to `invocation` and `test`: failures by file, time, branch and commit.
-- `file_run`: the median `ms` of a file's last 5 real runs, for the budget.
-- the change of each failing invocation: a new column `changed` (the change's files, at most 200
-  paths, as JSON), written by `record()` from the gate's own change list. Older rows get it from one
-  `git diff --name-only` against their base, or their merge base with golden. Only failing invocations
-  need it (156 commits so far).
-- `miss` files (the ledger's section 3.5), written by `verify.mjs` after a bisect for every failing
-  file of the culprit, with each file the culprit changed and a new field `ran` (whether the culprit's
-  gate ran that file; `0` is a miss). `causes` counts all of them.
-- the `Failing on golden` signatures and `tools/test-quarantine.json`, for the exclusions.
+`node tools/test-history.mjs replay [--since <date>] [--misses <file.json>]` reads the ledger only. For every
+gate run (kinds `land-check`, `push` and their imports) with recorded files, it uses only the rows before
+that run. Run on 2026-10-23 over the whole ledger (2026-10-08 to 2026-10-24), with the 9 file-named misses
+of `design/ci/test-selection-replay.md`:
 
-Imported records count toward scores: a score is a hint, not evidence, and the ledger's rule that
-imported records never excuse a failure is unchanged.
+| Question                                                                                   | Answer                                                                                               |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Gate runs with recorded files, and the test time they ran                                  | 382 runs, 429 minutes                                                                                |
+| Failures the import selector missed that history catches (score above 0 before the miss)   | **0 of 9**                                                                                           |
+| Minutes history adds to landing checks                                                     | **0**: no gate step                                                                                  |
+| If adds had run: files with a golden failure in 7 days, in a touched package, not run      | 510 file runs, 217 minutes (34 s a gate run), catching none of the 9                                 |
+| Drop rule (20 passing golden runs in 30 days, no failure in 90, not edited): drops, misses | **0 file runs dropped, 0 minutes saved, 0 misses**: no file has more than 6 passing golden-side runs |
+| Looser drop rule (20 passing runs of any kind): drops, minutes saved, misses               | 8,773 file runs, **21 minutes saved, 5 misses**                                                      |
 
-### 4.3 The drop switch
+The 5 misses of the looser rule are graphty tests that failed in a land check after 20 passes
+(`SidebarCompactIntegration.test.tsx`, `StyleTab.real-element.test.tsx`, `StartScreen.real-element.test.tsx`,
+`PaintTreeStyle.real-element.test.tsx`, `GraphPlace.test.tsx`). Dropping saves 5% of the test time and loses 5
+failures: there is no drop worth building. Adds cost 217 minutes and would have caught nothing the import
+selector missed. What is left of history is the ranking, which costs nothing because nothing runs it unasked.
 
-`PREPUSH_HISTORY_DROP`: `0` (off), `shadow` (default once CI results are ingested, section 5) or `1`.
-It applies only where import-selected files run in full: `test:changed` without `--budget`, and a gate
-with `PREPUSH_LIGHT=0` (the explicit local fallback). It never touches CI.
+## 6. The quarantine retry gap
 
-A file is a would-drop when it has 20 or more passing CI-verification runs in 30 days and no failure,
-no miss in 90 days, no change in 14 days, is not edited by this change, has `cofail` 0, and is not in a
-GPU family. In `shadow` it runs and is logged as `would-drop`; `1` leaves it out and prints `[DROP] N
-files`.
+Before this change, a test a landing made intermittent passed every check: the wrapper's one retry passed it,
+the gate quarantined it with an issue that blamed the test, CI let it through the same way, and `verify.mjs`
+dropped a failed-then-passed test from its JUnit as passed. No bisect ran, no miss was written.
 
-### 4.4 Cold start and a missing ledger
+- **A land check** (`TEST_LEDGER_KIND=land-check`, so only with `PREPUSH_LIGHT=0`): `blameChange()` in
+  `tools/test-quarantine.mjs` asks the ledger, for each retry-pass, whether the test failed anywhere before
+  this land commit (`failuresBefore`). None: the change made it intermittent, the shard fails with
+  `[NEW-FLAKY]`, and nothing is quarantined. The rest are quarantined as before, with the landing (commit and
+  branch) as suspect in the issue. Without a ledger it quarantines as before, with the suspect named.
+- **CI verification, a failed run**: a retry-pass in the failed job's JUnit is kept as a failure
+  (`retry_passed` in the record), so verification confirms it here and, newly intermittent, bisects it.
+- **CI verification, a green run**: one GraphQL call reads the run's `[FLAKY]` warnings. Each test the
+  quarantine does not list yet is recorded in the ledger (kind `verify`, outcome `passed`, the failure kept)
+  and quarantined with the range's landings as suspects; its issue says `newly intermittent` when the ledger
+  has no failure of it before the range. The run stays green, as CI judged it. A CI-only intermittent test
+  is reported, not bisected (a `ponytail` note in `verify.mjs` says when to add that).
 
-- **No history**: every score is `edited` only, so the step runs the test files the change edits, then
-  import-selected files shortest first, at 30 s each until measured: about 6 files in the budget.
-  Ranking improves as CI results arrive; nothing waits for it.
-- **Ledger missing, locked, incomplete or broken**: one line, `history: unavailable (<why>); ranking
-by import selection only`, and the cold-start order. The gate never blocks on the ledger and never
-  waits more than the ledger's 10 s lock.
-- **Import selection fails** (no graph): the step prints why and runs nothing; CI covers it.
+## 7. When the ranking is deleted
 
-## 5. Feeding it: CI results
+The ranking stays only if it earns its place: after 30 days, at least 10 miss files (bisect-proven
+change-caused failures), and in at least 7 of them the failing file ranked in the top 10 of
+`test:changed`'s order for the culprit's change (the replay computes this from the miss files). Fewer
+than 10 miss files in 30 days, or fewer than 7 ranked, and `tools/test-history.mjs` and the `test:changed`
+ranking are deleted; the data fixes and the quarantine fix stay. Both outcomes are two-way doors.
 
-Once verification runs in CI, this machine runs few tests, so the history must come from CI. After
-every completed CI verification run, `verify.mjs` downloads the `junit-<shard>` artifacts (one list
-call and one download per shard, about 37 REST calls a run, about 15 an hour) and records each shard as
-kind `ci`, with the run's commit. This is the ledger's phase 5 item "the release train's JUnit as kind
-`ci`", brought forward and applied to verification. `ci` records count toward scores and the drop rule's
-passing runs; they are evidence only where the ledger already says so.
+## 8. Code
 
-## 6. How it is measured
-
-`node tools/test-history.mjs replay [--since <date>]` replays every change with a change-caused
-failure (bisect culprits, and land-check failures of tests golden's tip passed), and a sample of 200
-changes without one. For each it ranks with only the rows recorded before the change, applies the
-budget, and reports:
-
-- **recall at budget**: the share of change-caused failing files the budgeted set held;
-- **minutes**: the budgeted set's recorded time against all import-selected files;
-- **misses**: each change-caused failure outside the set, with its score and rank.
-
-`node tools/test-ledger.mjs status` adds the live figures: the step's recall over 30 days (from miss
-records with `ran` 0 and `[LIKELY]` failures), its median wall time, and the drop switch's would-drop
-file runs and would-misses.
-
-**Bars, all two-way doors:**
-
-- **The likely-tests step stays** when, after 30 days with at least 20 change-caused failures, its
-  recall is 70% or more and its median wall time is under 4 minutes. Below 50% recall, or over 4
-  minutes, the step is deleted: CI catches the rest, and a step that rarely catches anything is
-  machinery for nothing.
-- **The drop switch goes to `1`** after 2,000 would-drop file runs in CI over 100 or more landings with
-  no would-miss on a non-flaky test. Two live misses in 30 days return it to `shadow`, and a missed file
-  is never dropped again for 90 days.
-
-## 7. Code and size budget
-
-| File                                                                     | Holds                                                                  | Budget    |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------- | --------- |
-| `tools/test-history.mjs` (new)                                           | the score query, ranking, budget, exclusions, `replay`                 | 250 lines |
-| `tools/test-history.test.mjs`                                            | `node:test`: scores, budget, exclusions, cold start, no ledger, replay | 200 lines |
-| `tools/test-ledger.mjs`                                                  | the `changed` column, `ran` on misses, kind `ci`, relative paths       | +30 lines |
-| `tools/verify.mjs`                                                       | download and record CI JUnit, write misses after a bisect              | +50 lines |
-| `tools/prepush.sh`, `tools/prepush-inputs.mjs`, `tools/test-changed.mjs` | the step, the key, `--budget`                                          | +40 lines |
-
-`tools/test-ledger.mjs` is already at 967 lines against its 950-line budget, so it gets only the data
-changes and must shed 47 lines first; everything about selection goes in the new file. The new code
-keeps SonarQube's limits (cognitive complexity 15 per function).
-
-## 8. Build order
-
-Each step lands alone; the gate step is useful from the first day because of cold start.
-
-1. Data fixes: relative test paths, the `changed` column, misses with `ran`.
-2. CI results recorded as kind `ci` after each verification run.
-3. `tools/test-history.mjs` with `replay`; `test:changed --budget` and `--dry-run`.
-4. The light gate's likely-tests step, at 180 s, live through `tools/live.sh gate`.
-5. The drop switch in `shadow`; `status` figures.
-6. After 30 days: the bars in section 6 decide whether the step stays and whether drops go to `1`.
+| File                                       | Holds                                                                              |
+| ------------------------------------------ | ---------------------------------------------------------------------------------- |
+| `tools/test-history.mjs` (new, ~270 lines) | the score, rank, budget, miss files, `replay`                                      |
+| `tools/test-history.test.mjs`              | `node:test`: scores on a fixture ledger, cold start, no ledger, the switch, replay |
+| `tools/test-ledger.mjs`                    | `relFile()` (+16 lines)                                                            |
+| `tools/test-quarantine.mjs`                | `blameChange()`, `[NEW-FLAKY]`, suspects for a land check                          |
+| `tools/verify.mjs`                         | retry-passes kept, a green run's flakes, miss files after a bisect                 |
+| `tools/test-changed.mjs`                   | the ranking, `--budget`                                                            |

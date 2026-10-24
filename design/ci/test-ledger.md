@@ -445,8 +445,9 @@ Each phase lands alone and is useful alone.
    points; kinds; verification running every shard; issue files; the re-run on golden's tip with
    `[KNOWN]`; `gate-known` and the gate-key change; the 2026-10-22 replay.
 2. **Flaky and broken**: classification, point verdicts, the flaky bisect, `failed-known`.
-3. **History-based selection** (`design/ci/history-selection.md`): ranked, budgeted likely tests in the
-   light gate, co-failure adds, misses, and drops in shadow until that document's bar is met.
+3. **History-based selection** (`design/ci/history-selection.md`): miss files after a bisect, relative
+   test paths, retry-passes never let through unseen, and a ranking in `test:changed` only; no gate step,
+   no adds, no drops (the replay found nothing worth either).
 4. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
    quarantine itself is on since 2026-10-22, 4.4).
 

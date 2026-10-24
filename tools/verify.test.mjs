@@ -5,13 +5,22 @@
 //   node tools/verify.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    chmodSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { failureHashes, newRunId, writeRecord } from "./test-ledger.mjs";
+import { failureHashes, newRunId, rebuild, writeRecord } from "./test-ledger.mjs";
 import {
     backendOf,
     bounds,
@@ -1130,6 +1139,40 @@ describe("verification in CI (ciGate)", () => {
         assert.ok(calls.includes(`workflow run golden-verify.yml -f ref=${tip} -f shards=["s1"]`), "with its shards");
     });
 
+    it("quarantines the tests a green run let through as flaky, with the range's landings as suspects", async () => {
+        const tip = land("gf1", { "gf1.txt": "1\n" });
+        process.env.TEST_QUARANTINE_DIR = join(dir, "quarantine-green");
+        rebuild({ TEST_LEDGER_DIR: join(dir, "ledger-green") });
+        const note = "[FLAKY] s1: p/c.test.ts > t failed and passed on the same inputs, so it does not fail the shard";
+        const filed = [];
+        const answer = { data: { node: { checkRuns: { nodes: [{ annotations: { nodes: [{ message: note }] } }] } } } };
+        const { c, calls } = ciCtx(
+            [
+                releaseIdle,
+                [
+                    /\/runs\?head_sha=/,
+                    runOf(tip, { status: "completed", conclusion: "success", check_suite_node_id: "CS1" }),
+                ],
+                [/^api graphql [\s\S]*id=CS1$/, answer],
+                [/^issue create /, (line) => (filed.push(line), "https://github.com/o/r/issues/12")],
+            ],
+            undefined,
+            { env: { ...env, TEST_LEDGER_DIR: join(dir, "ledger-green"), GRAPHTY_TEST_QUARANTINE: "1" } },
+        );
+        try {
+            const r = await ciGate(c, tip);
+            assert.equal(r.code, 0, "a green run stays green");
+            assert.equal(calls.filter((l) => l.startsWith("api graphql")).length, 1, "one GraphQL call");
+            assert.equal(filed.length, 1);
+            assert.match(filed[0], /newly intermittent/);
+            assert.match(filed[0], new RegExp(`${tip} gf1`), "the landing is a suspect");
+            const days = readdirSync(join(dir, "ledger-green/records"));
+            assert.equal(days.length, 1, "recorded in the ledger");
+        } finally {
+            delete process.env.TEST_QUARANTINE_DIR;
+        }
+    });
+
     describe("a failing run, as GitHub recorded it", () => {
         const FAILURE = "Error: expected 3 to be 4";
         /**
@@ -1142,9 +1185,13 @@ describe("verification in CI (ciGate)", () => {
          * @param o.rerunFails whether the one re-run fails too
          * @param [o.localFails] `(sha, run, target) => boolean`, whether run k here fails the target
          * @param [o.second] the artifact fails a second test, `p/c.test.ts > u`, too
+         * @param [o.retryPassesU] a second report (the quarantine's retry) passes `u`
          * @returns `{ c, calls, checks, pushes, filed }`: pushes are the commits pushed to golden-bisect-<n>
          */
-        const recorded = (tag, { ciFails, rerunFails, localFails = () => false, second = false }) => {
+        const recorded = (
+            tag,
+            { ciFails, rerunFails, localFails = () => false, second = false, retryPassesU = false },
+        ) => {
             const ids = [];
             const idOf = (sha) => (ids.includes(sha) ? ids.indexOf(sha) : ids.push(sha) - 1) + 100;
             const shaOf = (line) => ids[Number(/runs\/(\d+)/.exec(line)[1]) - 100];
@@ -1185,6 +1232,9 @@ describe("verification in CI (ciGate)", () => {
                         const out = line.split(" -D ")[1];
                         mkdirSync(out, { recursive: true });
                         writeFileSync(join(out, "junit-p-4242.xml"), junit);
+                        const passU =
+                            '<testsuites><testsuite name="c"><testcase classname="c.test.ts" name="u"/></testsuite></testsuites>';
+                        if (retryPassesU) writeFileSync(join(out, "junit-p-4243.xml"), passU);
                         return "";
                     },
                 ],
@@ -1241,6 +1291,13 @@ describe("verification in CI (ciGate)", () => {
             );
             assert.equal(reruns(calls), 0, "a failure that reproduces here needs no CI re-run");
             assert.deepEqual(pushes(), [], "and is bisected here");
+            const misses = join(c.env.TEST_LEDGER_DIR, "misses");
+            const miss = JSON.parse(readFileSync(join(misses, readdirSync(misses)[0]), "utf8"));
+            assert.deepEqual(
+                [miss.culprit, miss.branch, miss.changed, miss.tests],
+                [culprit, "rh1", ["rh.txt"], [{ file: "p/c.test.ts", ran: false }]],
+                "the culprit's miss: what it changed, what failed, and that its land check did not run it",
+            );
             assert.ok(!published.includes(tip));
         });
 
@@ -1321,6 +1378,25 @@ describe("verification in CI (ciGate)", () => {
             assert.equal(s.last.bisect.ci, true, "so the bisect runs in CI");
             assert.ok(pushes().length > 0);
             assert.equal(s.last.culprit.sha, culprit);
+        });
+
+        it("keeps a test that passed on the quarantine's retry as a target, so it is confirmed here", async () => {
+            const breaks = (sha) => has(sha, "rp.txt");
+            const { c, checks } = recorded("retry-pass", {
+                ciFails: breaks,
+                second: true,
+                retryPassesU: true,
+                localFails: (sha, _k, t) => t.name === "t" && breaks(sha),
+            });
+            await verifyFrom(c);
+            const tip = land("rp1", { "rp.txt": "1\n" });
+            await requestVerification(c, tip);
+            await settle();
+            assert.deepEqual(
+                checks[0].targets.map((t) => t.name).sort(),
+                ["t", "u"],
+                "u failed once in CI: confirmed, not dropped",
+            );
         });
 
         it("CI-only and passing on its re-run: quarantined, nothing bisected, golden-verified stays", async () => {

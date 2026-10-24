@@ -61,7 +61,7 @@ import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { markGate } from "./test-slots.mjs";
+import { liveTickets, markGate, slotDir } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -657,6 +657,33 @@ function passed(shards, main) {
 }
 
 // Why a gate runs no shard.
+// Verification after landing (tools/verify.mjs) names this file, and writes it once a newer golden commit is
+// wanted: at the next shard boundary the gate starts no more shards and stops with [SUPERSEDED].
+const SUPERSEDED = process.env.PREPUSH_SUPERSEDED_FILE;
+
+/**
+ * The process groups (each shard's, as started below) that hold a machine-wide test slot: the shards that have
+ * begun their tests rather than wait for a slot.
+ * @returns the group ids
+ */
+function slotHolderGroups() {
+    try {
+        const pgid = (pid) =>
+            Number(
+                readFileSync(`/proc/${pid}/stat`, "utf8")
+                    .replace(/^.*\) /s, "")
+                    .split(" ")[2],
+            );
+        return new Set(
+            liveTickets(slotDir())
+                .filter((t) => t.granted)
+                .map((t) => pgid(t.pid)),
+        );
+    } catch {
+        return new Set(); // no slots (GRAPHTY_TEST_SLOTS=0): no shard counts as begun
+    }
+}
+
 function nothingToRun(gated, planned) {
     if (gated.length === 0) return "No affected package has a test shard to run here.";
     if (planned.length === 0) return "The test selection runs no shard: no test reaches this change.";
@@ -727,6 +754,8 @@ async function main() {
     const known = [];
     const quarantineLines = [];
     let stopping = false;
+    let superseded = false;
+    const dropped = new Set(); // shards stopped by a supersession before their tests began
     const started = Date.now();
     // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
     const advisory = startAdvisory(ROOT, base, main);
@@ -789,7 +818,7 @@ async function main() {
                         logFile: log,
                     });
                 }
-                if (stopping) {
+                if (stopping || dropped.has(shard.shard)) {
                     running.delete(shard.shard);
                     ledgerRecord(shard, main, { ...facts, cancelled: true });
                     // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
@@ -924,6 +953,13 @@ async function main() {
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         advisory.report(results);
+        if (superseded) {
+            failed.forEach(keepLog);
+            console.log(
+                `[SUPERSEDED] Stopped for a newer commit (${secs}s): the shards that passed are kept by input key.`,
+            );
+            process.exit(1);
+        }
         if (quarantineLines.length) {
             console.log("Quarantine (tools/test-quarantine.mjs; `node tools/test-quarantine.mjs status`):");
             quarantineLines.forEach((l) => console.log(l));
@@ -949,7 +985,34 @@ async function main() {
 
     // Every waiting shard starts (browser ones then queue on the shared gate), except one startRule
     // holds back until its package's caches are warm, and a third shard without a browser.
+    // At a shard boundary, once verification wrote the marker: nothing more starts, and every shard still waiting
+    // for its test slot stops; a shard whose tests began runs to the end, so its pass is recorded by input key.
+    const supersede = () => {
+        if (superseded || !SUPERSEDED || !existsSync(SUPERSEDED)) return superseded;
+        superseded = true;
+        const notStarted = waiting.splice(0).length;
+        const begun = slotHolderGroups();
+        for (const [name, child] of running) {
+            if (begun.has(child.pid)) continue;
+            dropped.add(name);
+            try {
+                process.kill(-child.pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+        }
+        console.log(
+            `  [SUPERSEDED] a newer commit is wanted (${SUPERSEDED}): ${notStarted} shard(s) not started, ` +
+                `${dropped.size} stopped before their tests began, ${running.size - dropped.size} running to the end`,
+        );
+        return true;
+    };
+
     const next = () => {
+        if (supersede()) {
+            if (running.size === 0) finish();
+            return;
+        }
         // An index loop: a started shard is spliced out of `waiting` as it goes.
         for (let i = 0; i < waiting.length;) {
             const shard = waiting[i];

@@ -47,8 +47,18 @@ import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ImportReport, LoadReport } from "../data/report";
 import { DETECTION_SAMPLE, fetchBytes, isSourceData, sampleOf, toSourceInput, urlTail } from "../data/source-bytes";
 import { GraphtyError } from "../errors";
-import { cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
-import { chosenLocation, isLocationRefusal, readPlaceSource, resolveLocation } from "../layout/locationMap/source";
+import { bestRole, cachedGazetteer, gazetteerGeneration } from "../layout/locationMap/gazetteer";
+import {
+    chosenLocation,
+    isLocationRefusal,
+    listLocation,
+    LOCATION_KIND_FIELDS,
+    LOCATION_KINDS,
+    type LocationKind,
+    type LocationListing,
+    readPlaceSource,
+    resolveLocation,
+} from "../layout/locationMap/source";
 import { eachAdjacentArc } from "./adjacency";
 import { describeAttributes } from "./attributes";
 import {
@@ -543,7 +553,13 @@ function placeRows(
 
 /** The `data.knownFields` key each role of each kind is written to. */
 const ROLE_FIELDS: Readonly<Record<"node" | "edge", Partial<Readonly<Record<ColumnRole, string>>>>> = {
-    node: { key: "nodeIdPath", label: "nodeLabelPath", weight: "nodeWeightPath", time: "nodeTimePath" },
+    node: {
+        key: "nodeIdPath",
+        label: "nodeLabelPath",
+        weight: "nodeWeightPath",
+        time: "nodeTimePath",
+        ...LOCATION_KIND_FIELDS,
+    },
     edge: {
         source: "edgeSrcIdPath",
         target: "edgeDstIdPath",
@@ -3539,6 +3555,10 @@ export class SessionData implements SessionDataApi {
         add("node", "label", knownFields.nodeLabelPath);
         add("node", "weight", knownFields.nodeWeightPath);
         add("node", "time", knownFields.nodeTimePath);
+        for (const kind of LOCATION_KINDS) {
+            add("node", kind, knownFields[LOCATION_KIND_FIELDS[kind]]);
+        }
+
         // A field the configuration names outright (a `setRole`) wins over what the last load
         // read; one left at its default reads as the load did.
         add("edge", "source", knownFields.edgeSrcIdPath ?? report?.endpoints.source);
@@ -3689,7 +3709,7 @@ export class SessionData implements SessionDataApi {
                 }
             }
 
-            if (Object.keys(patch).length === 0) {
+            if (Object.keys(patch).length === 0 && !this.listsLocation(kind, name)) {
                 return;
             }
         } else {
@@ -3725,6 +3745,10 @@ export class SessionData implements SessionDataApi {
             patch[field] = name;
         }
 
+        if (kind === "node") {
+            Object.assign(patch, this.locationPatch(name, role));
+        }
+
         const steps: SessionCommand[] = [{ op: "config.set", values: { data: { knownFields: patch } } }];
         await this.send(
             {
@@ -3735,6 +3759,83 @@ export class SessionData implements SessionDataApi {
             },
             "give a column a role",
         );
+    }
+
+    /**
+     * The node location kinds listed now: designated one column per kind, else what is read.
+     * @returns the listing
+     */
+    private locationListing(): LocationListing {
+        const known = this.readConfig().knownFields;
+        const nodes = this.nodes();
+        const columns = this.attributes().flatMap((c) =>
+            c.kind === "node" ? [{ name: c.name, values: nodes.map((row) => row[c.name]) }] : [],
+        );
+        const places = cachedGazetteer();
+        const answer = resolveLocation(
+            chosenLocation({ location: null, latitude: null, longitude: null }, known),
+            columns,
+            (path) => columns.find((c) => c.name === path)?.values ?? null,
+            places,
+        );
+        return listLocation(known, answer, (source) =>
+            source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+        );
+    }
+
+    /**
+     * Whether a column is listed as a kind of node location.
+     * @param kind - the column's kind
+     * @param name - the column
+     * @returns true when it is
+     */
+    private listsLocation(kind: "node" | "edge", name: string): boolean {
+        return kind === "node" && Object.values(this.locationListing().kinds).includes(name);
+    }
+
+    /**
+     * The location fields a role change on a node column also writes, so the kinds listed stay
+     * listed: every kind listed now is designated one column per kind (a detected city keeps its
+     * entry beside a country picked next), the single-entry form is cleared, and removing the last
+     * kind writes `nodeLocationRole: "none"`, so the element stops finding one.
+     * @param name - the column
+     * @param role - its new role, or null for none
+     * @returns the fields, or nothing when no location kind is involved
+     */
+    private locationPatch(name: string, role: ColumnRole | null): Record<string, string | null> {
+        const isKind = (each: ColumnRole | null): each is LocationKind =>
+            each !== null && (LOCATION_KINDS as readonly string[]).includes(each);
+        if (role !== null && !isKind(role)) {
+            return {};
+        }
+
+        const listing = this.locationListing();
+        if (role === null && !Object.values(listing.kinds).includes(name)) {
+            return {};
+        }
+
+        const kinds: Partial<Record<LocationKind, string>> = {};
+        for (const each of LOCATION_KINDS) {
+            const column = listing.kinds[each];
+            if (column !== undefined && !(role === null ? column === name : each === role)) {
+                kinds[each] = column;
+            }
+        }
+
+        if (isKind(role)) {
+            kinds[role] = name;
+        }
+
+        const patch: Record<string, string | null> = {
+            nodeLocationPath: null,
+            nodeLocationWithinPath: null,
+            nodeLocationRole: Object.keys(kinds).length === 0 ? "none" : null,
+        };
+        for (const each of LOCATION_KINDS) {
+            patch[LOCATION_KIND_FIELDS[each]] = kinds[each] ?? null;
+        }
+
+        return patch;
     }
 
     /**

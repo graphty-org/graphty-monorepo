@@ -182,7 +182,7 @@ export interface AttributeDescriptor {
 export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
-export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId" | "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
 
 // @public
 export type AttributeUse = {
@@ -459,7 +459,7 @@ export interface ColumnRef {
 }
 
 // @public
-export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind";
+export type ColumnRole = "key" | "label" | "source" | "target" | "weight" | "time" | "edgeId" | "kind" | LocationKind;
 
 // @public
 export type CombineMode = "replace" | "multiply" | "add";
@@ -2684,12 +2684,30 @@ export interface LoadStyleReport {
 // @public
 export interface LocationColumns {
     readonly from: "designated" | "detected" | "none";
+    readonly kinds: Readonly<Partial<Record<LocationKind, string>>>;
     readonly latitude: string | null;
     readonly location: string | null;
     readonly longitude: string | null;
     readonly role: "coords" | "country" | "region" | "city" | "auto" | null;
+    readonly unused: readonly LocationUnused[];
+    readonly using: LocationUsing | null;
     readonly within: string | null;
 }
+
+// @public
+export type LocationKind = "latitude" | "longitude" | "coordinates" | "country" | "region" | "city";
+
+// @public
+export interface LocationUnused {
+    readonly code: "location.unused";
+    readonly params: {
+        readonly kind: LocationKind;
+        readonly using: LocationUsing;
+    };
+}
+
+// @public
+export type LocationUsing = "pair" | "coordinates" | "country" | "region" | "city";
 
 // @public
 export interface MachineCalibration {

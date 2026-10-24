@@ -121,6 +121,9 @@ describe("place names as locations", () => {
             longitude: null,
             role: "city",
             within: "country",
+            kinds: { city: "city", country: "country" },
+            using: "city",
+            unused: [],
         });
 
         const { at, frame } = await place(session);
@@ -182,10 +185,76 @@ describe("place names as locations", () => {
             longitude: null,
             role: null,
             within: null,
+            kinds: {},
+            using: null,
+            unused: [],
         });
         const estimate = session.estimate({ op: "layout.set", id: "location-map" });
         assert.isFalse(estimate.available);
         assert.strictEqual(estimate.refusal?.code, "layout.needs-location");
+    });
+});
+
+describe("one role per kind of location (data.setRole)", () => {
+    it("reads a city narrowed by the region listed, and lists a country it does not read as unused", async () => {
+        const session = await loaded("id,town,area,nation\np1,Paris,Texas,US\np2,Lyon,,FR\n");
+        await session.data.setRole({ kind: "node", name: "town" }, "city");
+        await session.data.setRole({ kind: "node", name: "area" }, "region");
+        await session.data.setRole({ kind: "node", name: "nation" }, "country");
+        assert.deepInclude(session.layout.locationColumns(), {
+            from: "designated",
+            location: "town",
+            role: "city",
+            within: "area",
+            kinds: { city: "town", region: "area", country: "nation" },
+            using: "city",
+            unused: [{ code: "location.unused", params: { kind: "country", using: "city" } }],
+        });
+        const roles = session.data.attributes().find((a) => a.kind === "node" && a.name === "town")?.roles;
+        assert.deepEqual(roles, ["city"]);
+    });
+
+    it("prefers a full pair, keeps the refusal for half of one, and stops finding once the last kind goes", async () => {
+        const session = await loaded("id,city,north,east\np1,Paris,48.85,2.35\n");
+        assert.strictEqual(session.layout.locationColumns().using, "city");
+
+        // A detected city stays listed beside the latitude picked next.
+        await session.data.setRole({ kind: "node", name: "north" }, "latitude");
+        const half = session.layout.locationColumns();
+        assert.deepEqual(half.kinds, { latitude: "north", city: "city" });
+        assert.strictEqual(half.using, "city");
+        assert.deepEqual(half.unused, [{ code: "location.unused", params: { kind: "latitude", using: "city" } }]);
+
+        await session.data.setRole({ kind: "node", name: "east" }, "longitude");
+        const pair = session.layout.locationColumns();
+        assert.strictEqual(pair.using, "pair");
+        assert.deepEqual(
+            pair.unused.map((fact) => fact.params.kind),
+            ["city"],
+        );
+
+        await session.data.setRole({ kind: "node", name: "city" }, null);
+        await session.data.setRole({ kind: "node", name: "east" }, null);
+        const refused = session.estimate({ op: "layout.set", id: "location-map" });
+        assert.strictEqual(refused.refusal?.code, "layout.needs-location");
+        assert.deepEqual(session.layout.locationColumns().kinds, { latitude: "north" });
+
+        await session.data.setRole({ kind: "node", name: "north" }, null);
+        assert.strictEqual(session.layout.locationColumns().from, "none", "removing the last kind stops the search");
+    });
+
+    it("keeps reading the single-entry form of earlier projects", async () => {
+        const session = await loaded("id,place,country\np1,Paris,FR\n");
+        await session.config.set({
+            data: {
+                knownFields: { nodeLocationPath: "place", nodeLocationRole: "city", nodeLocationWithinPath: "country" },
+            },
+        });
+        assert.deepInclude(session.layout.locationColumns(), {
+            from: "designated",
+            kinds: { city: "place", country: "country" },
+            using: "city",
+        });
     });
 });
 

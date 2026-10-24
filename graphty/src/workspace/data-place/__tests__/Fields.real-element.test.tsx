@@ -1,8 +1,8 @@
 /**
  * Data > Fields as a "+" list on the REAL graphty-element: what the element detects is listed with
  * no action from the reader, nothing detected leaves the list empty, "+" adds a field and the
- * minus takes it away through the element (and it stays away after a reload), and a place-name
- * location reads as one. Every change is made by real input; every assertion reads the element or
+ * minus takes it away through the element (and it stays away after a reload), and each kind of
+ * location -- Latitude, Longitude, Coordinates, Country, Region, City -- is an entry of its own. Every change is made by real input; every assertion reads the element or
  * what is drawn.
  */
 
@@ -165,15 +165,14 @@ describe("Data > Fields as a + list on the real element", () => {
         const section = await fields();
         await waitFor(
             () => {
-                assert.includeMembers(entries(section, "nodes"), ["label", "location"]);
+                assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
                 assert.include(entries(section, "edges"), "weight");
             },
             { timeout: TIMEOUT_MS },
         );
         assert.equal(shown(section, "Node label"), "label");
-        assert.equal(shown(section, "Location read as"), "Latitude + longitude");
-        assert.equal(shown(section, "Latitude"), "latitude");
-        assert.equal(shown(section, "Longitude"), "longitude");
+        assert.equal(shown(section, "Node latitude column"), "latitude");
+        assert.equal(shown(section, "Node longitude column"), "longitude");
         view.unmount();
     });
 
@@ -239,26 +238,97 @@ describe("Data > Fields as a + list on the real element", () => {
         second.unmount();
     });
 
-    it("reads a city column narrowed by a country column as a place name, and its minus stops it", async () => {
+    it("lists a detected city and the country narrowing it as two entries, and their minuses stop the search", async () => {
         const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();
         await waitFor(
             () => {
-                assert.include(entries(section, "nodes"), "location");
+                assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.equal(shown(section, "Location read as"), "Place name");
-        assert.equal(shown(section, "Location column"), "city");
-        assert.equal(shown(section, "Place type"), "City");
-        assert.equal(shown(section, "Within"), "country");
+        assert.equal(shown(section, "Node city column"), "city");
+        assert.equal(shown(section, "Node country column"), "country");
 
-        // The minus tells the element no location, so it stops finding one.
-        await userEvent.click(section.getByRole("button", { name: "Remove node location" }));
+        // The minus on the city leaves the country listed, read on its own.
+        await userEvent.click(section.getByRole("button", { name: "Remove node city" }));
+        await waitFor(() => {
+            assert.deepInclude(session.layout.locationColumns(), { kinds: { country: "country" }, using: "country" });
+            assert.deepEqual(entries(section, "nodes"), ["country"]);
+        });
+        // The last minus tells the element no location, so it stops finding one.
+        await userEvent.click(section.getByRole("button", { name: "Remove node country" }));
         await waitFor(() => {
             assert.equal(session.config.data.knownFields.nodeLocationRole, "none");
             assert.equal(session.layout.locationColumns().from, "none");
-            assert.notInclude(entries(section, "nodes"), "location");
+            assert.deepEqual(entries(section, "nodes"), []);
         });
+    });
+
+    it("adds a location one kind at a time from +, and dims a kind the element does not read", async () => {
+        // Column names the element does not find a location by, so the list starts empty.
+        const session = await dropCsv("id,place,land,north\na,Paris,France,48.85\nb,Lyon,France,45.76\n");
+        const section = await fields();
+        const plus = await section.findByRole("button", { name: "Add to node fields" });
+        await waitFor(() => {
+            assert.deepEqual(entries(section, "nodes"), []);
+        });
+
+        // "+" is one flat list: every kind of location is an item of its own, in this order.
+        await userEvent.click(plus);
+        const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+        assert.deepEqual(
+            items.filter((label) =>
+                ["Latitude", "Longitude", "Coordinates", "Country", "Region", "City"].includes(label ?? ""),
+            ),
+            ["Latitude", "Longitude", "Coordinates", "Country", "Region", "City"],
+        );
+        assert.notInclude(items, "Location");
+
+        // Picking City opens its column list with focus in it; picking the column designates it.
+        await userEvent.click(screen.getByRole("menuitem", { name: "City" }));
+        await userEvent.click(await screen.findByRole("option", { name: "place" }));
+        await waitFor(() => {
+            assert.equal(session.config.data.knownFields.nodeCityPath, "place");
+            assert.deepInclude(session.layout.locationColumns(), { from: "designated", using: "city", role: "city" });
+            assert.equal(shown(section, "Node city column"), "place");
+        });
+
+        // A Country listed beside it narrows the city: no "Within" control.
+        await userEvent.click(plus);
+        assert.isNull(screen.queryByRole("menuitem", { name: "City" }), "a kind listed is not offered again");
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Country" }));
+        await userEvent.click(await screen.findByRole("option", { name: "land" }));
+        await waitFor(() => {
+            assert.deepInclude(session.layout.locationColumns(), {
+                kinds: { city: "place", country: "land" },
+                within: "land",
+                unused: [],
+            });
+            assert.deepEqual(entries(section, "nodes"), ["country", "city"]);
+        });
+        assert.isNull(section.queryByRole("combobox", { name: /read as|place type|within/i }));
+
+        // Closing a new entry's list with no pick drops it and puts focus back on "+".
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Region" }));
+        await screen.findByRole("option", { name: "north" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.notInclude(entries(section, "nodes"), "region");
+            assert.strictEqual(document.activeElement, plus);
+        });
+
+        // Half a pair is listed, but the city is what is read: the latitude says so, not only by dimming.
+        await userEvent.click(plus);
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Latitude" }));
+        await userEvent.click(await screen.findByRole("option", { name: "north" }));
+        await waitFor(() => {
+            const latitude = section.getByRole("combobox", { name: "Node latitude column" });
+            assert.equal((latitude as HTMLInputElement).value, "north");
+            assert.equal(latitude.getAttribute("aria-description"), "Not used: the location comes from City");
+            assert.isNotNull(latitude.closest("[data-unused]"));
+        });
+        assert.isNull(section.getByRole("combobox", { name: "Node city column" }).closest("[data-unused]"));
     });
 });

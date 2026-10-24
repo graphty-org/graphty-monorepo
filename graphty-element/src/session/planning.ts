@@ -38,6 +38,7 @@ import {
     chosenLocation,
     type ColumnValues,
     isLocationRefusal,
+    listLocation,
     type LocationDesignation,
     resolveLocation,
 } from "../layout/locationMap/source";
@@ -868,10 +869,24 @@ function nodeColumns(context: PlanningContext): ColumnValues[] {
  */
 export function locationColumns(context: PlanningContext): LocationColumns {
     const none = { location: null, latitude: null, longitude: null };
-    const choice = chosenLocation(none, context.locationDesignation?.());
+    const designation = context.locationDesignation?.();
+    const choice = chosenLocation(none, designation);
     const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
     const places = cachedGazetteer();
     const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const listing = listLocation(designation, answer, (source) =>
+        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+    );
+    const { using } = listing;
+    const listed = {
+        kinds: listing.kinds,
+        using,
+        unused: Object.freeze(
+            using === null
+                ? []
+                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
+        ),
+    };
     if (isLocationRefusal(answer)) {
         const { location, latitude, longitude } = choice;
         return Object.freeze({
@@ -879,6 +894,7 @@ export function locationColumns(context: PlanningContext): LocationColumns {
             ...(designated ? { location, latitude, longitude } : none),
             role: null,
             within: null,
+            ...listed,
         });
     }
 
@@ -891,6 +907,7 @@ export function locationColumns(context: PlanningContext): LocationColumns {
             location: source.column,
             role,
             within: source.within !== null && "column" in source.within ? source.within.column : null,
+            ...listed,
         });
     }
 
@@ -901,6 +918,7 @@ export function locationColumns(context: PlanningContext): LocationColumns {
             : { ...none, latitude: source.latitude, longitude: source.longitude }),
         role: "coords",
         within: null,
+        ...listed,
     });
 }
 

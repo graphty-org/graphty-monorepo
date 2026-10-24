@@ -568,6 +568,9 @@ describe("the location map's history and map", () => {
             longitude: "longitude",
             role: "coords",
             within: null,
+            kinds: { latitude: "latitude", longitude: "longitude" },
+            using: "pair",
+            unused: [],
         });
 
         await layout.set("location-map");
@@ -587,6 +590,9 @@ describe("the location map's history and map", () => {
             longitude: "east",
             role: "coords",
             within: null,
+            kinds: { latitude: "north", longitude: "east" },
+            using: "pair",
+            unused: [],
         });
         assert.deepEqual(scenePositions(element), detected, "a designation moves no node by itself");
 

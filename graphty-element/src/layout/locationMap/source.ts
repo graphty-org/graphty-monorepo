@@ -97,6 +97,80 @@ export interface LocationDesignation {
     readonly nodeLocationRole?: LocationRoleSetting | null;
     readonly nodeLocationWithinPath?: string | null;
     readonly nodeLocationWithin?: string | null;
+    readonly nodeCoordinatesPath?: string | null;
+    readonly nodeCountryPath?: string | null;
+    readonly nodeRegionPath?: string | null;
+    readonly nodeCityPath?: string | null;
+}
+
+/** The kinds of location a node column can be given (`data.setRole`), one column each. */
+export type LocationKind = "latitude" | "longitude" | "coordinates" | PlaceRole;
+
+/** Every location kind, in the order a form lists them. */
+export const LOCATION_KINDS: readonly LocationKind[] = [
+    "latitude",
+    "longitude",
+    "coordinates",
+    "country",
+    "region",
+    "city",
+];
+
+/** The `data.knownFields` key each location kind is designated in. */
+export const LOCATION_KIND_FIELDS = {
+    latitude: "nodeLatitudePath",
+    longitude: "nodeLongitudePath",
+    coordinates: "nodeCoordinatesPath",
+    country: "nodeCountryPath",
+    region: "nodeRegionPath",
+    city: "nodeCityPath",
+} as const satisfies Readonly<Record<LocationKind, keyof LocationDesignation>>;
+
+/**
+ * The kinds designated one column per kind.
+ * @param designated - `data.knownFields`.
+ * @returns The column of each kind, or null when none is (the single-entry form or nothing).
+ */
+function designatedKinds(designated: LocationDesignation | undefined): Partial<Record<LocationKind, string>> | null {
+    const kinds: Partial<Record<LocationKind, string>> = {};
+    for (const kind of LOCATION_KINDS) {
+        const column = designated?.[LOCATION_KIND_FIELDS[kind]];
+        if (typeof column === "string" && column !== "") {
+            kinds[kind] = column;
+        }
+    }
+
+    // A pair alone is also the single-entry form; it reads the same either way.
+    return Object.keys(kinds).length === 0 ? null : kinds;
+}
+
+/**
+ * The choice the kinds designated one column per kind make: a full latitude and longitude pair
+ * first, else coordinates, else the finest place kind narrowed by the next coarser one listed,
+ * else half a pair (which the resolver completes by name or refuses).
+ * @param kinds - The designated kinds.
+ * @returns The choice.
+ */
+function choiceOfKinds(kinds: Partial<Record<LocationKind, string>>): LocationChoice {
+    const none = { location: null, latitude: null, longitude: null, within: null, withinCode: null };
+    const { latitude, longitude, coordinates } = kinds;
+    if (latitude !== undefined && longitude !== undefined) {
+        return { ...none, latitude, longitude, role: "coords" };
+    }
+
+    if (coordinates !== undefined) {
+        return { ...none, location: coordinates, role: "coords" };
+    }
+
+    const finest = (["city", "region", "country"] as const).findIndex((kind) => kinds[kind] !== undefined);
+    if (finest >= 0) {
+        const order = ["city", "region", "country"] as const;
+        const role = order[finest];
+        const within = order.slice(finest + 1).find((kind) => kinds[kind] !== undefined);
+        return { ...none, location: kinds[role] ?? null, role, within: within === undefined ? null : kinds[within] };
+    }
+
+    return { ...none, latitude: latitude ?? null, longitude: longitude ?? null, role: "coords" };
 }
 
 /**
@@ -106,6 +180,12 @@ export interface LocationDesignation {
  * @returns The choice.
  */
 export function chosenLocation(options: LocationChoice, designated: LocationDesignation | undefined): LocationChoice {
+    const kinds = designatedKinds(designated);
+    const own = options.location !== null || options.latitude !== null || options.longitude !== null;
+    if (kinds !== null && !own && (designated?.nodeLocationPath ?? null) === null) {
+        return choiceOfKinds(kinds);
+    }
+
     const role = designated?.nodeLocationRole ?? "auto";
     const place = {
         role,
@@ -484,4 +564,110 @@ export function columnFits(columns: readonly ColumnValues[], role: LocationRole)
     const named = (f: ColumnFit): number => (names.has(f.name.toLowerCase()) ? 1 : 0);
     const good = fits.filter((f) => f.fits).sort((a, b) => named(b) - named(a) || b.share - a.share);
     return [...good, ...fits.filter((f) => !f.fits)];
+}
+
+/** What a location is read from: a latitude and longitude pair, one column of coordinates, or place names of a kind. */
+export type LocationUsing = "pair" | "coordinates" | PlaceRole;
+
+/** The kinds of location listed for the nodes, the one read, and the listed ones not read. */
+export interface LocationListing {
+    /** `designated` one column per kind or in the single-entry form, `detected`, or `none`. */
+    readonly from: "designated" | "detected" | "none";
+    /** The column of each kind listed: the designated kinds, else the kinds of what is read. */
+    readonly kinds: Readonly<Partial<Record<LocationKind, string>>>;
+    /** What is read, or null when nothing is. */
+    readonly using: LocationUsing | null;
+    /** The listed kinds that are not read, because another listed source is. */
+    readonly unused: readonly LocationKind[];
+}
+
+/**
+ * The location kinds the nodes list, from the designation and what the resolver read.
+ * @param designated - `data.knownFields`.
+ * @param answer - {@link resolveLocation}'s answer for {@link chosenLocation} of no options.
+ * @param placeKind - The kind a place column read under `auto` is, once the gazetteer decides.
+ * @returns The listing.
+ */
+export function listLocation(
+    designated: LocationDesignation | undefined,
+    answer: ResolvedLocation | LocationRefusal,
+    placeKind: (source: PlaceSource) => PlaceRole,
+): LocationListing {
+    const source = isLocationRefusal(answer) ? null : answer.source;
+    let using: LocationUsing | null = null;
+    if (source?.kind === "place") {
+        using = placeKind(source);
+    } else if (source !== null) {
+        using = source.kind === "location" ? "coordinates" : "pair";
+    }
+
+    const perKind = (designated?.nodeLocationPath ?? null) === null ? designatedKinds(designated) : null;
+    if (perKind !== null) {
+        const used = new Set<LocationKind>();
+        if (source?.kind === "columns") {
+            used.add("latitude").add("longitude");
+        } else if (source?.kind === "location") {
+            used.add("coordinates");
+        } else if (source?.kind === "place" && using !== "pair" && using !== "coordinates" && using !== null) {
+            used.add(using);
+            const order = ["city", "region", "country"] as const;
+            const within = order.slice(order.indexOf(using) + 1).find((kind) => perKind[kind] !== undefined);
+            if (within !== undefined) {
+                used.add(within);
+            }
+        } else if (source === null) {
+            // Half a pair refused: the half listed is what was asked for, so it is not unused.
+            for (const kind of ["latitude", "longitude"] as const) {
+                if (perKind[kind] !== undefined) {
+                    used.add(kind);
+                }
+            }
+        }
+
+        const unused = LOCATION_KINDS.filter((kind) => perKind[kind] !== undefined && !used.has(kind));
+        return Object.freeze({
+            from: "designated",
+            kinds: Object.freeze(perKind),
+            using,
+            unused: Object.freeze(unused),
+        });
+    }
+
+    const choice = chosenLocation({ location: null, latitude: null, longitude: null }, designated);
+    const isDesignated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const kinds: Partial<Record<LocationKind, string>> = {};
+    if (source?.kind === "columns") {
+        kinds.latitude = source.latitude;
+        kinds.longitude = source.longitude;
+    } else if (source?.kind === "location") {
+        kinds.coordinates = source.column;
+    } else if (source?.kind === "place" && using !== null && using !== "pair" && using !== "coordinates") {
+        kinds[using] = source.column;
+        if (source.within !== null && "column" in source.within && using !== "country") {
+            const byRegion = using === "city" && PLACE_NAMES.region.has(source.within.column.toLowerCase());
+            kinds[byRegion ? "region" : "country"] = source.within.column;
+        }
+    } else if (source === null && isDesignated) {
+        if (choice.latitude !== null) {
+            kinds.latitude = choice.latitude;
+        }
+
+        if (choice.longitude !== null) {
+            kinds.longitude = choice.longitude;
+        }
+
+        if (choice.location !== null) {
+            const role = choice.role ?? "auto";
+            kinds[role === "country" || role === "region" || role === "city" ? role : "coordinates"] = choice.location;
+        }
+    }
+
+    let from: LocationListing["from"] = "none";
+    if (isDesignated) {
+        from = "designated";
+    } else if (source !== null) {
+        from = "detected";
+    }
+
+    return Object.freeze({ from, kinds: Object.freeze(kinds), using, unused: Object.freeze([]) });
 }

@@ -20,6 +20,12 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     time: "Date or time",
     edgeId: "Edge id",
     kind: "Kind",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
     attribute: "Attribute",
 };
 

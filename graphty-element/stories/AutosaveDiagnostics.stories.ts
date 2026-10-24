@@ -4,6 +4,7 @@ import "../index.ts";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { holds, renderedElement } from "./assertions";
+import { isUnderRunner } from "./helpers";
 
 /**
  * Autosave diagnostics: a page for checking, by hand on a real device, what happens to autosaved
@@ -22,6 +23,10 @@ import { holds, renderedElement } from "./assertions";
  * The buttons make an edit, make one and leave the page at once, import 100,000 nodes, and ask for
  * persistent storage. The log shows load numbers, never times, so the visual capture is the same on
  * every run; the collector stamps each line with the time it arrived.
+ *
+ * Under a test runner or a visual capture the page answers the storage questions itself (see
+ * {@link fixStorageFacts}): the real answers depend on the machine, so the capture would differ
+ * between this machine and CI.
  */
 const meta: Meta = {
     title: "Autosave/Diagnostics",
@@ -76,6 +81,27 @@ function readLog(db: IDBDatabase): Promise<Line[]> {
     });
 }
 
+/** The quota the page reports under a runner: far above any heap, so it never reads as a private window. */
+const RUNNER_QUOTA = 2 ** 40;
+
+/**
+ * Give the page fixed storage facts. Chrome sizes a private window's quota from the machine's memory
+ * and a normal one's from its disk, and autosave reads `ephemeral` from that quota, so the same
+ * capture context said "likely" on CI's runners and "unknown" here, and the approved image flipped
+ * on every review. A reader on a real device still sees the real facts.
+ */
+function fixStorageFacts(): void {
+    const { storage } = navigator;
+    const fixed: Partial<Record<keyof StorageManager, unknown>> = {
+        estimate: () => Promise.resolve({ usage: 0, quota: RUNNER_QUOTA }),
+        persisted: () => Promise.resolve(false),
+        getDirectory: () => Promise.resolve(undefined),
+    };
+    for (const [name, value] of Object.entries(fixed)) {
+        Object.defineProperty(storage, name, { value, configurable: true });
+    }
+}
+
 /**
  * A ring of nodes.
  * @param n - How many.
@@ -93,6 +119,10 @@ function ring(n: number, probe: number): { nodes: Record<string, unknown>[]; edg
  * @returns Its root.
  */
 function diagnostics(): HTMLElement {
+    if (isUnderRunner()) {
+        fixStorageFacts();
+    }
+
     const root = document.createElement("div");
     root.style.cssText = "display:grid;grid-template-rows:auto 1fr auto;height:100vh;font:13px/1.4 monospace";
     const bar = document.createElement("div");
@@ -251,5 +281,13 @@ export const Diagnostics: Story = {
         await holds(state !== "off", `Autosave/Diagnostics: autosave is ${state}, not on`);
         const nodes = graph.session.data.snapshot().nodeCount;
         await holds(nodes === 30, `Autosave/Diagnostics: the ring has ${String(nodes)} nodes, not 30`);
+        if (isUnderRunner()) {
+            // The image must not depend on the machine's memory or disk.
+            const { storage, ephemeral } = graph.autosaver.status;
+            await holds(
+                storage?.quota === RUNNER_QUOTA && ephemeral === "unknown",
+                `Autosave/Diagnostics: the storage facts are the machine's (quota ${String(storage?.quota)}, ephemeral ${ephemeral}), not the fixed ones`,
+            );
+        }
     },
 };

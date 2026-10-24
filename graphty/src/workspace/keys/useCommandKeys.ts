@@ -7,9 +7,11 @@ import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesK
  * An open menu, popover list or dialog keeps its own keys (Esc closes the innermost first). Only
  * a shown one counts: Mantine keeps a closed Select's options and a closed popover mounted with
  * `display: none`, and counting those would switch every single-key shortcut off while any
- * Select is on the page.
+ * Select is on the page. An info circle's explanation bubble (compact-mantine's InfoCircle) is a
+ * dialog too, but it opens on hover, never takes focus and holds no keys, so it does not count:
+ * otherwise a pointer resting on a circled "i" switched every shortcut off.
  */
-const OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
+const OVERLAY = '[role="menu"], [role="dialog"]:not(:has(.cm-info-bubble)), [role="listbox"]';
 
 /**
  * The overlays that keep Undo and Redo too: a menu, a list, a modal dialog. A non-modal panel

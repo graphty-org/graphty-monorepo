@@ -244,11 +244,12 @@ export class OrbitCameraController {
      * Glide the pivot to a point, turning about that point meanwhile, so the camera ends up
      * looking at it and orbits, spins and zooms about it.
      * @param point - The point, in world space.
+     * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
      * @returns Whether the pivot moved.
      */
-    public followPoint(point: Vector3): boolean {
+    public followPoint(point: Vector3, frames = 1): boolean {
         this.pivotController.center = point;
-        const moved = glideTowards(this.pivot.position, point);
+        const moved = glideTowards(this.pivot.position, point, frames);
         this.updateCameraPosition();
         return moved;
     }

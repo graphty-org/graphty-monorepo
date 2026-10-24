@@ -519,8 +519,8 @@ export type RunStyle =
            * `"layers"`: a run that partitions the nodes (shape `"community"`: Louvain, Leiden, label
            * propagation, connected components) paints each group as a layer of its own instead of one
            * layer colouring every group: a folder named for the run (`name`, else the run's label)
-           * holding one node layer per group, largest on top, each selecting `<group path> ==
-           * <value>` and setting the colour the one layer would have painted that group. A re-run
+           * holding one node layer per group, largest on top, each selecting
+           * `<group path> == <value>` and setting the color the one layer would have painted that group. A re-run
            * keeps each layer on the group sharing most of its members and adds a layer at the bottom
            * of the folder for each new group, whether or not the re-run repeats the option (it
            * keeps the first start's `groupName`); removing the run removes the folder. Ignored for

@@ -18,9 +18,6 @@ import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace, waits for the session and loads the small graph file (8 nodes, 9 edges).
  * @returns the session and the chrome store.
@@ -29,13 +26,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -48,114 +42,94 @@ describe("Undo, Redo and Clear selection words", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "names a style step in the Undo tooltip and in the status line after Undo and Redo",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const layer = await session.styles.add({
-                name: "Hubs",
-                target: "node",
-                selector: { match: "everything" },
-                set: { "node.color": "#ff0000" },
-            });
-            await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 3 } });
+    it("names a style step in the Undo tooltip and in the status line after Undo and Redo", async () => {
+        const { session, store } = await openWithGraph();
+        const layer = await session.styles.add({
+            name: "Hubs",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000" },
+        });
+        await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 3 } });
 
-            const undo = screen.getByRole("button", { name: "Undo changing node size on Hubs" });
-            await userEvent.hover(undo);
-            await screen.findByText("Undo changing node size on Hubs", undefined, { timeout: TIMEOUT_MS });
+        const undo = screen.getByRole("button", { name: "Undo changing node size on Hubs" });
+        await userEvent.hover(undo);
+        await screen.findByText("Undo changing node size on Hubs", undefined);
 
-            await userEvent.click(undo);
-            await waitFor(() => {
-                assert.equal(store.get().notice?.message, "Undid changing node size on Hubs.");
-            });
-            await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
-            await waitFor(() => {
-                assert.equal(store.get().notice?.message, "Redid changing node size on Hubs.");
-            });
-            // The accessible name says what Undo takes back, as the tooltip does.
-            assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
-        },
-        TIMEOUT_MS,
-    );
+        await userEvent.click(undo);
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Undid changing node size on Hubs.");
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "Redid changing node size on Hubs.");
+        });
+        // The accessible name says what Undo takes back, as the tooltip does.
+        assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "says what Escape cleared, and nothing when the selection was empty",
-        async () => {
-            const { session, store } = await openWithGraph();
-            await session.selection.apply({ where: "value > `0`" });
-            const edges = session.selection.edges.length;
-            assert.isAbove(edges, 0);
-            assert.lengthOf(session.selection.nodes, 0);
+    it("says what Escape cleared, and nothing when the selection was empty", async () => {
+        const { session, store } = await openWithGraph();
+        await session.selection.apply({ where: "value > `0`" });
+        const edges = session.selection.edges.length;
+        assert.isAbove(edges, 0);
+        assert.lengthOf(session.selection.nodes, 0);
 
-            document.body.focus();
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.equal(session.selection.size, 0);
-                assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
-            });
+        document.body.focus();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 0);
+            assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
+        });
 
-            store.set({ notice: null });
-            await userEvent.keyboard("{Escape}");
+        store.set({ notice: null });
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(store.get().notice);
+    });
+
+    it("takes the Selection cleared notice down when a new selection is made", async () => {
+        const { session, store } = await openWithGraph();
+        const find = await screen.findByRole("combobox", { name: "Find" });
+        await userEvent.click(find);
+        await userEvent.type(find, "=value > `0`");
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.isAbove(session.selection.edges.length, 0);
+        });
+        const edges = session.selection.edges.length;
+        // A pick moves focus to the values; a click outside every control leaves it nowhere.
+        await userEvent.click(document.body);
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 0);
+            assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
+        });
+        // The toast, not the status line that speaks it too.
+        await screen.findByText(`Selection cleared: ${String(edges)} edges`, { selector: ".cm-toast-message" });
+
+        // The rule is still in the find box, so Enter there selects the same edges again.
+        await userEvent.click(find);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.edges.length, edges);
             assert.isNull(store.get().notice);
-        },
-        TIMEOUT_MS,
-    );
+            assert.isNull(screen.queryByText(/^Selection cleared/, { selector: ".cm-toast-message" }));
+        });
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "takes the Selection cleared notice down when a new selection is made",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const find = await screen.findByRole("combobox", { name: "Find" });
-            await userEvent.click(find);
-            await userEvent.type(find, "=value > `0`");
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.isAbove(session.selection.edges.length, 0);
-            });
-            const edges = session.selection.edges.length;
-            // A pick moves focus to the values; a click outside every control leaves it nowhere.
-            await userEvent.click(document.body);
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.equal(session.selection.size, 0);
-                assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
-            });
-            // The toast, not the status line that speaks it too.
-            await screen.findByText(`Selection cleared: ${String(edges)} edges`, { selector: ".cm-toast-message" });
+    it("says what Escape cleared when the Selected row has the focus", async () => {
+        const { session, store } = await openWithGraph();
+        // The starting rows the app turns on for a project it opens; this one was open from the start.
+        await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
+        await session.selection.apply({ where: "value > `0`" });
+        const edges = session.selection.edges.length;
+        assert.isAbove(edges, 0);
 
-            // The rule is still in the find box, so Enter there selects the same edges again.
-            await userEvent.click(find);
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.equal(session.selection.edges.length, edges);
-                assert.isNull(store.get().notice);
-                assert.isNull(screen.queryByText(/^Selection cleared/, { selector: ".cm-toast-message" }));
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "says what Escape cleared when the Selected row has the focus",
-        async () => {
-            const { session, store } = await openWithGraph();
-            // The starting rows the app turns on for a project it opens; this one was open from the start.
-            await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
-            await session.selection.apply({ where: "value > `0`" });
-            const edges = session.selection.edges.length;
-            assert.isAbove(edges, 0);
-
-            await userEvent.click(await screen.findByRole("treeitem", { name: /^Selected, / }));
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.equal(session.selection.size, 0);
-                assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
-            });
-        },
-        TIMEOUT_MS,
-    );
+        await userEvent.click(await screen.findByRole("treeitem", { name: /^Selected, / }));
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 0);
+            assert.equal(store.get().notice?.message, `Selection cleared: ${String(edges)} edges`);
+        });
+    });
 });

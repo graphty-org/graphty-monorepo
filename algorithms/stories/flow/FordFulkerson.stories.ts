@@ -24,7 +24,6 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -432,18 +431,15 @@ export const FordFulkerson: Story = {
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         const playButton = canvas.getByRole("button", { name: /play/i });
         await userEvent.click(playButton);
 
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("Maximum flow");
-            },
-            storyWaitOptions(10 * args.animationSpeed),
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("Maximum flow");
+        });
     },
 };

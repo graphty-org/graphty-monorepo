@@ -8,6 +8,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
@@ -28,6 +29,7 @@ const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
  */
 const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
 const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
+
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -56,7 +58,7 @@ const chromium = () => ({
     commands: { chooseNextFile },
 });
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react(), sampleDataPlugin()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
@@ -87,7 +89,7 @@ export default defineConfig({
         // the others finish (sequence.groupOrder). Browser test files share the renderer's main
         // thread, and a real element loading and laying out a sample holds it for seconds at a
         // time: run beside the rest, a neighbouring file's import of the element bundle
-        // (src/types/__tests__/ai.test.ts) outran its 15 second test timeout.
+        // (src/types/__tests__/ai.test.ts) took tens of seconds.
         projects: [
             {
                 extends: true,
@@ -102,7 +104,7 @@ export default defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    setupFiles: ["./src/test/setup.ts"],
                 },
             },
             {
@@ -140,10 +142,6 @@ export default defineConfig({
                     // the plays are written against the layout the reader and the capture see.
                     browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
                     setupFiles: [".storybook/vitest.setup.ts"],
-                    // As graphty-element's storybook project: a story that loads the real element
-                    // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
-                    // its other browser shards beside it, which crossed the 15-second default.
-                    testTimeout: 30000,
                     // One story file at a time, as graphty-element's storybook project: in parallel
                     // every file mounts a real element at once, and on a machine already busy with
                     // other test runs the stories' own waits ran out.
@@ -157,8 +155,6 @@ export default defineConfig({
                     name: "eslint-rules",
                     environment: "node",
                     include: ["eslint-rules/**/*.test.ts"],
-                    // One TypeScript program over the element's published .d.ts files is built per run.
-                    testTimeout: 60000,
                 },
             },
             {
@@ -214,3 +210,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

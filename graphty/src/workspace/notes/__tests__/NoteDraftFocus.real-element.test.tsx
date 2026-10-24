@@ -16,9 +16,6 @@ import { clearRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Waits for an element whose session is not `previous`.
  * @param previous - a session that no longer counts.
@@ -26,14 +23,11 @@ const TIMEOUT_MS = 60_000;
  */
 async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-            assert.notStrictEqual(session, previous);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+        assert.notStrictEqual(session, previous);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -49,12 +43,9 @@ async function openSample(store: WorkspaceStore): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
     const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 15);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.equal(session.data.statistics().nodeCount, 15);
+    });
     return session;
 }
 

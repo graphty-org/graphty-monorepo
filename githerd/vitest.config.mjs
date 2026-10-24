@@ -1,9 +1,10 @@
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The JUnit report in CI and the time-budget check (vitest.ci-junit.mjs), like every package.
         reporters: ["default", ...ciReporters()],
@@ -29,3 +30,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

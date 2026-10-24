@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -59,8 +58,8 @@ async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
  */
 async function press(canvasElement: HTMLElement, name: string | RegExp): Promise<void> {
     // In the toolbar: the style tree's "+" menu also offers Analyze.
-    const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" }, storyWaitOptions(1000));
-    await userEvent.click(await within(toolbar).findByRole("button", { name }, storyWaitOptions(1000)));
+    const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
+    await userEvent.click(await within(toolbar).findByRole("button", { name }));
 }
 
 /** The View button, named with the dimension its words show ("View, 2D"). */
@@ -112,10 +111,7 @@ export const AnalyzeFiltered: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.type(
-            await body().findByRole("combobox", { name: "Filter analyses" }, storyWaitOptions(1000)),
-            "brokers",
-        );
+        await userEvent.type(await body().findByRole("combobox", { name: "Filter analyses" }), "brokers");
     },
 };
 
@@ -125,7 +121,7 @@ export const AnalyzeEssentials: Story = {
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("option", { name: /^PageRank/ }, storyWaitOptions(1000)));
+        await userEvent.click(await body().findByRole("option", { name: /^PageRank/ }));
     },
 };
 
@@ -137,7 +133,7 @@ export const AnalyzeRevise: Story = {
         await element.session.runs.start("pagerank");
         await element.waitForStableFrame();
         await press(canvasElement, "Analyze");
-        const recent = await body().findByRole("group", { name: "Recent" }, storyWaitOptions(1000));
+        const recent = await body().findByRole("group", { name: "Recent" });
         await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
     },
 };
@@ -148,14 +144,14 @@ export const AfterLouvain: Story = {
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
-        await userEvent.click(await body().findByRole("option", { name: /^Louvain/ }, storyWaitOptions(1000)));
-        await userEvent.click(await body().findByRole("button", { name: /^Run\b/ }, storyWaitOptions(1000)));
+        await userEvent.click(await body().findByRole("option", { name: /^Louvain/ }));
+        await userEvent.click(await body().findByRole("button", { name: /^Run\b/ }));
         await Promise.all(element.session.runs.list());
         // Run closes the popover and hands focus back to Analyze. A tooltip never opens on focus a
         // script returns, so the capture shows Analyze focused with no tooltip over the canvas.
         const toolbar = within(canvasElement).getByRole("toolbar", { name: "Canvas tools" });
         const analyze = within(toolbar).getByRole("button", { name: "Analyze" });
-        await waitFor(() => expect(document.activeElement).toBe(analyze), storyWaitOptions(5000));
+        await waitFor(() => expect(document.activeElement).toBe(analyze));
         await element.waitForStableFrame();
     },
 };

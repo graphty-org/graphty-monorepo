@@ -18,7 +18,7 @@
  *   option checks, same registry.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -36,7 +36,6 @@ import { Graph } from "../../../index.js";
 import { GraphtyLogger } from "../../../logging";
 import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
-import { nextFrame } from "../../helpers/real-input";
 
 /**
  * Six nodes carrying every attribute the three toy layouts read. "f" carries none of them, so
@@ -59,9 +58,6 @@ const EDGES = [
     { src: "d", dst: "e" },
     { src: "e", dst: "f" },
 ];
-
-/** How long a wait may take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** A position as the element reports it. */
 interface Coords {
@@ -100,16 +96,9 @@ describe("defineLayout on a rendered graph", () => {
     async function settled(what: string): Promise<void> {
         await operationQueueOf(graph).waitForCompletion();
         const manager = graph.getLayoutManager();
-        const deadline = Date.now() + PATIENCE_MS;
-        while (Date.now() < deadline) {
-            if ((manager.layoutEngine?.isSettled ?? false) && !manager.running) {
-                return;
-            }
-
-            await nextFrame();
-        }
-
-        throw new Error(`timed out waiting for ${what}`);
+        await vi.waitFor(() => {
+            assert.isTrue((manager.layoutEngine?.isSettled ?? false) && !manager.running, `waiting for ${what}`);
+        });
     }
 
     /**

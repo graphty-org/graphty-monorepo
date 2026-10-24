@@ -17,7 +17,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import type { LayerSpec } from "../src/catalog/types";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { assertGraphLoaded, type Drawn, drawn, holds } from "./assertions";
+import { assertGraphLoaded, type Drawn, drawn, eventually, holds } from "./assertions";
 import { eventWaitingDecorator, realInput, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Four cities, each with something worth saying about it. */
@@ -37,9 +37,6 @@ const EDGES = [
 
 /** The node each story hovers. */
 const HOVERED = "paris";
-
-/** How long to leave for the tooltip to be built and drawn. */
-const SETTLE_MS = 400;
 
 /**
  * How wide a tooltip drawn at the element's defaults is, in world units, plus a margin.
@@ -154,8 +151,6 @@ async function pointTo(
             }),
         );
     }
-
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 }
 
 /**
@@ -195,12 +190,14 @@ async function hover(scene: Drawn, id: string, parameters: Record<string, unknow
  */
 async function assertTooltip(scene: Drawn, id: string, words: string): Promise<void> {
     const node = scene.graph.getNode(id);
-    const mesh = node?.tooltip?.labelMesh;
 
-    await holds(
-        mesh !== undefined && mesh !== null && !mesh.isDisposed(),
-        `${scene.story}: the pointer is over "${id}" and no tooltip is drawn`,
-    );
+    // The element builds the tooltip once it has seen the pointer arrive.
+    await eventually(() => {
+        const mesh = node?.tooltip?.labelMesh;
+        return mesh !== undefined && mesh !== null && !mesh.isDisposed();
+    }, `${scene.story}: the pointer is over "${id}" and no tooltip is drawn`);
+    // The tooltip is a new mesh, so the picture is final again only once a frame has drawn it.
+    await scene.element.waitForStableFrame();
     await holds(
         node?.tooltipText === words,
         `${scene.story}: the tooltip says "${String(node?.tooltipText)}", not "${words}"`,
@@ -233,8 +230,8 @@ export const GoneWhenThePointerLeaves: Story = {
 
         await pointTo(scene, { x: 2, y: 2 }, parameters);
 
-        await holds(
-            scene.graph.getNode(HOVERED)?.tooltip === undefined,
+        await eventually(
+            () => scene.graph.getNode(HOVERED)?.tooltip === undefined,
             "Styles/Node Tooltip GoneWhenThePointerLeaves: the pointer left and the tooltip stayed",
         );
     },
@@ -254,15 +251,16 @@ export const OnOneNodeOnly: Story = {
     play: async ({ canvasElement, parameters }) => {
         const scene = await settled(canvasElement, "OnOneNodeOnly");
 
+        // Paris first, then London: once London's tooltip is up, the element has handled the
+        // pointer's visit to Paris too, so Paris having none is a fact and not a moment too early.
+        // London last, so the snapshot taken when play ends shows the one tooltip this story is about.
         await hover(scene, HOVERED, parameters);
+        await hover(scene, "london", parameters);
+        await assertTooltip(scene, "london", "the only one with a tooltip");
         await holds(
             scene.graph.getNode(HOVERED)?.tooltip === undefined,
             "Styles/Node Tooltip OnOneNodeOnly: a node the layer did not name drew a tooltip",
         );
-
-        // Last, so the snapshot taken when play ends shows the one tooltip this story is about.
-        await hover(scene, "london", parameters);
-        await assertTooltip(scene, "london", "the only one with a tooltip");
     },
 };
 

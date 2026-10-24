@@ -92,8 +92,7 @@ describe("a replacing load", () => {
         return element;
     }
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it("draws the new data as opening it does, and frames it", { timeout: 60000 }, async () => {
+    it("draws the new data as opening it does, and frames it", async () => {
         const opened = await mount();
         await load(opened, csv(10));
         const expected = positions(opened);

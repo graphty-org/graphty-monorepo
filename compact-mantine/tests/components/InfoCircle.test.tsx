@@ -33,12 +33,9 @@ describe("InfoCircle", () => {
         await user.hover(screen.getByRole("button", { name: "About Betweenness" }));
 
         // The theme opens tooltips after a delay and mounts them hidden first.
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
+        });
     });
 
     it("keeps the explanation closed until it is asked for", () => {

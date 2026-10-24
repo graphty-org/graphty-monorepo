@@ -66,9 +66,6 @@ import { operationQueueOf } from "../src/Graph";
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
-// The test project brings its own timeout, so the play functions' waits set none of their own
-// (`isUnderRunner` in stories/helpers.ts).
-(globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
 afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
@@ -95,9 +92,6 @@ if (globalThis.window !== undefined) {
         originalWarn.apply(console, args);
     };
 }
-
-/** How often to look again while waiting for the data to arrive. */
-const POLL_MS = 50;
 
 /** The story parameters this hook reads. */
 interface PaintCheckParameters {
@@ -182,7 +176,12 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
  */
 async function until(done: () => boolean): Promise<void> {
     while (!done()) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        // Once a frame: what is waited for changes as the element draws.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
     }
 }
 

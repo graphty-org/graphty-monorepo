@@ -20,9 +20,6 @@ import { channelWord } from "../../style/words";
 import { Workspace } from "../../Workspace";
 import { formatNumber } from "../words";
 
-/** A hang guard for the element coming up and runs finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Renders the workspace and loads Les Miserables.
  * @returns the session, the element and the store.
@@ -35,14 +32,11 @@ async function open(): Promise<{
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     const session = element?.session;
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
@@ -211,16 +205,13 @@ describe("a layer row's Values tab on the real element", () => {
         assert.isDefined(id);
         // The force layout may still be moving, so the click is made where the element says the
         // node is now, and made again until the element selects it.
-        await waitFor(
-            async () => {
-                const at = element.nodeScreenPosition(id ?? "");
-                assert.isTrue(at?.visible);
-                assert.equal(element.elementAt({ x: at?.x ?? 0, y: at?.y ?? 0 })?.id, id);
-                await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
-                assert.deepEqual(session.selection.nodes, [id]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(async () => {
+            const at = element.nodeScreenPosition(id ?? "");
+            assert.isTrue(at?.visible);
+            assert.equal(element.elementAt({ x: at?.x ?? 0, y: at?.y ?? 0 })?.id, id);
+            await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+            assert.deepEqual(session.selection.nodes, [id]);
+        });
         const selected = session.styles
             .list()
             .find((l) => l.selector.match === "state" && l.selector.state === "selected" && l.target === "node");

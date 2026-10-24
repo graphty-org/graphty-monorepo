@@ -31,8 +31,6 @@ import { fixture, pathEdges, snapshotOf } from "../helpers/graphs.js";
 import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 /** The grid tuning every case starts from (paper mode, an explicit grid). */
 const GRID: GpuLayoutTuning = Object.freeze({ repulsion: "grid", compat: "paper" });
 
@@ -161,32 +159,27 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
 
     for (const name of ["karate", "random1k", "rmat14"] as const satisfies readonly ParityGraph[]) {
         for (const dim of [2, 3] as const) {
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 40 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-            it(
-                `(1) repulsion: "grid" on ${name} in ${dim}D: 50 iterations finite, the grid stats, run twice bitwise`,
-                async (t) => {
-                    requireGpu(t);
-                    const s = paritySnapshot(name, gpuScale(), false);
-                    try {
-                        const options = { ...BASE_OPTIONS, dim, seed: 7, maxInFlight: 1 };
-                        const { positions, stats } = await layoutTwice(
-                            ctx,
-                            s,
-                            startPositions(s, options, false),
-                            options,
-                            GRID,
-                            50,
-                            5,
-                        );
-                        expectFinite(positions, `${name} ${dim}D`);
-                        expectGridStats(stats, `${name} ${dim}D`);
-                        expect(stats.trace).toHaveLength(5);
-                    } finally {
-                        ctx.release(s);
-                    }
-                },
-                CASE_TIMEOUT,
-            );
+            it(`(1) repulsion: "grid" on ${name} in ${dim}D: 50 iterations finite, the grid stats, run twice bitwise`, async (t) => {
+                requireGpu(t);
+                const s = paritySnapshot(name, gpuScale(), false);
+                try {
+                    const options = { ...BASE_OPTIONS, dim, seed: 7, maxInFlight: 1 };
+                    const { positions, stats } = await layoutTwice(
+                        ctx,
+                        s,
+                        startPositions(s, options, false),
+                        options,
+                        GRID,
+                        50,
+                        5,
+                    );
+                    expectFinite(positions, `${name} ${dim}D`);
+                    expectGridStats(stats, `${name} ${dim}D`);
+                    expect(stats.trace).toHaveLength(5);
+                } finally {
+                    ctx.release(s);
+                }
+            });
         }
     }
 

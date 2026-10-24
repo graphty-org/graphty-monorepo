@@ -12,9 +12,6 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const mounted: HTMLElement[] = [];
 
 afterEach(() => {
@@ -58,31 +55,16 @@ async function methodOf(element: Graphty, params: Record<string, unknown> = {}):
 }
 
 describe("the shortest path's method", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "left unset, is Dijkstra over weights of zero and above",
-        async () => {
-            assert.strictEqual(await methodOf(await roads(1)), "dijkstra");
-        },
-        TEST_TIMEOUT_MS,
-    );
+    it("left unset, is Dijkstra over weights of zero and above", async () => {
+        assert.strictEqual(await methodOf(await roads(1)), "dijkstra");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "left unset, is Bellman-Ford when a weight is negative",
-        async () => {
-            assert.strictEqual(await methodOf(await roads(-1)), "bellman-ford");
-        },
-        TEST_TIMEOUT_MS,
-    );
+    it("left unset, is Bellman-Ford when a weight is negative", async () => {
+        assert.strictEqual(await methodOf(await roads(-1)), "bellman-ford");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "set, is the one asked for",
-        async () => {
-            assert.strictEqual(await methodOf(await roads(1), { method: "bellman-ford" }), "bellman-ford");
-            assert.strictEqual(await methodOf(await roads(1), { method: "dijkstra" }), "dijkstra");
-        },
-        TEST_TIMEOUT_MS,
-    );
+    it("set, is the one asked for", async () => {
+        assert.strictEqual(await methodOf(await roads(1), { method: "bellman-ford" }), "bellman-ford");
+        assert.strictEqual(await methodOf(await roads(1), { method: "dijkstra" }), "dijkstra");
+    });
 });

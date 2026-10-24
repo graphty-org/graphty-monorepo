@@ -2,10 +2,15 @@ import "@testing-library/jest-dom";
 // Import Mantine CSS for browser tests that check computed styles
 import "@mantine/core/styles.css";
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeAll, vi } from "vitest";
 
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
 import { loadFrame } from "../workspace/frameLoader";
+
+// Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
+// a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // The app defines <graphty-element> on demand (elementLoader.ts). Here it never loads it: a test
 // that wants the real element imports "@graphty/graphty-element" itself (the real-element

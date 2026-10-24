@@ -17,9 +17,6 @@ import { createWorkspaceStore } from "../state/store";
 import { colorName } from "../style/words";
 import { Workspace } from "../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Three kinds of node, a few of each. */
 const KINDS = ["agency", "company", "person"] as const;
 
@@ -31,14 +28,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Kinds", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -56,7 +50,7 @@ async function openScene(): Promise<GraphSession> {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -104,7 +98,7 @@ describe("screen-reader names on the real element", () => {
             set: { "node.color": "#e69f00" },
         });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         await within(legend).findByText("Color: Poster");
         const named = [...legend.querySelectorAll<HTMLElement>("*")].filter(
             (each) =>
@@ -117,11 +111,8 @@ describe("screen-reader names on the real element", () => {
 
         const chip = within(legend).getByRole("img", { name: colorName("#e69f00") });
         await userEvent.hover(chip);
-        await waitFor(
-            () => {
-                assert.include(screen.getByRole("tooltip", { hidden: true }).textContent, colorName("#e69f00"));
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            assert.include(screen.getByRole("tooltip", { hidden: true }).textContent, colorName("#e69f00"));
+        });
     });
 });

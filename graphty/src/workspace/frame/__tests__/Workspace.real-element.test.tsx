@@ -16,9 +16,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /**
  * Renders the workspace with a project open and waits for the element's session.
  * @returns the session.
@@ -26,14 +23,11 @@ const TIMEOUT_MS = 60_000;
 async function openWorkspace(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Ring", id: 1 } })} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            const element = document.querySelector("graphty-element");
-            session = element?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const element = document.querySelector("graphty-element");
+        session = element?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -84,89 +78,71 @@ describe("the workspace frame on the real element", () => {
         assert.equal(session.selection.size, 0);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "gives no two reachable controls one name with a graph and nothing run",
-        async () => {
-            const session = await openWorkspace();
-            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
-            // The Graph place has a graph once its "Add data to start" line goes.
-            await waitFor(
-                () => {
-                    assert.isNotNull(screen.queryByRole("tree", { name: "Style layers" }));
-                    assert.isNull(screen.queryByText("Add data to start"));
-                },
-                { timeout: TIMEOUT_MS },
-            );
+    it("gives no two reachable controls one name with a graph and nothing run", async () => {
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        // The Graph place has a graph once its "Add data to start" line goes.
+        await waitFor(() => {
+            assert.isNotNull(screen.queryByRole("tree", { name: "Style layers" }));
+            assert.isNull(screen.queryByText("Add data to start"));
+        });
 
-            const names = new Map<string, number>();
-            for (const control of document.querySelectorAll<HTMLElement>(
-                'button, [role="button"], [role="menuitem"], a[href], input, [role="tab"]',
-            )) {
-                if (control.checkVisibility()) {
-                    const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
-                    names.set(name, (names.get(name) ?? 0) + 1);
-                }
+        const names = new Map<string, number>();
+        for (const control of document.querySelectorAll<HTMLElement>(
+            'button, [role="button"], [role="menuitem"], a[href], input, [role="tab"]',
+        )) {
+            if (control.checkVisibility()) {
+                const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+                names.set(name, (names.get(name) ?? 0) + 1);
             }
-            assert.deepEqual(
-                [...names].filter(([name, count]) => name !== "" && count > 1).map(([name]) => name),
-                [],
-            );
-        },
-        TIMEOUT_MS,
-    );
+        }
+        assert.deepEqual(
+            [...names].filter(([name, count]) => name !== "" && count > 1).map(([name]) => name),
+            [],
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "keeps Lighting inside the inspector's padding on the graph's Style tab, with no Layout copy there",
-        async () => {
-            const session = await openWorkspace();
-            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
-            const inspector = screen.getByRole("complementary", { name: "Inspector" });
-            await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+    it("keeps Lighting inside the inspector's padding on the graph's Style tab, with no Layout copy there", async () => {
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
 
-            const lighting = await within(inspector).findByRole("combobox", { name: "Lighting" });
-            const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
-            const { left } = lighting.getBoundingClientRect();
-            // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
-            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Lighting starts at the content band");
-            // The toolbar is the one home of the layout and of 2D / 3D.
-            assert.isEmpty(within(panel).queryAllByLabelText("Method"));
-            assert.isNull(within(panel).queryByRole("heading", { name: "Layout" }));
-        },
-        TIMEOUT_MS,
-    );
+        const lighting = await within(inspector).findByRole("combobox", { name: "Lighting" });
+        const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
+        const { left } = lighting.getBoundingClientRect();
+        // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
+        assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Lighting starts at the content band");
+        // The toolbar is the one home of the layout and of 2D / 3D.
+        assert.isEmpty(within(panel).queryAllByLabelText("Method"));
+        assert.isNull(within(panel).queryByRole("heading", { name: "Layout" }));
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "paints a shortest path as ordinary layers in the element's result colour, not the app's highlight",
-        async () => {
-            const session = await openWorkspace();
-            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
-            await session.data.addEdges([
-                { source: "a", target: "b" },
-                { source: "b", target: "c" },
-            ]);
+    it("paints a shortest path as ordinary layers in the element's result colour, not the app's highlight", async () => {
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.data.addEdges([
+            { source: "a", target: "b" },
+            { source: "b", target: "c" },
+        ]);
 
-            const { runId } = await session.runs.start("shortest-path", { source: "a", target: "c" });
+        const { runId } = await session.runs.start("shortest-path", { source: "a", target: "c" });
 
-            // Marks, not highlights, so a second algorithm's picture stacks on this one.
-            await waitFor(() => {
-                const route = session.styles
-                    .list()
-                    .filter((layer) => layer.source.by === "run" && layer.source.runId === runId);
-                assert.lengthOf(route, 2);
-                for (const layer of route) {
-                    assert.notEqual(layer.kind, "highlight");
-                    const color = layer.set?.[`${layer.target ?? "node"}.color`];
-                    const hex = typeof color === "string" ? color.toUpperCase() : undefined;
-                    assert.equal(hex, "#D55E00");
-                    assert.notEqual(hex, APP_HIGHLIGHT_COLOR.toUpperCase());
-                }
-            });
-        },
-        TIMEOUT_MS,
-    );
+        // Marks, not highlights, so a second algorithm's picture stacks on this one.
+        await waitFor(() => {
+            const route = session.styles
+                .list()
+                .filter((layer) => layer.source.by === "run" && layer.source.runId === runId);
+            assert.lengthOf(route, 2);
+            for (const layer of route) {
+                assert.notEqual(layer.kind, "highlight");
+                const color = layer.set?.[`${layer.target ?? "node"}.color`];
+                const hex = typeof color === "string" ? color.toUpperCase() : undefined;
+                assert.equal(hex, "#D55E00");
+                assert.notEqual(hex, APP_HIGHLIGHT_COLOR.toUpperCase());
+            }
+        });
+    });
 
     it("highlights no page text with Control+A on the canvas, and keeps what the reader types selectable", async () => {
         await page.viewport(1366, 768);
@@ -248,16 +224,13 @@ describe("the workspace frame on the real element", () => {
         await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
         // Mantine keeps a closed Select's options mounted, hidden: the case that once switched
         // every single-key shortcut off.
-        await waitFor(
-            () => {
-                const lists = [...document.querySelectorAll('[role="listbox"]')];
-                assert.isTrue(
-                    lists.some((list) => !list.checkVisibility()),
-                    "a hidden list is on the page",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const lists = [...document.querySelectorAll('[role="listbox"]')];
+            assert.isTrue(
+                lists.some((list) => !list.checkVisibility()),
+                "a hidden list is on the page",
+            );
+        });
 
         await userEvent.keyboard("?");
 

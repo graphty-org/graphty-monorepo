@@ -53,18 +53,15 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
  * @param target - the graph to wait on
  */
 async function settle(target: Graph): Promise<void> {
-    await vi.waitFor(
-        async () => {
-            await operationQueueOf(target).waitForCompletion();
-            const busy = target
-                .getSession()
-                .runs.list()
-                .filter((run) => run.status === "queued" || run.status === "running");
+    await vi.waitFor(async () => {
+        await operationQueueOf(target).waitForCompletion();
+        const busy = target
+            .getSession()
+            .runs.list()
+            .filter((run) => run.status === "queued" || run.status === "running");
 
-            assert.deepStrictEqual(busy, [], "every run has finished");
-        },
-        { timeout: 10_000 },
-    );
+        assert.deepStrictEqual(busy, [], "every run has finished");
+    });
 }
 
 describe("the load-time algorithm list", () => {

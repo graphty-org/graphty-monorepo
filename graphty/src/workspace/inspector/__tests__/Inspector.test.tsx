@@ -265,7 +265,6 @@ describe("the inspector", () => {
         const tip = await screen.findByText(
             "Hide every node outside this neighborhood. Its step in Filters turns it off",
             {},
-            { timeout: 3000 },
         );
         // Beside the button (right, or left where the window ends), never below it over the first
         // neighbor's name.
@@ -326,7 +325,7 @@ describe("the inspector", () => {
         // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
         // was already in the page with this text (testing-library judged it inaccessible). It mounts
         // after the theme's 1000 ms open delay: wait longer than that, not the default 1000 ms.
-        const tip = await screen.findByText(/quantity/, {}, { timeout: 3000 });
+        const tip = await screen.findByText(/quantity/, {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
     });
 
@@ -496,7 +495,7 @@ describe("the inspector", () => {
         await userEvent.hover(screen.getByRole("button", { name: "Edge actions" }));
         // The tooltip mounts after the theme's 1000 ms open delay: wait longer than that, not the
         // default 1000 ms, which races the delay.
-        const tip = await screen.findByText("Edge actions", {}, { timeout: 3000 });
+        const tip = await screen.findByText("Edge actions", {});
         assert.isNotNull(tip.closest('[role="tooltip"]'));
         await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));

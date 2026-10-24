@@ -18,9 +18,6 @@ import { findValuePicker, render, screen, waitFor, within } from "../../../test/
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and loading a sample, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Opens a sample from the start screen and waits for its nodes.
  * @param sample - the sample's name on its button.
@@ -31,14 +28,11 @@ async function openSample(sample: string, nodes: number): Promise<{ session: Gra
     const store = createWorkspaceStore();
     render(<Workspace store={store} />);
     await userEvent.click(await screen.findByRole("button", { name: `Open the ${sample} sample` }));
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.equal(found?.data.statistics().nodeCount, nodes);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.equal(found?.data.statistics().nodeCount, nodes);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -54,15 +48,12 @@ async function openSample(sample: string, nodes: number): Promise<{ session: Gra
  */
 async function openBinding(store: WorkspaceStore, layer: Layer): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    const pill = await waitFor(
-        () => {
-            const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
-            assert.isNotNull(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const tab = await screen.findByTestId("style-tab", {});
+    const pill = await waitFor(() => {
+        const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
+        assert.isNotNull(found);
+        return found;
+    });
     if (pill === null) {
         throw new Error("no value pill");
     }
@@ -129,14 +120,11 @@ describe("the binding popover's rows and readings", () => {
         assert.isNull(within(popover).queryByRole("button", { name: /^Use one (color|value)/ }));
 
         await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
-        await waitFor(
-            () => {
-                const binding = session.styles.get(layer.id)?.encode?.["node.color"];
-                assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
-                assert.equal(nodeColors(session).size, 12, "12 conferences, 12 colors");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const binding = session.styles.get(layer.id)?.encode?.["node.color"];
+            assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
+            assert.equal(nodeColors(session).size, 12, "12 conferences, 12 colors");
+        });
         assert.isDefined(
             await within(popover).findByRole("combobox", { name: /^Palette/ }),
             "the categorical palettes are offered",
@@ -226,7 +214,7 @@ describe("the binding popover's rows and readings", () => {
             set: { "node.color": "#FF0000" },
         });
         store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
 
         // The vary picker on Node size, every value unfolded.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));

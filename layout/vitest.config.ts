@@ -1,9 +1,10 @@
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
@@ -13,7 +14,6 @@ export default defineConfig({
         globals: true,
         environment: "happy-dom",
         pool: "forks",
-        testTimeout: 30000,
         coverage: {
             provider: "v8",
             reporter: ["text", "json", "html", "lcov"],
@@ -41,3 +41,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -19,9 +19,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace, one reader's layer open on its Style tab, and a new Color
  * line added with Fill's "+", focus in its box.
@@ -30,14 +27,11 @@ const TIMEOUT_MS = 90_000;
 async function openColorLine(): Promise<{ session: GraphSession; line: HTMLElement; box: HTMLInputElement }> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -46,7 +40,7 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
     await session.styles.addRow({ name: "Paint", target: "both", selector: { match: "everything" } });
     await session.styles.settled();
 
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Paint, / }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -56,17 +50,12 @@ async function openColorLine(): Promise<{ session: GraphSession; line: HTMLEleme
     await screen.findByTestId("style-tab");
     await showKind("node");
     await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
-    const line = await waitFor(
-        () => {
-            const found = document.querySelector<HTMLElement>(
-                '[data-testid="style-tab"] .ws-row[data-line="node.color"]',
-            );
-            assert.isNotNull(found);
-            assert.isTrue(found?.contains(document.activeElement), "focus is in the new Color line");
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const line = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>('[data-testid="style-tab"] .ws-row[data-line="node.color"]');
+        assert.isNotNull(found);
+        assert.isTrue(found?.contains(document.activeElement), "focus is in the new Color line");
+        return found;
+    });
     if (line === null) {
         throw new Error("no Color line");
     }

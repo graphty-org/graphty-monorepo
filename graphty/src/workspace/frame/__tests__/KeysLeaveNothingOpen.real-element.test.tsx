@@ -18,9 +18,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace, with a layer "Picked" holding a name condition and a color.
  * @returns The session and the store.
@@ -29,14 +26,11 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -57,7 +51,7 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
  * @param name - the row's name.
  */
 async function openRow(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
@@ -66,7 +60,7 @@ async function openRow(name: string): Promise<void> {
  * @returns The row button.
  */
 async function whichRow(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: /^Which nodes, / });
 }
 
 /**
@@ -100,7 +94,7 @@ describe("keys that close what they leave and land focus in the right place", ()
     it("Remove node color hands focus to the Fill + that adds it back", async () => {
         await openGraph();
         await openRow("Everything");
-        const remove = await screen.findByRole("button", { name: "Remove node color" }, { timeout: TIMEOUT_MS });
+        const remove = await screen.findByRole("button", { name: "Remove node color" });
         // A pointer press, as a reader with a mouse makes it: the next section slides up under it.
         await userEvent.click(remove);
         await waitFor(() => {
@@ -191,7 +185,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
         // The inspector shows the selection; on its Style tab, Add to node shape is a button, not a field.
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
-        await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }));
         const field = await within(inspector).findByRole("button", { name: "Add to node shape" });
         field.focus();
         await userEvent.keyboard("{Escape}");
@@ -202,9 +196,7 @@ describe("keys that close what they leave and land focus in the right place", ()
     it("Enter on Undo with nothing left to undo says so", async () => {
         const { store } = await openGraph();
         await openRow("Picked");
-        await userEvent.click(
-            await screen.findByRole("button", { name: "Remove node color" }, { timeout: TIMEOUT_MS }),
-        );
+        await userEvent.click(await screen.findByRole("button", { name: "Remove node color" }));
         const undo = screen.getByRole("button", { name: /^Undo( |$)/ });
         await waitFor(() => {
             assert.strictEqual(undo.getAttribute("aria-disabled"), "false");
@@ -231,7 +223,7 @@ describe("keys that close what they leave and land focus in the right place", ()
     it("Tab from Add to node text passes over the full Fill +", async () => {
         await openGraph();
         await openRow("Everything");
-        const text = await screen.findByRole("button", { name: "Add to node text" }, { timeout: TIMEOUT_MS });
+        const text = await screen.findByRole("button", { name: "Add to node text" });
         const fill = screen.getByRole("button", { name: "Add to node fill" });
         assert.strictEqual(fill.getAttribute("aria-disabled"), "true", "Fill has nothing left to add");
         text.focus();
@@ -241,7 +233,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         // The pointer still hears why.
         await userEvent.hover(fill);
         // A hang guard: the tooltip waits its 1 s open delay, as long as findBy's default.
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.strictEqual(tip.textContent, "Everything in node fill is set");
     });
 

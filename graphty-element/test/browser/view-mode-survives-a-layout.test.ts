@@ -41,9 +41,6 @@ const ORTHOGRAPHIC = 1;
 /** Babylon's `Camera.PERSPECTIVE_CAMERA`. */
 const PERSPECTIVE = 0;
 
-/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
-const INIT_BUDGET_MS = 10_000;
-
 /** A graph small enough that every layout below finishes instantly. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
 
@@ -85,12 +82,9 @@ function mount(): Graphty {
  */
 async function settle(element: Graphty): Promise<void> {
     await element.updateComplete;
-    await vi.waitFor(
-        () => {
-            assert.isTrue(element.graph.initialized, "the element finished initialising");
-        },
-        { timeout: INIT_BUDGET_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element finished initialising");
+    });
     await element.waitForStableFrame();
 }
 

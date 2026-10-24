@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
@@ -244,7 +245,7 @@ const browserCommands = {
 // comes out empty.
 const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react()],
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
@@ -331,3 +332,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

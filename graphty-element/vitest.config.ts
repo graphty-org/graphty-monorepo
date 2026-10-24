@@ -33,8 +33,8 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
-import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -273,7 +273,7 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
@@ -307,10 +307,6 @@ export default defineConfig({
                     // A browser benchmark needs a page, which this project has not got: it runs in
                     // "browser-bench" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],
-                    // test/lifecycle/autosave-engines.bench.test.ts launches three browsers per size,
-                    // up to 100,000 nodes each.
-                    testTimeout: 600_000,
-                    hookTimeout: 120_000,
                 },
             },
             {
@@ -320,9 +316,6 @@ export default defineConfig({
                     name: "default",
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
-                    // The shared config's figure. Tests that import a whole entry point take several
-                    // seconds on a CI runner or under the pre-push gate, past vitest's default five.
-                    testTimeout: 30000,
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // Timing benchmarks, which run as their own project -- see "bench" above.
@@ -429,10 +422,6 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Mesh construction under NullEngine is fast; these are the limits the standalone
-                    // config used and no case comes close to them.
-                    testTimeout: 10000,
-                    hookTimeout: 5000,
                 },
             },
             {
@@ -732,7 +721,6 @@ export default defineConfig({
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
                     ],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -756,7 +744,6 @@ export default defineConfig({
                 test: {
                     name: "bench-browser",
                     include: ["test/bench-browser/**/*.bench-browser.ts"],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -794,8 +781,6 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    // Interaction tests load complex scenes and may need longer timeout
-                    testTimeout: 30000,
                 },
             },
             {
@@ -841,8 +826,6 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                     },
                     setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
-                    // Storybook tests load complex 3D scenes and need longer timeout
-                    testTimeout: 30000,
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
@@ -862,11 +845,6 @@ export default defineConfig({
                     // The benchmark beside these tests runs in "bench".
                     exclude: ["**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
-                    // On the macOS runners (work-protection-macos.yml) booting the iOS Simulator and
-                    // Safari's first launch take minutes; the workflow's step limits bound them there.
-                    // The project's limits win over the command line's, so they are set here.
-                    testTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 120_000,
-                    hookTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 60_000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
@@ -894,9 +872,6 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Per provider, sized from measured call latency (test/helpers/llm-regression-env.ts)
-                    testTimeout: getLlmRegressionCaseTimeoutMs(),
-                    hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",
                     fileParallelism: false,
@@ -923,3 +898,6 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -109,6 +109,8 @@
             "{workspaceRoot}/vitest.shared.config.ts",
             "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.wait-guard-setup.ts",
+            "{workspaceRoot}/tools/test-wait-guard.mjs",
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc",
             "{workspaceRoot}/.github/workflows/**/*"

@@ -20,9 +20,6 @@ import { answerUsageData, forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** Les Miserables' node count, from its source. */
 const NODES = 77;
 
@@ -35,13 +32,10 @@ async function openSample(): Promise<{ session: GraphSession; store: WorkspaceSt
     render(<Workspace store={store} />);
     await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.equal(session?.data.statistics().nodeCount, NODES);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.equal(session?.data.statistics().nodeCount, NODES);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -60,7 +54,8 @@ describe("Undo from the reader's keys", () => {
     it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        const undo = screen.getByRole("button", { name: "Undo" });
+        // The toolbar comes up on its own render after the element has the data: wait for it.
+        const undo = await screen.findByRole("button", { name: "Undo" });
         await waitFor(() => {
             assert.isFalse(session.canUndo, "opening is not a change to undo");
             assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");
@@ -106,7 +101,7 @@ describe("Undo from the reader's keys", () => {
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
             assert.isTrue(session.canUndo);

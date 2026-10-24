@@ -25,7 +25,6 @@ import {
     update3DPositions,
     update3DStatus,
 } from "../utils/visualization-3d.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -196,6 +195,6 @@ export const Spring3D: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("applied");
-        }, storyWaitOptions(5000));
+        });
     },
 };

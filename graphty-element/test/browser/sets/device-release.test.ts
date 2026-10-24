@@ -14,7 +14,7 @@ import "../../../src/graphty-element";
 import "../../../webgpu";
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import { afterAll, assert, describe, it } from "vitest";
+import { afterAll, assert, describe, it, vi } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { derivedInputsOf, withRunInput } from "../../../src/algorithms/input/ScopedInput";
@@ -55,24 +55,15 @@ class ScopedRank extends Algorithm {
 }
 
 /**
- * Waits for a condition, once per animation frame.
+ * Waits for a condition. No deadline of its own: the one hang guard (tools/test-wait-guard.mjs)
+ * ends a wait that never comes true, naming what it waited for.
  * @param predicate - The condition.
  * @param what - Named in the failure.
- * @param budgetMs - How long to wait.
  */
-async function until(predicate: () => boolean, what: string, budgetMs: number): Promise<void> {
-    const deadline = performance.now() + budgetMs;
-    while (performance.now() < deadline) {
-        if (predicate()) {
-            return;
-        }
-
-        await new Promise((resolve) => {
-            requestAnimationFrame(resolve);
-        });
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+async function until(predicate: () => boolean, what: string): Promise<void> {
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `waiting for ${what}`);
+    });
 }
 
 afterAll(() => {
@@ -94,8 +85,8 @@ describe.skipIf(!GPU_LANE)("scoped runs on a real WebGPU device", () => {
         mounted.push(element);
         await element.updateComplete;
         const { graph } = element;
-        await until(() => graph.getDataManager().nodes.size === GRAPH.nodes.length, "the data", 30_000);
-        await until(() => graph.acceleration.accelerator !== null, "an accelerator", 30_000);
+        await until(() => graph.getDataManager().nodes.size === GRAPH.nodes.length, "the data");
+        await until(() => graph.acceleration.accelerator !== null, "an accelerator");
 
         // Spy on the real accelerator: what its PageRank member is handed, and what it is told to free.
         const accelerator = graph.acceleration.accelerator as Record<string, unknown>;
@@ -128,11 +119,7 @@ describe.skipIf(!GPU_LANE)("scoped runs on a real WebGPU device", () => {
         assert.strictEqual(await run(), first, "a repeated scope reuses the uploaded input");
 
         await graph.addNodes([{ id: "late" }]);
-        await until(
-            () => graph.getDataManager().getSnapshot().nodeCount === GRAPH.nodes.length + 1,
-            "the freeze",
-            30_000,
-        );
+        await until(() => graph.getDataManager().getSnapshot().nodeCount === GRAPH.nodes.length + 1, "the freeze");
         await run();
 
         derivedInputsOf(graph).dispose();

@@ -5,7 +5,7 @@
  * after the layout ran, and cancellation.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
     type AuthoredLayoutDescriptor,
@@ -20,7 +20,6 @@ import {
 import { Graph } from "../../../index.js";
 import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
-import { nextFrame } from "../../helpers/real-input";
 
 const NODES = [
     { id: "a", tier: 0 },
@@ -36,25 +35,19 @@ const EDGES = [
     { src: "b", dst: "e" },
 ];
 
-const PATIENCE_MS = 5000;
-
 /** The tiers layout's options, as both twins declare them. */
 const TIER_OPTIONS = { tier: { type: "attribute", default: "tier" }, spacing: 2 } as const;
 
 /**
- * Wait until a condition holds.
+ * Wait until a condition holds. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
  * @param what - What is awaited, for the failure.
  * @param check - The condition.
  */
 async function until(what: string, check: () => boolean): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-    while (!check()) {
-        if (Date.now() > deadline) {
-            throw new Error(`timed out waiting for ${what}`);
-        }
-
-        await nextFrame();
-    }
+    await vi.waitFor(() => {
+        assert.isTrue(check(), `waiting for ${what}`);
+    });
 }
 
 /**

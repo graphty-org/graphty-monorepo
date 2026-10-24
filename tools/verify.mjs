@@ -53,6 +53,13 @@
 // that needs two landings fails first at the later one, which is the one named. A non-test failure (no test shard
 // named) re-runs the whole gate once per point, and its culprit's evidence says "judged by 1 run". Verification
 // never reverts; the pipeline round does, and only a named culprit.
+//
+// A failure in CI (design/ci/ci-full-testing.md, section 3.5) is confirmed here the same way, all CONFIRM_RUNS: the
+// failed shards' JUnit artifacts become ledger records of the commit, so only the exact failing test files run. A test
+// that passes every run here is a CI-only failure: the run's failed jobs are re-run once in CI. Failing again, it is
+// bisected in CI, one point at a time on golden-bisect-1, after the last verified commit has run there: a verified
+// commit that fails too is an environment change, which names no landing and gets its issue. Passing its re-run, it
+// is quarantined as a flake. Either way the commit stays failed and golden-verified does not move.
 
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -118,6 +125,8 @@ export function verifyContext(cwd, overrides = {}) {
         width: 2,
         gate: defaultGate,
         check: defaultCheck,
+        ciCheck: defaultCiCheck,
+        ciRerun: defaultCiRerun,
         spawnRun: defaultSpawnRun,
         publishRef: defaultPublishRef,
         sessionAlive: defaultSessionAlive,
@@ -366,6 +375,7 @@ async function verifyCommit(ctx, { target, from }) {
             status: again ? "failed-known" : "confirming",
             at: now(),
             log: r.log,
+            ci: r.run,
             failing,
             pairs: facts?.pairs,
             tests: facts?.tests,
@@ -592,15 +602,23 @@ export const decided = (r, targets) =>
           ).length > 0
         : !failedEvery(r).length;
 
-// The targets the bisect follows: those that failed every confirming run, and the newly intermittent (`rate`).
+// The targets the bisect follows: those that failed every confirming run, the newly intermittent (`rate`), and in a
+// CI bisect those that failed in CI twice and never here.
+const followed = (last, t) =>
+    last.confirm.consistent.includes(t.id) ||
+    last.confirm.regressed?.includes(t.id) ||
+    (last.bisect.ci && last.confirm.ci?.includes(t.id));
 const bisectTargets = (last) =>
     targetsOf(last)
-        .filter((t) => last.confirm.consistent.includes(t.id) || last.confirm.regressed?.includes(t.id))
+        .filter((t) => followed(last, t))
         .map((t) => (last.confirm.regressed?.includes(t.id) ? { ...t, rate: true } : t));
+// A CI bisect runs its points in CI (golden-bisect-1), one at a time; the rest run here.
+const checkOf = (ctx, b) => (b.ci ? ctx.ciCheck : ctx.check);
 
 async function bisect(ctx) {
     if (!readState(ctx).last.confirm) await confirm(ctx);
     if (!bisectTargets(readState(ctx).last).length) return finishIntermittent(ctx);
+    if (await environmentChanged(ctx)) return;
     for (;;) {
         const last = readState(ctx).last;
         const b = last.bisect;
@@ -611,10 +629,11 @@ async function bisect(ctx) {
             return finishBisect(ctx, null, why);
         }
         if (bad !== null && bad - good === 1) return blame(ctx, b.candidates[bad]);
-        const picks = nextPoints(b, ctx.width);
+        const picks = nextPoints(b, b.ci ? 1 : ctx.width);
         const job = { failing: last.failing, targets: bisectTargets(last) };
+        const check = checkOf(ctx, b);
         const results = await Promise.all(
-            picks.map((i, slot) => ctx.check(ctx, b.candidates[i], { ...job, slot: slot + 1 })),
+            picks.map((i, slot) => check(ctx, b.candidates[i], { ...job, slot: slot + 1 })),
         );
         await withState(ctx, (s) => {
             picks.forEach((i, k) => {
@@ -635,19 +654,86 @@ async function bisect(ctx) {
 async function confirm(ctx) {
     const last = readState(ctx).last;
     const targets = targetsOf(last);
-    const r = await ctx.check(ctx, last.commit, { failing: last.failing, targets, slot: 1 });
+    // A CI failure runs all CONFIRM_RUNS here: only a test that passes every one is a CI-only failure.
+    const r = await ctx.check(ctx, last.commit, { failing: last.failing, targets, slot: 1, full: Boolean(last.ci) });
     const every = failedEvery(r);
-    const intermittent = targets.filter((t) => !every.includes(t.id));
+    // Failed in CI and in no run here: one CI re-run of the failed jobs tells a CI-only failure from a flake.
+    const ciOnly = last.ci ? targets.filter((t) => !r.failed[t.id]) : [];
+    const ci = ciOnly.length ? await ciConfirm(ctx, last, ciOnly) : { confirmed: [], flaky: [] };
+    const intermittent = targets.filter((t) => !every.includes(t.id) && !ciOnly.includes(t));
     const regressed = newlyIntermittent(ctx, last, intermittent).map((t) => t.id);
-    const flaky = intermittent.filter((t) => !regressed.includes(t.id));
+    const flaky = [...intermittent.filter((t) => !regressed.includes(t.id)), ...ci.flaky];
     const quarantined = flaky.length ? routeFlaky(ctx, flaky, last, r) : [];
+    // A failure that reproduces here is bisected here; only one that fails in CI alone is bisected in CI.
+    const inCi = !every.length && !regressed.length && ci.confirmed.length > 0;
     await withState(ctx, (s) => {
-        s.last.confirm = { ...r, consistent: every, regressed };
-        s.last.intermittent = intermittent.map((t) => t.id);
+        s.last.confirm = { ...r, consistent: every, regressed, ci: ci.confirmed, ciRerun: ci.rerun };
+        s.last.intermittent = [...intermittent, ...ci.flaky].map((t) => t.id);
         s.last.quarantined = quarantined;
-        if (every.length || regressed.length) s.last.status = "bisecting";
+        if (inCi) startCiBisect(s.last);
+        if (every.length || regressed.length || inCi) s.last.status = "bisecting";
         if (s.run) s.run.step = "bisect";
     });
+}
+
+/**
+ * Re-runs the CI run's failed jobs once (never more: no test is retried until it passes). A target whose shard fails
+ * again is confirmed in CI; one whose shard passes is a flake, quarantined like one found here. A re-run that ends
+ * with no test verdict decides nothing. A passing re-run never moves golden-verified: this commit stays failed.
+ * @param ctx the context
+ * @param last the failure
+ * @param ciOnly the targets that failed in CI and passed every run here
+ * @returns `{ confirmed: ids, flaky: targets, rerun }`
+ */
+async function ciConfirm(ctx, last, ciOnly) {
+    const rerun = await ctx.ciRerun(ctx, last);
+    if (rerun.lost) return { confirmed: [], flaky: [], rerun };
+    const again = (t) => (t.shard ? rerun.failed.includes(t.shard) : rerun.failed.length > 0);
+    return { confirmed: ciOnly.filter(again).map((t) => t.id), flaky: ciOnly.filter((t) => !again(t)), rerun };
+}
+
+// The failing commit failed in CI twice (the run and its re-run): when it is the newest landing, that point is bad
+// already, so no CI run is spent on it again.
+function startCiBisect(last) {
+    const b = last.bisect;
+    b.ci = true;
+    if (b.candidates.at(-1) !== last.commit) return;
+    b.points[last.commit] = "bad";
+    const failed = Object.fromEntries(last.confirm.ci.map((id) => [id, 2]));
+    b.evidence[last.commit] = { runs: 2, failed, ci: [last.ci?.url, last.confirm.ciRerun?.url] };
+}
+
+/**
+ * A CI bisect first runs the last verified commit in CI: failing there too, the failure came with the environment
+ * (the runner image, an outside service, the date), not with a landing, so nothing is bisected or reverted and it
+ * gets its issue.
+ * @param ctx the context
+ * @returns true when it did (the failure is recorded)
+ */
+async function environmentChanged(ctx) {
+    const last = readState(ctx).last;
+    const b = last.bisect;
+    if (!b.ci || !last.from || b.verifiedCheck) return false;
+    const job = { failing: last.failing, targets: bisectTargets(last), slot: 1 };
+    const r = await ctx.ciCheck(ctx, last.from, job);
+    const bad = badTargets(r, job.targets).length > 0;
+    await withState(ctx, (s) => {
+        s.last.bisect.verifiedCheck = bad ? "bad" : "good";
+        s.last.bisect.evidence[last.from] = r;
+    });
+    if (!bad) return false;
+    const why = `the last verified commit ${short(last.from)} fails it too in CI: an environment change (the runner image, an outside service, the date), not a landing`;
+    await finishBisect(ctx, null, why);
+    if (!job.targets.some((t) => t.file)) fileEnvironmentIssue(ctx, last, why);
+    return true;
+}
+
+// A non-test failure files no ledger issue, so an environment change of one gets its own.
+function fileEnvironmentIssue(ctx, last, why) {
+    const title = `Verification of golden fails in CI at the verified commit too: ${last.failing?.join(", ") ?? "a job"}`;
+    const body = `Golden at ${last.commit} fails in CI (${last.ci?.url ?? "-"}), and so does ${why}.`;
+    const labels = ["--label", "bug", "--label", "priority:high", "--label", "effort:medium"];
+    ghTry(ctx, ["issue", "create", "--title", title, ...labels, "--body", body]);
 }
 
 /**
@@ -693,8 +779,11 @@ function routeFlaky(ctx, tests, last, r) {
     const real = tests.filter((t) => t.file && t.family);
     if (!real.length || !quarantine?.quarantineEnabled(ctx.env)) return [];
     try {
+        const passedHere = (t) => `passed in ${r.runs - (r.failed[t.id] ?? 0)} of ${r.runs} confirming runs`;
         const how = (t) =>
-            `failed in verification of golden ${short(last.commit)}, then passed in ${r.runs - (r.failed[t.id] ?? 0)} of ${r.runs} confirming runs there`;
+            r.failed[t.id]
+                ? `failed in verification of golden ${short(last.commit)}, then ${passedHere(t)} there`
+                : `failed in CI verification of golden ${short(last.commit)}, ${passedHere(t)} here, and passed its CI re-run`;
         const suspects = suspectsOf(ctx, last.bisect.candidates);
         const entries = real.map((t) => ({ ...t, how: how(t), excerpt: t.line ?? "", suspects }));
         const held = quarantine.quarantineTests(ctx.main, entries, ctx.gh);
@@ -731,8 +820,12 @@ async function blame(ctx, sha) {
     const last = readState(ctx).last;
     const parent = git(ctx, ctx.main, ["rev-parse", `${sha}^1`]);
     if (parent === last.from) return finishBisect(ctx, sha, null, { sha: parent, verified: true });
+    // A CI point is one full run: a parent that already passed as a point is not run again.
+    const b = last.bisect;
+    if (b.ci && b.points[parent] === "good")
+        return finishBisect(ctx, sha, null, { sha: parent, ...b.evidence[parent] });
     const job = { failing: last.failing, targets: bisectTargets(last), slot: 1, full: true };
-    const r = { sha: parent, ...(await ctx.check(ctx, parent, job)) };
+    const r = { sha: parent, ...(await checkOf(ctx, last.bisect)(ctx, parent, job)) };
     if (Object.values(r.failed).some((n) => n > 0)) {
         const why = `its parent ${short(parent)}, not a landing, fails it too (in ${Math.max(...Object.values(r.failed))} of ${r.runs} runs)`;
         return finishBisect(ctx, null, `the first bad landing is ${short(sha)}, but ${why}`, r);
@@ -837,7 +930,8 @@ async function localGate(ctx, commit, name = `golden-verify${ctx.branch === GOLD
         ...(bisecting ? {} : { PREPUSH_SUPERSEDED_FILE: ctx.supersededFile }),
         TEST_LEDGER_KIND: bisecting ? "bisect" : "verify",
         TEST_LEDGER_BRANCH: ctx.branch,
-        PREPUSH_LIGHT: "0",
+        // A CI failure outside the test shards is reproduced by the light gate of every package (no tests).
+        PREPUSH_LIGHT: bisecting && backendOf(ctx) === "ci" ? "1" : "0",
         PREPUSH_ALL: "1",
         PUSH_BASE_REF: "origin/master",
         PUSH_QUEUE_PRIORITY: "critical",
@@ -912,9 +1006,12 @@ export async function setBackend(ctx, name, reason) {
  * is started again, and CI is marked unavailable on the second time. Never a deadline.
  * @param ctx the context
  * @param commit what to verify
- * @returns `{ code, output, log }`: output has one `[FAIL] <shard or job>` line per failed job
+ * @param [opts] a CI bisect point's: `ref` (golden-bisect-<n>), `kind` ("bisect", the ledger's), `shards` (the
+ *   failing shards: only a failure of one of them ends the run early)
+ * @returns `{ code, output, log, run, records }`: output has one `[FAIL] <shard or job>` line per failed job; on a
+ *   failure, `run` is `{ id, attempt, url }` and `records` the ledger records of the failed shards' JUnit, by shard
  */
-export async function ciGate(ctx, commit) {
+export async function ciGate(ctx, commit, opts = {}) {
     const log = join(ctx.main, `tmp/golden/verify-logs/${commit.slice(0, 10)}-ci-${Date.now()}.log`);
     mkdirSync(dirname(log), { recursive: true });
     const say = (line) => {
@@ -922,7 +1019,8 @@ export async function ciGate(ctx, commit) {
         writeFileSync(log, `${now()} ${line}\n`, { flag: "a" });
     };
     await yieldToFullRuns(ctx, say);
-    const job = { commit, ref: CANDIDATE[ctx.branch], say, started: Date.now() };
+    const job = { commit, ref: opts.ref ?? CANDIDATE[ctx.branch], say, started: Date.now() };
+    Object.assign(job, { kind: opts.kind ?? "verify", shards: opts.shards });
     await pushRef(ctx, job);
     for (;;) {
         await ctx.sleep(ctx.pollMs);
@@ -977,7 +1075,9 @@ async function recreate(ctx, job) {
 
 // One look: the status broker first (free), GitHub's REST API when it has no answer.
 async function pollRun(ctx, job) {
-    const seen = brokerVerdict(ctx, job.commit);
+    // A bisect point (often the verified commit, maybe a pull request's head) needs its new run: the broker may still
+    // show an older run's checks on that commit.
+    const seen = job.kind === "bisect" ? null : brokerVerdict(ctx, job.commit);
     if (seen === "passed") return { code: 0, output: `${CALLER}All Checks Pass: success (from the status broker)` };
     if (seen === "running") {
         await clearTrouble(ctx);
@@ -1032,10 +1132,21 @@ async function judgeRun(ctx, job, run) {
     if (run.status === "completed") return ended(ctx, job, run);
     if (run.status === "in_progress") await clearTrouble(ctx);
     const jobs = await runJobs(ctx, run.id);
-    if (jobs === NO_ANSWER || !jobs.some(failsFast)) return null;
+    const ends = await failsFastIn(ctx, job);
+    if (jobs === NO_ANSWER || !jobs.some(ends)) return null;
     job.say(`a gating job failed in ${run.html_url}: cancelling the rest of the run`);
     ghTry(ctx, ["api", "-X", "POST", `repos/{owner}/{repo}/actions/runs/${run.id}/cancel`]);
-    return failure(ctx, run, jobs);
+    return failure(ctx, job, run, jobs);
+}
+
+// A bisect point's run ends early only on a failure of a shard it follows (or the group job holding one).
+async function failsFastIn(ctx, job) {
+    if (!job.shards) return failsFast;
+    const groups = await shardGroups(ctx);
+    return (j) => {
+        const shard = testShard(j);
+        return isFailed(j) && Boolean(shard) && [shard, ...(groups[shard] ?? [])].some((s) => job.shards.includes(s));
+    };
 }
 
 async function ended(ctx, job, run) {
@@ -1053,12 +1164,13 @@ async function ended(ctx, job, run) {
         return null;
     }
     await clearTrouble(ctx);
-    return failure(ctx, run, jobs);
+    return failure(ctx, job, run, jobs);
 }
 
 const jobName = (j) => (j.name.startsWith(CALLER) ? j.name.slice(CALLER.length) : j.name);
 const isFailed = (j) => FAILED.has(j.conclusion) && !SUMMARIES.has(jobName(j));
 const failsFast = (j) => isFailed(j) && FAIL_FAST.test(jobName(j));
+const testShard = (j) => /^Test \((.+)\)$/.exec(jobName(j))?.[1];
 
 async function runJobs(ctx, id) {
     const answer = await ghJson(ctx, [
@@ -1071,22 +1183,136 @@ async function runJobs(ctx, id) {
 /**
  * The gate's output for a failed run: `[FAIL] <shard>` per failed test job (a shard group's job, one line per member
  * it names as failed), `[FAIL] <job>` per other failed job, so failingShards() reads it as it reads the local gate's.
+ * Each failed test job's JUnit reports are recorded in the test ledger (as `job.kind`) unless `job.record` is false.
  * @param ctx the context
+ * @param job the gate's job (`commit`, `kind`, `record`)
  * @param run the run
  * @param jobs its jobs
- * @returns `{ code: 1, output }`
+ * @returns `{ code: 1, output, run: { id, attempt, url }, records: { shard: record } }`
  */
-async function failure(ctx, run, jobs) {
+async function failure(ctx, job, run, jobs) {
     const groups = await shardGroups(ctx);
     const lines = [];
+    const records = {};
     for (const j of jobs.filter(isFailed)) {
-        const name = jobName(j);
-        const shard = /^Test \((.+)\)$/.exec(name)?.[1];
-        const members = groups[shard] ? groupFailures(ctx, j, groups[shard]) : [shard ?? name];
+        const shard = testShard(j);
+        const members = groups[shard] ? groupFailures(ctx, j, groups[shard]) : [shard ?? jobName(j)];
         lines.push(...members.map((m) => `[FAIL] ${m}`));
+        if (shard && job.record !== false) Object.assign(records, await junitRecords(ctx, job, run, shard, members));
     }
     lines.push(`run: ${run.html_url}`);
-    return { code: 1, output: lines.join("\n") };
+    const ran = { id: run.id, attempt: run.run_attempt ?? 1, url: run.html_url };
+    return { code: 1, output: lines.join("\n"), run: ran, records };
+}
+
+/**
+ * The names a gate output's `[FAIL] <name>` lines give: shards, and the jobs that are not test jobs.
+ * @param output the output
+ * @returns the names
+ */
+const failedNames = (output) => [...(output ?? "").matchAll(/\[FAIL\] (\S+)/g)].map((m) => m[1].replace(/:$/, ""));
+
+/**
+ * A failed test job's JUnit reports (ci.yml's `junit-<shard>` artifact, one download) as test-ledger records of the
+ * commit, one per failing shard, so verification knows the exact failing tests and runs only their files here.
+ * A test that failed in one report and passed in another (the quarantine's retry) passed. Without the artifact or
+ * the ledger there is no record, and the shard is run whole.
+ * ponytail: a group's report goes to the first failing member with its package; two members of one package
+ * (cytoscape-extensions and its Cytoscape versions pass) share one.
+ * @param ctx the context
+ * @param job the gate's job
+ * @param run the run
+ * @param artifact the matrix shard (a shard or a group)
+ * @param members the failing shards it holds
+ * @returns `{ shard: record }`
+ */
+async function junitRecords(ctx, job, run, artifact, members) {
+    const dir = join(ctx.main, "tmp/golden/verify-junit", String(run.id), artifact);
+    rmSync(dir, { recursive: true, force: true });
+    if (!ghTry(ctx, ["run", "download", String(run.id), "-n", `junit-${artifact}`, "-D", dir])) return {};
+    const packages = await shardPackages(ctx);
+    const owner = (file) => members.find((m) => members.length === 1 || packages[m] === file.split("/")[0]);
+    const records = ledgerDo(ctx, (l) => {
+        const junit = readCiJunit(l, dir);
+        const out = {};
+        for (const shard of members) {
+            const failures = junit.failures.filter((f) => owner(f.file) === shard);
+            if (failures.length) out[shard] = ciRecord(ctx, l, { job, run, shard, junit, failures });
+        }
+        return out;
+    });
+    return records ?? {};
+}
+
+// Every report in a directory, with only the failures that passed in none of them.
+function readCiJunit(l, dir) {
+    const reports = existsSync(dir) ? readdirSync(dir).filter((n) => /^junit-.*\.xml$/.test(n)) : [];
+    const all = { files: new Map(), failures: [] };
+    const passed = new Set();
+    const key = (file, name) => `${file}\0${name}`;
+    for (const n of reports) {
+        const xml = readFileSync(join(dir, n), "utf8");
+        const pkg = n.slice(6, n.lastIndexOf("-"));
+        l.parseJunit(xml, pkg, all);
+        const one = l.parseJunit(xml, pkg);
+        const failed = new Set(one.failures.map((f) => key(f.file, f.name)));
+        for (const [file, c] of one.files) {
+            for (const name of c.names) if (!failed.has(key(file, name))) passed.add(key(file, name));
+        }
+    }
+    const failures = new Map(all.failures.map((f) => [key(f.file, f.name), f]));
+    all.failures = [...failures].filter(([k]) => !passed.has(k)).map(([, f]) => f);
+    return all;
+}
+
+// One shard's record, as tools/test-ledger.mjs record() writes a run's here.
+function ciRecord(ctx, l, { job, run, shard, junit, failures }) {
+    const pkgs = new Set(failures.map((f) => f.file.split("/")[0]));
+    const files = [...junit.files]
+        .filter(([f]) => pkgs.has(f.split("/")[0]))
+        .map(([f, c]) => [f, c.passed, c.failed, c.skipped, c.ms, c.dup]);
+    const subject = git(ctx, ctx.main, ["log", "-1", "--format=%s", job.commit], { ok: true }).stdout;
+    const rev = (ref) => git(ctx, ctx.main, ["rev-parse", "-q", "--verify", ref], { ok: true }).stdout || null;
+    const family = l.familyOf(shard);
+    const rec = {
+        v: 1,
+        id: l.newRunId(shard),
+        kind: job.kind,
+        commit: job.commit,
+        tree: rev(`${job.commit}^{tree}`),
+        base: rev(`${job.commit}^1`),
+        branch: LAND_SUBJECT.exec(subject)?.[1] ?? ctx.branch,
+        dirty: false,
+        shard,
+        family,
+        variant: family,
+        selected: null,
+        outcome: "failed",
+        reused_from: null,
+        started_at: now(),
+        secs: 0,
+        log: run.html_url,
+        files,
+        failures: failures.map((f) => ({
+            file: f.file,
+            name: f.name,
+            ...l.failureHashes(f.text, f.file),
+            message: f.text.slice(0, 2000),
+        })),
+        exonerations: [],
+    };
+    l.writeRecord(l.ledgerDir(ctx.env, ctx.main), rec);
+    return rec;
+}
+
+async function shardPackages(ctx) {
+    if (ctx.packages) return ctx.packages;
+    try {
+        const { SHARDS } = await import(pathToFileURL(join(ctx.main, "tools/ci-test-matrix.mjs")).href);
+        return Object.fromEntries(SHARDS.map((s) => [s.shard, s.package]));
+    } catch {
+        return {};
+    }
 }
 
 // A group job ends with "::error::failed: <member> ...", an annotation on its check run; unread, every member.
@@ -1218,6 +1444,56 @@ async function defaultActionsOperational() {
     } catch {
         return true;
     }
+}
+
+/**
+ * The one CI re-run of a verification run's failed jobs (`gh run rerun --failed`), read every POLL_MS until the new
+ * attempt ends. Its reports are not recorded: the run's own are.
+ * @param ctx the context
+ * @param last the failure (`last.ci` is the run)
+ * @returns `{ failed: names, url }` (the shards and jobs that failed again; none when it passed), or
+ *   `{ lost: why }` when it gave no test verdict
+ */
+async function defaultCiRerun(ctx, last) {
+    const { id, attempt } = last.ci;
+    if (!ghTry(ctx, ["run", "rerun", String(id), "--failed"])) return { lost: "the re-run could not start" };
+    console.log(`verify: re-running the failed jobs of ${last.ci.url} once`);
+    for (;;) {
+        await ctx.sleep(ctx.pollMs);
+        const run = await ghJson(ctx, ["api", `repos/{owner}/{repo}/actions/runs/${id}`]);
+        const done = run !== NO_ANSWER && run.status === "completed" && (run.run_attempt ?? 0) > attempt;
+        const jobs = done && run.conclusion !== "success" ? await runJobs(ctx, id) : [];
+        if (done && jobs !== NO_ANSWER) return rerunVerdict(ctx, last, run, jobs);
+    }
+}
+
+async function rerunVerdict(ctx, last, run, jobs) {
+    if (run.conclusion === "success") return { failed: [], url: run.html_url };
+    if (!jobs.some(isFailed)) return { lost: `the re-run ended ${run.conclusion} with no failed job` };
+    const r = await failure(ctx, { commit: last.commit, record: false }, run, jobs);
+    return { failed: failedNames(r.output), url: run.html_url };
+}
+
+/**
+ * One CI bisect point: the commit pushed to golden-bisect-<slot> and run in CI (a full run until golden-verify.yml
+ * is on master), judged by its JUnit as a point here is judged by the ledger: a target fails when its shard failed
+ * with that failure. A run cancelled by someone else is no verdict, and runs again.
+ * @param ctx the context
+ * @param commit the point
+ * @param job what to run
+ * @param job.failing the failing shards, or null (another job failed)
+ * @param job.targets the targets
+ * @param job.slot which golden-bisect-<n> branch
+ * @returns `{ runs: 1, failed: { targetId: 1 }, run }`
+ */
+async function defaultCiCheck(ctx, commit, { failing, targets, slot }) {
+    const opts = { ref: `golden-bisect-${slot}`, kind: "bisect", shards: failing ?? undefined };
+    let r = await ciGate(ctx, commit, opts);
+    while (r.code !== 0 && /\[SUPERSEDED\]/.test(r.output)) r = await ciGate(ctx, commit, opts);
+    const names = failedNames(r.output);
+    const hit = (t) => !t.shard || (names.includes(t.shard) && failedTargets(1, r.records?.[t.shard], [t]).length > 0);
+    const failed = r.code === 0 ? [] : targets.filter(hit);
+    return { runs: 1, failed: Object.fromEntries(failed.map((t) => [t.id, 1])), run: r.run?.url ?? null };
 }
 
 /**

@@ -714,10 +714,10 @@ describe("verification in CI (ciGate)", () => {
     });
 
     // A scripted answer: a list is answered in order (its last item repeats), a function is called (and may throw).
-    const answerOf = (answer) => {
+    const answerOf = (answer, line) => {
         let item = answer;
         if (Array.isArray(answer)) item = answer.length > 1 ? answer.shift() : answer[0];
-        const value = typeof item === "function" ? item() : item;
+        const value = typeof item === "function" ? item(line) : item;
         return typeof value === "string" ? value : JSON.stringify(value);
     };
     // A run as GitHub lists it, stamped when it is asked for (a run that ended before the gate started is old).
@@ -741,9 +741,10 @@ describe("verification in CI (ciGate)", () => {
      * for no time but are counted.
      * @param script `[regexp, answer]` pairs for gh
      * @param [onLook] called at each look with its number
+     * @param [more] more context overrides
      * @returns `{ c, calls, sleeps, seen }`: seen is the state at each look
      */
-    const ciCtx = (script, onLook) => {
+    const ciCtx = (script, onLook, more = {}) => {
         const state = join(ciDir, `s${++n}`);
         mkdirSync(state, { recursive: true });
         const calls = [];
@@ -754,7 +755,7 @@ describe("verification in CI (ciGate)", () => {
             calls.push(line);
             const hit = script.find(([re]) => re.test(line));
             if (!hit) throw new Error(`unexpected gh ${line}`);
-            return answerOf(hit[1]);
+            return answerOf(hit[1], line);
         };
         const c = verifyContext(repo, {
             env,
@@ -774,6 +775,7 @@ describe("verification in CI (ciGate)", () => {
                 seen.push(readState(c));
                 onLook?.(sleeps.length);
             },
+            ...more,
         });
         return { c, calls, sleeps, seen };
     };
@@ -1022,5 +1024,200 @@ describe("verification in CI (ciGate)", () => {
             [`workflow run golden-verify.yml -f ref=${tip}`],
             "one dispatch",
         );
+    });
+
+    describe("a failing run, as GitHub recorded it", () => {
+        const FAILURE = "Error: expected 3 to be 4";
+        /**
+         * A context whose CI is simulated: every commit `ciFails` names gets a failed "Verify / Test (s1)" job whose
+         * junit-s1 artifact fails `p/c.test.ts > t`; the run's one re-run fails again when `rerunFails`; the check
+         * here fails that test in the runs `localFails` names.
+         * @param tag names the ledger
+         * @param o the recorded behavior
+         * @param o.ciFails `(sha) => boolean`, whether CI fails the commit
+         * @param o.rerunFails whether the one re-run fails too
+         * @param [o.localFails] `(sha, run) => boolean`, whether run k here fails
+         * @returns `{ c, calls, checks, pushes, filed }`: pushes are the commits pushed to golden-bisect-<n>
+         */
+        const recorded = (tag, { ciFails, rerunFails, localFails = () => false }) => {
+            const ids = [];
+            const idOf = (sha) => (ids.includes(sha) ? ids.indexOf(sha) : ids.push(sha) - 1) + 100;
+            const shaOf = (line) => ids[Number(/runs\/(\d+)/.exec(line)[1]) - 100];
+            const junit =
+                '<testsuites><testsuite name="c"><testcase classname="c.test.ts" name="ok"/>' +
+                `<testcase classname="c.test.ts" name="t"><failure message="x">${FAILURE}</failure></testcase>` +
+                "</testsuite></testsuites>";
+            const checks = [];
+            const filed = [];
+            const run = (sha) => ({
+                id: idOf(sha),
+                head_sha: sha,
+                display_title: `Golden verify ${sha}`,
+                html_url: `https://github.test/runs/${idOf(sha)}`,
+                run_attempt: 1,
+                updated_at: new Date().toISOString(),
+                status: "completed",
+                conclusion: ciFails(sha) ? "failure" : "success",
+            });
+            const failedJob = { id: 1, name: "Verify / Test (s1)", status: "completed", conclusion: "failure" };
+            const script = [
+                releaseIdle,
+                [/\/runs\?head_sha=/, (line) => ({ workflow_runs: [run(/head_sha=(\w+)/.exec(line)[1])] })],
+                [/actions\/runs\/\d+\/jobs/, (line) => ({ jobs: ciFails(shaOf(line)) ? [failedJob] : [] })],
+                [/actions\/runs\/\d+\/cancel/, ""],
+                [/^run rerun \d+ --failed$/, ""],
+                [
+                    /actions\/runs\/\d+$/,
+                    (line) => ({ ...run(shaOf(line)), run_attempt: 2, conclusion: rerunFails ? "failure" : "success" }),
+                ],
+                [
+                    /^run download \d+ -n junit-s1 -D /,
+                    (line) => {
+                        const out = line.split(" -D ")[1];
+                        mkdirSync(out, { recursive: true });
+                        writeFileSync(join(out, "junit-p-4242.xml"), junit);
+                        return "";
+                    },
+                ],
+                [/^issue create /, (line) => (filed.push(line), "https://github.com/o/r/issues/11")],
+                [/^issue list /, "[]"],
+            ];
+            const check = async (_c, sha, { targets, full }) => {
+                checks.push({ sha, targets });
+                return judge(targets, full, (k) => localFails(sha, k));
+            };
+            const more = {
+                env: { ...env, TEST_LEDGER_DIR: join(dir, `ledger-ci-${tag}`), GRAPHTY_TEST_QUARANTINE: "1" },
+                check,
+            };
+            const { c, calls } = ciCtx(script, undefined, more);
+            rmSync(receiveLog, { force: true });
+            const pushes = () =>
+                (existsSync(receiveLog) ? readFileSync(receiveLog, "utf8").trim().split("\n") : [])
+                    .filter((u) => u.includes("refs/heads/golden-bisect-"))
+                    .map((u) => u.split(" ")[1]);
+            return { c, calls, checks, pushes, filed };
+        };
+        const reruns = (calls) => calls.filter((l) => l.startsWith("run rerun")).length;
+        const verifyFrom = async (c) => {
+            const from = git(repo, "rev-parse", "golden");
+            await withState(c, (s) => (s.verified = from));
+            return from;
+        };
+
+        beforeEach(() => {
+            process.env.TEST_QUARANTINE_DIR = join(dir, `quarantine-ci-${++n}`);
+        });
+        after(() => delete process.env.TEST_QUARANTINE_DIR);
+
+        it("reproducing here: runs the failing test file from the JUnit here and bisects here, no CI re-run", async () => {
+            const breaks = (sha) => has(sha, "rh.txt");
+            const { c, calls, checks, pushes } = recorded("here", { ciFails: breaks, localFails: breaks });
+            await verifyFrom(c);
+            land("rh0", { "rh0.txt": "0\n" });
+            const culprit = land("rh1", { "rh.txt": "1\n" });
+            const tip = land("rh2", { "rh2.txt": "2\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            assert.equal(s.last.culprit.sha, culprit);
+            assert.deepEqual(
+                checks[0].targets.map((t) => `${t.file} > ${t.name}`),
+                ["p/c.test.ts > t"],
+                "the exact failing test, from the run's JUnit",
+            );
+            assert.equal(reruns(calls), 0, "a failure that reproduces here needs no CI re-run");
+            assert.deepEqual(pushes(), [], "and is bisected here");
+            assert.ok(!published.includes(tip));
+        });
+
+        it("flaky here: quarantines a test that failed before the range, never re-runs CI or bisects", async () => {
+            const { c, calls, checks, filed } = recorded("flaky", {
+                ciFails: (sha) => has(sha, "fh.txt"),
+                localFails: (_sha, k) => k === 1,
+            });
+            const from = await verifyFrom(c);
+            // the same test failed once at the verified commit already
+            const failure = { file: "p/c.test.ts", name: "t", ...failureHashes(FAILURE, "p/c.test.ts") };
+            const rec = { v: 1, kind: "verify", branch: "golden", base: null, dirty: false, shard: "s1" };
+            Object.assign(rec, { family: "s1", variant: "s1", selected: null, outcome: "failed", reused_from: null });
+            Object.assign(rec, { secs: 1, log: null, files: [["p/c.test.ts", 1, 1, 0, 1, 0]], exonerations: [] });
+            const earlier = new Date(Date.now() - 3_600_000).toISOString();
+            const ledger = c.env.TEST_LEDGER_DIR;
+            writeRecord(ledger, { ...rec, failures: [failure], id: newRunId("s1"), commit: from, started_at: earlier });
+            const tip = land("fh1", { "fh.txt": "1\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            assert.equal(s.last.status, "flaky");
+            assert.deepEqual(s.last.quarantined, [{ id: "s1: p/c.test.ts > t", issue: 11 }]);
+            assert.deepEqual(
+                checks.map((k) => k.sha),
+                [tip],
+                "confirmed on the failing commit only",
+            );
+            assert.equal(reruns(calls), 0);
+            assert.ok(filed[0].includes("priority:critical"));
+            assert.ok(!published.includes(tip), "golden-verified does not move");
+        });
+
+        it("CI-only and confirmed: re-runs CI once, checks the verified commit, then bisects in CI one point at a time", async () => {
+            const { c, calls, checks, pushes } = recorded("confirmed", {
+                ciFails: (sha) => has(sha, "co.txt"),
+                rerunFails: true,
+            });
+            const from = await verifyFrom(c);
+            const a = land("co0", { "co0.txt": "0\n" });
+            const culprit = land("co1", { "co.txt": "1\n" });
+            const tip = land("co2", { "co2.txt": "2\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            assert.equal(reruns(calls), 1, "one re-run, never more");
+            assert.deepEqual(
+                checks.map((k) => k.sha),
+                [tip],
+                "here only the confirming run, which passed 5 of 5",
+            );
+            assert.equal(s.last.confirm.runs, CONFIRM_RUNS);
+            assert.deepEqual(pushes(), [from, culprit, a], "the verified commit first, then one point at a time");
+            assert.equal(s.last.culprit.sha, culprit);
+            assert.equal(s.last.culprit.evidence.parent.sha, a, "its parent passed as a point, not run again");
+            assert.equal(s.last.status, "failed");
+            assert.ok(!published.includes(tip));
+        });
+
+        it("CI-only and passing on its re-run: quarantined, nothing bisected, golden-verified stays", async () => {
+            const { c, calls, pushes, filed } = recorded("rerun-passes", { ciFails: (sha) => has(sha, "cp.txt") });
+            await verifyFrom(c);
+            const tip = land("cp1", { "cp.txt": "1\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            assert.equal(reruns(calls), 1);
+            assert.equal(s.last.status, "flaky");
+            assert.deepEqual(s.last.quarantined, [{ id: "s1: p/c.test.ts > t", issue: 11 }]);
+            assert.match(filed[0], /passed its CI re-run/);
+            assert.deepEqual(pushes(), [], "no CI bisect");
+            assert.ok(!published.includes(tip), "a passing re-run never moves golden-verified");
+            assert.notEqual(s.verified, tip);
+        });
+
+        it("an environment change: the verified commit fails in CI too, so no landing is named and it gets an issue", async () => {
+            const { c, pushes, filed } = recorded("environment", { ciFails: () => true, rerunFails: true });
+            const from = await verifyFrom(c);
+            // the cut's head is the verified commit, and the broker still shows its old green verification
+            broker(c, [{ head: "golden-cut", headSha: from, checks: { "Verify / All Checks Pass": "SUCCESS" } }]);
+            land("ev0", { "ev0.txt": "0\n" });
+            const tip = land("ev1", { "ev1.txt": "1\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            assert.equal(s.last.culprit, null, "nothing to revert");
+            assert.match(s.last.noLanding, /environment change/);
+            assert.deepEqual(pushes(), [from], "only the verified commit ran in CI");
+            assert.equal(filed.length, 1);
+            assert.match(filed[0], /Failing on golden: Error: expected 3 to be 4 .*priority:high/);
+        });
     });
 });

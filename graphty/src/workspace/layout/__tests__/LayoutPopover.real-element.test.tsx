@@ -209,12 +209,12 @@ describe("the Layout popover", () => {
         TIMEOUT_MS,
     );
 
-    it("nests Force's other engines under it, and choosing ForceAtlas2 runs force with that engine", async () => {
+    it("lists Force's other engines under Force-directed, and choosing ForceAtlas2 runs force with that engine", async () => {
         const session = await openK5();
         await userEvent.click(screen.getByRole("button", { name: "Layout" }));
         const popover = await screen.findByRole("dialog", { name: "Layout" });
         const row = within(popover).getByRole("option", { name: /^ForceAtlas2/ });
-        assert.isTrue(row.hasAttribute("data-nested"), "an engine row is nested under its layout");
+        assert.strictEqual(row.closest('[role="group"]')?.getAttribute("aria-label"), "Force-directed");
         await userEvent.click(row);
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {

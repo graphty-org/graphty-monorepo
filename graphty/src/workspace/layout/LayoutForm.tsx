@@ -123,7 +123,7 @@ export function LayoutForm({
 }: Readonly<LayoutFormProps>): React.JSX.Element {
     const { element, store } = useWorkspace();
     const current = session.layout;
-    // The descriptor carries the engine its row applies: a nested row's, else the default.
+    // The descriptor carries the engine its row applies: an engine row's, else the default.
     const isCurrent = isDrawn(session, descriptor);
     const [start] = useState(() => ({
         values: startingValues(session, descriptor),

@@ -65,7 +65,7 @@ export function takesSeed(session: GraphSession, id: string): boolean {
 }
 
 /**
- * The engine that draws a descriptor, when it is not its layout's default: a nested row's.
+ * The engine that draws a descriptor, when it is not its layout's default: an engine row's.
  * @param descriptor - the layout, as a row of the list hands it to the form.
  * @returns the engine's catalog entry, or undefined for the default engine.
  */
@@ -178,7 +178,7 @@ export function isDrawn(session: GraphSession, descriptor: LayoutDescriptor): bo
 }
 
 /**
- * The engine to ask `layout.set` for: a nested row's, else none (the layout's default).
+ * The engine to ask `layout.set` for: an engine row's, else none (the layout's default).
  * @param descriptor - the layout, with its engine.
  * @returns the engine, or undefined.
  */
@@ -244,20 +244,40 @@ export function unavailable(
 export interface LayoutChoice {
     /** The layout, with the engine the row applies. */
     readonly descriptor: LayoutDescriptor;
-    /** The row's key: the layout's id, and the engine's for a nested row. */
+    /** The row's key: the layout's id, and the engine's for an engine row. */
     readonly key: string;
     readonly name: string;
     /** The dimmed second line. */
     readonly description: string;
     /** Whether it is a Graphviz engine, said by a dimmed suffix. */
     readonly graphviz: boolean;
-    /** Whether it is an engine nested under its layout's row. */
-    readonly nested: boolean;
     readonly current: boolean;
     readonly recommended: boolean;
     readonly slow: boolean;
     /** Why it cannot run now, or null. */
     readonly reason: string | null;
+}
+
+/**
+ * The Layout list's sections, in the order the list draws them: the app's heading for each
+ * `family` the element's layout catalog gives a layout. A family the app does not know (one a
+ * plugin registers) reads under the last, "Other".
+ */
+export const LAYOUT_SECTIONS: readonly { readonly family: string; readonly title: string }[] = [
+    { family: "force", title: "Force-directed" },
+    { family: "geometric", title: "Shapes" },
+    { family: "hierarchical", title: "Hierarchy" },
+    { family: "special", title: "Other" },
+];
+
+/**
+ * The section a layout's family reads under.
+ * @param family - the layout's catalog family.
+ * @returns the section's heading.
+ */
+export function sectionOf(family: string): string {
+    return (LAYOUT_SECTIONS.find((section) => section.family === family) ?? LAYOUT_SECTIONS[LAYOUT_SECTIONS.length - 1])
+        .title;
 }
 
 /**
@@ -278,7 +298,6 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
         name: layoutName(descriptor),
         description: descriptor.description,
         graphviz: isGraphviz(descriptor),
-        nested: engine !== undefined,
         current: isDrawn(session, descriptor),
         recommended,
         slow: reason === null && isSlow(estimate.seconds),
@@ -288,7 +307,7 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
 
 /**
  * The Layout list: every layout in the element's catalog, in catalog order, each followed by a
- * nested row for every engine but its default; the one drawn now marked, "Recommended" on the one
+ * row for every engine but its default; the one drawn now marked, "Recommended" on the one
  * the element recommends for this graph, "slow" on one the element's estimate puts over the app's
  * threshold, and why one cannot run now.
  * @param session - the element's session.

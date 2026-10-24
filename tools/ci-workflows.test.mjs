@@ -322,7 +322,10 @@ describe("the pre-push gate matches CI", () => {
             );
             assert.deepEqual(
                 shardEnv(s),
-                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                {
+                    GRAPHTY_TEST_SHARD: s.shard,
+                    ...(shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {}),
+                },
                 s.shard,
             );
         }

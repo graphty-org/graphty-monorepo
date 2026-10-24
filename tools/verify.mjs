@@ -22,6 +22,9 @@
 // so their passes are kept by input key and the newer commit's gate reuses them. The old commit is recorded in
 // `superseded`, neither passed nor failed; a failure on the newer commit still bisects over every landing since
 // the last verified commit. A confirming run or a bisect needs its exact commit and is never superseded.
+// It never starves: a run switches commits at most MAX_SWITCHES times in a row, then finishes the commit it is on
+// (landings faster than a full run would otherwise keep golden-verified from ever moving); the commit after it is
+// the newest again. Progress is kept across a switch: every shard that finished is reused by input key.
 //
 // State: <main checkout>/tmp/golden/verify.json (golden) or verify-golden-cut.json, written under the
 // verify lock (a lock directory beside it, held for milliseconds, separate from the landing lock) with a
@@ -81,6 +84,8 @@ const quarantine = await import("./test-quarantine.mjs").catch(() => null);
 export const CONFIRM_RUNS = 5;
 
 export const VERIFIED_REF = "golden-verified";
+/** How many times in a row a run leaves its commit for a newer one before it finishes the one it is on. */
+export const MAX_SWITCHES = 2;
 const QUIET = { pollMs: 20, waitLog: () => {}, onWait: () => {}, onQueue: () => {} };
 const LAND_SUBJECT = /^land: (\S+)$/;
 
@@ -194,7 +199,7 @@ export function requestVerification(ctx, commit) {
         if (!s.wanted || isAncestor(ctx, s.wanted, commit)) s.wanted = commit;
         if (!alive(s.run)) return startLocked(ctx, s);
         const running = `verification of ${ctx.branch} is running (pid ${s.run.pid})`;
-        if (!supersede(ctx, s)) return `${running}; it goes on to ${short(commit)}`;
+        if (!supersede(ctx, s)) return `${running}; it goes on to ${short(commit)} next`;
         return `${running}; it leaves ${short(s.run.commit)} at its next test shard and goes on to ${short(s.wanted)}`;
     });
 }
@@ -207,7 +212,8 @@ export function requestVerification(ctx, commit) {
  * @returns true when the marker was written
  */
 function supersede(ctx, s) {
-    const { step, commit } = s.run;
+    const { step, commit, switches = 0 } = s.run;
+    if (switches >= MAX_SWITCHES) return false;
     if (step !== "gate" || !commit || s.wanted === commit || !isAncestor(ctx, commit, s.wanted)) return false;
     writeFileSync(ctx.supersededFile, `${s.wanted}\n`);
     return true;
@@ -301,7 +307,8 @@ export function nextJob(ctx, s) {
     }
     const from = s.verified ?? base(ctx, target);
     rmSync(ctx.supersededFile, { force: true });
-    s.run = { ...self, commit: target, from, step: "gate", startedAt: now() };
+    const switches = s.run?.pid === self.pid ? (s.run.switches ?? 0) : 0;
+    s.run = { ...self, commit: target, from, step: "gate", startedAt: now(), switches };
     return { target, from };
 }
 
@@ -323,6 +330,7 @@ async function verifyCommit(ctx, { target, from }) {
         // Left for a newer commit at a shard boundary: neither passed nor failed. The run goes on to it.
         await withState(ctx, (s) => {
             s.superseded = { commit: target, from, by: s.wanted, at: now(), log: r.log };
+            if (s.run) s.run.switches = (s.run.switches ?? 0) + 1;
         });
         return;
     }
@@ -331,7 +339,7 @@ async function verifyCommit(ctx, { target, from }) {
         await withState(ctx, (s) => {
             s.verified = target;
             s.last = { commit: target, from, status: "passed", at: now(), log: r.log };
-            if (s.run) s.run.step = "passed";
+            if (s.run) Object.assign(s.run, { step: "passed", switches: 0 });
         });
         return;
     }
@@ -360,7 +368,7 @@ async function verifyCommit(ctx, { target, from }) {
         };
         // a live claim stays a claim: its session's `handled` must still find it
         if (again && handling) Object.assign(s.last, { status: "handling", known: true });
-        if (s.run) s.run.step = again ? "failed-known" : "confirm";
+        if (s.run) Object.assign(s.run, { step: again ? "failed-known" : "confirm", switches: 0 });
     });
     if (!again) await bisect(ctx);
 }
@@ -704,7 +712,8 @@ async function finishIntermittent(ctx) {
         s.last.culprit = null;
         s.last.reproduced = false;
         if (issues) s.last.issues = issues;
-        s.last.status = all ? "flaky" : s.last.handling ? "handling" : "failed";
+        if (all) s.last.status = "flaky";
+        else s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = s.last.status;
     });
 }

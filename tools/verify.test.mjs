@@ -20,6 +20,7 @@ import {
     failedTargets,
     failingShards,
     handled,
+    MAX_SWITCHES,
     nextPoints,
     readState,
     requestVerification,
@@ -265,6 +266,26 @@ describe("a run", () => {
         await settle();
         assert.deepEqual(gated, [tip]);
         assert.equal(readState(ctx).verified, tip);
+    });
+});
+
+describe("landings faster than a run", () => {
+    it("never starve it: after MAX_SWITCHES switches it finishes its commit, and golden-verified moves", async () => {
+        const tips = [land("t0", { "t0.txt": "0\n" })];
+        // Every gate start brings a new landing before the gate reaches its shard boundary, six times.
+        gateStarted = () => {
+            if (tips.length > 6) return void (hold = null);
+            const n = tips.length;
+            tips.push(land(`t${n}`, { [`t${n}.txt`]: `${n}\n` }));
+            hold = requestVerification(ctx, tips.at(-1));
+        };
+        await requestVerification(ctx, tips[0]);
+        await settle();
+        assert.equal(MAX_SWITCHES, 2);
+        assert.equal(published[0], tips[2], "two switches, then the third commit is finished and verified");
+        assert.equal(published.at(-1), tips.at(-1), "and the run still ends on the newest");
+        assert.equal(readState(ctx).verified, tips.at(-1));
+        assert.ok(gated.length < tips.length * 2, "each commit's gate ran at most once");
     });
 });
 

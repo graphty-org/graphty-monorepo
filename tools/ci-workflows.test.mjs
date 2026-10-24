@@ -4276,7 +4276,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         };
         const commit = (message) => {
             g("add", "-A");
-            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", message);
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
             return g("rev-parse", "HEAD");
         };
         g("init", "-q");
@@ -4327,12 +4327,12 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         };
         const commit = (message) => {
             g("add", "-A");
-            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", message);
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
             return g("rev-parse", "HEAD");
         };
         const merge = (base, head) => {
             g("checkout", "-q", "--detach", base);
-            g("-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "--no-gpg-sign", "-m", "m", head);
+            g("-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "-m", "m", head);
             return g("rev-parse", "HEAD");
         };
         g("init", "-q", "-b", "master");

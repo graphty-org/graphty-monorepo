@@ -283,6 +283,29 @@ vec4 graphty_decoration(float d) {
 `;
 
 /**
+ * The window depth of the point on the impostor's sphere at view-space depth `z` on this
+ * fragment's ray: the square's own depth moved by the difference in normalized depth, which holds
+ * for either depth range (-1..1 on WebGL, 0..1 on WebGPU, which Babylon marks
+ * IS_NDC_HALF_ZRANGE).
+ */
+const IMPOSTOR_DEPTH = `
+uniform mat4 projection;
+float graphty_sphereDepth(float z) {
+    vec4 graphty_square = projection * vec4(vViewPos, 1.0);
+    // Along the ray through this fragment: from the eye in perspective, straight on in orthographic.
+    vec3 graphty_at = projection[3][3] > 0.5 ? vec3(vViewPos.xy, z) : vViewPos * (z / vViewPos.z);
+    vec4 graphty_hit = projection * vec4(graphty_at, 1.0);
+#ifdef IS_NDC_HALF_ZRANGE
+    float graphty_scale = 1.0;
+#else
+    float graphty_scale = 0.5;
+#endif
+    float graphty_moved = graphty_hit.z / graphty_hit.w - graphty_square.z / graphty_square.w;
+    return clamp(gl_FragCoord.z + graphty_scale * graphty_moved, 0.0, 1.0);
+}
+`;
+
+/**
  * A card's normal (the square drawn in place of the node): facing the camera, but tilted by the
  * node's offset from the view center, by a small tilt of its own from its seed, and domed slightly
  * across it (design/rendering/shader-studio/decisions.md 5.1). So `dot(n.normal, lightDir)` and the
@@ -340,16 +363,20 @@ function surfaceInput(role: BatchRole): string {
     graphty_in.normal = vec3(0.0, 0.0, -1.0);`;
     }
 
-    // An impostor ray-casts the sphere inside the outline; outside it only the decoration draws.
+    // An impostor ray-casts the sphere inside the outline and writes the depth of the point it
+    // hit, so a nearer node or an edge passing in front hides it exactly where the sphere is
+    // behind them (issue #3320); outside the outline only the decoration draws, at the square.
     return `
     float graphty_d = length(vUV);
     vec4 graphty_deco = graphty_decoration(graphty_d);
     if (graphty_d > 1.0) {
         if (graphty_deco.a <= 0.002) { discard; }
+        gl_FragDepth = gl_FragCoord.z;
         gl_FragColor = graphty_deco;
         return;
     }
     float graphty_z = sqrt(max(1.0 - graphty_d * graphty_d, 0.0));
+    gl_FragDepth = graphty_sphereDepth(vViewPos.z - vRadius * graphty_z);
     graphty_in.uv = vUV;
     graphty_in.normal = vec3(vUV, -graphty_z);`;
 }
@@ -412,6 +439,7 @@ varying float vPixelSize;
 varying float vInner;
 ${square ? "varying vec2 vFit;" : ""}
 uniform mat4 view;
+${square || role === "replace" ? "" : IMPOSTOR_DEPTH}
 uniform float graphty_freeze;
 uniform float graphty_reach;
 ${square ? "" : BILLBOARD_DECORATION}

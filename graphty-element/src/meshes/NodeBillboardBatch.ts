@@ -3,6 +3,7 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import {
     Buffer,
+    type Camera,
     Constants,
     type Matrix,
     Mesh,
@@ -32,6 +33,13 @@ const INITIAL_SLOTS = 32;
 /** The square every slot is drawn on: two triangles from -1 to 1. */
 const QUAD_POSITIONS = [-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0];
 const QUAD_INDICES = [0, 1, 2, 0, 2, 3];
+
+/**
+ * The transparent-pass order of the squares that draw a node's surface (Babylon draws a lower
+ * `alphaIndex` first): before the edge shaders' lines (`EdgeEffectBatch`, 1e9) and the node
+ * effects (the default), so those are depth tested against the nodes, which write depth.
+ */
+const NODE_SURFACE_ALPHA_INDEX = 1e8;
 
 /** Scratch for the on-screen test, so the per-frame walk allocates nothing. */
 const scratchCenter = new Vector3();
@@ -76,6 +84,12 @@ export class NodeBillboardBatch {
     readonly ready: Promise<boolean>;
 
     protected slots = new Float32Array(INITIAL_SLOTS * BATCH_FLOATS);
+    /** The slots in drawing order, farthest from the camera first: what the GPU buffer holds. */
+    private drawn = new Float32Array(INITIAL_SLOTS * BATCH_FLOATS);
+    /** Slot indices in drawing order, and each slot's distance along the view. */
+    private order = new Uint32Array(0);
+    private depths = new Float32Array(INITIAL_SLOTS);
+    private readonly sortView = new ViewWatch();
     /** Per slot: the loop's speed (0 still), NaN for a free slot. */
     protected speeds = new Float32Array(INITIAL_SLOTS).fill(Number.NaN);
     /** Per slot: until when (performance.now()) a timed animation plays on it. */
@@ -123,6 +137,10 @@ export class NodeBillboardBatch {
         this.mesh.isPickable = false;
         this.mesh.doNotSyncBoundingInfo = true;
         this.mesh.alwaysSelectAsActiveMesh = true;
+        if (role === "impostor" || role === "replace") {
+            this.mesh.alphaIndex = NODE_SURFACE_ALPHA_INDEX;
+        }
+
         const graphRoot = scene.getTransformNodeByName("graph-root");
         if (graphRoot) {
             this.mesh.parent = graphRoot;
@@ -317,12 +335,15 @@ export class NodeBillboardBatch {
 
     /**
      * The blend and depth state of the material. A billboard blends straight alpha over and
-     * writes depth, so a sphere or a sticker hides what is behind it.
+     * writes depth, so a sphere or a sticker hides what is behind it. Babylon turns depth writes
+     * off for every alpha-blended mesh when it sets the blend mode, so writing depth has to be
+     * forced (issue #3320: without it the last node drawn covered every node it overlapped).
      * @param material - The material.
      */
     protected configureMaterial(material: ShaderMaterial): void {
         material.alphaMode = Constants.ALPHA_COMBINE;
         material.disableDepthWrite = false;
+        material.forceDepthWrite = true;
     }
 
     /**
@@ -436,14 +457,59 @@ export class NodeBillboardBatch {
             this.dirty = true;
         }
 
-        if (this.dirty) {
+        const camera = this.mesh.getScene().activeCamera;
+        const moved = camera !== null && this.sortView.moved(camera, this.mesh.getWorldMatrix());
+        if (this.dirty || moved) {
+            const written = this.dirty;
             this.dirty = false;
-            this.slotsChanged = true;
-            this.buffer?.update(this.slots);
+            this.slotsChanged ||= written;
+            if (this.sortBackToFront(camera) || written) {
+                this.pack();
+                this.buffer?.update(this.drawn);
+            }
         }
 
         this.updateMotion();
         this.chooseDetail();
+    }
+
+    /**
+     * Order the slots farthest first, so a translucent node blends over the nodes behind it
+     * rather than hiding them behind the depth it writes (the instances of one mesh are drawn in
+     * buffer order, never sorted by Babylon).
+     * ponytail: a full sort on every frame the camera or a slot moved; sort incrementally if it
+     * shows in a profile of a very large graph.
+     * @param camera - The active camera, or null.
+     * @returns Whether the order changed.
+     */
+    private sortBackToFront(camera: Camera | null): boolean {
+        const count = this.highWater;
+        if (this.depths.length < count) {
+            this.depths = new Float32Array(this.slots.length / BATCH_FLOATS);
+        }
+
+        const previous = this.order;
+        const order = previous.length === count ? previous.slice() : Uint32Array.from({ length: count }, (_, i) => i);
+        if (camera !== null) {
+            const { m } = this.mesh.getWorldMatrix().multiply(camera.getViewMatrix());
+            for (let i = 0; i < count; i++) {
+                const at = i * BATCH_FLOATS;
+                this.depths[i] = m[2] * this.slots[at] + m[6] * this.slots[at + 1] + m[10] * this.slots[at + 2] + m[14];
+            }
+
+            const { depths } = this;
+            order.sort((a, b) => depths[b] - depths[a]);
+        }
+
+        this.order = order;
+        return order.length !== previous.length || order.some((slot, i) => slot !== previous[i]);
+    }
+
+    /** Copy the slots into the drawing buffer in drawing order. */
+    private pack(): void {
+        this.order.forEach((slot, i) => {
+            this.drawn.set(this.slots.subarray(slot * BATCH_FLOATS, (slot + 1) * BATCH_FLOATS), i * BATCH_FLOATS);
+        });
     }
 
     /** Drop the mesh, its material, the buffer, the claim and the per-frame upload. */
@@ -584,7 +650,7 @@ export class NodeBillboardBatch {
     /** Hand the slots to the mesh as instanced attributes. */
     private bindBuffers(): void {
         this.buffer?.dispose();
-        const buffer = new Buffer(this.mesh.getEngine(), this.slots, true, BATCH_FLOATS, false, true);
+        const buffer = new Buffer(this.mesh.getEngine(), this.drawn, true, BATCH_FLOATS, false, true);
         BATCH_ATTRIBUTES.forEach((name, i) => {
             this.mesh.setVerticesBuffer(buffer.createVertexBuffer(name, i * 4, 4, BATCH_FLOATS, true));
         });
@@ -603,6 +669,8 @@ export class NodeBillboardBatch {
         const until = new Float64Array(this.until.length * 2);
         until.set(this.until);
         this.until = until;
+        this.drawn = new Float32Array(slots.length);
         this.bindBuffers();
+        this.dirty = true;
     }
 }

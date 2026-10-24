@@ -14,8 +14,9 @@ import { ViewWatch } from "./viewWatch";
 
 /**
  * The transparent-pass order of an edge shader's line (Babylon draws a lower `alphaIndex` first):
- * before every node shader effect, which keeps the default, so an effect round a node is drawn
- * over the edges that meet it.
+ * after the node surfaces (`NodeBillboardBatch`), so a glow along an edge is depth tested against
+ * the nodes in front of it and blends over the ones behind it, and before every node shader
+ * effect, which keeps the default, so an effect round a node is drawn over the edges that meet it.
  */
 const EDGE_SHADER_ALPHA_INDEX = 1e9;
 
@@ -86,6 +87,10 @@ export function shadedLineMesh(
     material.setFloat("edgeReach", role === "along" ? Math.max(1, descriptor.reach ?? 1) : 1);
     if (role === "along") {
         material.disableDepthWrite = true;
+    } else {
+        // The line's own surface writes depth as the plain line does: Babylon turns depth writes
+        // off for an alpha-blended mesh unless forced (issue #3320).
+        material.forceDepthWrite = true;
     }
 
     material.onBindObservable.add(() => {

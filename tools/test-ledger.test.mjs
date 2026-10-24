@@ -146,6 +146,14 @@ describe("parsing, outcomes and hashes", () => {
             "error",
         );
         assert.equal(L.outcomeOf({ code: 1, log: sum, junit: junitOf(2) }), "error");
+        // a file that failed as a whole (a setup hook timed out): vitest's Tests line counts no failed test (#3323)
+        const bar = "⎯".repeat(6);
+        const suites = `${bar} Failed Suites 2 ${bar}\n Test Files  2 failed | 31 passed (33)\n      Tests  184 passed (184)\n`;
+        assert.equal(L.outcomeOf({ code: 1, log: suites, junit: junitOf(2) }), "failed");
+        assert.equal(
+            L.outcomeOf({ code: 1, log: `${bar} Failed Suites 1 ${bar}\n${sum}`, junit: junitOf(2) }),
+            "failed",
+        );
         assert.equal(L.outcomeOf({ code: 137, log: sum, junit: junitOf(1) }), "infra");
         assert.equal(L.outcomeOf({ code: 0, log: "no summary", junit: junitOf(0) }), "infra");
         assert.equal(L.outcomeOf({ code: 0, log: sum, junit: null }), "unattributed");

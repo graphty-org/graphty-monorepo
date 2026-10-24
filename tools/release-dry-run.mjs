@@ -21,6 +21,9 @@ import { pushBase } from "./push-base.mjs";
 
 const RELEASE_FILES = /(^|\/)(package|project)\.json$|^(nx|release-hold)\.json$/;
 const COMMAND = "pnpm exec nx release --dry-run --skip-publish";
+// nx asks GitHub for the repository's releases; a 403 or a rate limit there is this machine's GitHub
+// budget running out, not a change the release train cannot version (26 gate failures on 2026-10-24).
+const GITHUB_REFUSED = /status code (403|429)|rate limit/i;
 
 /**
  * Whether a push's changed files can change what the release train versions.
@@ -56,6 +59,13 @@ export function check(files, env = process.env, log = console.log) {
     }
     const tail = `${run.stdout ?? ""}${run.stderr ?? ""}`.trimEnd().split("\n").slice(-40).join("\n");
     log(tail);
+    if (GITHUB_REFUSED.test(tail)) {
+        log(
+            `\nWARNING: ${command} was refused by GitHub (a 403 or a rate limit, above): this machine's failure, ` +
+                "not the change's, so the push is not stopped. The release dry run did NOT check this push.",
+        );
+        return 0;
+    }
     log(
         `\n${command} failed (exit ${run.status ?? run.signal}): the release train would fail on this change. ` +
             `A project nx releases needs a "version" in its package.json or a {projectName}@{version} tag.`,

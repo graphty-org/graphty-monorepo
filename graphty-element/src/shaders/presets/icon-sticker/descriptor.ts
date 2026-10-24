@@ -1,10 +1,14 @@
 /**
  * @file The catalog entry of the `icon-sticker` preset, Sticker (design/rendering/shader-styles.md
  * section 7.2, design/rendering/shader-studio/decisions.md 5.1): a die-cut vinyl sticker in the
- * node's color, with one of six icons, filled or as an outline, and an optional shiny or
- * holographic finish driven by the scene's light. Drawn in place of the node's shape. It is still:
- * the finish changes only as the camera or the layout moves. Catalog data only; the GLSL is in
- * `./body.ts`.
+ * node's color, with one of six icons, filled or as an outline, and a foil driven by the scene's
+ * light: holographic (the default), shiny, or none. Drawn in place of the node's shape. It is
+ * still: the foil changes only as the camera or the layout moves. Catalog data only; the GLSL is
+ * in `./body.ts`.
+ *
+ * The foil's kind is the `finish` parameter and its strength is `foil`; the ids are what saved
+ * projects record, so they stay. The kind defaults to holographic so the strength has something to
+ * act on: with `finish: "none"` there is no foil and `foil` changes nothing.
  *
  * Bind `icon` per node with the `"index"` scale
  * (`encode: { "node.shaders.icon-sticker.icon": { by: "data.group", scale: "index" } }`):
@@ -77,9 +81,9 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
         Object.freeze({ name: "outline", plainName: "Outline", type: "boolean", default: false }),
         Object.freeze({
             name: "finish",
-            plainName: "Finish",
+            plainName: "Foil",
             type: "enum",
-            default: "none",
+            default: "holographic",
             values: Object.freeze([
                 Object.freeze({ value: "none", label: "None" }),
                 Object.freeze({ value: "shiny", label: "Shiny" }),
@@ -87,7 +91,14 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
             ]),
             primary: true,
         }),
-        Object.freeze({ name: "foil", plainName: "Foil", type: "number", default: 0.85, min: 0, max: 1 }),
+        Object.freeze({
+            name: "foil",
+            plainName: "Foil strength",
+            type: "number",
+            default: 0.85,
+            min: 0,
+            max: 1,
+        }),
         Object.freeze({ name: "borderColor", plainName: "Border color", type: "color", default: "#fbfaf6" }),
     ]),
     reads: Object.freeze(["color", "light"] as const),

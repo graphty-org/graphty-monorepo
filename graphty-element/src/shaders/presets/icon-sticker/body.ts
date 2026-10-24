@@ -4,10 +4,11 @@
  *
  * A round die-cut sticker: a white vinyl border, a body in the node's color with a soft top light,
  * one of six `iconSdf` icons in cream (filled, or as an outline), and a soft drop shadow so it sits
- * on the canvas. `finish` is none, shiny (a soft glare and a gloss line where the card catches the
- * light) or holographic (a diffraction grating: the hue comes from the reflected view direction
- * against the light, along a grating direction set by the seed, with a broad sheen where the
- * reflection meets the light). `foil` is the finish's strength.
+ * on the canvas. `finish` is the foil: holographic (a diffraction grating: the hue comes from the
+ * reflected view direction against the light, along a grating direction set by the seed, with a
+ * broad sheen where the reflection meets the light), shiny (a soft glare and a gloss line where the
+ * card catches the light) or none. `foil` is the foil's strength; with no foil it has nothing to
+ * act on.
  *
  * Nothing reads the time: every card's normal is tilted by its place in the view and its own seed,
  * so the finish differs from card to card and changes only as the camera or the layout moves.

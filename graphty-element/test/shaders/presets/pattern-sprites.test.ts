@@ -106,7 +106,7 @@ const TABLE: Readonly<
         params: [
             ["icon", "integer", 0, 0, 5, true],
             ["outline", "boolean", false],
-            ["finish", "enum", "none", undefined, undefined, undefined, true],
+            ["finish", "enum", "holographic", undefined, undefined, undefined, true],
             ["foil", "number", 0.85, 0, 1],
             ["borderColor", "color", "#fbfaf6"],
         ],
@@ -183,7 +183,7 @@ describe("the pattern, state and sprite presets", () => {
         assert.notInclude(body, "hash12", "no sparkle cells");
     });
 
-    it("offers the sticker's three finishes", () => {
+    it("offers the sticker's three foils, holographic first chosen", () => {
         const finish = PATTERN_SPRITE_PRESETS.find(
             (preset) => preset.descriptor.id === "icon-sticker",
         )?.descriptor.params.find((param) => param.name === "finish");
@@ -191,6 +191,9 @@ describe("the pattern, state and sprite presets", () => {
             finish?.values?.map((choice) => choice.value),
             ["none", "shiny", "holographic"],
         );
+        // The kind is what a reader calls the foil; the number beside it is its strength.
+        assert.strictEqual(finish?.plainName, "Foil");
+        assert.strictEqual(finish?.default, "holographic");
     });
 
     it.each([

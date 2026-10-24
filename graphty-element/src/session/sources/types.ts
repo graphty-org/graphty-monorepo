@@ -216,12 +216,12 @@ export interface SourcePreview {
     readonly issues: readonly CodedFact[];
 }
 
-/** One row of a source preview: the node's id and its label. Experimental. */
+/** One row of a source preview: the node's id and its name. Experimental. */
 export interface SourcePreviewRow {
     /** The node's id. */
     readonly id: NodeId;
-    /** Its label, or null when the row has none. */
-    readonly label: string | null;
+    /** Its name, read from its `label`, `name`, `title` or `display_name` column, or null when it has none. */
+    readonly name: string | null;
 }
 
 /** The options of `data.previewSource`. Experimental. */

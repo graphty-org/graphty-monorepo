@@ -25,6 +25,7 @@ import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
     context,
+    cutFixReason,
     defaultPreview,
     handOff,
     issueRefs,
@@ -113,6 +114,11 @@ before(() => {
             gh.push(args);
             const cut = args.includes("golden-cut");
             if (args[1] === "graphql") return graphql(args.find((a) => a.startsWith("query=")));
+            // What a cut fix's --reason names: an issue, or a workflow run.
+            const issue = args[0] === "api" && /\/issues\/(\d+)$/.exec(args[1]);
+            if (issue) return JSON.stringify(gh.issueApi?.[issue[1]] ?? {});
+            const runOf = args[0] === "api" && /\/actions\/runs\/(\d+)$/.exec(args[1]);
+            if (runOf) return JSON.stringify(gh.runs?.[runOf[1]] ?? {});
             if (args[1] === "list") {
                 const pr = cut ? gh.cut : gh.open && { number: 7, isDraft: true, url: "u/pull/7" };
                 return JSON.stringify(pr ? [pr] : []);
@@ -723,6 +729,7 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
+        assert.match(r.out, /the gate refused multi\/d, multi\/e, multi\/f together \(its log names the last/);
         assert.equal(gh.filter((a) => isEdit(a)).length, 1);
         assert.deepEqual(previews, [7]);
     });
@@ -751,6 +758,30 @@ describe("landing several branches", () => {
         assert.equal(landSubjects(1)[0], "land: multi/q");
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/a\s+already on golden\n\s+multi\/q\s+landed/);
+    });
+
+    it("reports branches of the batch that conflict with each other before merging, and lands the rest", async () => {
+        branch("sib/one", { "sib.txt": "one\n" }, "feat: sib one", "origin/golden");
+        branch("sib/two", { "sib.txt": "two\n" }, "feat: sib two", "origin/golden");
+        branch("sib/three", { "sib3.txt": "three\n" }, "feat: sib three", "origin/golden");
+        gh.open = true;
+        const r = await run("land", "sib/one", "sib/two", "sib/three");
+        assert.equal(r.code, 2, r.out);
+        assert.match(
+            r.out,
+            /these branches of the batch conflict with each other:\n {2}sib\/one and sib\/two: sib\.txt\n/,
+        );
+        assert.ok(
+            r.out.indexOf("conflict with each other") < r.out.indexOf("land: sib/two conflicts with golden"),
+            "reported before merging",
+        );
+        assert.match(
+            r.out,
+            /sib\/one\s+landed\n\s+sib\/two\s+conflict with sib\/one, merged before it in this batch\n\s+sib\/three\s+landed/,
+        );
+        assert.match(r.out, /merge the earlier branch into the later/);
+        assert.deepEqual(landSubjects(2), ["land: sib/three", "land: sib/one"]);
+        assert.equal(originGolden(), head());
     });
 
     it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {
@@ -857,7 +888,7 @@ describe("cuts", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /is not on origin\/golden/);
         assert.equal(pushes, 0);
-        assert.equal(gh.length, 0);
+        assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
     });
 
     it("cuts only a verified commit: a stable preview newer than golden-verified is not taken", async () => {
@@ -898,6 +929,47 @@ describe("cuts", () => {
         const edit = gh.find((a) => isEdit(a));
         assert.ok(edit.includes("title=chore: ship a golden cut into master"));
         assert.deepEqual(previews, [9]);
+    });
+
+    it("keeps the cut frozen while its pull request awaits the owner's Finish, and moves it after", async () => {
+        const held = remote("refs/heads/golden-cut");
+        preview("9", held, ["changed"]);
+        gh.open = true;
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: held };
+        branch("frozen/next", { "fz.txt": "z\n" }, "feat: after the cut", "origin/golden");
+        assert.equal((await run("land", "frozen/next")).code, 0);
+        const next = git(golden, "rev-parse", "HEAD");
+        verifiedAt(next);
+        preview("110", next, ["unchanged"]);
+        pushes = 0;
+        const frozen = await run("cut");
+        assert.equal(frozen.code, 1, frozen.out);
+        assert.match(
+            frozen.out,
+            /#9 awaits the owner's review: its preview of [0-9a-f]{10} is done and it has no Finish yet/,
+        );
+        assert.equal(remote("refs/heads/golden-cut"), held);
+        assert.equal(pushes, 0);
+
+        // The owner's Finish: an accept commit, then the signed approval of the baselines tree it made.
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "finish-side", "origin/golden-cut");
+        mkdirSync(join(other, "visual-baselines/p"), { recursive: true });
+        write(other, "visual-baselines/p/frozen.png", "png\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+        const tree = git(other, "rev-parse", "HEAD:visual-baselines");
+        mkdirSync(join(other, "visual-review-approvals"), { recursive: true });
+        write(other, `visual-review-approvals/${tree}.json`, "{}\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): approve the visual baselines of #9");
+        git(other, "push", "-q", "origin", "finish-side");
+        gh.cut = { ...gh.cut, headRefOid: git(other, "rev-parse", "HEAD") };
+        git(other, "checkout", "-q", "master");
+        const moved = await run("cut");
+        assert.equal(moved.code, 0, moved.out);
+        assert.equal(remote("refs/heads/golden-cut"), next);
+        rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
     });
 
     it("ship marks the cut pull request ready with auto-merge when its preview is of its head", async () => {
@@ -985,6 +1057,31 @@ describe("cuts", () => {
         }
     });
 
+    it("ship takes the verification and preview of a commit the head differs from only in the review's directories", async () => {
+        const previewed = remote("refs/heads/golden-cut");
+        write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: previewed }));
+        preview("9", previewed, ["changed"]);
+        // An update of the baselines from master: a merge commit (two parents) that changes only visual-baselines/.
+        git(other, "fetch", "-q", "origin");
+        git(other, "checkout", "-q", "-B", "baselines-side", "origin/master");
+        mkdirSync(join(other, "visual-baselines/p"), { recursive: true });
+        write(other, "visual-baselines/p/from-master.png", "png\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "test(workspace): a baseline from master");
+        git(other, "checkout", "-q", "-B", "update", "origin/golden-cut");
+        git(other, "merge", "-q", "--no-ff", "-m", "Merge master's baselines", "baselines-side");
+        git(other, "push", "-q", "origin", "update:golden-cut");
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: git(other, "rev-parse", "HEAD") };
+        git(other, "checkout", "-q", "master");
+        try {
+            const r = await run("ship");
+            assert.equal(r.code, 0, r.out);
+            assert.ok(gh.some((a) => a[1] === "ready"));
+        } finally {
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"));
+        }
+    });
+
     it("the preview it starts waits for GitHub to list the pushed commit as the head", async () => {
         const fake = join(dir, "fake-preview");
         mkdirSync(join(fake, "tools"), { recursive: true });
@@ -1037,18 +1134,60 @@ describe("cut fixes", () => {
         ["origin/golden-cut", "origin/golden"].every(
             (b) => spawnSync("git", ["merge-base", "--is-ancestor", sha, b], { cwd: repo, env }).status === 0,
         );
+    // A red master's alarm: an open priority:critical issue.
+    beforeEach(() => {
+        gh.issueApi = { 500: { state: "open", title: "CI red on master", labels: [{ name: "priority:critical" }] } };
+    });
+
+    it("refuses a fix that names no red master, failed deploy or release hold, and pushes nothing", async () => {
+        branch("cutfix/why", { "why.txt": "w\n" }, "fix: why", "origin/golden-cut");
+        gh.issueApi[501] = { state: "open", title: "a feature", labels: [{ name: "priority:high" }] };
+        gh.issueApi[502] = { state: "closed", title: "CI red on master", labels: [{ name: "priority:critical" }] };
+        gh.runs = { 77: { path: ".github/workflows/ci.yml", conclusion: "failure", head_branch: "golden-cut" } };
+        for (const reason of [
+            [],
+            ["--reason", "501"],
+            ["--reason", "502"],
+            ["--reason", "run:77"],
+            ["--reason=soon"],
+        ]) {
+            const r = await run("cut-fix", "cutfix/why", ...reason);
+            assert.equal(r.code, 1, r.out);
+            assert.match(
+                r.out,
+                /cutfix\/why is not a cut fix: .*only for a red master, a failed deploy or a release hold/,
+            );
+            assert.match(r.out, /Every other fix lands on golden: node tools\/land\.mjs land <branch>/);
+        }
+        assert.equal(pushes, 0);
+    });
+
+    it("takes a failed release or deploy run, or a release hold issue, as the reason", async () => {
+        gh.issueApi[503] = { state: "open", title: "Release held: T4 GPU failed on abc", labels: [{ name: "bug" }] };
+        gh.runs = {
+            78: { path: ".github/workflows/release.yml", conclusion: "failure", head_branch: "master" },
+            79: { path: ".github/workflows/deploy-pages.yml", conclusion: "timed_out", head_branch: "master" },
+            80: { path: ".github/workflows/ci.yml", conclusion: "failure", head_branch: "master" },
+        };
+        for (const reason of ["#503", "run:78", "run:79", "run:80", "500"])
+            assert.ok(cutFixReason(ctx, reason).ok, reason);
+        gh.runs[78].conclusion = "success";
+        assert.match(cutFixReason(ctx, "run:78").error, /is not a failed release, deploy or master run/);
+    });
 
     it("refuses a branch that would bring golden commits the cut lacks, and says how to start one", async () => {
         branch("cutfix/advance", { "adv.txt": "a\n" }, "feat: after the cut");
         gh.open = true;
         assert.equal((await run("land", "cutfix/advance")).code, 0);
         branch("cutfix/from-golden", { "fg.txt": "x\n" }, "fix: from golden", "origin/golden");
-        const r = await run("cut-fix", "cutfix/from-golden");
+        const r = await run("cut-fix", "cutfix/from-golden", "--reason", "500");
         assert.equal(r.code, 1, r.out);
         assert.match(
             r.out,
-            /cutfix\/from-golden cannot go into the cut: it would bring \d+ commits of golden or master/,
+            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 2 commits of golden or master/,
         );
+        assert.match(r.out, /\n {2}[0-9a-f]{10} land: cutfix\/advance\n {2}[0-9a-f]{10} feat: after the cut\n/);
+        assert.match(r.out, /Any other fix lands on golden: node tools\/land\.mjs land <branch>/);
         assert.match(r.out, /\.\/tools\/worktree-new\.sh <branch> origin\/golden-cut/);
         assert.deepEqual(refspecs, ["golden:golden"], "nothing pushed to golden-cut");
     });
@@ -1058,7 +1197,7 @@ describe("cut fixes", () => {
         const tip = git(wt, "rev-parse", "HEAD");
         gh.open = true;
         gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
-        const r = await run("cut-fix", "cutfix/ok");
+        const r = await run("cut-fix", "cutfix/ok", "--reason", "500");
         assert.equal(r.code, 0, r.out);
         assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
         git(repo, "fetch", "-q", "origin");
@@ -1079,7 +1218,7 @@ describe("cut fixes", () => {
     });
 
     it("run again, finds the fix on both and pushes nothing", async () => {
-        const r = await run("cut-fix", "cutfix/ok");
+        const r = await run("cut-fix", "cutfix/ok", "--reason", "500");
         assert.equal(r.code, 0, r.out);
         assert.match(r.out, /already on golden-cut/);
         assert.match(r.out, /already on golden/);

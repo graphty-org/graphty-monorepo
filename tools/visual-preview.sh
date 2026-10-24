@@ -81,6 +81,9 @@ if [[ "$MODE" != "pr" ]]; then
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
     BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
+    # The gate's capture of a push to the cut (a cut or a cut fix) takes the next browser slot ahead of
+    # landing checks (tools/with-browser.sh), as tools/land.mjs asks for the cut's own preview.
+    [[ "$BRANCH" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \

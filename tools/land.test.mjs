@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { busyLine, noteBody } from "./branch-note.mjs";
-import { failedTest, moveGoldenGood, syncDue } from "./branch-sync.mjs";
+import { failedTest, moveGoldenGood, syncDue, testStage } from "./branch-sync.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
@@ -30,6 +30,7 @@ import {
     handOff,
     issueRefs,
     landedBranches,
+    lightGate,
     main,
     prBody,
     previewSettled,
@@ -1817,5 +1818,48 @@ describe("the branch sync", () => {
             "Shards: graphty-1\n  [FAIL] graphty-1 (exit 1, 30s); the end of x.log:\n FAIL  src/a.test.ts > draws it\n";
         assert.equal(failedTest(out), "graphty-1: src/a.test.ts > draws it");
         assert.equal(failedTest(""), "tests");
+    });
+});
+
+describe("the light gate", () => {
+    it("is on only while CI verifies golden, and status says which gate pushes run", async () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        assert.equal(existsSync(state), false);
+        assert.equal(lightGate(ctx), "0", "no verification state: the local backend, the full gate");
+        assert.match((await run("status")).out, /^gate: full /m);
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        try {
+            writeFileSync(state, JSON.stringify({ backend: { name: "local", reason: "r", at: "t" } }));
+            assert.equal(lightGate(ctx), "0");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.equal(lightGate(ctx), "1");
+            assert.match((await run("status")).out, /^gate: light /m);
+        } finally {
+            rmSync(state);
+        }
+    });
+
+    it("keeps the nightly sync's test shards off while CI verifies golden", () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        const log = join(repo, "tmp/golden/sync-test.log");
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        const ran = [];
+        const step = (cmd) => {
+            ran.push(cmd);
+            return { status: 0, out: "" };
+        };
+        const run = { dir: repo, log, projects: ["layout"], job: { branch: "b", base: "abc" } };
+        try {
+            writeFileSync(log, "");
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the local backend runs the gate's test stage");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the light gate runs no shard");
+            assert.match(readFileSync(log, "utf8"), /\[LIGHT\] no test shards/);
+        } finally {
+            rmSync(state, { force: true });
+            rmSync(log, { force: true });
+        }
     });
 });

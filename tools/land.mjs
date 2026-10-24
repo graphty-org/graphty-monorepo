@@ -642,7 +642,18 @@ const conflicted = (ctx) =>
 // ---------------------------------------------------------------- GitHub and the gate
 
 /**
- * Pushes through the push queue, which runs the full pre-push gate.
+ * Whether pushes run the light gate (tools/prepush.sh PREPUSH_LIGHT=1: no test shard, no screenshot): only
+ * while CI verifies golden (`node tools/verify.mjs backend ci`), which then runs every shard on each landing.
+ * The backend is in golden's verification state file; with none it is local, and the gate stays full.
+ * @param ctx the run's context
+ * @returns "1" (light) or "0" (full)
+ */
+export function lightGate(ctx) {
+    return readJson(join(ctx.main, "tmp/golden/verify.json"))?.backend?.name === "ci" ? "1" : "0";
+}
+
+/**
+ * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
  * @param [refspec] what to push (golden to golden)
@@ -661,6 +672,7 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
         ...ctx.env,
         PUSH_BASE_REF: dst === GOLDEN ? `origin/${GOLDEN}` : "origin/master",
         PREPUSH_SELECT_BASE: `origin/${dst}`,
+        PREPUSH_LIGHT: lightGate(ctx),
     };
     Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
@@ -699,8 +711,8 @@ function defaultGh(ctx, args) {
 }
 
 /**
- * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * Starts tools/visual-preview.sh (the live gate copy) for a pull request, detached, unless the gate
+ * already captured this head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
  * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
@@ -720,9 +732,12 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    // The cut's preview is what the owner reviews before a ship: it goes first (tools/visual-preview.sh).
+    // The live gate copy, as every other preview runs (the pre-push gate's), so all of them share one
+    // queue; the worktree's own copy only where there is none. The cut's previews go first.
+    const live = join(ctx.main, ".worktrees/gate-live/tools/visual-preview.sh");
+    const script = existsSync(live) ? live : join(cwd, "tools/visual-preview.sh");
     const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
+    spawn("setsid", [script, String(pr), "--expect", head], {
         cwd,
         env,
         detached: true,
@@ -2151,6 +2166,11 @@ export async function status(ctx) {
     console.log(landed.length ? "landed, not on master yet:" : "nothing landed that master does not have");
     for (const e of landed) console.log(`  ${e.branch} ${e.sha.slice(0, 10)}${e.reverted ? " (reverted)" : ""}`);
     console.log(prLine(ctx));
+    console.log(
+        lightGate(ctx) === "1"
+            ? "gate: light (no test shard, no screenshot; CI verification runs the tests)"
+            : "gate: full (the test shards and the screenshots run here)",
+    );
     const { describe, verifyContext } = await import("./verify.mjs");
     for (const branch of [GOLDEN, CUT]) {
         const v = verifyContext(ctx.main, { env: ctx.env, branch });

@@ -132,6 +132,8 @@ describe("the gate key", () => {
         changed("the gate's hook", ...file(".husky/pre-push", "hook 2\n"));
         assert.notEqual(r.key({ GRAPHTY_GPU_REQUIRE: "nvidia" }), base, "a GRAPHTY_ lane");
         assert.notEqual(r.key({ PREPUSH_ALL: "1" }), base, "PREPUSH_ALL");
+        assert.notEqual(r.key({ PREPUSH_LIGHT: "1" }), base, "the light gate is not the full one");
+        assert.equal(r.key({ PREPUSH_LIGHT: "0" }), base, "PREPUSH_LIGHT=0 is the full gate, as unset is");
     });
 
     it("counts the gate's version when the gate is another checkout than the one it checks", () => {
@@ -363,8 +365,10 @@ describe("push-queue with a gate that already passed", () => {
 describe("prepush.sh with a gate that already passed", () => {
     // A checkout whose gate is the real prepush.sh and source checks, with every outside step stubbed:
     // pnpm answers "no package affected", and the offline link check and the SonarQube step write a
-    // line to a log each time they run (the SonarQube one prints SONAR_OUT).
-    function gateRepo() {
+    // line to a log each time they run (the SonarQube one prints SONAR_OUT). With `projects` (nx's answer,
+    // a JSON list) the per-package steps run too, stubbed: build, lint, the NVIDIA GPU tests, the test
+    // shards and the screenshot capture each log their name.
+    function gateRepo(projects = "[]") {
         const r = repo();
         for (const f of ["prepush.sh", "prepush-source-checks.sh"])
             copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
@@ -377,15 +381,32 @@ describe("prepush.sh with a gate that already passed", () => {
             `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "sonar\\n");\nconsole.log(process.env.SONAR_OUT ?? "");\n`,
         );
         writeFileSync(join(r.dir, "package.json"), '{ "scripts": {} }\n');
+        const log = (name) =>
+            `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "${name}\\n");\n`;
+        writeFileSync(join(r.dir, "tools/lint-base-drift.mjs"), "");
+        writeFileSync(join(r.dir, "tools/test-slots.mjs"), log("gpu"));
+        writeFileSync(join(r.dir, "tools/prepush-tests.mjs"), log("tests"));
+        writeFileSync(
+            join(r.dir, "tools/visual-preview.sh"),
+            `#!/bin/sh\n[ "$1" = --head ] && echo screenshots >> "${ran}"\nexit 0\n`,
+            {
+                mode: 0o755,
+            },
+        );
+        mkdirSync(join(r.dir, "webgpu-graph-algorithms"));
+        writeFileSync(join(r.dir, "webgpu-graph-algorithms/.keep"), "");
         r.git("add", ".");
         r.git("commit", "-q", "-m", "gate");
+        r.git("update-ref", "refs/remotes/origin/master", "HEAD");
         const bin = join(TMP, `bin-${made}`);
         mkdirSync(bin);
         writeFileSync(
             join(bin, "pnpm"),
-            '#!/bin/sh\ncase "$*" in --version) echo 10.30.0;; *"show projects"*) echo "[]";; esac\n',
+            `#!/bin/sh\ncase "$*" in --version) echo 10.30.0;; *"show projects"*) echo '${projects}';;\n` +
+                `*"-t build"*) echo build >> "${ran}";; *"-t lint"*) echo lint >> "${ran}";; esac\n`,
             { mode: 0o755 },
         );
+        writeFileSync(join(bin, "npm"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
         const env = { ...OUR_ENV, PATH: `${bin}:${process.env.PATH}`, PUSH_BASE_REF: "origin/master" };
         delete env.PREPUSH_RERUN_ALL;
         delete env.PREPUSH_EXPECTED_KEY;
@@ -424,6 +445,22 @@ describe("prepush.sh with a gate that already passed", () => {
         assert.equal(r.inputs("passed", "gate").status, 1);
         assert.equal(r.gate().status, 0);
         assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+    });
+
+    it("PREPUSH_LIGHT=1 runs build, lint and the NVIDIA GPU tests but no test shard and no screenshot", () => {
+        const r = gateRepo('["webgpu-graph-algorithms"]');
+        const light = r.gate({ PREPUSH_LIGHT: "1" });
+        assert.equal(light.status, 0, light.stdout + light.stderr);
+        assert.deepEqual(r.steps(), ["links", "sonar", "build", "lint", "gpu"]);
+        assert.match(light.stdout, /\[LIGHT\] tests run in CI verification/);
+        assert.equal(r.inputs("passed", "gate").status, 1, "a light pass is not recorded for the full gate's key");
+
+        // the full gate is another key, so the light pass does not stand in for it
+        const full = r.gate();
+        assert.equal(full.status, 0, full.stdout + full.stderr);
+        // the screenshots and the GPU tests run in the background, beside the shards, in any order
+        assert.deepEqual(r.steps().slice(5).sort(), ["build", "gpu", "links", "lint", "screenshots", "sonar", "tests"]);
+        assert.doesNotMatch(full.stdout, /\[LIGHT\]/);
     });
 
     it("stops, running nothing, when its inputs are not the ones the push queue found a pass for", () => {

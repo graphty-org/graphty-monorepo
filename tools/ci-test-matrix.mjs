@@ -9,8 +9,11 @@
  * queued each other. A push to master and a manual dispatch pass the full project list as the
  * affected list, so they still run every shard.
  *
- * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>
+ * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>]
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
+ *   --only keeps just the named shards (a JSON array of shard names, never empty; a group's member
+ *   runs in its group's job); it refuses a name that is not a shard. ci.yml passes its `shards`
+ *   input here, so a CI bisect point runs only the shards that failed.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -35,6 +38,7 @@
 
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
@@ -385,22 +389,22 @@ export function ciCommand(shard) {
 /**
  * The test job's matrix: every shard of an affected package, short ones folded into their group.
  * @param affected package directory names
+ * @param [only] shard names: when given, every other shard is left out
  * @returns the matrix's include list
  */
-export function plan(affected) {
+export function plan(affected, only) {
     const grouped = new Set(Object.values(GROUPS).flat());
+    const wanted = (s) => affected.includes(s.package) && (only === undefined || only.includes(s.shard));
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
-    const include = SHARDS.filter((s) => !grouped.has(s.shard) && affected.includes(s.package)).map((s) => {
+    const include = SHARDS.filter((s) => !grouped.has(s.shard) && wanted(s)).map((s) => {
         const e = { ...s, "test-command": ciCommand(s) };
         return OWN_UPLOAD.has(s.package) || NO_COVERAGE.has(s.shard)
             ? e
             : { ...e, coverage: `${s.shard}=${coverageFile(s)}` };
     });
     for (const [name, shards] of Object.entries(GROUPS)) {
-        const members = shards
-            .map((n) => SHARDS.find((s) => s.shard === n))
-            .filter((s) => affected.includes(s.package));
+        const members = shards.map((n) => SHARDS.find((s) => s.shard === n)).filter(wanted);
         if (members.length > 0) {
             include.push(groupEntry(name, members));
         }
@@ -408,10 +412,39 @@ export function plan(affected) {
     return include;
 }
 
+/**
+ * The --only argument as a list of shard names.
+ * @param arg the argument's JSON text, or undefined when it was not given
+ * @returns the names, or undefined for no filter
+ * @throws when it is not a non-empty JSON array of shard names
+ */
+export function parseOnly(arg) {
+    if (arg === undefined) return undefined;
+    const only = JSON.parse(arg);
+    if (!Array.isArray(only) || only.length === 0) {
+        throw new Error("--only needs a non-empty JSON array of shard names");
+    }
+    const unknown = only.filter((n) => !SHARDS.some((s) => s.shard === n));
+    if (unknown.length > 0) {
+        throw new Error(`--only names shards that do not exist: ${unknown.join(", ")}`);
+    }
+    return only;
+}
+
 function main() {
-    const [allArg, affectedArg] = process.argv.slice(2);
+    const { values, positionals } = parseArgs({ options: { only: { type: "string" } }, allowPositionals: true });
+    const [allArg, affectedArg] = positionals;
     if (allArg === undefined || affectedArg === undefined) {
-        console.error("usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json>");
+        console.error(
+            "usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>]",
+        );
+        process.exit(2);
+    }
+    let only;
+    try {
+        only = parseOnly(values.only);
+    } catch (e) {
+        console.error(e.message);
         process.exit(2);
     }
     const all = new Set(JSON.parse(allArg).map(dirName));
@@ -431,7 +464,7 @@ function main() {
         process.exit(1);
     }
 
-    const include = plan(affected);
+    const include = plan(affected, only);
     console.log(`affected=${JSON.stringify(affected)}`);
     console.log(`test-matrix=${JSON.stringify({ include })}`);
     console.log(`test-count=${include.length}`);

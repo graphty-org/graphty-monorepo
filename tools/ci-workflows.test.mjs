@@ -1044,6 +1044,15 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
+    it("reports flaky screenshots after the visual jobs without gating anything on them", () => {
+        const jobs = parseJobs(ci);
+        assert.deepEqual(jobs["visual-flaky"].needs, ["visual"]);
+        assert.equal(jobs["visual-flaky"].coe, "true");
+        assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
+        assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
+        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
+    });
+
     it("runs no security audit on pull requests or merge-queue runs", () => {
         // advisories land against code a pull request did not change; the release train audits instead
         assert.doesNotMatch(ci, /pnpm audit/);

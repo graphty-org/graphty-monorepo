@@ -431,6 +431,17 @@ describe("the map's dimension and the view", () => {
         assert.strictEqual(element.mapFrame?.mapDimension, "2d", "the reader's 2D map is kept");
     });
 
+    it("raises arcs above a map laid out flat (Shape 2D) in the 3D view", async () => {
+        // The layout's own shape, dim 2, draws the 2D map; in the 3D view its edges still rise.
+        const element = await mounted("3d", { dim: 2 });
+        assert.strictEqual(element.mapFrame?.mapDimension, "2d");
+        for (const line of edgeLines(element)) {
+            assert.isNotNull(line, "each edge is drawn as an arc");
+            const lift = Math.max(...(line ?? []).map((p) => -p.z));
+            assert.isAbove(lift, 0, "raised off the map's plane, toward the camera");
+        }
+    });
+
     it("takes a 3D map asked for in the 2D view and draws the 2D map there", async () => {
         const element = await mounted("2d", { mapDimension: "3d" });
         assert.strictEqual(element.mapFrame?.mapDimension, "2d");

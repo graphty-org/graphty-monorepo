@@ -1881,8 +1881,9 @@ export class Edge {
 
     /**
      * The path the edge takes (`line.route`): what its style asks for, else what the active layout's
-     * map draws -- a raised arc over a flat map in 3D, a great circle on a globe, straight to a node
-     * the map could not place -- else straight.
+     * map draws -- a raised arc over a flat map in the 3D view (laid out in 2D or 3D), a great
+     * circle on a globe, straight in the 2D view or to a node the map could not place -- else
+     * straight.
      * @returns The route.
      */
     private get route(): "straight" | "arc" | "great-circle" {
@@ -1895,7 +1896,9 @@ export class Edge {
         const engine = this.context.getLayoutManager().layoutEngine as
             { geoFrame?: LocationMapFrame | null } | undefined;
         const frame = engine?.geoFrame;
-        if (frame === undefined || frame === null || frame.dimensions === 2) {
+        // The view decides, not the layout's shape: a flat map laid out in 2D (Shape 2D) and drawn in
+        // the 3D view still raises its edges in arcs above it.
+        if (frame === undefined || frame === null || this.context.is2D()) {
             return "straight";
         }
 

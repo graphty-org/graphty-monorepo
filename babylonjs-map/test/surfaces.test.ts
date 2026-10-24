@@ -11,7 +11,7 @@ import {
     VertexBuffer,
 } from "@babylonjs/core";
 
-import { sunShade } from "../src/globe.js";
+import { LAYER_GAP, sunShade } from "../src/globe.js";
 import { FlatMap, Globe, latLonToSphere, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
 
 interface Request {
@@ -483,6 +483,64 @@ describe("Globe", () => {
         globe.update();
         const [mesh] = shownMeshes(scene);
         expect(mesh.getBoundingInfo().boundingBox.maximum.length()).toBeLessThanOrEqual(100 * Math.SQRT2 + 1e-6);
+        scene.getEngine().dispose();
+    });
+
+    it("keeps a layer drawn under a tile service below its tiles everywhere, close to the surface", async () => {
+        // The bundled world's patch is facets between points on the sphere, and so are the tiles
+        // over it; where its points stood on the sphere they poked through the tiles' facets, and
+        // close to the surface the reader saw light diamonds of it over the satellite picture.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 104, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, {
+            sources: [mapSources["natural-earth"], OSM],
+            loadTexture: tiles.load,
+            maxConcurrentLoads: 1000,
+        });
+        for (let round = 0; round < 30; round++) {
+            globe.update();
+            if (tiles.requests.length === 0) {
+                break;
+            }
+            await tiles.answerAll();
+        }
+        globe.update();
+        const radii = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < p.length; i += 3) {
+                out.push(Math.hypot(p[i], p[i + 1], p[i + 2]));
+            }
+            return out;
+        };
+        // The lowest a facet comes is near its middle: the mean of its three corners.
+        const facetMiddles = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const index = mesh.getIndices() ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < index.length; i += 3) {
+                const [a, b, c] = [index[i] * 3, index[i + 1] * 3, index[i + 2] * 3];
+                out.push(
+                    Math.hypot(
+                        (p[a] + p[b] + p[c]) / 3,
+                        (p[a + 1] + p[b + 1] + p[c + 1]) / 3,
+                        (p[a + 2] + p[b + 2] + p[c + 2]) / 3,
+                    ),
+                );
+            }
+            return out;
+        };
+        const shown = shownMeshes(scene);
+        const base = shown.filter((m) => m.name.includes("natural-earth"));
+        const top = shown.filter((m) => m.name.includes("openstreetmap"));
+        expect(base.length).toBeGreaterThan(0);
+        expect(Math.max(...top.map((t) => Number(/\|(\d+)\/\d+\/\d+$/.exec(t.name)?.[1])))).toBeGreaterThanOrEqual(6);
+        const baseHighest = Math.max(...base.flatMap(radii));
+        const topLowest = Math.min(...top.flatMap(facetMiddles));
+        expect(baseHighest, "the bundled world never reaches the tiles over it").toBeLessThan(topLowest);
+        expect(baseHighest).toBeCloseTo(100 * (1 - LAYER_GAP), 6);
+        expect(Math.max(...top.flatMap(radii)), "the top layer stays on the sphere").toBeCloseTo(100, 6);
         scene.getEngine().dispose();
     });
 

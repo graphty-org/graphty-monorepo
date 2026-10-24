@@ -481,6 +481,16 @@ export abstract class MapSurface {
         return null;
     }
 
+    /**
+     * Moves a mesh of a layer drawn under others out of their way, in place. A flat map's layers
+     * are coplanar and the depth offset orders them; the default does nothing.
+     * @param _positions - The mesh's positions, flat x, y, z, in the root's own space.
+     * @param _below - How many layers are drawn over this one.
+     */
+    protected sink(_positions: number[], _below: number): void {
+        // flat layers lie in one plane
+    }
+
     /** Drops every tile's mesh (the geometry changed) and redraws; keeps loaded textures. */
     protected invalidateGeometry(): void {
         for (const e of this.entries.values()) {
@@ -858,6 +868,7 @@ export abstract class MapSurface {
     ): Mesh {
         const mesh = new Mesh(name, this.scene);
         const vertexData = new VertexData();
+        this.sink(positions, this.layers.length - 1 - layer.index);
         vertexData.positions = positions;
         vertexData.uvs = uvs;
         vertexData.indices = indices;

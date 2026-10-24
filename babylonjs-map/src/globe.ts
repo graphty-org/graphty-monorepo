@@ -38,6 +38,16 @@ const TWILIGHT: readonly [number, number] = [-0.1, 0.15];
 const AIR = 0.06;
 
 /**
+ * How far below the surface a layer drawn under another lies, per layer over it, as a share of the
+ * radius. A tile's patch is flat facets between points on the sphere, so it dips under the sphere
+ * between them: at most about 0.0015 of the radius (the bundled world's facets are 5.6 by 2.8
+ * degrees), 0.0007 for a tile service's (3 degrees at most). A layer under it whose points stood
+ * on the sphere poked through it around each of its points, near the surface wider than the view's
+ * depth precision: light diamonds of the bundled world over a satellite map, zooming in close.
+ */
+export const LAYER_GAP = 0.002;
+
+/**
  * The angle between two directions from the origin.
  * @param a - One, any length but zero.
  * @param b - The other.
@@ -206,6 +216,23 @@ export class Globe extends MapSurface {
 
     protected override surfaceProjection(): null {
         return null;
+    }
+
+    /**
+     * A layer drawn under others lies {@link LAYER_GAP} of the radius lower per layer over it, so
+     * its patches stay under theirs everywhere, between their points as well as at them.
+     * @param positions - The mesh's positions, flat x, y, z, from the globe's center.
+     * @param below - How many layers are drawn over this one.
+     */
+    protected override sink(positions: number[], below: number): void {
+        if (below <= 0) {
+            return;
+        }
+
+        const scale = 1 - LAYER_GAP * below;
+        for (let i = 0; i < positions.length; i++) {
+            positions[i] *= scale;
+        }
     }
 
     protected override fillsPoles(): boolean {

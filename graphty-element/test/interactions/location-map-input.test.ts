@@ -735,6 +735,71 @@ describe("the globe's map near its surface", () => {
     });
 });
 
+describe("the globe's layers near its surface", () => {
+    // A tile service is drawn over the bundled world. Both are patches of flat facets between
+    // points on the sphere; where the world's points stood on the sphere they poked through the
+    // tiles' facets, and zoomed in close the reader saw light diamonds of the world picture over
+    // the satellite map (OpenFlights, between Port Moresby and the Solomon Islands).
+    it("shows only the tile service over the view after W is pressed down to the surface", async () => {
+        const tile = document.createElement("canvas");
+        tile.width = 4;
+        tile.height = 4;
+        const context = tile.getContext("2d");
+        assert.isNotNull(context);
+        context.fillStyle = "#00ff00";
+        context.fillRect(0, 0, 4, 4);
+        // Longitude 0, latitude 0 is one of the bundled world's points: the view comes down on it.
+        const element = await mounted(
+            "3d",
+            { mapDimension: "3d", map: { tiles: tile.toDataURL("image/png"), attribution: "green" } },
+            [
+                { id: "NE", latitude: 10, longitude: 10 },
+                { id: "SW", latitude: -10, longitude: -10 },
+            ],
+        );
+        const frame = element.mapFrame;
+        const radius = frame?.mapDimension === "3d" ? frame.radius : 0;
+        await click(element, { x: 6, y: 6 });
+        const scene = element.graph.getScene();
+        const height = (): number => (scene.activeCamera?.globalPosition.length() ?? Number.NaN) / radius - 1;
+        // Every pixel of the view is the green tile, shaded darker toward the rim: none is the
+        // world picture or the background showing through, at each height on the way down.
+        const { engine } = element.graph;
+        const notTile = async (): Promise<number> => {
+            scene.render();
+            const width = engine.getRenderWidth();
+            const tall = engine.getRenderHeight();
+            const pixels = (await engine.readPixels(0, 0, width, tall)) as unknown as Uint8Array;
+            let other = 0;
+            for (let o = 0; o < pixels.length; o += 4) {
+                if (pixels[o] > 40 || pixels[o + 2] > 40 || pixels[o + 1] < 40) {
+                    other++;
+                }
+            }
+            return other;
+        };
+        let presses = 0;
+        const counts: Record<string, number> = {};
+        for (const stop of [0.3, 0.15, 0.08, 0.04, 0.02]) {
+            while (height() > stop) {
+                await userEvent.keyboard("w");
+                await applied(element);
+                presses++;
+                assert.isBelow(presses, 200, "W keeps moving the camera toward the surface");
+            }
+            while (element.basemapStatus.state !== "ready") {
+                await applied(element);
+            }
+            counts[String(stop)] = await notTile();
+        }
+        assert.deepEqual(
+            counts,
+            { "0.3": 0, "0.15": 0, "0.08": 0, "0.04": 0, "0.02": 0 },
+            "pixels of the view not drawn from the tile service, by height",
+        );
+    });
+});
+
 describe("the location map's history and map", () => {
     it("draws the map again when an undo brings back a map layout", async () => {
         const element = await mounted("2d");

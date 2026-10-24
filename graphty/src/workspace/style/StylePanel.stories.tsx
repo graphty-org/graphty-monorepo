@@ -54,6 +54,9 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
+    // A layout change frames the camera on later frames, and a framing still pending takes the
+    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    await element.waitForStableFrame();
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
         if (node === undefined) {
@@ -537,6 +540,9 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
+    // A layout change frames the camera on later frames, and a framing still pending takes the
+    // view insets in force when it lands (the legend card's, once a layer exists), so wait for it.
+    await element.waitForStableFrame();
     return element;
 }
 

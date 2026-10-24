@@ -133,18 +133,18 @@ function viewChoices(
  * The map form's words: which column "Automatic" used, and the warnings about what the columns
  * held, as one note under the field the locations were read from (Location, or Latitude for a pair).
  * @param descriptor - The layout.
- * @param isMap - Whether the layout is the map.
- * @param mapDrawn - The element, when the map is the layout drawn.
+ * @param drawn - The element, when the layout is the one drawn.
  * @returns The field note and the option words.
  */
 function mapFieldWords(
     descriptor: LayoutDescriptor,
-    isMap: boolean,
-    mapDrawn: GraphtyElement | null,
+    drawn: GraphtyElement | null,
 ): {
     fieldNote: (option: OptionDescriptor) => string | null;
     words: (option: OptionDescriptor) => ReturnType<typeof optionWords>;
 } {
+    const isMap = descriptor.id === MAP_LAYOUT;
+    const mapDrawn = isMap ? drawn : null;
     const warnings = mapDrawn?.mapFrame?.warnings ?? [];
     const notedField = mapDrawn?.mapFrame?.location.kind === "location" ? "location" : "latitude";
     const fieldNote = (option: OptionDescriptor): string | null => {
@@ -160,6 +160,32 @@ function mapFieldWords(
         return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
     };
     return { fieldNote, words };
+}
+
+/**
+ * The form's last row: the cost of applying, or why it cannot be, and Apply ("Applied" when the
+ * graph is drawn so already).
+ * @param props - Component props
+ * @param props.reason - Why the layout cannot run, or null
+ * @param props.seconds - The estimated run time
+ * @param props.differs - Whether applying would change the drawing
+ * @returns The row
+ */
+function ApplyRow({
+    reason,
+    seconds,
+    differs,
+}: Readonly<{ reason: string | null; seconds: number; differs: boolean }>): React.JSX.Element {
+    return (
+        <Group justify="space-between" wrap="nowrap">
+            <Text size="xs" c={reason === null ? "dimmed" : "red"}>
+                {reason ?? costLine(seconds)}
+            </Text>
+            <Button size="xs" type="submit" disabled={!differs || reason !== null}>
+                {differs ? "Apply" : "Applied"}
+            </Button>
+        </Group>
+    );
 }
 
 /**
@@ -379,7 +405,7 @@ export function LayoutForm({
     // The map's form: which columns "Automatic" used, the warnings about what they held, Map type
     // offering only the 2D map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
-    const { fieldNote, words } = mapFieldWords(descriptor, isMap, isMap && isCurrent ? element : null);
+    const { fieldNote, words } = mapFieldWords(descriptor, isCurrent ? element : null);
     const disabledReason = (option: OptionDescriptor): string | null =>
         defaultOnly(option)
             ? null
@@ -452,14 +478,7 @@ export function LayoutForm({
                         {error}
                     </Text>
                 )}
-                <Group justify="space-between" wrap="nowrap">
-                    <Text size="xs" c={reason === null ? "dimmed" : "red"}>
-                        {reason ?? costLine(estimate.seconds)}
-                    </Text>
-                    <Button size="xs" type="submit" disabled={!differs || reason !== null}>
-                        {differs ? "Apply" : "Applied"}
-                    </Button>
-                </Group>
+                <ApplyRow reason={reason} seconds={estimate.seconds} differs={differs} />
             </Stack>
         </form>
     );

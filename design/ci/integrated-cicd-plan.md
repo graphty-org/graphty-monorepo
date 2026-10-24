@@ -1,6 +1,24 @@
 # graphty CI/CD: the integrated plan (as of 2026-10-23)
 
-Status: proposed. This plan joins every CI/CD change proposed or built in the week of
+Status: superseded in most parts by `integrated-cicd-plan-v2.md` beside this file (2026-10-24),
+which was written after full testing moved to CI (#3316). What still stands and what does not:
+
+- Sections 1.1, 1.2, 1.3 and the short answers: superseded by version 2, sections 1 and 5. The
+  landing runs the light gate, not selected tests. Verification runs in CI. The cut's CI keeps the
+  full suite instead of one small test lane. The "known on golden" list is dropped.
+- Section 1.4 (not copied from Anthropic): still stands; version 2, section 1.2 repeats it.
+- Section 2 (mechanism audit): superseded by version 2, section 2. Nightly branch sync is kept
+  (narrowed) instead of dropped, history selection is narrowed to a flaky-test listener, and selection,
+  downstream deferral and pass reuse are dropped from the gate.
+- Section 3 (rollout): superseded by version 2, section 6.
+- Section 4 (speed): superseded by version 2, section 4.
+- Section 5 (tier 3): superseded by version 2, section 3, which corrects it. The act() warning flood
+  was the largest cause, "six times slower" was mostly more tests, the Escape fix reached golden at
+  09:02 UTC on 10-23, there were 5 gate bypasses, and #3318 did not come from tier 3.
+- Sections 6 and 7 (risks, owner decisions): superseded by version 2, section 7, and the owner
+  decisions recorded since.
+
+Original status: proposed. This plan joins every CI/CD change proposed or built in the week of
 2026-10-16 to 2026-10-23 into one process: where it should end up, how to get there, what it
 buys, and what it does not fix. It is written for a reader who did not follow the sessions that
 produced the pieces. Every figure marked "measured" comes from the push log
@@ -34,6 +52,8 @@ How changes land today is described in `golden-local.md` beside this file.
   failed differently, while golden stayed red so the fixes themselves could not land.
 
 ## 1. The end state
+
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
 
 ### 1.1 The stages
 
@@ -225,6 +245,8 @@ keep the five-file limit only as "this is a breakage" for the landing check.
 
 ## 2. Mechanism audit
 
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
+
 Keep: stays. Merge: folded into another. Drop: removed. Defer: built only on a measured need.
 
 ### Landing and integration
@@ -325,6 +347,8 @@ outside act() by design.
 14. the pipeline round as first responder, with `lessons.md`.
 
 ## 3. Rollout
+
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
 
 Order matters because the live copies run code no landing has recorded, and sessions read
 CLAUDE.md and the skills from master, so a rule reaches them only after a cut merges. Tier 3 is
@@ -444,6 +468,8 @@ round watches each step's check and records what it learned in `lessons.md`.
 
 ## 4. Speed
 
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
+
 All figures are minutes unless marked. "Measured" means the push log, gate logs or CI runs since
 2026-10-15; everything else is an estimate.
 
@@ -508,6 +534,8 @@ graphty-element. Step 1's step times say which to attack first.
 
 ## 5. Tier 3: root causes, and whether the end state prevents them
 
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
+
 ### 5.1 What happened, in numbers
 
 - The owner asked for the landing at 10:08 on 2026-10-21. Tier 3 reached golden 12.9 hours later
@@ -558,6 +586,8 @@ graphty-element. Step 1's step times say which to attack first.
 - **Pass reuse's failure is unexplained.** Every speed figure assuming reuse depends on step 3.
 
 ## 6. Risks and problems ahead
+
+Superseded by `integrated-cicd-plan-v2.md`; see the status note at the top.
 
 1. **Verification is the safety net.** If it stops, golden fills with unverified landings and no
    cut can be taken: safe but slow. The pipeline round restarts it when `golden-verified` is more

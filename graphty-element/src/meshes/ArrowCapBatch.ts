@@ -724,7 +724,7 @@ export class ArrowCap {
      * @param scale - The factor; 1 is its own size.
      */
     setScale(scale: number): void {
-        if (scale === this.scale || !(scale > 0)) {
+        if (scale === this.scale || Number.isNaN(scale) || scale <= 0) {
             return;
         }
 

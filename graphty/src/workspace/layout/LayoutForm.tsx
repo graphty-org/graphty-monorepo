@@ -88,6 +88,81 @@ function shapeOf(values: Readonly<Record<string, unknown>>, drawn: "2d" | "3d" |
 }
 
 /**
+ * How a layout's options are offered in the view it would be drawn in.
+ * @param session - The element's session.
+ * @param descriptor - The layout.
+ * @param drawnIn - The view the layout would be drawn in.
+ * @returns `drawnOnly`: the one value the view draws for an option it does not draw as asked
+ *     (the map's Map type in 2D), else undefined; `defaultOnly`: whether an option is so; and
+ *     `inView`: a set of values as the view draws them.
+ */
+function viewChoices(
+    session: GraphSession,
+    descriptor: LayoutDescriptor,
+    drawnIn: "2d" | "3d",
+): {
+    drawnOnly: (option: OptionDescriptor) => unknown;
+    defaultOnly: (option: OptionDescriptor) => boolean;
+    inView: (asked: Record<string, unknown>) => Record<string, unknown>;
+} {
+    // An option the 2D view does not draw (the map's Map type) offers only the value the view
+    // draws instead, as the element names it, else its default.
+    const drawnOnly = (option: OptionDescriptor): unknown => {
+        const effect = session.layout.optionInEffect(descriptor.id, option.name, drawnIn);
+        if (typeof option.default !== "string" || effect.code !== "setting.notIn2d") {
+            return undefined;
+        }
+        return effect.params.drawn ?? option.default;
+    };
+    const defaultOnly = (option: OptionDescriptor): boolean => drawnOnly(option) !== undefined;
+    // Shown as the value the view draws; the reader's own choice is kept for the 3D view.
+    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
+        const shown = { ...asked };
+        for (const option of descriptor.options) {
+            const drawn = drawnOnly(option);
+            if (drawn !== undefined) {
+                shown[option.name] = drawn;
+            }
+        }
+        return shown;
+    };
+    return { drawnOnly, defaultOnly, inView };
+}
+
+/**
+ * The map form's words: which column "Automatic" used, and the warnings about what the columns
+ * held, as one note under the field the locations were read from (Location, or Latitude for a pair).
+ * @param descriptor - The layout.
+ * @param isMap - Whether the layout is the map.
+ * @param mapDrawn - The element, when the map is the layout drawn.
+ * @returns The field note and the option words.
+ */
+function mapFieldWords(
+    descriptor: LayoutDescriptor,
+    isMap: boolean,
+    mapDrawn: GraphtyElement | null,
+): {
+    fieldNote: (option: OptionDescriptor) => string | null;
+    words: (option: OptionDescriptor) => ReturnType<typeof optionWords>;
+} {
+    const warnings = mapDrawn?.mapFrame?.warnings ?? [];
+    const notedField = mapDrawn?.mapFrame?.location.kind === "location" ? "location" : "latitude";
+    const fieldNote = (option: OptionDescriptor): string | null => {
+        if (option.name !== notedField) {
+            return null;
+        }
+        const lines = warnings.flatMap((w) => locationFieldWords(w.code, w.params) ?? []);
+        return lines.length === 0 ? null : lines.join("; ");
+    };
+    const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => {
+        const base = optionWords(descriptor.id, option);
+        const used = isMap ? columnUsed(mapDrawn, option.name) : undefined;
+        return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
+    };
+    return { fieldNote, words };
+}
+
+/**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
  * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
@@ -146,27 +221,7 @@ export function LayoutForm({
 
     // The view the layout would be drawn in: the 2D view draws every layout flat.
     const drawnIn = current.dimension === "2d" ? "2d" : shape;
-    // An option the 2D view does not draw (the map's Map type) offers only the value the view
-    // draws instead, as the element names it, else its default.
-    const drawnOnly = (option: OptionDescriptor): unknown => {
-        const effect = session.layout.optionInEffect(descriptor.id, option.name, drawnIn);
-        if (typeof option.default !== "string" || effect.code !== "setting.notIn2d") {
-            return undefined;
-        }
-        return effect.params.drawn ?? option.default;
-    };
-    const defaultOnly = (option: OptionDescriptor): boolean => drawnOnly(option) !== undefined;
-    // Shown as the value the view draws; the reader's own choice is kept for the 3D view.
-    const inView = (asked: Record<string, unknown>): Record<string, unknown> => {
-        const shown = { ...asked };
-        for (const option of descriptor.options) {
-            const drawn = drawnOnly(option);
-            if (drawn !== undefined) {
-                shown[option.name] = drawn;
-            }
-        }
-        return shown;
-    };
+    const { drawnOnly, defaultOnly, inView } = viewChoices(session, descriptor, drawnIn);
 
     const edit = (next: Record<string, unknown>): void => {
         setValues(next);
@@ -217,22 +272,7 @@ export function LayoutForm({
     // The map's form: which columns "Automatic" used, the warnings about what they held, Map type
     // offering only the 2D map in 2D, and the map it draws on.
     const isMap = descriptor.id === MAP_LAYOUT;
-    const mapDrawn = isMap && isCurrent ? element : null;
-    const warnings = mapDrawn?.mapFrame?.warnings ?? [];
-    // One note, under the field the locations were read from: Location, or Latitude for a pair.
-    const notedField = mapDrawn?.mapFrame?.location.kind === "location" ? "location" : "latitude";
-    const fieldNote = (option: OptionDescriptor): string | null => {
-        if (option.name !== notedField) {
-            return null;
-        }
-        const lines = warnings.flatMap((w) => locationFieldWords(w.code, w.params) ?? []);
-        return lines.length === 0 ? null : lines.join("; ");
-    };
-    const words = (option: OptionDescriptor): ReturnType<typeof optionWords> => {
-        const base = optionWords(descriptor.id, option);
-        const used = isMap ? columnUsed(mapDrawn, option.name) : undefined;
-        return used === undefined || base.empty === undefined ? base : { ...base, empty: `${base.empty} (${used})` };
-    };
+    const { fieldNote, words } = mapFieldWords(descriptor, isMap, isMap && isCurrent ? element : null);
     const disabledReason = (option: OptionDescriptor): string | null =>
         defaultOnly(option)
             ? null

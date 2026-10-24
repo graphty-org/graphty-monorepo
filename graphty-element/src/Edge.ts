@@ -1365,75 +1365,94 @@ export class Edge {
      *     replaced, so text asking for what was drawn a moment ago must still be built again.
      */
     private syncContent(style: EdgeStyleConfig, rebuild: boolean): void {
-        let rebuilt = false;
+        // Every one runs: each brings its own part into line, whatever the others found.
+        const label = this.syncLabel(style, rebuild);
+        const captions = this.syncArrowCaptions(style, rebuild);
+        const bends = this.syncBends(style);
+        const placement = this.syncPlacement(style);
 
-        const wantedLabel = drawnText(style.label);
-        const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
-
-        if (rebuild || labelText !== this.drawnLabelText || !isEqual(wantedLabel, this.drawnLabelStyle)) {
-            this.label?.dispose();
-            this.label = null;
-
-            if (wantedLabel !== undefined) {
-                const { label, offset, attachPosition } = this.createLabel(style);
-                this.label = label;
-                this._labelOffset = offset;
-                this._labelAttachPosition = attachPosition;
-            }
-
-            this.drawnLabelText = labelText;
-            // CLONED rather than held: the block belongs to an `EdgePaint` that
-            // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
-            // reference somebody else can still write to silently starts passing.
-            this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
-            rebuilt = true;
-        }
-
-        if (this.syncArrowCaptions(style, rebuild)) {
-            rebuilt = true;
-        }
-
-        if (this.syncBends(style)) {
-            rebuilt = true;
-        }
-
-        // Where a caption sits along the line keys nothing either: a new distance only moves it.
-        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
-        if (distances !== this.drawnCaptionDistances) {
-            this.drawnCaptionDistances = distances;
-            rebuilt = true;
-        }
-
-        // The fan spacing keys no mesh either: a new one only moves the arc.
-        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
-            this.drawnFanSpacing = style.line?.fanSpacing;
-            rebuilt = true;
-        }
-
-        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
-            this.drawnFanned = style.line?.fanned;
-            this.drawnArcRadius = style.line?.arcRadius;
-            rebuilt = true;
-        }
-
-        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
-        if (route !== this.drawnRoute) {
-            this.drawnRoute = route;
-            rebuilt = true;
-        }
-
-        if (style.line?.nodeGap !== this.drawnNodeGap) {
-            this.drawnNodeGap = style.line?.nodeGap;
-            rebuilt = true;
-        }
-
-        if (rebuilt) {
+        if (label || captions || bends || placement) {
             this.invalidatePositionCache();
             // Overlapping texts are thinned out with node labels when `labels.declutter` is on.
             if (this.label ?? this.arrowHeadText ?? this.arrowTailText) {
                 LabelDeclutter.trackEdge(this.context.getScene(), this.context, this);
             }
         }
+    }
+
+    /**
+     * Bring the edge's label into line with what one resolved style asks for. See
+     * {@link syncContent}.
+     * @param style - The resolved style.
+     * @param rebuild - True when the meshes the label is positioned against have just been replaced.
+     * @returns True when the label was rebuilt.
+     */
+    private syncLabel(style: EdgeStyleConfig, rebuild: boolean): boolean {
+        const wantedLabel = drawnText(style.label);
+        const labelText = wantedLabel === undefined ? undefined : this.extractLabelText(wantedLabel);
+
+        if (!rebuild && labelText === this.drawnLabelText && isEqual(wantedLabel, this.drawnLabelStyle)) {
+            return false;
+        }
+
+        this.label?.dispose();
+        this.label = null;
+
+        if (wantedLabel !== undefined) {
+            const { label, offset, attachPosition } = this.createLabel(style);
+            this.label = label;
+            this._labelOffset = offset;
+            this._labelAttachPosition = attachPosition;
+        }
+
+        this.drawnLabelText = labelText;
+        // CLONED rather than held: the block belongs to an `EdgePaint` that
+        // `StylePainter.edgePaint` builds fresh on every call, and a comparison against a
+        // reference somebody else can still write to silently starts passing.
+        this.drawnLabelStyle = wantedLabel === undefined ? undefined : cloneDeep(wantedLabel);
+        return true;
+    }
+
+    /**
+     * Record the style values that key no mesh but move what is drawn: the captions' distances
+     * along the line, the fan, the route and the gap at the nodes. See {@link syncContent}.
+     * @param style - The resolved style.
+     * @returns True when any of them changed, so the edge must be placed again.
+     */
+    private syncPlacement(style: EdgeStyleConfig): boolean {
+        let changed = false;
+
+        // Where a caption sits along the line keys nothing either: a new distance only moves it.
+        const distances = `${String(style.arrowHead?.textDistance)} ${String(style.arrowTail?.textDistance)}`;
+        if (distances !== this.drawnCaptionDistances) {
+            this.drawnCaptionDistances = distances;
+            changed = true;
+        }
+
+        // The fan spacing keys no mesh either: a new one only moves the arc.
+        if (style.line?.fanSpacing !== this.drawnFanSpacing) {
+            this.drawnFanSpacing = style.line?.fanSpacing;
+            changed = true;
+        }
+
+        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
+            this.drawnFanned = style.line?.fanned;
+            this.drawnArcRadius = style.line?.arcRadius;
+            changed = true;
+        }
+
+        const route = `${String(style.line?.route)} ${String(style.line?.arcHeight)}`;
+        if (route !== this.drawnRoute) {
+            this.drawnRoute = route;
+            changed = true;
+        }
+
+        if (style.line?.nodeGap !== this.drawnNodeGap) {
+            this.drawnNodeGap = style.line?.nodeGap;
+            changed = true;
+        }
+
+        return changed;
     }
 
     /**
@@ -1787,13 +1806,7 @@ export class Edge {
             this.placeGradient(curve);
         } else if (this.lineBatch) {
             // A line that was fanned out or looped holds a run: hand back all but its first slot.
-            while (this.lineSlots.length > 1) {
-                const slot = this.lineSlots.pop();
-                if (slot !== undefined) {
-                    this.lineBatch.release(slot);
-                }
-            }
-
+            Edge.releaseRun(this.lineBatch, this.lineSlots);
             this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
             this.placeOutline([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
             this.placeGradient([srcPoint.x, srcPoint.y, srcPoint.z, dstPoint.x, dstPoint.y, dstPoint.z]);
@@ -1806,14 +1819,22 @@ export class Edge {
             this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
         } else if (this.haloBatch) {
             // A band that followed a run (a route, bends) holds a run too: hand back all but its first slot.
-            while (this.haloSlots.length > 1) {
-                const slot = this.haloSlots.pop();
-                if (slot !== undefined) {
-                    this.haloBatch.release(slot);
-                }
-            }
-
+            Edge.releaseRun(this.haloBatch, this.haloSlots);
             this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * Hand back every slot of a run but its first, for a run drawn as one straight segment again.
+     * @param batch - The batch the slots belong to.
+     * @param slots - The run's slots; left holding only the first.
+     */
+    private static releaseRun(batch: EdgeLineBatch, slots: number[]): void {
+        while (slots.length > 1) {
+            const slot = slots.pop();
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
         }
     }
 

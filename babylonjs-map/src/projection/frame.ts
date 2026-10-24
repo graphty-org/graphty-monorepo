@@ -37,10 +37,11 @@ export interface BoundsOfOptions {
  */
 function longitudeRange(lons: number[]): [number, number] {
     const sorted = [...lons].sort((a, b) => a - b);
+    const last = sorted.at(-1) ?? Number.NaN;
     // The gap across the antimeridian, from the last longitude round to the first.
-    let gap = sorted[0] + 360 - sorted[sorted.length - 1];
+    let gap = sorted[0] + 360 - last;
     let west = sorted[0];
-    let east = sorted[sorted.length - 1];
+    let east = last;
     for (let i = 1; i < sorted.length; i++) {
         const between = sorted[i] - sorted[i - 1];
         if (between > gap) {

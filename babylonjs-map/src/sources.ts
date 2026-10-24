@@ -255,7 +255,7 @@ export function resolveSource(source: MapSource): ResolvedSource {
                 s: subdomains.length > 0 ? subdomains[(x + t.y) % subdomains.length] : "",
                 r: "",
             };
-            return source.tiles.replace(/\{(z|x|y|-y|s|r)\}/g, (_, key: string) => String(values[key]));
+            return source.tiles.replaceAll(/\{(z|x|y|-y|s|r)\}/g, (_, key: string) => String(values[key]));
         },
     };
 }

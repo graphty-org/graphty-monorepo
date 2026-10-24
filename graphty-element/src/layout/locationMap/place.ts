@@ -164,6 +164,33 @@ interface Readings {
 }
 
 /**
+ * The format a location column's values choose, with a warning when another reads as many of
+ * them or when they read longitude first.
+ * @param source - The location column.
+ * @param warnings - Where the warnings go.
+ * @returns The format; `decimal` when none reads any value.
+ */
+function detectedFormat(
+    source: Extract<LocationSource, { kind: "location" }>,
+    warnings: PlaceWarning[],
+): LocationFormat {
+    const found = detectLocationFormat(source.values);
+    const use = found.format ?? "decimal";
+    if (found.alternatives.length > 0) {
+        warnings.push({
+            code: "W_LOCATION_AMBIGUOUS",
+            params: { formats: [use, ...found.alternatives], column: source.column },
+        });
+    }
+
+    if (use === "lon-lat") {
+        warnings.push({ code: "W_LOCATION_SWAPPED", params: { column: source.column } });
+    }
+
+    return use;
+}
+
+/**
  * Reads every row's location. A location column is read in the format its values choose (or the
  * `format` option), and a value that format refuses is tried in the formats that cannot be
  * mistaken for another, so a column mixing spellings loses no row.
@@ -179,22 +206,9 @@ function readPoints(source: LocationSource, format: LocationFormat | "auto", n: 
     if (source.kind === "columns") {
         read = (row) => latLonFromColumns(source.lat[row], source.lon[row]);
     } else {
-        if (format === "auto") {
-            const found = detectLocationFormat(source.values);
-            use = found.format ?? "decimal";
-            if (found.alternatives.length > 0) {
-                warnings.push({
-                    code: "W_LOCATION_AMBIGUOUS",
-                    params: { formats: [use, ...found.alternatives], column: source.column },
-                });
-            }
-
-            if (use === "lon-lat") {
-                warnings.push({ code: "W_LOCATION_SWAPPED", params: { column: source.column } });
-            }
-        }
-
-        read = (row) => parseColumnValue(source.values[row], use);
+        const chosen = format === "auto" ? detectedFormat(source, warnings) : format;
+        use = chosen;
+        read = (row) => parseColumnValue(source.values[row], chosen);
     }
 
     const points: (LatLon | null)[] = [];
@@ -395,6 +409,147 @@ function drawnAcross(radius: number, angle: number): number {
     return 2 * radius * Math.sin(Math.min(angle, Math.PI) / 2);
 }
 
+/** What placing the nodes on one surface needs, shared by the flat map and the globe. */
+interface Surfacing {
+    /** Each row's point, null for a row left unplaced. */
+    readonly points: readonly (LatLon | null)[];
+    /** The points placed. */
+    readonly placed: readonly LatLon[];
+    /** Where the positions are written, `dimensions` numbers per row. */
+    readonly positions: Float32Array;
+    readonly options: PlaceOptions;
+    /** The typical node size, the gap between nodes spread apart or in the tray. */
+    readonly spacing: number;
+    /** Half a row's node size. */
+    readonly halfSize: (row: number) => number;
+    readonly common: FrameCommon;
+}
+
+/** A surface's frame, and where the tray of unplaced nodes goes under it. */
+interface Surfaced {
+    readonly frame: LocationMapFrame;
+    readonly trayWidth: number;
+    readonly trayTop: number;
+}
+
+/**
+ * Places the nodes on a flat map fitted to the data (or the whole world).
+ * @param s - What placing needs.
+ * @param projection - The map's projection.
+ * @returns The frame and the tray's place.
+ */
+function placeFlat(s: Surfacing, projection: ProjectionId): Surfaced {
+    const { points, positions, options, spacing } = s;
+    const dim = options.dimensions;
+    const bounds =
+        options.extent === "world" ? worldBounds(projection) : (dataBounds(s.placed) ?? worldBounds(projection));
+    // A larger map spreads the same nodes further apart: their sizes stay in scene units.
+    const size = options.size * options.mapScale;
+    const mapFrame = createMapFrame({ projection, bounds, size });
+    const frame: LocationMapFrame = {
+        ...s.common,
+        surface: "flat",
+        dimensions: dim,
+        projection,
+        bounds: mapFrame.bounds,
+        size,
+        mapFrame,
+    };
+    // A box across the date line runs east past 180: a point west of the line moves a turn east.
+    const scene = points.map((p) =>
+        p === null ? null : mapFrame.toScene({ lat: p.lat, lon: longitudeIn(p.lon, bounds) }),
+    );
+    const offsets =
+        options.overlap === "spread"
+            ? spreadOffsets(
+                  scene.map((at) => (at === null ? null : `${at.x.toFixed(4)},${at.y.toFixed(4)}`)),
+                  spacing,
+              )
+            : null;
+    scene.forEach((at, row) => {
+        if (at !== null) {
+            positions[dim * row] = at.x + (offsets?.[row][0] ?? 0);
+            positions[dim * row + 1] = at.y + (offsets?.[row][1] ?? 0);
+            if (dim === 3) {
+                // toward the camera, which looks along +z, so a node never sinks into the map
+                positions[dim * row + 2] = -s.halfSize(row);
+            }
+        }
+    });
+    return { frame, trayWidth: mapFrame.width, trayTop: -mapFrame.height / 2 - 2 * spacing };
+}
+
+/**
+ * Places the nodes on a globe, the data's center turned to face the camera.
+ * @param s - What placing needs.
+ * @returns The frame and the tray's place.
+ */
+function placeGlobe(s: Surfacing): Surfaced {
+    const { points, placed, positions, options, spacing } = s;
+    const bounds = (options.extent === "world" ? null : dataBounds(placed)) ?? worldBounds("equirectangular");
+    const world = bounds[1][0] - bounds[0][0] >= WORLD_SPAN;
+    const angle = world ? Math.PI : spanOf(bounds);
+    // A larger globe spreads the same nodes further apart: their sizes stay in scene units.
+    const radius = globeRadius(options.size, angle) * options.mapScale;
+    const center = placed.length > 0 ? centerOf(placed) : { lat: 0, lon: 0 };
+    const rotation = facing(world ? { lat: 0, lon: center.lon } : center);
+    const frame: LocationMapFrame = {
+        ...s.common,
+        surface: "globe",
+        dimensions: 3,
+        radius,
+        bounds,
+        size: drawnAcross(radius, angle),
+        world,
+        rotation,
+    };
+    // degrees of arc per scene unit at the surface, for spreading in place
+    const degPerUnit = 1 / (radius * DEG);
+    const offsets =
+        options.overlap === "spread"
+            ? spreadOffsets(
+                  points.map((p) => (p === null ? null : `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`)),
+                  spacing * degPerUnit,
+              )
+            : null;
+    points.forEach((p, row) => {
+        if (p !== null) {
+            const lat = Math.max(-90, Math.min(90, p.lat + (offsets?.[row][1] ?? 0)));
+            const lon = p.lon + (offsets?.[row][0] ?? 0) / Math.max(Math.cos(p.lat * DEG), 0.01);
+            const at = turn(rotation, latLonToSphere({ lat, lon }, radius + s.halfSize(row)));
+            positions.set(at, 3 * row);
+        }
+    });
+    return { frame, trayWidth: 2 * radius, trayTop: -radius - 2 * spacing };
+}
+
+/**
+ * Puts the unplaced nodes in one row, centered under the map, however many there are; or leaves
+ * them where they were (`unplaced: "leave"`).
+ * @param s - What placing needs.
+ * @param nodes - The nodes, for their current positions.
+ * @param unplacedRows - The rows left unplaced.
+ * @param surfaced - Where the tray goes.
+ */
+function placeTray(s: Surfacing, nodes: PlaceNodes, unplacedRows: readonly number[], surfaced: Surfaced): void {
+    const { positions, options, spacing } = s;
+    const dim = options.dimensions;
+    const step = 1.5 * spacing;
+    const rowWidth = (unplacedRows.length - 1) * step;
+    unplacedRows.forEach((row, k) => {
+        if (options.unplaced === "leave") {
+            positions.set(nodes.initial.subarray(dim * row, dim * row + dim), dim * row);
+            return;
+        }
+
+        positions[dim * row] = Math.min(-rowWidth / 2, -surfaced.trayWidth / 2 + spacing / 2) + k * step;
+        positions[dim * row + 1] = surfaced.trayTop;
+        if (dim === 3) {
+            positions[dim * row + 2] = 0;
+        }
+    });
+}
+
 /**
  * Places every node at its location on a flat map or a globe.
  *
@@ -448,108 +603,17 @@ export function placeOnMap(
         }
     }
 
-    const common = {
-        kind: "geographic" as const,
+    const common: FrameCommon = {
+        kind: "geographic",
         location: locationFact(source, readings.format, filled),
         unplacedIds: new Set(unplacedRows.map((row) => nodes.ids[row])),
         warnings,
         mapScale: options.mapScale,
     };
-    let frame: LocationMapFrame;
-    let trayWidth: number;
-    let trayTop: number;
-    if (flat) {
-        const bounds =
-            options.extent === "world" ? worldBounds(projection) : (dataBounds(placed) ?? worldBounds(projection));
-        // A larger map spreads the same nodes further apart: their sizes stay in scene units.
-        const size = options.size * options.mapScale;
-        const mapFrame = createMapFrame({ projection, bounds, size });
-        frame = {
-            ...common,
-            surface: "flat",
-            dimensions: dim,
-            projection,
-            bounds: mapFrame.bounds,
-            size,
-            mapFrame,
-        };
-        // A box across the date line runs east past 180: a point west of the line moves a turn east.
-        const scene = points.map((p) =>
-            p === null ? null : mapFrame.toScene({ lat: p.lat, lon: longitudeIn(p.lon, bounds) }),
-        );
-        const offsets =
-            options.overlap === "spread"
-                ? spreadOffsets(
-                      scene.map((s) => (s === null ? null : `${s.x.toFixed(4)},${s.y.toFixed(4)}`)),
-                      spacing,
-                  )
-                : null;
-        scene.forEach((s, row) => {
-            if (s !== null) {
-                positions[dim * row] = s.x + (offsets?.[row][0] ?? 0);
-                positions[dim * row + 1] = s.y + (offsets?.[row][1] ?? 0);
-                if (dim === 3) {
-                    // toward the camera, which looks along +z, so a node never sinks into the map
-                    positions[dim * row + 2] = -halfSize(row);
-                }
-            }
-        });
-        trayWidth = mapFrame.width;
-        trayTop = -mapFrame.height / 2 - 2 * spacing;
-    } else {
-        const bounds = (options.extent === "world" ? null : dataBounds(placed)) ?? worldBounds("equirectangular");
-        const world = bounds[1][0] - bounds[0][0] >= WORLD_SPAN;
-        const angle = world ? Math.PI : spanOf(bounds);
-        // A larger globe spreads the same nodes further apart: their sizes stay in scene units.
-        const radius = globeRadius(options.size, angle) * options.mapScale;
-        const center = placed.length > 0 ? centerOf(placed) : { lat: 0, lon: 0 };
-        const rotation = facing(world ? { lat: 0, lon: center.lon } : center);
-        frame = {
-            ...common,
-            surface: "globe",
-            dimensions: 3,
-            radius,
-            bounds,
-            size: drawnAcross(radius, angle),
-            world,
-            rotation,
-        };
-        // degrees of arc per scene unit at the surface, for spreading in place
-        const degPerUnit = 1 / (radius * DEG);
-        const offsets =
-            options.overlap === "spread"
-                ? spreadOffsets(
-                      points.map((p) => (p === null ? null : `${p.lat.toFixed(6)},${p.lon.toFixed(6)}`)),
-                      spacing * degPerUnit,
-                  )
-                : null;
-        points.forEach((p, row) => {
-            if (p !== null) {
-                const lat = Math.max(-90, Math.min(90, p.lat + (offsets?.[row][1] ?? 0)));
-                const lon = p.lon + (offsets?.[row][0] ?? 0) / Math.max(Math.cos(p.lat * DEG), 0.01);
-                const at = turn(rotation, latLonToSphere({ lat, lon }, radius + halfSize(row)));
-                positions.set(at, 3 * row);
-            }
-        });
-        trayWidth = 2 * radius;
-        trayTop = -radius - 2 * spacing;
-    }
-
-    // One row, centered under the map, however many there are.
-    const step = 1.5 * spacing;
-    const rowWidth = (unplacedRows.length - 1) * step;
-    unplacedRows.forEach((row, k) => {
-        if (options.unplaced === "leave") {
-            positions.set(nodes.initial.subarray(dim * row, dim * row + dim), dim * row);
-            return;
-        }
-
-        positions[dim * row] = Math.min(-rowWidth / 2, -trayWidth / 2 + spacing / 2) + k * step;
-        positions[dim * row + 1] = trayTop;
-        if (dim === 3) {
-            positions[dim * row + 2] = 0;
-        }
-    });
+    const surfacing: Surfacing = { points, placed, positions, options, spacing, halfSize, common };
+    const surfaced = flat ? placeFlat(surfacing, projection) : placeGlobe(surfacing);
+    placeTray(surfacing, nodes, unplacedRows, surfaced);
+    const { frame } = surfaced;
 
     return { positions, frame, warnings, unplacedRows };
 }

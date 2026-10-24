@@ -1197,6 +1197,10 @@ export class Graph implements GraphContext {
         this.layoutManager.drawArrivedPaint = () => {
             this.updateManager.drawArrivedPaint();
         };
+        // A change on its way through the derivation lane is paint on its way: its styles hook runs
+        // after the graph and layout hooks it awaits, so until the pass ends the framing a
+        // settling layout ends with, and the finished picture, wait for it (issue #3378).
+        this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);

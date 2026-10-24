@@ -6332,7 +6332,7 @@ export class UpdateManager implements Manager {
     bindViewMasks(masks: ViewMasks | null): void;
     disableZoomToFit(): void;
     dispose(): void;
-    drawArrivedPaint(): void;
+    drawArrivedPaint(frameMs?: number): void;
     enableZoomToFit(explicit?: boolean): void;
     forceEdgeWalk(): void;
     get frameIsStable(): boolean;
@@ -6347,7 +6347,7 @@ export class UpdateManager implements Manager {
     renderFrames(count: number): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
-    syncStyles(): void;
+    syncStyles(budgetMs?: number): void;
     syncViewMasks(): void;
     thawActiveMeshes(): void;
     update(frameMs?: number): void;

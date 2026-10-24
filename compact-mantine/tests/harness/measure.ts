@@ -27,7 +27,8 @@ import { ensureCompactStyles } from "../../src/theme/global-styles";
 
 declare module "vitest/browser" {
     interface BrowserCommands {
-        figmaAvailable: () => Promise<boolean>;
+        figmaRecording: () => Promise<boolean>;
+        figmaRecordReads: (reads: string[]) => Promise<void>;
         readFigmaCapture: (path: string) => Promise<unknown>;
         mouseAway: () => Promise<void>;
         mouseDown: () => Promise<void>;

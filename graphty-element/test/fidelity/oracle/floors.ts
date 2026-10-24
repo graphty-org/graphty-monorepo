@@ -26,12 +26,20 @@ export interface AllowedDrop {
     atLeast: number;
 }
 
+/**
+ * Where a floors key's floors are kept: with the real programs, with the stand-ins, or with the specification's
+ * expectations (a sheet judged per setting, judges.ts), each apart from the others.
+ */
+export type FloorSection = "floors" | "standInFloors" | "specificationFloors";
+
 /** The floors files. */
 export interface OracleFloors {
     about: string;
     floors: Record<string, Record<string, number>>;
     /** The floors of samples whose oracle stands in for the file's own program, kept apart. */
     standInFloors: Record<string, Record<string, number>>;
+    /** The floors of the settings a sheet judged per setting judges against its specification, kept apart. */
+    specificationFloors: Record<string, Record<string, number>>;
     allowedDrops: Record<string, AllowedDrop>;
     /** Floors lowered on purpose, with the rate before and after and why: the work the fixes owe. */
     lowered: Record<string, { from: number; to: number; reason: string; date: string }>;
@@ -83,7 +91,7 @@ export interface FloorCheck {
  * Checks one scored comparison against its floors and known failures.
  * @param key - the floors key
  * @param scored - its measurement
- * @param standIn - whether its floors are kept with the stand-ins
+ * @param section - where its floors are kept
  * @param stored - the floors
  * @param today - `YYYY-MM-DD`
  * @returns what failed
@@ -91,11 +99,11 @@ export interface FloorCheck {
 export function checkScored(
     key: string,
     scored: OracleScored,
-    standIn: boolean,
+    section: FloorSection,
     stored: OracleFloors,
     today: string,
 ): FloorCheck {
-    const floors = (standIn ? stored.standInFloors : stored.floors)[key] ?? {};
+    const floors = stored[section][key] ?? {};
     const dropped = Object.entries(floors).flatMap(([p, floor]) => {
         const rate = scored.scores[p];
         if (rate !== undefined && rate >= floor - EPSILON) {
@@ -137,7 +145,7 @@ export function checkScored(
 /** What a run records: each key's scores, the elements failing each judged property, and where its floors are kept. */
 export type OracleRecord = Record<
     string,
-    { scores: Record<string, number>; failures: OracleReport["failures"]; standIn: boolean }
+    { scores: Record<string, number>; failures: OracleReport["failures"]; section: FloorSection }
 >;
 
 const byProperty = (a: string, b: string): number => {
@@ -157,28 +165,29 @@ const sortedKeys = <T>(o: Record<string, T>): Record<string, T> =>
 /**
  * The floors and known failures after a run is recorded: the higher of the stored and the measured rate (a floor never
  * drops), and of the elements known to fail a property only those that still fail (a fixed element is never let fail
- * again); a property with no record yet records what fails now. A sample's floors go with the stand-ins or the real
- * programs by its oracle.
+ * again); a property with no record yet records what fails now. A key's floors go with the real programs, the
+ * stand-ins or the specification by what judged it.
  * @param fresh - the floors as they stand
  * @param recorded - the measurements by floors key
  * @returns the new floors and known failures
  */
-export function mergeRecords(
-    fresh: OracleFloors,
-    recorded: OracleRecord,
-): Pick<OracleFloors, "floors" | "standInFloors" | "known"> {
-    const floors = new Map(Object.entries(fresh.floors));
-    const standInFloors = new Map(Object.entries(fresh.standInFloors));
+export function mergeRecords(fresh: OracleFloors, recorded: OracleRecord): Pick<OracleFloors, FloorSection | "known"> {
+    const sections: Record<FloorSection, Map<string, Record<string, number>>> = {
+        floors: new Map(Object.entries(fresh.floors)),
+        standInFloors: new Map(Object.entries(fresh.standInFloors)),
+        specificationFloors: new Map(Object.entries(fresh.specificationFloors)),
+    };
     const known = { ...fresh.known };
-    for (const [key, { scores, failures, standIn }] of Object.entries(recorded)) {
-        const old = fresh.floors[key] ?? fresh.standInFloors[key] ?? {};
+    for (const [key, { scores, failures, section }] of Object.entries(recorded)) {
+        const old = fresh.floors[key] ?? fresh.standInFloors[key] ?? fresh.specificationFloors[key] ?? {};
         const merged: Record<string, number> = { ...old };
         for (const [p, rate] of Object.entries(scores)) {
             merged[p] = Math.max(rate, old[p] ?? 0);
         }
-        floors.delete(key);
-        standInFloors.delete(key);
-        (standIn ? standInFloors : floors).set(
+        for (const m of Object.values(sections)) {
+            m.delete(key);
+        }
+        sections[section].set(
             key,
             Object.fromEntries(
                 Object.keys(merged)
@@ -200,8 +209,9 @@ export function mergeRecords(
         );
     }
     return {
-        floors: sortedKeys(Object.fromEntries(floors)),
-        standInFloors: sortedKeys(Object.fromEntries(standInFloors)),
+        floors: sortedKeys(Object.fromEntries(sections.floors)),
+        standInFloors: sortedKeys(Object.fromEntries(sections.standInFloors)),
+        specificationFloors: sortedKeys(Object.fromEntries(sections.specificationFloors)),
         known: sortedKeys(known),
     };
 }

@@ -130,7 +130,7 @@ describe("GradientEditor stop names", () => {
 });
 
 describe("CompactColorInput picker focus", () => {
-    it("opens its picker, from the swatch or the chip, with focus in the value box so a typed hex sets it", async () => {
+    it("opens its picker, from the swatch or the chip, focused on the picker itself (Figma); its value box takes a hex", async () => {
         for (const variant of ["field", "chip"] as const) {
             let picked: string | undefined;
             const { unmount } = render(
@@ -153,9 +153,12 @@ describe("CompactColorInput picker focus", () => {
                     ? page.getByTestId("compact-color-input-chip")
                     : page.getByTestId("compact-color-input-swatch");
             await userEvent.click(opener);
+            const panel = page.getByTestId("color-picker-panel");
+            await expect.poll(() => panel.element().closest(".cm-popout")?.contains(document.activeElement)).toBe(true);
             const value = page.getByTestId("color-picker-value");
-            await expect.poll(() => document.activeElement === value.element()).toBe(true);
-            await userEvent.keyboard("FF00FF{Enter}");
+            expect(document.activeElement).not.toBe(value.element());
+            await userEvent.click(value);
+            await userEvent.keyboard("{Control>}a{/Control}FF00FF{Enter}");
             await expect.poll(() => picked).toBe("#FF00FF");
             unmount();
         }
@@ -163,7 +166,7 @@ describe("CompactColorInput picker focus", () => {
 });
 
 describe("a Mixed color field", () => {
-    it("draws a swatch that opens the picker, takes a color by name, and marks words that name none", async () => {
+    it("draws a swatch that opens the picker, takes a color by name, and goes back on words that name none", async () => {
         let picked: string | undefined;
         renderField(
             <CompactColorInput
@@ -185,14 +188,12 @@ describe("a Mixed color field", () => {
         const hex = page.getByTestId("compact-color-input-hex");
         await userEvent.click(hex);
         await userEvent.keyboard("blu{Enter}");
-        await expect.element(hex).toHaveAttribute("aria-invalid", "true");
-        await expect.element(hex).toHaveValue("blu");
+        await expect.element(hex).toHaveValue("");
+        await expect.element(hex).not.toHaveAttribute("aria-invalid");
         assert.isUndefined(picked, "words that name no color write nothing");
 
-        await userEvent.clear(hex);
         await userEvent.keyboard("blue{Enter}");
         await expect.poll(() => picked).toBe("#0000FF");
-        await expect.element(hex).not.toHaveAttribute("aria-invalid");
     });
 });
 
@@ -217,28 +218,26 @@ describe("CompactColorInput refusals and Escape", () => {
         expect(chosen).toEqual([]);
         // Said aloud, so a screen reader knows the typing is gone and the color kept.
         await expect.element(page.getByRole("status")).toHaveTextContent("Edit discarded; this stays 2E8B57.");
-        // Shown under the field too, not only spoken.
-        await expect
-            .element(page.getByText("Edit discarded; this stays 2E8B57.", { exact: true }).nth(1))
-            .toBeVisible();
+        // Never drawn: Figma shows nothing when an edit is discarded.
+        expect(page.getByText("Edit discarded; this stays 2E8B57.", { exact: true }).elements()).toHaveLength(1);
         // The value is selected again, so what is typed next replaces it.
         await userEvent.keyboard("FF0000{Enter}");
         expect(chosen).toEqual(["#FF0000"]);
     });
 
-    it("says on screen and in the hex box's description why Enter refused the words", async () => {
+    it("Enter on words that name no color goes back to the value, as Figma does, and says why aloud", async () => {
         renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" showOpacity={false} />);
         const hex = page.getByTestId("compact-color-input-hex");
         await userEvent.click(hex);
         await userEvent.keyboard("{Control>}a{/Control}dark greer{Enter}");
-        const message = page.getByRole("alert");
-        await expect.element(message).toHaveTextContent('"dark greer" is not a color');
-        await expect.element(message).toHaveTextContent("a color name or a hex code such as 2E8B57");
-        await expect.element(hex).toHaveAttribute("aria-invalid", "true");
-        await expect.element(hex).toHaveAccessibleDescription(/"dark greer" is not a color/);
+        await expect.element(hex).toHaveValue("2E8B57");
+        await expect.element(hex).not.toHaveAttribute("aria-invalid");
+        await expect
+            .element(page.getByRole("status"))
+            .toHaveTextContent('"dark greer" is not a color, so this stays 2E8B57');
+        expect(document.querySelector('[role="alert"]')).toBeNull();
 
         await userEvent.keyboard("{Control>}a{/Control}seagreen{Enter}");
-        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
         await expect.element(hex).toHaveValue("2E8B57");
     });
 
@@ -263,7 +262,7 @@ describe("CompactColorInput refusals and Escape", () => {
         expect(chosen).toEqual(["#006400", "#663399"]);
     });
 
-    it("keeps the field its full width while a refusal shows under the row", async () => {
+    it("draws nothing under the field after a refusal", async () => {
         renderField(
             <div style={{ width: 200 }}>
                 <CompactColorInput
@@ -274,23 +273,21 @@ describe("CompactColorInput refusals and Escape", () => {
                 />
             </div>,
         );
-        const field = page.getByTestId("compact-color-input-field");
-        const before = field.element().getBoundingClientRect().width;
-        const hex = page.getByTestId("compact-color-input-hex");
-        await userEvent.click(hex);
+        const row = page.getByTestId("compact-color-input").element();
+        const before = row.getBoundingClientRect().height;
+        await userEvent.click(page.getByTestId("compact-color-input-hex"));
         await userEvent.keyboard("dark greer{Enter}");
-        const message = page.getByTestId("compact-color-input-message");
-        await expect.element(message).toBeVisible();
-        const after = field.element().getBoundingClientRect();
-        expect(after.width).toBe(before);
-        expect(message.element().getBoundingClientRect().top).toBeGreaterThanOrEqual(after.bottom);
+        expect(row.getBoundingClientRect().height).toBe(before);
+        const field = page.getByTestId("compact-color-input-field").element();
+        expect(getComputedStyle(field).borderTopColor).not.toBe("rgb(220, 52, 18)");
     });
 
-    it("shows the text cursor over the hex box, focused or not", async () => {
+    it("shows Figma's arrow over the hex box at rest and the text cursor once it is focused", async () => {
         renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" />);
         const hex = page.getByTestId("compact-color-input-hex").element();
+        expect(getComputedStyle(hex).cursor).toBe("default");
+        await userEvent.click(hex);
         expect(getComputedStyle(hex).cursor).toBe("text");
-        expect(getComputedStyle(page.getByTestId("compact-color-input-opacity").element()).cursor).toBe("text");
     });
 
     it("leaving with words that name no color goes back to the value and says so", async () => {
@@ -310,7 +307,9 @@ describe("CompactColorInput refusals and Escape", () => {
         await userEvent.keyboard("{Control>}a{/Control}orang");
         await userEvent.tab();
         await expect.element(hex).toHaveValue("2E8B57");
-        await expect.element(page.getByRole("alert")).toHaveTextContent('"orang" is not a color, so this stays 2E8B57');
+        await expect
+            .element(page.getByRole("status"))
+            .toHaveTextContent('"orang" is not a color, so this stays 2E8B57');
         await expect.element(hex).not.toHaveAttribute("aria-invalid");
         expect(chosen).toEqual([]);
     });
@@ -331,8 +330,8 @@ describe("CompactColorInput picker", () => {
         );
         await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
         const value = page.getByRole("textbox", { name: "Color value", exact: true });
-        await expect.poll(() => document.activeElement === value.element()).toBe(true);
-        await userEvent.keyboard("blue{Enter}");
+        await userEvent.click(value);
+        await userEvent.keyboard("{Control>}a{/Control}blue{Enter}");
         await expect.poll(() => picked).toBe("#0000FF");
         await expect.element(page.getByTestId("compact-color-input-hex")).toHaveValue("0000FF");
     });
@@ -348,16 +347,17 @@ describe("CompactColorInput picker", () => {
             />,
         );
         await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
-        const current = page.getByRole("button", { name: "green 61D095, the color before this edit", exact: true });
+        const current = page.getByRole("button", { name: "green 61D095", exact: true });
         const other = page.getByRole("button", { name: "blue 5B8FF9", exact: true });
         await expect.element(current).toHaveAttribute("aria-pressed", "true");
-        await expect.element(current).toHaveAttribute("data-start");
+        // Said, never drawn: Figma marks no swatch.
+        expect(getComputedStyle(current.element()).outlineColor).toBe("rgba(0, 0, 0, 0)");
         await expect.element(other).toHaveAttribute("aria-pressed", "false");
         await userEvent.hover(other);
         await expect.element(page.getByRole("tooltip")).toHaveTextContent("blue 5B8FF9");
     });
 
-    it("keeps a picked swatch in its row while the swatch set follows the colors in use", async () => {
+    it("shows exactly the swatches passed in, as they change", async () => {
         /**
          * A field whose swatches are the colors in use, as an application offers them: picking one
          * replaces the old color in the set.
@@ -382,12 +382,9 @@ describe("CompactColorInput picker", () => {
         await userEvent.click(page.getByRole("button", { name: "Pick node color", exact: true }));
         const names = (): string[] =>
             [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
+        await expect.poll(names).toEqual(["indigo 6366F1", "gray 999999", "yellow FFD400"]);
         await userEvent.click(page.getByRole("button", { name: "yellow FFD400", exact: true }));
-        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
-        await userEvent.click(
-            page.getByRole("button", { name: "indigo 6366F1, the color before this edit", exact: true }),
-        );
-        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
+        await expect.poll(names).toEqual(["yellow FFD400", "gray 999999"]);
     });
 });
 
@@ -395,7 +392,7 @@ describe("CompactColorInput's picker swatches and Enter", () => {
     const names = (): string[] =>
         [...document.querySelectorAll(".cm-color-swatch-button")].map((b) => b.getAttribute("aria-label") ?? "");
 
-    it("offers the same swatches on every opening, the shown color among them", async () => {
+    it("offers the same swatches on every opening, and never adds the shown color", async () => {
         renderField(
             <CompactColorInput
                 label="Line"
@@ -406,7 +403,7 @@ describe("CompactColorInput's picker swatches and Enter", () => {
         );
         const trigger = page.getByRole("button", { name: "Pick line color", exact: true });
         await userEvent.click(trigger);
-        await expect.poll(names).toEqual(["indigo 6366F1, the color before this edit", "gray 999999", "yellow FFD400"]);
+        await expect.poll(names).toEqual(["gray 999999", "yellow FFD400"]);
         const first = names();
         await userEvent.click(page.getByTestId("popout-header-close"));
         await expect.element(page.getByTestId("color-picker-panel")).not.toBeInTheDocument();
@@ -414,14 +411,14 @@ describe("CompactColorInput's picker swatches and Enter", () => {
         await expect.poll(names).toEqual(first);
     });
 
-    it("never calls a swatch the starting color", async () => {
+    it("never names a swatch as the color before the edit", async () => {
         renderField(<CompactColorInput label="Line" color="#0000FF" defaultColor="#6366F1" showOpacity={false} />);
         await userEvent.click(page.getByRole("button", { name: "Pick line color", exact: true }));
-        await expect.poll(names).toContain("blue 0000FF, the color before this edit");
-        assert.isFalse(names().some((name) => name.includes("starting")));
+        await expect.poll(() => names().length).toBeGreaterThan(0);
+        assert.isFalse(names().some((name) => name.includes("starting") || name.includes("before this edit")));
     });
 
-    it("Enter in the hex box applies the color, closes the picker and gives focus back to the trigger", async () => {
+    it("Enter in the picker's value box applies the color and keeps the picker open (Figma)", async () => {
         let picked: string | undefined;
         renderField(
             <CompactColorInput
@@ -436,11 +433,11 @@ describe("CompactColorInput's picker swatches and Enter", () => {
         const trigger = page.getByRole("button", { name: "Pick line color", exact: true });
         await userEvent.click(trigger);
         const value = page.getByRole("textbox", { name: "Color value", exact: true });
-        await expect.poll(() => document.activeElement === value.element()).toBe(true);
-        await userEvent.keyboard("FF0000{Enter}");
+        await userEvent.click(value);
+        await userEvent.keyboard("{Control>}a{/Control}FF0000{Enter}");
         await expect.poll(() => picked).toBe("#FF0000");
-        await expect.element(page.getByTestId("color-picker-panel")).not.toBeInTheDocument();
-        await expect.poll(() => document.activeElement === trigger.element()).toBe(true);
+        await expect.element(page.getByTestId("color-picker-panel")).toBeVisible();
+        expect(document.activeElement).toBe(value.element());
     });
 });
 
@@ -522,19 +519,21 @@ describe("CompactColorInput replacing its value", () => {
         renderField(<Outside />);
         const hex = page.getByTestId("compact-color-input-hex");
         await userEvent.click(hex);
+        const said = (): string =>
+            [...document.querySelectorAll('[role="status"]')].map((n) => n.textContent ?? "").join("");
         await userEvent.keyboard("orang{Enter}");
-        await expect.element(page.getByRole("alert")).toBeVisible();
+        await expect.poll(said).toContain("orang");
         await userEvent.click(page.getByRole("button", { name: "Undo", exact: true }));
-        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+        await expect.poll(said).not.toContain("orang");
 
         await userEvent.click(hex);
         await userEvent.keyboard("orang");
         await userEvent.tab();
         // Leaving says why the box went back; the move after that clears it.
-        await expect.element(page.getByRole("alert")).toHaveTextContent("so this stays 00FF00");
+        await expect.poll(said).toContain("so this stays 00FF00");
         expect(document.activeElement).not.toBe(hex.element());
         await userEvent.click(page.getByRole("textbox", { name: "Other" }));
-        await expect.element(page.getByRole("alert")).not.toBeInTheDocument();
+        await expect.poll(said).not.toContain("orang");
     });
 
     it("reads the caller's color words beside the hex in the box's name", async () => {

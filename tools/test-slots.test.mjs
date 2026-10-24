@@ -12,7 +12,17 @@ import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, laneOf, liveGates, liveTickets, markGate, slotCount, workerShare } from "./test-slots.mjs";
+import {
+    acquire,
+    HELD,
+    laneOf,
+    liveGates,
+    liveTickets,
+    markGate,
+    shardCacheDir,
+    slotCount,
+    workerShare,
+} from "./test-slots.mjs";
 
 // The temporary directories this file makes go inside this one, removed when the file finishes.
 const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
@@ -246,6 +256,14 @@ describe("test-slots", () => {
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
         assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
         assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
+    it("gives each gate shard its own Vite cache, and Vite's default outside one", () => {
+        assert.equal(
+            shardCacheDir({ GRAPHTY_TEST_SHARD: "graphty-element-browser-2" }),
+            "node_modules/.vite/shard-graphty-element-browser-2",
+        );
+        assert.equal(shardCacheDir({}), undefined);
     });
 
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {

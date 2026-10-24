@@ -5,6 +5,14 @@ recorded word with a direct re-run on golden's tip, 5.1). Issue #3282, part of t
 pipeline (#3262, `design/ci/fast-pipeline.md`). Background research: `reports/Test result history
 tools.md`.
 
+> Changed 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316), while verification runs in CI
+> (`node tools/verify.mjs backend ci`; with the `local` backend this document applies as written): the
+> backstop of principle 4 is the CI run of `golden-verify.yml`, and its evidence is that run's JUnit
+> (each failed test job's `junit-<shard>` artifact), recorded as kind `verify` on the commit (3.2). The local
+> kinds stay for what still runs here: the confirming runs and bisect points of a failure (`verify`,
+> `bisect`), the nightly sync and hand runs. Land checks run the light gate, with no test shard, so the
+> land-check excusing of 5.1 and the `land-check` and `base` kinds are dormant: nothing reaches them.
+
 graphty-monorepo runs tens of thousands of tests a day on one machine and remembers none of them. A
 failing landing cannot ask whether the same test already fails on golden, verification cannot ask
 whether a test has failed that way before. The **test ledger** is a directory of small record files written by every gate, verification
@@ -53,7 +61,8 @@ expired wait when golden's tip fails the same test.
 3. **The ledger never blocks a push.** Missing, incomplete or broken, every tool behaves as today and
    prints one line saying so.
 4. **Verification is the backstop.** It runs every shard to the end and excuses nothing; the release
-   train runs again before npm.
+   train runs again before npm. With the CI backend the backstop is the CI run, its evidence the run's
+   JUnit.
 5. **Small and boring.** One Node module, Node's built-in SQLite, no daemon, no new dependency, a
    size budget (section 8).
 
@@ -86,7 +95,10 @@ of the module must never write the shared ledger.
 
 Kinds: `land-check` (set by `land.mjs`), `base` (a land check's re-run on golden's tip, 5.1), `verify`
 and `bisect` (`verify.mjs`), `cut` (`land.mjs cut`, `cut-fix`), `sync` (`branch-sync.mjs`, with the
-synced branch), `ci` (the release train's JUnit, phase 5), and `push` when nothing is set. A tool sets
+synced branch), `ci` (the release train's JUnit, phase 5), and `push` when nothing is set. A failed CI
+verification run's JUnit artifacts are recorded as `verify` on the failing commit, one record per failed
+shard; a test that failed in one report of a shard and passed in another (the quarantine's retry) is not
+a failure there. A tool sets
 the kind only in its gate child's environment, never in its own `process.env`, so nothing inherits it.
 Only `land-check`, `base`, `verify`, `bisect` and `cut` run in worktrees the tools own; only they count
 as evidence (5.1) or toward flaky proofs (4.2). A land commit's record names the landed branch (from its
@@ -234,7 +246,8 @@ excused failure is still a failure.
 
 ### 5.1 Excuse a failure golden's tip has too
 
-**When.** Only in a land check, for a shard whose outcome is `failed`. The gate refuses whenever
+**When.** Only in a land check, for a shard whose outcome is `failed`. Dormant while verification runs
+in CI: the light gate runs no shard, so no land check fails one. The gate refuses whenever
 `PREPUSH_ALL=1`, `PREPUSH_EXONERATE=0`, or the push goes to `golden-cut` or `master`. Branch pushes are
 never excused.
 
@@ -313,6 +326,9 @@ Flaky is a fact about history, not a diagnosis: the issue still goes to an agent
   file with each file the culprit changed (`dropped` 1 when history dropped it, 5.4).
 
 ### 5.4 History adds and drops tests
+
+Superseded by `design/ci/history-selection.md` (phase 2, issue #3324), which redoes adds and drops for the
+light gate of `design/ci/ci-full-testing.md`. The text below is the earlier plan, kept for its reasoning.
 
 **Adds (phase 3).** For a land check with selection on, the gate adds every test file with a miss in
 90 days from a file this change touches, and every test file in an affected package that failed on
@@ -429,9 +445,10 @@ Each phase lands alone and is useful alone.
    points; kinds; verification running every shard; issue files; the re-run on golden's tip with
    `[KNOWN]`; `gate-known` and the gate-key change; the 2026-10-22 replay.
 2. **Flaky and broken**: classification, point verdicts, the flaky bisect, `failed-known`.
-3. **History adds**, with misses.
-4. **History drops in shadow**, switched on once 5.4's bar is met.
-5. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
+3. **History-based selection** (`design/ci/history-selection.md`): miss files after a bisect, relative
+   test paths, retry-passes never let through unseen, and a ranking in `test:changed` only; no gate step,
+   no adds, no drops (the replay found nothing worth either).
+4. **More sources**: the release train's JUnit as kind `ci`, and the ledger's excuse of quarantined tests (the
    quarantine itself is on since 2026-10-22, 4.4).
 
 ## 11. Decisions for the owner, and what this changes

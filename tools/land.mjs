@@ -89,6 +89,7 @@ import { fileURLToPath } from "node:url";
 
 import { findNote, issueInName, parseNote, readIssues } from "./branch-note.mjs";
 import { ACTIVE_DAYS, defaultCheck, moveGoldenGood, syncCommand } from "./branch-sync.mjs";
+import { printRisks } from "./ship-risks.mjs";
 import { logWait } from "./wait-log.mjs";
 
 export const GOLDEN = "golden";
@@ -1504,6 +1505,7 @@ export async function ship(ctx) {
     if (moved) return fail(`#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it`);
     const unverified = cutUnverified(ctx, pr.headRefOid);
     if (unverified) return fail(`#${pr.number} ${unverified}`);
+    printRisks(ctx.main, { cut: pr.headRefOid, golden: `origin/${GOLDEN}`, master: "origin/master" });
     ctx.gh(ctx, ["pr", "ready", String(pr.number)]);
     ctx.gh(ctx, ["pr", "merge", String(pr.number), "--auto", "--merge"]);
     console.log(
@@ -1715,6 +1717,7 @@ export async function cut(ctx, given) {
     const picked = pickCut(ctx, given);
     if (picked.error) return fail(picked.error);
     const { sha } = picked;
+    printRisks(ctx.main, { cut: sha, golden: `origin/${GOLDEN}`, master: "origin/master" });
     const why = cutWorktree(ctx, sha);
     if (why) return fail(why);
     const { code, output } = await ctx.push(ctx, ctx.cut, `${sha}:refs/heads/${CUT}`);

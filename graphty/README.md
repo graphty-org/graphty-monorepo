@@ -18,9 +18,8 @@ To use it, open [graphty.app](https://graphty.app/). This package is for hosting
 ## What the package holds
 
 The built app, as static files under `dist/`: `index.html`, its scripts and styles under
-`dist/assets/`, and the start screen's sample graphs under `dist/samples/`. It has no JavaScript API to import, and the
-files in `dist/` load nothing from the package's dependencies, which are what the app was built
-from.
+`dist/assets/`, and the start screen's sample graphs under `dist/samples/`. It has no runtime
+dependencies and no JavaScript API to import; everything it needs is in those files.
 
 ## Hosting your own copy
 

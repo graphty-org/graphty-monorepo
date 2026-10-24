@@ -57,8 +57,9 @@
 // owner's Finish (and an update of the baselines from master) redoes neither. A cut fix is only for a red
 // master, a failed deploy or a release hold, which its --reason names and GitHub confirms.
 // `auto-ship` does what ship does without the owner when the cut's preview of exactly its head shows only
-// unchanged and excluded images, its baselines are master's, it holds no breaking commit and master's build is
-// green; it runs when a cut's preview ends and when a verification passes.
+// unchanged and excluded images, its baselines are master's or carry the owner's signed tree approval, it
+// holds no breaking commit and master's build is green; it runs when a cut's preview ends and when a
+// verification passes.
 //
 // Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
 // (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
@@ -1708,13 +1709,13 @@ const CLEAN = new Set(["unchanged", "excluded"]);
 
 /**
  * Ships the cut pull request without the owner when nothing in it needs the owner's eyes: its preview of
- * exactly its head shows only unchanged and excluded images, its baselines are master's, and ship's own
+ * exactly its head shows only unchanged and excluded images, its baselines are master's (or the owner signed that tree), and ship's own
  * checks pass. Called when a cut's preview finishes and when a verification passes; a second call, or one
  * while another decides, does nothing. Every decision goes to tmp/golden/auto-ship.log.
  * @param ctx the run's context
  * @returns 0
  */
-export function autoShip(ctx) {
+export async function autoShip(ctx) {
     const lock = join(ctx.main, "tmp/golden/auto-ship-lock");
     mkdirSync(dirname(lock), { recursive: true });
     const owner = readLock(lock);
@@ -1725,7 +1726,7 @@ export function autoShip(ctx) {
         const r = shipReady(ctx);
         if (r.pr && !r.pr.isDraft) return 0;
         if (!r.pr && !r.cutting) return 0;
-        const changed = r.error ? [] : previewChanges(ctx, r.pr);
+        const changed = r.error ? [] : await previewChanges(ctx, r.pr);
         let why = r.error;
         if (!why && typeof changed === "string") why = `#${r.pr.number} ${changed}`;
         else if (!why && changed.length) {
@@ -1748,13 +1749,14 @@ export function autoShip(ctx) {
 }
 
 /**
- * What in the cut's preview needs the owner: every item that is not unchanged or excluded, and every file
- * under the baselines directory the cut changes from master (the review page shows those as changed too).
+ * What in the cut needs the owner: every preview item that is not unchanged or excluded, and a baselines
+ * tree that differs from master's without the owner's signed approval of exactly that tree, checked as the CI
+ * gate checks it (visual-review/trusted/gate.mjs treeApprovalProblems, with master's passkeys).
  * @param ctx the run's context
  * @param pr the cut pull request (`number`, `headRefOid`)
  * @returns the list (empty: nothing), or why the preview cannot tell
  */
-function previewChanges(ctx, pr) {
+async function previewChanges(ctx, pr) {
     const dir = join(ctx.main, `tmp/visual-review/local/${pr.number}`);
     const status = readJson(join(dir, "status.json"));
     if (status?.state !== "done" || status.head !== pr.headRefOid) {
@@ -1767,10 +1769,12 @@ function previewChanges(ctx, pr) {
         if (results?.complete !== true) return `has no complete preview of ${p}`;
         for (const i of results.items) if (!CLEAN.has(i.status)) changed.push(`${p}/${i.file} ${i.status}`);
     }
-    const config = readJson(join(ctx.main, "visual-review.config.json")) ?? {};
-    const baselines = config.baselines ?? "visual-baselines";
-    const diff = git(ctx, ctx.main, ["diff", "--name-only", `origin/master...${pr.headRefOid}`, "--", `${baselines}/`]);
-    for (const f of diff.split("\n").filter(Boolean)) changed.push(`${f} differs from master`);
+    // Loaded here, not at the top: the land tool runs without visual-review beside it everywhere else.
+    const { approvalKeys, treeApprovalProblems } = await import("../visual-review/trusted/gate.mjs");
+    const [baselines, approvals] = reviewDirs(ctx);
+    const at = { base: "origin/master", head: pr.headRefOid, cwd: ctx.main, baselines, approvals };
+    const { keys, problems } = approvalKeys(at.base, at.head, ctx.main);
+    for (const why of [...problems, ...treeApprovalProblems({ ...at, keys })]) changed.push(`baselines: ${why}`);
     return changed;
 }
 

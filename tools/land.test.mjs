@@ -1214,7 +1214,7 @@ describe("cuts", () => {
             gh.cut = { ...gh.cut, headRefOid: based };
             preview("9", based, ["unchanged"]);
             const b = await run("auto-ship");
-            assert.match(b.out, /visual-baselines\/p\/s.png differs from master/);
+            assert.match(b.out, /baselines: visual-baselines\/ differs from the base \(tree [0-9a-f]+\), and no/);
             assert.deepEqual(shipped(), []);
 
             const red = cutHead("auto/red", { "red.txt": "r\n" });
@@ -1231,6 +1231,45 @@ describe("cuts", () => {
             preview("9", bang, ["unchanged"]);
             const k = await run("auto-ship");
             assert.match(k.out, /owner's go on a breaking commit: feat\(x\)!: drop y/);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("ships a cut whose changed baselines tree carries the owner's approval of exactly that tree", async () => {
+            cutHead("auto/approved", { "approved.txt": "a\n" });
+            const wt = join(dir, "wt-auto-approved");
+            mkdirSync(join(wt, "visual-baselines/p"), { recursive: true });
+            write(wt, "visual-baselines/p/a.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+            const accepted = git(wt, "rev-parse", "HEAD");
+            const tree = git(wt, "rev-parse", "HEAD:visual-baselines");
+            const statement = { version: 1, baselines: "visual-baselines", tree, commit: accepted };
+            mkdirSync(join(wt, "visual-review-approvals"), { recursive: true });
+            write(wt, `visual-review-approvals/${tree}.json`, JSON.stringify(statement));
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): approve the visual baselines of #9");
+            const sha = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha }));
+            gh.cut = { ...gh.cut, headRefOid: sha };
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
+
+            // The same approval no longer covers a tree changed after it.
+            write(wt, "visual-baselines/p/b.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test(workspace): accept visual baselines for #9");
+            const later = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: later }));
+            gh.cut = { ...gh.cut, headRefOid: later };
+            gh.length = 0;
+            preview("9", later, ["unchanged"]);
+            const stale = await run("auto-ship");
+            assert.match(stale.out, /waits for the owner: 1 changed \(baselines: .*no visual-review-approvals\//);
             assert.deepEqual(shipped(), []);
         });
 

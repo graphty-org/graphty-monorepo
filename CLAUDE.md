@@ -1340,8 +1340,10 @@ Rules:
   commit you name, or else the newest verified golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
   are made on the cut pull request. While the cut pull request awaits the owner (a draft whose preview of its
-  head is done, with no Finish yet) `cut` refuses to move `golden-cut`: the cut is frozen until Finish and ship,
-  or until its pull request is closed. Every fix lands on golden and reaches master with the next cut. Only a
+  head is done, with no Finish yet) or is shipped (ready, its CI running), `cut` and `cut-fix` both refuse to
+  move `golden-cut`: the cut is frozen until Finish, until it merges, or until its pull request is closed (a
+  new head would restart the review or cancel the ship CI). Every fix lands on golden and reaches master with
+  the next cut. Only a
   fix for a red master, a failed deploy or a release hold goes into the cut itself: it starts from the cut,
   `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with
   `node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>`, where the reason is an open

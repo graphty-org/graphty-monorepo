@@ -27,11 +27,13 @@ import {
     context,
     cutFixReason,
     defaultPreview,
+    gateSnapshot,
     handOff,
     issueRefs,
     landedBranches,
     lightGate,
     main,
+    newestStableCut,
     prBody,
     previewSettled,
     readLock,
@@ -908,6 +910,27 @@ describe("cuts", () => {
         rmSync(join(repo, "tmp/visual-review/local/103"), { recursive: true });
     });
 
+    it("while CI verifies golden, takes only a commit whose CI captures verification found clean", () => {
+        const line = firstParents();
+        verifiedAt(line[0]);
+        preview("104", line[0], ["unchanged"]);
+        preview("105", line[1], ["unchanged"]);
+        const state = join(repo, "tmp/golden/verify.json");
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        try {
+            assert.equal(newestStableCut(ctx), line[0], "local verification: the preview alone decides");
+            const captures = { [line[0]]: { clean: false, problems: ["graphty: unstable a.png"] } };
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci" }, captures }));
+            assert.equal(newestStableCut(ctx), null, "not clean, and line[1] has no CI verdict: nothing to cut");
+            captures[line[1]] = { clean: true, problems: [] };
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci" }, captures }));
+            assert.equal(newestStableCut(ctx), line[1]);
+        } finally {
+            rmSync(state, { force: true });
+            for (const k of ["104", "105"]) rmSync(join(repo, "tmp/visual-review/local", k), { recursive: true });
+        }
+    });
+
     it("cuts the newest golden commit whose preview has no unstable or failed images, and opens its pull request", async () => {
         const line = firstParents();
         verifiedAt(line[0]);
@@ -976,6 +999,39 @@ describe("cuts", () => {
         const moved = await run("cut");
         assert.equal(moved.code, 0, moved.out);
         assert.equal(remote("refs/heads/golden-cut"), next);
+        rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
+    });
+
+    it("keeps a shipped cut frozen even with no accept commits, and freezes cut-fix with it", async () => {
+        const held = remote("refs/heads/golden-cut");
+        gh.open = true;
+        gh.issueApi = { 500: { state: "open", title: "CI red on master", labels: [{ name: "priority:critical" }] } };
+        branch("frozen/shipped", { "fs.txt": "s\n" }, "feat: after the shipped cut", "origin/golden");
+        assert.equal((await run("land", "frozen/shipped")).code, 0);
+        const next = git(golden, "rev-parse", "HEAD");
+        verifiedAt(next);
+        preview("110", next, ["unchanged"]);
+        branch("frozen/cutfix", { "fc.txt": "c\n" }, "fix: the cut", "origin/golden-cut");
+        pushes = 0;
+        // Shipped: ready, its CI running. Nothing on golden-cut that the newer golden commit lacks.
+        gh.cut = { number: 9, isDraft: false, url: "u/pull/9", headRefOid: held };
+        const shipped = await run("cut");
+        assert.equal(shipped.code, 1, shipped.out);
+        assert.match(
+            shipped.out,
+            /#9 is shipped \(ready, its CI running or about to merge\), so golden-cut stays frozen/,
+        );
+        const fixShipped = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixShipped.code, 1, fixShipped.out);
+        assert.match(fixShipped.out, /frozen\/cutfix cannot go into the cut now: #9 is shipped/);
+        // In review: a draft whose preview of its head is done, with no Finish.
+        preview("9", held, ["changed"]);
+        gh.cut = { ...gh.cut, isDraft: true };
+        const fixReview = await run("cut-fix", "frozen/cutfix", "--reason", "500");
+        assert.equal(fixReview.code, 1, fixReview.out);
+        assert.match(fixReview.out, /frozen\/cutfix cannot go into the cut now: #9 awaits the owner's review/);
+        assert.equal(remote("refs/heads/golden-cut"), held);
+        assert.equal(pushes, 0);
         rmSync(join(repo, "tmp/visual-review/local/110"), { recursive: true });
     });
 
@@ -1359,7 +1415,7 @@ describe("cut fixes", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(
             r.out,
-            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 2 commits of golden or master/,
+            /cutfix\/from-golden cannot go into the cut: it was not started from origin\/golden-cut: it would bring 4 commits of golden or master/,
         );
         assert.match(r.out, /\n {2}[0-9a-f]{10} land: cutfix\/advance\n {2}[0-9a-f]{10} feat: after the cut\n/);
         assert.match(r.out, /Any other fix lands on golden: node tools\/land\.mjs land <branch>/);
@@ -1861,5 +1917,23 @@ describe("the light gate", () => {
             rmSync(state, { force: true });
             rmSync(log, { force: true });
         }
+    });
+});
+
+describe("the gate snapshot of a landing", () => {
+    it("takes one held snapshot at the first push and gives every later push of the run the same one", async () => {
+        const live = join(dir, "snap-live");
+        mkdirSync(join(live, "tools"), { recursive: true });
+        const calls = join(dir, "snap-calls");
+        // A stand-in for tools/gate-snapshot.sh --hold: names its snapshot, then holds it until stdin closes.
+        const script = `#!/bin/sh\necho "$*" >>'${calls}'\necho '${live}-snap'\ncat >/dev/null\n`;
+        writeFileSync(join(live, "tools/gate-snapshot.sh"), script, { mode: 0o755 });
+        const c = { main: dir, env: { ...env, PUSH_QUEUE_GATE: live } };
+        assert.equal(await gateSnapshot(c), `${live}-snap`);
+        assert.equal(await gateSnapshot(c), `${live}-snap`, "the check and the push share it");
+        assert.equal(readFileSync(calls, "utf8"), `--hold ${live}\n`, "taken once, and held");
+        // A snapshot given as the live gate is used as it is.
+        writeFileSync(join(live, ".gate-snapshot"), "sha\n");
+        assert.equal(await gateSnapshot({ main: dir, env: { ...env, PUSH_QUEUE_GATE: live } }), live);
     });
 });

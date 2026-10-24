@@ -90,6 +90,9 @@ if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] && SOURCE_PASS="$(nod
     echo ""
     # Only a pass SonarQube checked is recorded, so there is no warning to repeat under the summary.
     : >"$SONAR_LOG"
+    # These inputs were scanned: say so in SonarQube's gate log, which tools/sonar-gate.mjs reads to
+    # find commits that reached the push base without a scan (a push with --no-verify).
+    echo "$(date -u +%Y-%m-%dT%H:%M:%S.000Z) $(git symbolic-ref --short -q HEAD || echo '(detached)') $(git rev-parse --short=12 HEAD) reused left-out:0" >>"$(dirname "$SONAR_LOG")/gate.log"
 else
     # No checked-in commit tooling may turn GPG signing off. This runs on every push, whatever it
     # touches. The [s] and [-] keep the patterns from matching this line itself.
@@ -114,6 +117,11 @@ else
 
     # release-hold.json names only real nx projects, each with a reason and a date.
     run_step "Release hold list" "pnpm run check:release-hold"
+
+    # When the push adds or changes a package.json, a project.json, nx.json or release-hold.json:
+    # `nx release --dry-run --skip-publish`, so a project the release train cannot version fails this
+    # push instead of holding every release (#3318). See tools/release-dry-run.mjs.
+    run_step "Release dry run" "node \"$GATE_TOOLS/release-dry-run.mjs\""
 
     # graphty-element's data sources read files through @graphty/graph-io importers: no papaparse, no
     # fast-xml-parser and no hand-written parser in graphty-element/src/data. Reads source only.

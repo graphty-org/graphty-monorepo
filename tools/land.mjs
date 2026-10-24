@@ -653,6 +653,40 @@ export function lightGate(ctx) {
 }
 
 /**
+ * The snapshot of the gate's live copy this run's pushes all use (tools/gate-snapshot.sh --hold), taken at the
+ * first push and held until this process ends: a landing's check and its push run one version of the gate,
+ * so a `tools/live.sh gate` between them cannot re-run the check under a new rule (2026-10-23, #3284). Without
+ * the script in the live copy, the pushes run the live copy as before.
+ * @param ctx the run's context
+ * @returns the snapshot's directory, or null
+ */
+export async function gateSnapshot(ctx) {
+    if (ctx.gateSnapshot !== undefined) return ctx.gateSnapshot;
+    const live = ctx.env.PUSH_QUEUE_GATE || join(ctx.main, ".worktrees/gate-live");
+    const script = join(live, "tools/gate-snapshot.sh");
+    ctx.gateSnapshot = null;
+    if (existsSync(join(live, ".gate-snapshot"))) ctx.gateSnapshot = live;
+    else if (existsSync(script)) {
+        const holder = spawn(script, ["--hold", live], { stdio: ["pipe", "pipe", "inherit"] });
+        let out = "";
+        const line = await new Promise((resolve) => {
+            holder.stdout.on("data", (d) => {
+                out += d;
+                if (out.includes("\n")) resolve(out.trim());
+            });
+            holder.on("exit", () => resolve(null));
+        });
+        // The holder lets the snapshot go when this process's end closes its stdin.
+        holder.stdout.destroy();
+        holder.stdin.unref?.();
+        holder.unref();
+        ctx.gateSnapshot = line || null;
+        if (!line) console.error(`land: no snapshot of the live gate ${live}; the pushes use the live copy`);
+    }
+    return ctx.gateSnapshot;
+}
+
+/**
  * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
@@ -660,7 +694,7 @@ export function lightGate(ctx) {
  * @param [dryRun] run the gate and send nothing (a landing's check)
  * @returns `{ code, output }`
  */
-function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
+async function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
     // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
     // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured
     // from master, as CI measures it.
@@ -674,6 +708,8 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
         PREPUSH_SELECT_BASE: `origin/${dst}`,
         PREPUSH_LIGHT: lightGate(ctx),
     };
+    const snap = await gateSnapshot(ctx);
+    if (snap) env.PUSH_QUEUE_GATE = snap;
     Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
     // A landing's check runs in its own process group, so a newer landing of the same branch can stop it alone
@@ -1874,7 +1910,22 @@ export function newestStableCut(ctx) {
         if (stablePreview(join(root, name), status)) stable.add(status.head);
     }
     const line = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/master..origin/${VERIFIED}`]);
-    return line.split("\n").find((sha) => stable.has(sha)) ?? null;
+    const clean = capturesClean(ctx);
+    return line.split("\n").find((sha) => stable.has(sha) && clean(sha)) ?? null;
+}
+
+/**
+ * Verification's screenshot verdict (tools/verify.mjs passedCommit): while CI verifies golden, a commit is cut only
+ * when the captures of its CI verification were clean (no crashed capture job, no unstable or failed image), so a
+ * commit CI did not verify itself, or whose captures were not clean, is never cut. With local verification the
+ * local preview alone decides, as before.
+ * @param ctx the run's context
+ * @returns `(sha) => boolean`
+ */
+export function capturesClean(ctx) {
+    const state = readJson(join(ctx.main, "tmp/golden/verify.json"));
+    if (state?.backend?.name !== "ci") return () => true;
+    return (sha) => state.captures?.[sha]?.clean === true;
 }
 
 /**
@@ -1898,7 +1949,8 @@ function pickCut(ctx, given) {
     if (!sha) {
         return {
             error:
-                "no verified golden commit since master has a finished screenshot preview without unstable or failed images.\n" +
+                "no verified golden commit since master has a finished screenshot preview without unstable or failed images\n" +
+                "(and, while CI verifies golden, clean captures in its CI run: node tools/verify.mjs status).\n" +
                 "Give a known-good commit: node tools/land.mjs cut <commit>",
         };
     }
@@ -1984,23 +2036,36 @@ export async function cut(ctx, given) {
 }
 
 /**
- * Why the cut must not move now: its pull request awaits the owner -- a draft whose screenshot preview of
- * its head is done (cutMoved) and whose baselines carry no Finish yet (no signed approval of the head's
- * visual-baselines tree). Moving it then would make the owner review a target that moved under them.
+ * Why the cut must not move now, by `cut` or by `cut-fix`. It is frozen while its pull request is shipped
+ * (ready: its CI is running or it is about to merge, and a new head would cancel that run), and while it
+ * awaits the owner -- a draft whose screenshot preview of its head is done (cutMoved) and whose baselines
+ * carry no Finish yet (no signed approval of the head's visual-baselines tree): a new head would make the
+ * owner review a target that moved under them.
  * @param ctx the run's context (origin fetched)
  * @returns the refusal, or null when the cut may move
  */
 function frozenCut(ctx) {
     const pr = goldenPr(ctx, CUT);
-    if (!pr?.isDraft || !pr.headRefOid || cutMoved(ctx, pr)) return null;
+    if (!pr?.headRefOid) return null;
+    const after =
+        "Every other fix lands on golden and ships with the next cut; a fix for a red master, a failed deploy " +
+        "or a release hold goes in with cut-fix once the cut is no longer frozen.";
+    if (!pr.isDraft) {
+        return (
+            `#${pr.number} is shipped (ready, its CI running or about to merge), so ${CUT} stays frozen: a new ` +
+            `head would cancel that run.\nCut again after it merges. If its CI failed, it goes back to draft ` +
+            `first (gh pr ready --undo ${pr.number}). ${after}`
+        );
+    }
+    if (cutMoved(ctx, pr)) return null;
     const [baselines, approvals] = reviewDirs(ctx);
     const tree = git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${pr.headRefOid}:${baselines}`], { ok: true });
     const signed = `${pr.headRefOid}:${approvals}/${tree.stdout}.json`;
     if (tree.status === 0 && git(ctx, ctx.main, ["cat-file", "-e", signed], { ok: true }).status === 0) return null;
     return (
         `#${pr.number} awaits the owner's review: its preview of ${pr.headRefOid.slice(0, 10)} is done and it has ` +
-        `no Finish yet, so ${CUT} stays frozen.\nCut again after the owner's Finish and ship, or after the cut ` +
-        "pull request is closed. A fix the cut itself needs goes in with cut-fix."
+        `no Finish yet, so ${CUT} stays frozen.\nCut again after the owner's Finish, or after the cut ` +
+        `pull request is closed. ${after}`
     );
 }
 
@@ -2098,6 +2163,8 @@ export async function cutFix(ctx, branch, opts = {}) {
         console.log(`land: ${branch} is already on ${CUT}`);
         return 0;
     }
+    const frozen = frozenCut(ctx);
+    if (frozen) return fail(`${branch} cannot go into the cut now: ${frozen}`);
     const why = notOnCut(ctx, ref);
     if (why) return fail(`${branch} cannot go into the cut: ${why}`);
     const before = git(ctx, ctx.main, ["rev-parse", cutRef]);

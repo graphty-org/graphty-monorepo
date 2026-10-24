@@ -1,5 +1,5 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI or Hosts finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI, Hosts or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
@@ -15,12 +15,16 @@
 //   priority:critical issue naming the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
 //   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
 //   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
+// - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
+//   reached graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
 //
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 export const FREEZE_PREFIX = "Red master: CI failed on ";
+export const DEPLOY = "Deploy to GitHub Pages";
+export const DEPLOY_PREFIX = "graphty.app deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
@@ -112,6 +116,9 @@ export function decide(run) {
     }
     if (run.name === "Hosts" && failed && run.event === "schedule") {
         return "hardware-red";
+    }
+    if (run.name === DEPLOY && failed) {
+        return "deploy-red";
     }
     return "none";
 }
@@ -584,6 +591,19 @@ async function main() {
                 title,
                 labels: labels("medium"),
                 body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
+                comment: report,
+            });
+        });
+    }
+
+    if (action === "deploy-red") {
+        await attempt("open or update the deploy's issue", () => {
+            const report = `${DEPLOY} failed for master at ${sha}: ${run.html_url}`;
+            return fileIssue(gh, {
+                prefix: DEPLOY_PREFIX,
+                title: `${DEPLOY_PREFIX}${short}`,
+                labels: labels("low"),
+                body: `${report}\n\ngraphty.app still serves an older build. No freeze and no revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
                 comment: report,
             });
         });

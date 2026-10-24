@@ -52,7 +52,7 @@ export interface CompactColorInputProps {
      * chosen none and the control is showing `defaultColor`.
      */
     color?: string | undefined;
-    /** The color shown, in italics, while the reader has chosen none of their own. */
+    /** The color shown while the reader has chosen none of their own. */
     defaultColor: string;
     /**
      * Words shown in the hex box in place of `defaultColor` while the reader has chosen nothing,
@@ -87,8 +87,7 @@ export interface CompactColorInputProps {
      */
     opacity?: number | undefined;
     /**
-     * The opacity shown, in italics, while the reader has set none of their
-     * own.
+     * The opacity shown while the reader has set none of their own.
      * @default 100
      */
     defaultOpacity?: number;
@@ -351,15 +350,6 @@ function controlNames(
 }
 
 /**
- * Join the ids a control is described by.
- * @param ids - the ids, undefined where there is none
- * @returns the ids space-separated, or undefined when there are none
- */
-function joinIds(...ids: (string | undefined)[]): string | undefined {
-    return ids.filter((id) => id !== undefined).join(" ") || undefined;
-}
-
-/**
  * The swatch's face: a dash for mixed, nothing for an empty swatch, else the color's chit.
  * @param props - Component props
  * @param props.showsMixed - whether the field draws "Mixed"
@@ -543,28 +533,6 @@ function ResetButton({
 }
 
 /**
- * Why the last entry was refused, as an alert, so the reason is spoken when it appears, also after
- * Tab has moved on.
- * @param props - Component props
- * @param props.refusal - the refusal, if any
- * @param props.id - the alert's id
- * @returns the alert, or null
- */
-function RefusalAlert({
-    refusal,
-    id,
-}: Readonly<{ refusal: { message: string } | undefined; id: string }>): React.JSX.Element | null {
-    if (refusal === undefined) {
-        return null;
-    }
-    return (
-        <div id={id} role="alert" className="cm-field-error cm-paint-message" data-testid="compact-color-input-message">
-            {refusal.message}
-        </div>
-    );
-}
-
-/**
  * A color in one paint field: the chit, the hex value and the opacity.
  *
  * Pressing the chit opens the color picker in a pop-out (one at a time, docked to the start
@@ -573,7 +541,7 @@ function RefusalAlert({
  * (Shift for 10) and scrubs by dragging its "%".
  *
  * As in the other controls of this family, `undefined` means "the reader has chosen nothing
- * here": the control shows the default in italics and offers no reset until something of the
+ * here": the control shows the default as its value and offers no reset until something of the
  * reader's own is set, and pressing the reset reports `undefined` again. Color and opacity are
  * tracked separately, so either can be the reader's while the other is still the default.
  * Typed opacity is read in the reader's own locale.
@@ -664,14 +632,12 @@ export function CompactColorInput({
 
     const reading = readHex(labels, { mixed, isColorDefault, emptyText, emptySwatch, displayColor, valueText });
     const { showsMixed, emptyWords, shownHex, hexState } = reading;
-    // The state joins the hex box's name, so the gray italic is not the only sign of it.
+    // The state joins the hex box's name: a default is drawn as any value, as Figma does.
     const { hexName, swatchName, opacityName } = controlNames(labels, name);
     const [hexDraft, setHexDraft] = useState(shownHex);
-    // Why the last entry was refused, drawn under the field until the next edit. `held` is true
-    // while the box still holds the refused words (after Enter), false once it went back (a blur).
-    const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
-    const refusalId = useId();
-    // What Escape did, shown under the field and said aloud.
+    // Why the last entry was refused, or what Escape did: said aloud, never drawn, since Figma's
+    // field silently goes back to its value.
+    const [refusal, setRefusal] = useState<{ message: string } | undefined>(undefined);
     const [discarded, setDiscarded] = useState("");
     const hexRef = useRef<HTMLInputElement>(null);
     // Set by an Enter that settled the box: the value it shows next is selected, so the next key
@@ -754,13 +720,12 @@ export function CompactColorInput({
 
     /**
      * Commit what was typed into the hex box: six (or three) hex digits or a color's name.
-     * Words that name no color are refused with a message saying what the box takes: Enter keeps
-     * them, marked, to be corrected; leaving the box redraws its value and says so.
+     * Words that name no color are refused: the box goes back to its value, as Figma's does, and
+     * says so aloud.
      * While nothing is chosen, Enter on the color shown, or typing exactly it, chooses it: the
      * reader can set the starting color on purpose. Leaving an untouched box chooses nothing.
      * @param event - the blur or Enter that ended the edit
-     * @param byEnter - Enter ended it: words that name no color stay in the box, and the color
-     * shown is chosen
+     * @param byEnter - Enter ended it: the color shown is chosen
      */
     const commitHex = (event: React.SyntheticEvent, byEnter = false): void => {
         const typed = hexDraft.trim();
@@ -779,17 +744,10 @@ export function CompactColorInput({
             onChange?.(candidate, chosenOpacity, event);
             onChangeEnd?.(candidate, chosenOpacity, event);
         } else if (candidate === undefined && typed !== "" && hexDraft !== shownHex) {
-            setRefusal(
-                byEnter
-                    ? { message: labels.colorRefused(typed), held: true }
-                    : {
-                          message: labels.colorRefusedKept(typed, shownHex === "" ? (emptyWords ?? "") : shownHex),
-                          held: false,
-                      },
-            );
-            if (!byEnter) {
-                setHexDraft(shownHex);
-            }
+            setRefusal({
+                message: labels.colorRefusedKept(typed, shownHex === "" ? (emptyWords ?? "") : shownHex),
+            });
+            setHexDraft(shownHex);
         } else {
             setRefusal(undefined);
             setHexDraft(shownHex);
@@ -829,7 +787,6 @@ export function CompactColorInput({
                 onChangeEnd={handlePickerChangeEnd}
                 withAlpha={showOpacity}
                 swatches={swatches}
-                closeOnEnter
                 labels={{ colorWord: labels.colorWord }}
             />
         </Popout.Panel>
@@ -912,8 +869,7 @@ export function CompactColorInput({
                     // application's Undo key can take back the last change rather than the box's
                     // empty native undo.
                     data-committed={hexDraft === shownHex || undefined}
-                    aria-describedby={joinIds(annotation.describedBy, refusal === undefined ? undefined : refusalId)}
-                    aria-invalid={refusal?.held === true || undefined}
+                    aria-describedby={annotation.describedBy}
                     disabled={disabled}
                     value={hexDraft}
                     placeholder={emptyWords}
@@ -946,12 +902,9 @@ export function CompactColorInput({
                     }}
                     onKeyDown={(event) => {
                         if (event.key === "Enter") {
-                            const refused = typedColor(hexDraft) === undefined && hexDraft.trim() !== "";
-                            selectOnRedraw.current = !refused;
+                            selectOnRedraw.current = true;
                             commitHex(event, true);
-                            if (!refused) {
-                                event.currentTarget.select();
-                            }
+                            event.currentTarget.select();
                         } else if (event.key === "Escape") {
                             typedHere.current = false;
                             setRefusal(undefined);
@@ -996,10 +949,7 @@ export function CompactColorInput({
                 onReset={handleReset}
             />
 
-            {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
-            <RefusalAlert refusal={refusal} id={refusalId} />
-
-            <DiscardNote text={discarded} className="cm-paint-message" />
+            <DiscardNote text={refusal?.message ?? discarded} />
 
             <AnnotationDescription annotation={annotation} />
         </div>

@@ -21,6 +21,10 @@ graphty-element/test/fidelity/oracle-known-failures.json
 # Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
 # compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
 graphty-element/test/layout/graphviz-fixtures/
+# compact-mantine's Figma fixtures: written by compact-mantine/tests/figma/figma-fixture.mjs (one line per
+# captured element), and checked value for value against the Figma study by the same script
+compact-mantine/tests/figma/figma-fixture.json
+compact-mantine/tests/figma/figma-variables.json
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so

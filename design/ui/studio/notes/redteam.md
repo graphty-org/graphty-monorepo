@@ -16,6 +16,13 @@ served at `/?next`.
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Attacked the one-per-kind ruling: six location items make the
+  nodes' "+" menu ten long, and a reader can list Latitude, Coordinates and City at once. Answers
+  adopted: the menu is still one flat list of short nouns with type-ahead; a listed kind the
+  element is not reading is marked unused by the element's code, so the screen never claims a
+  column is placing nodes when it is not. Still open, watch in a study: does a reader with one
+  "location" column of "48.85, 2.35" find "Coordinates" (detection lists it with no action, so
+  only a mis-detected file tests it).
 - (2026-10-21) Round 1 closed at its 1-round cap, bars unmet. 55 of 56 sessions succeeded,
   median wrong turns <= 1: success is saturated. Next round must score cost (steps over the key),
   routes and problems, and must screen tasks for leading before spending sessions -- the answer

@@ -5,13 +5,30 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-22 (timeline prototype review ruled: `timeline/decisions.md`; location map
-prototype reviews triaged into `location-map/decisions.md`).
+Last updated: 2026-10-23 (Location in the Fields list ruled: one "+" pick per kind, issue #3315).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315, owner: the Location "+" does not follow
+  the patterns; a gear for the kind, or one "+" per kind). RULED: one "+" pick per kind of
+  location. The nodes' "+" offers Latitude, Longitude, Coordinates, Country, Region and City as
+  ordinary Fields entries, each its kind's name, one column and a minus, exactly like Label, Weight
+  and Time. Deleted: the "Read as" select, the Place type and Within sub-rows, and the "Auto"
+  place type in the app. Reasons: every other entry's control is a column and Location's was a
+  mode, which is the rule the owner tripped on; a gear fails the latitude and longitude pair (two
+  columns cannot sit in one row's picker) and hides a choice that changes the row's shape; the
+  kind is a fact of the column, so it belongs in the "+" pick, not a setting; "Within" stops being
+  a control because a City entry beside a Country or Region entry already says it. Element work
+  (additive, team's call): `ColumnRole` gains `latitude`, `longitude`, `coordinates`, `country`,
+  `region`, `city`, set through `data.setRole` like the other entries; the element resolves the
+  source (a full pair, else coordinates, else the finest place narrowed by the next coarser one
+  listed), reports a detected column with its resolved role (never `auto`), and marks a listed
+  role it is not reading with a code (`location.unused`, params naming the source in effect).
+  Rejected: the gear (above); an in-row kind select like Figma's effect type (two selects in 240
+  px, and no other Fields entry can change its kind in place); a "Location" heading or group in
+  the "+" menu (the menu stays flat, so it never mixes grouped and ungrouped items).
 - (2026-10-22) TIMELINE PROTOTYPE REVIEWED (four lenses on `feat/timeline-prototype`); rulings in
   `timeline/decisions.md`, items TL-01 to TL-32, ten rejected. Severity 1 first: Rerun throws
   `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as

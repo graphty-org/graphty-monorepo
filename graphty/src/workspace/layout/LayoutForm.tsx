@@ -163,6 +163,40 @@ function mapFieldWords(
 }
 
 /**
+ * Shape: whether the layout is drawn in 3D or flat in the 3D view.
+ * @param props - Component props
+ * @param props.id - The layout's id, for the label's id
+ * @param props.shape - The shape asked for
+ * @param props.onPick - Called with the shape picked
+ * @returns The field
+ */
+function ShapeField({
+    id,
+    shape,
+    onPick,
+}: Readonly<{ id: string; shape: "2d" | "3d"; onPick: (picked: "2d" | "3d") => void }>): React.JSX.Element {
+    return (
+        <Stack gap={2}>
+            <Text size="xs" id={`layout-shape-${id}`}>
+                Shape
+            </Text>
+            <SegmentedControl
+                aria-labelledby={`layout-shape-${id}`}
+                fullWidth
+                value={shape}
+                data={[
+                    { value: "3d", label: "3D" },
+                    { value: "2d", label: "2D" },
+                ]}
+                onChange={(picked) => {
+                    onPick(picked === "2d" ? "2d" : "3d");
+                }}
+            />
+        </Stack>
+    );
+}
+
+/**
  * Seed, with its reset, and Reshuffle, which applies a new seed at once.
  * @param props - Component props
  * @param props.values - The form's values
@@ -364,25 +398,7 @@ export function LayoutForm({
                         {descriptor.description}
                     </Text>
                 )}
-                {showShape ? (
-                    <Stack gap={2}>
-                        <Text size="xs" id={`layout-shape-${descriptor.id}`}>
-                            Shape
-                        </Text>
-                        <SegmentedControl
-                            aria-labelledby={`layout-shape-${descriptor.id}`}
-                            fullWidth
-                            value={shape}
-                            data={[
-                                { value: "3d", label: "3D" },
-                                { value: "2d", label: "2D" },
-                            ]}
-                            onChange={(picked) => {
-                                pickShape(picked === "2d" ? "2d" : "3d");
-                            }}
-                        />
-                    </Stack>
-                ) : null}
+                {showShape ? <ShapeField id={descriptor.id} shape={shape} onPick={pickShape} /> : null}
                 {current.dimension === "3d" && descriptor.maxDimensions === 2 ? (
                     <Text size="xs" c="dimmed">
                         Draws flat

@@ -132,6 +132,58 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         assert.deepEqual(readdirSync(ctx.env.PUSH_QUEUE_DIR), []);
     });
 
+    // The gate stages its screenshot capture under HEAD; the queue promotes it to the pull request's
+    // preview only once the push is accepted, and a rejected push keeps the old preview (2026-10-24: a
+    // rejected push of golden-cut replaced the cut's owner-reviewed preview).
+    function withPreview(ctx) {
+        mkdirSync(join(ctx.repo, "tools"));
+        copyFileSync(
+            new URL("./visual-preview.sh", import.meta.url).pathname,
+            join(ctx.repo, "tools/visual-preview.sh"),
+        );
+        writeFileSync(join(ctx.repo, "visual-review.config.json"), "{}\n");
+        mkdirSync(join(ctx.repo, "tmp/pr-status"), { recursive: true });
+        writeFileSync(
+            join(ctx.repo, "tmp/pr-status/status.json"),
+            JSON.stringify({ pullRequests: [{ head: "main", number: 77 }] }),
+        );
+        const local = join(ctx.repo, "tmp/visual-review/local");
+        mkdirSync(join(local, "77"), { recursive: true });
+        writeFileSync(join(local, "77/status.json"), JSON.stringify({ head: "old" }));
+        // The gate's part, as tools/prepush.sh does it once every check passed: stage a capture of HEAD
+        // and promote it.
+        writeFileSync(
+            join(ctx.repo, ".git/hooks/pre-push"),
+            `#!/bin/sh\nd=tmp/visual-review/local/.pending-$(git rev-parse HEAD)\nmkdir -p $d\necho "{\\"head\\":\\"$(git rev-parse HEAD)\\"}" > $d/status.json\nPREPUSH_ROOT=$PWD tools/visual-preview.sh --promote $(git rev-parse HEAD)\n`,
+            { mode: 0o755 },
+        );
+        const sha = ctx.git("rev-parse", "HEAD").stdout.trim();
+        const head = () => JSON.parse(readFileSync(join(local, "77/status.json"), "utf8")).head;
+        return { local, sha, head };
+    }
+
+    it("promotes the gate's staged screenshot preview only after the push is accepted", () => {
+        const ctx = setup();
+        const { local, sha, head } = withPreview(ctx);
+        drive(ctx, `"$Q" git push -q origin HEAD:main`);
+        assert.equal(head(), sha);
+        assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
+    });
+
+    it("keeps the old screenshot preview and discards the staged one when the push is rejected", () => {
+        const ctx = setup();
+        const { local, sha, head } = withPreview(ctx);
+        writeFileSync(join(ctx.root, "origin.git/hooks/pre-receive"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+        const r = spawnSync("bash", ["-c", `"${QUEUE}" git push -q origin HEAD:main`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        assert.notEqual(r.status, 0, r.stdout + r.stderr);
+        assert.equal(head(), "old");
+        assert.equal(existsSync(join(local, `.pending-${sha}`)), false);
+    });
+
     it("pushes with no live gate worktree and logs the push line githerd reads", () => {
         const ctx = setup();
         assert.equal(existsSync(ctx.env.PUSH_QUEUE_GATE), false);

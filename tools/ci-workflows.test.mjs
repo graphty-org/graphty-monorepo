@@ -61,7 +61,7 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
-// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL,
 // PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
 const withoutPrepushSettings = () =>
     Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
@@ -211,14 +211,16 @@ describe("the pre-push gate matches CI", () => {
             /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
-        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
-        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). No limit on a shard either
+        // (the owner's no-arbitrary-timeouts rule): a 30-minute shard clock failed tier 3's graphty shard
+        // under load while its tests still ran. A hung test is ended by vitest's one hang guard.
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.doesNotMatch(code(tool("prepush-tests.mjs")), /"timeout"|PREPUSH_SHARD_TIMEOUT/);
         assert.match(
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
             // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", TIMEOUT, process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \[process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -845,6 +847,27 @@ exec ${realGit} "$@"
                 assert.equal(status.state, "failed");
             });
         });
+
+        it("gives the cut's capture the high browser lane, and only the cut's", () =>
+            sandbox(({ run, head, main }) => {
+                mkdirSync(join(main, "tmp"), { recursive: true });
+                const wrapper = join(main, "tmp/with-browser.sh");
+                const lanes = join(main, "tmp/lanes");
+                writeFileSync(wrapper, `#!/bin/sh\necho "\${BROWSER_SLOT_PRIORITY:-none}" >> ${lanes}\nexec "$@"\n`, {
+                    mode: 0o755,
+                });
+                const ordinary = run({ STUB_STATUS: "changed", WITH_BROWSER: wrapper }, "--head", head);
+                assert.equal(ordinary.status, 0, ordinary.stdout + ordinary.stderr);
+                // Discarded first, or a finished capture of the same head would be reused.
+                assert.equal(run({}, "--discard", head).status, 0);
+                const cut = run(
+                    { STUB_STATUS: "changed", WITH_BROWSER: wrapper, VISUAL_PREVIEW_PRIORITY: "cut" },
+                    "--head",
+                    head,
+                );
+                assert.equal(cut.status, 0, cut.stdout + cut.stderr);
+                assert.equal(readFileSync(lanes, "utf8"), "none\nhigh\n");
+            }));
 
         it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
             sandbox(({ run, head, origin, main, local }) => {
@@ -1479,6 +1502,43 @@ const gitShow = (path) => {
     return r.status === 0 ? r.stdout : undefined;
 };
 
+describe("dependabot.yml", () => {
+    const text = readFileSync(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
+    it("opens every version update against golden, never master", () => {
+        const ecosystems = text.match(/- package-ecosystem: /g).length;
+        assert.equal(text.match(/\n {6}target-branch: golden\n/g)?.length, ecosystems);
+    });
+    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
+        const npm = text.slice(
+            text.indexOf("package-ecosystem: npm"),
+            text.indexOf("package-ecosystem: github-actions"),
+        );
+        const groups = npm.slice(npm.indexOf("groups:"));
+        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
+        // Dependabot puts a dependency in the first group that matches
+        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
+        for (const kind of ["version-updates", "security-updates"]) {
+            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+        }
+    });
+});
+
+describe("the Sentry source map upload", () => {
+    it("runs only in the build graphty.app deploys, a push to master (run 40051811635: 18 of 20 minutes)", () => {
+        const uses = workflow("ci.yml").match(/SENTRY_AUTH_TOKEN: .*/g);
+        assert.ok(uses.length >= 1);
+        for (const line of uses) {
+            assert.equal(
+                line,
+                "SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && " +
+                    "!inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}",
+            );
+        }
+        // deploy-pages.yml publishes only a push run's build, so that one keeps the upload
+        assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
+    });
+});
+
 describe("new required checks start as warnings", () => {
     const ci = workflow("ci.yml");
     const registry = JSON.parse(readFileSync(new URL("ci-advisory-checks.json", import.meta.url), "utf8"));
@@ -1942,7 +2002,25 @@ describe("pr-issue-link.yml", () => {
         assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
-        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+        // never in an environment variable: one over 128 KiB stops the runner starting the step
+        assert.doesNotMatch(wf, /pull_request\.body/);
+    });
+    it("reads a description over 128 KiB from the event file (run 40001752947: E2BIG)", () => {
+        const run = (body) => {
+            const event = join(TMP, "pr-event.json");
+            writeFileSync(event, JSON.stringify({ pull_request: { body } }));
+            const env = { ...process.env, PR_AUTHOR: "someone", GITHUB_EVENT_PATH: event };
+            delete env.PR_BODY;
+            return spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env,
+            });
+        };
+        const long = "- land: fix/some-branch, merged into golden\n".repeat(4000);
+        assert.ok(long.length > 128 * 1024);
+        assert.equal(run(`${long}Fixes #3342\n`).status, 0);
+        assert.equal(run("a".repeat(200 * 1024)).status, 1);
+        assert.equal(run(null).status, 1);
     });
     it("fails with the message that says what to add", () => {
         const run = (env) =>
@@ -2138,6 +2216,11 @@ echo "${aptSays}"`,
 describe("Mergify is retired", () => {
     it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
         assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
+    });
+    it("uploads nothing to Mergify: GitHub refused its token with 403 on every test job", () => {
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
+        }
     });
 });
 
@@ -2348,7 +2431,17 @@ describe("master-guard", () => {
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+    });
+
+    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
+        assert.equal(decide(run("Deploy to GitHub Pages", "cancelled", "workflow_run")), "none");
+        // the guard job's filter lets the deploy's event through, and the name matches deploy-pages.yml's
+        assert.match(workflow("master-guard.yml"), /event == 'workflow_run'/);
+        assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {
@@ -4184,6 +4277,10 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
+            writeFileSync(
+                join(dir, "tools/release-dry-run.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
@@ -4211,6 +4308,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(first.calls, /links/);
             assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
+            assert.match(first.calls, /release/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);
@@ -4255,6 +4353,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -4278,6 +4377,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const calls = readFileSync(join(dir, "calls"), "utf8");
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
+            assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);

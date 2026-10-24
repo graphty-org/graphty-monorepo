@@ -24,9 +24,12 @@ part: in the one-client normal mode, issue-round still runs after it in the same
 
 ### 1. Red master, guard reverts, critical issues
 
-- **Check:** master's newest completed build; the `alarms` list (master-guard files `Red master: CI failed on <sha7>`
-  and `<run name> lane red on master` issues, and opens revert pull requests on branches `revert/<sha7>`).
-- **Needs action:** master's build is red, or an open critical issue or `revert/` pull request exists.
+- **Check:** master's newest completed build; the newest deploy run; the `alarms` list (master-guard files
+  `Red master: CI failed on <sha7>`, `<run name> lane red on master` and `graphty.app deploy failed on <sha7>` issues,
+  and opens revert pull requests on branches `revert/<sha7>`).
+- **Needs action:** master's build is red, the newest deploy failed, or an open critical issue or `revert/` pull
+  request exists. A failed deploy is never reverted (the commit passed CI): re-run it for an outside cause, else fix
+  it like a red master, and close its issue once a deploy of master succeeds.
 - **Action:** classify the failure from the failed job's step log (`gh run view <id> --log-failed`) and
   `git log <last green sha>..<red sha> --first-parent`. Outside cause: re-run the failed jobs once (see "Re-runs" in
   the shared file). Code: mark the alarm issue (`in-progress` plus a `taken` marker naming this session) and start one
@@ -38,6 +41,17 @@ part: in the one-client normal mode, issue-round still runs after it in the same
 - **While master's build is red:** step 4 lands only the branch whose commit names the red-master issue, step 5 does
   nothing, and ship condition 1 applies. If golden already holds other landings since the last ship,
   `land.mjs revert` them first and land them again once master is green.
+- **The fast route: a fix for a red master build, a failed graphty.app deploy or a train hold goes alone through
+  `cut-fix`.** Its subagent works in a worktree from the cut,
+  `./tools/worktree-new.sh <branch> origin/golden-cut <name> --issue <N>` (the fix prompt's cut-fix worktree), never
+  from `origin/golden` or `origin/golden-verified`: `cut-fix` refuses a branch that brings golden's commits. When it is `ready`, step 4 does not land it; this step
+  sends it with `node tools/land.mjs cut-fix --priority <branch> --reason <alarm>` in the background, where
+  `<alarm>` is the open `priority:critical` or "Release held" issue it fixes, or `run:<id>` of the failed
+  `release.yml`, `deploy-pages.yml` or master `ci.yml` run (a `Red run` issue is `priority:high`, so its fix names
+  the run); it lands the same branch on golden too, then step 3's ship conditions apply to that cut. Never route
+  such a fix through `land`, verification and a new cut, and never add it to a cut that awaits the owner (step 3):
+  a new head there throws away the preview he is reviewing or cancels the ship CI, and `cut-fix` refuses it. While
+  a cut awaits him, the fix waits, ready, and goes in by `cut-fix` as the first thing after that cut merges.
 - **`--priority`** (`node tools/land.mjs land --priority <branch>`, also on `revert`, `cut` and `cut-fix`) waits ahead of
   every ordinary landing. Use it only for the red-master fix and other fixes that unblock the pipeline (a broken
   golden, a fix a cut is blocked on), never to speed up ordinary work.
@@ -49,8 +63,10 @@ shared file:
 
 > Fix <what: the issue #N and its title, or the landing failure of branch B with gate log L>. Work in
 > <a new worktree: from /home/apowers/Projects/graphty-monorepo run
-> `./tools/worktree-new.sh <branch> origin/golden-verified <name> --issue <N>` | the branch's existing worktree <path>>. Read the evidence
-> first and confirm it still reproduces. Find the root cause and fix it there; follow CLAUDE.md and the package's
+> `./tools/worktree-new.sh <branch> origin/golden-verified <name> --issue <N>` | for a red master, a failed deploy or a
+> train hold (the fast route), a new worktree from the cut:
+> `./tools/worktree-new.sh <branch> origin/golden-cut <name> --issue <N>` | the branch's existing worktree <path>>.
+> Read the evidence first and confirm it still reproduces. Find the root cause and fix it there; follow CLAUDE.md and the package's
 > CLAUDE.md; run the affected package's lint, build and tests. Commit with <`Fixes #N` | `Refs #N`, one line per issue
 > of the branch's group>, then comment `pipeline-round: ready <branch> <full sha>` on <every issue of the branch's
 > group | the golden pull request> and stop.
@@ -61,13 +77,20 @@ shared file:
   `Release held: publish failed on <sha7>`, sometimes with a suffix.
 - **Release status:** a failure announcement on the `Release status` issue newer than its last success (a run that
   ended badly with no hold issue) is handled like a train hold, from the run it names.
-- **Train hold:** read the run it names, classify the failure. Code: mark the hold and start a fix subagent with
-  `Refs #<hold>` -- never `Fixes`, because the open hold is what restarts the train on the next green master build.
+- **Train hold:** read the run it names, classify the failure. Code: mark the hold and start a fix subagent by the
+  fast route (step 1) with `Refs #<hold>` -- never `Fixes`, because the open hold is what restarts the train on the next green master build.
   Paid capacity or credential: owner item.
 - **Publish hold:** suffix `npm has not listed ... yet`: nothing to do, it closes itself. A suffix naming the npm
   trusted publisher ("owner must create ..."): owner item, with the steps in CLAUDE.md "A new package's first npm
   publish". Any other publish hold: check npm first (`npm view @graphty/<pkg> versions --json`); if the versions are
   missing, run `gh run rerun <run id> --failed` once and record it on the issue.
+- **Red deploy or release run:** the newest completed `deploy-pages.yml` or `release.yml` run (the state block lists
+  both) concluded `failure`, `timed_out` or `startup_failure`, and no open issue names its run id
+  (`gh search issues --repo graphty-org/graphty-monorepo --state open <run id>`). A release run that a hold or a
+  `Release status` failure announcement already covers is handled above. Otherwise open one issue,
+  `Red run: <workflow> <run id> on <sha7>` (labels `bug`, `priority:high`, `effort:medium`), with the failed job and
+  the end of its log (`gh run view <id> --log-failed`), and classify it: outside, re-run the failed jobs once; code, a
+  fix subagent by the fast route (step 1) with `Fixes #<issue>`. A deploy that stays red means graphty.app is stale.
 - Never start a release yourself, and never release the grouped major (#676, #702, #843, #1370 stay held).
 
 ### 3. Keep golden moving
@@ -200,13 +223,19 @@ run's code):
   branch is landed again, the normal way, once its fix is committed and marked `ready`.
 - **Ship a cut, never golden's tip.** What ships is the cut pull request (`golden-cut` into master). The golden pull
   request stays a draft, an early look at golden's tip; approvals that ship are made on the cut pull request.
-    1. **Make a cut** when master's build is green (or golden's landings since the last ship are only the fix for it)
-       and no cut pull request is already shipped (ready with auto-merge on): run `node tools/land.mjs cut` in the
-       background. It picks the newest verified (up to `golden-verified`) first-parent golden commit since master whose
+  **A cut awaits the owner** (the frozen cut) while the open cut pull request (`cut` in the state block) is shipped
+  (ready), or is a draft whose preview of its head is done and has no Finish (a signed approval of its head's
+  baselines) yet. `land.mjs` enforces it: `cut` and `cut-fix` both refuse then and say why.
+    1. **Make a cut** when verification passed on a commit `golden-cut` lacks (`tmp/golden/verify.json` says
+       `last.status` is `passed`, and `git merge-base --is-ancestor <last.commit> origin/golden-cut` fails), no cut
+       awaits the owner, and master's build is green (or golden's landings since the last ship are only the fix for
+       it): run `node tools/land.mjs cut` in the background, in this round. Nothing else starts a cut; verification
+       only records. It picks the newest verified (up to `golden-verified`) first-parent golden commit since master whose
        local preview finished with no unstable or failed images, pushes it to `golden-cut` through the push queue, opens or refreshes the draft cut
        pull request with the landed branches in its description, and starts its preview. When no commit qualifies it
-       refuses: fix or revert what broke golden's preview ("Revert first"). Cut again only when a newer stable commit
-       exists and the owner has not yet finished reviewing the current cut.
+       refuses: fix or revert what broke golden's preview ("Revert first"). Never cut while a cut awaits the owner: a
+       new head throws away the preview he is reviewing, or cancels the ship CI. A fix found during review lands on
+       golden and ships with the next cut.
     2. **Ask the owner once** to review the cut, when its preview (`tmp/visual-review/local/<cut pr>/status.json`) is
        `done` for the cut pull request's head and images wait on him (the count below):
        `ACTION NEEDED: review the golden cut #<cut pr>: https://dev.ato.ms:9209/#token=<token>&target=<cut pr>`, with
@@ -226,9 +255,10 @@ run's code):
            request; if they survive his Finish, file a visual-review issue and ask him once instead of waiting;
         5. no rejects comment on the cut pull request is newer than the accept commit.
 
-        `ship` itself refuses when the cut pull request's head moved since its last finished preview by anything but
-        the owner's accept commits, and until the head is verified (a `cut-fix` starts golden-cut's verification:
-        `node tools/verify.mjs status --branch golden-cut`).
+        `ship` itself refuses when the cut pull request's head differs from its last finished preview outside
+        `visual-baselines/` and `visual-review-approvals/` (the owner's Finish and an update of the baselines from
+        master change nothing else), and until the head is verified, by the same comparison with a verified
+        commit (a `cut-fix` starts golden-cut's verification: `node tools/verify.mjs status --branch golden-cut`).
 - **Images waiting on the owner:** count them for a pull request with
   `jq -r '.items[] | select(.status|test("^(changed|moved|new|unseeded|removed)$")) | .file' tmp/visual-review/local/<pr>/*/results.json | wc -l`.
   Items with status `failed` or `unstable` are broken captures, not review: see "Revert first".
@@ -249,8 +279,9 @@ run's code):
   `ready <branch> <sha>` with no `landed` or `land failed` marker after it. Subagents of both skills write these. A
   group writes the same `ready` on every issue: group them by branch and land each branch once. Check
   the branch still points at that sha and its worktree is clean (`git -C <worktree> status --porcelain` prints
-  nothing). Leave out, with a `needs-decision` label and comment, a branch with a breaking commit
-  (`git log --format=%s origin/golden..<branch> | grep -E '^[a-z]+(\([^)]*\))?!:'` prints something).
+  nothing). Leave out a fast-route branch (a fix for a red master, a failed deploy or a train hold, started from
+  `origin/golden-cut`): step 1 sends it with `cut-fix`. Leave out, with a `needs-decision` label and comment, a branch
+  with a breaking commit (`git log --format=%s origin/golden..<branch> | grep -E '^[a-z]+(\([^)]*\))?!:'` prints something).
 - **Action:** write `landing <branch> <sha>` for each branch on every issue of its group, then land every ready
   branch in one background run, the one with the most changed files first:
   `node tools/land.mjs land <b1> <b2> ...` with `run_in_background`. End the round. The landing checks without the
@@ -265,6 +296,16 @@ run's code):
   the next round finds `ready` without an outcome: a branch whose tip is on `origin/golden` landed; otherwise land it
   again only if it has one `landing` marker for that sha, never two.
 - A landed issue keeps its `in-progress` label until a cut holding it ships and `Fixes #N` closes it.
+- **Dependabot.** Every open pull request whose head is `dependabot/*` (from `tmp/pr-status/status.json`; version
+  updates target `golden`, security updates target master) is a ready branch with no issue: run `git fetch origin`
+  first (land.mjs looks the branch up before it fetches), then add each `dependabot/...` branch to the same
+  background `land` run as the other ready branches. Write the `landing`, `landed` and `land failed` markers on the
+  golden pull request. When a branch's summary row says `landed` or `already on golden`, close its pull request
+  with the land commit:
+  `gh pr close <n> --comment "Landed on golden through the gate in $(git log origin/golden --merges -1 --format=%h --grep='^land: <branch>$')."`
+  Never merge a Dependabot pull request on GitHub, and never send a fix subagent for one: a Dependabot branch that
+  conflicts or fails the gate gets a one-line comment naming the cause and the gate log, and stays open (Dependabot
+  rebases it, or a later bump supersedes it); the next round lands it again only when its tip changed.
 
 ### 5. Stale issues
 
@@ -305,7 +346,7 @@ At most one per round, and only when nothing above acted.
   issue or pull request so no later round judges it again; never delete the branch. A branch whose pull request
   carries `hold` may be fixed but is never landed until `hold` is removed: once on golden, the next ship takes it.
 
-### 7. Finished worktrees
+### 7. Finished worktrees, branches behind golden, live copies ahead of it
 
 `tools/worktree-cleanup.mjs` removes finished worktrees on its own: the servherd server `worktree-cleanup` runs
 `--apply` every 15 minutes from its live copy `.worktrees/worktree-cleanup-live` (`tools/live-tools.json`). It removes
@@ -318,6 +359,33 @@ This step only checks that it runs:
   say why the rest stay; a large "uncommitted or untracked files" count is worktrees an owner must look at, never a
   reason to force anything.
 - `node tools/worktree-cleanup.mjs` (a dry run, from any checkout) prints the plan with every reason.
+
+**Behind golden:** every round, list open branches with a commit in the last 7 days whose newest merge of golden is
+over 3 days old while golden has moved since (older ones are the stale list of `land.mjs status`):
+
+```bash
+now=$(date +%s); gt=$(git rev-parse origin/golden)
+git for-each-ref --no-merged=origin/golden --format='%(refname:short) %(committerdate:unix)' refs/remotes/origin |
+  grep -vE '^origin/(HEAD|master|golden|revert/)' | while read -r b t; do [ $((now - t)) -lt 604800 ] || continue
+    mb=$(git merge-base "$b" origin/golden) && [ "$mb" != "$gt" ] || continue
+    age=$((now - $(git log -1 --format=%ct "$mb"))); [ $age -gt 259200 ] && echo "$b $((age / 86400))d"; done
+```
+
+Each one gets one `pipeline-round: behind golden <branch> since <merge-base sha7>` marker on its issue (skip it when
+that marker exists): the nightly sync could not merge golden into it (its `sync` column in `land.mjs status` says
+why), and its owner merges `origin/golden-verified`. Print the list in the round's last line; it is a warning, not
+an action.
+
+**Live copies ahead of golden:** every round, list what the live tool copies run that golden lacks:
+
+```bash
+for w in gate-live land-live; do git -C .worktrees/$w log --no-merges --format="$w %h %s" origin/golden..HEAD; done
+```
+
+Each commit is a local tool fix in use but not landed: CI and every new copy lack it until it lands. For each, find
+its branch (`git branch -r --contains <sha>`): a branch that is `ready` or landing needs nothing; any other gets one
+`pipeline-round: live but not landed <sha7> in <copy>` marker on its issue (a branch with no issue gets one, step 6),
+and a commit no branch on GitHub holds gets an issue. Print the count in the round's last line.
 
 Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
 `git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.

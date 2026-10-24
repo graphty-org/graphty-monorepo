@@ -779,7 +779,11 @@ exec ${realGit} "$@"
         };
         const sandbox = async (fn) => {
             const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
-            const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+            // Without the caller's browser lane (tools/low-priority.sh sets BROWSER_SLOT_PRIORITY=low): the
+            // lane tests read the lane the script itself chooses.
+            const env = Object.fromEntries(
+                Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_") && k !== "BROWSER_SLOT_PRIORITY"),
+            );
             Object.assign(env, {
                 PATH: `${t}/bin:${process.env.PATH}`,
                 GIT_CONFIG_GLOBAL: "/dev/null",

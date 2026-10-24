@@ -672,6 +672,9 @@ exit 0`,
                 env: {
                     ...process.env,
                     GATE: join(TOOLS, "with-browser.sh"),
+                    // the caller's lane (tools/low-priority.sh sets low, which waits for slot 4 only) would
+                    // keep the four holders from filling the slots
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     PIPELINE_WAIT_LOG: "off",
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "no-gates"),

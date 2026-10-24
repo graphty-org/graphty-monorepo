@@ -12,8 +12,8 @@ export interface FlatMapOptions extends MapSurfaceOptions {
     name?: string;
     /**
      * How the map looks past the frame's box: `clip` ends the picture at the box (the default);
-     * `continue` draws every source whole, repeated a world to the east and west, so panning or
-     * zooming out past the data still shows map.
+     * `continue` draws every source whole, out to the world's edges, so panning or zooming out past
+     * the data still shows map. The world is drawn once, never repeated to the east or west.
      */
     beyond?: "clip" | "continue";
 }
@@ -23,7 +23,8 @@ export interface FlatMapOptions extends MapSurfaceOptions {
  * the origin. It looks the same from either side, so it works in left- and right-handed scenes
  * and under an orthographic 2D camera or a perspective 3D one. Pictures in another projection
  * than the frame's (the bundled equirectangular world on a Web Mercator map) are reprojected per
- * vertex. The map ends at the frame's box, or with `beyond: "continue"` goes on past it. A box
+ * vertex. The map ends at the frame's box, or with `beyond: "continue"` goes on past it to the
+ * world's edges (the world once, never repeated). A box
  * whose east edge is past 180 degrees (data across the antimeridian) is drawn from a second copy
  * of the world.
  */
@@ -105,9 +106,8 @@ export class FlatMap extends MapSurface {
         // A world copy is one map unit wide: x = (lon + 180) / 360 in both projections.
         const first = Math.floor((west + 180) / 360);
         const last = Math.ceil((east + 180) / 360) - 1;
-        const extra = this.currentBeyond === "continue" ? 1 : 0;
         const out: number[] = [];
-        for (let k = first - extra; k <= last + extra; k++) {
+        for (let k = first; k <= last; k++) {
             out.push(k);
         }
         return out;

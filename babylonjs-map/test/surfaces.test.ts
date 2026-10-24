@@ -381,7 +381,7 @@ describe("FlatMap tile recovery and edges", () => {
         expect(shownMeshes(scene).some((m) => m.name.includes("natural-earth"))).toBe(true);
     });
 
-    it("draws on past the data's box with beyond: continue, a world to each side", async () => {
+    it("draws on past the data's box with beyond: continue, the world once and never repeated", async () => {
         const tiles = loader(scene);
         const box = {
             bounds: [
@@ -393,12 +393,15 @@ describe("FlatMap tile recovery and edges", () => {
         expect(map.beyond).toBe("continue");
         view(1e6);
         map.update();
-        expect(tiles.requests.map((r) => r.url)).toEqual(Array(3).fill("https://tile.openstreetmap.org/0/0/0.png"));
+        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
         await tiles.answerAll();
         map.update();
-        const xs = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.center.x);
-        // The data's box is 100 units across: a whole world is about 18,000 units.
-        expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(10_000);
+        // The map's extent is exactly one world: from longitude -180 to 180, no copy beside it.
+        const boxes = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox);
+        const west = map.toScene({ lat: 0, lon: -180 }).x;
+        const east = map.toScene({ lat: 0, lon: 180 }).x;
+        expect(Math.min(...boxes.map((b) => b.minimum.x))).toBeCloseTo(west, 3);
+        expect(Math.max(...boxes.map((b) => b.maximum.x))).toBeCloseTo(east, 3);
         map.beyond = "clip";
         map.update();
         expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(50);

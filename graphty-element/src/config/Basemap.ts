@@ -23,8 +23,8 @@ const bounds = z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), 
 const attributionShown = z.boolean().optional();
 /**
  * How the map looks past the box the layout fitted to the data: `continue` (the default) draws
- * the map on past it, so panning or zooming out still shows map; `clip` ends the picture at the
- * box.
+ * the map on past it to the world's edges (the world once, never repeated), so panning or zooming
+ * out still shows map; `clip` ends the picture at the box.
  */
 const beyond = z.enum(["continue", "clip"]).optional();
 

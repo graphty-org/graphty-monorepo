@@ -69,8 +69,8 @@ units across its longer side, so a city map uses the same small numbers as a wor
 same under a perspective camera and an orthographic 2D one. Leave `frame` out for the whole world.
 
 The picture ends at the box (`beyond: "clip"`, the default). With `beyond: "continue"` every source
-is drawn whole, a world to the east and west too, so panning or zooming out past the box still
-shows map. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
+is drawn whole, out to the world's edges, so panning or zooming out past the box still shows map;
+the world is drawn once, never repeated to the east or west. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
 gives) is drawn from both sides of the line.
 
 ## Map sources

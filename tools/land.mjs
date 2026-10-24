@@ -93,6 +93,7 @@ import {
     rmSync,
     statSync,
     symlinkSync,
+    watch as watchDir,
     writeFileSync,
 } from "node:fs";
 import { constants as osConstants, hostname } from "node:os";
@@ -720,10 +721,7 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     const fd = openSync(log, "w");
     // The cut's preview is what the owner reviews before a ship: it goes first (tools/visual-preview.sh).
     const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
-    const preview = [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head];
-    // A cut's preview ending is one of the events auto-ship decides on.
-    const then = cwd === ctx.cut ? `; exec "${process.execPath}" "${fileURLToPath(import.meta.url)}" auto-ship` : "";
-    spawn("setsid", ["bash", "-c", `"$@"${then}`, "_", ...preview], {
+    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
         cwd,
         env,
         detached: true,
@@ -731,6 +729,50 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }).unref();
     closeSync(fd);
     console.log(`land: screenshots of #${pr} are being captured for the review page (log: ${log})`);
+}
+
+/**
+ * Starts the cut's preview and, beside it, a watcher that runs auto-ship once that preview of the cut's
+ * head ends: a preview ending is one of the events auto-ship decides on.
+ * @param ctx the run's context
+ * @param pr the cut pull request's number
+ */
+function previewCut(ctx, pr) {
+    ctx.preview(ctx, pr, ctx.cut);
+    ctx.watchPreview(ctx, pr, git(ctx, ctx.cut, ["rev-parse", "HEAD"]));
+}
+
+function defaultWatchPreview(ctx, pr, head) {
+    const fd = openSync(join(ctx.main, `tmp/golden/auto-ship-watch-${pr}.log`), "w");
+    const args = [fileURLToPath(import.meta.url), "auto-ship", "--after-preview", String(pr), head];
+    spawn(process.execPath, args, { cwd: ctx.main, env: ctx.env, detached: true, stdio: ["ignore", fd, fd] }).unref();
+    closeSync(fd);
+}
+
+/**
+ * Waits for the preview of a pull request's head to end (done, failed or stale). An older head's status
+ * is a leftover to wait past; another head's preview means a newer one replaced this one.
+ * @param ctx the run's context
+ * @param pr the pull request's number
+ * @param head the head whose preview is awaited
+ * @returns true when that preview ended, false when another replaced it
+ */
+export function previewSettled(ctx, pr, head) {
+    const dir = join(ctx.main, `tmp/visual-review/local/${pr}`);
+    mkdirSync(dir, { recursive: true });
+    return new Promise((resolve) => {
+        const look = () => {
+            const s = readJson(join(dir, "status.json"));
+            if (!s?.head || (s.head === head && s.state === "running")) return;
+            const older =
+                s.head !== head && git(ctx, ctx.main, ["merge-base", "--is-ancestor", s.head, head], { ok: true });
+            if (older && older.status === 0) return;
+            watcher.close();
+            resolve(s.head === head);
+        };
+        const watcher = watchDir(dir, (_e, f) => (!f || f === "status.json") && look());
+        look();
+    });
 }
 
 /**
@@ -1914,7 +1956,7 @@ export async function cut(ctx, given) {
         "",
     ];
     const pr = upsertPr(ctx, CUT, CUT_TITLE, prBody(landedBranches(ctx, ctx.main, "origin/master", sha), intro), true);
-    if (pr) ctx.preview(ctx, pr, ctx.cut);
+    if (pr) previewCut(ctx, pr);
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${where}.`);
     // A verified commit passes at once; a named one gets the full verification ship waits for.
@@ -2073,7 +2115,7 @@ export async function cutFix(ctx, branch, opts = {}) {
             prBody(landedBranches(ctx, ctx.main, "origin/master", head), intro),
             true,
         );
-        if (pr) ctx.preview(ctx, pr, ctx.cut);
+        if (pr) previewCut(ctx, pr);
     } catch (e) {
         console.error(`land: the cut pull request was not updated: ${e.message}`);
     }
@@ -2332,6 +2374,7 @@ export function context(cwd, overrides = {}) {
         verify: defaultVerify,
         gh: defaultGh,
         preview: defaultPreview,
+        watchPreview: defaultWatchPreview,
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
@@ -2427,7 +2470,11 @@ async function underLock(ctx, info, lockOptions, work) {
 const UNLOCKED = {
     status: (ctx) => status(ctx),
     ship: (ctx) => ship(ctx),
-    "auto-ship": (ctx) => autoShip(ctx),
+    "auto-ship": async (ctx, pr, argv) => {
+        if (!argv.includes("--after-preview")) return autoShip(ctx);
+        const head = argv.filter((a) => !a.startsWith("--")).at(-1);
+        return (await previewSettled(ctx, pr, head)) ? autoShip(ctx) : 0;
+    },
     cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
     "cut-fix": cutFixThenLand,
     "prune-branches": (ctx, _branch, argv) => {

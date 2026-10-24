@@ -32,6 +32,7 @@ import {
     landedBranches,
     main,
     prBody,
+    previewSettled,
     readLock,
     sync,
 } from "./land.mjs";
@@ -67,6 +68,7 @@ const branch = (name, files, message, base = "origin/master") => {
 let gh;
 let previews;
 let previewHeads;
+let watches; // each [pr, head] a cut's preview watcher waits on, to run auto-ship
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let checks; // the landing checks: the gate on golden's next commit, without the lock, sending nothing
@@ -157,6 +159,7 @@ before(() => {
             previews.push(pr);
             previewHeads.push(git(cwd, "rev-parse", "HEAD"));
         },
+        watchPreview: (_c, pr, sha) => watches.push([pr, sha]),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
         addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
@@ -186,6 +189,7 @@ beforeEach(() => {
     verifies = [];
     previews = [];
     previewHeads = [];
+    watches = [];
     pushResult = 0;
     pushes = 0;
     refspecs = [];
@@ -917,6 +921,7 @@ describe("cuts", () => {
         assert.ok(create.includes("--draft") && create.includes("chore: ship a golden cut into master"));
         assert.match(gh.body, /A cut of `golden` at .*Approvals that ship are made here/);
         assert.deepEqual(previews, [9]);
+        assert.deepEqual(watches, [[9, line[1]]], "auto-ship runs once that preview ends");
         assert.deepEqual(verifies, [["golden-cut", line[1]]], "ship waits for the cut's verification");
     });
 
@@ -1221,6 +1226,24 @@ describe("cuts", () => {
             preview("9", other, ["unchanged"], "running");
             await run("auto-ship");
             assert.deepEqual(shipped(), []);
+        });
+
+        it("runs after the preview of the cut's head ends, past an older head's status, not after a newer one", async () => {
+            const older = cutHead("auto/older", { "older.txt": "o\n" });
+            const wt = join(dir, "wt-auto-older");
+            write(wt, "newer.txt", "n\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "fix: newer");
+            const sha = git(wt, "rev-parse", "HEAD");
+            preview("9", older, ["unchanged"]);
+            // Resolving on the older head's status would answer false.
+            const waiting = previewSettled(ctx, 9, sha);
+            preview("9", sha, ["unchanged"], "running");
+            preview("9", sha, ["unchanged"]);
+            assert.equal(await waiting, true);
+
+            const replaced = previewSettled(ctx, 9, older);
+            assert.equal(await replaced, false, "a newer head's preview replaced it");
         });
 
         it("never ships while a cut is pushing golden-cut", async () => {

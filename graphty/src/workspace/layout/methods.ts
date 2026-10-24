@@ -137,11 +137,11 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
     const values: Record<string, unknown> = takesSeed(session, descriptor.id) ? { seed: LAYOUT_SEED } : {};
     // On a map the app keeps nodes one size on screen, so zooming to a region pulls apart the nodes
     // a world view draws on top of one another (the element's own default scales them with zoom),
-    // and draws the globe three times larger than the element's default under the same nodes and
-    // edges, so a dense region (the United States, Europe) is not one grey patch.
+    // and draws the map, flat or globe, six times larger than the element's default under the same
+    // nodes and edges, so a dense region (the United States, Europe) is not one grey patch.
     if (descriptor.id === "location-map") {
         values.nodeScale = "screen";
-        values.globeScale = 3;
+        values.mapScale = 6;
     }
     const node = keyOption(descriptor, "node-id")?.name;
     const selected = session.selection.nodes.at(0);

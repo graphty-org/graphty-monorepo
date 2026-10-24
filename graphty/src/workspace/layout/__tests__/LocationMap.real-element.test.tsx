@@ -314,9 +314,9 @@ describe("the location map", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.strictEqual(element.session.layout.id, "location-map");
-        // The app's own choices: nodes one size on screen, on a globe three times the element's default.
+        // The app's own choices: nodes one size on screen, on a map six times the element's default.
         assert.strictEqual(element.session.layout.options.nodeScale, "screen");
-        assert.strictEqual(element.session.layout.options.globeScale, 3);
+        assert.strictEqual(element.session.layout.options.mapScale, 6);
         // West to east on screen: Seattle, Chicago, New York; Seattle, the farthest north, highest.
         const at = (id: string): { x: number; y: number } => {
             const p = element.nodeScreenPosition(id);

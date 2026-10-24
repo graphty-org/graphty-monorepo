@@ -400,7 +400,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
         choices: { auto: "Automatic", "web-mercator": "Web Mercator", equirectangular: "Equirectangular" },
     },
     "location-map.size": { label: "Size" },
-    "location-map.globeScale": { label: "Globe size" },
+    "location-map.mapScale": { label: "Map size" },
     "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
     "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,

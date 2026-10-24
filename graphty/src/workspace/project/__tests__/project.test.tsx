@@ -3,6 +3,8 @@
  * Recent projects list and the words for a file that does not open. The element is not registered
  * in this file; `Project.real-element.test.tsx` walks save and reopen on it.
  */
+import "../../../test/frame";
+
 import { browserProjects, type GraphSession, GraphtyError } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";

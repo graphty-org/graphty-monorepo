@@ -3,6 +3,8 @@
  * empty, before anything is written to it: a region that arrives already holding its words is
  * not read by many screen readers. A failure stays an alert.
  */
+import "../../../test/frame";
+
 import userEvent from "@testing-library/user-event";
 import { assert, beforeEach, describe, it } from "vitest";
 

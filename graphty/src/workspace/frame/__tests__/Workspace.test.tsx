@@ -3,6 +3,8 @@
  * notice slot and the build stamp. The element is not registered in this file, so its tag stays
  * an empty box and no session arrives; `Workspace.real-element.test.tsx` covers the element.
  */
+import "../../../test/frame";
+
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 

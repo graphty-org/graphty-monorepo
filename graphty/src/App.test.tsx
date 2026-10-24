@@ -1,3 +1,5 @@
+import "./test/frame";
+
 import { describe, expect, it } from "vitest";
 
 import { App } from "./App";

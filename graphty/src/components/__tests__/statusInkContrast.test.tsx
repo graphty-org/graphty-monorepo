@@ -1,3 +1,5 @@
+import "../../test/frame";
+
 import { MantineProvider } from "@mantine/core";
 import { render as renderBare } from "@testing-library/react";
 import axe from "axe-core";

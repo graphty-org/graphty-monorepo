@@ -2,6 +2,8 @@
  * The Export dialog without the element: where it opens, its words and its doors. The element is
  * not registered in this file; `ExportDialog.real-element.test.tsx` walks the task on it.
  */
+import "../../../test/frame";
+
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 

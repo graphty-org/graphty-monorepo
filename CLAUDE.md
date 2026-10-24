@@ -373,6 +373,7 @@ The `tools/` directory contains build scripts:
 | `diff-stories.mjs` | Renders the same stories from two built Storybooks and saves both screenshots plus camera and node positions |
 | `pixel-diff.mjs` | Per-pixel comparison of two PNGs: changed pixels, bounding box, and whether the change is local or frame-wide |
 | `check-committed-images.mjs` | Fails a push (pre-push and CI's Checks job) that adds more than 20 images or 20 MB outside the folders that hold them (`visual-baselines/`, test fixtures, public assets): design studio walk screenshots go to `tmp/design-studio/`, never git. An `Images-Approved: <reason>` trailer on HEAD, or on the commit that adds them, passes a deliberate addition |
+| `check-figma-lock.mjs` | Fails a push (pre-push and CI's Checks job) with a commit that changes compact-mantine's Figma spec, its Figma tests or their harness, or the theme's token values, unless that commit carries the owner's `Figma-Approved: <reason>` trailer; also checks the local Figma study (`design/ui/figma`) against `compact-mantine/tests/figma/figma-study.sha256` when it is present |
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
@@ -857,6 +858,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - `layout/CLAUDE.md` - Layout testing patterns
 - `graphty-element/CLAUDE.md` - Web component patterns, visual testing
 - `graphty/CLAUDE.md` - React app specifics
+- `compact-mantine/CLAUDE.md` - The Figma lock
 
 ## Important Development Notes
 
@@ -887,6 +889,9 @@ Each package has its own CLAUDE.md with package-specific guidance:
   asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
   belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
   deleted
+- compact-mantine is locked to Figma (owner, 2026-10-23): never change its look or behavior away from
+  Figma, a Figma test's expected value, its token values or `compact-mantine/design/figma-spec.md`
+  section 14 without the owner's `Figma-Approved: <reason>` commit trailer. See `compact-mantine/CLAUDE.md`
 
 ### Graph Styling
 

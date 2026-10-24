@@ -538,7 +538,7 @@ export function ensureListboxKeyboard(): void {
         const trigger = list?.id ? document.querySelector(`[aria-controls="${list.id}"]`) : null;
         syncSelected(openList(trigger));
     });
-    // Focus that leaves an open list's trigger for another control (Tab, Shift+Tab, a script)
+    // Focus that leaves an open list's trigger for another control (a script; Tab is held while the list is open)
     // closes the list. Mantine's Select closes on blur only when searchable, so a select-only
     // list stayed open over the controls focus moved to, where Escape no longer reached it. Its
     // own click toggles the list; options never take focus, so a press inside does not land here.
@@ -582,38 +582,18 @@ export function ensureListboxKeyboard(): void {
             const option = options[(from + i) % count];
             if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
                 missOn = null;
-                showRun(list, typed);
                 speak(list, "");
                 walkHighlight(input, list, option);
                 return;
             }
         }
-        // No option starts with the run: no highlight, and a line saying so, shown and spoken.
+        // No option starts with the run: no highlight, and the reason spoken (Figma draws nothing).
         // Mantine's store keeps its index (only its own handlers move it), so the miss also holds
         // back Enter until the next move.
         missOn = input;
-        const words = listNoMatch(typed);
-        showRun(list, words);
-        speak(list, words);
+        speak(list, listNoMatch(typed));
         list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
         input.removeAttribute("aria-activedescendant");
-    };
-    /**
-     * Draws a line at the foot of the open list: the run while it matches, so the reader sees what
-     * was typed, or the no-match line.
-     * @param list - the open list
-     * @param text - the line
-     */
-    const showRun = (list: HTMLElement, text: string): void => {
-        const surface = list.closest<HTMLElement>(".cm-listbox") ?? list;
-        let line = surface.querySelector<HTMLElement>(":scope > .cm-listbox-typed");
-        if (line === null) {
-            line = surface.ownerDocument.createElement("div");
-            line.className = "cm-listbox-typed";
-            line.setAttribute("aria-hidden", "true");
-            surface.append(line);
-        }
-        line.textContent = text;
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
@@ -633,6 +613,11 @@ export function ensureListboxKeyboard(): void {
             if (event.key === "Enter" && missOn === input) {
                 event.preventDefault();
                 event.stopPropagation();
+                return;
+            }
+            // Tab does nothing while a list is open (Figma); Escape or a choice closes it first.
+            if (event.key === "Tab") {
+                event.preventDefault();
                 return;
             }
             if (!printable(event)) {

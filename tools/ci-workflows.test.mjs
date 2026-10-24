@@ -49,6 +49,7 @@ import {
     testsPassed,
 } from "./prepush-inputs.mjs";
 import { byFailureRate, failureRates, gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { decide as reuseDecide, excludedPaths, marker, notPassed, STORYBOOKS, treeWithout } from "./ci-reuse-plan.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -1200,8 +1201,19 @@ describe("ci.yml", () => {
             block[1],
             "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-" +
                 `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' && github.head_ref != 'golden-cut' }}\n",
         );
+    });
+
+    it("never cancels the cut pull request's running run, so an approval commit can reuse its tests (#3349)", () => {
+        // The owner's Finish commits approvals to golden-cut. Cancelling would throw the suite away;
+        // instead the new run waits pending until the old one ends, then reuses its passing tests.
+        const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
+        const cancels = (event, head) =>
+            Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event, head_ref: head });
+        assert.equal(cancels("pull_request", "golden-cut"), false, "the cut pull request");
+        assert.equal(cancels("pull_request", "fix/123-topic"), true, "any other pull request");
+        assert.equal(cancels("push", ""), false, "a push to master");
     });
 
     it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {
@@ -1326,7 +1338,10 @@ describe("ci.yml", () => {
             /if \[\[ "\$EVENT" == "push" && -z "\$CALLED_REF" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
         );
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
-        assert.match(job(ci, "test"), /if: needs.packages.outputs.test-count != '0'\n/);
+        assert.match(
+            job(ci, "test"),
+            /if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''\n/,
+        );
         assert.match(
             job(ci, "cost-accuracy"),
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
@@ -1334,7 +1349,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: needs.build.outputs.light != 'true'\n/,
+                /\n {8}if: needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -1346,15 +1361,16 @@ describe("ci.yml", () => {
         assert.match(job(ci, "docs"), /name: build-docs\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         for (const name of ["build", "lint", "checks", "docs"]) {
-            assert.match(job(ci, name), /\n {8}needs: packages\n {8}runs-on:/, `${name} runs on master too`);
+            assert.match(
+                job(ci, name),
+                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''\n)? {8}runs-on:/,
+                `${name} runs on master too`,
+            );
         }
         // the summary checks pass a light run whose skipped jobs were skipped on purpose, and the build
         // jobs must succeed
         assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
-        assert.match(
-            job(ci, "all-checks"),
-            /\(\(.key \| IN\("packages", "build", "lint", "checks", "docs"\)\) and \$r != "success"\)/,
-        );
+        assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
         assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
@@ -4734,5 +4750,340 @@ describe("pnpm-lock.yaml", () => {
             );
             assert.deepEqual([...versions], ["1.57.0"], `${name} versions in pnpm-lock.yaml`);
         }
+    });
+});
+
+describe("a run reuses an earlier run's results when only screenshot records changed", () => {
+    const ci = workflow("ci.yml");
+    const TREE = "a".repeat(40);
+    const OTHER = "b".repeat(40);
+    // The jobs of run 40001752903 (golden-cut, 2026-10-23), as the Actions API answered, shortened.
+    const recorded = [
+        ["Draft state", "success"],
+        ["Build", "success"],
+        ["Storybooks", "success"],
+        ["Lint", "success"],
+        ["Checks", "success"],
+        ["Docs", "success"],
+        ["Cost Estimate Accuracy", "success"],
+        ["Test (graphty-1)", "success"],
+        ["Test (graphty-element-browser-1)", "success"],
+        ["Test (small-node)", "success"],
+        ["visual (graphty-element)", "success"],
+        ["visual (graph-io-fidelity)", "failure"],
+        ["Links", "success"],
+        ["Performance Benchmarks", "skipped"],
+        ["All Checks Pass", "failure"],
+        ["Queue Checks Pass", "failure"],
+    ].map(([name, conclusion]) => ({ name, conclusion, status: "completed" }));
+    const withJob = (jobs, name, conclusion) =>
+        jobs.map((j) => (j.name === name ? { ...j, conclusion, status: conclusion ? "completed" : "in_progress" } : j));
+    const BUILDS = ["build-packages", ...Object.keys(STORYBOOKS)];
+    const artifactsOf = (record, { expired = false } = {}) => [
+        ...(record ? [{ name: record, expired: false }] : []),
+        ...BUILDS.map((name) => ({ name, expired })),
+        { name: "visual-graphty-element-1", expired: false },
+    ];
+    // An API that answers from recorded runs: { id: { jobs, artifacts } }, counting its calls.
+    const recordedApi = (byRun) => {
+        const api = async (path) => {
+            api.calls.push(path);
+            const [, id, what] = /^actions\/runs\/(\d+)\/(jobs|artifacts)\?/.exec(path);
+            return { [what]: byRun[id][what] };
+        };
+        api.calls = [];
+        return api;
+    };
+    const chain = ["h3", "h2", "h1"];
+    const runAt = (id, sha) => ({ id, head_sha: sha });
+
+    it("reuses the newest passing run that tested the same tree, and downloads its builds", async () => {
+        const api = recordedApi({ 10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2"), runAt(11, "h3")], runId: 11, api });
+        assert.equal(r.reuse, "10");
+        assert.equal(r.artifacts, "10");
+        assert.equal(api.calls.length, 2, "two requests for the one earlier run");
+    });
+
+    it("builds again when the reused run's builds expired, and still reuses its test results", async () => {
+        const api = recordedApi({
+            10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`, { expired: true }) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "10");
+        assert.equal(r.artifacts, null);
+    });
+
+    it("runs in full when any other file changed (the newest passing run tested another tree)", async () => {
+        const api = recordedApi({
+            10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${OTHER}`) },
+            9: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2"), runAt(9, "h1")], runId: 11, api });
+        assert.equal(r.reuse, null, "an older run with the same tree is not looked at past a newer passing one");
+        assert.match(r.reason, /another tree/);
+    });
+
+    it("runs in full when the earlier run failed, was cancelled or has not finished", async () => {
+        for (const [name, conclusion] of [
+            ["Test (graphty-1)", "failure"],
+            ["Test (small-node)", "cancelled"],
+            ["Lint", "skipped"],
+            ["Links", null],
+            ["Build", "failure"],
+        ]) {
+            const api = recordedApi({
+                10: { jobs: withJob(recorded, name, conclusion), artifacts: artifactsOf(`ci-tested-${TREE}`) },
+            });
+            const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+            assert.equal(r.reuse, null, `${name} ${conclusion}`);
+            assert.match(r.skipped[0], new RegExp(`${name.replace(/[()]/g, "\\$&")} `));
+        }
+    });
+
+    it("passes over a cancelled newer run to an older one that passed on the same tree", async () => {
+        const api = recordedApi({
+            10: {
+                jobs: withJob(recorded, "Test (graphty-1)", "cancelled"),
+                artifacts: artifactsOf(`ci-tested-${TREE}`),
+            },
+            9: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(9, "h1"), runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "9");
+    });
+
+    it("runs in full when the earlier run recorded no tree (a ci.yml from before this record)", async () => {
+        const api = recordedApi({ 10: { jobs: recorded, artifacts: artifactsOf(null) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, null);
+        assert.match(r.reason, /recorded no tested tree/);
+    });
+
+    it("never reuses itself, another branch's commit, or a commit off the first-parent chain", async () => {
+        const api = recordedApi({});
+        const runs = [runAt(11, "h3"), runAt(12, "elsewhere")];
+        const r = await reuseDecide({ tree: TREE, chain, runs, runId: 11, api });
+        assert.equal(r.reuse, null);
+        assert.equal(api.calls.length, 0);
+    });
+
+    it("chains through a run that itself reused, to the run that ran the tests", async () => {
+        const reusedJobs = ["Lint", "Checks", "Docs", "Cost Estimate Accuracy", "Test (graphty-1)", "Links"].reduce(
+            (jobs, name) => withJob(jobs, name, "skipped"),
+            recorded,
+        );
+        const api = recordedApi({ 10: { jobs: reusedJobs, artifacts: artifactsOf(`ci-tested-${TREE}-from-7`) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "7", "the link names the run whose tests passed");
+        assert.equal(r.artifacts, "10", "the builds come from the newest run, whose copies are fresh");
+        assert.equal(notPassed(withJob(reusedJobs, "Storybooks", "failure"), true), "Storybooks failure");
+        assert.equal(notPassed(reusedJobs, false), "Lint skipped", "a full run must have run Lint");
+    });
+
+    it("reads the record from an artifact's name", () => {
+        assert.deepEqual(marker([{ name: "build-packages" }, { name: `ci-tested-${TREE}` }]), {
+            tree: TREE,
+            from: null,
+        });
+        assert.deepEqual(marker([{ name: `ci-tested-${TREE}-from-42` }]), { tree: TREE, from: "42" });
+        assert.equal(marker([{ name: "ci-tested-xyz" }]), null);
+    });
+
+    it("compares trees with exactly the baselines and approvals directories taken out", () => {
+        const repo = mkdtempSync(join(TMP, "reuse-"));
+        const g = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" }).stdout.trim();
+        const put = (file, text) => {
+            mkdirSync(join(repo, file, ".."), { recursive: true });
+            writeFileSync(join(repo, file), text);
+        };
+        const commit = (message) => {
+            g("add", "-A");
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
+            return g("rev-parse", "HEAD");
+        };
+        g("init", "-q");
+        put(
+            "visual-review.config.json",
+            JSON.stringify({ baselines: "visual-baselines", approvals: "visual-review-approvals" }),
+        );
+        put("src/a.ts", "1");
+        put("visual-baselines/p/a.png", "1");
+        put("visual-baselines/reviews/r.json", "1");
+        put("visual-baselines-old/a.png", "1");
+        put("visual-review/trusted/x.mjs", "1");
+        const base = commit("base");
+        const excluded = excludedPaths(repo, base);
+        assert.deepEqual(excluded, ["visual-baselines", "visual-review-approvals"]);
+        const before = treeWithout(repo, base, excluded);
+        put("visual-baselines/p/a.png", "2");
+        put("visual-baselines/reviews/r.json", "2");
+        put("visual-review-approvals/t.json", "{}");
+        const finish = commit("finish");
+        assert.equal(treeWithout(repo, finish, excluded), before, "a Finish commit leaves the tested tree as it was");
+        assert.notEqual(g("rev-parse", `${finish}^{tree}`), g("rev-parse", `${base}^{tree}`));
+        for (const file of [
+            "src/a.ts",
+            "visual-baselines-old/a.png",
+            "visual-review/trusted/x.mjs",
+            "visual-review-approvals.json",
+        ]) {
+            put(file, "changed");
+            const at = commit(file);
+            assert.notEqual(treeWithout(repo, at, excluded), before, `${file} is part of the tested tree`);
+            g("reset", "-q", "--hard", finish);
+            g("clean", "-qfd");
+        }
+        for (const bad of [".", "../x", "", "a b"]) {
+            put("visual-review.config.json", JSON.stringify({ baselines: bad, approvals: "visual-review-approvals" }));
+            assert.equal(excludedPaths(repo, commit(`bad ${bad}`)), null, `"${bad}" is refused`);
+        }
+        assert.equal(excludedPaths(repo, "HEAD~100"), null, "no config: no reuse");
+    });
+
+    it("prints the plan from the base's config and recorded API answers (the packages job's step)", () => {
+        const repo = mkdtempSync(join(TMP, "reuse-main-"));
+        const g = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" }).stdout.trim();
+        const put = (file, text) => {
+            mkdirSync(join(repo, file, ".."), { recursive: true });
+            writeFileSync(join(repo, file), text);
+        };
+        const commit = (message) => {
+            g("add", "-A");
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
+            return g("rev-parse", "HEAD");
+        };
+        const merge = (base, head) => {
+            g("checkout", "-q", "--detach", base);
+            g("-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "-m", "m", head);
+            return g("rev-parse", "HEAD");
+        };
+        g("init", "-q", "-b", "master");
+        put(
+            "visual-review.config.json",
+            JSON.stringify({ baselines: "visual-baselines", approvals: "visual-review-approvals" }),
+        );
+        const base = commit("base");
+        g("checkout", "-q", "-b", "cut");
+        put("src/a.ts", "1");
+        const h1 = commit("code");
+        put("visual-review-approvals/t.json", "{}");
+        const h2 = commit("finish");
+        const tested = treeWithout(repo, merge(base, h1), ["visual-baselines", "visual-review-approvals"]);
+        merge(base, h2);
+        const answers = join(repo, "..", `answers-${Date.now()}`);
+        mkdirSync(answers);
+        const answer = (name, value) => writeFileSync(join(answers, name), JSON.stringify(value));
+        answer("runs", { workflow_runs: [{ id: 5, head_sha: h1 }] });
+        answer("artifacts", { artifacts: artifactsOf(`ci-tested-${tested}`) });
+        answer("jobs", { jobs: recorded });
+        const bin = join(answers, "bin");
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$2" in *workflows/ci.yml/runs*) f=runs;; *artifacts*) f=artifacts;; *jobs*) f=jobs;; esac\ncat "${answers}/$f"\n`,
+            { mode: 0o755 },
+        );
+        const run = (env) =>
+            spawnSync("node", [new URL("./ci-reuse-plan.mjs", import.meta.url).pathname], {
+                cwd: repo,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${bin}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    GITHUB_RUN_ID: "6",
+                    GITHUB_SERVER_URL: "https://github.com",
+                    HEAD_SHA: h2,
+                    HEAD_REF: "cut",
+                    GITHUB_STEP_SUMMARY: "",
+                    ...env,
+                },
+            });
+        const out = run({}).stdout;
+        assert.match(out, new RegExp(`^tested-tree=${tested}$`, "m"));
+        assert.match(out, new RegExp(`^marker=ci-tested-${tested}-from-5$`, "m"));
+        assert.match(out, /^reuse-run=5$/m);
+        assert.match(out, /^reuse-url=https:\/\/github.com\/o\/r\/actions\/runs\/5$/m);
+        assert.match(out, /^artifacts-run=5$/m);
+        answer("jobs", { jobs: withJob(recorded, "Test (graphty-1)", "failure") });
+        const full = run({}).stdout;
+        assert.match(full, /^reuse-run=$/m);
+        assert.match(full, new RegExp(`^marker=ci-tested-${tested}$`, "m"), "a full run records its tree");
+        writeFileSync(join(bin, "gh"), "#!/bin/bash\necho 'HTTP 403' >&2; exit 1\n", { mode: 0o755 });
+        const offline = run({});
+        assert.equal(offline.status, 0);
+        assert.match(offline.stdout, /^reuse-run=$/m, "an API failure is a full run");
+    });
+
+    it("skips exactly the jobs the reused run passed, and still builds, captures and gates", () => {
+        const jobs = parseJobs(ci);
+        const reused = Object.keys(jobs).filter((name) =>
+            /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
+        );
+        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "test"]);
+        for (const name of ["packages", "build", "visual", "all-checks"]) {
+            assert.ok(!reused.includes(name), `${name} runs on every run`);
+        }
+        const packages = job(ci, "packages");
+        assert.match(
+            packages,
+            /id: reuse\n {14}if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'\n {14}continue-on-error: true\n/,
+        );
+        assert.match(packages, /reuse-run: \$\{\{ steps.reuse.outputs.reuse-run \}\}/);
+        assert.match(packages, /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);
+        assert.match(job(ci, "build"), /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);
+    });
+
+    it("downloads exactly the Storybooks the build job uploads, to the paths it uploads them from", () => {
+        const build = job(ci, "build");
+        const uploads = [...build.matchAll(/name: (build-storybook-[\w-]+)\n {18}path: (\S+)\/\n/g)].map((m) => [
+            m[1],
+            m[2],
+        ]);
+        assert.deepEqual(Object.fromEntries(uploads), STORYBOOKS);
+        // every step that builds is skipped when the builds are downloaded instead
+        for (const step of build.split(/\n {12}- /).filter((s) => /nx run .*:build-storybook|pnpm install/.test(s))) {
+            assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
+        }
+    });
+
+    it("passes All Checks Pass with skipped check jobs only when the run reused a passing run", () => {
+        const body = job(ci, "all-checks");
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(body)[1];
+        const needs = (over) =>
+            JSON.stringify(
+                Object.fromEntries(
+                    ["packages", "build", "lint", "checks", "docs", "test", "links", "cost-accuracy", "visual"].map(
+                        (n) => [
+                            n,
+                            {
+                                result:
+                                    over[n] ?? (["packages", "build", "visual"].includes(n) ? "success" : "skipped"),
+                            },
+                        ],
+                    ),
+                ),
+            );
+        const verdict = (reuse, over = {}) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "false",
+                    ADVISORY: "[]",
+                    LIGHT: "false",
+                    REUSE_RUN: reuse,
+                    REUSE_URL: reuse && `https://github.com/o/r/actions/runs/${reuse}`,
+                    NEEDS: needs(over),
+                },
+            });
+        const ok = verdict("5");
+        assert.equal(ok.status, 0, ok.stdout);
+        assert.match(ok.stdout, /::notice title=Results reused::.*actions\/runs\/5/);
+        assert.equal(verdict("").status, 1, "skipped Lint, Checks and Docs fail a run that reused nothing");
+        assert.equal(verdict("5", { build: "skipped" }).status, 1, "Storybooks must still succeed");
+        assert.equal(verdict("5", { lint: "failure" }).status, 1);
     });
 });

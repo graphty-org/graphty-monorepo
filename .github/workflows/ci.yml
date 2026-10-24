@@ -430,8 +430,8 @@ jobs:
               run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
 
             # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
-            # baselines so a run downloads only the pictures added since the cache was saved. The
-            # package's build-storybook pulls them (a no-op once the cache restored them).
+            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
+            # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
               uses: actions/cache@v4
               with:
@@ -440,7 +440,7 @@ jobs:
                   restore-keys: lfs-fidelity-references-
 
             - name: Build Storybook (graph-io-fidelity)
-              run: pnpm exec nx run graph-io-fidelity:build-storybook --exclude-task-dependencies
+              run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
 
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4

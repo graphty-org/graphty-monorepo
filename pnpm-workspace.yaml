@@ -6,7 +6,6 @@ packages:
     - "algorithms"
     - "layout"
     - "cytoscape-extensions"
-    - "graph-io/fidelity-stories"
     - "graphty-element"
     - "graphty"
     - "remote-logger"

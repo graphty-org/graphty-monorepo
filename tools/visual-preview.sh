@@ -246,8 +246,9 @@ mapfile -t ALL < <(jq -r '.projects | keys[]' "$WT/visual-review.config.json")
 # An exit 0 with no JSON array is nx cut short (a pnpm older than 10.29.1 reports a signal as 0): capture all.
 if AFFECTED="$(cd "$WT" && bounded pnpm exec nx show projects --affected --base="$MERGE^1" --head="$MERGE" --json 2>> "$LOG")" &&
     [[ "$AFFECTED" == "["* ]]; then
-    mapfile -t PROJECTS < <(jq -r --argjson all "$(printf '%s\n' "${ALL[@]}" | jq -R . | jq -s .)" \
-        '.[] | select(. as $p | $all | index($p))' <<< "$AFFECTED")
+    # a Storybook that is not an nx project of its own (the style fidelity one in graph-io) is
+    # mapped to the projects that draw it
+    mapfile -t PROJECTS < <(cd "$WT" && node tools/visual-capture-plan.mjs --affected "$AFFECTED")
 elif [[ $? -eq 124 ]]; then
     die "timed out while $STEP"
 else

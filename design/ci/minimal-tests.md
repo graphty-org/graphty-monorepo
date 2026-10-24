@@ -316,7 +316,7 @@ at inputs. So the upgrade goes in four steps, each a two-way door.
       tests read the upstream `dist/` that the upstream `build` tasks write.
     - For each relative-path read that is not an nx dependency, a `{workspaceRoot}/<package>/<dir>/**`
       input on the reading project's test targets: graph-io's reads of graphty-element, graphty's of
-      algorithms and layout, visual-review's of layout, fidelity-web-oracles' of graph-io. Inputs,
+      algorithms and layout, visual-review's of layout. Inputs,
       not `implicitDependencies`: graph-io reading graphty-element as an implicit dependency would
       make a cycle with graphty-element's dependency on graph-io, and task-based mode ignores
       implicit dependencies anyway.

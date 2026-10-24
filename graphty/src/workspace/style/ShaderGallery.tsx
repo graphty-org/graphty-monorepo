@@ -6,14 +6,11 @@ import React, { useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import {
-    FIRST_PLACE,
     GALLERY_WORDS,
     layersWord,
     matchesWordStart,
     OPTION_TILE_WORDS,
     ORIGIN_FILTERS,
-    PLACE_FILTERS,
-    type PlaceFilter,
     placeWords,
     SHADER_FACT_WORDS,
     shaderMatches,
@@ -161,20 +158,6 @@ function onTab(descriptor: ShaderDescriptor, tab: ShaderTab): boolean {
 }
 
 /**
- * Whether a shader passes the place filter: one of the places it may draw at is the filter's.
- * @param descriptor - the catalog's entry.
- * @param filter - the chip picked.
- * @returns true when it shows.
- */
-function inPlace(descriptor: ShaderDescriptor, filter: PlaceFilter | undefined): boolean {
-    if (filter === undefined || filter.places.length === 0) {
-        return true;
-    }
-    const places = descriptor.places ?? (descriptor.place === undefined ? [] : [descriptor.place]);
-    return places.some((place) => filter.places.includes(place));
-}
-
-/**
  * Whether a shader passes the origin filter.
  * @param descriptor - the catalog's entry.
  * @param origin - the chip picked.
@@ -241,19 +224,19 @@ interface ShaderGalleryProps {
     readonly onPick: (id: string) => void;
     /** Picks one of the tab's style options by its key. */
     readonly onOption?: (key: string) => void;
-    /** Opens the code dialog at a place; absent: no "New shader..." tile. */
-    readonly onNew?: (place: ShaderPlace | undefined) => void;
+    /** Opens the code dialog, whose first field is the place; absent: no "New shader...". */
+    readonly onNew?: () => void;
     /** Deletes a project shader from the project; absent: no Delete from project. */
     readonly onDelete?: (id: string) => void;
 }
 
 /**
  * The one shader gallery (decisions-v2, section 2.2), the same from the Node tab, the Edge tab and
- * the Background: a search field with focus; under it a place filter phrased as what the reader
- * wants, then the origin filter, both rows of chips that wrap; then the tiles, buttons the
- * arrows move through, each its picture, name, place badge and the animates, cost and light facts;
- * "New shader..." last. A search also finds the tab's own style options (Outline, Glow, Halo,
- * Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
+ * the Background: "New shader..." first, at the top of the box; a search field with focus; under it
+ * the origin filter, a row of chips that wraps; then the tiles, buttons the arrows move through,
+ * each its picture, name, place badge and the animates, cost and light facts. Choosing a shader
+ * asks no place: each shader draws at its own, and the place is asked only by New shader. A search
+ * also finds the tab's own style options (Outline, Glow, Halo, Wireframe; Band), shown as tiles marked as Shape or Line options, so a reader who types "glow"
  * learns it is an option. Enter in the search picks the tile whose name the search names, else
  * the first. Hovering a tile changes nothing on the canvas: only a pick writes.
  * @param props - Component props
@@ -278,21 +261,14 @@ export function ShaderGallery({
     onDelete,
 }: Readonly<ShaderGalleryProps>): React.JSX.Element {
     const [query, setQuery] = useState("");
-    const filters = PLACE_FILTERS[tab];
-    const [placeKey, setPlaceKey] = useState("all");
     const [origin, setOrigin] = useState("all");
     const root = useRef<HTMLDivElement>(null);
     // The tile that is the gallery's one Tab stop: the last one focused, else the first.
     const [stop, setStop] = useState<string | null>(null);
-    const filter = filters.find((each) => each.key === placeKey);
     const shaders = session.catalog
         .shaders()
         .filter(
-            (descriptor) =>
-                onTab(descriptor, tab) &&
-                inPlace(descriptor, filter) &&
-                inOrigin(descriptor, origin) &&
-                shaderMatches(descriptor, query),
+            (descriptor) => onTab(descriptor, tab) && inOrigin(descriptor, origin) && shaderMatches(descriptor, query),
         );
     const found = query.trim() === "" ? [] : options.filter((option) => matchesWordStart(option.label, query));
     const reasons = new Map(
@@ -392,6 +368,11 @@ export function ShaderGallery({
                 }
             }}
         >
+            {onNew !== undefined && (
+                <UnstyledButton className="ws-gallery-paste" onClick={onNew}>
+                    <Text size="xs">{GALLERY_WORDS.newShader}</Text>
+                </UnstyledButton>
+            )}
             <TextInput
                 size="xs"
                 aria-label={GALLERY_WORDS.search(tab)}
@@ -414,22 +395,6 @@ export function ShaderGallery({
                     }
                 }}
             />
-            {filters.length > 0 && (
-                <Chip.Group
-                    value={placeKey}
-                    onChange={(value) => {
-                        setPlaceKey(typeof value === "string" ? value : "all");
-                    }}
-                >
-                    <Group gap={4} wrap="wrap" role="radiogroup" aria-label={GALLERY_WORDS.place} data-filter="place">
-                        {filters.map((each) => (
-                            <Chip key={each.key} value={each.key} size="xs" variant="outline">
-                                {each.label}
-                            </Chip>
-                        ))}
-                    </Group>
-                </Chip.Group>
-            )}
             <Chip.Group
                 value={origin}
                 onChange={(value) => {
@@ -463,20 +428,6 @@ export function ShaderGallery({
                 <Text size="xs" c="dimmed">
                     {GALLERY_WORDS.none}
                 </Text>
-            )}
-            {onNew !== undefined && (
-                // Pinned at the foot of the pop-out, so it is in view however long the grid is.
-                <div className="ws-gallery-foot">
-                    <UnstyledButton
-                        className="ws-gallery-paste"
-                        onClick={() => {
-                            const at = filter?.places[0] ?? FIRST_PLACE[tab];
-                            onNew(at);
-                        }}
-                    >
-                        <Text size="xs">{GALLERY_WORDS.newShader}</Text>
-                    </UnstyledButton>
-                </div>
             )}
         </div>
     );

@@ -296,7 +296,7 @@ function WireframeRow({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element
  * one row per use on the layer's list in its order. A pick adds the shader at its own place, to
  * every selected layer in one undo step, and hands focus to the new row's place. A search hit on
  * one of the tab's own style options adds that option's row in its section instead. "New
- * shader..." opens the code dialog at the filter's place. Control+V on the section opens the
+ * shader..." opens the code dialog, which asks the place. Control+V on the section opens the
  * dialog with the clipboard's text.
  * @param props - Component props
  * @param props.ctx - the row and kind
@@ -398,9 +398,9 @@ function ShadersSection({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                                     }
                                 }
                             }}
-                            onNew={(place) => {
+                            onNew={() => {
                                 setGallery(false);
-                                setCode({ place });
+                                setCode({});
                             }}
                             onDelete={(id) => {
                                 const name =

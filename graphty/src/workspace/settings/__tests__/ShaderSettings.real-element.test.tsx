@@ -213,7 +213,7 @@ describe("the graph's shader settings", () => {
         );
     });
 
-    it("the Background shader gallery ends in New shader..., whose Add sets the background as one step", async () => {
+    it("the Background shader gallery starts with New shader..., whose Add sets the background as one step", async () => {
         const element = await openGraphSettings();
         // A copy whose body differs from the preset's by a comment, so it is added as a new shader.
         const text = `${await element.session.shaders.source("nebula", { duplicate: true })}\n// pasted\n`;

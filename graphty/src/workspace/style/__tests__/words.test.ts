@@ -16,7 +16,6 @@ import {
     madeWords,
     matchesWordStart,
     paletteWord,
-    PLACE_FILTERS,
     placeWords,
     positionWord,
     refusalWords,
@@ -184,14 +183,6 @@ describe("shader words", () => {
         assert.equal(placeWords("over"), "On the node");
         assert.equal(placeWords("paint", "edge"), "On the line");
         assert.equal(placeWords("replace"), "Instead of the node");
-        assert.deepEqual(
-            PLACE_FILTERS.node.map((chip) => chip.label),
-            ["All", "On the node", "Instead of the node", "Around", "Behind", "Around the group"],
-        );
-        assert.deepEqual(
-            PLACE_FILTERS.edge.map((chip) => chip.label),
-            ["All", "On the line", "Along the line"],
-        );
     });
 
     it("writes a clock binding and the hidden caption as words", () => {

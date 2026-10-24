@@ -196,7 +196,11 @@ run's code):
        `ACTION NEEDED: review the golden cut #<cut pr>: https://dev.ato.ms:9209/#token=<token>&target=<cut pr>`, with
        the token from the review server's log (`servherd_logs` of `visual-review`). Record it with an
        `asked owner -- review cut #<cut pr>` marker on the cut pull request.
-    3. **Ship** with `node tools/land.mjs ship` after his Finish, when all of these hold:
+    3. **Ship** with `node tools/land.mjs ship` after his Finish, when all of these hold. A cut with nothing to
+       review ships itself: `land.mjs auto-ship` runs when its preview ends and when verification passes, and ships
+       when the preview of its head is only unchanged and excluded images, its baselines are master's, it is
+       verified, holds no breaking commit and master's build is green. Its decision is the `auto-ship:` line of
+       `node tools/land.mjs status`; do not ask the owner about such a cut.
         1. master's build is green, or the cut's landings are only the fix for it;
         2. no breaking commit without the owner's go:
            `git log --format=%s origin/master..origin/golden-cut | grep -E '^[a-z]+(\([^)]*\))?!:'` prints nothing;

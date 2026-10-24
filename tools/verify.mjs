@@ -86,6 +86,7 @@ import { selectedCommand } from "./test-select.mjs";
 // Without it verification works as before.
 const ledger = await import("./test-ledger.mjs").catch(() => null);
 const quarantine = await import("./test-quarantine.mjs").catch(() => null);
+const history = await import("./test-history.mjs").catch(() => null);
 
 /** How many times a confirming run or a bisect point runs a failure's test files: failing every time is consistent. */
 export const CONFIRM_RUNS = 5;
@@ -99,7 +100,8 @@ const LAND_SUBJECT = /^land: (\S+)$/;
 // ---------------------------------------------------------------- the context
 
 /**
- * What a command works on; tests replace `gate`, `check`, `spawnRun`, `publishRef` and `sessionAlive`.
+ * What a command works on; tests replace `gate`, `check`, `spawnRun`, `publishRef`, `onVerified` and
+ * `sessionAlive`.
  * @param cwd any directory of the repository
  * @param [overrides] `branch` (golden or golden-cut) and replacements
  * @returns the context
@@ -129,6 +131,7 @@ export function verifyContext(cwd, overrides = {}) {
         ciRerun: defaultCiRerun,
         spawnRun: defaultSpawnRun,
         publishRef: defaultPublishRef,
+        onVerified: defaultOnVerified,
         sessionAlive: defaultSessionAlive,
         killRun: defaultKillRun,
         captures: defaultCaptures,
@@ -337,6 +340,7 @@ export async function run(ctx) {
     ledgerDo(ctx, (l) => l.ensure(ctx.env, ctx.main));
     for (;;) {
         git(ctx, ctx.main, ["fetch", "-q", "origin"], { ok: true });
+        const before = readState(ctx).verified;
         const job = await withState(ctx, (s) => nextJob(ctx, s));
         if (!job) {
             ledgerDo(ctx, (l) => console.log(l.prune(ctx.env, ctx.main)));
@@ -344,6 +348,8 @@ export async function run(ctx) {
         }
         if (job.bisect) await bisect(ctx);
         else if (job.target) await verifyCommit(ctx, job);
+        const after = readState(ctx).verified;
+        if (after && after !== before) ctx.onVerified(ctx, after);
     }
 }
 
@@ -926,10 +932,22 @@ async function finishBisect(ctx, sha, why, parent) {
         const sigs = tests.map((t) => t.signature);
         if (sha && sigs.length)
             ledgerDo(ctx, (l) => l.noteCulprit(l.ledgerDir(ctx.env, ctx.main), sigs, s.last.culprit, ctx.gh));
+        if (sha && tests.length) noteMiss(ctx, s.last.culprit, tests);
         s.last.reproduced = true;
         s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = "failed";
     });
+}
+
+// The culprit's miss for history ranking (tools/test-history.mjs): its changed files and its failing test files.
+function noteMiss(ctx, culprit, tests) {
+    try {
+        const changed = git(ctx, ctx.main, ["diff", "--name-only", `${culprit.sha}^1`, culprit.sha]).split("\n");
+        const files = tests.map((t) => t.file);
+        history?.recordMiss(ctx.env, ctx.main, { culprit: culprit.sha, branch: culprit.branch, changed, files });
+    } catch (e) {
+        console.log(`verify: miss: ${e.message.split("\n")[0]}`);
+    }
 }
 
 /**
@@ -1278,7 +1296,69 @@ async function passed(ctx, job, run, jobs) {
         await recreate(ctx, job);
         return null;
     }
+    if (job.kind === "verify") ciFlakes(ctx, job, run);
     return { code: 0, output: `${CALLER}All Checks Pass: success (${run.html_url})` };
+}
+
+const FLAKES_QUERY = `query($id: ID!) { node(id: $id) { ... on CheckSuite { checkRuns(first: 100) { nodes {
+  annotations(first: 50) { nodes { message } } } } } } }`;
+const FLAKY_NOTE = /^\[FLAKY\] (\S+): (\S+) > (.+) failed and passed on the same inputs/;
+
+/**
+ * The tests a green run's quarantine wrapper let through as flaky (its `[FLAKY]` warnings), as targets.
+ * @param answer the GraphQL answer
+ * @returns `[{ id, shard, family, file, name }]`
+ */
+export function flakyNotes(answer) {
+    const runs = answer?.data?.node?.checkRuns?.nodes ?? [];
+    const notes = runs.flatMap((r) => r.annotations?.nodes ?? []).map((a) => FLAKY_NOTE.exec(a.message ?? ""));
+    const tests = notes
+        .filter(Boolean)
+        .map(([, shard, file, name]) => ({ id: `${file} > ${name}`, shard, file, name }));
+    return [...new Map(tests.map((t) => [t.id, { ...t, family: ledger?.familyOf(t.shard) ?? t.shard }])).values()];
+}
+
+/**
+ * A green CI verification still tells of the tests it let through (design/ci/history-selection.md, section 6): one
+ * GraphQL call reads the run's `[FLAKY]` warnings, and each test the quarantine does not list yet is recorded in the
+ * ledger and quarantined with the range's landings as suspects. Its issue says when the ledger has no failure of it
+ * before the range (newly intermittent, so a landing made it so). Unanswered, nothing happens.
+ * ponytail: a newly intermittent test seen only as a CI retry-pass is reported with suspects, not bisected; bisect
+ * it in CI when such issues show up.
+ * @param ctx the context
+ * @param job the gate's job
+ * @param run the green run
+ * @returns the quarantine entries in force for those tests
+ */
+function ciFlakes(ctx, job, run) {
+    if (!quarantine?.quarantineEnabled(ctx.env) || !run.check_suite_node_id) return [];
+    try {
+        const query = ["api", "graphql", "-f", `query=${FLAKES_QUERY}`, "-f", `id=${run.check_suite_node_id}`];
+        const listed = quarantine.activeList(quarantine.committedList(ctx.main), quarantine.readState(ctx.main));
+        const fresh = flakyNotes(JSON.parse(ctx.gh(query))).filter((t) => !quarantine.quarantined(listed, t.family, t));
+        if (!fresh.length) return [];
+        const from = readState(ctx).verified;
+        const last = { from, commit: job.commit, bisect: { candidates: landMerges(ctx, from, job.commit) } };
+        const newly = new Set(newlyIntermittent(ctx, last, fresh).map((t) => t.id));
+        ledgerDo(ctx, (l) => recordFlakes(ctx, l, { job, run, fresh }));
+        const where = `failed and passed its retry in CI verification of golden ${short(job.commit)}`;
+        const how = (t) =>
+            newly.has(t.id) ? `${where}, with no failure in the ledger before: newly intermittent` : where;
+        const suspects = suspectsOf(ctx, last.bisect.candidates);
+        const entries = fresh.map((t) => ({ ...t, how: how(t), excerpt: "", suspects }));
+        return quarantine.quarantineTests(ctx.main, entries, ctx.gh);
+    } catch (e) {
+        console.log(`verify: the run's flaky tests: ${e.message.split("\n")[0]}`);
+        return [];
+    }
+}
+
+// One ledger record per shard of a green run's let-through flakes: the shard passed, its tests failed once.
+function recordFlakes(ctx, l, { job, run, fresh }) {
+    for (const shard of new Set(fresh.map((t) => t.shard))) {
+        const failures = fresh.filter((t) => t.shard === shard).map((t) => ({ ...t, text: "", retryPassed: true }));
+        ciRecord(ctx, l, { job, run, shard, junit: { files: new Map() }, failures, outcome: "passed" });
+    }
 }
 
 const jobName = (j) => (j.name.startsWith(CALLER) ? j.name.slice(CALLER.length) : j.name);
@@ -1368,7 +1448,7 @@ const failedNames = (output) => [...(output ?? "").matchAll(/\[FAIL\] (\S+)/g)].
 /**
  * A failed test job's JUnit reports (ci.yml's `junit-<shard>` artifact, one download) as test-ledger records of the
  * commit, one per failing shard, so verification knows the exact failing tests and runs only their files here.
- * A test that failed in one report and passed in another (the quarantine's retry) passed. Without the artifact or
+ * A test that failed in one report and passed in another (the quarantine's retry) is kept as a failure. Without the artifact or
  * the ledger there is no record, and the shard is run whole.
  * ponytail: a group's report goes to the first failing member with its package; two members of one package
  * (cytoscape-extensions and its Cytoscape versions pass) share one.
@@ -1397,7 +1477,8 @@ async function junitRecords(ctx, job, run, artifact, members) {
     return records ?? {};
 }
 
-// Every report in a directory, with only the failures that passed in none of them.
+// Every report in a directory, each failure once; one that passed in another report (the quarantine's retry) is
+// kept, marked retryPassed, so verification confirms it and the ledger keeps it (design/ci/history-selection.md 6).
 function readCiJunit(l, dir) {
     const reports = existsSync(dir) ? readdirSync(dir).filter((n) => /^junit-.*\.xml$/.test(n)) : [];
     const all = { files: new Map(), failures: [] };
@@ -1414,12 +1495,12 @@ function readCiJunit(l, dir) {
         }
     }
     const failures = new Map(all.failures.map((f) => [key(f.file, f.name), f]));
-    all.failures = [...failures].filter(([k]) => !passed.has(k)).map(([, f]) => f);
+    all.failures = [...failures].map(([k, f]) => (passed.has(k) ? { ...f, retryPassed: true } : f));
     return all;
 }
 
 // One shard's record, as tools/test-ledger.mjs record() writes a run's here.
-function ciRecord(ctx, l, { job, run, shard, junit, failures }) {
+function ciRecord(ctx, l, { job, run, shard, junit, failures, outcome = "failed" }) {
     const pkgs = new Set(failures.map((f) => f.file.split("/")[0]));
     const files = [...junit.files]
         .filter(([f]) => pkgs.has(f.split("/")[0]))
@@ -1440,7 +1521,7 @@ function ciRecord(ctx, l, { job, run, shard, junit, failures }) {
         family,
         variant: family,
         selected: null,
-        outcome: "failed",
+        outcome,
         reused_from: null,
         started_at: now(),
         secs: 0,
@@ -1451,6 +1532,7 @@ function ciRecord(ctx, l, { job, run, shard, junit, failures }) {
             name: f.name,
             ...l.failureHashes(f.text, f.file),
             message: f.text.slice(0, 2000),
+            ...(f.retryPassed ? { retry_passed: true } : {}),
         })),
         exonerations: [],
     };
@@ -1826,6 +1908,13 @@ function defaultPublishRef(ctx, commit) {
         ok: true,
     });
     if (r.status !== 0) console.error(`verify: could not move ${VERIFIED_REF} to ${short(commit)}: ${r.stderr}`);
+}
+
+// A pass can make the cut shippable: tools/land.mjs auto-ship ships it when its preview changes no image.
+function defaultOnVerified(ctx) {
+    const land = join(dirname(fileURLToPath(import.meta.url)), "land.mjs");
+    const r = spawnSync(process.execPath, [land, "auto-ship"], { cwd: ctx.main, env: ctx.env, stdio: "inherit" });
+    if (r.status !== 0) console.error(`verify: land.mjs auto-ship exited ${r.status ?? r.signal}`);
 }
 
 // ---------------------------------------------------------------- acting on a result

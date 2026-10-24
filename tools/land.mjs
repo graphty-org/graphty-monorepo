@@ -10,6 +10,9 @@
 //   node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>   merge a fix for a red master, a failed deploy or
 //                                                   a release hold into golden-cut, push it, then land it on golden
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
+//   node tools/land.mjs auto-ship                   ship the cut when its preview of its head changes no image
+//                                                   and it is verified (run when a cut's preview ends and when
+//                                                   a verification passes; logged to tmp/golden/auto-ship.log)
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
 //   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
 //   --allow-copies <sha>[,<sha>...] (land, one branch)  land despite these listed copies of golden commits (sha
@@ -53,6 +56,10 @@
 // a commit whose files the cut's head has outside visual-baselines/ and visual-review-approvals/, so the
 // owner's Finish (and an update of the baselines from master) redoes neither. A cut fix is only for a red
 // master, a failed deploy or a release hold, which its --reason names and GitHub confirms.
+// `auto-ship` does what ship does without the owner when the cut's preview of exactly its head shows only
+// unchanged and excluded images, its baselines are master's or carry the owner's signed tree approval, it
+// holds no breaking commit and master's build is green; it runs when a cut's preview ends and when a
+// verification passes.
 //
 // Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
 // (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
@@ -87,6 +94,7 @@ import {
     rmSync,
     statSync,
     symlinkSync,
+    watch as watchDir,
     writeFileSync,
 } from "node:fs";
 import { constants as osConstants, hostname } from "node:os";
@@ -571,41 +579,61 @@ export function sync(ctx) {
     return null;
 }
 
+// The branch the main checkout follows: golden-verified, the newest golden commit verification passed, so
+// new sessions read instructions (CLAUDE.md) and run tools that passed, days before a cut reaches master.
+// To follow master again, set this to "master": the next update switches the main checkout back.
+export const MAIN_FOLLOWS = VERIFIED;
+const FOLLOWABLE = new Set(["master", VERIFIED]);
+
 /**
- * Fast-forwards the main checkout's master to origin/master after a fetch, so new sessions read
- * current instructions (CLAUDE.md) from it. Changes nothing, with one warning line, when it is on
- * another branch, has tracked changes or has commits origin/master lacks; never throws.
+ * Brings the main checkout to origin/<MAIN_FOLLOWS> (origin/master while GitHub has no golden-verified)
+ * after a fetch: fast-forwards that branch when it is checked out, or switches to it from the other one
+ * of master and golden-verified. Changes nothing, with one warning line, when it is on any other branch,
+ * has tracked changes, would overwrite an untracked or ignored file, or either branch has commits its
+ * origin lacks; untracked files stay as they are. Never throws.
  * @param ctx the run's context
  */
 export function updateMainCheckout(ctx) {
     try {
+        const target = hasRef(ctx, ctx.main, `origin/${MAIN_FOLLOWS}`).status === 0 ? MAIN_FOLLOWS : "master";
+        const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
         const from = git(ctx, ctx.main, ["rev-parse", "HEAD"]);
-        const to = git(ctx, ctx.main, ["rev-parse", "origin/master"]);
-        if (from === to) return;
-        const why = mainCheckoutBlocker(ctx, from);
+        const to = git(ctx, ctx.main, ["rev-parse", `origin/${target}`]);
+        if (branch === target && from === to) return;
+        const why = mainCheckoutBlocker(ctx, branch, target);
         if (why) {
             console.error(`land: warning: left the main checkout ${ctx.main} alone: ${why}`);
             return;
         }
-        git(ctx, ctx.main, ["merge", "-q", "--ff-only", "origin/master"]);
-        console.log(`land: moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
+        const [a, b] = [from.slice(0, 10), to.slice(0, 10)];
+        if (branch === target) {
+            git(ctx, ctx.main, ["merge", "-q", "--ff-only", "--no-overwrite-ignore", `origin/${target}`]);
+            console.log(`land: moved the main checkout's ${target} from ${a} to ${b}`);
+        } else {
+            git(ctx, ctx.main, ["switch", "-q", "--no-overwrite-ignore", "-C", target, `origin/${target}`]);
+            console.log(`land: switched the main checkout from ${branch} (${a}) to ${target} (${b})`);
+        }
     } catch (e) {
         console.error(`land: warning: could not update the main checkout ${ctx.main}: ${e.message}`);
     }
 }
 
 /**
- * Why the main checkout cannot be fast-forwarded to origin/master.
+ * Why the main checkout cannot be brought to origin/<target>.
  * @param ctx the run's context
- * @param head its HEAD commit
+ * @param branch the branch it has checked out ("" for a detached HEAD)
+ * @param target the branch it should follow
  * @returns the reason, or null when it can be
  */
-function mainCheckoutBlocker(ctx, head) {
-    const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
-    if (branch !== "master") return `it is on ${branch || "a detached HEAD"}, not master`;
+function mainCheckoutBlocker(ctx, branch, target) {
+    if (!FOLLOWABLE.has(branch)) return `it is on ${branch || "a detached HEAD"}, not ${target}`;
     if (git(ctx, ctx.main, ["status", "--porcelain", "--untracked-files=no"])) return "it has uncommitted changes";
-    const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", head, "origin/master"], { ok: true });
-    return ff.status === 0 ? null : "its master has commits origin/master does not";
+    for (const b of new Set([branch, target])) {
+        if (hasRef(ctx, ctx.main, `refs/heads/${b}`).status !== 0) continue;
+        const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", `refs/heads/${b}`, `origin/${b}`], { ok: true });
+        if (ff.status !== 0) return `its ${b} has commits origin/${b} does not`;
+    }
+    return null;
 }
 
 const conflicted = (ctx) =>
@@ -719,8 +747,8 @@ function defaultGh(ctx, args) {
 }
 
 /**
- * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * Starts tools/visual-preview.sh (the live gate copy) for a pull request, detached, unless the gate
+ * already captured this head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
  * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
@@ -740,9 +768,12 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    // The cut's preview is what the owner reviews before a ship: it goes first (tools/visual-preview.sh).
+    // The live gate copy, as every other preview runs (the pre-push gate's), so all of them share one
+    // queue; the worktree's own copy only where there is none. The cut's previews go first.
+    const live = join(ctx.main, ".worktrees/gate-live/tools/visual-preview.sh");
+    const script = existsSync(live) ? live : join(cwd, "tools/visual-preview.sh");
     const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
+    spawn("setsid", [script, String(pr), "--expect", head], {
         cwd,
         env,
         detached: true,
@@ -750,6 +781,50 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }).unref();
     closeSync(fd);
     console.log(`land: screenshots of #${pr} are being captured for the review page (log: ${log})`);
+}
+
+/**
+ * Starts the cut's preview and, beside it, a watcher that runs auto-ship once that preview of the cut's
+ * head ends: a preview ending is one of the events auto-ship decides on.
+ * @param ctx the run's context
+ * @param pr the cut pull request's number
+ */
+function previewCut(ctx, pr) {
+    ctx.preview(ctx, pr, ctx.cut);
+    ctx.watchPreview(ctx, pr, git(ctx, ctx.cut, ["rev-parse", "HEAD"]));
+}
+
+function defaultWatchPreview(ctx, pr, head) {
+    const fd = openSync(join(ctx.main, `tmp/golden/auto-ship-watch-${pr}.log`), "w");
+    const args = [fileURLToPath(import.meta.url), "auto-ship", "--after-preview", String(pr), head];
+    spawn(process.execPath, args, { cwd: ctx.main, env: ctx.env, detached: true, stdio: ["ignore", fd, fd] }).unref();
+    closeSync(fd);
+}
+
+/**
+ * Waits for the preview of a pull request's head to end (done, failed or stale). An older head's status
+ * is a leftover to wait past; another head's preview means a newer one replaced this one.
+ * @param ctx the run's context
+ * @param pr the pull request's number
+ * @param head the head whose preview is awaited
+ * @returns true when that preview ended, false when another replaced it
+ */
+export function previewSettled(ctx, pr, head) {
+    const dir = join(ctx.main, `tmp/visual-review/local/${pr}`);
+    mkdirSync(dir, { recursive: true });
+    return new Promise((resolve) => {
+        const look = () => {
+            const s = readJson(join(dir, "status.json"));
+            if (!s?.head || (s.head === head && s.state === "running")) return;
+            const older =
+                s.head !== head && git(ctx, ctx.main, ["merge-base", "--is-ancestor", s.head, head], { ok: true });
+            if (older && older.status === 0) return;
+            watcher.close();
+            resolve(s.head === head);
+        };
+        const watcher = watchDir(dir, (_e, f) => (!f || f === "status.json") && look());
+        look();
+    });
 }
 
 /**
@@ -1588,28 +1663,155 @@ export async function revert(ctx, branch) {
  * @returns the exit code
  */
 export async function ship(ctx) {
-    const cutting = readLock(ctx.cutLock);
-    if (cutting && !stale(ctx.cutLock, cutting)) {
-        return fail(`a cut is pushing ${CUT} now (${describeOwner(cutting)}); ship after it`);
-    }
-    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
-    updateMainCheckout(ctx);
-    const pr = goldenPr(ctx, CUT);
-    if (!pr) return fail(`there is no open ${CUT} pull request; make one with node tools/land.mjs cut`);
-    const moved = cutMoved(ctx, pr);
-    if (moved) return fail(`#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it`);
-    const unverified = cutUnverified(ctx, pr.headRefOid);
-    if (unverified) return fail(`#${pr.number} ${unverified}`);
-    ctx.gh(ctx, ["pr", "ready", String(pr.number)]);
-    ctx.gh(ctx, ["pr", "merge", String(pr.number), "--auto", "--merge"]);
+    const r = shipReady(ctx);
+    if (r.error) return fail(r.error);
+    markReady(ctx, r.pr);
     console.log(
-        `land: #${pr.number} is ready with auto-merge on (${pr.url}).\n` +
-            "CI (ci.yml) now runs the affected suite on it once, on clean machines, and the visual gate checks\n" +
+        "CI (ci.yml) now runs the affected suite on it once, on clean machines, and the visual gate checks\n" +
             "CI's screenshots against the owner's approvals. When All Checks Pass and Lint PR Title are green,\n" +
             "GitHub merges it into master with a merge commit. If CI fails, find the culprit from the failure,\n" +
             "`node tools/land.mjs revert <branch>` it, cut again, and `gh pr ready --undo` while you do.",
     );
     return 0;
+}
+
+/**
+ * What ship checks before marking the cut pull request ready: no cut pushing golden-cut, an open cut pull
+ * request whose preview is current and whose head is verified.
+ * @param ctx the run's context
+ * @returns `{ pr }` when it can ship, else `{ error, pr? }` (`pr` once the pull request is known)
+ */
+function shipReady(ctx) {
+    const cutting = readLock(ctx.cutLock);
+    if (cutting && !stale(ctx.cutLock, cutting)) {
+        return { error: `a cut is pushing ${CUT} now (${describeOwner(cutting)}); ship after it`, cutting: true };
+    }
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+    updateMainCheckout(ctx);
+    const pr = goldenPr(ctx, CUT);
+    if (!pr) return { error: `there is no open ${CUT} pull request; make one with node tools/land.mjs cut` };
+    const moved = cutMoved(ctx, pr);
+    if (moved)
+        return { pr, error: `#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it` };
+    const unverified = cutUnverified(ctx, pr.headRefOid);
+    if (unverified) return { pr, error: `#${pr.number} ${unverified}` };
+    return { pr };
+}
+
+function markReady(ctx, pr) {
+    ctx.gh(ctx, ["pr", "ready", String(pr.number)]);
+    ctx.gh(ctx, ["pr", "merge", String(pr.number), "--auto", "--merge"]);
+    console.log(`land: #${pr.number} is ready with auto-merge on (${pr.url}).`);
+}
+
+// The statuses of a preview item that need no one's decision.
+const CLEAN = new Set(["unchanged", "excluded"]);
+
+/**
+ * Ships the cut pull request without the owner when nothing in it needs the owner's eyes: its preview of
+ * exactly its head shows only unchanged and excluded images, its baselines are master's (or the owner signed that tree), and ship's own
+ * checks pass. Called when a cut's preview finishes and when a verification passes; a second call, or one
+ * while another decides, does nothing. Every decision goes to tmp/golden/auto-ship.log.
+ * @param ctx the run's context
+ * @returns 0
+ */
+export async function autoShip(ctx) {
+    const lock = join(ctx.main, "tmp/golden/auto-ship-lock");
+    mkdirSync(dirname(lock), { recursive: true });
+    const owner = readLock(lock);
+    if (owner && stale(lock, owner)) removeStaleLock(lock, owner);
+    const release = tryLock(lock, { command: "auto-ship" });
+    if (!release) return 0;
+    try {
+        const r = shipReady(ctx);
+        if (r.pr && !r.pr.isDraft) return 0;
+        if (!r.pr && !r.cutting) return 0;
+        const changed = r.error ? [] : await previewChanges(ctx, r.pr);
+        let why = r.error;
+        if (!why && typeof changed === "string") why = `#${r.pr.number} ${changed}`;
+        else if (!why && changed.length) {
+            why = `#${r.pr.number} waits for the owner: ${changed.length} changed (${changed.slice(0, 5).join("; ")})`;
+        }
+        why ??= shipBlocker(ctx, r.pr);
+        if (why) {
+            logAutoShip(ctx, `waiting: ${why}`);
+            return 0;
+        }
+        markReady(ctx, r.pr);
+        logAutoShip(
+            ctx,
+            `shipped #${r.pr.number} at ${r.pr.headRefOid.slice(0, 10)}: no changed screenshots, verified`,
+        );
+        return 0;
+    } finally {
+        release();
+    }
+}
+
+/**
+ * What in the cut needs the owner: every preview item that is not unchanged or excluded, and a baselines
+ * tree that differs from master's without the owner's signed approval of exactly that tree, checked as the CI
+ * gate checks it (visual-review/trusted/gate.mjs treeApprovalProblems, with master's passkeys).
+ * @param ctx the run's context
+ * @param pr the cut pull request (`number`, `headRefOid`)
+ * @returns the list (empty: nothing), or why the preview cannot tell
+ */
+async function previewChanges(ctx, pr) {
+    const dir = join(ctx.main, `tmp/visual-review/local/${pr.number}`);
+    const status = readJson(join(dir, "status.json"));
+    if (status?.state !== "done" || status.head !== pr.headRefOid) {
+        return `has no finished screenshot preview of its head ${pr.headRefOid.slice(0, 10)}`;
+    }
+    if (/^nothing captured/.test(status.step ?? "")) return `captured nothing: ${status.step}`;
+    const changed = [];
+    for (const p of status.projects ?? []) {
+        const results = readJson(join(dir, p, "results.json"));
+        if (results?.complete !== true) return `has no complete preview of ${p}`;
+        for (const i of results.items) if (!CLEAN.has(i.status)) changed.push(`${p}/${i.file} ${i.status}`);
+    }
+    // Loaded here, not at the top: the land tool runs without visual-review beside it everywhere else.
+    const { approvalKeys, treeApprovalProblems } = await import("../visual-review/trusted/gate.mjs");
+    const [baselines, approvals] = reviewDirs(ctx);
+    const at = { base: "origin/master", head: pr.headRefOid, cwd: ctx.main, baselines, approvals };
+    const { keys, problems } = approvalKeys(at.base, at.head, ctx.main);
+    for (const why of [...problems, ...treeApprovalProblems({ ...at, keys })]) changed.push(`baselines: ${why}`);
+    return changed;
+}
+
+/**
+ * What else keeps a cut from shipping without the owner: a breaking commit needs the owner's go, and a red
+ * master build ships nothing but its fix (the pipeline round ships that by hand).
+ * @param ctx the run's context
+ * @param pr the cut pull request
+ * @returns the reason, or null
+ */
+function shipBlocker(ctx, pr) {
+    const subjects = git(ctx, ctx.main, ["log", "--format=%s", `origin/master..${pr.headRefOid}`]).split("\n");
+    const breaking = subjects.filter((t) => /^[a-z]+(\([^)]*\))?!:/.test(t));
+    if (breaking.length) return `#${pr.number} waits for the owner's go on a breaking commit: ${breaking[0]}`;
+    const runs = ctx.gh(ctx, [
+        "run",
+        "list",
+        "--workflow",
+        "ci.yml",
+        "--branch",
+        "master",
+        "--event",
+        "push",
+        "--status",
+        "completed",
+        "--limit",
+        "1",
+        "--json",
+        "conclusion",
+    ]);
+    const conclusion = JSON.parse(runs || "[]")[0]?.conclusion;
+    return conclusion === "success" ? null : `#${pr.number} waits: master's last build is ${conclusion ?? "unknown"}`;
+}
+
+function logAutoShip(ctx, line) {
+    console.log(`land: auto-ship: ${line}`);
+    appendFileSync(join(ctx.main, "tmp/golden/auto-ship.log"), `${new Date().toISOString()} ${line}\n`);
 }
 
 /**
@@ -1825,7 +2027,7 @@ export async function cut(ctx, given) {
         "",
     ];
     const pr = upsertPr(ctx, CUT, CUT_TITLE, prBody(landedBranches(ctx, ctx.main, "origin/master", sha), intro), true);
-    if (pr) ctx.preview(ctx, pr, ctx.cut);
+    if (pr) previewCut(ctx, pr);
     const where = pr ? `, pull request #${pr}` : "";
     console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${where}.`);
     // A verified commit passes at once; a named one gets the full verification ship waits for.
@@ -1999,7 +2201,7 @@ export async function cutFix(ctx, branch, opts = {}) {
             prBody(landedBranches(ctx, ctx.main, "origin/master", head), intro),
             true,
         );
-        if (pr) ctx.preview(ctx, pr, ctx.cut);
+        if (pr) previewCut(ctx, pr);
     } catch (e) {
         console.error(`land: the cut pull request was not updated: ${e.message}`);
     }
@@ -2053,6 +2255,8 @@ export async function status(ctx) {
         console.log(
             `newest preview log ${newest}:\n${readFileSync(newest, "utf8").trimEnd().split("\n").slice(-10).join("\n")}`,
         );
+    const shipLog = join(ctx.main, "tmp/golden/auto-ship.log");
+    if (existsSync(shipLog)) console.log(`auto-ship: ${readFileSync(shipLog, "utf8").trimEnd().split("\n").at(-1)}`);
     console.log(openWork(ctx));
     return 0;
 }
@@ -2261,6 +2465,7 @@ export function context(cwd, overrides = {}) {
         verify: defaultVerify,
         gh: defaultGh,
         preview: defaultPreview,
+        watchPreview: defaultWatchPreview,
         addWorktree: defaultAddWorktree,
         addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
@@ -2271,7 +2476,7 @@ export function context(cwd, overrides = {}) {
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> --reason <issue>|run:<id> | ship | status | prune-branches [--yes] |" +
+    " cut-fix <branch> --reason <issue>|run:<id> | ship | auto-ship | status | prune-branches [--yes] |" +
     " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
 
 /**
@@ -2356,6 +2561,11 @@ async function underLock(ctx, info, lockOptions, work) {
 const UNLOCKED = {
     status: (ctx) => status(ctx),
     ship: (ctx) => ship(ctx),
+    "auto-ship": async (ctx, pr, argv) => {
+        if (!argv.includes("--after-preview")) return autoShip(ctx);
+        const head = argv.findLast((a) => !a.startsWith("--"));
+        return (await previewSettled(ctx, pr, head)) ? autoShip(ctx) : 0;
+    },
     cut: (ctx, given, _argv, lockOptions) => cutLocked(ctx, given, lockOptions),
     "cut-fix": cutFixThenLand,
     "prune-branches": (ctx, _branch, argv) => {

@@ -241,7 +241,12 @@ run's code):
        `ACTION NEEDED: review the golden cut #<cut pr>: https://dev.ato.ms:9209/#token=<token>&target=<cut pr>`, with
        the token from the review server's log (`servherd_logs` of `visual-review`). Record it with an
        `asked owner -- review cut #<cut pr>` marker on the cut pull request.
-    3. **Ship** with `node tools/land.mjs ship` after his Finish, when all of these hold:
+    3. **Ship** with `node tools/land.mjs ship` after his Finish, when all of these hold. A cut with nothing to
+       review ships itself: `land.mjs auto-ship` runs when its preview ends and when verification passes, and ships
+       when the preview of its head is only unchanged and excluded images, its baselines are master's or the owner
+       signed that tree (as the CI gate checks), it is verified, holds no breaking commit and master's build is
+       green. Its decision is the `auto-ship:` line of
+       `node tools/land.mjs status`; do not ask the owner about such a cut.
         1. master's build is green, or the cut's landings are only the fix for it;
         2. no breaking commit without the owner's go:
            `git log --format=%s origin/master..origin/golden-cut | grep -E '^[a-z]+(\([^)]*\))?!:'` prints nothing;
@@ -387,8 +392,10 @@ its branch (`git branch -r --contains <sha>`): a branch that is `ready` or landi
 `pipeline-round: live but not landed <sha7> in <copy>` marker on its issue (a branch with no issue gets one, step 6),
 and a commit no branch on GitHub holds gets an issue. Print the count in the round's last line.
 
-Also fast-forward the main checkout when it is on master with no tracked changes and no merge or rebase in progress:
-`git -C /home/apowers/Projects/graphty-monorepo merge --ff-only origin/master`.
+The main checkout follows `golden-verified`: every `land`, `revert`, `ship` and `status` run switches it from
+master to the local branch `golden-verified` and fast-forwards it to `origin/golden-verified`, and warns when it
+cannot (another branch, tracked changes, local commits). Read that warning in the run's output; do not move the
+main checkout by hand.
 
 ### 8. Nightly branch sync
 

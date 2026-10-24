@@ -7,7 +7,7 @@
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
     copyFileSync,
@@ -326,7 +326,10 @@ describe("the pre-push gate matches CI", () => {
             );
             assert.deepEqual(
                 shardEnv(s),
-                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                {
+                    GRAPHTY_TEST_SHARD: s.shard,
+                    ...(shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {}),
+                },
                 s.shard,
             );
         }
@@ -710,6 +713,7 @@ esac
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
     [ -n "$STUB_HANG" ] && exec sleep 300
+    [ -n "$STUB_CAPTURES" ] && echo x >> "$STUB_CAPTURES"
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
     printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
@@ -731,7 +735,7 @@ esac
 exec ${realGit} "$@"
 `,
         };
-        const sandbox = (fn) => {
+        const sandbox = async (fn) => {
             const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
             const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
             Object.assign(env, {
@@ -789,14 +793,26 @@ exec ${realGit} "$@"
                     origin,
                     `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
                 );
-                fn({ run, head, origin, main, local: join(main, "tmp/visual-review/local") });
+                // The same, in the background: resolves to its exit code and output once it ends.
+                const start = (extra, ...args) => {
+                    const child = spawn("bash", [join(main, "tools/visual-preview.sh"), ...args], {
+                        cwd: main,
+                        env: { ...env, ...extra },
+                    });
+                    let out = "";
+                    child.stdout.on("data", (b) => (out += b));
+                    child.stderr.on("data", (b) => (out += b));
+                    const done = new Promise((resolve) => child.on("close", (status) => resolve({ status, out })));
+                    return { child, done, output: () => out };
+                };
+                await fn({ run, start, git, head, origin, main, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
         };
 
         it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 // An exported BRANCH (common in CI and agent shells) must not change the mode.
                 const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -813,7 +829,7 @@ exec ${realGit} "$@"
         });
 
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
-            sandbox(({ run, head, main, local }) => {
+            return sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
                 mkdirSync(join(main, "tmp"), { recursive: true });
                 const wrapper = join(main, "tmp/with-browser.sh");
@@ -834,7 +850,9 @@ exec ${realGit} "$@"
                 assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
                 assert.match(waited.stdout, /p: capturing \(\d+s left\)/);
 
-                // A capture that holds its slot and never finishes still fails, once its limit is spent.
+                // A capture that holds its slot and never finishes still fails, once its limit is spent
+                // (the finished capture of the same head is discarded first, or it would be reused).
+                assert.equal(run({}, "--discard", head).status, 0);
                 const stuck = run(
                     { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
                     "--head",
@@ -870,7 +888,7 @@ exec ${realGit} "$@"
             }));
 
         it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
-            sandbox(({ run, head, origin, main, local }) => {
+            return sandbox(({ run, head, origin, main, local }) => {
                 const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
                 // GitHub's merge ref of the new head, as it builds it once it has seen the push.
                 const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
@@ -900,8 +918,132 @@ exec ${realGit} "$@"
             });
         });
 
+        // A live process to hold a queue ticket, and a pid that is certainly dead.
+        const holder = () => spawn("sleep", ["600"]);
+        const deadPid = () => spawnSync("bash", ["-c", "echo $$"], { encoding: "utf8" }).stdout.trim();
+        const ticket = (local, name) => {
+            mkdirSync(join(local, ".queue"), { recursive: true });
+            writeFileSync(join(local, ".queue", name), "someone\n");
+        };
+        const until = async (ok) => {
+            while (!ok()) await new Promise((r) => setImmediate(r));
+        };
+
+        it("waits its turn behind an earlier preview, first come first served, and skips a dead waiter", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const earlier = holder();
+                try {
+                    ticket(local, `1-1-${earlier.pid}`);
+                    ticket(local, `1-2-${deadPid()}`);
+                    const p = start({ STUB_STATUS: "changed", VISUAL_PREVIEW_POLL: "0.05" }, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    assert.ok(!existsSync(join(local, `.pending-${head}/p/results.json`)), "nothing captured yet");
+                    earlier.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                    assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)));
+                    assert.deepEqual(readdirSync(join(local, ".queue")), [], "every ticket is gone, the dead one too");
+                    // One that arrived after this one never holds it up.
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    const later = holder();
+                    try {
+                        ticket(local, `1-99999999999999999999-${later.pid}`);
+                        assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                    } finally {
+                        later.kill();
+                    }
+                } finally {
+                    earlier.kill();
+                }
+            }));
+
+        it("puts the cut's preview ahead of every waiting one, but never ahead of one already working", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const waiting = holder();
+                const working = holder();
+                try {
+                    ticket(local, `1-1-${waiting.pid}`);
+                    const cut = { STUB_STATUS: "changed", VISUAL_PREVIEW_PRIORITY: "cut", VISUAL_PREVIEW_POLL: "0.05" };
+                    assert.equal(run(cut, "--head", head).status, 0, "ahead of a waiting preview");
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    // A working preview's ticket is rank 0 as of its start.
+                    ticket(local, `0-2-${working.pid}`);
+                    const p = start(cut, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    working.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                } finally {
+                    waiting.kill();
+                    working.kill();
+                }
+            }));
+
+        it("reuses a finished capture of the same head and trees, and only that", () =>
+            sandbox(({ run, git, head, origin, main, local }) => {
+                const captures = join(main, "captures");
+                const count = () => (existsSync(captures) ? readFileSync(captures, "utf8").split("\n").length - 1 : 0);
+                const env = { STUB_STATUS: "changed", STUB_CAPTURES: captures };
+                assert.equal(run(env, "--head", head).status, 0);
+                assert.equal(run({}, "--promote", head).status, 0);
+                assert.equal(count(), 1);
+                const source = join(local, "branch-feat/p/results.json");
+                const before = readFileSync(source, "utf8");
+
+                // Pull request 7 at the same head: GitHub's merge ref has the same tree on the same base.
+                git("fetch", "-q", "origin", "master");
+                const pr = (tree) => {
+                    const merge = git("commit-tree", tree, "-p", "origin/master", "-p", head, "-m", "merge");
+                    git("push", "-q", "-f", origin, `${merge}:refs/pull/7/merge`);
+                };
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const prEnv = { ...env, STUB_GH_DIR: gh, STUB_NEW_HEAD: head, STUB_OLD_TIMES: "0" };
+                pr(`${head}^{tree}`);
+                const reused = run(prEnv, "7");
+                assert.equal(reused.status, 0, reused.stdout + reused.stderr);
+                assert.match(reused.stdout, /reused the capture of branch-feat/);
+                assert.equal(count(), 1, "no capture made");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual(
+                    [status.state, status.head, status.reusedFrom, status.projects],
+                    ["done", head, "branch-feat", ["p"]],
+                );
+                const results = JSON.parse(readFileSync(join(local, "7/p/results.json"), "utf8"));
+                assert.deepEqual([results.pr, results.headSha], [7, head], "named for its own pull request");
+                assert.ok(results.local.preview, "decidable on the review page");
+                assert.equal(readFileSync(source, "utf8"), before, "the source capture is unchanged");
+                // Run again, it sees its own finished capture and does nothing.
+                const again = run(prEnv, "7");
+                assert.match(again.stdout, /7 at [0-9a-f]{10} is already captured/);
+                assert.equal(count(), 1);
+
+                // Other baselines (any other merge tree): captured again.
+                writeFileSync(join(main, "baseline.png"), "other\n");
+                const blob = git("hash-object", "-w", "baseline.png");
+                const index = join(main, "index.tmp");
+                const tree = spawnSync(
+                    "bash",
+                    [
+                        "-c",
+                        `git read-tree ${head} && git update-index --add --cacheinfo 100644,${blob},visual-baselines/p/s.png && git write-tree`,
+                    ],
+                    { cwd: main, env: { ...process.env, GIT_INDEX_FILE: index }, encoding: "utf8" },
+                ).stdout.trim();
+                pr(tree);
+                const other = run(prEnv, "7");
+                assert.equal(other.status, 0, other.stdout + other.stderr);
+                assert.equal(count(), 2, "captured, not reused");
+                assert.equal(JSON.parse(readFileSync(join(local, "7/status.json"), "utf8")).reusedFrom, null);
+
+                // Another head with the very same tree: captured again.
+                const twin = git("commit-tree", `${head}^{tree}`, "-p", `${head}^`, "-m", "twin");
+                assert.equal(run(env, "--head", twin).status, 0);
+                assert.equal(count(), 3);
+            }));
+
         it("fails on a story that failed to render", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "failed" }, "--head", head);
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
@@ -909,14 +1051,14 @@ exec ${realGit} "$@"
         });
 
         it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
             });
         });
 
         it("fails a fetch that keeps failing with git's own message", () => {
-            sandbox(({ run, head, local, origin }) => {
+            return sandbox(({ run, head, local, origin }) => {
                 rmSync(origin, { recursive: true, force: true });
                 const r = run({ STUB_STATUS: "changed" }, "--head", head);
                 assert.equal(r.status, 1);
@@ -932,7 +1074,7 @@ exec ${realGit} "$@"
         });
 
         it("skips a conflicting merge but fails on a merge-tree error", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
                 assert.equal(conflict.status, 0, conflict.stderr);
                 assert.match(conflict.stdout, /conflicts with origin\/master/);

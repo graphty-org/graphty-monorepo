@@ -128,6 +128,12 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
+- **2026-10-23, menu sections (issue #3315, director ruled).** Headings in both lists, no
+  indent, every row in a section. My condition, adopted: headings are not stops. The Layout
+  list becomes one Tab stop with roving focus (checked row first), ArrowUp/Down across
+  sections skipping headings, Home/End, Enter/Space opens, Esc back then close -- the same
+  model Analyze's list already has behind its filter box. No expanding parent rows: one
+  interaction rule per list kind.
 - 2026-10-11..16 (summarized from the old Top of mind) Tier 3 build decisions, mine: one card per
   field in the Which picker, a dashed unchosen card narrows nothing and is never written; bulk cards
   read a shared value or Mixed, ticking writes to every layer, a receipt names layers left matching

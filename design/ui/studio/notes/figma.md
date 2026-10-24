@@ -116,6 +116,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-10-23, menu sections (issue #3315, director ruled).** Section labels, as Figma's own
+  menus and plugin lists do: small dimmed caps-weight label, no rule line, no indent, rows flush.
+  Both pick lists draw the same `ws-analyze-heading` label so they cannot drift. Engines read as
+  peers under "Force-directed", not as children of Force. Command menus keep dividers, as Figma's
+  do.
 - 2026-10-21 From round 1 insights: rank the empty-selection Style tab pointer and the "new line
   equals current value" default as my top two design asks for the next tier. Reason: both cost
   9 sessions each on 5 halves, both kept unweakened by both skeptics; each is a chrome fix.

@@ -253,6 +253,39 @@ describe("renderOnDemand", () => {
         assert.isAbove(draws.count(), 0, "the new size was drawn");
     });
 
+    it("draws again after a resize that ends at the size it rested at", async () => {
+        const element = await mounted(true);
+        await untilResting(element);
+        const { canvas, engine } = element.graph;
+        const width = engine.getRenderWidth();
+        const draws = countDraws(element);
+
+        // What a page that shrinks the window to 1 x 1 and restores it before the loop's next
+        // tick does: the element's ResizeObserver resizes the engine at each size, and assigning
+        // the canvas's width clears its drawing even when the size ends where it was. Driven
+        // through the engine because a ResizeObserver cannot be made to report both sizes
+        // between two of the loop's ticks.
+        element.style.width = "1px";
+        engine.resize();
+        element.style.width = `${String(WIDTH)}px`;
+        engine.resize();
+        assert.strictEqual(engine.getRenderWidth(), width, "the canvas is back at its size");
+
+        await restsOnTheCurrentPicture(element);
+        assert.isAbove(draws.count(), 0, "the cleared canvas was drawn again");
+        const copy = document.createElement("canvas");
+        copy.width = canvas.width;
+        copy.height = canvas.height;
+        const context = copy.getContext("2d");
+        assert.isNotNull(context);
+        context.drawImage(canvas, 0, 0);
+        const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+        assert.isTrue(
+            pixels.some((value, i) => i % 4 === 3 && value !== 0),
+            "the canvas is not empty",
+        );
+    });
+
     it("draws a style change and still reaches a stable frame", async () => {
         const element = await mounted(true);
         await untilResting(element);

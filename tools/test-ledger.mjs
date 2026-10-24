@@ -181,7 +181,9 @@ export function outcomeOf(run) {
     if (!junit) return "unattributed";
     if (junit.bad) return "infra";
     if (code === 0) return "passed";
-    const failed = lines.reduce((n, l) => n + Number(/^Tests +(\d+) failed/.exec(l)?.[1] ?? 0), 0);
+    // A file that fails as a whole (a hook timed out, an import threw) is a "Failed Suites" entry, not a failed test.
+    const count = (re) => lines.reduce((n, l) => n + Number(re.exec(l)?.[1] ?? 0), 0);
+    const failed = count(/^Tests +(\d+) failed/) + count(/^\W*Failed Suites (\d+)\W*$/);
     const errors = lines.some(
         (l) =>
             (l.startsWith("Errors ") && l.includes(" error")) ||

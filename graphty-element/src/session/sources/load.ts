@@ -529,7 +529,7 @@ export async function previewSource(
     const facts = { ...read.info?.server };
     return Object.freeze({
         nodes: Object.freeze(nodes),
-        rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, label: labelOf(row) }))),
+        rows: Object.freeze(nodes.map((row) => Object.freeze({ id: row.id as NodeId, name: labelOf(row) }))),
         edges: Object.freeze(edges),
         columns: Object.freeze([...describeRows(nodes, "node"), ...describeRows(edges, "edge")]),
         more: (read.info?.next ?? null) !== null || read.held.nodes.length > maxNodes,

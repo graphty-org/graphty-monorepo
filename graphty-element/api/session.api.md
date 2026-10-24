@@ -5213,7 +5213,7 @@ export interface SourcePreviewOptions extends Omit<SourceLoadOptions, "mode" | "
 // @public
 export interface SourcePreviewRow {
     readonly id: NodeId;
-    readonly label: string | null;
+    readonly name: string | null;
 }
 
 export { SourceProbe }

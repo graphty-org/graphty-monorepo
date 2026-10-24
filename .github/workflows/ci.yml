@@ -1467,41 +1467,6 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
-    # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
-    # pictures in one run -- a timing race. This job lists every one as a warning annotation
-    # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
-    # not need it.
-    visual-flaky:
-        name: Flaky screenshots
-        needs: visual
-        if: ${{ !cancelled() && needs.visual.result != 'skipped' }}
-        runs-on: ubuntu-24.04
-        continue-on-error: true
-        timeout-minutes: 10
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  ref: ${{ inputs.ref }}
-                  sparse-checkout: tools
-
-            - name: Setup Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: 22.x
-
-            - name: Download visual captures
-              continue-on-error: true
-              uses: actions/download-artifact@v4
-              with:
-                  pattern: visual-*
-                  path: ${{ runner.temp }}/visual
-
-            - name: Report flaky screenshots
-              run: |
-                  mkdir -p "$RUNNER_TEMP/visual"
-                  node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
-
     # Gate job - ensures all required checks pass before release/deploy. It is the required status check,
     # so it runs even when a job it needs failed (if: always()) and decides for itself.
     # On a pull request a job this run chose not to start (a test job for an unaffected
@@ -1671,3 +1636,38 @@ jobs:
                           -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
                       echo "cleared early verdict $id"
                   done
+
+    # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
+    # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
+    # pictures in one run -- a timing race. This job lists every one as a warning annotation
+    # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
+    # not need it.
+    visual-flaky:
+        name: Flaky screenshots
+        needs: visual
+        if: ${{ !cancelled() && needs.visual.result != 'skipped' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download visual captures
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Report flaky screenshots
+              run: |
+                  mkdir -p "$RUNNER_TEMP/visual"
+                  node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"

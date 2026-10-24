@@ -30,7 +30,11 @@ const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
-const OUR_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF"));
+// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, ...):
+// a test sets each one it needs.
+const OUR_ENV = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_")),
+);
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {

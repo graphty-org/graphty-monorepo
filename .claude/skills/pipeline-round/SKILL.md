@@ -205,8 +205,11 @@ run's code):
        background. It picks the newest verified (up to `golden-verified`) first-parent golden commit since master whose
        local preview finished with no unstable or failed images, pushes it to `golden-cut` through the push queue, opens or refreshes the draft cut
        pull request with the landed branches in its description, and starts its preview. When no commit qualifies it
-       refuses: fix or revert what broke golden's preview ("Revert first"). Cut again only when a newer stable commit
-       exists and the owner has not yet finished reviewing the current cut.
+       refuses: fix or revert what broke golden's preview ("Revert first"). Never re-cut while the cut awaits the
+       owner: `cut` refuses while the cut pull request is a draft whose preview of its head is done and has no
+       Finish yet (the frozen cut). A fix found during review lands on golden and ships with the next cut; only a
+       fix for a red master, a failed deploy or a release hold goes in with
+       `node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>` (the alarm issue or the failed run).
     2. **Ask the owner once** to review the cut, when its preview (`tmp/visual-review/local/<cut pr>/status.json`) is
        `done` for the cut pull request's head and images wait on him (the count below):
        `ACTION NEEDED: review the golden cut #<cut pr>: https://dev.ato.ms:9209/#token=<token>&target=<cut pr>`, with
@@ -226,9 +229,10 @@ run's code):
            request; if they survive his Finish, file a visual-review issue and ask him once instead of waiting;
         5. no rejects comment on the cut pull request is newer than the accept commit.
 
-        `ship` itself refuses when the cut pull request's head moved since its last finished preview by anything but
-        the owner's accept commits, and until the head is verified (a `cut-fix` starts golden-cut's verification:
-        `node tools/verify.mjs status --branch golden-cut`).
+        `ship` itself refuses when the cut pull request's head differs from its last finished preview outside
+        `visual-baselines/` and `visual-review-approvals/` (the owner's Finish and an update of the baselines from
+        master change nothing else), and until the head is verified, by the same comparison with a verified
+        commit (a `cut-fix` starts golden-cut's verification: `node tools/verify.mjs status --branch golden-cut`).
 - **Images waiting on the owner:** count them for a pull request with
   `jq -r '.items[] | select(.status|test("^(changed|moved|new|unseeded|removed)$")) | .file' tmp/visual-review/local/<pr>/*/results.json | wc -l`.
   Items with status `failed` or `unstable` are broken captures, not review: see "Revert first".

@@ -808,6 +808,28 @@ exec ${realGit} "$@"
             });
         });
 
+        it("captures for the pull request of VISUAL_PREVIEW_BRANCH and leaves it staged on --promote, for land.mjs", () => {
+            sandbox(({ run, head, main, local }) => {
+                // The detached check worktree has no branch: land.mjs names the one it pushes to.
+                mkdirSync(join(main, "tmp/pr-status"), { recursive: true });
+                writeFileSync(
+                    join(main, "tmp/pr-status/status.json"),
+                    JSON.stringify({ pullRequests: [{ head: "golden", number: 7 }] }),
+                );
+                const named = { VISUAL_PREVIEW_BRANCH: "golden" };
+                const r = run({ ...named, STUB_STATUS: "changed" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                const staged = join(local, `.pending-${head}`);
+                const status = JSON.parse(readFileSync(join(staged, "status.json"), "utf8"));
+                assert.deepEqual([status.state, status.pr, status.head], ["done", 7, head]);
+                assert.equal(run(named, "--promote", head).status, 0);
+                assert.ok(existsSync(join(staged, "p/results.json")), "still staged: pending push");
+                assert.ok(!existsSync(join(local, "7")), "never the pull request's preview before the push");
+                assert.equal(run(named, "--discard", head).status, 0);
+                assert.ok(!existsSync(staged));
+            });
+        });
+
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
             sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).

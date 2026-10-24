@@ -663,6 +663,14 @@ export class RenderManager implements Manager {
     private workEndedAt = Number.NaN;
     /** The flashing check's readback and counter, made when a moving shader first draws. */
     private flashCheck: { readback: FlashReadback; counter: FlashCounter } | null = null;
+    /** The camera and canvas size of the last frame drawn, for {@link RenderManager.sameViewAsLastFrame}. */
+    private readonly flashView = {
+        camera: -1,
+        width: -1,
+        height: -1,
+        view: new Float32Array(16),
+        projection: new Float32Array(16),
+    };
     /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
@@ -993,10 +1001,11 @@ export class RenderManager implements Manager {
 
                 // Cleared BEFORE the frame, so anything the frame itself announces asks for the
                 // next one.
+                const owed = this.drawOwed;
                 this.drawOwed = false;
                 this.scene.render();
                 this.ticks.drawn++;
-                this.checkFlashing(drawAt);
+                this.checkFlashing(drawAt, owed);
                 this.fenceFrame();
                 this.noteDrawnFrom();
                 this.lastDrawAt = drawAt;
@@ -1049,13 +1058,16 @@ export class RenderManager implements Manager {
      * slower, a strobe near the sampling rate reads as steady), and freeze those shaders' time once
      * the canvas flashed more than 3 times in a second. WebGL 2 only.
      * @param at - When the frame was drawn.
+     * @param owed - Whether something other than motion asked for the frame: a graph event or
+     *     the reader's input.
      */
-    private checkFlashing(at: number): void {
+    private checkFlashing(at: number, owed: boolean): void {
         const guard = this.shaderGuard;
         if (!guard.watching || !(this.engine instanceof Engine) || this.engine.webGLVersion < 2) {
             return;
         }
 
+        const sameView = this.sameViewAsLastFrame();
         const check = this.flashCheck;
         for (let sample = check?.readback.collect(); check && sample; sample = check.readback.collect()) {
             if (check.counter.add(sample.rgba, sample.at)) {
@@ -1073,7 +1085,49 @@ export class RenderManager implements Manager {
         }
 
         this.flashCheck ??= { readback: new FlashReadback(this.engine._gl), counter: new FlashCounter() };
+        // Only a frame that changed nothing but the shaders' time says anything about them. A
+        // layout moving nodes, the camera framing or turning, a resize, a style or data change and
+        // the reader's input all change the picture too, and counted as the shaders' flashes they
+        // froze every moving shader drawn while a graph laid itself out (issue #3320). Such a frame
+        // breaks the sequence: the captures before it are dropped and the count starts again.
+        if (owed || !sameView || this.pictureIsFinal?.() === false) {
+            this.flashCheck.readback.drop();
+            this.flashCheck.counter = new FlashCounter();
+            return;
+        }
+
         this.flashCheck.readback.capture(at);
+    }
+
+    /**
+     * Whether the frame just drawn had the same camera, view, projection and canvas size as the
+     * frame drawn before it; records them for the next frame.
+     * @returns True when none changed.
+     */
+    private sameViewAsLastFrame(): boolean {
+        const was = this.flashView;
+        const camera = this.scene.activeCamera;
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        if (camera === null) {
+            was.camera = -1;
+            return false;
+        }
+
+        const view = camera.getViewMatrix().m;
+        const projection = camera.getProjectionMatrix().m;
+        const same =
+            camera.uniqueId === was.camera &&
+            width === was.width &&
+            height === was.height &&
+            RenderManager.sameMatrix(view, was.view) &&
+            RenderManager.sameMatrix(projection, was.projection);
+        was.camera = camera.uniqueId;
+        was.width = width;
+        was.height = height;
+        was.view.set(view);
+        was.projection.set(projection);
+        return same;
     }
 
     /**

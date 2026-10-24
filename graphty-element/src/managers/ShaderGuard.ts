@@ -711,6 +711,18 @@ export class FlashReadback {
         return { rgba: this.bytes, at: oldest.at };
     }
 
+    /** Drop every capture still waiting on its fence; its buffer is free again. */
+    drop(): void {
+        const { gl } = this;
+        for (const { fence, buffer } of this.pending.splice(0)) {
+            if (!gl.isContextLost()) {
+                gl.deleteSync(fence);
+            }
+
+            this.free.push(buffer);
+        }
+    }
+
     /** Release the targets, the buffer and a pending fence. */
     dispose(): void {
         const { gl } = this;

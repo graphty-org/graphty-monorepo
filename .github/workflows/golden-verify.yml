@@ -13,6 +13,8 @@
 # pull-request-only steps of ci.yml (draft, early verdicts, the visual gate) do not run, and master-guard,
 # deploy-pages and release (workflow_run of "CI", or pushes to master) never see this run. It gates no merge.
 name: Golden verify
+# The commit in the run's name: a dispatched run's head is master's, so tools/verify.mjs finds it by this name.
+run-name: Golden verify ${{ inputs.ref || github.sha }}
 
 on:
     push:

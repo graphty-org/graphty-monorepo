@@ -109,6 +109,12 @@ export function verifyContext(cwd, overrides = {}) {
         stateFile: join(main, `tmp/golden/${name}.json`),
         supersededFile: join(main, `tmp/golden/${name}-superseded`),
         lock: join(main, `tmp/golden/${name}.lock`),
+        // The backend (ci or local) is one setting for golden and golden-cut, kept in golden's state file.
+        backendFile: join(main, "tmp/golden/verify.json"),
+        brokerFile: join(main, "tmp/pr-status/status.json"),
+        pollMs: POLL_MS,
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        actionsOperational: defaultActionsOperational,
         width: 2,
         gate: defaultGate,
         check: defaultCheck,
@@ -213,7 +219,8 @@ export function requestVerification(ctx, commit) {
  */
 function supersede(ctx, s) {
     const { step, commit, switches = 0 } = s.run;
-    if (switches >= MAX_SWITCHES) return false;
+    // A CI run is never left half way: it ends on its own, and the run goes on to the newest commit after it.
+    if (switches >= MAX_SWITCHES || backendOf(ctx) === "ci") return false;
     if (step !== "gate" || !commit || s.wanted === commit || !isAncestor(ctx, commit, s.wanted)) return false;
     writeFileSync(ctx.supersededFile, `${s.wanted}\n`);
     return true;
@@ -338,7 +345,7 @@ async function verifyCommit(ctx, { target, from }) {
         if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
         await withState(ctx, (s) => {
             s.verified = target;
-            s.last = { commit: target, from, status: "passed", at: now(), log: r.log };
+            s.last = { commit: target, from, status: "passed", at: now(), log: r.log, verifiedBy: backendOf(ctx) };
             if (s.run) Object.assign(s.run, { step: "passed", switches: 0 });
         });
         return;
@@ -807,7 +814,7 @@ function runLogged(cmd, args, opts) {
 }
 
 /**
- * The full gate on a commit: tools/prepush.sh with every package and every shard (PREPUSH_ALL=1; passes
+ * The full local gate on a commit (the `local` backend, and a bisect point that re-runs a whole gate): tools/prepush.sh with every package and every shard (PREPUSH_ALL=1; passes
  * are reused by input key), the local GPU tests under the GPU slot, the screenshots of the affected
  * projects and SonarQube on the lines changed since master, through the push queue ahead of ordinary
  * pushes. Nothing is sent: it is a dry-run push.
@@ -818,7 +825,7 @@ function runLogged(cmd, args, opts) {
  * @param [name] the worktree it runs in
  * @returns `{ code, output, log }`
  */
-async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GOLDEN ? "" : "-cut"}`) {
+async function localGate(ctx, commit, name = `golden-verify${ctx.branch === GOLDEN ? "" : "-cut"}`) {
     const dir = join(ctx.main, ".worktrees", name);
     prepareScratch(ctx, dir, commit);
     const log = join(ctx.main, `tmp/golden/verify-logs/${commit.slice(0, 10)}-${Date.now()}.log`);
@@ -830,6 +837,7 @@ async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GO
         ...(bisecting ? {} : { PREPUSH_SUPERSEDED_FILE: ctx.supersededFile }),
         TEST_LEDGER_KIND: bisecting ? "bisect" : "verify",
         TEST_LEDGER_BRANCH: ctx.branch,
+        PREPUSH_LIGHT: "0",
         PREPUSH_ALL: "1",
         PUSH_BASE_REF: "origin/master",
         PUSH_QUEUE_PRIORITY: "critical",
@@ -838,6 +846,378 @@ async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GO
     const push = ["git", "push", "--dry-run", "origin", `HEAD:refs/heads/${ctx.branch}-verified`];
     console.log(`verify: the full gate on ${short(commit)} in ${dir} (log: ${log})`);
     return { ...(await runLogged(join(dir, "tools/push-queue.sh"), push, { cwd: dir, env, log })), log };
+}
+
+// ---------------------------------------------------------------- the CI gate
+
+// Verification in CI (design/ci/ci-full-testing.md, section 3.2): the commit is pushed to a scratch branch that
+// .github/workflows/golden-verify.yml runs on, a full ci.yml run, and this process reads the run's result every
+// POLL_MS. No deadline anywhere: a wait ends on the event that settles it (a run that ends, a release train that
+// ends, the rate limit's reset).
+
+/** How often a CI verification looks at its run (and at what it yields to). */
+export const POLL_MS = 300_000;
+/** The backend until `verify.mjs backend ci|local` says otherwise. */
+export const DEFAULT_BACKEND = "local";
+const CANDIDATE = { [GOLDEN]: "golden-candidate", [CUT]: "golden-cut-candidate" };
+const VERIFY_WORKFLOW = "golden-verify.yml";
+// golden-verify.yml's job is named Verify, so every check of the called ci.yml is "Verify / <job>".
+const CALLER = "Verify / ";
+// The jobs whose failure settles the verdict at once: the rest of the run is cancelled.
+const FAIL_FAST = /^(Test \(.+\)|Build|Lint|Checks|Docs)$/;
+const SUMMARIES = new Set(["All Checks Pass", "Queue Checks Pass"]);
+const PENDING = new Set(["QUEUED", "IN_PROGRESS", "PENDING", "WAITING", "REQUESTED", "EXPECTED"]);
+const FAILED = new Set(["failure", "timed_out"]);
+const BROKER_STALE_MS = 5 * 60_000;
+const NO_ANSWER = Symbol("no answer");
+
+/**
+ * Which backend verifies golden and golden-cut: `ci` (golden-verify.yml) or `local` (the full gate here).
+ * @param ctx the context
+ * @returns "ci" or "local"
+ */
+export const backendOf = (ctx) => readJsonFile(ctx.backendFile)?.backend?.name ?? DEFAULT_BACKEND;
+
+// The gate verification runs: a bisect point (named) always runs here; a verification runs on the backend.
+function defaultGate(ctx, commit, name) {
+    if (name || backendOf(ctx) !== "ci") return localGate(ctx, commit, name);
+    return ciGate(ctx, commit);
+}
+
+/**
+ * Switches the backend of golden's and golden-cut's verification. Never automatic: `local` needs a reason,
+ * which `status` shows.
+ * @param ctx the context
+ * @param name "ci" or "local"
+ * @param [reason] why
+ * @returns `{ ok, message }`
+ */
+export async function setBackend(ctx, name, reason) {
+    if (!["ci", "local"].includes(name)) return { ok: false, message: USAGE };
+    if (name === "local" && !reason) {
+        return { ok: false, message: 'backend local needs --reason "<why CI cannot verify golden>"' };
+    }
+    const golden = { ...ctx, stateFile: ctx.backendFile, lock: join(dirname(ctx.backendFile), "verify.lock") };
+    await withState(golden, (s) => {
+        s.backend = { name, reason: reason ?? null, at: now() };
+    });
+    const where = name === "ci" ? "in CI (golden-verify.yml)" : "on this machine (the full local gate)";
+    return { ok: true, message: `verification of golden and golden-cut now runs ${where}; a live run keeps its gate` };
+}
+
+/**
+ * The CI gate on a commit: yields to a running cut pull request run or release train, pushes the commit to its
+ * scratch branch, and reads golden-verify.yml's run every POLL_MS until it settles. A gating job that fails ends it
+ * at once (and cancels the rest of the run); a cancelled run is [SUPERSEDED]; a run that is lost or never created
+ * is started again, and CI is marked unavailable on the second time. Never a deadline.
+ * @param ctx the context
+ * @param commit what to verify
+ * @returns `{ code, output, log }`: output has one `[FAIL] <shard or job>` line per failed job
+ */
+export async function ciGate(ctx, commit) {
+    const log = join(ctx.main, `tmp/golden/verify-logs/${commit.slice(0, 10)}-ci-${Date.now()}.log`);
+    mkdirSync(dirname(log), { recursive: true });
+    const say = (line) => {
+        console.log(`verify: ${line}`);
+        writeFileSync(log, `${now()} ${line}\n`, { flag: "a" });
+    };
+    await yieldToFullRuns(ctx, say);
+    const job = { commit, ref: CANDIDATE[ctx.branch], say, started: Date.now() };
+    await pushRef(ctx, job);
+    for (;;) {
+        await ctx.sleep(ctx.pollMs);
+        const r = await pollRun(ctx, job);
+        if (r) {
+            say(r.output);
+            return { ...r, log };
+        }
+    }
+}
+
+// What a new full run would be the third of: the cut pull request's CI run, or a release train.
+function busyWith(ctx) {
+    const cut = brokerChecks(ctx, (pr) => pr.head === CUT);
+    if (Object.entries(cut ?? {}).some(([n, c]) => !n.startsWith(CALLER) && PENDING.has(c))) {
+        return "the cut pull request's CI run";
+    }
+    try {
+        const list = ["run", "list", "--workflow", "release.yml", "--status", "in_progress", "-L", "1"];
+        if (JSON.parse(ctx.gh([...list, "--json", "databaseId"])).length) return "a release train";
+    } catch {
+        // an unanswered look never holds verification back
+    }
+    return null;
+}
+
+async function yieldToFullRuns(ctx, say) {
+    for (let busy = busyWith(ctx); busy; busy = busyWith(ctx)) {
+        say(`${busy} is running: the full CI run starts at the first look after it ends`);
+        await ctx.sleep(ctx.pollMs);
+    }
+}
+
+async function pushRef(ctx, { commit, ref, say }) {
+    const args = ["push", "--no-verify", "--force", "-q", "origin", `${commit}:refs/heads/${ref}`];
+    const r = git(ctx, ctx.main, args, { ok: true });
+    if (r.status === 0) return say(`pushed ${short(commit)} to ${ref}`);
+    await setUnavailable(ctx, `the push to ${ref} failed: ${r.stderr.split("\n")[0]}`);
+}
+
+// A new push event for the same commit: a dispatch once golden-verify.yml is on master, else the ref deleted and
+// pushed again (an unchanged ref makes no push event; a new branch does).
+async function recreate(ctx, job) {
+    const onMaster = ["cat-file", "-e", `origin/master:.github/workflows/${VERIFY_WORKFLOW}`];
+    if (git(ctx, ctx.main, onMaster, { ok: true }).status === 0) {
+        if (ghTry(ctx, ["workflow", "run", VERIFY_WORKFLOW, "-f", `ref=${job.commit}`])) job.dispatched = true;
+        return job.say(`dispatched ${VERIFY_WORKFLOW} for ${short(job.commit)}`);
+    }
+    git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", `:refs/heads/${job.ref}`], { ok: true });
+    await pushRef(ctx, job);
+}
+
+// One look: the status broker first (free), GitHub's REST API when it has no answer.
+async function pollRun(ctx, job) {
+    const seen = brokerVerdict(ctx, job.commit);
+    if (seen === "passed") return { code: 0, output: `${CALLER}All Checks Pass: success (from the status broker)` };
+    if (seen === "running") {
+        await clearTrouble(ctx);
+        return null;
+    }
+    const run = await findRun(ctx, job);
+    if (run === NO_ANSWER) return null;
+    if (!run) return noRun(ctx, job);
+    return judgeRun(ctx, job, run);
+}
+
+function brokerChecks(ctx, match) {
+    const b = readJsonFile(ctx.brokerFile);
+    if (!b || b.error || !(Date.now() - Date.parse(b.fetchedAt) < BROKER_STALE_MS)) return null;
+    return (b.pullRequests ?? []).find(match)?.checks ?? null;
+}
+
+/**
+ * What the status broker says of a commit's verification run: a pull request whose head is the commit (golden's,
+ * or the cut's) carries its "Verify / ..." checks.
+ * @param ctx the context
+ * @param commit the commit
+ * @returns "passed", "running", or null (no answer, or a failure to read in detail)
+ */
+export function brokerVerdict(ctx, commit) {
+    const checks = brokerChecks(ctx, (pr) => pr.headSha === commit);
+    const mine = Object.entries(checks ?? {}).filter(([n]) => n.startsWith(CALLER));
+    if (!mine.length) return null;
+    if (checks[`${CALLER}All Checks Pass`] === "SUCCESS") return "passed";
+    const failedFast = mine.some(([n, c]) => c === "FAILURE" && FAIL_FAST.test(n.slice(CALLER.length)));
+    if (failedFast || !mine.some(([, c]) => PENDING.has(c))) return null;
+    return "running";
+}
+
+// The newest golden-verify.yml run of the commit; one that had ended before this gate started is an old verdict.
+async function findRun(ctx, job) {
+    const query = job.dispatched ? "event=workflow_dispatch" : `head_sha=${job.commit}`;
+    const path = `repos/{owner}/{repo}/actions/workflows/${VERIFY_WORKFLOW}/runs?${query}&per_page=30`;
+    const answer = await ghJson(ctx, ["api", path]);
+    if (answer === NO_ANSWER) return NO_ANSWER;
+    // A dispatched run's head is master's: its run name carries the commit.
+    const ours = (r) => r.head_sha === job.commit || (r.display_title ?? "").includes(job.commit);
+    const current = (r) => r.status !== "completed" || Date.parse(r.updated_at) >= job.started;
+    return (answer.workflow_runs ?? []).filter(ours).find(current) ?? null;
+}
+
+async function judgeRun(ctx, job, run) {
+    if (run.status === "completed") return ended(ctx, job, run);
+    if (run.status === "in_progress") await clearTrouble(ctx);
+    const jobs = await runJobs(ctx, run.id);
+    if (jobs === NO_ANSWER || !jobs.some(failsFast)) return null;
+    job.say(`a gating job failed in ${run.html_url}: cancelling the rest of the run`);
+    ghTry(ctx, ["api", "-X", "POST", `repos/{owner}/{repo}/actions/runs/${run.id}/cancel`]);
+    return failure(ctx, run, jobs);
+}
+
+async function ended(ctx, job, run) {
+    if (run.conclusion === "success") {
+        await clearTrouble(ctx);
+        return { code: 0, output: `${CALLER}All Checks Pass: success (${run.html_url})` };
+    }
+    if (run.conclusion === "cancelled") {
+        return { code: 1, output: `[SUPERSEDED] ${run.html_url} was cancelled; the newest wanted commit is verified` };
+    }
+    if (run.conclusion === "startup_failure") return lostRun(ctx, job, run);
+    const jobs = await runJobs(ctx, run.id);
+    if (jobs === NO_ANSWER) return null;
+    if (!jobs.some(isFailed)) return lostRun(ctx, job, run);
+    await clearTrouble(ctx);
+    return failure(ctx, run, jobs);
+}
+
+const jobName = (j) => (j.name.startsWith(CALLER) ? j.name.slice(CALLER.length) : j.name);
+const isFailed = (j) => FAILED.has(j.conclusion) && !SUMMARIES.has(jobName(j));
+const failsFast = (j) => isFailed(j) && FAIL_FAST.test(jobName(j));
+
+async function runJobs(ctx, id) {
+    const answer = await ghJson(ctx, [
+        "api",
+        `repos/{owner}/{repo}/actions/runs/${id}/jobs?per_page=100&filter=latest`,
+    ]);
+    return answer === NO_ANSWER ? NO_ANSWER : (answer.jobs ?? []);
+}
+
+/**
+ * The gate's output for a failed run: `[FAIL] <shard>` per failed test job (a shard group's job, one line per member
+ * it names as failed), `[FAIL] <job>` per other failed job, so failingShards() reads it as it reads the local gate's.
+ * @param ctx the context
+ * @param run the run
+ * @param jobs its jobs
+ * @returns `{ code: 1, output }`
+ */
+async function failure(ctx, run, jobs) {
+    const groups = await shardGroups(ctx);
+    const lines = [];
+    for (const j of jobs.filter(isFailed)) {
+        const name = jobName(j);
+        const shard = /^Test \((.+)\)$/.exec(name)?.[1];
+        const members = groups[shard] ? groupFailures(ctx, j, groups[shard]) : [shard ?? name];
+        lines.push(...members.map((m) => `[FAIL] ${m}`));
+    }
+    lines.push(`run: ${run.html_url}`);
+    return { code: 1, output: lines.join("\n") };
+}
+
+// A group job ends with "::error::failed: <member> ...", an annotation on its check run; unread, every member.
+function groupFailures(ctx, j, members) {
+    try {
+        const notes = JSON.parse(ctx.gh(["api", `repos/{owner}/{repo}/check-runs/${j.id}/annotations`]));
+        const named = notes.flatMap(
+            (n) =>
+                /failed:(.*)/
+                    .exec(n.message ?? "")?.[1]
+                    .trim()
+                    .split(/\s+/) ?? [],
+        );
+        const failed = members.filter((m) => named.includes(m));
+        if (failed.length) return failed;
+    } catch (e) {
+        console.log(`verify: could not read ${j.name}'s failed members: ${e.message.split("\n")[0]}`);
+    }
+    return members;
+}
+
+async function shardGroups(ctx) {
+    if (ctx.groups) return ctx.groups;
+    try {
+        return (await import(pathToFileURL(join(ctx.main, "tools/ci-test-matrix.mjs")).href)).GROUPS ?? {};
+    } catch {
+        return {};
+    }
+}
+
+// A run that ended without a test verdict (startup_failure, or failed with no failed job: a lost runner, a 5xx):
+// re-run once; the second loss in a row marks CI unavailable, and it is tried again at each look while
+// githubstatus.com says Actions is operational.
+async function lostRun(ctx, job, run) {
+    const count = await withState(ctx, (s) => {
+        const n = s.lostRuns?.commit === job.commit ? s.lostRuns.count + 1 : 1;
+        s.lostRuns = { commit: job.commit, count: n, run: run.id, at: now() };
+        return n;
+    });
+    job.say(`${run.html_url} ended ${run.conclusion} with no failed job: not a verdict (loss ${count})`);
+    if (count >= 2) {
+        await setUnavailable(ctx, `${count} runs of ${short(job.commit)} lost (${run.conclusion})`);
+        if (!(await ctx.actionsOperational())) return null;
+    }
+    if (!ghTry(ctx, ["api", "-X", "POST", `repos/{owner}/{repo}/actions/runs/${run.id}/rerun`]))
+        await recreate(ctx, job);
+    return null;
+}
+
+// No run for the commit: GitHub accepted a push and created none, or the ref is not at the commit (someone moved
+// it, or the push failed). The second no-run in a row marks CI unavailable.
+async function noRun(ctx, job) {
+    const at = git(ctx, ctx.main, ["ls-remote", "origin", `refs/heads/${job.ref}`], { ok: true }).stdout.split("\t")[0];
+    if (at !== job.commit && !job.dispatched) {
+        await pushRef(ctx, job);
+        return null;
+    }
+    const attempt = await withState(ctx, (s) => {
+        const n = s.noRun?.commit === job.commit ? s.noRun.attempt + 1 : 1;
+        s.noRun = { commit: job.commit, ref: job.ref, attempt: n, at: now() };
+        return n;
+    });
+    job.say(`no CI run created for ${short(job.commit)} on ${job.ref}, attempt ${attempt}`);
+    if (attempt >= 2) {
+        await setUnavailable(ctx, `no CI run created for ${short(job.commit)} twice`);
+        if (!(await ctx.actionsOperational())) return null;
+    }
+    await recreate(ctx, job);
+    return null;
+}
+
+/**
+ * Parses a `gh` answer. A rate limit waits for the reset `gh api rate_limit` names (free); any other error marks CI
+ * unavailable. Either way this look has no answer.
+ * @param ctx the context
+ * @param args gh's arguments
+ * @returns the parsed answer, or NO_ANSWER
+ */
+async function ghJson(ctx, args) {
+    try {
+        return JSON.parse(ctx.gh(args));
+    } catch (e) {
+        const message = e.message.split("\n")[0];
+        if (!/rate limit/i.test(e.message)) {
+            await setUnavailable(ctx, `the run lookup failed: ${message}`);
+            return NO_ANSWER;
+        }
+        let reset = 0;
+        try {
+            reset = Number(ctx.gh(["api", "rate_limit", "--jq", ".resources.core.reset"])) * 1000;
+        } catch {
+            // the next look asks again
+        }
+        console.log(`verify: GitHub's rate limit: waiting for its reset at ${new Date(reset).toISOString()}`);
+        if (reset > Date.now()) await ctx.sleep(reset - Date.now());
+        return NO_ANSWER;
+    }
+}
+
+function ghTry(ctx, args) {
+    try {
+        ctx.gh(args);
+        return true;
+    } catch (e) {
+        console.log(`verify: gh ${args.slice(0, 3).join(" ")} failed: ${e.message.split("\n")[0]}`);
+        return false;
+    }
+}
+
+async function setUnavailable(ctx, cause) {
+    console.log(`verify: CI verification unavailable: ${cause}`);
+    await withState(ctx, (s) => {
+        s.ciUnavailable = { since: s.ciUnavailable?.since ?? now(), cause };
+    });
+}
+
+// A run that started (or settled) clears every CI trouble on record.
+async function clearTrouble(ctx) {
+    const s = readState(ctx);
+    if (!s.ciUnavailable && !s.noRun && !s.lostRuns) return;
+    await withState(ctx, (state) => {
+        delete state.ciUnavailable;
+        delete state.noRun;
+        delete state.lostRuns;
+    });
+}
+
+// githubstatus.com's public components API (not the GitHub API budget); unreachable counts as operational, so
+// a retry is never held back by a status page.
+async function defaultActionsOperational() {
+    try {
+        const r = await fetch("https://www.githubstatus.com/api/v2/components.json");
+        const actions = (await r.json()).components.find((c) => c.name === "Actions");
+        return !actions || actions.status === "operational";
+    } catch {
+        return true;
+    }
 }
 
 /**
@@ -1071,7 +1451,28 @@ export function describe(ctx) {
             `  superseded: ${short(s.superseded.commit)} left for ${short(s.superseded.by)} at ${s.superseded.at}`,
         );
     if (s.last) lines.push(`  last: ${lastLine(s.last)}`);
+    lines.push(...ciLines(ctx, s));
     return lines.join("\n");
+}
+
+// The backend, and what stops CI verification: no run created, CI unavailable.
+function ciLines(ctx, s) {
+    const backend = readJsonFile(ctx.backendFile)?.backend;
+    const why = backend?.reason ? ` (${backend.reason}, since ${backend.at})` : "";
+    const lines = [`  backend: ${backend?.name ?? DEFAULT_BACKEND + " (the default)"}${why}`];
+    if (s.noRun) lines.push(`  no CI run created for ${short(s.noRun.commit)}, attempt ${s.noRun.attempt}`);
+    if (s.ciUnavailable) {
+        const tip = `origin/${ctx.branch}`;
+        let n = "?";
+        try {
+            n = landMerges(ctx, s.verified ?? base(ctx, tip), tip).length;
+        } catch {
+            // no branch to count on
+        }
+        const { since, cause } = s.ciUnavailable;
+        lines.push(`  CI verification unavailable since ${since}, ${n} landings unverified (${cause})`);
+    }
+    return lines;
 }
 
 // What a finished failure names: the culprit with its evidence, no landing, or intermittent.
@@ -1114,7 +1515,8 @@ function lastLine(l) {
 // ---------------------------------------------------------------- the command line
 
 const USAGE =
-    "usage: node tools/verify.mjs start [--again] | status | claim --session <id> | handled | watch | run  [--branch golden|golden-cut]";
+    "usage: node tools/verify.mjs start [--again] | status | claim --session <id> | handled | watch | run  [--branch golden|golden-cut]\n" +
+    '       node tools/verify.mjs backend ci | backend local --reason "<why>"';
 
 /**
  * Runs one command.
@@ -1135,6 +1537,11 @@ export async function cli(argv, overrides = {}) {
         watch: async () => {
             await watch(ctx);
             console.log(describe(ctx));
+        },
+        backend: async () => {
+            const r = await setBackend(ctx, argv[1], opt("--reason"));
+            console.log(r.message);
+            return r.ok ? 0 : 2;
         },
         claim: async () => {
             if (!opt("--session")) return usage();

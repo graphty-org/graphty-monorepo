@@ -1283,6 +1283,10 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
     });
 
+    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
+        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
+    });
+
     it("never cancels a run, one group per branch or dispatched commit", () => {
         assert.match(
             verify,
@@ -3720,11 +3724,12 @@ describe("release-diff", () => {
 });
 
 describe("pr-status-broker", () => {
-    it("writes one compact record per pull request, the newest check of each name", () => {
+    it("writes one compact record per pull request, its head commit and the newest check of each name", () => {
         const pr = (number, rollup) => ({
             number,
             title: "t",
             headRefName: "h",
+            headRefOid: "abc123",
             baseRefName: "master",
             isDraft: false,
             mergeable: "MERGEABLE",
@@ -3760,6 +3765,7 @@ describe("pr-status-broker", () => {
             number: 1,
             title: "t",
             head: "h",
+            headSha: "abc123",
             base: "master",
             draft: false,
             mergeable: "MERGEABLE",

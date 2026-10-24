@@ -665,8 +665,8 @@ function defaultGh(ctx, args) {
 }
 
 /**
- * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * Starts tools/visual-preview.sh (the live gate copy) for a pull request, detached, unless the gate
+ * already captured this head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
  * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
@@ -686,9 +686,14 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
+    // The live gate copy, as every other preview runs (the pre-push gate's), so all of them share one
+    // queue; the worktree's own copy only where there is none. The cut's previews go first.
+    const live = join(ctx.main, ".worktrees/gate-live/tools/visual-preview.sh");
+    const script = existsSync(live) ? live : join(cwd, "tools/visual-preview.sh");
+    const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
+    spawn("setsid", [script, String(pr), "--expect", head], {
         cwd,
-        env: ctx.env,
+        env,
         detached: true,
         stdio: ["ignore", fd, fd],
     }).unref();

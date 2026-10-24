@@ -363,6 +363,17 @@ Every body is checked before it runs, because a body that runs too long can lose
 A problem is a code with its values, such as `{ code: "shader.loop-unbounded", params: { line: 4,
 column: 5 } }`, and the application words it.
 
+An editor can check text as the reader types, and show what it will look like before adding it:
+
+```ts
+const checked = await graph.session.shaders.check(text, { target: "node", picture: true });
+if (checked.ok && checked.picture) preview.src = URL.createObjectURL(checked.picture);
+else if (!checked.ok) console.log(checked.problems);
+```
+
+The picture is drawn in the element's own engine, framed by what the shader draws on, as
+`session.shaders.thumbnail` draws one; nothing is added to the project and the graph is not redrawn.
+
 ## When something is wrong
 
 - `defineShader` and `registerShader` are synchronous. A definition that is wrong throws

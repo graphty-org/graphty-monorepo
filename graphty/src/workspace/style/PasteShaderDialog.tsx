@@ -1,8 +1,8 @@
 import { ModalFooter, PanelField } from "@graphty/compact-mantine";
 import { type ShaderParams, type ShaderPlace, shaderTemplate } from "@graphty/graphty-element/catalog";
 import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/session";
-import { Anchor, Button, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { PlaceDiagram } from "./ShaderGallery";
@@ -119,6 +119,10 @@ export function PasteShaderDialog({
     // The check of the text as it is now; null while it is pending.
     const [result, setResult] = useState<ShaderAddResult | null>(null);
     const [adding, setAdding] = useState(false);
+    // The last picture the element drew of text that passed: kept while the text does not.
+    const [drawn, setDrawn] = useState<Blob | undefined>(undefined);
+    // The element hands the same picture back for the same text, so a re-check makes no new address.
+    const picture = useMemo(() => (drawn === undefined ? undefined : URL.createObjectURL(drawn)), [drawn]);
     const box = useRef<HTMLTextAreaElement>(null);
     const textNow = useRef(text);
     textNow.current = text;
@@ -134,11 +138,14 @@ export function PasteShaderDialog({
             return undefined;
         }
         const timer = setTimeout(() => {
-            void session.shaders.check(text, options).then((checked) => {
+            void session.shaders.check(text, { ...options, picture: true }).then((checked) => {
                 if (textNow.current !== text) {
                     return;
                 }
                 setResult(checked);
+                if (checked.ok && checked.picture !== undefined) {
+                    setDrawn(checked.picture);
+                }
                 // A place the text's own header names is where it draws: the field shows it.
                 const named = checked.ok ? checked.descriptor.place : undefined;
                 if (named !== undefined && named !== place && places.includes(named)) {
@@ -152,6 +159,15 @@ export function PasteShaderDialog({
         // The options are the target and place, which the dependencies name; places follows tab.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session, text, target, place]);
+
+    useEffect(
+        () => () => {
+            if (picture !== undefined) {
+                URL.revokeObjectURL(picture);
+            }
+        },
+        [picture],
+    );
 
     const pickPlace = (next: ShaderPlace): void => {
         // The template follows the field until the reader writes over it.
@@ -276,23 +292,32 @@ export function PasteShaderDialog({
                         }}
                     />
                 )}
-                <Textarea
-                    ref={box}
-                    aria-label="Shader code"
-                    data-autofocus={places.length === 0 ? true : undefined}
-                    autosize
-                    minRows={12}
-                    maxRows={24}
-                    spellCheck={false}
-                    styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)", fontSize: 12 } }}
-                    value={text}
-                    // Mantine's error state: the invalid look and aria-invalid. The problems that
-                    // describe it are tied to it below, as Mantine ties only an error text of its own.
-                    error={invalid}
-                    onChange={(event) => {
-                        setText(event.currentTarget.value);
-                    }}
-                />
+                <Group align="flex-start" gap="xs" wrap="nowrap">
+                    <Textarea
+                        ref={box}
+                        style={{ flex: 1 }}
+                        aria-label="Shader code"
+                        data-autofocus={places.length === 0 ? true : undefined}
+                        autosize
+                        minRows={12}
+                        maxRows={24}
+                        spellCheck={false}
+                        styles={{ input: { fontFamily: "var(--mantine-font-family-monospace)", fontSize: 12 } }}
+                        value={text}
+                        // Mantine's error state: the invalid look and aria-invalid. The problems that
+                        // describe it are tied to it below, as Mantine ties only an error text of its own.
+                        error={invalid}
+                        onChange={(event) => {
+                            setText(event.currentTarget.value);
+                        }}
+                    />
+                    {/* What the element draws of the text, framed by what it draws on; nothing reaches the graph until Add. */}
+                    {picture === undefined ? (
+                        <span className="ws-gallery-picture ws-paste-preview" aria-hidden />
+                    ) : (
+                        <img className="ws-gallery-picture ws-paste-preview" src={picture} alt="Preview" />
+                    )}
+                </Group>
                 <Anchor href={SHADER_GUIDE_URL} target="_blank" rel="noopener noreferrer" size="xs">
                     {PASTE_GUIDE_WORDS}
                 </Anchor>

@@ -4428,6 +4428,7 @@ export interface SessionShaders {
     availability(id: string): ShaderAvailability;
     check(text: ShaderText, options?: ShaderAddOptions & {
         readonly compile?: boolean;
+        readonly picture?: boolean;
     }): Promise<ShaderAddResult>;
     // (undocumented)
     list(): readonly ProjectShader[];
@@ -4693,6 +4694,7 @@ export type ShaderAddResult = {
         readonly id: string;
         readonly params: ShaderParams;
     };
+    readonly picture?: Blob;
 } | {
     readonly ok: false;
     readonly problems: readonly ShaderProblem[];

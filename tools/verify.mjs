@@ -16,6 +16,16 @@
 // goes on while something newer is wanted. So a landing either sees a live run, which will look again
 // before it ends, or starts one: no landing is left unverified.
 //
+// A newer wanted commit that descends from the one whose gate is running supersedes it: the landing writes the
+// marker file <name>-superseded beside the state, and the gate (tools/prepush-tests.mjs, PREPUSH_SUPERSEDED_FILE)
+// starts no more test shards at its next shard boundary and stops with [SUPERSEDED]. Shards already running finish,
+// so their passes are kept by input key and the newer commit's gate reuses them. The old commit is recorded in
+// `superseded`, neither passed nor failed; a failure on the newer commit still bisects over every landing since
+// the last verified commit. A confirming run or a bisect needs its exact commit and is never superseded.
+// It never starves: a run switches commits at most MAX_SWITCHES times in a row, then finishes the commit it is on
+// (landings faster than a full run would otherwise keep golden-verified from ever moving); the commit after it is
+// the newest again. Progress is kept across a switch: every shard that finished is reused by input key.
+//
 // State: <main checkout>/tmp/golden/verify.json (golden) or verify-golden-cut.json, written under the
 // verify lock (a lock directory beside it, held for milliseconds, separate from the landing lock) with a
 // temporary file renamed over the old one:
@@ -23,6 +33,7 @@
 //   wanted     the newest commit a landing asked for
 //   run        the live run: { pid, pidStart, commit, from, step, startedAt }; a pid alone can be reused,
 //              so a run is live only while that pid has the same start time (/proc/<pid>/stat)
+//   superseded the newest commit left for a newer one: { commit, from, by, at, log }
 //   last       the newest result: { commit, from, status, at, log, failing, confirm, bisect, culprit, reproduced,
 //              quarantined, handling }; status is passed, confirming, bisecting, flaky, failed, handling (a session
 //              claimed it) or handled
@@ -52,6 +63,7 @@ import {
     readdirSync,
     readFileSync,
     renameSync,
+    rmSync,
     watch as watchDir,
     writeFileSync,
 } from "node:fs";
@@ -72,6 +84,8 @@ const quarantine = await import("./test-quarantine.mjs").catch(() => null);
 export const CONFIRM_RUNS = 5;
 
 export const VERIFIED_REF = "golden-verified";
+/** How many times in a row a run leaves its commit for a newer one before it finishes the one it is on. */
+export const MAX_SWITCHES = 2;
 const QUIET = { pollMs: 20, waitLog: () => {}, onWait: () => {}, onQueue: () => {} };
 const LAND_SUBJECT = /^land: (\S+)$/;
 
@@ -93,6 +107,7 @@ export function verifyContext(cwd, overrides = {}) {
         main,
         branch,
         stateFile: join(main, `tmp/golden/${name}.json`),
+        supersededFile: join(main, `tmp/golden/${name}-superseded`),
         lock: join(main, `tmp/golden/${name}.lock`),
         width: 2,
         gate: defaultGate,
@@ -182,10 +197,26 @@ const sha = (ctx, ref) => git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${
 export function requestVerification(ctx, commit) {
     return withState(ctx, (s) => {
         if (!s.wanted || isAncestor(ctx, s.wanted, commit)) s.wanted = commit;
-        if (alive(s.run))
-            return `verification of ${ctx.branch} is running (pid ${s.run.pid}); it goes on to ${short(commit)}`;
-        return startLocked(ctx, s);
+        if (!alive(s.run)) return startLocked(ctx, s);
+        const running = `verification of ${ctx.branch} is running (pid ${s.run.pid})`;
+        if (!supersede(ctx, s)) return `${running}; it goes on to ${short(commit)} next`;
+        return `${running}; it leaves ${short(s.run.commit)} at its next test shard and goes on to ${short(s.wanted)}`;
     });
+}
+
+/**
+ * Tells a running gate that a newer wanted commit supersedes its commit: only the full gate (never a confirming
+ * run or a bisect, which need their exact commit), and only for a commit the wanted one descends from.
+ * @param ctx the context
+ * @param s the state, under the lock
+ * @returns true when the marker was written
+ */
+function supersede(ctx, s) {
+    const { step, commit, switches = 0 } = s.run;
+    if (switches >= MAX_SWITCHES) return false;
+    if (step !== "gate" || !commit || s.wanted === commit || !isAncestor(ctx, commit, s.wanted)) return false;
+    writeFileSync(ctx.supersededFile, `${s.wanted}\n`);
+    return true;
 }
 
 /**
@@ -275,7 +306,9 @@ export function nextJob(ctx, s) {
         return {};
     }
     const from = s.verified ?? base(ctx, target);
-    s.run = { ...self, commit: target, from, step: "gate", startedAt: now() };
+    rmSync(ctx.supersededFile, { force: true });
+    const switches = s.run?.pid === self.pid ? (s.run.switches ?? 0) : 0;
+    s.run = { ...self, commit: target, from, step: "gate", startedAt: now(), switches };
     return { target, from };
 }
 
@@ -293,12 +326,20 @@ function base(ctx, target) {
 async function verifyCommit(ctx, { target, from }) {
     const started = new Date().toISOString();
     const r = await ctx.gate(ctx, target);
+    if (r.code !== 0 && /\[SUPERSEDED\]/.test(r.output ?? "")) {
+        // Left for a newer commit at a shard boundary: neither passed nor failed. The run goes on to it.
+        await withState(ctx, (s) => {
+            s.superseded = { commit: target, from, by: s.wanted, at: now(), log: r.log };
+            if (s.run) s.run.switches = (s.run.switches ?? 0) + 1;
+        });
+        return;
+    }
     if (r.code === 0) {
         if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
         await withState(ctx, (s) => {
             s.verified = target;
             s.last = { commit: target, from, status: "passed", at: now(), log: r.log };
-            if (s.run) s.run.step = "passed";
+            if (s.run) Object.assign(s.run, { step: "passed", switches: 0 });
         });
         return;
     }
@@ -327,7 +368,7 @@ async function verifyCommit(ctx, { target, from }) {
         };
         // a live claim stays a claim: its session's `handled` must still find it
         if (again && handling) Object.assign(s.last, { status: "handling", known: true });
-        if (s.run) s.run.step = again ? "failed-known" : "confirm";
+        if (s.run) Object.assign(s.run, { step: again ? "failed-known" : "confirm", switches: 0 });
     });
     if (!again) await bisect(ctx);
 }
@@ -671,7 +712,8 @@ async function finishIntermittent(ctx) {
         s.last.culprit = null;
         s.last.reproduced = false;
         if (issues) s.last.issues = issues;
-        s.last.status = all ? "flaky" : s.last.handling ? "handling" : "failed";
+        if (all) s.last.status = "flaky";
+        else s.last.status = s.last.handling ? "handling" : "failed";
         if (s.run) s.run.step = s.last.status;
     });
 }
@@ -781,9 +823,12 @@ async function defaultGate(ctx, commit, name = `golden-verify${ctx.branch === GO
     prepareScratch(ctx, dir, commit);
     const log = join(ctx.main, `tmp/golden/verify-logs/${commit.slice(0, 10)}-${Date.now()}.log`);
     // PUSH_QUEUE_RETRY: a commit verification is asked to run again is run, not refused for its last failure.
+    const bisecting = name.startsWith("golden-bisect");
     const env = {
         ...ctx.env,
-        TEST_LEDGER_KIND: name.startsWith("golden-bisect") ? "bisect" : "verify",
+        // Only the full gate may be superseded; a bisect point needs its exact commit.
+        ...(bisecting ? {} : { PREPUSH_SUPERSEDED_FILE: ctx.supersededFile }),
+        TEST_LEDGER_KIND: bisecting ? "bisect" : "verify",
         TEST_LEDGER_BRANCH: ctx.branch,
         PREPUSH_ALL: "1",
         PUSH_BASE_REF: "origin/master",
@@ -1021,6 +1066,10 @@ export function describe(ctx) {
             `  run DEAD: pid ${s.run.pid} stopped at ${s.run.step} ${short(s.run.commit)}; node tools/verify.mjs start`,
         );
     else lines.push("  running: none");
+    if (s.superseded)
+        lines.push(
+            `  superseded: ${short(s.superseded.commit)} left for ${short(s.superseded.by)} at ${s.superseded.at}`,
+        );
     if (s.last) lines.push(`  last: ${lastLine(s.last)}`);
     return lines.join("\n");
 }

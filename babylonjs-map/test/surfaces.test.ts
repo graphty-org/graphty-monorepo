@@ -6,6 +6,7 @@ import {
     NullEngine,
     Scene,
     type StandardMaterial,
+    UniversalCamera,
     Vector3,
     VertexBuffer,
 } from "@babylonjs/core";
@@ -557,7 +558,15 @@ describe("Globe", () => {
     });
 
     it("loads finer tiles as the camera nears the surface, only around the point below it", async () => {
-        const scene = new Scene(new NullEngine({ renderWidth: 1200, renderHeight: 900, textureSize: 512 }));
+        const scene = new Scene(
+            new NullEngine({
+                renderWidth: 1200,
+                renderHeight: 900,
+                textureSize: 512,
+                deterministicLockstep: false,
+                lockstepMaxSteps: 4,
+            }),
+        );
         const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 400, Vector3.Zero(), scene);
         camera.minZ = 0.01;
         const tiles = loader(scene);
@@ -583,6 +592,80 @@ describe("Globe", () => {
         expect(Math.max(...drawn), "the fine tiles are drawn once loaded").toBe(near);
         scene.getEngine().dispose();
     });
+
+    // Close to the surface, the camera sees a small cap of the globe. A coarse tile around it was
+    // judged by nine points on it: behind the horizon when none of them was in that cap, so the
+    // tile and everything finer under it was dropped (a hole), and as far away as the nearest of
+    // them, so the tile under the camera was left coarse.
+    it.each([
+        [20, 20, -67],
+        [8, 20, -67],
+        [2, 20, -67],
+        [2, -31, 112],
+        [0.5, 52, 13],
+    ])(
+        "%s units above (%s, %s): no hole, and the tile below at the level its size on screen asks for",
+        async (height, lat, lon) => {
+            const H = 900;
+            const scene = new Scene(
+                new NullEngine({
+                    renderWidth: 1200,
+                    renderHeight: H,
+                    textureSize: 512,
+                    deterministicLockstep: false,
+                    lockstepMaxSteps: 4,
+                }),
+            );
+            const camera = new UniversalCamera("camera", Vector3.Zero(), scene);
+            const at = latLonToSphere({ lat, lon }, 100 + height);
+            camera.position.set(at.x, at.y, at.z);
+            camera.setTarget(Vector3.Zero());
+            camera.minZ = height / 4;
+            camera.getViewMatrix(true);
+            const tiles = loader(scene);
+            const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+            for (let round = 0; round < 40; round++) {
+                globe.update();
+                if (tiles.requests.length === 0) {
+                    break;
+                }
+                await tiles.answerAll();
+            }
+            globe.update();
+            expect(tiles.requests, "every wanted tile was asked for and loaded").toHaveLength(0);
+
+            let seen = 0;
+            for (let j = 1; j < 15; j++) {
+                for (let i = 1; i < 20; i++) {
+                    const ray = scene.createPickingRay((1200 * i) / 20, (H * j) / 15, null, camera);
+                    const o = ray.origin;
+                    const d = ray.direction;
+                    const b = Vector3.Dot(o, d);
+                    if (b * b - o.lengthSquared() + 100 * 100 < 0) {
+                        continue;
+                    }
+                    seen++;
+                    const hit = scene.pickWithRay(ray, (m) => m.name.includes("-tile-") && m.isEnabled());
+                    expect(hit?.hit, `a tile is drawn at pixel ${String(i)}, ${String(j)}`).toBe(true);
+                }
+            }
+            expect(seen).toBeGreaterThan(0);
+
+            // The tile under the middle of the view: a texel at most a pixel, its parent's more.
+            const below = scene.pickWithRay(
+                scene.createPickingRay(600, H / 2, null, camera),
+                (m) => m.name.includes("-tile-") && m.isEnabled(),
+            );
+            const z = Number(/\|(\d+)\/\d+\/\d+$/.exec(below?.pickedMesh?.name ?? "")?.[1]);
+            // A tile's width there: the circumference over 2^z, narrowed by the latitude.
+            const pixels = (level: number): number =>
+                (((2 * Math.PI * 100 * Math.cos((lat * Math.PI) / 180)) / 2 ** level) * H) /
+                (2 * height * Math.tan(camera.fov / 2));
+            expect(pixels(z - 1), `level ${String(z)} is fine enough`).toBeGreaterThan(256);
+            expect(z, "not finer than the source has").toBeLessThanOrEqual(19);
+            scene.getEngine().dispose();
+        },
+    );
 
     it("shades the side away from a sun dark, with a soft twilight, and none without one", async () => {
         const scene = new Scene(new NullEngine());

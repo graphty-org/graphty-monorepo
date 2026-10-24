@@ -436,6 +436,17 @@ export abstract class MapSurface {
     protected abstract occluded(samples: Vector3[], eye: Vector3): boolean;
 
     /**
+     * How near the eye a tile comes, for picking its level: the nearest of its sample points. A
+     * surface whose tiles can pass under the eye between their sample points answers less.
+     * @param samples - Nine points on the tile, in the root's own space.
+     * @param eye - The camera, in the root's own space.
+     * @returns The distance.
+     */
+    protected nearest(samples: Vector3[], eye: Vector3): number {
+        return Math.min(...samples.map((s) => Vector3.Distance(s, eye)));
+    }
+
+    /**
      * The copies of the world a source is drawn in, as whole-world offsets: `[0]` for one world,
      * more where a flat map shows past 180 degrees.
      * @returns The offsets.
@@ -605,7 +616,7 @@ export abstract class MapSurface {
             if (ortho > 0) {
                 pixels = (edge * height) / ortho;
             } else {
-                const distance = Math.max(1e-9, Math.min(...samples.map((s) => Vector3.Distance(s, eye))));
+                const distance = Math.max(1e-9, this.nearest(samples, eye));
                 pixels = (edge * height) / (2 * distance * Math.tan(camera.fov / 2));
             }
             const children = tile.z < resolved.maxZoom ? resolved.children(tile) : [];

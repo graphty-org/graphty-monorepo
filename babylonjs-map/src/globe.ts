@@ -38,6 +38,16 @@ const TWILIGHT: readonly [number, number] = [-0.1, 0.15];
 const AIR = 0.06;
 
 /**
+ * The angle between two directions from the origin.
+ * @param a - One, any length but zero.
+ * @param b - The other.
+ * @returns The angle in radians.
+ */
+function angleBetween(a: Vector3, b: Vector3): number {
+    return Math.acos(Math.min(1, Math.max(-1, Vector3.Dot(a, b) / (a.length() * b.length() || 1))));
+}
+
+/**
  * How bright a point of a globe is under a sun: full on the day side, {@link NIGHT} on the night
  * side, smooth across the twilight band.
  * @param point - The point, from the globe's center; any length but zero.
@@ -222,13 +232,43 @@ export class Globe extends MapSurface {
     }
 
     /**
-     * Behind the horizon: no sample point faces the eye.
+     * Behind the horizon: no point of the tile is in the cap of the globe the eye sees.
      * @param samples - Points on the tile, in the globe's own space.
      * @param eye - The camera, in the globe's own space.
-     * @returns True when every point faces away.
+     * @returns True when the whole tile is past the horizon.
      */
     protected override occluded(samples: Vector3[], eye: Vector3): boolean {
-        const r2 = this.currentRadius * this.currentRadius;
-        return samples.every((s) => Vector3.Dot(s, eye) < r2 * 0.999);
+        const horizon = Math.acos(Math.min(1, this.currentRadius / eye.length()));
+        return this.gap(samples, eye) > horizon;
+    }
+
+    /**
+     * The nearest the tile comes to the eye: the point of it the least angle from the eye's
+     * direction, at the globe's radius.
+     * @param samples - Points on the tile, in the globe's own space.
+     * @param eye - The camera, in the globe's own space.
+     * @returns The distance, never more than the true one.
+     */
+    protected override nearest(samples: Vector3[], eye: Vector3): number {
+        const e = eye.length();
+        const r = this.currentRadius;
+        return Math.sqrt(Math.max(0, e * e + r * r - 2 * e * r * Math.cos(this.gap(samples, eye))));
+    }
+
+    /**
+     * The least angle between the eye's direction and any point of a tile, never more than the
+     * true one: the angle to the tile's middle point less the angle from there to its farthest
+     * corner (a patch bounded by meridians and parallels is farthest from any point of it at a
+     * corner). Near the surface the eye sees a small cap of the globe and can stand over a coarse
+     * tile far from all nine of its sample points; judged by those points, that tile was dropped as
+     * behind the horizon (a hole) or judged far away (left coarse).
+     * @param samples - Nine points on the tile, row by row, in the globe's own space.
+     * @param eye - The camera, in the globe's own space.
+     * @returns The angle in radians.
+     */
+    private gap(samples: Vector3[], eye: Vector3): number {
+        const middle = samples[4];
+        const reach = Math.max(...[0, 2, 6, 8].map((i) => angleBetween(middle, samples[i])));
+        return Math.max(0, angleBetween(middle, eye) - reach);
     }
 }

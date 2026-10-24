@@ -305,6 +305,44 @@ a decimal pair (latitude first, or longitude first when only that fits), GeoJSON
 degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
 should not decide.
 
+To name the location once for the whole project instead of in the layout's options, designate it
+in the data settings; the layout reads it whenever its own `location`, `latitude` and `longitude`
+are unset, and `session.layout.locationColumns()` says which columns it will read:
+
+```ts
+await session.data.setRole({ kind: "node", name: "town" }, "city");
+await session.data.setRole({ kind: "node", name: "nation" }, "country");
+const { kinds, using, unused } = session.layout.locationColumns();
+// kinds: { city: "town", country: "nation" }, using: "city", unused: []
+```
+
+Each kind of location is a role of its own, one column each: `latitude`, `longitude`,
+`coordinates` (one column of whole locations), `country`, `region` and `city`. The layout reads a
+full latitude and longitude pair first, else the coordinates, else the finest place kind given,
+narrowed by the next coarser one (a city by its region, else its country). A kind given but not
+read is listed in `unused` as `{ code: "location.unused", params: { kind, using } }`. Taking the
+last kind away (`setRole(column, null)`) turns the search off. Before any kind is given,
+`kinds` lists what the layout found by itself. The single `nodeLocationPath` form below still works.
+
+- **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
+  with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
+  placed with no settings; a column of names under any other heading is found by its values. The
+  names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
+  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
+  column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
+  `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
+  column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
+  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
+  several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
+
+    ```ts
+    await session.config.set({
+        data: { knownFields: { nodeLocationPath: "city", nodeLocationRole: "city", nodeLocationWithin: "US" } },
+    });
+    ```
+
 - **Map dimension.** The 2D view always draws a 2D (flat) map with straight edges. In the 3D view,
   `mapDimension: "3d"` (the default) draws a 3D map, a globe, with great-circle arcs above it, and
   `mapDimension: "2d"` draws the 2D map with each edge raised as an arc over it. A 3D map asked

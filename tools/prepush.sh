@@ -9,6 +9,9 @@
 # no package included: they check the whole repository, root files (knip.config.ts, package.json
 # scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
+# PREPUSH_LIGHT=1 is the light gate: everything above but the test shards and the screenshots, which CI's
+# verification of golden runs instead (tools/verify.mjs backend ci; design/ci/ci-full-testing.md). The NVIDIA
+# GPU step still runs when webgpu-graph-algorithms is affected. Unset or 0 is the full gate.
 # This script avoids nx to work around git hook issues with nx daemon
 
 # A run_step check that fails ends the run at once (run_step exits), so a formatting or lint slip is
@@ -28,6 +31,7 @@ ROOT_DIR="$(cd "${PREPUSH_ROOT:-$(dirname "$SCRIPT_DIR")}" && pwd)" || exit 1
 unset PREPUSH_ROOT
 
 cd "$ROOT_DIR"
+LIGHT="${PREPUSH_LIGHT:-0}"
 
 # git runs this hook with GIT_DIR and friends exported, pointing at the real repository. Any step
 # that runs git in a temporary directory -- a test building a throwaway repository -- would then act
@@ -61,10 +65,32 @@ if [ -n "$GLOBAL_PNPM" ] && [ "$(printf '%s\n' "$GLOBAL_PNPM" 10.29.1 | sort -V 
     echo "WARNING: the pnpm on PATH is $GLOBAL_PNPM, older than 10.29.1, so a pnpm exec killed by a signal exits 0; run pnpm self-update"
 fi
 
+# The gate runs at normal priority: other work yields to it (tools/low-priority.sh, and the low lanes of the
+# test and browser slots while it runs its shards), never the other way round. A gate started from a niced
+# shell inherits the niceness and cannot lower it again without privilege, so say so.
+if [ "$(nice)" != 0 ]; then
+    echo "WARNING: the gate runs at niceness $(nice), not 0: it was started from a lowered shell (tools/low-priority.sh?), so other work gets the CPU first"
+fi
+
 # The source-only checks (formatting, links, the tool and config checks, SonarQube's changed-lines
 # scan), and run_step, the colors and SONAR_LOG every step below uses.
 # tools/prepush-source-checks.sh says why they come first and when they are skipped.
 PREPUSH_ROOT="$ROOT_DIR" source "$SCRIPT_DIR/prepush-source-checks.sh"
+
+# The whole gate already passed on exactly these inputs (GATE_KEY, from the source-only checks: every
+# file git does not ignore, the installed lockfile, the gate's scripts, the Node version and the lane
+# environment; tools/prepush-inputs.mjs), on any branch: nothing below can come out differently, so it
+# does not run again. This is what lets golden's land commit of a branch that merged golden first push
+# in seconds. PREPUSH_RERUN_ALL=1 runs it all. A land check's pass with a shard excused as failing on golden's
+# tip (gate-known, below) counts only for a push of the same landing, never for any other push.
+if [ -n "$GATE_KEY" ] && [ "${PREPUSH_RERUN_ALL:-}" != 1 ] &&
+    { GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate "$GATE_KEY" 2>/dev/null)" ||
+        { [ "${TEST_LEDGER_KIND:-}" = land-check ] &&
+            GATE_PASS="$(node "$SCRIPT_DIR/prepush-inputs.mjs" passed gate-known "$GATE_KEY" 2>/dev/null)"; }; }; then
+    echo -e "${GREEN}[SKIP] The whole gate: it already passed on exactly these inputs ($(jq -r '"\(.branch // "detached") at \(.sha[0:12]), \(.at)"' <<<"$GATE_PASS" 2>/dev/null); key ${GATE_KEY:0:12}; PREPUSH_RERUN_ALL=1 runs it)${NC}"
+    echo -e "${GREEN}All pre-push checks passed!${NC}"
+    exit 0
+fi
 
 # Track failures.
 #
@@ -122,6 +148,32 @@ PROJECT_LIST=$(echo "$PROJECTS" | tr -d '[]" ')
 affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }
 # The same packages as directories (nx names remote-logger by its package name).
 DIR_LIST=$(echo "$PROJECT_LIST" | tr ',' ' ' | sed 's#@graphty/##g')
+
+# The packages with an API reference in the documentation site (a root `docs:api:<package>` script).
+DOCS_API_PACKAGES=$(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")')
+
+# The documentation site, built as CI's Docs job builds it (npm run docs:build: docs:content, every
+# docs:api, vitepress build docs). TypeDoc writes whatever a doc comment holds, and only VitePress's
+# Vue compiler rejects a page that is not valid template: a code span split across two lines of a
+# doc comment left a bare `<value>` tag in a generated page, and "Element is missing end tag" failed
+# CI's Docs job on 2026-10-22. It runs when an affected package has an API reference, or the push
+# changes docs/, a package's docs/ that tools/copy-docs-content.js copies in, or the scripts that
+# assemble the site. It reuses the API pages the "API docs" steps generated and builds only the other
+# packages' ones, so a dead link VitePress finds fails here too. Needs the build. About 3 minutes
+# (2026-10-22, a busy machine): the other API pages 30 seconds, vitepress build 2.5 minutes.
+docs_site_affected() {
+    local p
+    for p in $DOCS_API_PACKAGES; do affected "$p" && return 0; done
+    [ -z "${BASE:-}" ] && return 0
+    ! git diff --quiet "$BASE" HEAD -- docs/ $(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js) \
+        tools/copy-docs-content.js tools/sanitize-api-docs.js
+}
+docs_site_step() {
+    docs_site_affected || return 0
+    local cmd="pnpm run docs:content" p
+    for p in $DOCS_API_PACKAGES; do affected "$p" || cmd="$cmd && pnpm run docs:api:$p"; done
+    run_step "Docs site (VitePress build)" "$cmd && node tools/sanitize-api-docs.js && pnpm exec vitepress build docs"
+}
 
 # Under the summary: repeat a skipped check's warning so it does not scroll away. SONAR_LOG holds the
 # output of the SonarQube step's last run on this checkout (tools/prepush-source-checks.sh), which is
@@ -187,12 +239,14 @@ run_step "Knip (dead code detection)" "pnpm run lint:knip"
 run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 
 # A push that affects no package (tools/, the root package.json scripts, knip.config.ts, docs) stops
-# here: knip has checked it, and everything below is per affected package. The published-dependency
-# check (below for the other pushes) runs over every package, as CI's does: a change to the check
-# itself, or to tools/workspace-files.mjs, can fail it.
+# here: knip has checked it (and the docs site step the docs it changed), and everything below is
+# per affected package. The published-dependency check (below for the other pushes) runs over every
+# package, as CI's does: a change to the check itself, or to tools/workspace-files.mjs, can fail it.
 if [ -z "$PROJECT_LIST" ]; then
     run_step "Published dependencies" "pnpm run check:published-deps"
+    docs_site_step
     sonar_reminder
+    [ "$FAILED" = 0 ] && [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record gate "$GATE_KEY"
     exit "$FAILED"
 fi
 
@@ -213,11 +267,12 @@ run_step "Published dependencies" "pnpm run check:published-deps -- $DIR_LIST"
 # The API reference of each affected package that has one (a root `docs:api:<package>` script), built
 # as CI's Docs job builds it (npm run docs:build): graph-io's TypeDoc fails on any warning, so a missing
 # doc comment fails here and not only in CI. Needs the build above. The output is gitignored.
-for DOCS_PACKAGE in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
+for DOCS_PACKAGE in $DOCS_API_PACKAGES; do
     if affected "$DOCS_PACKAGE"; then
         run_step "API docs ($DOCS_PACKAGE)" "pnpm run docs:api:$DOCS_PACKAGE"
     fi
 done
+docs_site_step
 
 # The gzip budget of each graphty-element entry point (graphty-element/size-budgets.json), counted
 # over the entry file and every chunk it statically imports. Needs the build above.
@@ -245,14 +300,18 @@ fi
 # only work: it starts once the capture holds its lock, and each Storybook's capture starts its share
 # once it holds a browser slot, so a long wait behind the test shards' browsers never fails it (its log
 # says when it waits and when it works). Its own process group, killed by the EXIT trap,
-# so a step that stops the gate stops the capture with it.
-SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
-mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
-echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
-setsid env VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
-SCREENSHOTS_PGID=$!
-SCREENSHOTS_STAGED=1
-echo ""
+# so a step that stops the gate stops the capture with it. TEST_SLOT_GATE: it is the gate's own work, so it
+# never takes the low lane that every browser command outside a gate takes while a gate runs its shards.
+# The light gate (PREPUSH_LIGHT=1) captures nothing: CI's visual job on the cut pull request is the capture.
+if [ "$LIGHT" != 1 ]; then
+    SCREENSHOTS_LOG="$MAIN_DIR/tmp/visual-preview/prepush-$(basename "$ROOT_DIR").log"
+    mkdir -p "$(dirname "$SCREENSHOTS_LOG")"
+    echo -e "${YELLOW}> Screenshots, in the background (log: $SCREENSHOTS_LOG)${NC}"
+    setsid env TEST_SLOT_GATE="$$" VISUAL_PREVIEW_TIMEOUT="${PREPUSH_SCREENSHOTS_TIMEOUT:-45m}" PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --head "$PUSH_HEAD" >"$SCREENSHOTS_LOG" 2>&1 &
+    SCREENSHOTS_PGID=$!
+    SCREENSHOTS_STAGED=1
+    echo ""
+fi
 
 # The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
 # CI's webgpu-graph-algorithms-node shard (below, through run-tests.sh) runs on Mesa lavapipe; this runs
@@ -284,8 +343,13 @@ fi
 # gates' work -- on 2026-10-17, with 8 pushes queued, a push whose every shard passed was failed at
 # 90 minutes while its last shards were still waiting for slots. On Ctrl-C (or any SIGTERM)
 # prepush-tests.mjs stops every shard's process group itself.
-run_step "Tests (the CI shards of the affected packages)" \
-    "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'"
+# Exit 3: every shard passed but some whose failing tests fail on golden's tip too (tools/test-ledger.mjs); the
+# step passes and the gate's pass is recorded as gate-known, which only the landing's own push accepts.
+# The light gate runs no shard (so it never records gate-known): CI's verification of golden runs them all.
+if [ "$LIGHT" != 1 ]; then
+    run_step "Tests (the CI shards of the affected packages)" \
+        "PREPUSH_ROOT='$ROOT_DIR' node '$SCRIPT_DIR/prepush-tests.mjs' '$PROJECTS' '${BASE:-}'; TESTS_EXIT=\$?; [ \$TESTS_EXIT = 3 ] && KNOWN_FAILURES=1; [ \$TESTS_EXIT = 0 ] || [ \$TESTS_EXIT = 3 ]"
+fi
 
 if [ -n "$GPU_PGID" ]; then
     echo -e "${YELLOW}> webgpu-graph-algorithms on the local NVIDIA GPU${NC}"
@@ -301,25 +365,30 @@ if [ -n "$GPU_PGID" ]; then
     GPU_PGID=""
 fi
 
-echo -e "${YELLOW}> Screenshots${NC}"
-if wait "$SCREENSHOTS_PGID"; then
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${GREEN}[PASS] Screenshots captured${NC}"
-else
-    cat "$SCREENSHOTS_LOG"
-    echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
-    FAILED=1
+if [ -n "$SCREENSHOTS_PGID" ]; then
+    echo -e "${YELLOW}> Screenshots${NC}"
+    if wait "$SCREENSHOTS_PGID"; then
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${GREEN}[PASS] Screenshots captured${NC}"
+    else
+        cat "$SCREENSHOTS_LOG"
+        echo -e "${RED}[FAIL] Screenshots: the capture failed or timed out (above; the log is $SCREENSHOTS_LOG)${NC}"
+        FAILED=1
+    fi
+    SCREENSHOTS_PGID=""
+    echo ""
 fi
-SCREENSHOTS_PGID=""
-echo ""
 
 # Summary -- the overall verdict, so this one reads the global FAILED flag on purpose:
 # a knip-only failure must still fail the push.
 echo "========================================"
 sonar_reminder
+[ "$LIGHT" = 1 ] && echo -e "${YELLOW}[LIGHT] tests run in CI verification (tools/verify.mjs); no shard and no screenshot ran here${NC}"
 if [ $FAILED -eq 0 ]; then
     # Every check passed, so the push goes ahead: the staged capture becomes the branch's preview.
-    PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
+    # Recorded only when the inputs are still the ones the run started on (prepush-inputs.mjs compares).
+    [ -n "$GATE_KEY" ] && node "$SCRIPT_DIR/prepush-inputs.mjs" record "gate${KNOWN_FAILURES:+-known}" "$GATE_KEY"
+    [ "$SCREENSHOTS_STAGED" = 1 ] && PREPUSH_ROOT="$ROOT_DIR" "$SCRIPT_DIR/visual-preview.sh" --promote "$PUSH_HEAD" && SCREENSHOTS_STAGED=0
     echo -e "${GREEN}All pre-push checks passed!${NC}"
     exit 0
 else

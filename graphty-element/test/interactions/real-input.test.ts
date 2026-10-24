@@ -615,13 +615,25 @@ describe("the keyboard", () => {
             const element = await mounted("3d");
             await click(element, EMPTY);
             const gap = spread(element);
+            const input = (element.graph.camera as unknown as { inputs: Map<string, { busy: boolean }> }).inputs.get(
+                "orbit",
+            );
+            assert.isDefined(input);
+            // A tap zooms over the frames it owes; the stable frame does not wait for the reader's
+            // own camera moves, so wait until the input says it is done.
+            const tapped = async (): Promise<void> => {
+                await userEvent.keyboard(key);
+                while (input.busy) {
+                    await nextFrame();
+                }
+
+                await applied(element);
+            };
 
             // A tap: down and up before the next frame, which a key read once a frame never saw.
-            await userEvent.keyboard(key);
-            await applied(element);
+            await tapped();
             const once = spread(element);
-            await userEvent.keyboard(key);
-            await applied(element);
+            await tapped();
 
             assert.isAbove(once, gap * 1.05, "the first tap zoomed in");
             assert.isAbove(spread(element), once * 1.05, "and so did the second");
@@ -709,19 +721,21 @@ describe("the keyboard", () => {
         assert.closeTo((sign * Math.log(after / before)) / heldFrames, 0.02, 0.0004, "log zoom per frame held");
     });
 
-    // W and S zoom one wheel notch (a factor of 1.1) on the press, and from the 9th frame they are
-    // held on, by the same fraction of the distance every frame, so the zoom is as quick far out
-    // as close in: 0.985 per frame, tenfold over the 157 frames A or D take to spin half a turn.
-    // userEvent holds a key with one keydown and no auto-repeats, as macOS does for a held letter
-    // (press and hold shows the accent menu), so the zoom must come from the frames, not repeats.
+    // W and S zoom like every other camera key moves: by the same fraction of the distance every
+    // frame they are on, from the first frame to the last, so the zoom is as quick far out as close
+    // in: 0.985 per frame, tenfold over the 157 frames A or D take to spin half a turn. They once
+    // jumped a whole wheel notch (10%) on the press and then sat still for 8 frames before zooming
+    // smoothly (issue #3315). userEvent holds a key with one keydown and no auto-repeats, as macOS
+    // does for a held letter (press and hold shows the accent menu), so the zoom must come from the
+    // frames, not repeats.
     describe.each([
         ["close in", 6],
         ["far out", 600],
     ])("holding W or S, %s", (_where, start) => {
         it.each([
-            ["W", -1, 0.985],
-            ["S", 1, 1 / 0.985],
-        ])("%s zooms a notch, then by a factor of %f per frame while held", async (key, notches, perFrame) => {
+            ["W", 0.985],
+            ["S", 1 / 0.985],
+        ])("%s zooms by a factor of %f every frame held, the first frame included", async (key, perFrame) => {
             const element = await mounted("3d");
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
@@ -739,25 +753,21 @@ describe("the keyboard", () => {
             assert.closeTo(before, start, 1e-6, "the camera starts at the distance set");
 
             const heldFrames = 40;
-            const distances: number[] = [];
+            const distances = [before];
             await hold(element, key.toLowerCase(), "orbit", heldFrames, () => distances.push(distance()));
 
             assert.strictEqual(repeats, 0, "the key was held with no auto-repeat");
-            const after = distance();
-            assert.closeTo(
-                after / before,
-                1.1 ** notches * perFrame ** (heldFrames - 8),
-                1e-9,
-                "a notch, then a factor a frame",
-            );
-            for (let frame = 9; frame < heldFrames; frame++) {
+            for (let frame = 1; frame <= heldFrames; frame++) {
                 assert.closeTo(
                     distances[frame] / distances[frame - 1],
                     perFrame,
                     1e-9,
-                    `zoomed in held frame ${String(frame + 1)}`,
+                    `zoomed in held frame ${String(frame)}: no jump on the press, no pause after it`,
                 );
             }
+
+            const after = distance();
+            assert.closeTo(after / before, perFrame ** heldFrames, 1e-9, "a factor a frame, nothing more");
 
             // Let go, the camera stays where it is however many frames follow
             const input = (element.graph.camera as unknown as { inputs: Map<string, { update(): void }> }).inputs.get(
@@ -770,9 +780,9 @@ describe("the keyboard", () => {
         });
 
         it.each([
-            ["W", -1],
-            ["S", 1],
-        ])("a short press of %s zooms exactly one notch", async (key, notches) => {
+            ["W", 0.985],
+            ["S", 1 / 0.985],
+        ])("a short press of %s zooms over a tap's 8 frames, as an arrow turns", async (key, perFrame) => {
             const element = await mounted("3d");
             await element.setCameraState({ cameraDistance: start });
             await click(element, EMPTY);
@@ -781,7 +791,7 @@ describe("the keyboard", () => {
             await hold(element, key.toLowerCase(), "orbit", 3);
 
             const after = element.getCameraState().cameraDistance ?? Number.NaN;
-            assert.closeTo(after / before, 1.1 ** notches, 1e-9, "one notch");
+            assert.closeTo(after / before, perFrame ** 8, 1e-9, "8 frames of zoom");
         });
     });
 });

@@ -7,7 +7,7 @@ import { useUsageAnswer } from "./usageData";
 
 /**
  * The privacy chip (tier1-design.md section 2.1): "Local only", or "Usage data on, content
- * masked" once the reader has said Share; opens Settings > Privacy. The header and the start
+ * masked" once the reader has said Share; opens Settings > Privacy. The status bar and the start
  * screen both draw it. Its tooltip says what is sent and where the chip leads.
  * @returns The chip
  */

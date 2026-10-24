@@ -23,7 +23,7 @@ const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14, totalEdges:
 
 describe("the Filters words", () => {
     it("names what the step editor's disabled submit waits for", () => {
-        assert.equal(missingTip("attribute"), "Choose an attribute first");
+        assert.equal(missingTip("attribute"), "Add a condition first");
         assert.equal(missingTip("value"), "Type a value first");
         assert.equal(missingTip("nodes"), "Select a node first");
         assert.equal(missingTip("change"), "Nothing changed since the last save");

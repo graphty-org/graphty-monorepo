@@ -1,29 +1,16 @@
 import "./data-place.css";
 
-import { ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import type { SourceKey } from "@graphty/graphty-element/session";
+import React, { useState } from "react";
 
 import { GLYPHS, SOURCE_GLYPHS } from "../glyphs";
-import { runName } from "../runWords";
-import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { StyleNotes } from "../styles/StyleNotes";
-import { useAttributeActions } from "./attributeActions";
+import { useSessionVersion } from "../inspector/hooks";
+import { ServerPlace } from "../server/ServerForm";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
-import { stepSource } from "./filterSteps";
-import { AttributeMenuItems, ItemLabel } from "./MenuItems";
-import { useSourceActions } from "./sourceActions";
-import {
-    type AttributeRow,
-    attributeRows,
-    columnOf,
-    FIND_PAST,
-    type SourceKind,
-    type SourceRow,
-    sourceRows,
-    type TypeGlyph,
-} from "./words";
+import { Sources } from "./Sources";
+import type { SourceKind, TypeGlyph } from "./words";
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
     category: <GLYPHS.category size={14} aria-hidden />,
@@ -37,33 +24,9 @@ const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
 };
 
 /**
- * The commands the Sources "+" offers (File..., From a URL..., Paste...). The Data page package
- * registers them; until it does, the "+" is not drawn.
- */
-const ADD_SOURCE = ["data.add-file", "data.add-url", "data.add-paste"] as const;
-
-/**
- * Re-renders on every change the element reports to the project (an import, an undo, a
- * declaration), so the lists read the session fresh.
- * @param session - the element's session, or null.
- * @returns a number that changes with each reported change.
- */
-function useProjectVersion(session: GraphSession | null): number {
-    const [version, setVersion] = useState(0);
-    useEffect(
-        () =>
-            session?.on("project:changed", () => {
-                setVersion((v) => v + 1);
-            }),
-        [session],
-    );
-    return version;
-}
-
-/**
- * A Sources row's icon.
+ * A source's icon, which the source inspector's header draws.
  * @param props - Component props
- * @param props.kind - The row's kind
+ * @param props.kind - The source's kind
  * @returns The icon
  */
 export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
@@ -72,9 +35,9 @@ export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX
 }
 
 /**
- * An Attributes row's type icon, which the attribute inspector's header draws too.
+ * An attribute's type icon, which the attribute inspector's header draws.
  * @param props - Component props
- * @param props.glyph - The row's type glyph
+ * @param props.glyph - The attribute's type glyph
  * @returns The icon
  */
 export function TypeGlyphIcon({ glyph }: Readonly<{ glyph: TypeGlyph }>): React.JSX.Element {
@@ -82,228 +45,37 @@ export function TypeGlyphIcon({ glyph }: Readonly<{ glyph: TypeGlyph }>): React.
 }
 
 /**
- * The tree item for a Sources row.
- * @param row - the row.
- * @returns the item.
- */
-function sourceItem(row: SourceRow): TreeNodeData {
-    return {
-        id: row.id,
-        name: row.name,
-        icon: <SourceGlyph kind={row.kind} />,
-        strong: false,
-        // The quiet text is a second line, so a long name and "12 nodes, 22 edges" each show whole.
-        ...(row.quiet === "" ? {} : { description: row.quiet, descriptionVisible: true }),
-        ...(row.children === undefined ? {} : { children: row.children.map(sourceItem) }),
-    };
-}
-
-/**
- * The tree item for an Attributes row.
- * @param row - the row.
- * @returns the item.
- */
-function attributeItem(row: AttributeRow): TreeNodeData {
-    return {
-        id: row.id,
-        name: row.name,
-        label: row.label,
-        // The type reaches a screen reader through the description; the tooltip is for a pointer.
-        description: row.description,
-        icon: (
-            <Tooltip label={row.typeWord}>
-                <span>{TYPE_GLYPHS[row.glyph]}</span>
-            </Tooltip>
-        ),
-        // Its type and how many have a value on a second line, as a source says its counts, so the
-        // name and "Number, 99% have a value" each show whole at any width.
-        descriptionVisible: true,
-    };
-}
-
-/**
- * The Attributes tree: a Nodes and an Edges subhead, each drawn only when it has a row.
- * @param session - the element's session, or null.
- * @param needle - the find text, or "" for every attribute.
- * @returns the tree items.
- */
-function attributeTree(session: GraphSession | null, needle: string): TreeNodeData[] {
-    const attributes = session?.data.attributes() ?? [];
-    const runLabel = (runId: string): string | undefined => {
-        const run = session?.runs.get(runId);
-        return session === null || run === undefined ? undefined : runName(session, run);
-    };
-    // What each column holds as the element reads it: a free-text column is text, not groups.
-    const kinds = new Map(
-        (session?.data.readableValues() ?? []).map((value) => [`${value.on}:${value.path}`, value.kind]),
-    );
-    const subheads = [
-        { id: "nodes", name: "Nodes", label: "Node attributes", kind: "node" },
-        { id: "edges", name: "Edges", label: "Edge attributes", kind: "edge" },
-    ] as const;
-    return subheads.flatMap(({ kind, ...head }) => {
-        const rows = attributeRows(attributes, kind, needle, runLabel, (on, path) => kinds.get(`${on}:${path}`));
-        return rows.length > 0 ? [{ ...head, children: rows.map(attributeItem) }] : [];
-    });
-}
-
-/**
- * The Data place's row menu, for Tree's rowMenu: on a source, the source's verbs, and on an
- * attribute, the attribute's verbs (each the same as its inspector's "..."). Other rows (the
- * Nodes and Edges subheads) have none.
- * @returns the rowMenu function.
- */
-function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
-    const actionsOf = useAttributeActions();
-    const sourceActionsOf = useSourceActions();
-    return (node) => {
-        const actions = node.id.startsWith("source") ? sourceActionsOf() : actionsOf(columnOf(node.id));
-        return actions.length === 0 ? null : <AttributeMenuItems actions={actions} />;
-    };
-}
-
-/**
- * The Attributes section: the find box once there are many, and the Nodes and Edges tree. Picking
- * an attribute opens it in the inspector.
- * @returns The section
- */
-function AttributesSection(): React.JSX.Element {
-    const { session, store } = useWorkspace();
-    const rowMenu = useRowMenu();
-    const inspected = useWorkspaceState((state) => state.inspected);
-    const [filter, setFilter] = useState("");
-    const findShown = (session?.data.attributes().length ?? 0) > FIND_PAST;
-    const attributeItems = attributeTree(session, findShown ? filter : "");
-    // The attribute kind's id is the attribute's path (`data.<name>`), as the inspector reads it;
-    // the tree's own row ids carry the kind too, since a node and an edge attribute can share one.
-    // ponytail: a path names no kind, so where a node and an edge attribute share one the node's
-    // row is the one shown selected.
-    const attributes = session?.data.attributes() ?? [];
-    // A step opened from an attribute's Filter to... keeps that attribute marked.
-    const source = stepSource(inspected);
-    const shown =
-        inspected?.kind === "attribute"
-            ? attributes.find((a) => a.path === inspected.id)
-            : attributes.find((a) => `${a.kind}:${a.path}` === source);
-    const selectedAttribute = shown === undefined ? [] : [`${shown.kind}:${shown.name}`];
-    return (
-        <ControlSection label="Attributes" empty={attributeItems.length === 0 && filter === ""}>
-            {findShown ? (
-                <SearchInput
-                    className="dp-find"
-                    aria-label="Find attribute"
-                    placeholder="Find"
-                    value={filter}
-                    onChange={setFilter}
-                />
-            ) : null}
-            {attributeItems.length === 0 && filter !== "" ? (
-                <Text size="xs" c="dimmed" className="dp-no-match">
-                    No match for &quot;{filter}&quot;
-                </Text>
-            ) : null}
-            {attributeItems.length === 0 ? null : (
-                <Tree
-                    label="Attributes"
-                    items={attributeItems}
-                    defaultExpanded={["nodes", "edges"]}
-                    multiselect={false}
-                    selected={selectedAttribute}
-                    rowMenu={rowMenu}
-                    onSelect={(ids) => {
-                        const id = ids.at(-1);
-                        const column = id === undefined ? null : columnOf(id);
-                        const attribute = attributes.find((a) => a.kind === column?.kind && a.name === column.name);
-                        if (attribute !== undefined) {
-                            store.set({ inspected: { kind: "attribute", id: attribute.path } });
-                        }
-                    }}
-                />
-            )}
-        </ControlSection>
-    );
-}
-
-/**
- * The Data place (tier1-design.md section 2.6): the graph's name, then Sources, Filters
- * (tier2-design.md section 1) and Attributes.
- * Every fact is the element's: `data.sources()` and `data.lastImport()` for Sources,
- * `data.attributes()` for Attributes.
- *
- * Not drawn until graphty-element provides them: Rename on a source (#894) and the attributes'
- * role tags, Key, Name and Weight (#893). A closed section's one-line summary waits for
- * compact-mantine's ControlSection (#916).
+ * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
+ * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). Every
+ * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
+ * arranges them. The selected source is the reader's pick, the newest load until they pick one;
+ * picking one also opens it in the inspector.
  * @returns The Data place
  */
 export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
-    useProjectVersion(session);
+    useSessionVersion(session);
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
-    const addCommands = [useCommand(ADD_SOURCE[0]), useCommand(ADD_SOURCE[1]), useCommand(ADD_SOURCE[2])].filter(
-        (door) => door !== null,
-    );
-
-    const sources = session === null ? [] : sourceRows(session.data.sources(), session.data.lastImport());
-
-    const rowMenu = useRowMenu();
-    const tableBuilt = useCommand("table.toggle") !== null;
-    // A row opens what it names in the inspector: a load what it added and what it left out, a
-    // table child what its table added, the left-out child the rows left out. A table row also
-    // opens the table dock on that table: a file's Node table or Edge table, a CSV load's node or
-    // edge file, or a source that produced one table (an edge list) and so has no children. Its
-    // menu's Edit source... opens the Data page.
-    const inspected = useWorkspaceState((state) => state.inspected);
-    const openSource = (ids: string[]): void => {
-        const id = ids.at(-1);
-        const row = sources.flatMap((source) => [source, ...(source.children ?? [])]).find((r) => r.id === id);
-        if (row !== undefined) {
-            store.set({ inspected: { kind: "source", id: row.id } });
-        }
-        if (tableBuilt && (row?.kind === "nodes" || row?.kind === "edges")) {
-            store.set({ dockOpen: true, dockTab: row.kind });
+    const [picked, setPicked] = useState<SourceKey | undefined>(undefined);
+    const sources = session?.data.sources() ?? [];
+    const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
+    // A press picks the load for Fields and opens it in the inspector: what it added and what it
+    // left out, with Edit source and Replace in its "...".
+    const select = (key: SourceKey): void => {
+        setPicked(key);
+        const at = sources.findIndex((each) => each.key === key);
+        if (at !== -1) {
+            store.set({ inspected: { kind: "source", id: `source:${String(at)}` } });
         }
     };
-
-    const plus =
-        addCommands.length === 0 ? null : (
-            <Menu position="bottom-end">
-                <Menu.Target>
-                    <Tooltip label="Add data">
-                        <ActionIcon variant="subtle" aria-label="Add data">
-                            <GLYPHS.add size={14} aria-hidden />
-                        </ActionIcon>
-                    </Tooltip>
-                </Menu.Target>
-                <Menu.Dropdown>
-                    {addCommands.map((door) => (
-                        <Menu.Item key={door.command.id} disabled={door.disabledReason !== null} onClick={door.run}>
-                            <ItemLabel label={door.command.label} reason={door.disabledReason} />
-                        </Menu.Item>
-                    ))}
-                </Menu.Dropdown>
-            </Menu>
-        );
 
     return (
         <section className="dp" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>
-            <ControlSection label="Sources" actions={plus} empty={sources.length === 0}>
-                {sources.length === 0 ? null : (
-                    <Tree
-                        label="Sources"
-                        items={sources.map(sourceItem)}
-                        defaultExpanded={sources.map((row) => row.id)}
-                        multiselect={false}
-                        selected={inspected?.kind === "source" && inspected.id !== undefined ? [inspected.id] : []}
-                        onSelect={openSource}
-                        rowMenu={rowMenu}
-                        childBand={false}
-                    />
-                )}
-                <StyleNotes notes={session?.data.lastImport()?.styles?.notes} />
-            </ControlSection>
+            <Sources sources={sources} selected={selected?.key} onSelect={select} />
+            <ServerPlace />
+            <Fields source={selected} />
             <FiltersSection />
-            <AttributesSection />
         </section>
     );
 }

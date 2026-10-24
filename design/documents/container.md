@@ -26,10 +26,10 @@ interface GraphtyDocument {
     extensions?: Record<string, unknown>; // reverse-domain keys; see "Extensions"
 }
 
-type Member = StyleMember | RecipeMember | DataMember | NotesMember | { kind: string; version: number };
+type Member = StyleMember | RecipeMember | DataMember | NotesMember | SourcesMember | { kind: string; version: number };
 ```
 
-Every member has a `kind` and an integer `version`. Version 1 defines four kinds:
+Every member has a `kind` and an integer `version`. Version 1 defines five kinds:
 
 <!-- prettier-ignore -->
 | `kind` | Page | Holds |
@@ -38,6 +38,7 @@ Every member has a `kind` and an integer `version`. Version 1 defines four kinds
 | `graphty-recipe` | [recipe.md](recipe.md) | a journal of analysis commands |
 | `graphty-data` | this page | a graph embedded in a graph-io JSON dialect |
 | `graphty-notes` | [notes.md](notes.md) | people's notes about the graph, its elements, sets and results |
+| `graphty-sources` | [sources.md](sources.md) | the record of every load in the graph: a file, a URL, a network source or a sample, its mapping and options, when and into which graph; version 2 (version 1 was experimental) |
 
 Member kinds starting `graphty-` are reserved for graphty-element. Any other kind MUST be a
 reverse-domain name (`org.example.bookmarks`), so a third party's kind never collides with one a later
@@ -108,11 +109,12 @@ catalogue). The closed objects are the exceptions:
 | a recipe command and its `scope` | skips the command, `E_UNKNOWN_OPTION`, and every later one (recipe.md, "Replaying" rule 3) |
 | a recipe's `table` | refuses an import through the recipe, `E_UNKNOWN_OPTION` at the member's pointer; the commands are unaffected (recipe.md, "Table data" rule 5) |
 | a data member | skips it, `E_BAD_DOCUMENT` ("The data member" rule 2) |
+| a sources member, and each of its entries | the member: skips it, `E_BAD_DOCUMENT`; an entry, a part of one or an expansion: keeps that entry and never runs it (sources.md, "Reading" rules 1 and 2) |
 | a style's selectors, bindings and carried palettes | reports `W_UNKNOWN_MEMBER`, applies the layer, writes the member back; the schema refuses it, so a validator catches the misspelling |
 | the keys of a layer's `set` and `encode` | channel names: style.md, "Reading and applying" rule 2 |
 | the parts of a run's `style` | drops the part, `W_UNKNOWN_MEMBER`; the run runs (recipe.md, "Replaying" rule 3) |
 
-The first three change a result when a member is ignored, so they stop; the others do not. A
+The first four change a result when a member is ignored, so they stop; the others do not. A
 recipe's top level and the document's are open, with one guard: an unknown member within an edit
 distance of 2 of `table`, `directed` or `parallelEdges` skips that recipe with `E_UNKNOWN_OPTION`,
 and one within 2 of `requires` refuses the file with `E_BAD_DOCUMENT`, each suggesting the name. A
@@ -127,7 +129,8 @@ later version never adds a top-level member that close to one of those names.
    value means, needs a new major version. The open lists are the member kinds, a recipe command's
    `op`, algorithm keys, layout ids, palette ids, JSON dialects, the import option names, a style's
    channel names, selector kinds, scales, layer kinds and enumerated channel values, the parts
-   of a run's `style`, note target kinds and item key forms (notes.md). A release that adds a value adds it to its copy of the version 1 schema,
+   of a run's `style`, note target kinds and item key forms (notes.md), and a sources entry's `kind`
+   (sources.md). A release that adds a value adds it to its copy of the version 1 schema,
    which graphty-element exports and the schema's URL serves. A reader that does not know a value
    fails that one channel entry, layer or command, never a style or recipe member; a data member
    is skipped whole for a dialect it does not know, because reading it another way gives other
@@ -144,7 +147,8 @@ later version never adds a top-level member that close to one of those names.
    is a new part of the run's `style`; and a change to what a recipe's top level or an existing
    member means is recipe version 2.
 4. A writer MUST write the lowest version of each kind that can express the content, so saving a
-   file does not lock out a colleague on an older release.
+   file does not lock out a colleague on an older release. A version a release wrote as
+   experimental (`graphty-sources` version 1) is read forever and never written again.
 5. A reader MUST read every major version of the container and of each kind that a release of
    graphty-element has written, upgrading an older one on read, and the report says it was
    upgraded. A published file -- a recipe cited in a paper -- stays readable by every later release.
@@ -207,6 +211,12 @@ interface DataMember {
    run, even with `run: true`; with none they are held (README, "Applying to new data" rule 5).
 5. **Unknown dialect.** Embedded data in a dialect graph-io does not read is skipped with
    `E_UNKNOWN_FORMAT`, details `{ format, dialect, available }`.
+6. **Where the data came from.** A project file's data member carries the reserved column
+   `_source.loads` on each record, naming the loads of its `graphty-sources` member that supplied
+   it (sources.md, "Provenance"). Through graphty-element 3.x a project file's data member also
+   carries the legacy members `source`, `sources` and `provenance` for earlier 3.x readers; the
+   schema lists them as deprecated, a document reader ignores them, and a project reader reads them
+   only when the file holds no version 2 sources member (sources.md, "Reading version 1").
 
 ## Applying a file
 
@@ -256,8 +266,9 @@ own is an entry of the report, never a rejection.
    the loaded graph, or, with none loaded or with `data: "replace"`, the file's embedded data
    imported into a scratch graph the session never sees. With no graph at all, the plan is
    unbound and every estimate `null`.
-2. **Order.** Data first, then recipes in file order, then styles in file order, then notes: the
-   data must exist before anything binds to its columns, a style that paints a recipe's results
+2. **Order.** Data first, then the sources member, then recipes in file order, then styles in file
+   order, then notes: the data must exist before anything binds to its columns, a load's record
+   needs the elements its `_source.loads` ids name, a style that paints a recipe's results
    comes after the recipe, and a note binds to the data, the sets and the results before it. A run's own suggested colouring is added when the run completes, above every layer
    present then, the file's style layers included (recipe.md, "Commands" rule 8, says when a run
    paints nothing of its own).
@@ -278,7 +289,7 @@ own is an entry of the report, never a rejection.
 
 ```ts
 session.data.saveDocument(options?: {
-    members?: ("graphty-style" | "graphty-recipe" | "graphty-data" | "graphty-notes")[]; // see rule 4
+    members?: ("graphty-style" | "graphty-recipe" | "graphty-data" | "graphty-notes" | "graphty-sources")[]; // see rule 4
     name?: string;
     description?: string;
     style?: {
@@ -340,6 +351,8 @@ session.data.saveDocument(options?: {
       saved to share a technique must not carry them by accident. When they are written,
       `session.notes.toDocument()` gives the member, and the report's notices give their count and
       distinct authors (notes.md, "Saving").
+    - **the sources**: never, unless `members` includes `graphty-sources`: where private data came
+      from is not part of a technique (sources.md, "Writing" rule 5).
 
     The report's notices list every literal a written selector or `where` compares with, and every
     member, layer and extension written back without being understood, with its size, so the

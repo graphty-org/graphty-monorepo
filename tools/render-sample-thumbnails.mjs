@@ -9,6 +9,7 @@
  *
  *   graph-samples/thumbnails/<dataset>.webp              every dataset, small and large
  *   graph-samples/thumbnails/generator-<generator>.webp  every generator in GENERATOR_CATALOG
+ *   graphty/public/samples/<sample>.webp                 the graphty app's own samples in APP_SAMPLES
  *
  * graph-samples' pack step copies them into dist/data/v1/ (and build-hosted.mjs into the files
  * graphty.app publishes at https://graphty.app/data/graph-samples/v1/), and each is named by the
@@ -51,6 +52,9 @@ const hostedDir = path.join(root, "graph-samples/public-data/v1");
 const downloadDir = path.join(root, "tmp/graph-samples-hosted");
 const outDir = path.join(root, "graph-samples/thumbnails");
 const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
+/** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
+const appSamplesDir = path.join(root, "graphty/public/samples");
+const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;
@@ -337,6 +341,16 @@ async function largeJob(meta) {
 async function jobs(wanted) {
     const want = (name) => wanted.length === 0 || wanted.includes(name);
     const list = [];
+    for (const name of APP_SAMPLES.filter(want)) {
+        const graph = JSON.parse(readFileSync(path.join(appSamplesDir, `${name}.json`), "utf8"));
+        list.push({
+            file: path.join(appSamplesDir, `${name}.webp`),
+            name,
+            directed: graph.directed,
+            records: { nodes: graph.nodes, edges: graph.links },
+            layout: { id: "force", options: { seed: SEED } },
+        });
+    }
     for (const meta of DATASETS.filter((each) => want(each.name))) {
         const small = existsSync(path.join(dataDir, `${meta.name}.gsnp.gz`)) && meta.nodes <= 5000;
         const job = small
@@ -420,7 +434,7 @@ try {
                 width: WIDTH,
                 height: HEIGHT,
             });
-            writeFileSync(path.join(outDir, job.file), Buffer.from(picture, "base64"));
+            writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
             console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${job.records.nodes.length} nodes)`);
         } catch (error) {
             failed += 1;

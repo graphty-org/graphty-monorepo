@@ -83,8 +83,8 @@ export interface BasemapStatus {
 
 /**
  * Where the location map layout read its locations: the two columns it used (with the half of the
- * pair it found by name, when only the other was set), or the one column and the format it read
- * it in. An application names the columns "Automatic" chose from this.
+ * pair it found by name, when only the other was set), the one column and the format it read
+ * it in, or the column of place names and the kind of place it read them as. An application names the columns "Automatic" chose from this.
  * @since 3.31.0
  */
 export type LocationSourceFact =
@@ -94,7 +94,18 @@ export type LocationSourceFact =
           readonly longitude: string;
           readonly filled: "latitude" | "longitude" | null;
       }
-    | { readonly kind: "location"; readonly column: string; readonly format: LocationFormat };
+    | { readonly kind: "location"; readonly column: string; readonly format: LocationFormat }
+    | {
+          readonly kind: "place";
+          /** The column of place names. */
+          readonly column: string;
+          /** The kind of place it was read as; null when no name matched. */
+          readonly role: "country" | "region" | "city" | null;
+          /** The column that narrowed each name, or null. */
+          readonly within: string | null;
+          /** The credits owed for the place data used (GeoNames for cities), shown with the map's. */
+          readonly attribution: readonly { readonly text: string; readonly url: string }[];
+      };
 
 /**
  * How the active location map layout lays out its map, as plain facts (`element.mapFrame`): the

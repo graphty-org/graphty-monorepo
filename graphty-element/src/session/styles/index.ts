@@ -99,6 +99,7 @@ export type {
     SessionStylesApi,
     StyleBatchChange,
     StyleChange,
+    StyleFileDocument,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,

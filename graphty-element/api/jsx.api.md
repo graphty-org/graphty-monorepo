@@ -92,6 +92,8 @@ export interface GraphtyElementJSXProps {
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-path"?: string;
+    "edge-time-unit"?: string;
     "edge-weight-path"?: string;
     "enable-detailed-profiling"?: boolean;
     "history-keys"?: boolean;
@@ -102,6 +104,8 @@ export interface GraphtyElementJSXProps {
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-path"?: string;
+    "node-time-unit"?: string;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
@@ -261,6 +265,8 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimePath?: Graphty["edgeTimePath"];
+    edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     fitInsets?: Graphty["fitInsets"];
@@ -276,6 +282,8 @@ export interface GraphtyElementJSXProps {
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimePath?: Graphty["nodeTimePath"];
+    nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];

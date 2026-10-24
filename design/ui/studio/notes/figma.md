@@ -9,6 +9,12 @@ Last updated: 2026-10-21 (tier 3 round 1 closed; insights read).
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Location as one "+" pick per kind. My position: Figma's effect
+  rows (type select + gear) were the closest precedent for the gear, but Figma only puts settings
+  in a gear when the row's shape does not change with them; latitude and longitude are two
+  inputs, like X and Y, so they are two rows. Adopted; the in-row kind select was rejected for
+  width (two selects in 240 px).
+
 1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; studio stopped.
    55 of 56 sessions succeeded: the round is at its ceiling, so signal lives in cost, routes and
    problems, not success. Bar 5 fails only on two pre-round severity 3 backlog items (the node's
@@ -110,6 +116,11 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-10-23, menu sections (issue #3315, director ruled).** Section labels, as Figma's own
+  menus and plugin lists do: small dimmed caps-weight label, no rule line, no indent, rows flush.
+  Both pick lists draw the same `ws-analyze-heading` label so they cannot drift. Engines read as
+  peers under "Force-directed", not as children of Force. Command menus keep dividers, as Figma's
+  do.
 - 2026-10-21 From round 1 insights: rank the empty-selection Style tab pointer and the "new line
   equals current value" default as my top two design asks for the next tier. Reason: both cost
   9 sessions each on 5 halves, both kept unweakened by both skeptics; each is a chrome fix.

@@ -89,6 +89,22 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    edgeTimePath?: Graphty["edgeTimePath"];
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    nodeTimePath?: Graphty["nodeTimePath"];
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    edgeTimeUnit?: Graphty["edgeTimeUnit"];
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    nodeTimeUnit?: Graphty["nodeTimeUnit"];
+    /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */
     positionScale?: Graphty["positionScale"];
@@ -296,6 +312,22 @@ export interface GraphtyElementJSXProps {
      * Sets the JMESPath for an edge's weight. Updates graph configuration.
      */
     "edge-weight-path"?: string;
+    /**
+     * Sets the edge time column. Updates graph configuration.
+     */
+    "edge-time-path"?: string;
+    /**
+     * Sets the node time column. Updates graph configuration.
+     */
+    "node-time-path"?: string;
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     */
+    "edge-time-unit"?: string;
+    /**
+     * Sets how the node time column's numbers are read. Updates graph configuration.
+     */
+    "node-time-unit"?: string;
     /**
      * Sets the record-units-to-scene-units multiplier. Updates graph configuration.
      */

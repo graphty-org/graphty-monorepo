@@ -1,13 +1,27 @@
 /**
- * The Data place's words and arrangement (tier1-design.md section 2.6): what each Sources row and
- * each Attributes row says, in which order. Every fact comes from graphty-element
- * (`data.sources()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
+ * The Data place's words and arrangement (tier1-design.md section 2.6, data prototype spec sections
+ * 3.2 and 3.3): what each Sources row, each Attributes row and each Fields row says, in which order.
+ * Every fact comes from graphty-element (`data.sources()`, `data.lastImport()`, `data.attributes()`);
+ * this file only words and orders it.
  */
 
-import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { CodedFact, ColumnRef, ImportReport, LeftOutEdge, LoadedSource } from "@graphty/graphty-element/session";
+import { type AttributeDescriptor, sourceDescriptors } from "@graphty/graphty-element/catalog";
+import type {
+    CodedFact,
+    ColumnRef,
+    ColumnRole,
+    Endpoint,
+    ImportReport,
+    LeftOutEdge,
+    LoadedSource,
+    LocationKind,
+    LocationUnused,
+    LocationUsing,
+    TableMapping,
+    TableMappingRead,
+} from "@graphty/graphty-element/session";
 
-import { valueText } from "../inspector/words";
+import { formatNumber, valueText } from "../inspector/words";
 
 /** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
 export type SourceKind = "file" | "nodes" | "edges" | "left-out";
@@ -312,7 +326,9 @@ export function typeOf(
     if (type === "boolean") {
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
-    if (readable === "text" && measurement !== undefined) {
+    // Free text is a text column whose values are groups only by inference; a column declared to
+    // measure something (a designated time field of text dates) reads as what it measures.
+    if (readable === "text" && measurement === "categorical") {
         return { glyph: "text", typeWord: TEXT_WORD };
     }
     switch (measurement) {
@@ -404,4 +420,267 @@ export function columnOf(id: string): ColumnRef | null {
     const at = id.indexOf(":");
     const kind = at < 0 ? "" : id.slice(0, at);
     return kind === "node" || kind === "edge" ? { kind, name: id.slice(at + 1) } : null;
+}
+
+/** What a load is called when the reader gave it no name and its source has none. */
+const KIND_NAMES: Readonly<Record<LoadedSource["kind"], string>> = {
+    file: "File",
+    server: "Server",
+    sample: "Sample",
+    join: "Joined table",
+};
+
+/**
+ * A Sources row's name: the reader's name for the load, else its network source's catalog name,
+ * else a word for its kind -- never the internal key.
+ * @param source - the load.
+ * @returns the name.
+ */
+export function sourceName(source: LoadedSource): string {
+    if (source.name !== undefined && source.name !== "") {
+        return source.name;
+    }
+    const id = source.type?.replace(/^source:/, "");
+    return sourceDescriptors().find((each) => each.id === id)?.descriptor.plainName ?? KIND_NAMES[source.kind];
+}
+
+/**
+ * A server load's count beside its name: how many nodes it brought of how many the source holds.
+ * @param loaded - the nodes the load brought.
+ * @param total - the nodes the source holds, when it says.
+ * @returns such as "500 of 40,000", or "500" when the source does not say.
+ */
+export function serverCount(loaded: number, total: number | undefined): string {
+    return total === undefined ? formatNumber(loaded) : `${formatNumber(loaded)} of ${formatNumber(total)}`;
+}
+
+/**
+ * A joined table's match: "52/70", matched rows of all its rows.
+ * @param source - the joined load.
+ * @returns the words, or null when the load is not a join.
+ */
+export function joinMatch(source: LoadedSource): string | null {
+    return source.join === undefined ? null : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+}
+
+/** Which table of a load a Fields row reads its column from. */
+export type FieldSide = "nodes" | "edges";
+
+/** What a Fields row sets. */
+export type FieldKey =
+    "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "edgeId" | "sourceKind" | "targetKind";
+
+/** One fixed structure row: it always holds a value, so it is never a "+" entry. */
+export interface FieldRow {
+    readonly key: FieldKey;
+    readonly side: FieldSide;
+    /** The row's label, such as "Source". */
+    readonly label: string;
+}
+
+/** The fixed structure rows of each side, read when the rows load (`data.reloadSource`). */
+export const FIELD_ROWS: readonly FieldRow[] = [
+    { key: "key", side: "nodes", label: "Id" },
+    { key: "source", side: "edges", label: "Source" },
+    { key: "target", side: "edges", label: "Target" },
+];
+
+/** What a Fields "+" entry is. */
+export type EntryId = "label" | "kind" | "weight" | "time" | LocationKind | "edgeId" | "sourceKind" | "targetKind";
+
+/** One kind of Fields "+" entry. */
+export interface FieldEntry {
+    readonly id: EntryId;
+    /** Its name in the list and in "+", such as "Time". */
+    readonly name: string;
+    /** The role the element gives its column in place (`data.setRole`), when it has one. */
+    readonly role?: ColumnRole;
+    /** The load-time role it reads the load again with (`data.reloadSource`), when it is one. */
+    readonly load?: FieldKey;
+}
+
+/** The node location entries, one per kind, as the element names the kinds (`ColumnRole`). */
+export const LOCATION_ENTRIES = [
+    { id: "latitude", name: "Latitude", role: "latitude" },
+    { id: "longitude", name: "Longitude", role: "longitude" },
+    { id: "coordinates", name: "Coordinates", role: "coordinates" },
+    { id: "country", name: "Country", role: "country" },
+    { id: "region", name: "Region", role: "region" },
+    { id: "city", name: "City", role: "city" },
+] as const satisfies readonly FieldEntry[];
+
+/** The kinds each side's "+" offers, in list order. */
+export const FIELD_ENTRIES: Readonly<Record<FieldSide, readonly FieldEntry[]>> = {
+    nodes: [
+        { id: "label", name: "Label", role: "label" },
+        { id: "kind", name: "Kind", load: "kind" },
+        { id: "weight", name: "Weight", role: "weight" },
+        { id: "time", name: "Time", role: "time" },
+        ...LOCATION_ENTRIES,
+    ],
+    edges: [
+        { id: "weight", name: "Weight", role: "weight" },
+        { id: "time", name: "Time", role: "time" },
+        { id: "kind", name: "Kind", load: "kind" },
+        { id: "edgeId", name: "Id", load: "edgeId" },
+        { id: "sourceKind", name: "Kind of source", load: "sourceKind" },
+        { id: "targetKind", name: "Kind of target", load: "targetKind" },
+    ],
+};
+
+/** The entries a location is read from, by what the element reads (`LocationUsing`). */
+const USING_ENTRIES: Readonly<Record<LocationUsing, string>> = {
+    pair: "Latitude and Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
+};
+
+/**
+ * The words for a listed location kind the element does not read (`location.unused`).
+ * @param fact - The element's fact.
+ * @returns Such as "Not used: the location comes from City".
+ */
+export function unusedWords(fact: LocationUnused): string {
+    return `Not used: the location comes from ${USING_ENTRIES[fact.params.using]}`;
+}
+
+/** The direction choices, as the element's `data.directed` takes them. */
+export const DIRECTIONS = [
+    { value: "true", label: "Directed" },
+    { value: "false", label: "Undirected" },
+    { value: "auto", label: "Auto" },
+] as const;
+
+/**
+ * The table of one side a load read, with the roles it read it with.
+ * @param source - the load.
+ * @param side - nodes or edges.
+ * @returns the table's roles, or undefined when the load kept none or read no such table.
+ */
+export function tableRoles(source: LoadedSource | undefined, side: FieldSide): TableMappingRead | undefined {
+    return Object.values(source?.mapping?.tables ?? {}).find((table) => table.rowsAre === side);
+}
+
+/**
+ * The column (or kind name) a load-time row holds, as the load read it.
+ * @param roles - the table's roles.
+ * @param key - the row.
+ * @returns the column or kind name, or null for none.
+ */
+export function loadValue(roles: TableMappingRead | undefined, key: FieldKey | ColumnRole): string | null {
+    const value: unknown = roles?.[key as keyof TableMappingRead];
+    if (typeof value === "string") {
+        return value;
+    }
+    return typeof value === "object" && value !== null ? (value as Endpoint).column : null;
+}
+
+/** What Fields' Rows are row offers: what one table's rows load as. */
+export const ROWS_ARE: readonly FieldSide[] = ["nodes", "edges"];
+
+/**
+ * The sides a load's own rows hold, so Fields shows only its rows: a join's shape, else what its
+ * tables were read as.
+ * @param source - the load.
+ * @returns the sides, or undefined when the load does not say (a graph file, a network load).
+ */
+export function sidesOf(source: LoadedSource | undefined): FieldSide[] | undefined {
+    const shape = source?.join?.shape;
+    if (shape === "node-values") {
+        return ["nodes"];
+    }
+    if (shape === "edge-values" || shape === "edges") {
+        return ["edges"];
+    }
+    const rows = source?.tableRows ?? Object.values(source?.mapping?.tables ?? {}).map((table) => table.rowsAre);
+    return rows.length === 0 ? undefined : [...new Set(rows)];
+}
+
+/**
+ * Whether a column holds numbers, so it can be a weight.
+ * @param attribute - the column.
+ * @returns true for numbers.
+ */
+export function isNumeric(attribute: AttributeDescriptor): boolean {
+    return attribute.type === "number" || attribute.type === "integer";
+}
+
+/** The attribute kind of each side. */
+export const KIND_OF: Readonly<Record<FieldSide, "node" | "edge">> = { nodes: "node", edges: "edge" };
+
+/**
+ * The column holding a setting row's role now, as the element's attribute roles say.
+ * @param attributes - `data.attributes()`.
+ * @param side - nodes or edges.
+ * @param role - the role.
+ * @returns the column's name, or null for none.
+ */
+export function roleHolder(
+    attributes: readonly AttributeDescriptor[],
+    side: FieldSide,
+    role: ColumnRole,
+): string | null {
+    return attributes.find((a) => a.kind === KIND_OF[side] && a.roles?.includes(role as never) === true)?.name ?? null;
+}
+
+/**
+ * The columns a Fields row offers for one load: the load's data columns of the side, hidden ones
+ * left out unless one holds the row now, with that one first when it is not a column (an endpoint
+ * the load does not keep as an attribute).
+ * @param attributes - `data.attributes()`.
+ * @param source - the load, or undefined for every load.
+ * @param side - nodes or edges.
+ * @param current - the column the row holds now, or null.
+ * @returns the column names.
+ */
+export function columnChoices(
+    attributes: readonly AttributeDescriptor[],
+    source: LoadedSource | undefined,
+    side: FieldSide,
+    current: string | null,
+): string[] {
+    const names = attributes
+        .filter(
+            (a) =>
+                a.kind === KIND_OF[side] &&
+                a.path.startsWith("data.") &&
+                (a.hidden !== true || a.name === current) &&
+                (source === undefined || a.sources === undefined || a.sources.includes(source.key)),
+        )
+        .map((a) => a.name);
+    return current === null || names.includes(current) ? names : [current, ...names];
+}
+
+/**
+ * The kind names an endpoint's kind row offers: the endpoint columns' own names (an auth log's
+ * `user` and `host`), which is what a reader calls the things in them, and the current kind.
+ * @param roles - the edge table's roles.
+ * @param current - the kind now, or null.
+ * @returns the names.
+ */
+export function kindChoices(roles: TableMappingRead | undefined, current: string | null): string[] {
+    const names = [loadValue(roles, "source"), loadValue(roles, "target"), current].filter(
+        (name): name is string => name !== null,
+    );
+    return [...new Set(names)];
+}
+
+/**
+ * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
+ * mapping for a load of one table, the table by id otherwise.
+ * @param source - the load.
+ * @param side - which table.
+ * @param roles - the roles to change.
+ * @returns the mapping.
+ */
+export function remap(
+    source: LoadedSource,
+    side: FieldSide,
+    roles: TableMapping,
+): TableMapping | { tables: Record<string, TableMapping> } {
+    const tables = Object.entries(source.mapping?.tables ?? {});
+    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
+    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
 }

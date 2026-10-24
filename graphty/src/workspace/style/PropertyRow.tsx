@@ -14,6 +14,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { BulkBinding, type LayerSequence } from "./BulkBinding";
 import {
+    carriedOpacity,
     type DataBinding,
     type DataChoice,
     layersBinding,
@@ -777,25 +778,7 @@ function OneValue({
     writeValue: (value: ChannelValue) => void;
 }>): React.JSX.Element {
     if (descriptor.accepts === "color") {
-        const hex = hexOf(value) ?? "#000000";
-        return (
-            <CompactColorInput
-                aria-label={name}
-                // The box is read with the color's word beside its hex: "Color, set, red".
-                valueText={colorName(hex)}
-                width="100%"
-                color={hex}
-                defaultColor={hex}
-                showOpacity={false}
-                showReset={false}
-                swatches={ctx.documentColors}
-                onChangeEnd={(next) => {
-                    if (next !== undefined && next.toUpperCase() !== hex) {
-                        writeValue(next.toUpperCase());
-                    }
-                }}
-            />
-        );
+        return <ColorValue ctx={ctx} descriptor={descriptor} name={name} value={value} writeValue={writeValue} />;
     }
     if (descriptor.accepts === "enum" || descriptor.accepts === "boolean") {
         return <ValueField descriptor={descriptor} label={name} value={value} shown={value} onChange={writeValue} />;
@@ -806,6 +789,66 @@ function OneValue({
         );
     }
     return <TextValue name={name} value={value} writeValue={writeValue} />;
+}
+
+/**
+ * The color a layer sets, with its opacity box when it carries one: the box reads and writes the
+ * opacity channel as a percent, and the color stays six digits.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.descriptor - the property
+ * @param props.name - the property's name
+ * @param props.value - the color it sets
+ * @param props.writeValue - writes a new color
+ * @returns The field
+ */
+function ColorValue({
+    ctx,
+    descriptor,
+    name,
+    value,
+    writeValue,
+}: Readonly<{
+    ctx: RowContext;
+    descriptor: ChannelDescriptor;
+    name: string;
+    value: Line["value"];
+    writeValue: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const hex = hexOf(value) ?? "#000000";
+    const channel = carriedOpacity(ctx, descriptor.channel);
+    const percent = (read: unknown): number | undefined =>
+        typeof read === "number" ? Math.round(read * 10_000) / 100 : undefined;
+    const own = channel === undefined ? undefined : percent(lineIn(ctx, channel)?.value);
+    const beneath = channel === undefined ? undefined : percent(ctx.beneath(channel).value);
+    return (
+        <CompactColorInput
+            aria-label={name}
+            // The box is read with the color's word beside its hex: "Color, set, red".
+            valueText={colorName(hex)}
+            width="100%"
+            color={hex}
+            defaultColor={hex}
+            opacity={own}
+            defaultOpacity={beneath ?? 100}
+            showOpacity={channel !== undefined}
+            showReset={false}
+            swatches={ctx.documentColors}
+            onChangeEnd={(next, opacity) => {
+                if (next !== undefined && next.slice(0, 7).toUpperCase() !== hex) {
+                    writeValue(next.slice(0, 7).toUpperCase());
+                }
+                if (channel !== undefined && opacity !== undefined && opacity !== (own ?? beneath ?? 100)) {
+                    fieldWrite(
+                        ctx,
+                        channel,
+                        store,
+                    )({ value: opacity / 100 }, `${fieldName(channel)} now ${String(opacity)}%`);
+                }
+            }}
+        />
+    );
 }
 
 /**

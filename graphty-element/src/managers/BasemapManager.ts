@@ -300,7 +300,23 @@ export class BasemapManager {
             state = "loading";
         }
 
-        return { source: this.#name, state, attribution: surface.attribution };
+        const attribution = [...surface.attribution];
+        for (const credit of this.#placeCredits()) {
+            if (!attribution.includes(credit.text)) {
+                attribution.push(credit.text);
+            }
+        }
+
+        return { source: this.#name, state, attribution };
+    }
+
+    /**
+     * The credits owed for the place names the layout read (GeoNames, while city data is in use).
+     * @returns The credits, none when the locations were not place names.
+     */
+    #placeCredits(): readonly MapCredit[] {
+        const location = this.#frame?.location;
+        return location?.kind === "place" ? location.attribution : [];
     }
 
     /** Removes the map and the credits. */
@@ -365,7 +381,7 @@ export class BasemapManager {
             mesh.isPickable = false;
         }
 
-        this.#showCredits(surface.credits);
+        this.#showCredits([...surface.credits, ...this.#placeCredits()]);
         this.#drawSoon();
         this.#tell();
     }

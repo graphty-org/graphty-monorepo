@@ -9,8 +9,7 @@ import { credentials } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
 import { GraphtyError } from "../../../src/errors/GraphtyError";
-import { SOURCE_RECORD_VERSION } from "../../../src/session/sources/ids";
-import { SourceLedger } from "../../../src/session/sources/ledger";
+import { LEDGER_VERSION, SourceLedger } from "../../../src/session/sources/ledger";
 
 const SECRET = "SENTINEL-ledger-secret";
 
@@ -91,13 +90,9 @@ describe("SourceLedger", () => {
 
     it("refuses a newer member version and a malformed member", () => {
         const ledger = new SourceLedger();
-        assert.throws(
-            () => ledger.fromMember({ version: SOURCE_RECORD_VERSION + 1, loads: [] }),
-            GraphtyError,
-            /version/,
-        );
+        assert.throws(() => ledger.fromMember({ version: LEDGER_VERSION + 1, loads: [] }), GraphtyError, /version/);
         try {
-            ledger.fromMember({ version: SOURCE_RECORD_VERSION + 1, loads: [] });
+            ledger.fromMember({ version: LEDGER_VERSION + 1, loads: [] });
         } catch (error) {
             assert.strictEqual((error as GraphtyError).code, "E_UNSUPPORTED_VERSION");
         }

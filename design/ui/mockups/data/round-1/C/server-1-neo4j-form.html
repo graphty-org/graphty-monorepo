@@ -1,0 +1,726 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>server-1-neo4j-form.html</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #82aafb;
+            }
+            a:hover {
+                color: #9dbcfc;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                width: 1440px;
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                background: #2c2c2c;
+                color: #e3e3e3;
+                overflow: hidden;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    &quot;Segoe UI&quot;,
+                    sans-serif;
+            "
+        >
+            <div
+                style="
+                    height: 40px;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #444444;
+                "
+            >
+                <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11"></path></svg
+                ><span style="font-size: 14px; font-weight: 600; color: #e3e3e3">Untitled graph</span
+                ><span style="display: flex; gap: 10px; color: #a6a6a6"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 4L2.5 6.5L5 9M2.5 6.5h7a3.5 3.5 0 0 1 0 7h-2"></path></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 4l2.5 2.5L11 9M13.5 6.5h-7a3.5 3.5 0 0 0 0 7h2"></path></svg></span
+                ><span style="display: inline-flex; align-items: center; gap: 6px; color: #e3e3e3; font-size: 12px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M4 7.5h8v6H4zM5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2"></path></svg
+                    >Local only</span
+                >
+            </div>
+            <div style="flex: 1; display: flex; min-height: 0">
+                <div
+                    style="
+                        width: 56px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        padding: 14px 0 12px;
+                        background: #2c2c2c;
+                        border-right: 1px solid #444444;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 16px">
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 3h4v4H3zM9 9h4v4H9zM7 5h3.5V9"></path></svg></span
+                            >Graph
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    background: #394360;
+                                    color: #8fb3ff;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"
+                                    ></path></svg></span
+                            >Data
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3"></path></svg></span
+                            >Notes
+                        </div>
+                    </div>
+                    <div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M8 5.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5zM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                                    ></path></svg></span
+                            >Settings
+                        </div>
+                    </div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; position: relative">
+                    <div style="flex: 1; display: flex; min-width: 0; background: #2c2c2c">
+                        <div style="width: 240px; border-right: 1px solid #444444; padding-top: 10px">
+                            <div style="padding: 4px 16px 8px; font-size: 11px; color: #a6a6a6">Sources</div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 8px;
+                                    padding: 5px 10px 5px 12px;
+                                    margin: 0 6px;
+                                    background: #394360;
+                                    border-radius: 4px;
+                                "
+                            >
+                                <span style="color: #bdbdbd; margin-top: 1px"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M2.5 3h11v4h-11zM2.5 9h11v4h-11zM5 5h.1M5 11h.1"></path></svg
+                                ></span>
+                                <div style="flex: 1; min-width: 0">
+                                    <div style="color: #e3e3e3; font-size: 12px; line-height: 16px">Neo4j</div>
+                                    <div style="color: #bdbdbd; font-size: 11px; line-height: 15px">
+                                        A graph database you can reach
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 8px;
+                                    padding: 5px 10px 5px 12px;
+                                    margin: 0 6px;
+                                "
+                            >
+                                <span style="color: #bdbdbd; margin-top: 1px"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path
+                                            d="M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"
+                                        ></path></svg
+                                ></span>
+                                <div style="flex: 1; min-width: 0">
+                                    <div style="color: #e3e3e3; font-size: 12px; line-height: 16px">NDEx</div>
+                                    <div style="color: #bdbdbd; font-size: 11px; line-height: 15px">
+                                        Public biology networks
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 8px;
+                                    padding: 5px 10px 5px 12px;
+                                    margin: 0 6px;
+                                "
+                            >
+                                <span style="color: #a6a6a6; margin-top: 1px"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M3 3h4v4H3zM9 9h4v4H9zM7 5h3.5V9"></path></svg
+                                ></span>
+                                <div style="flex: 1; min-width: 0">
+                                    <div style="color: #e3e3e3; font-size: 12px; line-height: 16px">STRING</div>
+                                    <div style="color: #a6a6a6; font-size: 11px; line-height: 15px">
+                                        Proteins from a gene list
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: flex-start;
+                                    gap: 8px;
+                                    padding: 5px 10px 5px 12px;
+                                    margin: 0 6px;
+                                "
+                            >
+                                <span style="color: #a6a6a6; margin-top: 1px"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M4 2h5.5L12 4.5V14H4zM9.5 2v2.5H12"></path></svg
+                                ></span>
+                                <div style="flex: 1; min-width: 0">
+                                    <div style="color: #e3e3e3; font-size: 12px; line-height: 16px">A web address</div>
+                                    <div style="color: #a6a6a6; font-size: 11px; line-height: 15px">
+                                        A graph file online
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                flex: 1;
+                                padding: 14px 24px;
+                                display: flex;
+                                flex-direction: column;
+                                gap: 12px;
+                                max-width: 820px;
+                            "
+                        >
+                            <div style="font-size: 18px; font-weight: 600">
+                                Open network data from Neo4j
+                                <span
+                                    style="
+                                        display: inline-flex;
+                                        flex: none;
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 50%;
+                                        background: #ffd43b;
+                                        color: #1a1a1a;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        align-items: center;
+                                        justify-content: center;
+                                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+                                        vertical-align: middle;
+                                    "
+                                    >1</span
+                                >
+                            </div>
+                            <div style="color: #a6a6a6; font-size: 12px">
+                                Your sign-in is kept in this browser only, and only sent to the address below.
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6">Address</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        color: #e3e3e3;
+                                        font-size: 12px;
+                                        width: 420px;
+                                        box-sizing: border-box;
+                                    "
+                                    >neo4j+s://fraud-db.internal:7687</span
+                                >
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6">Database</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        color: #e3e3e3;
+                                        font-size: 12px;
+                                        width: 200px;
+                                        box-sizing: border-box;
+                                    "
+                                    >fraud</span
+                                >
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6">User</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        color: #e3e3e3;
+                                        font-size: 12px;
+                                        width: 200px;
+                                        box-sizing: border-box;
+                                    "
+                                    >analyst</span
+                                >
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6">Password</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        color: #e3e3e3;
+                                        font-size: 12px;
+                                        width: 200px;
+                                        box-sizing: border-box;
+                                    "
+                                    >&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</span
+                                >
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: flex-start">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6; padding-top: 4px"
+                                    >Query</span
+                                >
+                                <div
+                                    style="
+                                        width: 560px;
+                                        height: 76px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        padding: 6px 8px;
+                                        box-sizing: border-box;
+                                        font-family: ui-monospace, Menlo, monospace;
+                                        font-size: 12px;
+                                        line-height: 18px;
+                                    "
+                                >
+                                    MATCH (a:Account)-[t:SENT]-&gt;(b)<br />WHERE t.sent_at &gt;= date("2026-09-01")<br />RETURN
+                                    a, t, b
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center">
+                                <span style="width: 110px; font-size: 12px; color: #a6a6a6">At most</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        height: 24px;
+                                        padding: 0 8px;
+                                        border: 1px solid #555;
+                                        border-radius: 4px;
+                                        background: #232323;
+                                        color: #e3e3e3;
+                                        font-size: 12px;
+                                        width: 90px;
+                                        box-sizing: border-box;
+                                    "
+                                    >5,000</span
+                                ><span style="font-size: 12px; color: #a6a6a6">links</span>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    gap: 10px;
+                                    align-items: center;
+                                    margin-left: 120px;
+                                    padding: 8px 10px;
+                                    background: #2f3a2f;
+                                    border-radius: 4px;
+                                    width: 540px;
+                                "
+                            >
+                                <span style="color: #5cb85c"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M3 8.5l3 3 7-7"></path></svg></span
+                                ><span style="font-size: 12px"
+                                    >Signed in. The query matches <b>40,000</b> links; Load brings the first 5,000, and
+                                    Load more brings the next.</span
+                                ><span
+                                    style="
+                                        display: inline-flex;
+                                        flex: none;
+                                        width: 18px;
+                                        height: 18px;
+                                        border-radius: 50%;
+                                        background: #ffd43b;
+                                        color: #1a1a1a;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        align-items: center;
+                                        justify-content: center;
+                                        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+                                        vertical-align: middle;
+                                    "
+                                    >2</span
+                                >
+                            </div>
+                            <div style="flex: 1"></div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            padding: 12px 20px;
+                            border-top: 1px solid #444444;
+                            background: #2c2c2c;
+                        "
+                    >
+                        <span style="flex: 1"></span
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 24px;
+                                padding: 0 10px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                background: #383838;
+                                color: #e3e3e3;
+                                border: 1px solid #555;
+                            "
+                            >Cancel</span
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 24px;
+                                padding: 0 10px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                background: #383838;
+                                color: #e3e3e3;
+                                border: 1px solid #555;
+                            "
+                            >Test again</span
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 24px;
+                                padding: 0 10px;
+                                border-radius: 4px;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                background: #1971c2;
+                                color: #fff;
+                                border: 1px solid #1971c2;
+                                box-shadow:
+                                    0 0 0 2px #2c2c2c,
+                                    0 0 0 4px #74b9ff;
+                            "
+                            >Load 5,000 links</span
+                        >
+                    </div>
+                    <div
+                        style="
+                            position: absolute;
+                            top: 60px;
+                            right: 20px;
+                            width: 250px;
+                            background: rgba(255, 249, 219, 0.97);
+                            color: #3a3200;
+                            border: 1px solid #e6d48a;
+                            border-radius: 6px;
+                            padding: 8px 10px;
+                            font-size: 11px;
+                            line-height: 15px;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 4px;
+                            z-index: 50;
+                        "
+                    >
+                        <div style="display: flex; gap: 6px; align-items: flex-start">
+                            <span
+                                style="
+                                    flex: none;
+                                    width: 14px;
+                                    height: 14px;
+                                    border-radius: 50%;
+                                    background: #ffd43b;
+                                    color: #1a1a1a;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-top: 1px;
+                                "
+                                >1</span
+                            ><span
+                                >Open network data sits beside Open in the main menu and the start page. Each source
+                                draws its own fields.</span
+                            >
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: flex-start">
+                            <span
+                                style="
+                                    flex: none;
+                                    width: 14px;
+                                    height: 14px;
+                                    border-radius: 50%;
+                                    background: #ffd43b;
+                                    color: #1a1a1a;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-top: 1px;
+                                "
+                                >2</span
+                            ><span
+                                >Test runs before Load: a refused sign-in or a huge match shows here, before any data
+                                loads.</span
+                            >
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

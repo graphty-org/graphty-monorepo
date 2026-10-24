@@ -473,7 +473,7 @@ export function optionWords(
 export type Meaning = WeightMeaning["meaning"] | null;
 
 /** What each meaning reads as on screen (tier2-design.md section 5); the element's "strength" is "closer". */
-const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+export const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
     strength: "closer",
     distance: "farther",
     capacity: "capacity",

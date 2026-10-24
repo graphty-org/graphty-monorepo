@@ -83,6 +83,9 @@ export default tseslint.config(
     // The rule's test fixtures are code under test, parsed by the test itself.
     { ignores: ["eslint-rules/__tests__/fixtures/**"] },
 
+    // Builds made into a named folder (dist-<name>/) for a preview server: output, not source.
+    { ignores: ["dist-*/**"] },
+
     // The lint rules are Node modules in plain JavaScript, type-checked with checkJs
     // (`tsc -p eslint-rules`), so their JSDoc carries the types.
     {

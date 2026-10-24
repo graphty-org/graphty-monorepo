@@ -9,6 +9,8 @@ import { type AddressInfo, createServer as createTcpServer, type Server as TcpSe
 
 import { type TestProject } from "vitest/node";
 
+import { answer } from "../sparql/fixture.js";
+
 declare module "vitest" {
     interface ProvidedContext {
         /** The CORS test server, http://127.0.0.1:<port>. */
@@ -42,7 +44,19 @@ export default async function setup(project: TestProject): Promise<() => Promise
             res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
         }
         if (req.method === "OPTIONS") {
-            res.writeHead(cors ? 204 : 405).end();
+            // the SPARQL endpoint answers no preflight: a SPARQL query must be a simple request
+            res.writeHead(cors && !req.url?.endsWith("/sparql") ? 204 : 405).end();
+            return;
+        }
+        if (req.method === "POST" && req.url?.endsWith("/sparql") === true) {
+            let body = "";
+            req.on("data", (chunk: Buffer) => {
+                body += chunk.toString("utf8");
+            });
+            req.on("end", () => {
+                const { status, body: text } = answer(new URLSearchParams(body).get("query") ?? "");
+                res.writeHead(status, { "Content-Type": "application/n-triples" }).end(text);
+            });
             return;
         }
         const auth = req.headers.authorization ?? null;

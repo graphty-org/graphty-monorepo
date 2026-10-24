@@ -9,11 +9,12 @@
 #
 # Usage: REAL_DIST=<frozen build> repilot.sh <half> [<half> ...]   (T4A ... T12RB, a task such as
 #        T23, or "all")
-# OUT=<dir> writes the sessions and logs there (default tier2/rounds/r2d2/pilot).
+# OUT=<dir> writes the sessions and logs there (default the main checkout's
+# tmp/design-studio/tier2/r2d2/pilot: walk screenshots stay out of git).
 # LANES=<n> runs that many halves at once (default 2; each takes one of the machine's 4 browsers).
 set -u
 ST=$(cd "$(dirname "$0")/../.." && pwd)
-OUT=${OUT:-$ST/tier2/rounds/r2d2/pilot}
+OUT=${OUT:-$(dirname "$(git -C "$ST" rev-parse --path-format=absolute --git-common-dir)")/tmp/design-studio/tier2/r2d2/pilot}
 SET=$ST/rounds/tier-2/setups
 mkdir -p "$OUT"
 R() { node "$ST/tool/real.mjs" "$@"; }

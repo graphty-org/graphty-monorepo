@@ -100,6 +100,12 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+     * `stepBy` or `seek` with no attribute given. The caller designates one with
+     * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     */
+    | "E_NO_TIME_FIELD"
+    /**
      * An algorithm key is not registered. `details.available` lists the registered keys. The
      * caller picks a key from the catalogue or registers a plugin that provides it.
      */
@@ -637,6 +643,23 @@ export type GraphtyWarningCode =
      */
     | "W_DIMENSION_OVERRIDDEN"
     /**
+     * A project save left query parameters whose names mark a credential (`api_key`, `token`, ...)
+     * out of a URL load's address in the `graphty-sources` member. `params.id` is the load's id and
+     * `params.names` the parameter names left out (design/documents/sources.md, "URLs" rule 2).
+     */
+    | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
+     * data applied. `params.graph` names the graph, null for the file's one graph.
+     */
+    | "W_SOURCE_STEPS_IGNORED"
+    /**
+     * A member of an older version was read and upgraded to the version this release writes; a
+     * save writes the new version. `params.kind` is the member's kind, `params.found` the version
+     * read and `params.version` the version it was upgraded to.
+     */
+    | "W_VERSION_UPGRADED"
+    /**
      * The `location-map` layout found no usable location for some nodes, and put them in its tray
      * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
      * values no location format reads, `params.outOfRange` values out of range (see
@@ -684,6 +707,7 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",

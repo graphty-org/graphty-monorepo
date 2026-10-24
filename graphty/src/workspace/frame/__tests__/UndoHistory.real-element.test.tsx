@@ -60,7 +60,9 @@ describe("Undo from the reader's keys", () => {
     it("starts a sample's history: Undo is disabled and Control+Z leaves the graph", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        const undo = screen.getByRole("button", { name: "Undo" });
+        // The sample is drawn before its load settles; settling clears the history, and Undo's
+        // name drops the load's step.
+        const undo = await screen.findByRole("button", { name: "Undo" }, { timeout: TIMEOUT_MS });
         await waitFor(() => {
             assert.isFalse(session.canUndo, "opening is not a change to undo");
             assert.isTrue(undo.hasAttribute("disabled") || undo.getAttribute("aria-disabled") === "true");

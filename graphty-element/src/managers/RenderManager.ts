@@ -495,6 +495,9 @@ export class RenderManager implements Manager {
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
+        // Assigning the canvas's size clears its drawing, even when a resize ends at the size the
+        // last frame was drawn at, so every resize owes a frame.
+        this.engine.onResizeObservable.add(this.owe);
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -588,6 +591,7 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("webglcontextlost", this.dropFence);
         this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
+        this.engine.onResizeObservable.removeCallback(this.owe);
 
         // Dispose camera system
         this.camera.dispose();

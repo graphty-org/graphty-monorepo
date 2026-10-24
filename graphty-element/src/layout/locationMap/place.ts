@@ -29,7 +29,7 @@ import {
 } from "babylonjs-map/projection";
 
 import type { LocationSourceFact } from "../../config/Basemap";
-import type { LocationSource } from "./source";
+import type { CoordinateSource } from "./source";
 
 export { detectSource, type LocationSource } from "./source";
 
@@ -199,7 +199,7 @@ function detectedFormat(
  * @param n - The number of rows.
  * @returns The points and errors by row, the format, and the format's warnings.
  */
-function readPoints(source: LocationSource, format: LocationFormat | "auto", n: number): Readings {
+function readPoints(source: CoordinateSource, format: LocationFormat | "auto", n: number): Readings {
     const warnings: PlaceWarning[] = [];
     let read: (row: number) => LatLon | LocationError;
     let use: LocationFormat = format === "auto" ? "decimal" : format;
@@ -568,7 +568,7 @@ function placeTray(s: Surfacing, nodes: PlaceNodes, unplacedRows: readonly numbe
  * @returns Positions, the frame the map is drawn in, and the warnings.
  */
 export function placeOnMap(
-    source: LocationSource,
+    source: CoordinateSource,
     nodes: PlaceNodes,
     options: PlaceOptions,
     filled: "latitude" | "longitude" | null = null,
@@ -626,7 +626,7 @@ export function placeOnMap(
  * @returns The fact.
  */
 function locationFact(
-    source: LocationSource,
+    source: CoordinateSource,
     format: LocationFormat,
     filled: "latitude" | "longitude" | null,
 ): LocationSourceFact {

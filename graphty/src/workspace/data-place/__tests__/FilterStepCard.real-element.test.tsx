@@ -17,6 +17,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { addStepCondition } from "./stepCards";
 
 /** A hang guard for the element coming up, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -80,8 +81,7 @@ async function openPeople(): Promise<{ session: GraphSession; store: WorkspaceSt
  */
 async function newStepOn(name: string): Promise<void> {
     await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-    await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-    await userEvent.click(await screen.findByRole("option", { name }));
+    await addStepCondition(name);
 }
 
 describe("A filter step is a condition card", () => {
@@ -113,8 +113,8 @@ describe("A filter step is a condition card", () => {
             // "+" starts a new step: the dropped one is not kept.
             store.set({ place: "data" });
             await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-            const attribute = await screen.findByRole<HTMLInputElement>("combobox", { name: "Attribute" });
-            assert.equal(attribute.value, "");
+            await screen.findByRole("button", { name: "Add a condition" });
+            assert.isNull(screen.queryByRole("group", { name: "role values" }));
         },
         TIMEOUT_MS,
     );
@@ -186,8 +186,8 @@ describe("A filter step is a condition card", () => {
     it("picking an attribute hands focus to its value", async () => {
         await openPeople();
         await realKeys.click(await screen.findByRole("button", { name: "Add filter step" }));
-        await realKeys.click(await screen.findByRole("combobox", { name: "Attribute" }));
-        await realKeys.click(await screen.findByRole("option", { name: "name" }));
+        await realKeys.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await realKeys.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const text = await screen.findByRole("combobox", { name: "name: text to match" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, text, "focus stayed in the attribute box");
@@ -200,8 +200,8 @@ describe("A filter step is a condition card", () => {
     it("picking a match hands focus to the value; Escape there keeps the text and the editor open", async () => {
         await openPeople();
         await realKeys.click(await screen.findByRole("button", { name: "Add filter step" }));
-        await realKeys.click(await screen.findByRole("combobox", { name: "Attribute" }));
-        await realKeys.click(await screen.findByRole("option", { name: "name" }));
+        await realKeys.click(await screen.findByRole("button", { name: "Add a condition" }));
+        await realKeys.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         await realKeys.click(await screen.findByRole("combobox", { name: "name: how to match" }));
         await realKeys.click(await screen.findByRole("option", { name: "Starts with" }));
         const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });

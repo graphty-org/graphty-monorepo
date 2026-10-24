@@ -33,7 +33,15 @@ import type {
 } from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
 import { GraphtyError } from "../errors/GraphtyError";
-import { isLocationRefusal, resolveLocation } from "../layout/locationMap/source";
+import { bestRole, cachedGazetteer, GAZETTEER_URL } from "../layout/locationMap/gazetteer";
+import {
+    chosenLocation,
+    type ColumnValues,
+    isLocationRefusal,
+    listLocation,
+    type LocationDesignation,
+    resolveLocation,
+} from "../layout/locationMap/source";
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
@@ -60,9 +68,10 @@ import {
     refused,
     type ScopeCandidate,
 } from "./cost";
+import type { DataIssuesCommand } from "./issues";
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
-import type { GraphStatistics } from "./types";
+import type { GraphStatistics, LocationColumns } from "./types";
 import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
@@ -118,6 +127,7 @@ export type SessionCommand =
     | AlgoRemoveCommand
     | AlgoMoveCommand
     | DataCommand
+    | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
     | VisibilityCommand
@@ -304,6 +314,8 @@ export interface PlanningContext {
     readonly runOf?: (path: string) => string | undefined;
     /** Every node attribute's name, for a layout that looks for its input among them. */
     readonly nodeAttributes?: () => readonly string[];
+    /** The location designated in `data.knownFields`, which the location map reads unless told otherwise. */
+    readonly locationDesignation?: () => LocationDesignation;
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
     /** The weight the graph was loaded with, for the weight a run would read. */
@@ -841,6 +853,76 @@ function layoutRefusal(
 }
 
 /**
+ * Every node attribute with its values, for finding the location.
+ * @param context - What planning reads.
+ * @returns The columns.
+ */
+function nodeColumns(context: PlanningContext): ColumnValues[] {
+    return (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: context.nodeValues?.(name) ?? [] }));
+}
+
+/**
+ * The columns the location map layout reads when its own options name none: the designated ones,
+ * else the ones it finds by name or by their values.
+ * @param context - What planning reads.
+ * @returns The columns and where they come from.
+ */
+export function locationColumns(context: PlanningContext): LocationColumns {
+    const none = { location: null, latitude: null, longitude: null };
+    const designation = context.locationDesignation?.();
+    const choice = chosenLocation(none, designation);
+    const designated = choice.location !== null || choice.latitude !== null || choice.longitude !== null;
+    const places = cachedGazetteer();
+    const answer = resolveLocation(choice, nodeColumns(context), (path) => context.nodeValues?.(path) ?? null, places);
+    const listing = listLocation(designation, answer, (source) =>
+        source.role === "auto" ? (bestRole(source.values, places) ?? "city") : source.role,
+    );
+    const { using } = listing;
+    const listed = {
+        kinds: listing.kinds,
+        using,
+        unused: Object.freeze(
+            using === null
+                ? []
+                : listing.unused.map((kind) => ({ code: "location.unused" as const, params: { kind, using } })),
+        ),
+    };
+    if (isLocationRefusal(answer)) {
+        const { location, latitude, longitude } = choice;
+        return Object.freeze({
+            from: designated ? "designated" : "none",
+            ...(designated ? { location, latitude, longitude } : none),
+            role: null,
+            within: null,
+            ...listed,
+        });
+    }
+
+    const { source } = answer;
+    if (source.kind === "place") {
+        const role = source.role === "auto" ? (bestRole(source.values, places) ?? "auto") : source.role;
+        return Object.freeze({
+            from: designated ? "designated" : "detected",
+            ...none,
+            location: source.column,
+            role,
+            within: source.within !== null && "column" in source.within ? source.within.column : null,
+            ...listed,
+        });
+    }
+
+    return Object.freeze({
+        from: designated ? "designated" : "detected",
+        ...(source.kind === "location"
+            ? { ...none, location: source.column }
+            : { ...none, latitude: source.latitude, longitude: source.longitude }),
+        role: "coords",
+        within: null,
+        ...listed,
+    });
+}
+
+/**
  * Whether the location map layout refuses this graph: no column it can read locations from, or
  * half a latitude and longitude pair it cannot complete. The same answer the layout's own run
  * reaches, from the same resolver.
@@ -855,13 +937,18 @@ function locationRefusal(
     options: Readonly<Record<string, unknown>>,
 ): EstimateRefusal | undefined {
     const read = (path: string): readonly unknown[] | null => context.nodeValues?.(path) ?? null;
-    const columns = (context.nodeAttributes?.() ?? []).map((name) => ({ name, values: read(name) ?? [] }));
     const option = (name: string): string | null =>
         typeof options[name] === "string" && options[name] !== "" ? options[name] : null;
     const answer = resolveLocation(
-        { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
-        columns,
+        chosenLocation(
+            { location: option("location"), latitude: option("latitude"), longitude: option("longitude") },
+            context.locationDesignation?.(),
+        ),
+        nodeColumns(context),
         read,
+        options.gazetteer === false
+            ? false
+            : cachedGazetteer(typeof options.gazetteer === "string" ? options.gazetteer : GAZETTEER_URL),
     );
     return isLocationRefusal(answer)
         ? refused(`the layout "${id}" found no location to read`, "layout.needs-location", {

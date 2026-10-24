@@ -207,6 +207,13 @@ export interface ViewMasks {
      * @returns True when hidden nodes are drawn as context.
      */
     readonly showContext?: () => boolean;
+    /**
+     * Whether `visibility` is drawing ghosts now (elements outside the time window kept on screen).
+     * Read on every pass: switching it swaps which mask `visibility` answers with, so the next pass
+     * walks everything rather than trusting a version from the other mask.
+     * @returns True while ghosts are drawn.
+     */
+    readonly ghost?: () => boolean;
 }
 
 /** The version a mask that is not there reports, which no real mask can hold. */
@@ -317,6 +324,7 @@ export class UpdateManager implements Manager {
     private appliedNodeVisibility = NO_MASK_VERSION;
     private appliedEdgeVisibility = NO_MASK_VERSION;
     private appliedShowContext = false;
+    private appliedGhost = false;
     private appliedAnything = false;
 
     /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
@@ -511,6 +519,7 @@ export class UpdateManager implements Manager {
         const nodeVisibility = masks.visibility?.nodes() ?? null;
         const edgeVisibility = masks.visibility?.edges() ?? null;
         const showContext = masks.showContext?.() ?? false;
+        const ghost = masks.ghost?.() ?? false;
 
         const nodeSelectionVersion = nodeSelection?.version ?? NO_MASK_VERSION;
         const edgeSelectionVersion = edgeSelection?.version ?? NO_MASK_VERSION;
@@ -523,6 +532,7 @@ export class UpdateManager implements Manager {
             nodeVisibilityVersion,
             edgeVisibilityVersion,
             showContext,
+            ghost,
         );
 
         if (!nodesMoved && !edgesMoved) {
@@ -539,8 +549,10 @@ export class UpdateManager implements Manager {
         const nodeSelectionOnly =
             this.appliedAnything &&
             nodeVisibilityVersion === this.appliedNodeVisibility &&
-            showContext === this.appliedShowContext;
-        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
+            showContext === this.appliedShowContext &&
+            ghost === this.appliedGhost;
+        const edgeSelectionOnly =
+            this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility && ghost === this.appliedGhost;
 
         if (nodesMoved && nodeSelectionOnly) {
             this.applyNodeSelection(nodeSelection);
@@ -559,6 +571,7 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = nodeVisibilityVersion;
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
+        this.appliedGhost = ghost;
         this.appliedAnything = true;
     }
 
@@ -711,6 +724,7 @@ export class UpdateManager implements Manager {
      * @param nodeVisibility - The node visibility mask's version now.
      * @param edgeVisibility - The edge visibility mask's version now.
      * @param showContext - Whether hidden nodes are drawn faintly now.
+     * @param ghost - Whether ghosts are drawn now.
      * @returns Whether the nodes and whether the edges need the masks applied again.
      */
     private viewMasksMoved(
@@ -719,17 +733,20 @@ export class UpdateManager implements Manager {
         nodeVisibility: number,
         edgeVisibility: number,
         showContext: boolean,
+        ghost: boolean,
     ): { nodesMoved: boolean; edgesMoved: boolean } {
         return {
             nodesMoved:
                 !this.appliedAnything ||
                 nodeSelection !== this.appliedNodeSelection ||
                 nodeVisibility !== this.appliedNodeVisibility ||
-                showContext !== this.appliedShowContext,
+                showContext !== this.appliedShowContext ||
+                ghost !== this.appliedGhost,
             edgesMoved:
                 !this.appliedAnything ||
                 edgeSelection !== this.appliedEdgeSelection ||
-                edgeVisibility !== this.appliedEdgeVisibility,
+                edgeVisibility !== this.appliedEdgeVisibility ||
+                ghost !== this.appliedGhost,
         };
     }
 
@@ -751,6 +768,7 @@ export class UpdateManager implements Manager {
             masks.visibility?.nodes().version ?? NO_MASK_VERSION,
             masks.visibility?.edges().version ?? NO_MASK_VERSION,
             masks.showContext?.() ?? false,
+            masks.ghost?.() ?? false,
         );
 
         return nodesMoved || edgesMoved;

@@ -21,6 +21,8 @@
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
+#   graph-samples/public-data/gazetteer/v1 -> /data/gazetteer/v1/   (only if built; the location map's place
+#                                       names, written by graphty-element/scripts/build-gazetteer.mjs)
 #
 # GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
 # index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
@@ -65,6 +67,9 @@ copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then
     copy graph-samples/public-data/v1 data/graph-samples/v1
+fi
+if [ -d graph-samples/public-data/gazetteer/v1 ]; then
+    copy graph-samples/public-data/gazetteer/v1 data/gazetteer/v1
 fi
 
 # graphty-element's Storybook was published at /storybook/element/ before /storybook/graphty-element/

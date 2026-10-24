@@ -61,7 +61,7 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
-// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL,
 // PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
 const withoutPrepushSettings = () =>
     Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
@@ -211,14 +211,16 @@ describe("the pre-push gate matches CI", () => {
             /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
-        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
-        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). No limit on a shard either
+        // (the owner's no-arbitrary-timeouts rule): a 30-minute shard clock failed tier 3's graphty shard
+        // under load while its tests still ran. A hung test is ended by vitest's one hang guard.
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.doesNotMatch(code(tool("prepush-tests.mjs")), /"timeout"|PREPUSH_SHARD_TIMEOUT/);
         assert.match(
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
             // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", shardTimeout\(shard\), process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \[process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -4350,6 +4352,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(
                 join(dir, "tools/check-figma-lock.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
+                join(dir, "tools/release-dry-run.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
             );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
@@ -4378,6 +4382,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(first.calls, /links/);
             assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
+            assert.match(first.calls, /release/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);
@@ -4423,6 +4428,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -4447,6 +4453,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
             assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
+            assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);

@@ -376,6 +376,7 @@ describe("prepush.sh with a gate that already passed", () => {
         writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-figma-lock.mjs"), "");
+        writeFileSync(join(r.dir, "tools/release-dry-run.mjs"), "");
         writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
         writeFileSync(
             join(r.dir, "tools/sonar-gate.mjs"),
@@ -566,6 +567,8 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: gate,
+                    // Run under tools/low-priority.sh, the holders would all wait for slot 4 and never start.
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
@@ -610,6 +613,7 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: "off",

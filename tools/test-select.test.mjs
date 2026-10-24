@@ -37,7 +37,7 @@ import {
 } from "./test-select.mjs";
 import { ciFailures, parseGateLog } from "./test-select-replay.mjs";
 import { laneEnv, passStore } from "./prepush-inputs.mjs";
-import { deferDownstreamOn, selectedShards, selectionOn, shardTimeout } from "./prepush-tests.mjs";
+import { deferDownstreamOn, selectedShards, selectionOn } from "./prepush-tests.mjs";
 import { candidateShards, changedSince, describePlan } from "./test-changed.mjs";
 import { mutant, seededPick, unexplained } from "./test-select-mutate.mjs";
 
@@ -673,16 +673,6 @@ describe("running a selection", () => {
         assert.deepEqual(run[0].covers, ["graphty-1", "graphty-2", "graphty-3"]);
         assert.equal(run[1], byName("githerd"), "a whole shard keeps its own entry and command");
         assert.match(notes.join("\n"), /\[NONE\] layout/u);
-    });
-
-    it("gives a merged run the time limit of every shard it covers, not one shard's (issue #3337)", () => {
-        const merged = { shard: "graphty-1", covers: ["graphty-1", "graphty-2", "graphty-3"] };
-        assert.equal(shardTimeout(merged, "30m"), "5400s");
-        assert.equal(shardTimeout(merged, "1800"), "5400s");
-        assert.equal(shardTimeout(merged, "0.5h"), "5400s");
-        assert.equal(shardTimeout({ shard: "graphty-1", covers: ["graphty-1"] }, "30m"), "30m");
-        assert.equal(shardTimeout(byName("githerd"), "30m"), "30m", "a whole shard keeps its own limit");
-        assert.equal(shardTimeout(merged, "weird"), "weird", "a limit it cannot read is passed on unchanged");
     });
 
     it("selects by default with a base, never under PREPUSH_ALL=1, PREPUSH_SELECT=0 or for the cut", () => {

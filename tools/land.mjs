@@ -608,7 +608,18 @@ const conflicted = (ctx) =>
 // ---------------------------------------------------------------- GitHub and the gate
 
 /**
- * Pushes through the push queue, which runs the full pre-push gate.
+ * Whether pushes run the light gate (tools/prepush.sh PREPUSH_LIGHT=1: no test shard, no screenshot): only
+ * while CI verifies golden (`node tools/verify.mjs backend ci`), which then runs every shard on each landing.
+ * The backend is in golden's verification state file; with none it is local, and the gate stays full.
+ * @param ctx the run's context
+ * @returns "1" (light) or "0" (full)
+ */
+export function lightGate(ctx) {
+    return readJson(join(ctx.main, "tmp/golden/verify.json"))?.backend?.name === "ci" ? "1" : "0";
+}
+
+/**
+ * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
  * @param [refspec] what to push (golden to golden)
@@ -627,12 +638,16 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
         ...ctx.env,
         PUSH_BASE_REF: dst === GOLDEN ? `origin/${GOLDEN}` : "origin/master",
         PREPUSH_SELECT_BASE: `origin/${dst}`,
+        PREPUSH_LIGHT: lightGate(ctx),
     };
     Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
+    // A landing's check runs in its own process group, so a newer landing of the same branch can stop it alone
+    // (cancelChecks); a signal to this process still reaches it (checkLanding forwards it).
     const child = spawn(join(cwd, "tools/push-queue.sh"), args, {
         cwd,
         env,
+        detached: dryRun,
         stdio: ["ignore", "pipe", "pipe"],
     });
     ctx.child = child;
@@ -662,8 +677,8 @@ function defaultGh(ctx, args) {
 }
 
 /**
- * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
- * head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * Starts tools/visual-preview.sh (the live gate copy) for a pull request, detached, unless the gate
+ * already captured this head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
  * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
@@ -683,9 +698,14 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
+    // The live gate copy, as every other preview runs (the pre-push gate's), so all of them share one
+    // queue; the worktree's own copy only where there is none. The cut's previews go first.
+    const live = join(ctx.main, ".worktrees/gate-live/tools/visual-preview.sh");
+    const script = existsSync(live) ? live : join(cwd, "tools/visual-preview.sh");
+    const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
+    spawn("setsid", [script, String(pr), "--expect", head], {
         cwd,
-        env: ctx.env,
+        env,
         detached: true,
         stdio: ["ignore", fd, fd],
     }).unref();
@@ -820,29 +840,57 @@ async function pushGolden(ctx, before, rollback = before, wt = goldenTree(ctx)) 
             ctx.rollback = null;
             return { code, sha };
         }
-        const moved = goldenMoved(ctx, output, wt);
-        if (moved && tries < 3) {
-            console.log(
-                `land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`,
-            );
-            const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
-            if (git(ctx, wt.dir, args, { ok: true }).status === 0) continue;
-            git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
+        const cancelled = ctx.cancelled?.();
+        if (cancelled) {
+            ctx.rollback = null;
+            git(ctx, wt.dir, ["reset", "-q", "--hard", before]);
+            console.error(`land: this check was cancelled by ${cancelled}; nothing was landed.`);
+            return { code: 1, sha };
         }
+        const moved = goldenMoved(ctx, output, wt);
+        if (moved && tries < 3 && mergeMoved(ctx, wt)) continue;
         ctx.rollback = null;
         git(ctx, wt.dir, ["reset", "-q", "--hard", before]);
-        if (moved) {
-            console.error(
-                `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
-                    "Nothing is wrong with the branch: land it again.",
-            );
-            return { code: 4, sha };
-        }
-        const log = gateLog(ctx, sha, output);
-        console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
-        console.error(`land: gate log: ${log}`);
-        return { code: 3, sha, log };
+        return refusedPush(ctx, wt, before, sha, output, moved);
     }
+}
+
+/**
+ * Merges the branch's GitHub copy, which moved during the gate, into the worktree.
+ * @param ctx the run's context
+ * @param wt the worktree and branch
+ * @returns whether the merge succeeded (a failed one is aborted)
+ */
+function mergeMoved(ctx, wt) {
+    console.log(`land: ${wt.branch} moved on GitHub during the gate; merging origin/${wt.branch} and pushing again`);
+    const args = withHooks(ctx, ["merge", "--no-edit", `origin/${wt.branch}`]);
+    if (git(ctx, wt.dir, args, { ok: true }).status === 0) return true;
+    git(ctx, wt.dir, ["merge", "--abort"], { ok: true });
+    return false;
+}
+
+/**
+ * Reports a push that did not go through, after the worktree was reset to `before`.
+ * @param ctx the run's context
+ * @param wt the worktree and branch
+ * @param before the commit the branch is back at
+ * @param sha the commit that was pushed
+ * @param output the push's output
+ * @param moved whether the branch moved on GitHub during the gate
+ * @returns `{ code, sha, log }`: 4 the branch moved, 3 the gate refused it (`log` names its log)
+ */
+function refusedPush(ctx, wt, before, sha, output, moved) {
+    if (moved) {
+        console.error(
+            `land: ${wt.branch} moved on GitHub and could not be merged and pushed again; it is back at ${before.slice(0, 10)}.\n` +
+                "Nothing is wrong with the branch: land it again.",
+        );
+        return { code: 4, sha };
+    }
+    const log = gateLog(ctx, sha, output);
+    console.error(`land: the gate refused ${wt.branch}; it is back at ${before.slice(0, 10)}.`);
+    console.error(`land: gate log: ${log}`);
+    return { code: 3, sha, log };
 }
 
 /**
@@ -1096,10 +1144,32 @@ async function landShort(ctx, branches, lockOptions) {
  * @returns `{ commit, run }` when some branches passed, else `{ code }` (the summary is printed)
  */
 async function checkLanding(ctx, branches, lockOptions) {
-    const slot = await takeCheckSlot(ctx, lockOptions);
-    const check = { ...ctx, golden: slot.dir, checking: true, push: (c) => ctx.check(c, c.golden) };
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+    const tips = branches.map((b) => ({ branch: b, tip: tipOf(ctx, b) }));
+    cancelChecks(ctx, tips);
+    const slot = await takeCheckSlot(ctx, lockOptions, tips);
+    const marker = join(slot.lock, "cancelled");
+    const cancelled = () => (existsSync(marker) ? readFileSync(marker, "utf8").trim() : null);
+    const push = async (c) => {
+        if (cancelled()) return { code: 1, output: "" };
+        const pending = ctx.check(c, c.golden);
+        const gate = c.child?.pid;
+        if (gate) noteSlot(slot.lock, { gate });
+        // A cancel that read the slot before the gate's group was recorded wrote its marker first: stop it here.
+        if (gate && cancelled()) killGroup(gate);
+        const forward = (signal) => {
+            killGroup(gate, signal);
+            process.kill(process.pid, signal);
+        };
+        if (gate) for (const s of ["SIGINT", "SIGTERM"]) process.once(s, forward);
+        try {
+            return await pending;
+        } finally {
+            for (const s of ["SIGINT", "SIGTERM"]) process.off(s, forward);
+        }
+    };
+    const check = { ...ctx, golden: slot.dir, checking: true, push, cancelled };
     try {
-        git(ctx, ctx.main, ["fetch", "-q", "origin"]);
         // From local golden, which a hand-made merge (exit 4) leaves ahead of GitHub's; the sync merges GitHub's.
         prepareScratch(check, slot.dir, GOLDEN);
         check.hooks = hooksDir(ctx); // golden's own hooks, as a landing under the lock uses
@@ -1112,6 +1182,52 @@ async function checkLanding(ctx, branches, lockOptions) {
         if (check.hooks) rmSync(check.hooks, { recursive: true, force: true });
         slot.release();
     }
+}
+
+const tipOf = (ctx, branch) => {
+    const ref = branchRef(ctx, branch);
+    return ref ? git(ctx, ctx.main, ["rev-parse", ref]) : null;
+};
+
+const killGroup = (pgid, signal = "SIGTERM") => {
+    try {
+        process.kill(-pgid, signal);
+    } catch {
+        // already gone
+    }
+};
+
+// Adds fields to a check slot's owner record.
+const noteSlot = (lock, fields) =>
+    writeFileSync(join(lock, "owner.json"), `${JSON.stringify({ ...readLock(lock), ...fields })}\n`);
+
+/**
+ * Cancels the land checks this machine is still running that a new landing makes pointless: one of the same
+ * branch, or of a branch whose tip the new landing holds (folded into one of its branches). Only checks in
+ * land.mjs's check slots: each is marked cancelled (its landing stops and says by whom) and its gate's own
+ * process group is stopped. The cancelled landing then puts its check worktree back and frees the slot, as after
+ * any failed check; a slot whose landing is gone is taken over by the next landing as before.
+ * @param ctx the run's context
+ * @param tips the new landing's `{ branch, tip }`
+ * @returns the cancelled landings' pids
+ */
+export function cancelChecks(ctx, tips) {
+    const covers = (old) =>
+        tips.some((t) => t.branch === old.branch || (old.tip && t.tip && isAncestor(ctx, old.tip, t.tip)));
+    const by = `a newer landing of ${tips.map((t) => t.branch).join(", ")} (pid ${process.pid})`;
+    const cancelled = [];
+    for (let n = 1; n <= CHECK_SLOTS; n++) {
+        const lock = join(ctx.main, `tmp/golden/check-slot-${n}`);
+        const owner = readLock(lock);
+        if (!owner?.pid || owner.host !== hostname() || !alive(owner.pid) || !owner.tips?.some(covers)) continue;
+        writeFileSync(join(lock, "cancelled"), `${by}\n`);
+        // Read again: the gate's group may have been recorded meanwhile (the landing also looks for the marker).
+        const gate = readLock(lock)?.gate;
+        if (gate) killGroup(gate);
+        console.log(`land: cancelled the check of ${owner.tips.map((t) => t.branch).join(", ")} (pid ${owner.pid})`);
+        cancelled.push(owner.pid);
+    }
+    return cancelled;
 }
 
 /**
@@ -1147,17 +1263,18 @@ const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancest
  * in tmp/golden/check-slot-<n>, so landings check side by side and each worktree keeps its install.
  * @param ctx the run's context
  * @param [opts] `pollMs` between looks when every slot is taken
- * @returns `{ dir, release }`
+ * @param [tips] the landing's `{ branch, tip }`, recorded for cancelChecks
+ * @returns `{ dir, lock, release }`
  */
-async function takeCheckSlot(ctx, opts = {}) {
+async function takeCheckSlot(ctx, opts = {}, tips = []) {
     mkdirSync(join(ctx.main, "tmp/golden"), { recursive: true });
     for (;;) {
         for (let n = 1; n <= CHECK_SLOTS; n++) {
             const lock = join(ctx.main, `tmp/golden/check-slot-${n}`);
             const owner = readLock(lock);
             if (owner && stale(lock, owner)) removeStaleLock(lock, owner);
-            const release = tryLock(lock, { command: "land check" });
-            if (release) return { dir: join(ctx.main, `.worktrees/land-check-${n}`), release };
+            const release = tryLock(lock, { command: "land check", tips });
+            if (release) return { dir: join(ctx.main, `.worktrees/land-check-${n}`), lock, release };
         }
         await new Promise((r) => setTimeout(r, opts.pollMs ?? 15_000));
     }
@@ -1735,6 +1852,11 @@ export async function status(ctx) {
     console.log(landed.length ? "landed, not on master yet:" : "nothing landed that master does not have");
     for (const e of landed) console.log(`  ${e.branch} ${e.sha.slice(0, 10)}${e.reverted ? " (reverted)" : ""}`);
     console.log(prLine(ctx));
+    console.log(
+        lightGate(ctx) === "1"
+            ? "gate: light (no test shard, no screenshot; CI verification runs the tests)"
+            : "gate: full (the test shards and the screenshots run here)",
+    );
     const { describe, verifyContext } = await import("./verify.mjs");
     for (const branch of [GOLDEN, CUT]) {
         const v = verifyContext(ctx.main, { env: ctx.env, branch });

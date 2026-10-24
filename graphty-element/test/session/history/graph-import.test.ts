@@ -242,6 +242,17 @@ describe("data.import", () => {
         session.dispose();
     });
 
+    it("an import that starts the history is not an unsaved change, and the next import is", async () => {
+        const { session } = makeSession();
+        await session.data.import({ type: "json", config: { data: DOCUMENT } }, { history: "start" });
+        assert.isFalse(session.project.dirty, "the opened graph is where the project starts");
+
+        const more = JSON.stringify({ nodes: [{ id: "c" }], edges: [] });
+        await session.data.import({ type: "json", config: { data: more } }, { mode: "merge" });
+        assert.isTrue(session.project.dirty, "an import after it is an unsaved change");
+        session.dispose();
+    });
+
     it("two imports under one coalesce key in one tick are one load and one step", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);

@@ -2291,7 +2291,13 @@ export class Dispatcher {
             while (before < steps.length && (this.steps.get(steps[before].id)?.recorded ?? -1) < group.seq) {
                 before++;
             }
-            this.history.dropOldest(before);
+            if (before === steps.length) {
+                // Published as a clear, as `history.clear()` is: the project starts here.
+                this.history.clear();
+                this.steps.clear();
+            } else {
+                this.history.dropOldest(before);
+            }
             return true;
         }
 

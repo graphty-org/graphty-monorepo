@@ -1384,9 +1384,15 @@ Rules:
 - What ships is a cut, not golden's tip: `node tools/land.mjs cut [<commit>]` points `golden-cut` at the
   commit you name, or else the newest verified golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
-  are made on the cut pull request. A fix the cut needs starts from the cut,
-  `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with `node tools/land.mjs cut-fix <branch>`:
-  it merges the branch into `golden-cut`, pushes it through the gate (the light gate while verification
+  are made on the cut pull request. While the cut pull request awaits the owner (a draft whose preview of its
+  head is done, with no Finish yet) `cut` refuses to move `golden-cut`: the cut is frozen until Finish and ship,
+  or until its pull request is closed. Every fix lands on golden and reaches master with the next cut. Only a
+  fix for a red master, a failed deploy or a release hold goes into the cut itself: it starts from the cut,
+  `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with
+  `node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>`, where the reason is an open
+  `priority:critical` or "Release held" issue, or a failed `release.yml`, `deploy-pages.yml` or master `ci.yml`
+  run (checked on GitHub; a branch not started from the cut, or any other reason, is refused). It merges the
+  branch into `golden-cut`, pushes it through the gate (the light gate while verification
   runs in CI, whose run of `golden-cut-candidate` then tests it) and starts the cut's preview, then lands
   the same branch on golden, so both hold the same commits, and starts verification of `golden-cut`. A landing that
   verification shows broke golden is reverted at once and landed again once fixed.

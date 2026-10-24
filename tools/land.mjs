@@ -7,7 +7,8 @@
 //   node tools/land.mjs land <b1> <b2> ... [--dry-run]   land several branches in one gate run
 //   node tools/land.mjs revert <branch>             take a landed branch back out of golden
 //   node tools/land.mjs cut [<commit>]              point golden-cut at a known-good golden commit, open its pull request
-//   node tools/land.mjs cut-fix <branch>            merge a fix the cut needs into golden-cut, push it, then land it on golden
+//   node tools/land.mjs cut-fix <branch> --reason <issue>|run:<id>   merge a fix for a red master, a failed deploy or
+//                                                   a release hold into golden-cut, push it, then land it on golden
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview, open work
 //   node tools/land.mjs prune-branches [--yes]      list (with --yes: delete on GitHub) the branches golden holds
@@ -46,7 +47,12 @@
 // <main checkout>/.worktrees/golden-cut, opens or refreshes the draft pull request golden-cut -> master
 // and starts its preview. The owner's approvals that ship are made on that pull request, and `ship`
 // marks it ready with auto-merge, once the cut's head is verified (a cut-fix starts golden-cut's own
-// verification). The golden pull request stays open as an early look at golden's tip.
+// verification). The golden pull request stays open as an early look at golden's tip. While the cut pull
+// request awaits the owner (a draft, its preview of its head done, no Finish yet) `cut` refuses to move
+// golden-cut, so the owner never reviews a moving target. `ship` takes the verification and the preview of
+// a commit whose files the cut's head has outside visual-baselines/ and visual-review-approvals/, so the
+// owner's Finish (and an update of the baselines from master) redoes neither. A cut fix is only for a red
+// master, a failed deploy or a release hold, which its --reason names and GitHub confirms.
 //
 // Never copy, always merge: a landing refuses a branch whose commits are already on golden under other ids
 // (a cherry-pick or rebase of commits golden has), so a copy never lands beside its original. A fix the
@@ -1086,7 +1092,7 @@ async function landRun(ctx, branches, opts = {}) {
     const synced = syncOrReport(ctx);
     if (synced !== 0) return synced;
     const before = goldenHead(ctx);
-    const run = { refs, start, outcomes: new Map(), pushed: false, stopped: 0 };
+    const run = { refs, start, outcomes: new Map(), pushed: false, stopped: 0, siblings: siblingConflicts(ctx, refs) };
     const merged = mergeEach(ctx, run, branches);
     if (opts.dryRun && merged.length) {
         const log = git(ctx, ctx.golden, ["log", "--oneline", `${start}..HEAD`]);
@@ -1329,9 +1335,38 @@ function mergeEach(ctx, run, list) {
             continue;
         }
         git(ctx, ctx.golden, ["reset", "-q", "--hard", pre]);
-        run.outcomes.set(b, { state: code === 2 ? "conflict" : "refused (see above)" });
+        const sibling = run.siblings?.find((p) => p.second === b && merged.includes(p.first))?.first;
+        let state = code === 2 ? "conflict" : "refused (see above)";
+        if (code === 2 && sibling) state = `conflict with ${sibling}, merged before it in this batch`;
+        run.outcomes.set(b, { state });
     }
     return merged;
+}
+
+/**
+ * The pairs of a batch's branches that conflict with each other (git merge-tree of the two tips), printed
+ * before anything is merged: the later of such a pair cannot land beside the earlier, whatever golden holds,
+ * and merging golden into it does not help. The rest of the batch still lands.
+ * @param ctx the run's context
+ * @param refs the batch's refs by branch, in landing order
+ * @returns `[{ first, second, files }]`
+ */
+export function siblingConflicts(ctx, refs) {
+    const list = [...refs];
+    const pairs = [];
+    for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+            const args = ["merge-tree", "--write-tree", "--name-only", "--no-messages", list[i][1], list[j][1]];
+            const r = git(ctx, ctx.main, args, { ok: true });
+            if (r.status !== 1) continue;
+            pairs.push({ first: list[i][0], second: list[j][0], files: r.stdout.split("\n").slice(1).filter(Boolean) });
+        }
+    }
+    if (pairs.length) {
+        const lines = pairs.map((p) => `  ${p.first} and ${p.second}: ${p.files.join(", ")}`);
+        console.log(`land: these branches of the batch conflict with each other:\n${lines.join("\n")}`);
+    }
+    return pairs;
 }
 
 /**
@@ -1360,7 +1395,11 @@ async function landGroup(ctx, run, list, merged) {
         run.outcomes.set(group[0], { state: `gate failure, log: ${r.log}` });
     } else {
         const mid = Math.ceil(group.length / 2);
-        console.log(`land: finding the branch the gate refused: trying ${group.slice(0, mid).join(", ")} first`);
+        // The gate log names the group's last land commit; the failure may be any branch's.
+        console.log(
+            `land: the gate refused ${group.join(", ")} together (its log names the last, land: ${group.at(-1)}, ` +
+                `but any of them may be the cause); finding the branch: trying ${group.slice(0, mid).join(", ")} first`,
+        );
         await landGroup(ctx, run, group.slice(0, mid));
         if (!run.stopped) await landGroup(ctx, run, group.slice(mid));
     }
@@ -1377,6 +1416,13 @@ function summarize(run, branches) {
     const width = Math.max(...branches.map((b) => b.length));
     const rows = branches.map((b, i) => "  " + b.padEnd(width) + "  " + states[i]);
     console.log(["land: summary", ...rows].join("\n"));
+    if (states.some((s) => s.startsWith("conflict with "))) {
+        console.log(
+            "land: for each conflict with another branch of this batch: merge the earlier branch into the later\n" +
+                "  in the later one's worktree (git merge origin/<earlier>, resolve, commit) and land it again,\n" +
+                "  or land it alone once the earlier one is on golden",
+        );
+    }
     if (states.includes("conflict")) {
         console.log(
             "land: for each conflict, in that branch's own worktree:\n" +
@@ -1388,7 +1434,7 @@ function summarize(run, branches) {
     }
     if (run.stopped) return run.stopped;
     if (states.some((s) => s.startsWith("refused"))) return 1;
-    const conflict = states.includes("conflict");
+    const conflict = states.some((s) => s.startsWith("conflict"));
     const gate = states.some((s) => s.startsWith("gate failure"));
     if (conflict && gate) return 5;
     if (gate) return 3;
@@ -1534,8 +1580,8 @@ export async function ship(ctx) {
 }
 
 /**
- * Whether the cut pull request's head moved since its last finished preview: anything between the
- * preview's head and the pull request's head other than a Finish's own commits (finishCommit).
+ * Whether the cut pull request's head moved since its last finished preview: its files differ from the
+ * preview's head outside the screenshot review's own directories (sameOutsideReview).
  * @param ctx the run's context
  * @param pr the cut pull request (`number`, `headRefOid`)
  * @returns what is wrong, or null when the preview is of this head
@@ -1543,20 +1589,16 @@ export async function ship(ctx) {
 function cutMoved(ctx, pr) {
     const status = readJson(join(ctx.main, `tmp/visual-review/local/${pr.number}/status.json`));
     if (status?.state !== "done" || !status.head) return "has no finished screenshot preview";
-    const head = pr.headRefOid;
-    if (status.head === head) return null;
-    if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", status.head, head], { ok: true }).status !== 0) {
-        return `moved from ${status.head.slice(0, 10)} (its preview) to ${head.slice(0, 10)}`;
-    }
-    const other = commitsSince(ctx, status.head, head).filter((c) => !finishCommit(ctx, c));
-    return other.length
-        ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.map((c) => c.subject).join("; ")}`
-        : null;
+    if (sameOutsideReview(ctx, status.head, pr.headRefOid)) return null;
+    const what = reviewDirs(ctx).join(" and ");
+    return `moved since its preview of ${status.head.slice(0, 10)}: ${pr.headRefOid.slice(0, 10)} changes more than ${what}`;
 }
 
 /**
- * Whether the cut's head is verified: on golden-verified, or golden-cut's own verification passed it
- * (after a cut-fix), give or take a Finish's own commits after it.
+ * Whether the cut's head is verified: its files are those of a commit golden-verified holds, or of the
+ * commit golden-cut's own verification passed (after a cut-fix), outside the screenshot review's own
+ * directories (sameOutsideReview), so the owner's Finish and an update of the baselines from master
+ * need no new verification.
  * @param ctx the run's context
  * @param head the cut pull request's head
  * @returns what is wrong, or null when it is verified
@@ -1566,42 +1608,33 @@ function cutUnverified(ctx, head) {
     for (const v of [`origin/${VERIFIED}`, cutVerified]) {
         if (!v || hasRef(ctx, ctx.main, v).status !== 0) continue;
         const base = git(ctx, ctx.main, ["merge-base", head, v], { ok: true }).stdout;
-        if (base && commitsSince(ctx, base, head).every((c) => finishCommit(ctx, c))) return null;
+        if (base && sameOutsideReview(ctx, base, head)) return null;
     }
     return `is not verified yet at ${head.slice(0, 10)} (node tools/verify.mjs status --branch ${CUT}); ship once it is`;
 }
 
 /**
- * The commits of `from..to`, each with its parents, subject and the files it changed.
+ * The screenshot review's own directories (the baselines and the approvals of visual-review.config.json):
+ * what a Finish, or an update of the baselines from master, writes. Nothing in them changes a capture or a test.
  * @param ctx the run's context
- * @param from the older commit
- * @param to the newer one
- * @returns `[{ parents, subject, files }]`
+ * @returns the two directories
  */
-function commitsSince(ctx, from, to) {
-    const log = git(ctx, ctx.main, ["log", "--format=%x01%P%x00%s", "--name-only", `${from}..${to}`]);
-    return log
-        .split("\x01")
-        .filter(Boolean)
-        .map((record) => {
-            const [first, ...files] = record.split("\n");
-            const [parents, subject] = first.split("\0");
-            return { parents: parents.split(" "), subject, files: files.filter(Boolean) };
-        });
+function reviewDirs(ctx) {
+    const config = readJson(join(ctx.main, "visual-review.config.json")) ?? {};
+    return [config.baselines ?? "visual-baselines", config.approvals ?? "visual-review-approvals"];
 }
 
 /**
- * Whether a commit is one a screenshot Finish makes (its accept, approval or signing commit): one
- * parent, and nothing changed outside the baselines and approvals directories of
- * visual-review.config.json. Such a commit changes no capture, so a preview stays current across it.
+ * Whether two commits hold the same files outside the screenshot review's own directories (reviewDirs),
+ * whatever commits lie between them (accept and approval commits, merges of master's baselines).
  * @param ctx the run's context
- * @param commit as commitsSince returns it
- * @returns true when it is
+ * @param a one commit
+ * @param b the other
+ * @returns true when they do
  */
-function finishCommit(ctx, commit) {
-    const config = readJson(join(ctx.main, "visual-review.config.json")) ?? {};
-    const dirs = [config.baselines ?? "visual-baselines", config.approvals ?? "visual-review-approvals"];
-    return commit.parents.length === 1 && commit.files.every((f) => dirs.some((d) => f.startsWith(`${d}/`)));
+export function sameOutsideReview(ctx, a, b) {
+    const exclude = reviewDirs(ctx).map((d) => `:(exclude)${d}`);
+    return git(ctx, ctx.main, ["diff", "--quiet", a, b, "--", ".", ...exclude], { ok: true }).status === 0;
 }
 
 function readJson(file) {
@@ -1729,6 +1762,8 @@ function defaultAddCutWorktree(ctx, sha) {
 export async function cut(ctx, given) {
     git(ctx, ctx.main, ["fetch", "-q", "origin"]);
     if (hasRef(ctx, ctx.main, `origin/${GOLDEN}`).status !== 0) return fail("nothing is on GitHub's golden yet");
+    const frozen = frozenCut(ctx);
+    if (frozen) return fail(frozen);
     const picked = pickCut(ctx, given);
     if (picked.error) return fail(picked.error);
     const { sha } = picked;
@@ -1750,20 +1785,96 @@ export async function cut(ctx, given) {
 }
 
 /**
+ * Why the cut must not move now: its pull request awaits the owner -- a draft whose screenshot preview of
+ * its head is done (cutMoved) and whose baselines carry no Finish yet (no signed approval of the head's
+ * visual-baselines tree). Moving it then would make the owner review a target that moved under them.
+ * @param ctx the run's context (origin fetched)
+ * @returns the refusal, or null when the cut may move
+ */
+function frozenCut(ctx) {
+    const pr = goldenPr(ctx, CUT);
+    if (!pr?.isDraft || !pr.headRefOid || cutMoved(ctx, pr)) return null;
+    const [baselines, approvals] = reviewDirs(ctx);
+    const tree = git(ctx, ctx.main, ["rev-parse", "-q", "--verify", `${pr.headRefOid}:${baselines}`], { ok: true });
+    const signed = `${pr.headRefOid}:${approvals}/${tree.stdout}.json`;
+    if (tree.status === 0 && git(ctx, ctx.main, ["cat-file", "-e", signed], { ok: true }).status === 0) return null;
+    return (
+        `#${pr.number} awaits the owner's review: its preview of ${pr.headRefOid.slice(0, 10)} is done and it has ` +
+        `no Finish yet, so ${CUT} stays frozen.\nCut again after the owner's Finish and ship, or after the cut ` +
+        "pull request is closed. A fix the cut itself needs goes in with cut-fix."
+    );
+}
+
+/**
  * Why a branch cannot go into the cut: it would bring commits of golden or master that golden-cut does
- * not have. A cut fix starts from origin/golden-cut and holds only its own commits.
+ * not have, so it was not started from origin/golden-cut. A cut fix starts there and holds only its own
+ * commits; every other fix lands on golden.
  * @param ctx the run's context
  * @param ref the branch's ref
  * @returns the reason, or null when only its own commits would go in
  */
 function notOnCut(ctx, ref) {
-    const count = (...not) => Number(git(ctx, ctx.main, ["rev-list", "--count", ref, `^origin/${CUT}`, ...not]));
-    const extra = count() - count(`^origin/${GOLDEN}`, "^origin/master");
-    if (extra === 0) return null;
-    return (
-        `it would bring ${extra} commits of golden or master that ${CUT} does not have.\n` +
-        `A fix for the cut starts from the cut: ./tools/worktree-new.sh <branch> origin/${CUT}`
-    );
+    const list = (...not) =>
+        git(ctx, ctx.main, ["rev-list", ref, `^origin/${CUT}`, ...not])
+            .split("\n")
+            .filter(Boolean);
+    const own = new Set(list(`^origin/${GOLDEN}`, "^origin/master"));
+    const extra = list().filter((sha) => !own.has(sha));
+    if (extra.length === 0) return null;
+    const named = extra.slice(0, 5).map((sha) => `  ${describeCommit({ ...ctx, golden: ctx.main }, sha)}`);
+    const more = extra.length > 5 ? [`  ... and ${extra.length - 5} more`] : [];
+    return [
+        `it was not started from origin/${CUT}: it would bring ${extra.length} commits of golden or master that ${CUT} does not have:`,
+        ...named,
+        ...more,
+        `A fix for the cut starts from the cut: ./tools/worktree-new.sh <branch> origin/${CUT}`,
+        "Any other fix lands on golden: node tools/land.mjs land <branch>",
+    ].join("\n");
+}
+
+const FAILED = new Set(["failure", "timed_out", "startup_failure"]);
+const CUT_FIX_USAGE =
+    "a cut fix is only for a red master, a failed deploy or a release hold. Name it with --reason <issue> " +
+    '(an open priority:critical or "Release held" issue) or --reason run:<id> (a failed release.yml or ' +
+    "deploy-pages.yml run, or a failed ci.yml run on master). Every other fix lands on golden: " +
+    "node tools/land.mjs land <branch>";
+
+/**
+ * Checks the reason a cut fix gives against GitHub: an open issue labelled priority:critical (a red
+ * master's alarm) or titled "Release held", or a failed run of release.yml, deploy-pages.yml or of
+ * ci.yml on master. One REST call.
+ * @param ctx the run's context
+ * @param reason the --reason value: "<issue>", "#<issue>" or "run:<id>"
+ * @returns `{ ok }` naming what was found, or `{ error }`
+ */
+export function cutFixReason(ctx, reason) {
+    if (!reason) return { error: CUT_FIX_USAGE };
+    const run = /^run:(\d+)$/.exec(reason);
+    const issue = /^#?(\d+)$/.exec(reason);
+    if (!run && !issue) return { error: `--reason ${reason} names neither an issue nor run:<id>; ${CUT_FIX_USAGE}` };
+    try {
+        return run ? failedRun(ctx, run[1]) : alarmIssue(ctx, issue[1]);
+    } catch (e) {
+        return { error: `could not check --reason ${reason}: ${e.message}` };
+    }
+}
+
+function alarmIssue(ctx, n) {
+    const i = JSON.parse(ctx.gh(ctx, ["api", `repos/{owner}/{repo}/issues/${n}`]) || "{}");
+    const critical = (i.labels ?? []).some((l) => l.name === "priority:critical");
+    if (i.state === "open" && (critical || /^Release held/.test(i.title ?? "")))
+        return { ok: `issue #${n}: ${i.title}` };
+    return { error: `issue #${n} is not an open priority:critical or "Release held" issue; ${CUT_FIX_USAGE}` };
+}
+
+function failedRun(ctx, id) {
+    const r = JSON.parse(ctx.gh(ctx, ["api", `repos/{owner}/{repo}/actions/runs/${id}`]) || "{}");
+    const path = r.path ?? "";
+    const lane = /\/(release|deploy-pages)\.yml$/.test(path) || (/\/ci\.yml$/.test(path) && r.head_branch === "master");
+    if (FAILED.has(r.conclusion) && lane) return { ok: `run ${id}: ${path} ${r.conclusion}` };
+    return {
+        error: `run ${id} (${path || "unknown"}, ${r.conclusion ?? "not finished"}) is not a failed release, deploy or master run; ${CUT_FIX_USAGE}`,
+    };
 }
 
 /**
@@ -1772,9 +1883,13 @@ function notOnCut(ctx, ref) {
  * branch on golden, so both branches hold the same commits.
  * @param ctx the run's context
  * @param branch the fix, started from origin/golden-cut
+ * @param [opts] `reason`: the --reason value, checked by cutFixReason
  * @returns the exit code: 0 done (or already on golden-cut), 1 refused, 2 a conflict, 3 the gate refused it
  */
-export async function cutFix(ctx, branch) {
+export async function cutFix(ctx, branch, opts = {}) {
+    const reason = cutFixReason(ctx, opts.reason);
+    if (reason.error) return fail(`${branch} is not a cut fix: ${reason.error}`);
+    console.log(`land: cut fix for ${reason.ok}`);
     git(ctx, ctx.main, ["fetch", "-q", "origin"]);
     const ref = branchRef(ctx, branch);
     if (!ref) return fail(`no branch ${branch} here or on origin`);
@@ -2092,7 +2207,7 @@ export function context(cwd, overrides = {}) {
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> | ship | status | prune-branches [--yes] |" +
+    " cut-fix <branch> --reason <issue>|run:<id> | ship | status | prune-branches [--yes] |" +
     " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
 
 /**
@@ -2102,23 +2217,19 @@ const USAGE =
  * @returns the exit code
  */
 export async function main(argv, ctx = context(process.cwd())) {
-    const at = argv.findIndex((a) => a === "--allow-copies" || a.startsWith("--allow-copies="));
-    const inline = at >= 0 && argv[at].includes("=");
-    let allowArg = null;
-    if (inline) allowArg = argv[at].split("=")[1];
-    else if (at >= 0) allowArg = argv[at + 1];
-    const allowCopies = allowArg?.split(",").filter(Boolean) ?? [];
-    const positional = at >= 0 && !inline ? argv.filter((_, i) => i !== at + 1) : argv;
-    const [command, ...branches] = positional.filter((a) => !a.startsWith("--"));
+    const copies = takeOption(argv, "--allow-copies");
+    const reason = takeOption(copies.rest, "--reason");
+    const allowCopies = copies.value?.split(",").filter(Boolean) ?? [];
+    const [command, ...branches] = reason.rest.filter((a) => !a.startsWith("--"));
     if (command === "sync") return syncCommand(ctx, argv);
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
     const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") };
     const unlocked = UNLOCKED[command];
-    if (unlocked) return unlocked(ctx, branch, argv, lockOptions);
+    if (unlocked) return unlocked(ctx, branch, argv, lockOptions, { reason: reason.value });
     if (!["land", "revert"].includes(command) || !branch) return fail(USAGE);
-    if (at >= 0 && (command !== "land" || branches.length !== 1 || !allowCopies.length)) {
+    if (copies.given && (command !== "land" || branches.length !== 1 || !allowCopies.length)) {
         return fail("--allow-copies takes a comma-separated list of shas and lands exactly one branch");
     }
     // ponytail: --allow-copies (rare, by hand) lands under the lock the old way instead of in the short-lock check.
@@ -2127,6 +2238,21 @@ export async function main(argv, ctx = context(process.cwd())) {
         if (command === "revert") return revert(ctx, branch);
         return branches.length > 1 ? landMany(ctx, branches, { dryRun }) : land(ctx, branch, { dryRun, allowCopies });
     });
+}
+
+/**
+ * Takes an option with a value (`--name v` or `--name=v`) out of the command line.
+ * @param argv the arguments
+ * @param name the option, with its dashes
+ * @returns `{ given, value, rest }`: whether it was there, its value (or null) and the other arguments
+ */
+function takeOption(argv, name) {
+    const at = argv.findIndex((a) => a === name || a.startsWith(`${name}=`));
+    if (at < 0) return { given: false, value: null, rest: argv };
+    const inline = argv[at].includes("=");
+    const value = inline ? argv[at].slice(name.length + 1) : argv[at + 1];
+    const rest = argv.filter((_, i) => i !== at && (inline || i !== at + 1));
+    return { given: true, value: value ?? null, rest };
 }
 
 /**
@@ -2184,21 +2310,22 @@ const UNLOCKED = {
  * @param branch the fix
  * @param argv the command line (for --priority)
  * @param lockOptions the lock's options
+ * @param [opts] `reason`: the --reason value
  * @returns the exit code
  */
-async function cutFixThenLand(ctx, branch, argv, lockOptions) {
+async function cutFixThenLand(ctx, branch, argv, lockOptions, opts = {}) {
     if (!branch) return fail(USAGE);
-    const code = await cutLocked(ctx, branch, lockOptions, cutFix);
+    const code = await cutLocked(ctx, branch, lockOptions, cutFix, opts);
     // The same branch, the same commits, on golden: a landing like any other.
     return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
 }
 
 // The cut (or a cut fix) under its own lock: its push runs the gate without holding up landings.
-async function cutLocked(ctx, given, lockOptions, run = cut) {
+async function cutLocked(ctx, given, lockOptions, run = cut, opts = {}) {
     const command = run === cut ? "cut" : "cut-fix";
     const release = await acquireLock(ctx.cutLock, { command, branch: given ?? "" }, lockOptions);
     try {
-        return await run(ctx, given);
+        return await run(ctx, given, opts);
     } finally {
         release();
     }

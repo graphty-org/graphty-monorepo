@@ -6,8 +6,8 @@
 # Usage:
 #   ./tools/visual-preview.sh <pull request number> [--expect <commit>]
 #   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
-#   ./tools/visual-preview.sh --promote <commit>   (tools/prepush.sh, once every check passed)
-#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when the push was refused)
+#   ./tools/visual-preview.sh --promote <commit>   (tools/push-queue.sh, once GitHub accepted the push)
+#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh or push-queue.sh, when it was refused)
 #
 # --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
 # fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in
@@ -76,6 +76,10 @@ case "${1:-}" in
     --head | --promote | --discard) MODE="${1#--}" ;;
 esac
 if [[ "$MODE" != "pr" ]]; then
+    # Under tools/push-queue.sh the gate's --promote does nothing: the queue promotes after GitHub
+    # accepted the push, and discards the capture when the push was rejected. 2026-10-24: promoted before
+    # a push of golden-cut that was then rejected, a capture replaced the cut's owner-reviewed preview.
+    [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
     BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
@@ -371,6 +375,9 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# The cut's preview (VISUAL_PREVIEW_PRIORITY, set by tools/land.mjs, or the gate's capture of a push to
+# golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
+[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()
 [[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.

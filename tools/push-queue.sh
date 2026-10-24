@@ -32,6 +32,10 @@ if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
         copy=$(mktemp "$main/tmp/push-queue-copies/push-queue.XXXXXX.sh") && cp "$0" "$copy" &&
         PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
 fi
+# The queue's settings are for this script only, never for the command it runs: exported, the
+# snapshot's PUSH_QUEUE_GATE reached every test the gate runs, and a test running a throwaway
+# checkout's own push-queue.sh then pushed through the machine's snapshot instead (2026-10-24).
+export -n PUSH_QUEUE_GATE PUSH_QUEUE_COPY
 # 4 gates at once: since each Node test run is capped at its share of the cores (#2184) and the GPU
 # step has its own slot (#2267), 3 gates left the machine at load ~29 of 32 with 20 pushes waiting;
 # the 4 machine-wide test slots still keep the test stages from oversubscribing it.

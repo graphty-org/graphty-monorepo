@@ -437,6 +437,7 @@ echo "rule before: $(cat "$GATE_DIR/tools/rule.txt")"
 echo "rule $(($(git -C "$LIVE" rev-list --count HEAD) + 1))" >"$LIVE/tools/rule.txt"
 git -C "$LIVE" commit -q -am "a new rule goes live" >&2
 echo "rule after: $(cat "$GATE_DIR/tools/rule.txt")"
+echo "queue settings seen by the gate: [\${PUSH_QUEUE_GATE-}\${PUSH_QUEUE_COPY-}]"
 `;
     function setupLive() {
         const ctx = setup();
@@ -478,6 +479,13 @@ echo "rule after: $(cat "$GATE_DIR/tools/rule.txt")"
         // The next push runs the new rule from its start, and the snapshot nobody holds is gone.
         assert.match(push(ctx, "feat/y"), /rule before: rule 3/);
         assert.equal(snapshots(ctx).includes(first), false);
+    });
+
+    // 2026-10-24: the snapshot's PUSH_QUEUE_GATE reached githerd's tests in the gate, whose own
+    // throwaway repositories' tools/push-queue.sh then pushed through the machine's snapshot.
+    it("never hands its own settings to the gate, so a queue the gate's tests run stays in its checkout", () => {
+        const ctx = setupLive();
+        assert.match(push(ctx, "feat/x"), /queue settings seen by the gate: \[\]/);
     });
 
     it("keeps a snapshot a landing holds (--hold) for its next push, and removes it once let go", async () => {

@@ -66,7 +66,15 @@ export function check(files, env = process.env, log = console.log) {
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
     const base = pushBase();
     // Only the manifests matter, and a long-lived branch's whole file list overflows the default buffer.
-    const manifests = ["--", "package.json", "**/package.json", "project.json", "**/project.json"];
+    const manifests = [
+        "--",
+        "package.json",
+        "**/package.json",
+        "project.json",
+        "**/project.json",
+        "nx.json",
+        "release-hold.json",
+    ];
     const files = execFileSync("git", ["diff", "--name-only", base, "HEAD", ...manifests], {
         encoding: "utf8",
         maxBuffer: 256 * 1024 * 1024,

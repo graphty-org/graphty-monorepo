@@ -37,6 +37,19 @@ import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
 /**
+ * Each shard's own Vite dependency cache, when it runs as one of several parallel shards
+ * (COVERAGE_DIR names the shard, tools/prepush-tests.mjs and CI set it). The shards of the
+ * pre-push gate share one checkout: with a shared cache, a stale one (a change to the
+ * pre-bundled list, the lockfile) is re-optimized by every shard at once, each swapping the deps
+ * directory under the others ("The file does not exist ... in the optimize deps directory"). The
+ * gate's warm-up shard does not fill every project's cache either: graphty-element-browser-1 holds
+ * no "xr" test file. Unset, Vite's default directory.
+ */
+const SHARD_CACHE_DIR = process.env.COVERAGE_DIR
+    ? path.join("node_modules/.vite", path.basename(process.env.COVERAGE_DIR))
+    : undefined;
+
+/**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
  * dependency Vite discovers mid-run makes it reload the page under the test that is running.
@@ -444,6 +457,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
@@ -527,6 +541,7 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
@@ -550,6 +565,7 @@ export default defineConfig({
                 // ci.yml's advisory "performance" job, and by hand with:
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
@@ -591,6 +607,7 @@ export default defineConfig({
                 ],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
@@ -651,6 +668,7 @@ export default defineConfig({
                 // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: {
                     include: [
                         ...PREBUNDLED,
@@ -722,6 +740,7 @@ export default defineConfig({
                 // annotation session draws about one frame a second and does not settle.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
@@ -769,6 +788,7 @@ export default defineConfig({
             },
             {
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",

@@ -3,7 +3,7 @@
 //
 //   node tools/land.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import {
     chmodSync,
     existsSync,
@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { busyLine, noteBody } from "./branch-note.mjs";
-import { failedTest, moveGoldenGood, syncDue } from "./branch-sync.mjs";
+import { failedTest, moveGoldenGood, syncDue, testStage } from "./branch-sync.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 import {
     acquireLock,
@@ -29,6 +29,7 @@ import {
     handOff,
     issueRefs,
     landedBranches,
+    lightGate,
     main,
     prBody,
     readLock,
@@ -490,6 +491,118 @@ describe("the short lock", () => {
         assert.equal(lockedGate?.pid, process.pid, "the fourth gate ran under the landing lock");
         assert.ok(["moved1.txt", "moved2.txt", "moved3.txt", "sc.txt"].every((f) => existsSync(join(golden, f))));
         assert.equal(originGolden(), head());
+    });
+});
+
+describe("a newer landing of the same work", () => {
+    /**
+     * Two landings in this process: the first's gate is a real process in its own group that runs until it is
+     * killed; the second starts once that gate runs. One console capture for both (run() swaps console.log).
+     * @param first the first landing's branches
+     * @param second the second landing's branches
+     * @param [between] runs once the first gate runs, before the second landing starts
+     * @returns `{ a, b, out, gate }`: both exit codes, what they printed, the first gate's exit signal
+     */
+    const overlap = async (first, second, between = () => {}) => {
+        let gateRunning;
+        const running = new Promise((r) => (gateRunning = r));
+        let gateSignal;
+        let gates = 0;
+        const c = {
+            ...ctx,
+            check: async (k) => {
+                checks++;
+                if (++gates > 1) return gate(k);
+                const child = spawn(process.execPath, ["-e", "process.stdin.resume()"], {
+                    detached: true,
+                    stdio: ["pipe", "ignore", "ignore"],
+                });
+                k.child = child;
+                const closed = new Promise((r) => child.on("close", (_code, signal) => r(signal)));
+                gateRunning();
+                gateSignal = await closed;
+                return { code: 1, output: "Terminated" };
+            },
+        };
+        const out = [];
+        const log = console.log;
+        const err = console.error;
+        console.log = (...a) => out.push(a.join(" "));
+        console.error = (...a) => out.push(a.join(" "));
+        try {
+            const a = main(["land", ...first], c);
+            await running;
+            between();
+            const b = await main(["land", ...second], c);
+            return { a: await a, b, out: out.join("\n"), gate: gateSignal };
+        } finally {
+            console.log = log;
+            console.error = err;
+        }
+    };
+
+    it("cancels the earlier check of a branch landed again, which stops and lands nothing", async () => {
+        const wt = branch("again/a", { "ag.txt": "1\n" }, "feat: again");
+        const r = await overlap(["again/a"], ["again/a"], () => {
+            write(wt, "ag.txt", "2\n");
+            git(wt, "commit", "-qam", "fix: again");
+        });
+        assert.equal(r.gate, "SIGTERM", "the first check's gate was stopped by its process group");
+        assert.equal(r.a, 1, r.out);
+        assert.match(r.out, /cancelled the check of again\/a/);
+        assert.match(r.out, /this check was cancelled by a newer landing of again\/a/);
+        assert.equal(r.b, 0, r.out);
+        assert.equal(readFileSync(join(golden, "ag.txt"), "utf8"), "2\n", "the newer landing's commit landed");
+        assert.equal(originGolden(), head());
+        assert.deepEqual(
+            readdirSync(join(repo, "tmp/golden")).filter((f) => f.startsWith("check-slot-")),
+            [],
+            "every slot freed",
+        );
+    });
+
+    it("cancels the check of a branch folded into a branch of the new landing", async () => {
+        branch("fold/a", { "fa.txt": "a\n" }, "feat: fa");
+        branch("fold/b", { "fb.txt": "b\n" }, "feat: fb", "fold/a");
+        const r = await overlap(["fold/a"], ["fold/b"]);
+        assert.equal(r.gate, "SIGTERM");
+        assert.equal(r.a, 1, r.out);
+        assert.match(r.out, /cancelled the check of fold\/a/);
+        assert.equal(r.b, 0, r.out);
+        assert.ok(["fa.txt", "fb.txt"].every((f) => existsSync(join(golden, f))));
+    });
+
+    it("leaves the check of an unrelated branch alone", async () => {
+        branch("apart/a", { "pa.txt": "a\n" }, "feat: pa");
+        branch("apart/b", { "pb.txt": "b\n" }, "feat: pb");
+        let gateRunning;
+        const running = new Promise((r) => (gateRunning = r));
+        let finish;
+        const c = {
+            ...ctx,
+            check: async (k) => {
+                if (!finish) {
+                    const held = new Promise((r) => (finish = r));
+                    gateRunning();
+                    await held;
+                }
+                return gate(k);
+            },
+        };
+        const out = [];
+        const log = console.log;
+        console.log = (...a) => out.push(a.join(" "));
+        try {
+            const a = main(["land", "apart/a"], c);
+            await running;
+            const b = await main(["land", "apart/b"], c);
+            finish();
+            assert.equal(b, 0, out.join("\n"));
+            assert.equal(await a, 0, out.join("\n"));
+            assert.doesNotMatch(out.join("\n"), /cancelled/);
+        } finally {
+            console.log = log;
+        }
     });
 });
 
@@ -1358,5 +1471,48 @@ describe("the branch sync", () => {
             "Shards: graphty-1\n  [FAIL] graphty-1 (exit 1, 30s); the end of x.log:\n FAIL  src/a.test.ts > draws it\n";
         assert.equal(failedTest(out), "graphty-1: src/a.test.ts > draws it");
         assert.equal(failedTest(""), "tests");
+    });
+});
+
+describe("the light gate", () => {
+    it("is on only while CI verifies golden, and status says which gate pushes run", async () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        assert.equal(existsSync(state), false);
+        assert.equal(lightGate(ctx), "0", "no verification state: the local backend, the full gate");
+        assert.match((await run("status")).out, /^gate: full /m);
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        try {
+            writeFileSync(state, JSON.stringify({ backend: { name: "local", reason: "r", at: "t" } }));
+            assert.equal(lightGate(ctx), "0");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.equal(lightGate(ctx), "1");
+            assert.match((await run("status")).out, /^gate: light /m);
+        } finally {
+            rmSync(state);
+        }
+    });
+
+    it("keeps the nightly sync's test shards off while CI verifies golden", () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        const log = join(repo, "tmp/golden/sync-test.log");
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        const ran = [];
+        const step = (cmd) => {
+            ran.push(cmd);
+            return { status: 0, out: "" };
+        };
+        const run = { dir: repo, log, projects: ["layout"], job: { branch: "b", base: "abc" } };
+        try {
+            writeFileSync(log, "");
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the local backend runs the gate's test stage");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.deepEqual(testStage(ctx, step, run), { ok: true });
+            assert.equal(ran.length, 1, "the light gate runs no shard");
+            assert.match(readFileSync(log, "utf8"), /\[LIGHT\] no test shards/);
+        } finally {
+            rmSync(state, { force: true });
+            rmSync(log, { force: true });
+        }
     });
 });

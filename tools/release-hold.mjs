@@ -21,6 +21,15 @@
  * every project not named is held for that run as well, on top of the holds in the file, which
  * still apply. Nothing is written to release-hold.json.
  *
+ * Both modes also check that nx can resolve a current version for every project in nx.json's
+ * release.projects: its last `{projectName}@{version}` tag, else the version in its package.json
+ * (release.version.fallbackCurrentVersionResolver "disk"). A project with neither stops the whole
+ * release train ("Unable to resolve the current version from git tag ... and there is no version
+ * on disk to fall back to"); give it a "version" in its package.json. They also check that no project in
+ * release.projects is private ("private": true in its package.json): every project is released
+ * (owner decision, 2026-10-23), and npm refuses to publish a private package. The workspace root's
+ * package.json is not an nx release project and stays private.
+ *
  * Usage: node tools/release-hold.mjs check   (exit 1 when release-hold.json is invalid)
  *        node tools/release-hold.mjs apply   (check, then leave the held projects out of nx.json)
  *        node tools/release-hold.mjs apply --only <project>[,<project>...]
@@ -100,8 +109,65 @@ export function holdAllBut(hold, projects, only, since) {
     return { hold: { hold: [...hold.hold, ...extra] }, problems: [] };
 }
 
+/**
+ * The projects nx cannot resolve a current version for, so cannot version.
+ * @param released - each project in release.projects: its name, its package.json version, and
+ *   whether a `{name}@...` tag exists
+ * @returns one message per project with neither; empty when every one resolves
+ */
+export function unversionable(released) {
+    return released
+        .filter(({ version, tagged }) => !tagged && (typeof version !== "string" || version === ""))
+        .map(
+            ({ name }) =>
+                `nx.json release.projects: ${name} has no ${name}@<version> tag and no version in its ` +
+                `package.json, so nx release cannot version it; add "version" to its package.json`,
+        );
+}
+
+/**
+ * The projects in the release that are private, so npm would never publish them.
+ * @param released - each project in release.projects: its name and whether its package.json is private
+ * @returns one message per private project; empty when none is
+ */
+export function privateProjects(released) {
+    return released
+        .filter(({ isPrivate }) => isPrivate === true)
+        .map(
+            ({ name }) =>
+                `nx.json release.projects: ${name} is private ("private": true in its package.json), but every ` +
+                `project is released; remove "private" and make it publishable`,
+        );
+}
+
+/**
+ * The projects in nx.json's release.projects, read from nx, their package.json and git tags.
+ * @returns the input `unversionable` and `privateProjects` take
+ */
+function releasedProjects() {
+    const nx = (...args) => execFileSync("pnpm", ["exec", "nx", ...args], { cwd: ROOT, encoding: "utf8" });
+    const patterns = JSON.parse(readFileSync(join(ROOT, "nx.json"), "utf8")).release.projects;
+    const names = JSON.parse(nx("show", "projects", "--json", "-p", patterns.join(",")));
+    const nodes = JSON.parse(nx("graph", "--file=stdout")).graph.nodes;
+    const tags = execFileSync("git", ["tag", "-l"], { cwd: ROOT, encoding: "utf8" }).split("\n");
+    return names.map((name) => {
+        let pkg = {};
+        try {
+            pkg = JSON.parse(readFileSync(join(ROOT, nodes[name].data.root, "package.json"), "utf8"));
+        } catch {
+            // no package.json: nothing on disk to fall back to
+        }
+        return {
+            name,
+            version: pkg.version,
+            isPrivate: pkg.private === true,
+            tagged: tags.some((tag) => tag.startsWith(`${name}@`)),
+        };
+    });
+}
+
 function fail(found) {
-    for (const p of found) console.error(`release-hold.json: ${p}`);
+    for (const p of found) console.error(p.startsWith("nx.json") ? p : `release-hold.json: ${p}`);
     process.exit(1);
 }
 
@@ -110,7 +176,8 @@ function main(mode, only) {
     const projects = JSON.parse(
         execFileSync("pnpm", ["exec", "nx", "show", "projects", "--json"], { cwd: ROOT, encoding: "utf8" }),
     );
-    let found = problems(hold, projects);
+    const released = releasedProjects();
+    let found = [...problems(hold, projects), ...unversionable(released), ...privateProjects(released)];
     if (found.length > 0) fail(found);
     if (only) {
         const widened = holdAllBut(hold, projects, only, new Date().toISOString().slice(0, 10));

@@ -85,6 +85,8 @@ const env = {
     FAKE_GH_STATE: state,
     CLAUDE_CODE_SESSION_ID: "test-session",
     HUSKY: "",
+    // tools/worktree-new.sh hands itself to the live copy: none here, so this checkout's copy runs.
+    LAND_LIVE: join(dir, "no-live-copy"),
 };
 const gh = () => JSON.parse(readFileSync(state, "utf8"));
 const issue = (title) => ({ title, labels: [], comments: [] });
@@ -262,9 +264,9 @@ describe("the post-commit push", () => {
         writeFileSync(join(repo, "a.txt"), "one\n");
     });
 
-    it("never pushes golden, golden-cut, master or a detached HEAD", () => {
+    it("never pushes golden, golden-cut, golden-verified, master or a detached HEAD", () => {
         const before = logText();
-        for (const b of ["golden", "golden-cut", "master"]) {
+        for (const b of ["golden", "golden-cut", "golden-verified", "master"]) {
             git(repo, "checkout", "-q", "-B", b);
             commit(`${b}.txt`);
         }
@@ -337,6 +339,55 @@ describe("tools/worktree-new.sh", () => {
         assert.equal(r.status, 0, r.stderr);
         assert.equal(git(join(repo, ".worktrees/feat-513-on-verified"), "rev-parse", "HEAD"), verified);
         assert.equal(git(repo, "config", "branch.feat/513-on-verified.prBase"), "golden");
+    });
+
+    it("hands itself to the live copy with the same arguments and directory, passing its exit code", () => {
+        const live = join(dir, "wt-live");
+        const record = join(dir, "wt-live-record");
+        mkdirSync(join(live, "tools"), { recursive: true });
+        writeFileSync(
+            join(live, "tools/worktree-new.sh"),
+            `#!/bin/sh\nprintf '%s|' "$@" "$PWD" "$WORKTREE_NEW_LIVE_COPY" > ${record}\nexit 7\n`,
+        );
+        chmodSync(join(live, "tools/worktree-new.sh"), 0o755);
+        const r = spawnSync(script, ["feat/514-x", "--issue", "514"], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: live },
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 7, r.stderr);
+        const seen = readFileSync(record, "utf8");
+        assert.equal(seen, `feat/514-x|--issue|514|${repo}|${join(live, "tools/worktree-new.sh")}|`);
+        assert.doesNotMatch(r.stderr, /no live copy/);
+    });
+
+    it("runs itself with one warning line when there is no live copy", () => {
+        const r = make("feat/no-number-either");
+        assert.equal(r.status, 1);
+        const lines = r.stderr.trim().split("\n");
+        assert.match(lines[0], /^tools\/worktree-new\.sh: no live copy at .*no-live-copy.*; running .* instead$/);
+        assert.match(lines[1], /every branch belongs to an issue/);
+    });
+
+    it("never loops: a live copy that is this script runs once", () => {
+        const copy = join(dir, "wt-live-real");
+        mkdirSync(join(copy, "tools"), { recursive: true });
+        copyFileSync(script, join(copy, "tools/worktree-new.sh"));
+        const r = spawnSync(join(copy, "tools/worktree-new.sh"), ["feat/no-number-again"], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: copy },
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 1, r.stderr);
+        assert.equal(r.stderr.match(/every branch belongs/g).length, 1, r.stderr);
+        assert.doesNotMatch(r.stderr, /no live copy/);
+        const handed = spawnSync(script, ["feat/no-number-again"], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: copy },
+            encoding: "utf8",
+        });
+        assert.equal(handed.status, 1, handed.stderr);
+        assert.equal(handed.stderr.match(/every branch belongs/g).length, 1, handed.stderr);
     });
 
     it("makes golden's worktree with no issue and no push", () => {

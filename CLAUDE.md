@@ -376,7 +376,7 @@ The `tools/` directory contains build scripts:
 | `check-legacy-use.mjs` | Fails on any use of the legacy graph API the graph-format migration replaced (legacy algorithms and layout names, the legacy `Graph`, positional layouts, element parsers not on graph-io). `--self-test` seeds one use per rule |
 | `visual-preview.sh` | `<pr>`: captures a pull request's screenshots on this machine (its merge tree, the pinned fonts, one preview at a time) so the owner can review and Finish them before CI's capture lands. See "Visual review" |
 | `live.sh` | `<tool> <branch-or-commit>`: merges a branch into a local tool's live worktree, tests it, restarts its servers (`live-tools.json`). See "Where a change takes effect" |
-| `worktree-new.sh` | `<branch> [base] [name]`: a worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done. It needs the branch's issue (a number of three or more digits in the branch name, `--issue N`, or `--new-issue "<title>"`), pushes the new branch, labels the issue `in-progress` and writes the branch's progress note on it. The `design/**` images (the design studio's screenshots and the mockups, about 10 GB of Git LFS PNGs) are checked out as small LFS pointer files, which nothing outside the design studio reads; every other LFS file (`visual-baselines/`, `visual-fonts/`) is checked out in full. `--full-images` checks them out too; in an existing worktree, `git lfs pull --include "design/**"` |
+| `worktree-new.sh` | `<branch> [base] [name]`: hands itself to the live copy in `.worktrees/land-live` (as `land.mjs` does), so its fixes take effect before master. A worktree in `.worktrees/<name>` (default: the branch name) with the main checkout's `.env` linked in and `pnpm install --frozen-lockfile` done. It needs the branch's issue (a number of three or more digits in the branch name, `--issue N`, or `--new-issue "<title>"`), pushes the new branch, labels the issue `in-progress` and writes the branch's progress note on it. The `design/**` images (the design studio's screenshots and the mockups, about 10 GB of Git LFS PNGs) are checked out as small LFS pointer files, which nothing outside the design studio reads; every other LFS file (`visual-baselines/`, `visual-fonts/`) is checked out in full. `--full-images` checks them out too; in an existing worktree, `git lfs pull --include "design/**"` |
 | `branch-note.mjs` | The branch's progress note on its issue, one comment edited in place: branch, worktree, owning session, latest commit, what is done, left and next, and the nightly sync's result. `update --done <t> --left <t> --next <t>` when you stop working; `busy --until <time|24h|clear> --reason <t>` keeps the sync from moving the branch |
 | `branch-push.sh` | Run by `.husky/post-commit`: pushes the current branch to GitHub in the background after every commit (no gate; never golden, golden-cut or master) and refreshes its note's latest commit at most every 10 minutes. First it merges `origin/<branch>` (the nightly sync's merge) into the local branch, only when the worktree is clean with no merge in progress. Log: `tmp/branch-push.log` in the main checkout |
 | `no-copy.sh` | Run by `.husky/pre-commit`, `prepare-commit-msg` and `pre-rebase`: refuses a cherry-pick or a rebase. Never copy, always merge |
@@ -1340,9 +1340,13 @@ merge, and pushes the signed merge to the branch; your next commit merges it int
 which is yours to fix (it also comments on your issue). While your branch must not move (a study running on it),
 mark it `node tools/branch-note.mjs busy --until 24h --reason "<why>"`. Design: `design/ci/branch-sync.md`.
 
-After every fetch, `land`, `revert`, `ship` and `status` also fast-forward the main checkout's
-master to `origin/master`, so new sessions read current instructions; when it is on another
-branch, has uncommitted changes or has commits master lacks, they leave it alone and print a warning.
+After every fetch, `land`, `revert`, `ship` and `status` also bring the main checkout to
+`origin/golden-verified`, the newest golden commit verification passed, so new sessions read
+instructions and run tools days before a cut reaches master: they switch it from master to a local
+branch `golden-verified` once, then fast-forward that branch. Untracked files stay. When it is on
+another branch, has uncommitted changes, would overwrite an untracked or ignored file, or its branch has
+commits GitHub's lacks, they leave it alone and print a warning. `MAIN_FOLLOWS` in `tools/land.mjs`
+names the branch; set it to `"master"` and the next run switches the main checkout back to master.
 
 Every `node tools/land.mjs ...`, from any checkout or worktree, hands itself to one live copy,
 `.worktrees/land-live/tools/land.mjs`, with the same arguments, so every session runs the same version

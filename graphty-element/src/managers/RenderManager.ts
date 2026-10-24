@@ -425,6 +425,8 @@ export class RenderManager implements Manager {
     private effectsPending = false;
     /** Scratch for {@link RenderManager.sameContents}. */
     private readonly contentsNow: unknown[] = [];
+    /** What the scene held as the frame being drawn began; see {@link readyToDrawChange}. */
+    private readonly contentsAtDraw: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -656,10 +658,11 @@ export class RenderManager implements Manager {
                 // Cleared BEFORE the frame, so anything the frame itself announces asks for the
                 // next one.
                 this.drawOwed = false;
+                const drawnReady = this.readyToDrawChange();
                 this.scene.render();
                 this.ticks.drawn++;
                 this.fenceFrame();
-                this.noteDrawnFrom();
+                this.noteDrawnFrom(drawnReady);
             } catch (error) {
                 const err = error instanceof Error ? error : new Error(String(error));
                 this.eventManager.emitGraphError(null, err, "other", {
@@ -899,10 +902,35 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Asked just before a frame is drawn: whether the scene holds something added or removed since
+     * the last frame drawn (or still unconfirmed from before it), and every part of it is ready, so
+     * this frame draws the change whole.
+     *
+     * Such a frame needs no second one to show the change. The check used to wait for the next
+     * tick instead, which then drew the same picture again only to find the scene ready: on a
+     * software GPU a frame of OpenFlights (3,214 nodes, 36,906 edges) costs the page's main thread
+     * 5 to 6 seconds with two cores free, so one opening paid that once more for nothing (#3317).
+     * @returns True when this frame draws a change to the scene's contents whole.
+     */
+    private readyToDrawChange(): boolean {
+        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+            return false;
+        }
+
+        this.readSceneContents(this.contentsAtDraw);
+        const changed =
+            this.sceneChanged || !this.contentsAtDraw.every((value, i) => value === this.drawnFrom.contents[i]);
+        // The walk visits every mesh, so it is asked only when the contents changed.
+        return changed && this.scene.isReady();
+    }
+
+    /**
      * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
      * whether it differed from what the frame before left.
+     * @param drawnReady - Whether the frame began with a change to the scene's contents all ready
+     *     to draw; see {@link readyToDrawChange}.
      */
-    private noteDrawnFrom(): void {
+    private noteDrawnFrom(drawnReady = false): void {
         if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
@@ -929,6 +957,11 @@ export class RenderManager implements Manager {
         // Something added while frames were being drawn may not have been ready to draw in them.
         if (!this.sameContents()) {
             this.sceneChanged = true;
+        }
+
+        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
+        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
+            this.sceneChanged = false;
         }
 
         this.readSceneContents(from.contents);

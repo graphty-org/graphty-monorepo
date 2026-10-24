@@ -293,6 +293,19 @@ describe("renderOnDemand", () => {
         assert.isAbove(draws.count(), 0, "the added mesh was drawn");
     });
 
+    it("draws a mesh added ready to draw in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        MeshBuilder.CreateBox("first-box", { size: 1 }, element.graph.scene);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        // Its shader is the first box's, already compiled: the frame that adds it draws it whole.
+        MeshBuilder.CreateBox("second-box", { size: 2 }, element.graph.scene);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the added mesh");
+        await restsOnTheCurrentPicture(element);
+    });
+
     it("draws a selection style set while resting", async () => {
         const element = await mounted(true);
         await click(element, at(element, "b"));

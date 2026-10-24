@@ -13,19 +13,25 @@
 // edits a locked file needs the trailer too. Commits that are ancestors of APPROVED_BASE -- the design the
 // owner approved, before the lock existed -- are not judged.
 //
-// The tests also read the Figma study (design/ui/figma, outside git, not in CI). When it is present,
-// its captures must hash to compact-mantine/tests/figma/figma-study.sha256, itself a locked file.
+// The tests read compact-mantine/tests/figma/figma-fixture.json, the part of the Figma study
+// (design/ui/figma, outside git, not in CI) they compare with. When the study is present, its captures
+// must hash to compact-mantine/tests/figma/figma-study.sha256 and every value in the fixture (and in
+// figma-variables.json beside it) must equal the study's (compact-mantine/tests/figma/figma-fixture.mjs
+// check); all of them are locked.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { checkFixture } from "../compact-mantine/tests/figma/figma-fixture.mjs";
 import { pushBase } from "./push-base.mjs";
 
 export const LOCKED = [
     "compact-mantine/design/figma-spec.md",
     "compact-mantine/tests/figma/", // the Figma tests, their expected values and figma-study.sha256
+    "compact-mantine/tests/figma/figma-fixture.json", // what the tests read of the study (also under the line above)
+    "compact-mantine/tests/figma/figma-variables.json", // Figma's CSS variables, for the token tests (likewise)
     "compact-mantine/tests/harness/figma.ts", // reads the study's captures
     "compact-mantine/tests/harness/measure.ts", // compares what is drawn with them
     "compact-mantine/src/theme/tokens.ts", // Figma's colors, type, spacing, radii, elevations
@@ -35,6 +41,7 @@ export const LOCKED = [
 // golden with the owner-approved design (fix/compact-mantine-figma-drift) merged, just before the lock.
 export const APPROVED_BASE = "aa4e9ae9635e1f49c30aa26f0866d8e0531fdb9c";
 export const STUDY_DIGEST = "compact-mantine/tests/figma/figma-study.sha256";
+export const FIXTURE = "compact-mantine/tests/figma/figma-fixture.json";
 const TRAILER = "Figma-Approved";
 
 export const isLocked = (f) => LOCKED.some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p));
@@ -128,6 +135,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         const got = studyDigest(dir);
         if (got !== want)
             lines.push(`the Figma study's captures in ${dir} hash to ${got}, not ${STUDY_DIGEST}'s ${want}`);
+        if (existsSync(join(cwd, FIXTURE))) {
+            lines.push(...checkFixture(dir, join(cwd, FIXTURE)).map((b) => `${FIXTURE}: ${b}`));
+        }
     } else {
         console.log("The Figma study (design/ui/figma) is not in this checkout: its captures were not checked.");
     }

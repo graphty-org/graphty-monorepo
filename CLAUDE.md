@@ -1258,9 +1258,15 @@ How to land a change:
 in CI when the backend is `ci` and locally otherwise** (`node tools/verify.mjs backend ci`, or
 `backend local --reason "<why>"`, never switched automatically; `status` shows which). In CI it pushes the
 commit to `golden-candidate` (`golden-cut-candidate` for the cut), `golden-verify.yml` runs the full
-`ci.yml` suite on it, and `verify.mjs` polls the result every 5 minutes, from the status broker while the
-commit is golden's tip and one REST call otherwise; it waits first while the cut pull request's CI run or a
-release train is running. Locally it runs the pre-push gate
+`ci.yml` suite on it, and `verify.mjs` polls the result every 5 minutes. A look costs no REST call when the
+status broker answers (the commit is the head of the golden or cut pull request, and it shows the run passed
+or still running; never for a bisect point, nor for a commit that already failed in CI). Otherwise it is one
+REST call for the commit's runs, plus one for the run's jobs while it runs or when it did not simply pass on
+its first attempt; a failed run adds one JUnit download per failed test job and one annotations read per
+failed group job. Before the first push it waits while the cut pull request's CI run or a release train is
+running, at one `gh run list` call a look. The run is judged as it judges itself, by `Verify / All Checks
+Pass` (a failed screenshot job beside a green All Checks Pass is a pass), and only a full attempt verifies:
+a green re-run of the failed jobs alone starts a new full run. Locally it runs the pre-push gate
 with every package and shard (`PREPUSH_ALL=1`, passes reused by input key), the local NVIDIA tests
 under the GPU slot, the screenshots of the affected projects and SonarQube on the lines changed since
 master, through the push queue ahead of ordinary pushes, as a dry-run push. There is no daemon: a
@@ -1293,14 +1299,18 @@ none is live; a run goes on to anything newer before it ends.
   per shard), downloads their JUnit for the exact failing tests, and confirms and bisects those files on this
   machine. A test that passes all 5 runs here is a CI-only failure: its failed jobs are re-run once in CI;
   failing again, it is bisected in CI (each point pushed to `golden-bisect-1`), and passing, it is
-  quarantined. Neither moves `golden-verified`. When the last verified commit fails too, the cause is the
+  quarantined. When some failures reproduce here and others only in CI, the CI bisect follows both. Until
+  `golden-verify.yml` is on master, a point whose tree lacks it gets no CI run (a push runs the pushed
+  commit's copy of the workflow), so it is judged here instead, its failing files through the local gate,
+  and its evidence says `judgedLocally`. Neither moves `golden-verified`. When the last verified commit fails too, the cause is the
   environment (the runner image, an outside service, the date): nothing is reverted and it gets a `bug`,
   `priority:high` issue. A non-test job's failure (Build, Lint, Checks, Docs) is bisected with the light gate
   over every package. A lost run (startup failure, lost runner) is re-run once, never counted as a verdict.
 - **CI verification unavailable:** a push or run lookup that fails (not a rate limit, which only waits), a
   run lost twice, a commit that gets no run twice (GitHub sometimes accepts a push and starts nothing;
-  verification deletes and re-pushes the ref first, and `status` prints `no CI run created for <sha>`), or
-  githubstatus.com reporting Actions down sets this state. Both status commands print `CI verification
+  verification deletes and re-pushes the ref first, and `status` prints `no CI run created for <sha>`) sets
+  this state. Only then, after the second lost run or the second missing run, is githubstatus.com consulted:
+  while it reports Actions down, verification does not retry at that look (unreachable counts as up). Both status commands print `CI verification
   unavailable since <time>, N landings unverified`, and the pipeline round raises one `priority:high` issue.
   Landings go on through the light gate; `golden-verified`, and so cuts, wait. It clears on the first run
   that starts; there is no automatic local fallback.

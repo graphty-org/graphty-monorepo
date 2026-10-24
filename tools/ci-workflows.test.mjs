@@ -1287,10 +1287,10 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
     });
 
-    it("never cancels a run, one group per branch or dispatched commit", () => {
+    it("never cancels a run, one group per commit, pushed or dispatched", () => {
         assert.match(
             verify,
-            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.ref_name \}\}\n {4}cancel-in-progress: false\n/,
+            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
         );
     });
 

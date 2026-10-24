@@ -664,8 +664,9 @@ async function confirm(ctx) {
     const regressed = newlyIntermittent(ctx, last, intermittent).map((t) => t.id);
     const flaky = [...intermittent.filter((t) => !regressed.includes(t.id)), ...ci.flaky];
     const quarantined = flaky.length ? routeFlaky(ctx, flaky, last, r) : [];
-    // A failure that reproduces here is bisected here; only one that fails in CI alone is bisected in CI.
-    const inCi = !every.length && !regressed.length && ci.confirmed.length > 0;
+    // A failure that reproduces here is bisected here. One that fails in CI alone is bisected in CI, and when both
+    // kinds failed, the CI bisect follows both (followed()): a point here could not see the CI-only one.
+    const inCi = ci.confirmed.length > 0;
     await withState(ctx, (s) => {
         s.last.confirm = { ...r, consistent: every, regressed, ci: ci.confirmed, ciRerun: ci.rerun };
         s.last.intermittent = [...intermittent, ...ci.flaky].map((t) => t.id);
@@ -722,7 +723,8 @@ async function environmentChanged(ctx) {
         s.last.bisect.evidence[last.from] = r;
     });
     if (!bad) return false;
-    const why = `the last verified commit ${short(last.from)} fails it too in CI: an environment change (the runner image, an outside service, the date), not a landing`;
+    const where = r.judgedLocally ? "here (CI cannot run it)" : "in CI";
+    const why = `the last verified commit ${short(last.from)} fails it too ${where}: an environment change (the runner image, an outside service, the date), not a landing`;
     await finishBisect(ctx, null, why);
     if (!job.targets.some((t) => t.file)) fileEnvironmentIssue(ctx, last, why);
     return true;
@@ -1061,12 +1063,29 @@ async function pushRef(ctx, { commit, ref, say }) {
     await setUnavailable(ctx, `the push to ${ref} failed: ${r.stderr.split("\n")[0]}`);
 }
 
+/**
+ * Why CI cannot run a commit, or null: a push runs the pushed commit's own copy of the workflow, so a commit from
+ * before golden-verify.yml gets no run, and a dispatch needs the workflow on master. Pushed anyway, it would look
+ * like GitHub creating no run and mark CI unavailable; such a commit is judged here instead (defaultCiCheck).
+ * @param ctx the context
+ * @param commit the commit
+ * @returns the reason, or null
+ */
+export function ciCannotRun(ctx, commit) {
+    const has = (rev) =>
+        git(ctx, ctx.main, ["cat-file", "-e", `${rev}:.github/workflows/${VERIFY_WORKFLOW}`], { ok: true });
+    if (has(commit).status === 0 || has("origin/master").status === 0) return null;
+    return `CI cannot run ${short(commit)}: it predates ${VERIFY_WORKFLOW}, which master does not have yet`;
+}
+
 // A new push event for the same commit: a dispatch once golden-verify.yml is on master, else the ref deleted and
 // pushed again (an unchanged ref makes no push event; a new branch does).
 async function recreate(ctx, job) {
     const onMaster = ["cat-file", "-e", `origin/master:.github/workflows/${VERIFY_WORKFLOW}`];
     if (git(ctx, ctx.main, onMaster, { ok: true }).status === 0) {
-        if (ghTry(ctx, ["workflow", "run", VERIFY_WORKFLOW, "-f", `ref=${job.commit}`])) job.dispatched = true;
+        const shards = job.shards ? ["-f", `shards=${JSON.stringify(job.shards)}`] : [];
+        if (ghTry(ctx, ["workflow", "run", VERIFY_WORKFLOW, "-f", `ref=${job.commit}`, ...shards]))
+            job.dispatched = true;
         return job.say(`dispatched ${VERIFY_WORKFLOW} for ${short(job.commit)}`);
     }
     git(ctx, ctx.main, ["push", "--no-verify", "-q", "origin", `:refs/heads/${job.ref}`], { ok: true });
@@ -1110,7 +1129,11 @@ export function brokerVerdict(ctx, commit) {
     const checks = brokerChecks(ctx, (pr) => pr.headSha === commit);
     const mine = Object.entries(checks ?? {}).filter(([n]) => n.startsWith(CALLER));
     if (!mine.length) return null;
-    if (checks[`${CALLER}All Checks Pass`] === "SUCCESS") return "passed";
+    // The broker cannot tell a full attempt from a re-run of the failed jobs: after a CI failure of this commit,
+    // its green is read from GitHub (ended), which can.
+    const last = readState(ctx).last;
+    const rerunnable = last?.commit === commit && Boolean(last.ci);
+    if (checks[`${CALLER}All Checks Pass`] === "SUCCESS") return rerunnable ? null : "passed";
     const failedFast = mine.some(([n, c]) => c === "FAILURE" && FAIL_FAST.test(n.slice(CALLER.length)));
     if (failedFast || !mine.some(([, c]) => PENDING.has(c))) return null;
     return "running";
@@ -1122,8 +1145,10 @@ async function findRun(ctx, job) {
     const path = `repos/{owner}/{repo}/actions/workflows/${VERIFY_WORKFLOW}/runs?${query}&per_page=30`;
     const answer = await ghJson(ctx, ["api", path]);
     if (answer === NO_ANSWER) return NO_ANSWER;
-    // A dispatched run's head is master's: its run name carries the commit.
-    const ours = (r) => r.head_sha === job.commit || (r.display_title ?? "").includes(job.commit);
+    // A pushed run is the commit's on this ref (the same commit may be a point on another scratch branch); a
+    // dispatched run's head is master's, so its run name carries the commit.
+    const pushed = (r) => r.head_sha === job.commit && r.head_branch === job.ref;
+    const ours = (r) => (job.dispatched ? (r.display_title ?? "").includes(job.commit) : pushed(r));
     const current = (r) => r.status !== "completed" || Date.parse(r.updated_at) >= job.started;
     return (answer.workflow_runs ?? []).filter(ours).find(current) ?? null;
 }
@@ -1131,7 +1156,7 @@ async function findRun(ctx, job) {
 async function judgeRun(ctx, job, run) {
     if (run.status === "completed") return ended(ctx, job, run);
     if (run.status === "in_progress") await clearTrouble(ctx);
-    const jobs = await runJobs(ctx, run.id);
+    const jobs = await runJobs(ctx, run.id, job.commit);
     const ends = await failsFastIn(ctx, job);
     if (jobs === NO_ANSWER || !jobs.some(ends)) return null;
     job.say(`a gating job failed in ${run.html_url}: cancelling the rest of the run`);
@@ -1149,16 +1174,19 @@ async function failsFastIn(ctx, job) {
     };
 }
 
+// The run is judged as it judges itself: by "Verify / All Checks Pass" and the jobs it needs. A job that cannot
+// fail the run (runJobs leaves it out) is no verdict, so a failed screenshot capture under a green All Checks Pass
+// passes. A first attempt's success needs no job list; a later attempt's needs one, to tell a full re-run from a
+// re-run of the failed jobs only.
 async function ended(ctx, job, run) {
-    if (run.conclusion === "success") {
-        await clearTrouble(ctx);
-        return { code: 0, output: `${CALLER}All Checks Pass: success (${run.html_url})` };
-    }
     if (run.conclusion === "cancelled") {
         return { code: 1, output: `[SUPERSEDED] ${run.html_url} was cancelled; the newest wanted commit is verified` };
     }
-    const jobs = run.conclusion === "startup_failure" ? [] : await runJobs(ctx, run.id);
+    const firstPass = run.conclusion === "success" && (run.run_attempt ?? 1) === 1;
+    const listed = run.conclusion !== "startup_failure" && !firstPass;
+    const jobs = listed ? await runJobs(ctx, run.id, job.commit) : [];
     if (jobs === NO_ANSWER) return null;
+    if (run.conclusion === "success" || jobs.some(passedAll)) return passed(ctx, job, run, jobs);
     if (!jobs.some(isFailed)) {
         await lostRun(ctx, job, run);
         return null;
@@ -1167,17 +1195,65 @@ async function ended(ctx, job, run) {
     return failure(ctx, job, run, jobs);
 }
 
+// Only a full attempt verifies: a green re-run of the failed jobs alone (`gh run rerun --failed`) never moves
+// golden-verified; a new full run of the commit is started instead.
+async function passed(ctx, job, run, jobs) {
+    await clearTrouble(ctx);
+    const attempt = run.run_attempt ?? 1;
+    if (jobs.some((j) => (j.run_attempt ?? attempt) !== attempt)) {
+        job.say(`${run.html_url} passed only on a re-run of its failed jobs: not a verdict, starting a full run`);
+        await recreate(ctx, job);
+        return null;
+    }
+    return { code: 0, output: `${CALLER}All Checks Pass: success (${run.html_url})` };
+}
+
 const jobName = (j) => (j.name.startsWith(CALLER) ? j.name.slice(CALLER.length) : j.name);
+const passedAll = (j) => jobName(j) === "All Checks Pass" && j.conclusion === "success";
 const isFailed = (j) => FAILED.has(j.conclusion) && !SUMMARIES.has(jobName(j));
 const failsFast = (j) => isFailed(j) && FAIL_FAST.test(jobName(j));
 const testShard = (j) => /^Test \((.+)\)$/.exec(jobName(j))?.[1];
 
-async function runJobs(ctx, id) {
+// A run's jobs, without those that cannot fail it (see nonGatingJobs: their failure is no verdict).
+async function runJobs(ctx, id, commit) {
     const answer = await ghJson(ctx, [
         "api",
         `repos/{owner}/{repo}/actions/runs/${id}/jobs?per_page=100&filter=latest`,
     ]);
-    return answer === NO_ANSWER ? NO_ANSWER : (answer.jobs ?? []);
+    if (answer === NO_ANSWER) return NO_ANSWER;
+    const yml = git(ctx, ctx.main, ["show", `${commit}:.github/workflows/ci.yml`], { ok: true }).stdout ?? "";
+    const skip = nonGatingJobs(yml);
+    return (answer.jobs ?? []).filter((j) => !skip.some((re) => re.test(jobName(j))));
+}
+
+/**
+ * The jobs of a ci.yml that cannot fail its run: a job-level `continue-on-error` (the screenshot captures, the
+ * benchmarks, an advisory job in its warning period). A matrix job's `${{ }}` in its name matches anything.
+ * @param yml ci.yml's text
+ * @returns a RegExp per job, matching its check name
+ */
+export function nonGatingJobs(yml) {
+    const jobs = [];
+    let inJobs = false;
+    for (const line of yml.split("\n")) {
+        if (/^\S/.test(line)) inJobs = line.startsWith("jobs:");
+        const id = inJobs && /^ {4}([\w-]+):\s*$/.exec(line);
+        if (id) jobs.push({ name: id[1], lenient: false });
+        const job = jobs.at(-1);
+        if (!inJobs || !job) continue;
+        const name = /^ {8}name:\s*(.+?)\s*$/.exec(line);
+        if (name) job.name = name[1].replace(/^(["'])(.*)\1$/, "$2");
+        if (/^ {8}continue-on-error:/.test(line)) job.lenient = true;
+    }
+    const escape = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = (n) =>
+        new RegExp(
+            `^${n
+                .split(/\$\{\{.*?\}\}/)
+                .map(escape)
+                .join(".+")}$`,
+        );
+    return jobs.filter((j) => j.lenient).map((j) => pattern(j.name));
 }
 
 /**
@@ -1462,13 +1538,13 @@ async function defaultCiRerun(ctx, last) {
         await ctx.sleep(ctx.pollMs);
         const run = await ghJson(ctx, ["api", `repos/{owner}/{repo}/actions/runs/${id}`]);
         const done = run !== NO_ANSWER && run.status === "completed" && (run.run_attempt ?? 0) > attempt;
-        const jobs = done && run.conclusion !== "success" ? await runJobs(ctx, id) : [];
+        const jobs = done && run.conclusion !== "success" ? await runJobs(ctx, id, last.commit) : [];
         if (done && jobs !== NO_ANSWER) return rerunVerdict(ctx, last, run, jobs);
     }
 }
 
 async function rerunVerdict(ctx, last, run, jobs) {
-    if (run.conclusion === "success") return { failed: [], url: run.html_url };
+    if (run.conclusion === "success" || jobs.some(passedAll)) return { failed: [], url: run.html_url };
     if (!jobs.some(isFailed)) return { lost: `the re-run ended ${run.conclusion} with no failed job` };
     const r = await failure(ctx, { commit: last.commit, record: false }, run, jobs);
     return { failed: failedNames(r.output), url: run.html_url };
@@ -1484,9 +1560,16 @@ async function rerunVerdict(ctx, last, run, jobs) {
  * @param job.failing the failing shards, or null (another job failed)
  * @param job.targets the targets
  * @param job.slot which golden-bisect-<n> branch
- * @returns `{ runs: 1, failed: { targetId: 1 }, run }`
+ * @param [job.full] passed on to a check here
+ * @returns `{ runs: 1, failed: { targetId: 1 }, run }`; a commit CI cannot run (ciCannotRun) is judged here instead,
+ *   by ctx.check (the failing shards' files, through the local gate), with `judgedLocally: why`
  */
-async function defaultCiCheck(ctx, commit, { failing, targets, slot }) {
+async function defaultCiCheck(ctx, commit, { failing, targets, slot, full }) {
+    const cannotRun = ciCannotRun(ctx, commit);
+    if (cannotRun) {
+        console.log(`verify: ${cannotRun}: judging it here`);
+        return { ...(await ctx.check(ctx, commit, { failing, targets, slot, full })), judgedLocally: cannotRun };
+    }
     const opts = { ref: `golden-bisect-${slot}`, kind: "bisect", shards: failing ?? undefined };
     let r = await ciGate(ctx, commit, opts);
     while (r.code !== 0 && /\[SUPERSEDED\]/.test(r.output)) r = await ciGate(ctx, commit, opts);

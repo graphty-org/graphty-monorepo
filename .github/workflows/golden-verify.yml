@@ -31,11 +31,12 @@ on:
                 required: false
                 default: ""
 
-# One running and one pending run per scratch branch (or per dispatched commit); a newer pending run replaces
+# One running and one pending run per commit, keyed the same way for a push (github.sha) and a dispatch (the ref
+# input, the commit), so a pushed and a dispatched run of one commit share a group; a newer pending run replaces
 # an older one. tools/verify.mjs starts a new run only when its current one has ended, so this only backs it up.
-# A dispatched commit has a group of its own, so two bisect points run side by side.
+# Two bisect points are two commits, so they run side by side.
 concurrency:
-    group: golden-verify-${{ inputs.ref || github.ref_name }}
+    group: golden-verify-${{ inputs.ref || github.sha }}
     cancel-in-progress: false
 
 # What ci.yml asks for, as release.yml grants it: a called workflow cannot ask for more than its caller grants.

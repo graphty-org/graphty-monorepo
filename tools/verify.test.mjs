@@ -15,6 +15,7 @@ import { failureHashes, newRunId, writeRecord } from "./test-ledger.mjs";
 import {
     backendOf,
     bounds,
+    brokerVerdict,
     ciGate,
     claim,
     CONFIRM_RUNS,
@@ -721,11 +722,15 @@ describe("verification in CI (ciGate)", () => {
         return typeof value === "string" ? value : JSON.stringify(value);
     };
     // A run as GitHub lists it, stamped when it is asked for (a run that ended before the gate started is old).
+    // The scratch branch a run of the commit was pushed to, as GitHub records it.
+    const SCRATCH = ["golden-candidate", "golden-cut-candidate", "golden-bisect-1", "golden-bisect-2"];
+    const headOf = (sha) => SCRATCH.find((ref) => remoteAt(ref) === sha) ?? "golden-candidate";
     const runOf = (sha, fields) => () => ({
         workflow_runs: [
             {
                 id: 7,
                 head_sha: sha,
+                head_branch: headOf(sha),
                 display_title: `Golden verify ${sha}`,
                 html_url: "https://github.test/runs/7",
                 run_attempt: 1,
@@ -873,6 +878,102 @@ describe("verification in CI (ciGate)", () => {
         const lint = await ciGate(other.c, tip);
         assert.match(lint.output, /\[FAIL\] Lint/);
         assert.equal(failingShards(lint.output, names), null, "a non-test failure re-runs the whole gate");
+    });
+
+    it("leaves a failed job that cannot fail the run (job-level continue-on-error) out of the verdict", async () => {
+        mkdirSync(join(repo, ".github/workflows"), { recursive: true });
+        const yml = [
+            "name: CI",
+            "on: push",
+            "jobs:",
+            "    test:",
+            "        name: Test (${{ matrix.shard }})",
+            "    visual:",
+            "        name: visual (${{ matrix.project }})",
+            "        continue-on-error: true",
+            "",
+        ].join("\n");
+        const tip = land("ci-yml", { ".github/workflows/ci.yml": yml });
+        const jobs = [
+            { id: 31, name: "Verify / Test (s5)", status: "completed", conclusion: "failure" },
+            { id: 32, name: "Verify / visual (graphty-element)", status: "completed", conclusion: "failure" },
+        ];
+        const { c } = ciCtx([
+            releaseIdle,
+            [/\/runs\?head_sha=/, runOf(tip, { status: "completed", conclusion: "failure" })],
+            [/actions\/runs\/7\/jobs/, { jobs }],
+            [/^run download /, ""],
+        ]);
+        const r = await ciGate(c, tip);
+        assert.doesNotMatch(r.output, /visual/);
+        assert.deepEqual(failingShards(r.output, new Set(["s5"])), ["s5"], "the test failure is confirmed here");
+    });
+
+    it("passes a run whose screenshot job failed under a green All Checks Pass, as the run judges itself", async () => {
+        const tip = tipOf();
+        const jobs = [
+            { id: 41, name: "Verify / Test (s5)", status: "completed", conclusion: "success", run_attempt: 1 },
+            { id: 42, name: "Verify / visual (graphty-element)", status: "completed", conclusion: "failure" },
+            { id: 43, name: "Verify / All Checks Pass", status: "completed", conclusion: "success", run_attempt: 1 },
+        ];
+        const { c } = ciCtx([
+            releaseIdle,
+            [/\/runs\?head_sha=/, runOf(tip, { status: "completed", conclusion: "failure" })],
+            [/actions\/runs\/7\/jobs/, { jobs }],
+        ]);
+        const r = await ciGate(c, tip);
+        assert.equal(r.code, 0);
+        assert.match(r.output, /All Checks Pass: success/);
+    });
+
+    it("never takes a green re-run of the failed jobs alone as verified: it starts a full run", async () => {
+        const tip = tipOf();
+        const rerun = [
+            { id: 51, name: "Verify / Build", status: "completed", conclusion: "success", run_attempt: 1 },
+            { id: 52, name: "Verify / Test (s5)", status: "completed", conclusion: "success", run_attempt: 2 },
+            { id: 53, name: "Verify / All Checks Pass", status: "completed", conclusion: "success", run_attempt: 2 },
+        ];
+        const fresh = { id: 8, html_url: "https://github.test/runs/8", status: "completed", conclusion: "success" };
+        const { c } = ciCtx([
+            releaseIdle,
+            [
+                /\/runs\?head_sha=/,
+                [runOf(tip, { status: "completed", conclusion: "success", run_attempt: 2 }), runOf(tip, fresh)],
+            ],
+            [/actions\/runs\/7\/jobs/, { jobs: rerun }],
+        ]);
+        rmSync(receiveLog, { force: true });
+        const r = await ciGate(c, tip);
+        assert.equal(r.code, 0);
+        assert.match(r.output, /runs\/8/, "the verdict is the full run's");
+        const updates = readFileSync(receiveLog, "utf8").trim().split("\n");
+        assert.ok(updates.some((u) => u.startsWith(`${tip} ${"0".repeat(40)} refs/heads/golden-candidate`)));
+    });
+
+    it("reads only the commit's run on its own scratch branch, not one of the same commit on another", async () => {
+        const tip = tipOf();
+        const { c, seen } = ciCtx([
+            releaseIdle,
+            [
+                /\/runs\?head_sha=/,
+                [
+                    runOf(tip, { status: "completed", conclusion: "success", head_branch: "golden-bisect-1" }),
+                    runOf(tip, { status: "completed", conclusion: "success" }),
+                ],
+            ],
+        ]);
+        const r = await ciGate(c, tip);
+        assert.equal(r.code, 0);
+        assert.equal(seen[1].noRun.attempt, 1, "the other branch's run is not this one");
+    });
+
+    it("does not trust the status broker's green after a CI failure of the commit, which a re-run could make", async () => {
+        const tip = tipOf();
+        const { c } = ciCtx([]);
+        broker(c, [{ head: "golden", headSha: tip, checks: { "Verify / All Checks Pass": "SUCCESS" } }]);
+        assert.equal(brokerVerdict(c, tip), "passed");
+        await withState(c, (s) => (s.last = { commit: tip, status: "confirming", ci: { id: 7, attempt: 1 } }));
+        assert.equal(brokerVerdict(c, tip), null);
     });
 
     it("re-runs a lost run once, marks CI unavailable on the second loss, and clears it when a run starts", async () => {
@@ -1024,6 +1125,9 @@ describe("verification in CI (ciGate)", () => {
             [`workflow run golden-verify.yml -f ref=${tip}`],
             "one dispatch",
         );
+        const point = await ciGate(c, tip, { ref: "golden-bisect-1", kind: "bisect", shards: ["s1"] });
+        assert.equal(point.code, 0);
+        assert.ok(calls.includes(`workflow run golden-verify.yml -f ref=${tip} -f shards=["s1"]`), "with its shards");
     });
 
     describe("a failing run, as GitHub recorded it", () => {
@@ -1036,22 +1140,27 @@ describe("verification in CI (ciGate)", () => {
          * @param o the recorded behavior
          * @param o.ciFails `(sha) => boolean`, whether CI fails the commit
          * @param o.rerunFails whether the one re-run fails too
-         * @param [o.localFails] `(sha, run) => boolean`, whether run k here fails
+         * @param [o.localFails] `(sha, run, target) => boolean`, whether run k here fails the target
+         * @param [o.second] the artifact fails a second test, `p/c.test.ts > u`, too
          * @returns `{ c, calls, checks, pushes, filed }`: pushes are the commits pushed to golden-bisect-<n>
          */
-        const recorded = (tag, { ciFails, rerunFails, localFails = () => false }) => {
+        const recorded = (tag, { ciFails, rerunFails, localFails = () => false, second = false }) => {
             const ids = [];
             const idOf = (sha) => (ids.includes(sha) ? ids.indexOf(sha) : ids.push(sha) - 1) + 100;
             const shaOf = (line) => ids[Number(/runs\/(\d+)/.exec(line)[1]) - 100];
             const junit =
                 '<testsuites><testsuite name="c"><testcase classname="c.test.ts" name="ok"/>' +
                 `<testcase classname="c.test.ts" name="t"><failure message="x">${FAILURE}</failure></testcase>` +
+                (second
+                    ? `<testcase classname="c.test.ts" name="u"><failure message="y">${FAILURE}</failure></testcase>`
+                    : "") +
                 "</testsuite></testsuites>";
             const checks = [];
             const filed = [];
             const run = (sha) => ({
                 id: idOf(sha),
                 head_sha: sha,
+                head_branch: headOf(sha),
                 display_title: `Golden verify ${sha}`,
                 html_url: `https://github.test/runs/${idOf(sha)}`,
                 run_attempt: 1,
@@ -1084,7 +1193,11 @@ describe("verification in CI (ciGate)", () => {
             ];
             const check = async (_c, sha, { targets, full }) => {
                 checks.push({ sha, targets });
-                return judge(targets, full, (k) => localFails(sha, k));
+                const each = targets.map((t) => judge([t], full, (k) => localFails(sha, k, t)));
+                return {
+                    runs: Math.max(...each.map((r) => r.runs)),
+                    failed: Object.assign({}, ...each.map((r) => r.failed)),
+                };
             };
             const more = {
                 env: { ...env, TEST_LEDGER_DIR: join(dir, `ledger-ci-${tag}`), GRAPHTY_TEST_QUARANTINE: "1" },
@@ -1187,6 +1300,29 @@ describe("verification in CI (ciGate)", () => {
             assert.ok(!published.includes(tip));
         });
 
+        it("one test reproducing here and one CI-only: the CI bisect follows both", async () => {
+            const breaks = (sha) => has(sha, "mx.txt");
+            const { c, pushes } = recorded("mixed", {
+                ciFails: breaks,
+                rerunFails: true,
+                second: true,
+                localFails: (sha, _k, t) => t.name === "t" && breaks(sha),
+            });
+            await verifyFrom(c);
+            land("mx0", { "mx0.txt": "0\n" });
+            const culprit = land("mx1", { "mx.txt": "1\n" });
+            const tip = land("mx2", { "mx2.txt": "2\n" });
+            await requestVerification(c, tip);
+            await settle();
+            const s = readState(c);
+            const id = (name) => `s1: p/c.test.ts > ${name}`;
+            assert.deepEqual(s.last.confirm.consistent, [id("t")], "t reproduces here");
+            assert.deepEqual(s.last.confirm.ci, [id("u")], "u fails only in CI");
+            assert.equal(s.last.bisect.ci, true, "so the bisect runs in CI");
+            assert.ok(pushes().length > 0);
+            assert.equal(s.last.culprit.sha, culprit);
+        });
+
         it("CI-only and passing on its re-run: quarantined, nothing bisected, golden-verified stays", async () => {
             const { c, calls, pushes, filed } = recorded("rerun-passes", { ciFails: (sha) => has(sha, "cp.txt") });
             await verifyFrom(c);
@@ -1201,6 +1337,78 @@ describe("verification in CI (ciGate)", () => {
             assert.deepEqual(pushes(), [], "no CI bisect");
             assert.ok(!published.includes(tip), "a passing re-run never moves golden-verified");
             assert.notEqual(s.verified, tip);
+        });
+
+        // origin's master without golden-verify.yml, as before the branch that adds it reaches master
+        const withoutWorkflowOnMaster = async (body) => {
+            const master = git(repo, "rev-parse", "origin/master");
+            git(repo, "push", "-q", "-f", "origin", "master~1:master");
+            try {
+                await body();
+            } finally {
+                git(repo, "push", "-q", "-f", "origin", `${master}:master`);
+            }
+        };
+
+        it("before golden-verify.yml: judges the verified commit here, which CI cannot run, and bisects the rest in CI", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c, checks, pushes } = recorded("predates", {
+                    ciFails: (sha) => has(sha, "pd.txt"),
+                    rerunFails: true,
+                });
+                const from = await verifyFrom(c);
+                land("pd0", { ".github/workflows/golden-verify.yml": "name: Golden verify\n" });
+                const culprit = land("pd1", { "pd.txt": "1\n" });
+                const tip = land("pd2", { "pd2.txt": "2\n" });
+                await requestVerification(c, tip);
+                await settle();
+                const s = readState(c);
+                assert.equal(s.last.bisect.verifiedCheck, "good");
+                assert.match(
+                    s.last.bisect.evidence[from].judgedLocally,
+                    /CI cannot run \w+: it predates golden-verify\.yml/,
+                );
+                assert.ok(
+                    checks.some((k) => k.sha === from),
+                    "the verified commit is judged here",
+                );
+                assert.ok(!pushes().includes(from), "and never pushed");
+                assert.equal(s.last.culprit.sha, culprit);
+                assert.equal(s.ciUnavailable, undefined, "never a false CI-unavailable alarm");
+            });
+        });
+
+        it("before golden-verify.yml: a point CI cannot run is judged here, and its evidence says so", async () => {
+            await withoutWorkflowOnMaster(async () => {
+                const { c, checks, pushes } = recorded("predates-all", {
+                    ciFails: (sha) => has(sha, "pa.txt"),
+                    rerunFails: true,
+                });
+                await verifyFrom(c);
+                // golden carries golden-verify.yml from the test above: these commits are as if it never landed
+                git(repo, "rm", "-q", ".github/workflows/golden-verify.yml");
+                git(repo, "commit", "-q", "-m", "test: golden without golden-verify.yml");
+                git(repo, "push", "-q", "origin", "golden");
+                await withState(c, (st) => (st.verified = git(repo, "rev-parse", "golden")));
+                land("pa0", { "pa0.txt": "0\n" });
+                land("pa1", { "pa1.txt": "1\n" });
+                const tip = land("pa2", { "pa.txt": "2\n" });
+                await requestVerification(c, tip);
+                await settle();
+                const s = readState(c);
+                assert.deepEqual(pushes(), [], "nothing pushed: no point has the workflow");
+                const points = Object.keys(s.last.bisect.evidence).filter((p) => p !== tip);
+                assert.ok(points.length > 0);
+                for (const p of points) {
+                    assert.ok(
+                        checks.some((k) => k.sha === p),
+                        "each point ran here",
+                    );
+                    assert.match(s.last.bisect.evidence[p].judgedLocally, /CI cannot run \w+: it predates/);
+                }
+                assert.match(s.last.culprit.evidence.parent.judgedLocally, /CI cannot run/, "the record says so");
+                assert.equal(s.ciUnavailable, undefined);
+            });
         });
 
         it("an environment change: the verified commit fails in CI too, so no landing is named and it gets an issue", async () => {

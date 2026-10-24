@@ -772,8 +772,10 @@ export class AccelerationController {
         const attached = await this.#tryFactories();
 
         if (generation !== this.#generation) {
-            // A policy change or an injection came while it ran; what it says is theirs now.
-            return this.#status;
+            // A policy change or an injection came while it ran; what it says is theirs now. A
+            // policy change that probes again left the state "probing": its probe's answer is the
+            // settled one, so a caller awaiting this probe gets that instead.
+            return this.#state === "probing" && !this.#disposed ? this.start() : this.#status;
         }
 
         this.#probeSettled = true;

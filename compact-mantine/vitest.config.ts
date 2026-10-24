@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
@@ -11,8 +11,9 @@ import { ciReporters } from "../vitest.ci-junit.mjs";
 
 /**
  * The Figma study (design/ui/figma), found by walking up from this package so it resolves from
- * the main checkout and from a worktree beneath it; FIGMA_STUDY_DIR overrides. Null when absent
- * (the study is not in every checkout), and the Figma-comparing tests skip.
+ * the main checkout and from a worktree beneath it; FIGMA_STUDY_DIR overrides. Null when absent.
+ * The tests read tests/figma/figma-fixture.json; the study is read only while that fixture is
+ * regenerated (tests/figma/figma-fixture.mjs build, which sets FIGMA_FIXTURE_RECORD).
  * @returns the study directory, or null
  */
 function figmaStudyDir(): string | null {
@@ -28,33 +29,24 @@ function figmaStudyDir(): string | null {
     return null;
 }
 
-/** The folder abbreviations design/figma-spec.md cites captures by. */
-const FIGMA_FOLDERS: Record<string, string> = {
-    bc: "buttons-and-controls",
-    dt: "dark-theme",
-    ii: "index-and-inventory",
-    cr: "contradictions-resolved",
-    rs: "right-sidebar-selection",
-    ls: "left-sidebar",
-    pm: "popovers-and-menus",
-    bt: "bottom-toolbar",
-    hm: "header-and-modes",
-    ma: "measurement-audit",
-    ac: "accessibility",
+/** Whether this run records what the tests read from the Figma study (FIGMA_FIXTURE_RECORD). */
+const figmaRecording: BrowserCommand<[]> = () => Boolean(process.env.FIGMA_FIXTURE_RECORD);
+
+/** Append the fields a test file read to the FIGMA_FIXTURE_RECORD file, one per line. */
+const figmaRecordReads: BrowserCommand<[reads: string[]]> = (_ctx, reads) => {
+    const file = process.env.FIGMA_FIXTURE_RECORD;
+    if (file && reads.length > 0) {
+        appendFileSync(file, `${reads.join("\n")}\n`);
+    }
 };
 
-/** Whether the Figma study is present. */
-const figmaAvailable: BrowserCommand<[]> = () => figmaStudyDir() !== null;
-
-/** Read one capture's styles.json (`bc/btn-primary-md-enabled--default`, with or without the suffix). */
+/** Read one capture's styles.json from the study (`buttons-and-controls/btn-primary-md-enabled--default`). */
 const readFigmaCapture: BrowserCommand<[path: string]> = (_ctx, path) => {
     const root = figmaStudyDir();
     if (!root) {
         throw new Error("the Figma study (design/ui/figma) is not in this checkout; set FIGMA_STUDY_DIR");
     }
-    const [head, ...rest] = path.split("/");
-    const relative = [FIGMA_FOLDERS[head] ?? head, ...rest].join("/").replace(/\.styles\.json$/, "");
-    const file = resolve(root, `${relative}.styles.json`);
+    const file = resolve(root, `${path}.styles.json`);
     if (!file.startsWith(root)) {
         throw new Error(`${path} is outside the Figma study`);
     }
@@ -224,7 +216,8 @@ const accessibilityTree: BrowserCommand<[]> = async (ctx): Promise<AxNode[]> => 
  * browser projects load that setup file, so both register the same commands.
  */
 const browserCommands = {
-    figmaAvailable,
+    figmaRecording,
+    figmaRecordReads,
     readFigmaCapture,
     mouseAway,
     mouseDown,

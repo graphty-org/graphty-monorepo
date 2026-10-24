@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { buildFixture, checkFixture, serialize } from "../compact-mantine/tests/figma/figma-fixture.mjs";
 import { isLocked, studyDigest, unapprovedChanges } from "./check-figma-lock.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
@@ -52,6 +53,7 @@ describe("check-figma-lock", () => {
             "compact-mantine/design/figma-spec.md",
             FIGMA_TEST,
             "compact-mantine/tests/figma/figma-study.sha256",
+            "compact-mantine/tests/figma/figma-fixture.json",
             "compact-mantine/tests/harness/measure.ts",
             TOKENS,
             "compact-mantine/src/theme/colors.ts",
@@ -151,5 +153,38 @@ describe("check-figma-lock", () => {
         assert.equal(studyDigest(dir), before);
         writeFileSync(join(dir, "bc/a.styles.json"), '{"x":1}');
         assert.notEqual(studyDigest(dir), before);
+    });
+
+    it("keeps in the Figma fixture only the fields read, and flags a fixture value the study no longer has", () => {
+        const dir = join(TMP, "fixture-study");
+        mkdirSync(join(dir, "bc"), { recursive: true });
+        const el = (tag, color) => ({ tag, cls: "x", text: "", box: [1, 2, 3, 4], style: { color, height: "8px" } });
+        const capture = (color) => ({
+            url: "u",
+            viewport: [10, 10],
+            rect: null,
+            elements: [el("div", "red"), el("button", color)],
+        });
+        writeFileSync(join(dir, "bc/a.styles.json"), JSON.stringify(capture("blue")));
+        const fixture = buildFixture(dir, [
+            "bc/a\t0\ttag",
+            "bc/a\t1\ttag",
+            "bc/a\t1\tstyle.color",
+            "bc/a\t-\trect",
+            "",
+        ]);
+        assert.deepEqual(fixture, {
+            "bc/a": {
+                rect: null,
+                count: 2,
+                elements: { 0: { tag: "div" }, 1: { tag: "button", style: { color: "blue" } } },
+            },
+        });
+        const file = join(dir, "fixture.json");
+        writeFileSync(file, serialize(fixture));
+        assert.deepEqual(JSON.parse(serialize(fixture)), fixture);
+        assert.deepEqual(checkFixture(dir, file), []);
+        writeFileSync(join(dir, "bc/a.styles.json"), JSON.stringify(capture("green")));
+        assert.deepEqual(checkFixture(dir, file), ["bc/a #1 color: blue, the study has green"]);
     });
 });

@@ -74,6 +74,8 @@ say so and work on what it returned. If git, the
 broker file or GitHub cannot be read, say so in one line and end the round: unknown is a state, not "nothing to do".
 If the broker's `fetchedAt` is more than a few minutes old, start it (see "The GitHub API budget" in CLAUDE.md).
 master's build is **red** when the newest _completed_ run above failed (an in-progress run is no verdict).
+graphty.app is **down-level** when the newest deploy run above failed: master can be green while graphty.app still
+serves an older build.
 
 ## Markers
 

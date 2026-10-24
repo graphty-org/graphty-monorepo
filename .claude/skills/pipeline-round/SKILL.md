@@ -24,9 +24,12 @@ part: in the one-client normal mode, issue-round still runs after it in the same
 
 ### 1. Red master, guard reverts, critical issues
 
-- **Check:** master's newest completed build; the `alarms` list (master-guard files `Red master: CI failed on <sha7>`
-  and `<run name> lane red on master` issues, and opens revert pull requests on branches `revert/<sha7>`).
-- **Needs action:** master's build is red, or an open critical issue or `revert/` pull request exists.
+- **Check:** master's newest completed build; the newest deploy run; the `alarms` list (master-guard files
+  `Red master: CI failed on <sha7>`, `<run name> lane red on master` and `graphty.app deploy failed on <sha7>` issues,
+  and opens revert pull requests on branches `revert/<sha7>`).
+- **Needs action:** master's build is red, the newest deploy failed, or an open critical issue or `revert/` pull
+  request exists. A failed deploy is never reverted (the commit passed CI): re-run it for an outside cause, else fix
+  it like a red master, and close its issue once a deploy of master succeeds.
 - **Action:** classify the failure from the failed job's step log (`gh run view <id> --log-failed`) and
   `git log <last green sha>..<red sha> --first-parent`. Outside cause: re-run the failed jobs once (see "Re-runs" in
   the shared file). Code: mark the alarm issue (`in-progress` plus a `taken` marker naming this session) and start one
@@ -277,6 +280,16 @@ run's code):
   the next round finds `ready` without an outcome: a branch whose tip is on `origin/golden` landed; otherwise land it
   again only if it has one `landing` marker for that sha, never two.
 - A landed issue keeps its `in-progress` label until a cut holding it ships and `Fixes #N` closes it.
+- **Dependabot.** Every open pull request whose head is `dependabot/*` (from `tmp/pr-status/status.json`; version
+  updates target `golden`, security updates target master) is a ready branch with no issue: run `git fetch origin`
+  first (land.mjs looks the branch up before it fetches), then add each `dependabot/...` branch to the same
+  background `land` run as the other ready branches. Write the `landing`, `landed` and `land failed` markers on the
+  golden pull request. When a branch's summary row says `landed` or `already on golden`, close its pull request
+  with the land commit:
+  `gh pr close <n> --comment "Landed on golden through the gate in $(git log origin/golden --merges -1 --format=%h --grep='^land: <branch>$')."`
+  Never merge a Dependabot pull request on GitHub, and never send a fix subagent for one: a Dependabot branch that
+  conflicts or fails the gate gets a one-line comment naming the cause and the gate log, and stays open (Dependabot
+  rebases it, or a later bump supersedes it); the next round lands it again only when its tip changed.
 
 ### 5. Stale issues
 

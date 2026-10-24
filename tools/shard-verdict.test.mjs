@@ -11,7 +11,14 @@ import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
-import { checkShard, expectedReports, expectedRuns, shardVerdict } from "./shard-verdict.mjs";
+import {
+    checkShard,
+    expectedReports,
+    expectedRuns,
+    LOG_BUDGET_BYTES,
+    shardVerdict,
+    topRepeated,
+} from "./shard-verdict.mjs";
 
 const SUMMARY = " Test Files  12 passed (12)\n      Tests  80 passed (80)\n";
 
@@ -41,6 +48,24 @@ describe("shardVerdict", () => {
     it("fails a non-zero or signal exit whatever the output says", () => {
         assert.deepEqual(shardVerdict({ code: 1, log: SUMMARY }), { pass: false, cause: "exit 1" });
         assert.deepEqual(shardVerdict({ code: null, log: SUMMARY }), { pass: false, cause: "exit null" });
+    });
+
+    it("fails a passing run whose output is over the log budget, naming the most repeated lines", () => {
+        // Tier 3's act() flood: 85 to 108 MB of one repeated warning per shard, which passed every gate.
+        const warning = "Warning: An update to GraphPlace inside a test was not wrapped in act(...).";
+        const flood = `${`${warning}\n    at GraphPlace (src/GraphPlace.tsx:12:3)\n`.repeat(2000)}${SUMMARY}`;
+        const v = shardVerdict({ code: 0, log: flood, logBudget: 64 * 1024 });
+        assert.equal(v.pass, false);
+        assert.match(v.cause, /^exit 0 but its output is 0\.\d MB, over the 0\.1 MB budget/);
+        assert.match(v.cause, /\n {4}2000 x Warning: An update to GraphPlace/);
+        assert.equal(shardVerdict({ code: 0, log: flood, logBudget: flood.length }).pass, true);
+        // The default sits above every normal shard (the largest, compact-mantine, writes about 3.5 MB).
+        assert.ok(LOG_BUDGET_BYTES >= 3 * 3.5 * 1024 * 1024);
+        assert.equal(shardVerdict({ code: 0, log: `${"x".repeat(4 * 1024 * 1024)}\n${SUMMARY}` }).pass, true);
+    });
+
+    it("names only lines that repeat, most repeated first", () => {
+        assert.deepEqual(topRepeated("a\nb\n\u001b[33mb\u001b[39m\nc\nc\nc\n\n\n"), ["3 x c", "2 x b"]);
     });
 
     it("fails an exit 0 whose expected report was not written", () => {

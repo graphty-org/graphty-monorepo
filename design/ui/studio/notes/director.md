@@ -5,13 +5,17 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-22 (timeline prototype review ruled: `timeline/decisions.md`; location map
+Last updated: 2026-10-23 (menu sections ruled, issue #3315; earlier: timeline prototype review ruled: `timeline/decisions.md`; location map
 prototype reviews triaged into `location-map/decisions.md`).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) MENU SECTIONS RULED: every pick list of catalog choices (Layout,
+  Analyze) uses section headings, never indentation, and every row sits under a heading; Layout
+  gains four headings from the catalog's `family` fact and loses its indented engine rows.
+  See the decision of the same date under "Decisions and reasons" for the build spec.
 - (2026-10-22) TIMELINE PROTOTYPE REVIEWED (four lenses on `feat/timeline-prototype`); rulings in
   `timeline/decisions.md`, items TL-01 to TL-32, ten rejected. Severity 1 first: Rerun throws
   `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as
@@ -124,6 +128,52 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-23, Layout and Analyze section pattern (owner question, issue #3315).** The owner:
+  the two menus must share one pattern, indent or headings, and either every item is in a
+  section or none is. Today Analyze uses headings (Recent, Rank nodes and edges, Find groups,
+  Find paths and edge sets, Measure the graph) with every row under one; Layout uses neither
+  for most rows and indents only Force's six engines, with the eight Graphviz engines flat
+  among the rest (28 rows, one Tab stop each). Decision: headings for both, every row
+  under one, no indentation in any pick list. Reasons: (1) indentation shows one level of
+  "child of the row above" and cannot carry the Graphviz engines, which belong to three
+  different arrangements, so it would stay partial, which is what the owner rejected; (2)
+  Analyze's headings already passed tiers 1-3, and a 28-row list needs landmarks at least as
+  much; (3) headings are a Figma-native pattern (layer and plugin menus) and the
+  ARIA group-in-listbox pattern Analyze already ships, so this is one built-in, not a new
+  control; (4) the element already declares `family` for every layout, so the grouping is the
+  app reading an element fact, like Analyze reading result shapes -- no graph logic in the
+  app, no element change. Rejected: indentation for both (Analyze has no parent rows to
+  indent under, and invented parents become clickable-looking non-options); flat lists with
+  no sections (Analyze would lose the landmarks its tree tests depend on); a Force parent row
+  that expands (a disclosure inside a listbox, a second interaction rule only this list uses);
+  moving engines into the Force form as an "Engine" select (worth considering, but it hides
+  engines the owner asked to see in the list and is a separate question); a Filter box on
+  Layout (28 rows fit; revisit if a plugin pushes it past about 40). Section words are mine
+  to change after a tree test, the pattern is not.
+  Spec for both lists: inside the listbox, one `role="group"` per section with `aria-label` =
+  its heading, the heading drawn as Analyze draws it today (`Text size="xs" fw={600}
+c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every option
+  inside exactly one group; no `pl` or `data-nested` indent anywhere; an empty section is not
+  drawn. Layout sections, in this order, from the catalog's `family` fact on each descriptor
+  (the app owns the words and order, the element only the fact): `force` -> "Force-directed",
+  `geometric` -> "Shapes", `hierarchical` -> "Hierarchy", `special` and any family the app does
+  not know (a plugin's) -> "Other". Rows inside a section keep catalog order, so Force's
+  default row comes first, then its engines (D3 Force, ForceAtlas2, Spring, Kamada-Kawai,
+  Spring Electrical, ARF), then the Graphviz engines of that family with their "Graphviz"
+  suffix (Stress, Spring embedder, Multilevel spring). Hierarchy: Tree, Two columns, Columns by
+  group, Layered. Shapes: Circle, Rings around a node, Grid, Rings by group, Spiral, Spectral,
+  No crossings, Random, Circles, Rings. Other: Keep positions, Map, Clusters, Treemap. Each
+  row is unchanged otherwise (check, name, Graphviz suffix, Recommended, slow, dimmed line,
+  reason). Analyze keeps Recent and its four headings exactly as they are. Keyboard in Layout:
+  the list is one Tab stop (roving tabindex on the checked row, else the first enabled row);
+  ArrowDown/ArrowUp move across sections and skip headings, Home/End go to the first/last
+  row, Enter or Space opens a row, Esc steps back from the form and a second Esc closes (as
+  now). Analyze's keyboard is unchanged; its arrows already skip headings. Command menus (the
+  main menu, a row's menu) are not pick lists: they keep dividers between groups and no
+  headings. The Style tab's "+ Set another property" and the table's Columns chooser already
+  follow the rule (Menu.Label sections, every item in one) and stay. A test asserts every
+  `family` in the element's layout catalog maps to a heading, as `words.ts` does for result
+  shapes, and a real-input test walks the Layout list by arrows and reads the group names.
 - **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
   round, per-task table, learnings in insight order, changes by package with whether round 1
   confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the

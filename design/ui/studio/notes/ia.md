@@ -97,6 +97,12 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Decisions and reasons
 
+- **2026-10-23, menu sections (issue #3315, director ruled).** I argued for headings on both:
+  a reader scans for the kind of picture first (spread out, a tree, a shape), then the engine,
+  and only a heading names the kind; one level of indent named nothing and left Graphviz's
+  engines orphaned. Layout headings come from the element's `family` fact: Force-directed,
+  Shapes, Hierarchy, Other (plugins land in Other). Every row under one heading, empty ones
+  hidden. Open for a tree test: whether "Shapes" and "Other" are the words readers look under.
 - **2026-10-16, color sets 2 to dozens (proposed, bulk via BoundValue):** the field's strip is a
   kind signal only (at most 4 hard stops, 5 px each, or a gradient); identity lives in the line
   under it: 2-3 values as named rows, 4-10 as chits, then "+N", cut at the first repeated color

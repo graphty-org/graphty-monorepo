@@ -29,6 +29,7 @@ import {
     handOff,
     issueRefs,
     landedBranches,
+    lightGate,
     main,
     prBody,
     readLock,
@@ -1470,5 +1471,24 @@ describe("the branch sync", () => {
             "Shards: graphty-1\n  [FAIL] graphty-1 (exit 1, 30s); the end of x.log:\n FAIL  src/a.test.ts > draws it\n";
         assert.equal(failedTest(out), "graphty-1: src/a.test.ts > draws it");
         assert.equal(failedTest(""), "tests");
+    });
+});
+
+describe("the light gate", () => {
+    it("is on only while CI verifies golden, and status says which gate pushes run", async () => {
+        const state = join(repo, "tmp/golden/verify.json");
+        assert.equal(existsSync(state), false);
+        assert.equal(lightGate(ctx), "0", "no verification state: the local backend, the full gate");
+        assert.match((await run("status")).out, /^gate: full /m);
+        mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+        try {
+            writeFileSync(state, JSON.stringify({ backend: { name: "local", reason: "r", at: "t" } }));
+            assert.equal(lightGate(ctx), "0");
+            writeFileSync(state, JSON.stringify({ backend: { name: "ci", reason: null, at: "t" } }));
+            assert.equal(lightGate(ctx), "1");
+            assert.match((await run("status")).out, /^gate: light /m);
+        } finally {
+            rmSync(state);
+        }
     });
 });

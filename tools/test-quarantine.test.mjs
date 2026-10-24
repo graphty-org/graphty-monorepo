@@ -109,7 +109,10 @@ describe("the list", () => {
 
 // A stand-in for a checkout: its CI matrix names one plain vitest shard, and tools/run-tests.sh (the retry's
 // runner) writes the JUnit report the scenario asks for instead of running vitest.
-function checkout({ retryFails, quarantine = [] }) {
+// `suite`: the first run fails as a whole file (a hook timed out), so vitest counts it under "Failed Suites", not
+// under "Tests N failed". `oldNaming`: the checkout predates the run-id JUnit names (vitest.ci-junit.mjs before
+// e3f94aced7) and writes junit-<package>-<pid>.xml whatever TEST_LEDGER_RUN says.
+function checkout({ retryFails, quarantine = [], suite = false, oldNaming = false }) {
     const root = fresh();
     mkdirSync(join(root, "tools"));
     mkdirSync(join(root, "test-results"));
@@ -118,6 +121,7 @@ function checkout({ retryFails, quarantine = [] }) {
         `export const SHARDS = [{ shard: "graphty-1", package: "graphty", "test-command": "cd graphty && pnpm exec vitest run --project=x --shard=1/3 --coverage" }];`,
     );
     writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine }));
+    const run = oldNaming ? "" : "$TEST_LEDGER_RUN-";
     const junit = (failures) =>
         `<testsuites><testsuite>${[T1, T2]
             .map(
@@ -130,9 +134,12 @@ function checkout({ retryFails, quarantine = [] }) {
     // the retry: `bash tools/run-tests.sh --command graphty-1 '<files command>'`
     writeFileSync(
         join(root, "tools/run-tests.sh"),
-        `echo "$3" > retry-command; cp retry.xml "test-results/junit-graphty-$TEST_LEDGER_RUN-2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
+        `echo "$3" > retry-command; cp retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
     );
-    const first = `cp first.xml "test-results/junit-graphty-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (2)'; echo '      Tests  1 failed | 1 passed (2)'; exit 1`;
+    const counts = suite
+        ? "echo ' Failed Suites 1 '; echo ' Test Files  1 failed | 1 passed (2)'; echo '      Tests  1 passed (1)'"
+        : "echo ' Test Files  1 failed (2)'; echo '      Tests  1 failed | 1 passed (2)'";
+    const first = `cp first.xml "test-results/junit-graphty-${run}1.xml"; ${counts}; exit 1`;
     return { root, first };
 }
 
@@ -219,6 +226,32 @@ describe("runShard", () => {
             [T1.name],
         );
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
+    });
+
+    // #3323: a graphty shard whose file failed as a whole (a setup hook timed out) was never retried: vitest's
+    // "Tests" line counts no failed test, so the run looked like an error rather than test failures.
+    it("retries a file that failed as a whole suite", async () => {
+        const c = checkout({ retryFails: false, suite: true });
+        const { code, result } = await run(c);
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(
+            result.flaky.map((f) => f.name),
+            [T1.name],
+        );
+    });
+
+    // #3323: a checkout older than the run-id JUnit names wrote reports the wrapper never found, so nothing was
+    // retried and nothing was said.
+    it("retries a checkout that writes JUnit reports without the run id", async () => {
+        const c = checkout({ retryFails: false, oldNaming: true });
+        // another shard of the same gate, beside it, in another package
+        const other = `<testsuites><testcase classname="x.test.ts" name="y"><failure>no</failure></testcase></testsuites>`;
+        c.first = `echo '${other}' > test-results/junit-graphty-element-7.xml; ${c.first}`;
+        const { code, result } = await run(c);
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(result.ran.sort(), [T1.file, T2.file], "another package's report is not read");
     });
 
     it("fails a test that fails on the retry too, unless it is quarantined", async () => {

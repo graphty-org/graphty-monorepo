@@ -245,12 +245,13 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
     let result = { shard: shardName, firstCode: r1.code, retried: false, flaky: [], excused: [], failing: [] };
     let code = r1.code;
     try {
+        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
+        const shard = SHARDS.find((s) => s.shard === shardName);
+        reports.pkg = shard?.package;
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);
         if (r1.code === 0) return 0;
-        const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-        const shard = SHARDS.find((s) => s.shard === shardName);
         const family = familyOf(shardName);
         const list = activeList(committedList(root), state);
         const runs = expectedRuns(shard?.["test-command"] ?? command);
@@ -263,7 +264,7 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
         const d = blameChange(decide({ family, first, firstOutcome, second: retry?.second, list }), root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
         result.suspects = d.suspects;
-        printDecision(shardName, d, env);
+        printDecision(shardName, d, env, retry ? "" : notRetried(firstOutcome, first, list, family));
         if (d.pass) code = 0;
     } catch (e) {
         console.log(
@@ -309,16 +310,39 @@ export function blameChange(d, root, family, env, ledger = openLedger) {
 
 /**
  * The JUnit reports a run wrote since the last look: with a TEST_LEDGER_RUN id, those that carry it (other
- * shards write beside them), else every new one (CI: one shard at a time).
- * @param reports `{ dir, id, seen }`; `seen` grows by the names read
+ * shards write beside them), else every new one (CI: one shard at a time). A checkout older than the run-id
+ * names (vitest.ci-junit.mjs before e3f94aced7) writes junit-<package>-<pid>.xml: then the new ones of the
+ * shard's package.
+ * @param reports `{ dir, id, seen, pkg }`; `seen` grows by the names read
  * @param tag "" for the first run, ".retry" for the retry
  * @returns readReports()
  */
 function newReports(reports, tag) {
-    const id = reports.id ? `${reports.id}${tag}` : "";
-    const names = reportNames(reports.dir).filter((n) => !reports.seen.has(n) && (!id || n.includes(`-${id}-`)));
+    let id = reports.id ? `${reports.id}${tag}` : "";
+    const fresh = reportNames(reports.dir).filter((n) => !reports.seen.has(n));
+    let names = fresh.filter((n) => !id || n.includes(`-${id}-`));
+    if (id && names.length === 0 && reports.pkg) {
+        const prefix = `junit-${reports.pkg}-`;
+        names = fresh.filter((n) => n.startsWith(prefix) && /^\d+\.xml$/.test(n.slice(prefix.length)));
+        id = "";
+    }
     names.forEach((n) => reports.seen.add(n));
     return readReports(reports.dir, names, id);
+}
+
+/**
+ * Why a failed shard's tests were not run again, for its [FAIL] lines.
+ * @param outcome outcomeOf() of the run
+ * @param first readReports() of the run
+ * @param list activeList()
+ * @param family the shard's family
+ * @returns the reason
+ */
+function notRetried(outcome, first, list, family) {
+    if (outcome !== "failed") return `not retried: the run ended "${outcome}", not in test failures alone`;
+    const open = new Set((first?.failures ?? []).filter((f) => !quarantined(list, family, f)).map((f) => f.file));
+    if (open.size > MAX_RETRY_FILES) return `not retried: ${open.size} files failed, more than ${MAX_RETRY_FILES}`;
+    return "not retried: its command cannot be narrowed to the failed files";
 }
 
 /**
@@ -354,8 +378,9 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
  * @param shard the shard
  * @param d decide()
  * @param env the environment
+ * @param unretried why the failed files were not run again, "" when they were
  */
-function printDecision(shard, d, env) {
+function printDecision(shard, d, env, unretried) {
     const gh = env.GITHUB_ACTIONS === "true";
     for (const f of d.flaky) {
         const line = `[FLAKY] ${shard}: ${idOf(f)} failed and passed on the same inputs, so it does not fail the shard`;
@@ -370,8 +395,9 @@ function printDecision(shard, d, env) {
             `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
         );
     }
+    const how = unretried ? `failed (${unretried})` : "failed every time";
     for (const f of d.failing.filter((x) => !d.caused?.includes(x))) {
-        console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} failed every time`);
+        console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} ${how}`);
     }
 }
 

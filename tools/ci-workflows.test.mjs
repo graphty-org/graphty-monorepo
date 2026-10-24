@@ -782,7 +782,9 @@ exec ${realGit} "$@"
             // Without the caller's browser lane (tools/low-priority.sh sets BROWSER_SLOT_PRIORITY=low): the
             // lane tests read the lane the script itself chooses.
             const env = Object.fromEntries(
-                Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_") && k !== "BROWSER_SLOT_PRIORITY"),
+                Object.entries(process.env).filter(
+                    ([k]) => !k.startsWith("GIT_") && k !== "BROWSER_SLOT_PRIORITY" && !k.startsWith("VISUAL_PREVIEW_"),
+                ),
             );
             Object.assign(env, {
                 PATH: `${t}/bin:${process.env.PATH}`,

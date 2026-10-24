@@ -70,6 +70,14 @@ returns to the baseline, not to an empty element.
 - The first load after that, and everything after it, is a step.
 
 `session.history.clear()` makes the current state the new baseline.
+It also cancels whatever is still pending. To keep that work -- a run a reader started while a
+graph was loading -- pass `{ pending: "keep" }`: each pending item finishes and records its step
+over the new baseline.
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "/flights.csv" } });
+session.history.clear({ pending: "keep" });
+```
 
 ## Steps
 

@@ -284,7 +284,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
         // A new graph starts its history; data added to an open graph stays undoable.
         if (request.intent === "new") {
-            session?.history.clear();
+            session?.history.clear({ pending: "keep" });
         }
         if (session !== null && source?.kind === "files") {
             rememberLoad(session, { files: source.files, choices: page.choices });

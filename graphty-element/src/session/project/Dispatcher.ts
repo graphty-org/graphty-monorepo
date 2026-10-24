@@ -1172,11 +1172,15 @@ export class Dispatcher {
     }
 
     /**
-     * Drop every step, cancelling all pending work and aborting every open transaction: the
-     * current state becomes the baseline.
+     * Drop every step: the current state becomes the baseline. Unless `keepPending`, every
+     * pending group is cancelled and every open transaction aborted; kept, each records its step
+     * over the new baseline when it seals.
+     * @param keepPending - Leave pending work to finish.
      */
-    clear(): void {
-        this.cancelAll(this.cascade(this.ordered()), "cancel");
+    clear(keepPending = false): void {
+        if (!keepPending) {
+            this.cancelAll(this.cascade(this.ordered()), "cancel");
+        }
         this.arrangement.flush();
         this.history.clear(this.arrangement.capture());
         this.steps.clear();

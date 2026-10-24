@@ -2344,8 +2344,23 @@ export interface SessionHistory {
      * @returns Every item cancelled; empty when the id is not pending.
      */
     cancel(pending: PendingId): readonly PendingStep[];
-    /** Drop every step, cancelling pending work: the current state becomes the baseline. */
-    clear(): void;
+    /**
+     * Drop every step: the current state becomes the baseline. By default pending work is
+     * cancelled too; pass `{ pending: "keep" }` to let it finish and record its steps over the
+     * new baseline, so a run started just before (one a reader began while a graph was loading)
+     * is not lost.
+     * @param options - What happens to pending work.
+     */
+    clear(options?: HistoryClearOptions): void;
+}
+
+/** How `history.clear` treats work that is still pending. */
+export interface HistoryClearOptions {
+    /**
+     * `"cancel"` (the default) cancels every pending item and aborts every open transaction;
+     * `"keep"` leaves them to finish, each recording its step over the new baseline.
+     */
+    readonly pending?: "cancel" | "keep";
 }
 
 /** Stamped on the step a transaction records. */

@@ -441,3 +441,49 @@ describe("undo while a run is still going", () => {
         session.dispose();
     });
 });
+
+describe("history.clear while a run is pending", () => {
+    it('keeps the run with { pending: "keep" }: it resolves with its result and records one step', async () => {
+        const { session, open, calls } = await gated();
+        await session.styles.add({
+            name: "Before",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
+        assert.lengthOf(session.history.steps, 1);
+        const run = session.runs.start("betweenness", {}, { as: "bet" });
+        await idle(session);
+        assert.strictEqual(calls(), 1, "the run's work has started");
+        assert.lengthOf(session.history.pending, 1);
+
+        session.history.clear({ pending: "keep" });
+        assert.lengthOf(session.history.steps, 0, "the steps are gone");
+        assert.lengthOf(session.history.pending, 1, "the run is still pending");
+
+        open();
+        const result = await run;
+        assert.isDefined(result);
+        assert.strictEqual(session.runs.get("bet")?.status, "succeeded");
+        assert.lengthOf(session.history.steps, 1, "the run records its step over the new baseline");
+        assert.isDefined(entryOf(session, "bet"));
+        session.dispose();
+    });
+
+    it("cancels the run by default", async () => {
+        const { session, open } = await gated();
+        const run = session.runs.start("betweenness", {}, { as: "bet" });
+        await idle(session);
+
+        session.history.clear();
+        open();
+        const error = await run.then(
+            () => undefined,
+            (reason: unknown) => reason,
+        );
+        assert.isDefined(error, "the run was cancelled");
+        assert.lengthOf(session.history.steps, 0);
+        assert.isUndefined(entryOf(session, "bet"));
+        session.dispose();
+    });
+});

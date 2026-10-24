@@ -85,6 +85,22 @@ anything, `.claude/skills/pipeline-round/lessons.md`:
 - **`verified` behind golden's tip and `running: none`**, whatever the last result says: `node tools/verify.mjs start`.
   A commit whose last result was a failure is not verified again unless you add `--again` (after a fix outside the
   code, such as an `infrastructure` issue closed).
+- **`backend:`** says where verification runs: `ci` (each golden tip pushed to `golden-candidate`, full `ci.yml` run
+  by `golden-verify.yml`, checks named `Verify / ...`) or `local` (the full gate here). Failures read the same either
+  way; a CI failure's confirm and bisect run here on the failing test files, a CI-only one is re-run once in CI and
+  then bisected in CI or quarantined, and a failure at the last verified commit too is an environment change with
+  its own `bug`, `priority:high` issue and no revert. **Never switch the backend to `local` on your own to get
+  past CI**: only `node tools/verify.mjs backend local --reason "<why>"` when the owner or a CI outage calls for it,
+  with the same reason commented on the golden pull request, and `backend ci` once CI works again.
+- **`no CI run created for <sha>, attempt N`:** GitHub took the push and made no run. Verification deletes and
+  re-pushes the ref (or dispatches) at its next look; nothing to do but report it in the round's summary. A second
+  no-run for the same commit turns into the next bullet.
+- **`CI verification unavailable since <time>, N landings unverified (<cause>)`:** an alarm. Look for an open issue
+  titled `CI verification of golden unavailable` first; with none, open one (`bug`, `priority:high`, `effort:medium`)
+  with the cause, the time and the count; with one, comment only when the cause changed. Landings go on through the
+  light gate; `golden-verified` and so cuts wait. Do not switch to `local` for it (the bullet above), and do not
+  re-push or re-run by hand: it clears itself on the first run that starts. When `status` no longer shows it, close
+  the issue with one line naming the run that cleared it.
 - **`last: failed ... culprit <sha> land: <branch>`:** first `node tools/verify.mjs claim --session <this session's id>`
   (it refuses while another live session holds the claim, and says when it took over one whose session is gone: then
   look first for that session's revert on golden and its comments, and do only what is missing). Then, at once, with
@@ -316,7 +332,8 @@ mkdir -p tmp/branch-sync && setsid nohup node tools/land.mjs sync --if-due >>tmp
 ```
 
 It merges golden (up to the `golden-good` tag) into every branch with a commit in the last 7 days, runs each
-branch's checks at the lowest priority, and writes the result into the branch's note (the `sync` column of the
+branch's checks at the lowest priority (install, build and lint; the test shards too only while the verification
+backend is `local`), and writes the result into the branch's note (the `sync` column of the
 open-work table). A branch it reports blocked is its owner's to fix (the sync comments on the issue); a stranded
 blocked branch is step 6 material. Never run it without `--if-due` from a round. Design: `design/ci/branch-sync.md`.
 

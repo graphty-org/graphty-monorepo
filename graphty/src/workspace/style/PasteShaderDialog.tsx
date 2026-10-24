@@ -2,7 +2,7 @@ import { ModalFooter, PanelField } from "@graphty/compact-mantine";
 import { type ShaderParams, type ShaderPlace, shaderTemplate } from "@graphty/graphty-element/catalog";
 import type { GraphSession, ShaderAddResult } from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { PlaceDiagram } from "./ShaderGallery";
@@ -120,7 +120,9 @@ export function PasteShaderDialog({
     const [result, setResult] = useState<ShaderAddResult | null>(null);
     const [adding, setAdding] = useState(false);
     // The last picture the element drew of text that passed: kept while the text does not.
-    const [picture, setPicture] = useState<string | undefined>(undefined);
+    const [drawn, setDrawn] = useState<Blob | undefined>(undefined);
+    // The element hands the same picture back for the same text, so a re-check makes no new address.
+    const picture = useMemo(() => (drawn === undefined ? undefined : URL.createObjectURL(drawn)), [drawn]);
     const box = useRef<HTMLTextAreaElement>(null);
     const textNow = useRef(text);
     textNow.current = text;
@@ -142,7 +144,7 @@ export function PasteShaderDialog({
                 }
                 setResult(checked);
                 if (checked.ok && checked.picture !== undefined) {
-                    setPicture(URL.createObjectURL(checked.picture));
+                    setDrawn(checked.picture);
                 }
                 // A place the text's own header names is where it draws: the field shows it.
                 const named = checked.ok ? checked.descriptor.place : undefined;

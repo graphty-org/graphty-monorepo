@@ -400,12 +400,12 @@ describe("the code dialog on the real element", () => {
         const second = await waitFor(
             async () => {
                 const shown = await previewPixels();
-                assert.notStrictEqual(shown.src, first.src, "a new picture");
+                assert.notDeepEqual(shown.pixels, first.pixels, "the picture follows the edit");
                 return shown;
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.notDeepEqual(second.pixels, first.pixels, "the picture follows the edit");
+        assert.include(box.value, '"#0055FF"', "the typed change is in the box");
 
         await userEvent.fill(box, COMPILE_TEXT);
         await waitFor(

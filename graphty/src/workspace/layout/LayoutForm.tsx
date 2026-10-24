@@ -163,6 +163,60 @@ function mapFieldWords(
 }
 
 /**
+ * Seed, with its reset, and Reshuffle, which applies a new seed at once.
+ * @param props - Component props
+ * @param props.values - The form's values
+ * @param props.edit - Writes the form's values
+ * @param props.onReshuffle - Applies the layout with a new random seed
+ * @returns The fields
+ */
+function SeedField({
+    values,
+    edit,
+    onReshuffle,
+}: Readonly<{
+    values: Record<string, unknown>;
+    edit: (next: Record<string, unknown>) => void;
+    onReshuffle: () => void;
+}>): React.JSX.Element {
+    const seed = typeof values.seed === "number" ? values.seed : undefined;
+    return (
+        <Group gap={8} wrap="nowrap" align="flex-end">
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            seed !== undefined && (
+                                <ResetButton
+                                    label="Seed"
+                                    onClick={() => {
+                                        edit({ ...values, seed: undefined });
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label="Seed"
+                            kind="number"
+                            value={seed ?? LAYOUT_SEED}
+                            step={1}
+                            decimalScale={0}
+                            onChange={(next) => {
+                                edit({ ...values, seed: Number(next) });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
+            </div>
+            <Button size="compact-xs" variant="default" onClick={onReshuffle}>
+                Reshuffle
+            </Button>
+        </Group>
+    );
+}
+
+/**
  * The form for one layout (the Layout popover's second level, and inline in the graph's
  * inspector): Shape, its key options, the Advanced fold with Seed and Reshuffle, the cost line
  * and Apply. Nothing runs while the reader edits; Apply (or Enter) lays the graph out, as one
@@ -280,46 +334,15 @@ export function LayoutForm({
 
     const takesSeed = descriptor.options.some((o) => o.name === "seed");
     const seed = takesSeed ? (
-        <Group gap={8} wrap="nowrap" align="flex-end">
-            <div style={{ flex: 1, minWidth: 0 }}>
-                <PanelLabelsProvider showLabels>
-                    <FieldRow
-                        trailing={
-                            typeof values.seed === "number" && (
-                                <ResetButton
-                                    label="Seed"
-                                    onClick={() => {
-                                        edit({ ...values, seed: undefined });
-                                    }}
-                                />
-                            )
-                        }
-                    >
-                        <PanelField
-                            label="Seed"
-                            kind="number"
-                            value={typeof values.seed === "number" ? values.seed : LAYOUT_SEED}
-                            step={1}
-                            decimalScale={0}
-                            onChange={(next) => {
-                                edit({ ...values, seed: Number(next) });
-                            }}
-                        />
-                    </FieldRow>
-                </PanelLabelsProvider>
-            </div>
-            <Button
-                size="compact-xs"
-                variant="default"
-                onClick={() => {
-                    const next = { ...values, seed: randomSeed() };
-                    setValues(next);
-                    apply(next);
-                }}
-            >
-                Reshuffle
-            </Button>
-        </Group>
+        <SeedField
+            values={values}
+            edit={edit}
+            onReshuffle={() => {
+                const next = { ...values, seed: randomSeed() };
+                setValues(next);
+                apply(next);
+            }}
+        />
     ) : undefined;
 
     return (

@@ -2490,7 +2490,13 @@ describe("master-guard", () => {
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
+        // deploy-pages.yml runs on CI's completion (event workflow_run); a red deploy leaves graphty.app stale
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_dispatch")), "none");
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+        assert.match(workflow("master-guard.yml"), /workflow_run\.event == 'workflow_run'/);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {

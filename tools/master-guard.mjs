@@ -113,6 +113,12 @@ export function decide(run) {
     if (run.name === "Hosts" && failed && run.event === "schedule") {
         return "hardware-red";
     }
+    // deploy-pages.yml runs after CI on master (event workflow_run); a red deploy means graphty.app is
+    // stale while master is green, and nothing else reports it (2026-10-23: a dataset host timed out
+    // and the site stayed 20 hours behind master before anyone looked)
+    if (run.name === "Deploy to GitHub Pages" && failed && run.event === "workflow_run") {
+        return "deploy-red";
+    }
     return "none";
 }
 
@@ -584,6 +590,27 @@ async function main() {
                 title,
                 labels: labels("medium"),
                 body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
+                comment: report,
+            });
+        });
+    }
+
+    if (action === "deploy-red") {
+        await attempt("open or update the deploy issue", async () => {
+            const { jobs } = await gh(`/actions/runs/${run.id}/jobs?per_page=100`);
+            const failed = jobs
+                .filter((j) => j.conclusion === "failure" || j.conclusion === "timed_out")
+                .map(
+                    (j) =>
+                        `- ${j.name}: ${j.steps.find((s) => s.conclusion === "failure")?.name ?? "no failed step"} (${j.html_url})`,
+                );
+            const report = `${run.name} failed for master at ${sha}: ${run.html_url}\n\nFailed jobs:\n\n${failed.join("\n") || "- none listed (the run was cancelled or timed out before a job failed)"}`;
+            const title = "graphty.app deploy failed on master";
+            await fileIssue(gh, {
+                prefix: title,
+                title,
+                labels: labels("medium"),
+                body: `${report}\n\nmaster is green but graphty.app still serves the previous deploy. Fix the failed step and re-run the deploy (gh run rerun ${run.id} --failed), or push the fix to master; the next green master build deploys again.`,
                 comment: report,
             });
         });

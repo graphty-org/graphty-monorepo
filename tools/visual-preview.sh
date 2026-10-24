@@ -14,7 +14,11 @@
 # local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
 # request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
 # review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
-# push from replacing the preview of the head already on GitHub. Without a pull request it goes under
+# push from replacing the preview of the head already on GitHub. VISUAL_PREVIEW_BRANCH (tools/land.mjs,
+# whose check worktrees are detached) names the branch being pushed, whose pull request it captures for;
+# then --promote leaves a capture made for a pull request staged, the review page offers it as "pending
+# push" (decisions allowed, no Finish) while the gate runs, and land.mjs makes it the pull request's
+# preview once the push landed. Without a pull request it goes under
 # local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
 # skips the capture (CI cannot build that pull request either).
 #
@@ -82,7 +86,7 @@ if [[ "$MODE" != "pr" ]]; then
     [[ "$MODE" == promote && "${PUSH_QUEUE_PROMOTES:-}" == 1 ]] && exit 0
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
-    BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
+    BRANCH="${VISUAL_PREVIEW_BRANCH:-$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)}"
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
@@ -95,6 +99,8 @@ if [[ "$MODE" != "pr" ]]; then
     case "$MODE" in
         promote)
             [[ -d "$STAGED" ]] || exit 0
+            # land.mjs moves it after its push (defaultPreview); until then it is pending push.
+            [[ -z "${VISUAL_PREVIEW_BRANCH:-}" || -z "$PR" ]] || exit 0
             rm -rf "${ROOT:?}/$KEY.old"
             [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
             mv "$STAGED" "$ROOT/$KEY"

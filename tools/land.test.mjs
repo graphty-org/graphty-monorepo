@@ -35,6 +35,7 @@ import {
     main,
     newestStableCut,
     prBody,
+    previewEnv,
     previewSettled,
     readLock,
     sync,
@@ -1162,6 +1163,51 @@ describe("cuts", () => {
         const sha = git(fake, "rev-parse", "HEAD");
         while (!existsSync(called)) await new Promise((r) => setImmediate(r));
         assert.equal(readFileSync(called, "utf8"), `42 --expect ${sha}\n`);
+    });
+
+    it("tells the gate's capture which branch it pushes to, so it captures for that branch's pull request", () => {
+        assert.deepEqual(previewEnv("golden"), { VISUAL_PREVIEW_BRANCH: "golden" });
+        assert.deepEqual(previewEnv("golden-cut"), { VISUAL_PREVIEW_BRANCH: "golden-cut" });
+    });
+
+    it("after the push makes the gate's capture of the pushed head the preview, and starts none", async () => {
+        const fake = join(dir, "fake-preview-staged");
+        mkdirSync(join(fake, "tools"), { recursive: true });
+        const called = join(fake, "called");
+        writeFileSync(join(fake, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${called}\n`, { mode: 0o755 });
+        git(dir, "init", "-q", fake);
+        git(fake, "commit", "-q", "--allow-empty", "-m", "x");
+        const sha = git(fake, "rev-parse", "HEAD");
+        const local = join(repo, "tmp/visual-review/local");
+        const stage = (name, status) => {
+            mkdirSync(join(local, name, "p"), { recursive: true });
+            writeFileSync(join(local, name, "status.json"), JSON.stringify(status));
+            writeFileSync(join(local, name, "p/results.json"), "{}");
+        };
+        try {
+            // The preview of the head GitHub listed before, and the gate's capture of the pushed head.
+            stage("42", { state: "done", pr: 42, head: "0".repeat(40) });
+            stage(`.pending-${sha}`, { state: "done", pr: 42, head: sha });
+            defaultPreview(ctx, 42, fake);
+            assert.equal(JSON.parse(readFileSync(join(local, "42/status.json"), "utf8")).head, sha);
+            assert.ok(existsSync(join(local, "42/p/results.json")));
+            assert.ok(!existsSync(join(local, `.pending-${sha}`)));
+            assert.ok(!existsSync(join(local, "42.old")));
+            assert.ok(!existsSync(called), "no second capture of the same commit");
+
+            // A capture for another pull request, or one that failed, is never taken: a fresh preview starts.
+            rmSync(join(local, "42"), { recursive: true });
+            stage(`.pending-${sha}`, { state: "done", pr: 43, head: sha });
+            defaultPreview(ctx, 42, fake);
+            while (!existsSync(called)) await new Promise((r) => setImmediate(r));
+            assert.ok(existsSync(join(local, `.pending-${sha}`)));
+            rmSync(called);
+            stage(`.pending-${sha}`, { state: "failed", pr: 42, head: sha });
+            defaultPreview(ctx, 42, fake);
+            while (!existsSync(called)) await new Promise((r) => setImmediate(r));
+        } finally {
+            rmSync(local, { recursive: true, force: true });
+        }
     });
 
     it("ship refuses a cut head that is not verified, and ships it once golden-cut's verification passed it", async () => {

@@ -40,8 +40,9 @@
 // moved, the check runs again (reusing every pass whose inputs did not change); after three tries the
 // landing holds the lock through its check. A failure leaves golden as it was. After a push the standing
 // draft pull request golden -> master is created if needed, its description lists the landed branches
-// and the issues their commits name, tools/visual-preview.sh captures it in the background for the
-// review page, and tools/verify.mjs verifies the new tip in full (the gate with every shard, the GPU,
+// and the issues their commits name, the gate's own screenshot capture of the pushed commit becomes its
+// preview (else tools/visual-preview.sh captures it in the background for the review page; see
+// defaultPreview), and tools/verify.mjs verifies the new tip in full (the gate with every shard, the GPU,
 // the screenshots, SonarQube) beside later landings. `--dry-run` merges under the lock and sends nothing.
 //
 // What ships is a cut, not golden's tip: `cut` points the branch golden-cut on GitHub at the newest
@@ -688,6 +689,18 @@ export async function gateSnapshot(ctx) {
 }
 
 /**
+ * What the gate's screenshot capture (tools/visual-preview.sh --head, started by tools/prepush.sh beside
+ * the tests) needs to make its capture the pull request's preview: the branch the push goes to, whose
+ * open pull request it captures for, since a landing's check worktree is detached. The capture then stays
+ * staged under the commit (local/.pending-<sha>) when the gate passes, which the review page offers as
+ * "pending push" while the gate still runs; defaultPreview makes it the pull request's preview once the
+ * push landed.
+ * @param dst the branch pushed to
+ * @returns the environment to add
+ */
+export const previewEnv = (dst) => ({ VISUAL_PREVIEW_BRANCH: dst });
+
+/**
  * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
@@ -711,7 +724,7 @@ async function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}
     };
     const snap = await gateSnapshot(ctx);
     if (snap) env.PUSH_QUEUE_GATE = snap;
-    Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
+    Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst }, previewEnv(dst));
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
     // A landing's check runs in its own process group, so a newer landing of the same branch can stop it alone
     // (cancelChecks); a signal to this process still reaches it (checkLanding forwards it).
@@ -747,9 +760,21 @@ function defaultGh(ctx, args) {
     return r.stdout.trim();
 }
 
+const readStatus = (dir) => {
+    try {
+        return JSON.parse(readFileSync(join(dir, "status.json"), "utf8"));
+    } catch {
+        return null;
+    }
+};
+
 /**
- * Starts tools/visual-preview.sh (the live gate copy) for a pull request, detached, unless the gate
- * already captured this head for it. It captures `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
+ * Makes the pull request's preview the one the gate captured of the pushed head (already in place, or staged
+ * under the commit), or starts
+ * tools/visual-preview.sh for it, detached, when the gate captured none. The gate's capture ran beside
+ * the gate on exactly the commit pushed (previewEnv) and is staged under it; it becomes the pull request's
+ * preview here, after the push, so a candidate that never lands never replaces the preview of the head on
+ * GitHub. A fresh capture is of `cwd`'s HEAD, the commit just pushed: the script waits until GitHub lists
  * it as the pull request's head (--expect), since GitHub can still report the old head for a while.
  * @param ctx the run's context
  * @param pr the pull request's number
@@ -757,15 +782,22 @@ function defaultGh(ctx, args) {
  */
 export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     const head = git(ctx, cwd, ["rev-parse", "HEAD"]);
-    const done = join(ctx.main, `tmp/visual-review/local/${pr}/status.json`);
-    try {
-        const s = JSON.parse(readFileSync(done, "utf8"));
-        if (s.head === head && s.state !== "failed") {
-            console.log(`land: the gate's screenshot preview of ${head.slice(0, 10)} is already on #${pr}`);
-            return;
-        }
-    } catch {
-        // no preview of this pull request yet
+    const local = join(ctx.main, "tmp/visual-review/local");
+    const s = readStatus(join(local, String(pr)));
+    if (s?.head === head && s.state !== "failed") {
+        console.log(`land: the gate's screenshot preview of ${head.slice(0, 10)} is already on #${pr}`);
+        return;
+    }
+    const staged = join(local, `.pending-${head}`);
+    const g = readStatus(staged);
+    if (g?.head === head && g.pr === Number(pr) && g.state === "done") {
+        const dest = join(local, String(pr));
+        rmSync(`${dest}.old`, { recursive: true, force: true });
+        if (existsSync(dest)) renameSync(dest, `${dest}.old`);
+        renameSync(staged, dest);
+        rmSync(`${dest}.old`, { recursive: true, force: true });
+        console.log(`land: the gate's screenshot preview of ${head.slice(0, 10)} is now #${pr}'s (${dest})`);
+        return;
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");

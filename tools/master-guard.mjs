@@ -1,5 +1,5 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI or Hosts finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI, Hosts or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
@@ -15,12 +15,16 @@
 //   priority:critical issue naming the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
 //   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
 //   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
+// - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
+//   reached graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
 //
 // Every step is attempted even when an earlier one fails; the run then exits 1 so the failure is seen.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 export const FREEZE_PREFIX = "Red master: CI failed on ";
+export const DEPLOY = "Deploy to GitHub Pages";
+export const DEPLOY_PREFIX = "graphty.app deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
@@ -113,10 +117,7 @@ export function decide(run) {
     if (run.name === "Hosts" && failed && run.event === "schedule") {
         return "hardware-red";
     }
-    // deploy-pages.yml runs after CI on master (event workflow_run); a red deploy means graphty.app is
-    // stale while master is green, and nothing else reports it (2026-10-23: a dataset host timed out
-    // and the site stayed 20 hours behind master before anyone looked)
-    if (run.name === "Deploy to GitHub Pages" && failed && run.event === "workflow_run") {
+    if (run.name === DEPLOY && failed) {
         return "deploy-red";
     }
     return "none";
@@ -596,21 +597,13 @@ async function main() {
     }
 
     if (action === "deploy-red") {
-        await attempt("open or update the deploy issue", async () => {
-            const { jobs } = await gh(`/actions/runs/${run.id}/jobs?per_page=100`);
-            const failed = jobs
-                .filter((j) => j.conclusion === "failure" || j.conclusion === "timed_out")
-                .map(
-                    (j) =>
-                        `- ${j.name}: ${j.steps.find((s) => s.conclusion === "failure")?.name ?? "no failed step"} (${j.html_url})`,
-                );
-            const report = `${run.name} failed for master at ${sha}: ${run.html_url}\n\nFailed jobs:\n\n${failed.join("\n") || "- none listed (the run was cancelled or timed out before a job failed)"}`;
-            const title = "graphty.app deploy failed on master";
-            await fileIssue(gh, {
-                prefix: title,
-                title,
-                labels: labels("medium"),
-                body: `${report}\n\nmaster is green but graphty.app still serves the previous deploy. Fix the failed step and re-run the deploy (gh run rerun ${run.id} --failed), or push the fix to master; the next green master build deploys again.`,
+        await attempt("open or update the deploy's issue", () => {
+            const report = `${DEPLOY} failed for master at ${sha}: ${run.html_url}`;
+            return fileIssue(gh, {
+                prefix: DEPLOY_PREFIX,
+                title: `${DEPLOY_PREFIX}${short}`,
+                labels: labels("low"),
+                body: `${report}\n\ngraphty.app still serves an older build. No freeze and no revert: the commit passed CI, and the deploy only publishes CI's artifacts. Read the failed step (\`gh run view ${run.id} --log-failed\`); an outside cause needs \`gh run rerun ${run.id} --failed\`, anything else a fix. Close this issue once a deploy of master succeeds.`,
                 comment: report,
             });
         });

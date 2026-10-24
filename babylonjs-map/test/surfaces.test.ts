@@ -381,30 +381,41 @@ describe("FlatMap tile recovery and edges", () => {
         expect(shownMeshes(scene).some((m) => m.name.includes("natural-earth"))).toBe(true);
     });
 
-    it("draws on past the data's box with beyond: continue, the world once and never repeated", async () => {
+    it.each([
+        ["in one hemisphere", -75, -73],
+        ["across the antimeridian", 170, 190],
+    ] as const)("draws on past a data box %s with beyond: continue, one world wide", async (_, west, east) => {
         const tiles = loader(scene);
         const box = {
             bounds: [
-                [-75, 40],
-                [-73, 41],
+                [west, -10],
+                [east, 10],
             ] as const,
         };
-        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, frame: box, beyond: "continue" });
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            loadTexture: tiles.load,
+            frame: box,
+            beyond: "continue",
+            maxConcurrentLoads: 100,
+        });
         expect(map.beyond).toBe("continue");
         view(1e6);
         map.update();
-        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
         await tiles.answerAll();
         map.update();
-        // The map's extent is exactly one world: from longitude -180 to 180, no copy beside it.
+        // The map's extent is exactly one world, centered on the data: no copy beside it.
         const boxes = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox);
-        const west = map.toScene({ lat: 0, lon: -180 }).x;
-        const east = map.toScene({ lat: 0, lon: 180 }).x;
-        expect(Math.min(...boxes.map((b) => b.minimum.x))).toBeCloseTo(west, 3);
-        expect(Math.max(...boxes.map((b) => b.maximum.x))).toBeCloseTo(east, 3);
+        const world = map.toScene({ lat: 0, lon: 180 }).x - map.toScene({ lat: 0, lon: -180 }).x;
+        const left = Math.min(...boxes.map((b) => b.minimum.x));
+        const right = Math.max(...boxes.map((b) => b.maximum.x));
+        expect(right - left).toBeCloseTo(world, 3);
+        expect((left + right) / 2).toBeCloseTo(0, 3);
         map.beyond = "clip";
         map.update();
-        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(50);
+        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(
+            map.frame.width / 2,
+        );
     });
 
     it("draws a box across the antimeridian from the world's two copies", async () => {

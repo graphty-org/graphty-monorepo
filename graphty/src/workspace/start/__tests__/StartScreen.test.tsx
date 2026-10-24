@@ -76,7 +76,8 @@ describe("the start screen", () => {
             "Open the Marvel films sample",
             "Open the Paper citations sample",
         ]);
-        assert.lengthOf(names, 23);
+        assert.lengthOf(names, 24);
+        assert.include(names, "Open the Venice public transport sample");
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
         // Each shows the picture graph-samples publishes of its graph, the large ones and every
@@ -135,7 +136,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 23);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 24);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {

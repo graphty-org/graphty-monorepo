@@ -30,7 +30,11 @@ const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
-const OUR_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF"));
+// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, ...):
+// a test sets each one it needs.
+const OUR_ENV = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_")),
+);
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
@@ -262,6 +266,7 @@ describe("pass records (prepush-inputs.mjs passed / record)", () => {
             spawnSync(process.execPath, [join(other, "tools/prepush-inputs.mjs"), ...args], {
                 cwd: other,
                 encoding: "utf8",
+                env: OUR_ENV,
             });
         assert.equal(there("passed", "gate").status, 0, "reused on golden's identical tree");
         writeFileSync(join(other, "a.ts"), "changed\n");
@@ -290,7 +295,7 @@ describe("push-queue with a gate that already passed", () => {
         spawnSync("git", ["init", "-q", "--bare", origin]);
         r.git("remote", "add", "origin", origin);
         const q = join(TMP, `queue-${made}`);
-        const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
+        const env = Object.fromEntries(Object.entries(OUR_ENV).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
         Object.assign(env, {
             PUSH_QUEUE_DIR: join(q, "tickets"),
             PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),

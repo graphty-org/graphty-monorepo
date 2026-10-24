@@ -24,9 +24,12 @@ part: in the one-client normal mode, issue-round still runs after it in the same
 
 ### 1. Red master, guard reverts, critical issues
 
-- **Check:** master's newest completed build; the `alarms` list (master-guard files `Red master: CI failed on <sha7>`
-  and `<run name> lane red on master` issues, and opens revert pull requests on branches `revert/<sha7>`).
-- **Needs action:** master's build is red, or an open critical issue or `revert/` pull request exists.
+- **Check:** master's newest completed build; the newest deploy run; the `alarms` list (master-guard files
+  `Red master: CI failed on <sha7>`, `<run name> lane red on master` and `graphty.app deploy failed on <sha7>` issues,
+  and opens revert pull requests on branches `revert/<sha7>`).
+- **Needs action:** master's build is red, the newest deploy failed, or an open critical issue or `revert/` pull
+  request exists. A failed deploy is never reverted (the commit passed CI): re-run it for an outside cause, else fix
+  it like a red master, and close its issue once a deploy of master succeeds.
 - **Action:** classify the failure from the failed job's step log (`gh run view <id> --log-failed`) and
   `git log <last green sha>..<red sha> --first-parent`. Outside cause: re-run the failed jobs once (see "Re-runs" in
   the shared file). Code: mark the alarm issue (`in-progress` plus a `taken` marker naming this session) and start one

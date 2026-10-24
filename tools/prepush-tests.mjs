@@ -45,7 +45,7 @@
  * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
- * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, times the shards a merged selected run covers, not counting
  * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
  * other gates hold is not a failure of this push.
  */
@@ -440,6 +440,20 @@ const readJson = (file) => {
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
 const TIMEOUT = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
+const UNIT_SECS = { "": 1, s: 1, m: 60, h: 3600, d: 86400 };
+
+/**
+ * A run's time limit, for timeout(1): one shard's limit for each shard it covers, so a selected run that
+ * planRuns() merged from several slices of one family gets the time those slices had together (issue #3337).
+ * @param shard a shard entry, selected or not
+ * @param [limit] one shard's limit, in timeout(1)'s form (30m, 1800, 1.5h)
+ * @returns the limit, unchanged when it covers one shard or is not in that form
+ */
+export function shardTimeout(shard, limit = TIMEOUT) {
+    const n = shard.covers?.length ?? 1;
+    const m = /^(\d+(?:\.\d+)?)([smhd]?)$/u.exec(String(limit).trim());
+    return n > 1 && m ? `${Math.ceil(Number(m[1]) * UNIT_SECS[m[2]] * n)}s` : limit;
+}
 
 /**
  * How one shard runs, from its checkout: through tools/run-tests.sh (with `command` instead of the shard's own when
@@ -452,7 +466,7 @@ const TIMEOUT = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
  */
 function shardArgv(shard, command) {
     const what = command ? ["--command", shard.shard, command] : [shard.shard];
-    const cmd = ["timeout", "--kill-after=30s", TIMEOUT, "bash", "tools/run-tests.sh", ...what];
+    const cmd = ["timeout", "--kill-after=30s", shardTimeout(shard), "bash", "tools/run-tests.sh", ...what];
     cmd.unshift(process.execPath, join(dirname(fileURLToPath(import.meta.url)), "test-slots.mjs"));
     return shard["needs-browser"] && existsSync(GATE) ? [GATE, ...cmd] : cmd;
 }
@@ -773,7 +787,7 @@ async function main() {
         // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
         const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
         const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
-        const cmd = ["timeout", "--kill-after=30s", TIMEOUT, process.execPath, ...quarantine];
+        const cmd = ["timeout", "--kill-after=30s", shardTimeout(shard), process.execPath, ...quarantine];
         cmd.unshift(process.execPath, join(tools, "test-slots.mjs"));
         if (shard["needs-browser"] && existsSync(GATE)) {
             cmd.unshift(GATE);

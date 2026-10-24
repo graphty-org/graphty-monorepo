@@ -4187,6 +4187,21 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Remember whether the camera counts as placed, for a camera set only for a moment -- a
+     * screenshot's own view -- that must not count as the reader placing it.
+     * @returns Puts back the placement and the first-settlement framing as they were.
+     * @internal
+     */
+    saveCameraPlacement(): () => void {
+        const placed = this.#cameraPlaced;
+        const initialOwed = this.#initialCameraStateOwed;
+        return () => {
+            this.#cameraPlaced = placed;
+            this.#initialCameraStateOwed = initialOwed;
+        };
+    }
+
+    /**
      * Whether the camera frames the graph on its own after a data load or a layout change.
      * @returns True (the default) when it does
      */

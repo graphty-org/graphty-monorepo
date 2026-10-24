@@ -128,4 +128,43 @@ describe("reframeOnViewInsets", () => {
         assert.strictEqual(framing(element), framed);
         element.remove();
     });
+    it("does not count a capture's own camera as placed: a later inset change still frames", async () => {
+        const element = create();
+        await load(element);
+        await element.captureScreenshot({ camera: { preset: "fitToGraph" } });
+        assert.isFalse(element.cameraPlaced, "the capture's camera was there only for the picture");
+
+        element.viewInsets = { left: LEFT };
+        await element.waitForStableFrame();
+        assert.isEmpty(element.nodesInRect({ x: 0, y: 0, width: LEFT, height: HEIGHT }), "no node under the key");
+        element.remove();
+    });
+
+    it("puts the screen's margins and the option back when placing the capture's camera fails", async () => {
+        const element = create();
+        element.viewInsets = { left: LEFT };
+        await load(element);
+        const { graph } = element;
+        const setCameraState = graph.setCameraState.bind(graph);
+        let calls = 0;
+        // The first placement -- the capture's own camera -- fails; putting the camera back works.
+        graph.setCameraState = async (...args: Parameters<typeof setCameraState>): Promise<void> => {
+            calls++;
+            if (calls === 1) {
+                throw new Error("placing the camera failed");
+            }
+            await setCameraState(...args);
+        };
+
+        let failed = false;
+        await element.captureScreenshot({ camera: { preset: "fitToGraph" } }).catch(() => {
+            failed = true;
+        });
+        graph.setCameraState = setCameraState;
+        assert.isTrue(failed, "the capture reported the failure");
+        assert.strictEqual(element.viewInsets.left, LEFT, "the screen's margins are back");
+        assert.isTrue(element.reframeOnViewInsets, "the option is back on");
+        assert.isFalse(element.cameraPlaced, "the failed capture placed nothing");
+        element.remove();
+    });
 });

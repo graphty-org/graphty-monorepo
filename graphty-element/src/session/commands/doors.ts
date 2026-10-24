@@ -1222,6 +1222,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setStartingCameraDistance: CAMERA,
             getAutoFrame: READ,
             isCameraPlaced: READ,
+            saveCameraPlacement: READ,
             setAutoFrame: CAMERA,
             getZoomToPointer: READ,
             setZoomToPointer: CAMERA,

@@ -864,7 +864,7 @@ exec ${realGit} "$@"
             });
         });
 
-        it("gives the cut's capture the high browser lane, and only the cut's", () => {
+        it("gives the cut's capture the high browser lane, and only the cut's", () =>
             sandbox(({ run, head, main }) => {
                 mkdirSync(join(main, "tmp"), { recursive: true });
                 const wrapper = join(main, "tmp/with-browser.sh");
@@ -874,6 +874,8 @@ exec ${realGit} "$@"
                 });
                 const ordinary = run({ STUB_STATUS: "changed", WITH_BROWSER: wrapper }, "--head", head);
                 assert.equal(ordinary.status, 0, ordinary.stdout + ordinary.stderr);
+                // Discarded first, or a finished capture of the same head would be reused.
+                assert.equal(run({}, "--discard", head).status, 0);
                 const cut = run(
                     { STUB_STATUS: "changed", WITH_BROWSER: wrapper, VISUAL_PREVIEW_PRIORITY: "cut" },
                     "--head",
@@ -881,8 +883,7 @@ exec ${realGit} "$@"
                 );
                 assert.equal(cut.status, 0, cut.stdout + cut.stderr);
                 assert.equal(readFileSync(lanes, "utf8"), "none\nhigh\n");
-            });
-        });
+            }));
 
         it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
             return sandbox(({ run, head, origin, main, local }) => {

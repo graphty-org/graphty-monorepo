@@ -960,8 +960,19 @@ describe("ci.yml", () => {
             block[1],
             "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-" +
                 `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' && github.head_ref != 'golden-cut' }}\n",
         );
+    });
+
+    it("never cancels the cut pull request's running run, so an approval commit can reuse its tests (#3349)", () => {
+        // The owner's Finish commits approvals to golden-cut. Cancelling would throw the suite away;
+        // instead the new run waits pending until the old one ends, then reuses its passing tests.
+        const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
+        const cancels = (event, head) =>
+            Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event, head_ref: head });
+        assert.equal(cancels("pull_request", "golden-cut"), false, "the cut pull request");
+        assert.equal(cancels("pull_request", "fix/123-topic"), true, "any other pull request");
+        assert.equal(cancels("push", ""), false, "a push to master");
     });
 
     it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {

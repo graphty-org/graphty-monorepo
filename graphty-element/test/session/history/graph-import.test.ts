@@ -253,6 +253,52 @@ describe("data.import", () => {
         session.dispose();
     });
 
+    it("a draft load that starts the history drops the steps before it, through a batch too", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: "n9" }]);
+        const draft = await session.data.prepare({ type: "json", config: { data: DOCUMENT } });
+        // `directed` makes the load a batch: a config write, then the rows.
+        const load = draft.load({ directed: true, history: "start" });
+
+        assert.isFalse(session.canUndo, "the load is not offered to undo while it waits");
+        await load;
+
+        assert.deepEqual(ids(session), ["a", "b"]);
+        assert.lengthOf(session.history.steps, 0, "the history starts at the loaded graph");
+        session.dispose();
+    });
+
+    it("an import that starts the history with the recommended layout leaves nothing to undo", async () => {
+        const session = await fixtureSession();
+        await session.layout.set("spiral");
+        await session.data.import(
+            { type: "json", config: { data: DOCUMENT } },
+            { history: "start", layout: "recommended" },
+        );
+        // The choice is made once the rows are in.
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+
+        assert.strictEqual(session.layout.id, "force", "the recommended layout was chosen");
+        assert.lengthOf(session.history.steps, 0, "the layout it deferred is part of the load");
+        assert.isFalse(session.canUndo);
+        session.dispose();
+    });
+
+    it("a jump back to the start leaves a pending start load running and its steps for it to drop", async () => {
+        const session = await fixtureSession();
+        await session.data.addNodes([{ id: "n9" }]);
+        const load = session.data.import({ type: "json", config: { data: DOCUMENT } }, { history: "start" });
+
+        assert.strictEqual((await session.history.restoreTo(null)).kind, "nothing", "as undo does nothing");
+        await load;
+
+        assert.deepEqual(ids(session), ["a", "b"], "the load was not cancelled");
+        assert.lengthOf(session.history.steps, 0);
+        session.dispose();
+    });
+
     it("two imports under one coalesce key in one tick are one load and one step", async () => {
         const session = await fixtureSession();
         const dispatcher = dispatcherOf(session);

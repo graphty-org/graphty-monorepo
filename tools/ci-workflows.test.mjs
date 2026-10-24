@@ -1,12 +1,14 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
-// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
+// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, verification of
+// golden in CI (golden-verify.yml calling ci.yml), the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
 // (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh), and the warning period of new
 // required checks (tools/ci-advisory-checks.json).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
     copyFileSync,
     existsSync,
@@ -22,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { ciCommand, GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -217,7 +219,7 @@ describe("the pre-push gate matches CI", () => {
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
             // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", TIMEOUT, process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", shardTimeout\(shard\), process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -323,7 +325,10 @@ describe("the pre-push gate matches CI", () => {
             );
             assert.deepEqual(
                 shardEnv(s),
-                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                {
+                    GRAPHTY_TEST_SHARD: s.shard,
+                    ...(shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {}),
+                },
                 s.shard,
             );
         }
@@ -692,7 +697,7 @@ describe("the pre-push gate matches CI", () => {
         // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
         // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
         // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
-        // git passes through, except `lfs` and a forced merge-tree exit code.
+        // every other node command runs; git passes through, except `lfs` and a forced merge-tree exit code.
         const STUBS = {
             gh: `#!/bin/bash
 [ -n "$STUB_GH_DIR" ] || exit 0
@@ -707,10 +712,13 @@ esac
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
     [ -n "$STUB_HANG" ] && exec sleep 300
+    [ -n "$STUB_CAPTURES" ] && echo x >> "$STUB_CAPTURES"
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
     printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
+    exit 0
 fi
+exec ${process.execPath} "$@"
 `,
             git: `#!/bin/bash
 case " $* " in
@@ -728,7 +736,7 @@ esac
 exec ${realGit} "$@"
 `,
         };
-        const sandbox = (fn) => {
+        const sandbox = async (fn) => {
             const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
             const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
             Object.assign(env, {
@@ -755,6 +763,10 @@ exec ${realGit} "$@"
                 mkdirSync(join(main, "visual-review/capture"), { recursive: true });
                 mkdirSync(join(main, "visual-review/trusted"), { recursive: true });
                 copyFileSync(new URL("visual-preview.sh", import.meta.url), join(main, "tools/visual-preview.sh"));
+                copyFileSync(
+                    new URL("visual-capture-plan.mjs", import.meta.url),
+                    join(main, "tools/visual-capture-plan.mjs"),
+                );
                 writeFileSync(join(main, "visual-review.config.json"), '{"projects":{"p":{"build":"true"}}}\n');
                 writeFileSync(join(main, "visual-review/capture/c"), "c\n");
                 writeFileSync(join(main, "visual-review/trusted/t"), "t\n");
@@ -786,14 +798,26 @@ exec ${realGit} "$@"
                     origin,
                     `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
                 );
-                fn({ run, head, origin, main, local: join(main, "tmp/visual-review/local") });
+                // The same, in the background: resolves to its exit code and output once it ends.
+                const start = (extra, ...args) => {
+                    const child = spawn("bash", [join(main, "tools/visual-preview.sh"), ...args], {
+                        cwd: main,
+                        env: { ...env, ...extra },
+                    });
+                    let out = "";
+                    child.stdout.on("data", (b) => (out += b));
+                    child.stderr.on("data", (b) => (out += b));
+                    const done = new Promise((resolve) => child.on("close", (status) => resolve({ status, out })));
+                    return { child, done, output: () => out };
+                };
+                await fn({ run, start, git, head, origin, main, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
         };
 
         it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 // An exported BRANCH (common in CI and agent shells) must not change the mode.
                 const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -810,7 +834,7 @@ exec ${realGit} "$@"
         });
 
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
-            sandbox(({ run, head, main, local }) => {
+            return sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
                 mkdirSync(join(main, "tmp"), { recursive: true });
                 const wrapper = join(main, "tmp/with-browser.sh");
@@ -831,7 +855,9 @@ exec ${realGit} "$@"
                 assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
                 assert.match(waited.stdout, /p: capturing \(\d+s left\)/);
 
-                // A capture that holds its slot and never finishes still fails, once its limit is spent.
+                // A capture that holds its slot and never finishes still fails, once its limit is spent
+                // (the finished capture of the same head is discarded first, or it would be reused).
+                assert.equal(run({}, "--discard", head).status, 0);
                 const stuck = run(
                     { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
                     "--head",
@@ -846,7 +872,7 @@ exec ${realGit} "$@"
         });
 
         it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
-            sandbox(({ run, head, origin, main, local }) => {
+            return sandbox(({ run, head, origin, main, local }) => {
                 const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
                 // GitHub's merge ref of the new head, as it builds it once it has seen the push.
                 const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
@@ -876,8 +902,132 @@ exec ${realGit} "$@"
             });
         });
 
+        // A live process to hold a queue ticket, and a pid that is certainly dead.
+        const holder = () => spawn("sleep", ["600"]);
+        const deadPid = () => spawnSync("bash", ["-c", "echo $$"], { encoding: "utf8" }).stdout.trim();
+        const ticket = (local, name) => {
+            mkdirSync(join(local, ".queue"), { recursive: true });
+            writeFileSync(join(local, ".queue", name), "someone\n");
+        };
+        const until = async (ok) => {
+            while (!ok()) await new Promise((r) => setImmediate(r));
+        };
+
+        it("waits its turn behind an earlier preview, first come first served, and skips a dead waiter", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const earlier = holder();
+                try {
+                    ticket(local, `1-1-${earlier.pid}`);
+                    ticket(local, `1-2-${deadPid()}`);
+                    const p = start({ STUB_STATUS: "changed", VISUAL_PREVIEW_POLL: "0.05" }, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    assert.ok(!existsSync(join(local, `.pending-${head}/p/results.json`)), "nothing captured yet");
+                    earlier.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                    assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)));
+                    assert.deepEqual(readdirSync(join(local, ".queue")), [], "every ticket is gone, the dead one too");
+                    // One that arrived after this one never holds it up.
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    const later = holder();
+                    try {
+                        ticket(local, `1-99999999999999999999-${later.pid}`);
+                        assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                    } finally {
+                        later.kill();
+                    }
+                } finally {
+                    earlier.kill();
+                }
+            }));
+
+        it("puts the cut's preview ahead of every waiting one, but never ahead of one already working", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const waiting = holder();
+                const working = holder();
+                try {
+                    ticket(local, `1-1-${waiting.pid}`);
+                    const cut = { STUB_STATUS: "changed", VISUAL_PREVIEW_PRIORITY: "cut", VISUAL_PREVIEW_POLL: "0.05" };
+                    assert.equal(run(cut, "--head", head).status, 0, "ahead of a waiting preview");
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    // A working preview's ticket is rank 0 as of its start.
+                    ticket(local, `0-2-${working.pid}`);
+                    const p = start(cut, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    working.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                } finally {
+                    waiting.kill();
+                    working.kill();
+                }
+            }));
+
+        it("reuses a finished capture of the same head and trees, and only that", () =>
+            sandbox(({ run, git, head, origin, main, local }) => {
+                const captures = join(main, "captures");
+                const count = () => (existsSync(captures) ? readFileSync(captures, "utf8").split("\n").length - 1 : 0);
+                const env = { STUB_STATUS: "changed", STUB_CAPTURES: captures };
+                assert.equal(run(env, "--head", head).status, 0);
+                assert.equal(run({}, "--promote", head).status, 0);
+                assert.equal(count(), 1);
+                const source = join(local, "branch-feat/p/results.json");
+                const before = readFileSync(source, "utf8");
+
+                // Pull request 7 at the same head: GitHub's merge ref has the same tree on the same base.
+                git("fetch", "-q", "origin", "master");
+                const pr = (tree) => {
+                    const merge = git("commit-tree", tree, "-p", "origin/master", "-p", head, "-m", "merge");
+                    git("push", "-q", "-f", origin, `${merge}:refs/pull/7/merge`);
+                };
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const prEnv = { ...env, STUB_GH_DIR: gh, STUB_NEW_HEAD: head, STUB_OLD_TIMES: "0" };
+                pr(`${head}^{tree}`);
+                const reused = run(prEnv, "7");
+                assert.equal(reused.status, 0, reused.stdout + reused.stderr);
+                assert.match(reused.stdout, /reused the capture of branch-feat/);
+                assert.equal(count(), 1, "no capture made");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual(
+                    [status.state, status.head, status.reusedFrom, status.projects],
+                    ["done", head, "branch-feat", ["p"]],
+                );
+                const results = JSON.parse(readFileSync(join(local, "7/p/results.json"), "utf8"));
+                assert.deepEqual([results.pr, results.headSha], [7, head], "named for its own pull request");
+                assert.ok(results.local.preview, "decidable on the review page");
+                assert.equal(readFileSync(source, "utf8"), before, "the source capture is unchanged");
+                // Run again, it sees its own finished capture and does nothing.
+                const again = run(prEnv, "7");
+                assert.match(again.stdout, /7 at [0-9a-f]{10} is already captured/);
+                assert.equal(count(), 1);
+
+                // Other baselines (any other merge tree): captured again.
+                writeFileSync(join(main, "baseline.png"), "other\n");
+                const blob = git("hash-object", "-w", "baseline.png");
+                const index = join(main, "index.tmp");
+                const tree = spawnSync(
+                    "bash",
+                    [
+                        "-c",
+                        `git read-tree ${head} && git update-index --add --cacheinfo 100644,${blob},visual-baselines/p/s.png && git write-tree`,
+                    ],
+                    { cwd: main, env: { ...process.env, GIT_INDEX_FILE: index }, encoding: "utf8" },
+                ).stdout.trim();
+                pr(tree);
+                const other = run(prEnv, "7");
+                assert.equal(other.status, 0, other.stdout + other.stderr);
+                assert.equal(count(), 2, "captured, not reused");
+                assert.equal(JSON.parse(readFileSync(join(local, "7/status.json"), "utf8")).reusedFrom, null);
+
+                // Another head with the very same tree: captured again.
+                const twin = git("commit-tree", `${head}^{tree}`, "-p", `${head}^`, "-m", "twin");
+                assert.equal(run(env, "--head", twin).status, 0);
+                assert.equal(count(), 3);
+            }));
+
         it("fails on a story that failed to render", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "failed" }, "--head", head);
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
@@ -885,14 +1035,14 @@ exec ${realGit} "$@"
         });
 
         it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
             });
         });
 
         it("fails a fetch that keeps failing with git's own message", () => {
-            sandbox(({ run, head, local, origin }) => {
+            return sandbox(({ run, head, local, origin }) => {
                 rmSync(origin, { recursive: true, force: true });
                 const r = run({ STUB_STATUS: "changed" }, "--head", head);
                 assert.equal(r.status, 1);
@@ -908,7 +1058,7 @@ exec ${realGit} "$@"
         });
 
         it("skips a conflicting merge but fails on a merge-tree error", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
                 assert.equal(conflict.status, 0, conflict.stderr);
                 assert.match(conflict.stdout, /conflicts with origin\/master/);
@@ -1085,7 +1235,7 @@ describe("ci.yml", () => {
         // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light
         assert.match(
             build,
-            /if \[\[ "\$EVENT" == "push" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
+            /if \[\[ "\$EVENT" == "push" && -z "\$CALLED_REF" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
         );
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
         assert.match(
@@ -1126,15 +1276,17 @@ describe("ci.yml", () => {
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
         const build = job(ci, "packages");
-        // light is set only on a push; every other event takes the affected (pull request) or full path
-        assert.equal(build.match(/echo "light=true"/g).length, 1);
+        // light is set only on a push of master itself and on a call that names its shards; every other
+        // event takes the affected (pull request) or full path
+        assert.equal(build.match(/echo "light=true"/g).length, 2);
+        assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
         assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
+        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify\n/);
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1143,6 +1295,201 @@ describe("ci.yml", () => {
         assert.ok(checkouts.length >= 10);
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
+        }
+    });
+});
+
+describe("the test matrix limited to named shards (--only, a CI bisect point)", () => {
+    it("keeps only the named shards, a group member in its group's job", () => {
+        const include = plan(PACKAGES, ["graph-io", "graph-samples"]);
+        assert.deepEqual(
+            include.map((e) => e.shard),
+            ["graph-io", "small-node"],
+        );
+        const group = include.find((e) => e.shard === "small-node");
+        assert.match(group["test-command"], /graph-samples:coverage/);
+        assert.doesNotMatch(group["test-command"], /graph-format:coverage/);
+    });
+
+    it("still leaves out a named shard whose package the run does not test", () => {
+        assert.deepEqual(plan(["graph-io"], ["graph-samples"]), []);
+    });
+
+    it("refuses an unknown shard name, an empty list and anything but a JSON list", () => {
+        assert.equal(parseOnly(undefined), undefined);
+        assert.deepEqual(parseOnly('["graphty-1"]'), ["graphty-1"]);
+        assert.throws(() => parseOnly('["graphty-1", "no-such-shard"]'), /do not exist: no-such-shard/);
+        assert.throws(() => parseOnly("[]"), /non-empty/);
+        assert.throws(() => parseOnly('"graphty-1"'), /non-empty/);
+        assert.throws(() => parseOnly("not json"), SyntaxError);
+    });
+
+    it("fails the command line on an unknown shard, so a bisect point never runs an empty matrix", () => {
+        const all = JSON.stringify(PACKAGES);
+        const run = (...extra) =>
+            spawnSync("node", [new URL("ci-test-matrix.mjs", import.meta.url).pathname, all, all, ...extra], {
+                encoding: "utf8",
+            });
+        assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
+        const bad = run("--only", '["graphty-9"]');
+        assert.notEqual(bad.status, 0);
+        assert.match(bad.stderr, /graphty-9/);
+    });
+});
+
+describe("verification of golden in CI (golden-verify.yml)", () => {
+    const ci = workflow("ci.yml");
+    const verify = workflow("golden-verify.yml");
+
+    // The plan step's script, run as GitHub runs it (bash -eo pipefail), with nx answered by a stub.
+    const planStep = (env) => {
+        const build = job(ci, "packages");
+        const body = /\n {14}id: plan\n[\s\S]*?\n {14}run: \|\n((?: {18}.*\n|\n)+)/
+            .exec(build)[1]
+            .replace(/^ {18}/gm, "");
+        const dir = mkdtempSync(join(TMP, "plan-"));
+        const bin = join(dir, "bin");
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "pnpm"),
+            `#!/bin/bash\nif [[ "$*" == *--affected* ]]; then echo '["graph-io"]'; else echo '${JSON.stringify(PACKAGES)}'; fi\n`,
+            { mode: 0o755 },
+        );
+        const output = join(dir, "output");
+        writeFileSync(output, "");
+        const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", body], {
+            cwd: new URL("..", import.meta.url).pathname,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                GITHUB_OUTPUT: output,
+                MERGE_QUEUE: "false",
+                BASE_REF: "master",
+                SKIP_UNAFFECTED_CAPTURES: "false",
+                LABELS: "[]",
+                CALLED_REF: "",
+                SHARDS: "",
+                ...env,
+            },
+        });
+        const out = Object.fromEntries(
+            readFileSync(output, "utf8")
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+        );
+        return { status: r.status, stderr: r.stderr, out };
+    };
+
+    it("is called with a ref, an optional verify flag and an optional shard list", () => {
+        assert.match(
+            ci,
+            /\n {12}verify:\n {16}description: .*\n {16}type: boolean\n {16}required: false\n {16}default: false\n/,
+        );
+        assert.match(
+            ci,
+            /\n {12}shards:\n {16}description: .*\n {16}type: string\n {16}required: false\n {16}default: ""\n/,
+        );
+    });
+
+    it("plans a full run for a called run started by a push, and build-only for a push of master", () => {
+        const called = planStep({ EVENT: "push", CALLED_REF: "abc123" });
+        assert.equal(called.status, 0, called.stderr);
+        assert.equal(called.out.full, "true");
+        assert.equal(called.out.light, undefined, "a verification run is not light");
+        assert.equal(called.out["test-count"], "25");
+        const master = planStep({ EVENT: "push" });
+        assert.equal(master.status, 0, master.stderr);
+        assert.equal(master.out.light, "true");
+        assert.equal(master.out["test-count"], "0");
+        const pr = planStep({ EVENT: "pull_request" });
+        assert.equal(pr.out.full, "false");
+        assert.equal(pr.out.light, undefined);
+    });
+
+    it("runs only the named shards as a light run, and fails on an unknown one", () => {
+        const point = planStep({ EVENT: "push", CALLED_REF: "abc123", SHARDS: '["graph-io","graphty-3"]' });
+        assert.equal(point.status, 0, point.stderr);
+        assert.equal(point.out.light, "true");
+        assert.deepEqual(
+            JSON.parse(point.out["test-matrix"]).include.map((e) => e.shard),
+            ["graph-io", "graphty-3"],
+        );
+        const bad = planStep({ EVENT: "workflow_dispatch", CALLED_REF: "abc123", SHARDS: '["nope"]' });
+        assert.notEqual(bad.status, 0);
+    });
+
+    it("skips the benchmarks on a verification run", () => {
+        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify\n/);
+    });
+
+    it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
+        const upload = parseJobs(ci).test.steps.find((s) => s.name === "Upload JUnit results");
+        assert.ok(upload, "the test job uploads its JUnit reports");
+        assert.equal(upload.if, "${{ !cancelled() }}");
+        assert.equal(upload.coe, "true");
+        const text = job(ci, "test");
+        assert.match(
+            text,
+            /name: junit-\$\{\{ matrix.shard \}\}\n\s+path: test-results\/junit-\*.xml\n\s+retention-days: 7\n/,
+        );
+    });
+
+    it("runs on a push to exactly the four scratch branches, and on dispatch with a ref and shards", () => {
+        assert.match(
+            verify,
+            /\non:\n {4}push:\n {8}branches: \[golden-candidate, golden-cut-candidate, golden-bisect-1, golden-bisect-2\]\n {4}workflow_dispatch:\n/,
+        );
+        assert.match(verify, /\n {12}ref:\n(?: {16}.*\n)*? {16}required: true\n/);
+        assert.match(verify, /\n {12}shards:\n(?: {16}.*\n)*? {16}required: false\n/);
+        const triggers = verify.slice(verify.indexOf("\non:\n"), verify.indexOf("\nconcurrency:\n"));
+        assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
+    });
+
+    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
+        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
+    });
+
+    it("never cancels a run, one group per commit, pushed or dispatched", () => {
+        assert.match(
+            verify,
+            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
+        );
+    });
+
+    it("has one named job that calls ci.yml as a verification run, so no check is a bare All Checks Pass", () => {
+        const jobs = verify.slice(verify.indexOf("\njobs:\n")).match(/\n {4}[\w-]+:\n/g);
+        assert.deepEqual(jobs, ["\n    verify:\n"]);
+        const body = job(verify, "verify");
+        // The caller job's name prefixes every check of the called run: "Verify / All Checks Pass".
+        assert.match(body, /\n {8}name: Verify\n/);
+        assert.match(body, /\n {8}uses: \.\/\.github\/workflows\/ci\.yml\n/);
+        assert.match(body, /\n {12}ref: \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
+        assert.match(body, /\n {12}verify: true\n/);
+        assert.match(body, /\n {8}secrets: inherit\n/);
+        assert.match(verify, /\npermissions:\n {4}contents: read\n {4}actions: read\n {4}checks: write\n/);
+    });
+
+    it("leaves the visual job and the visual gate step exactly as master has them", () => {
+        // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
+        // in the same commit.
+        const sha = (t) => createHash("sha256").update(t).digest("hex");
+        const all = job(ci, "all-checks");
+        const gate = all.slice(
+            all.indexOf("            - name: Check out the gate"),
+            all.indexOf("            - name: Clear this check's early verdicts"),
+        );
+        assert.ok(gate.length > 1000, "found the gate steps");
+        assert.equal(sha(job(ci, "visual")), "dc1990ea30b6fd6f4316c423921dd8910e971f0d951d42e809e48c605b4075a8");
+        assert.equal(sha(gate), "3c8920e4d2effc42e5f2c4e5dbf279ae9ea9d79ce4022063c20e6854b1b1073d");
+    });
+
+    it("is not seen by the workflows that react to master's CI", () => {
+        for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
+            const on = workflow(name);
+            const triggers = on.slice(on.indexOf("\non:\n"), on.search(/\n(permissions|concurrency|jobs|env):/));
+            assert.doesNotMatch(triggers, /Golden verify|golden-/, name);
         }
     });
 });
@@ -1624,6 +1971,18 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
             }),
             ["compact-mantine", "algorithms"],
         );
+    });
+
+    it("captures the style fidelity Storybook when graph-io or graphty-element is affected", () => {
+        const fidelity = { ...base, visual: ["graph-io-fidelity"] };
+        assert.deepEqual(skippedProjects(fidelity), []);
+        assert.deepEqual(
+            skippedProjects({ ...fidelity, affected: ["graphty-element"], changed: ["graphty-element/a.ts"] }),
+            [],
+        );
+        assert.deepEqual(skippedProjects({ ...fidelity, affected: ["layout"], changed: ["layout/src/a.ts"] }), [
+            "graph-io-fidelity",
+        ]);
     });
 
     it("captures everything when off, in the queue or on master, after a dequeue, or with a root file changed", () => {
@@ -3541,11 +3900,12 @@ describe("release-diff", () => {
 });
 
 describe("pr-status-broker", () => {
-    it("writes one compact record per pull request, the newest check of each name", () => {
+    it("writes one compact record per pull request, its head commit and the newest check of each name", () => {
         const pr = (number, rollup) => ({
             number,
             title: "t",
             headRefName: "h",
+            headRefOid: "abc123",
             baseRefName: "master",
             isDraft: false,
             mergeable: "MERGEABLE",
@@ -3581,6 +3941,7 @@ describe("pr-status-broker", () => {
             number: 1,
             title: "t",
             head: "h",
+            headSha: "abc123",
             base: "master",
             draft: false,
             mergeable: "MERGEABLE",

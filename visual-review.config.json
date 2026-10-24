@@ -68,7 +68,7 @@
         },
         "graph-io-fidelity": {
             "storybook": "graph-io/fidelity-stories/storybook-static",
-            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run graph-io-fidelity:build-storybook",
+            "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run graph-io:build-storybook",
             "workers": 4,
             "seedFromDefaultBranch": true,
             "waitFor": {

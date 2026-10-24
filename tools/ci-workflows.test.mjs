@@ -1282,6 +1282,43 @@ const gitShow = (path) => {
     return r.status === 0 ? r.stdout : undefined;
 };
 
+describe("dependabot.yml", () => {
+    const text = readFileSync(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
+    it("opens every version update against golden, never master", () => {
+        const ecosystems = text.match(/- package-ecosystem: /g).length;
+        assert.equal(text.match(/\n {6}target-branch: golden\n/g)?.length, ecosystems);
+    });
+    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
+        const npm = text.slice(
+            text.indexOf("package-ecosystem: npm"),
+            text.indexOf("package-ecosystem: github-actions"),
+        );
+        const groups = npm.slice(npm.indexOf("groups:"));
+        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
+        // Dependabot puts a dependency in the first group that matches
+        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
+        for (const kind of ["version-updates", "security-updates"]) {
+            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+        }
+    });
+});
+
+describe("the Sentry source map upload", () => {
+    it("runs only in the build graphty.app deploys, a push to master (run 40051811635: 18 of 20 minutes)", () => {
+        const uses = workflow("ci.yml").match(/SENTRY_AUTH_TOKEN: .*/g);
+        assert.ok(uses.length >= 1);
+        for (const line of uses) {
+            assert.equal(
+                line,
+                "SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && " +
+                    "!inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}",
+            );
+        }
+        // deploy-pages.yml publishes only a push run's build, so that one keeps the upload
+        assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
+    });
+});
+
 describe("new required checks start as warnings", () => {
     const ci = workflow("ci.yml");
     const registry = JSON.parse(readFileSync(new URL("ci-advisory-checks.json", import.meta.url), "utf8"));
@@ -1745,7 +1782,25 @@ describe("pr-issue-link.yml", () => {
         assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
-        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+        // never in an environment variable: one over 128 KiB stops the runner starting the step
+        assert.doesNotMatch(wf, /pull_request\.body/);
+    });
+    it("reads a description over 128 KiB from the event file (run 40001752947: E2BIG)", () => {
+        const run = (body) => {
+            const event = join(TMP, "pr-event.json");
+            writeFileSync(event, JSON.stringify({ pull_request: { body } }));
+            const env = { ...process.env, PR_AUTHOR: "someone", GITHUB_EVENT_PATH: event };
+            delete env.PR_BODY;
+            return spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env,
+            });
+        };
+        const long = "- land: fix/some-branch, merged into golden\n".repeat(4000);
+        assert.ok(long.length > 128 * 1024);
+        assert.equal(run(`${long}Fixes #3342\n`).status, 0);
+        assert.equal(run("a".repeat(200 * 1024)).status, 1);
+        assert.equal(run(null).status, 1);
     });
     it("fails with the message that says what to add", () => {
         const run = (env) =>
@@ -1941,6 +1996,11 @@ echo "${aptSays}"`,
 describe("Mergify is retired", () => {
     it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
         assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
+    });
+    it("uploads nothing to Mergify: GitHub refused its token with 403 on every test job", () => {
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
+        }
     });
 });
 
@@ -2151,7 +2211,17 @@ describe("master-guard", () => {
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+    });
+
+    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
+        assert.equal(decide(run("Deploy to GitHub Pages", "cancelled", "workflow_run")), "none");
+        // the guard job's filter lets the deploy's event through, and the name matches deploy-pages.yml's
+        assert.match(workflow("master-guard.yml"), /event == 'workflow_run'/);
+        assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {

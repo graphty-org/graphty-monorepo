@@ -11,11 +11,13 @@
  * pixels and lives in `test/browser/node-instance-color.test.ts`.
  */
 
+import cloneDeep from "lodash/cloneDeep.js";
+import defaultsDeep from "lodash/defaultsDeep.js";
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultEdgeStyle, defaultNodeStyle } from "../../src/config";
-import { bootstrapEdgePaint, bootstrapNodePaint, StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle } from "../../src/config";
+import { bootstrapEdgePaint, bootstrapNodePaint, fillDefaults, StylePainter } from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -507,6 +509,22 @@ describe("StylePainter dirty set", () => {
         assert.isFalse(held.painter.hasPending);
     });
 
+    // A frame applies a big repaint in batches, so a take may be bounded and leaves the rest queued.
+    it("hands out a bounded batch and keeps the rest queued", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.takeNodes(3);
+        assert.strictEqual(first.length, 3, "one batch of three");
+        assert.isTrue(held.painter.hasPendingNodes, "the fourth node is still queued");
+        const rest = held.painter.takeNodes(3);
+        assert.deepStrictEqual([...first, ...rest].sort(), [0, 1, 2, 3], "every node once, across the batches");
+        assert.isFalse(held.painter.hasPendingNodes);
+        assert.isTrue(held.painter.hasPendingEdges, "the edges were not touched");
+        assert.isFalse(held.painter.isNodePending(0), "a node taken is no longer pending");
+        assert.isTrue(held.painter.hasPending, "while the edges still are");
+    });
+
     it("queues ONLY the elements one edit touched", async () => {
         const held = harness();
         await held.paintAll();
@@ -532,5 +550,56 @@ describe("StylePainter dirty set", () => {
 
         assert.deepStrictEqual([...painter.takeNodes()].sort(), [0, 1, 2, 3]);
         assert.deepStrictEqual([...painter.takeEdges()].sort(), [0, 1]);
+    });
+});
+
+/** Every object reachable from a value, so two results can be checked for a shared one. */
+function objectsIn(value: unknown, into = new Set<object>()): Set<object> {
+    if (value !== null && typeof value === "object" && !into.has(value)) {
+        into.add(value);
+        for (const child of Object.values(value)) {
+            objectsIn(child, into);
+        }
+    }
+
+    return into;
+}
+
+describe("fillDefaults", () => {
+    const bases = { node: NodeStyle.parse(defaultNodeStyle), edge: EdgeStyle.parse(defaultEdgeStyle) };
+    const bags: readonly (() => Record<string, unknown>)[] = [
+        () => ({}),
+        () => ({ texture: { color: "#ff0000" }, shape: { type: "box", size: 3 } }),
+        () => ({ line: { color: "#00ff00cc", width: 2 }, arrowHead: { type: "dot" } }),
+        () => ({ label: { enabled: true, text: "a", backgroundGradientColors: ["#000"] } }),
+        () => ({ texture: null, shape: undefined, extra: [1, { a: 2 }] }),
+        () => ({ line: "not an object", arrowTail: [1, 2] }),
+    ];
+
+    for (const [kind, base] of Object.entries(bases)) {
+        it(`fills a ${kind} style exactly as lodash defaultsDeep over a clone of the base did`, () => {
+            for (const bag of bags) {
+                assert.deepEqual(fillDefaults(bag(), base), defaultsDeep(bag(), cloneDeep(base)));
+            }
+        });
+
+        it(`shares no object between the ${kind} base and a filled style, or between two filled styles`, () => {
+            const baseObjects = objectsIn(base);
+            const first = objectsIn(fillDefaults({}, base));
+            const second = objectsIn(fillDefaults({}, base));
+
+            for (const object of first) {
+                assert.isFalse(baseObjects.has(object));
+                assert.isFalse(second.has(object));
+            }
+        });
+    }
+
+    it("never writes through a key that reaches a prototype", () => {
+        const base = JSON.parse('{"__proto__": {"polluted": true}, "kept": 1}') as Record<string, unknown>;
+        const filled = fillDefaults<Record<string, unknown>>({}, base);
+
+        assert.strictEqual(filled.kept, 1);
+        assert.isUndefined(({} as Record<string, unknown>).polluted);
     });
 });

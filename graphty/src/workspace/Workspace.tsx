@@ -92,7 +92,7 @@ export function Workspace({
             // until the reader changes something, so one Undo too many never unloads the graph.
             // Focus goes to the graph's heading once it is read, so its size is heard.
             .then(() => {
-                session.history.clear();
+                session.history.clear({ pending: "keep" });
                 if (store.get().page === "panels") {
                     focusOpenedGraph();
                 }

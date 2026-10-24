@@ -1,6 +1,7 @@
 // Tests of tools/check-figma-lock.mjs: a push that changes compact-mantine's Figma spec, its Figma tests
 // or its token values fails unless the commit that makes the change carries `Figma-Approved: <reason>`,
-// also through a landing's --no-ff merge; untouched files pass; the study digest is stable.
+// also through a landing's --no-ff merge, or when a later approved commit of the push names it in
+// `Figma-Approves: <sha>`; untouched files pass; the study digest is stable.
 //
 //   node --test tools/check-figma-lock.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -108,6 +109,47 @@ describe("check-figma-lock", () => {
             r.check().map((b) => b.subject),
             ["fix: tweak"],
         );
+    });
+
+    it("approves an earlier commit of the push named by Figma-Approves on an approved commit", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${sha}`);
+        assert.deepEqual(r.check(), []);
+    });
+
+    it("Figma-Approves does nothing for a commit outside the push, or from a commit outside it", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("checkout", "-qb", "elsewhere");
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${sha}`);
+        const outside = r.git("rev-parse", "HEAD").trim();
+        r.git("checkout", "-q", "work");
+        assert.equal(r.check().length, 1);
+        r.git(
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${outside}`,
+        );
+        assert.deepEqual(
+            r.check().map((b) => b.subject),
+            ["fix: accent"],
+        );
+    });
+
+    it("Figma-Approves without Figma-Approved approves nothing", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approves: ${sha}`);
+        assert.equal(r.check().length, 1);
     });
 
     it("fails a merge whose resolution edits a locked file", () => {

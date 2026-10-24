@@ -350,13 +350,15 @@ describe("the location map", () => {
         });
     });
 
-    it("lays OpenFlights out by the Latitude and Longitude picked in Data > Fields", async () => {
-        // A still layout in the 2D view under the load: a force simulation over 37,000 edges on
-        // the test browser's software GPU would keep the page too busy to take a click.
+    it("lays a sample out by the Latitude and Longitude picked in Data > Fields", async () => {
+        // The contiguous United States, not OpenFlights: the same latitude and longitude columns,
+        // and Data > Fields over OpenFlights has its own test (Fields.real-element.test.tsx). The
+        // test browser draws on a software GPU, whose cost grows with every node, edge and arrow
+        // drawn: one frame of OpenFlights (3,214 nodes, 36,906 edges) held the page 1.4 seconds
+        // on an idle machine and 3 under load, and this test draws seven, so it ran past its 15
+        // second limit on any busy machine (#3317).
         const { element } = await openWorkspace(false, async (opened) => {
-            await opened.session.layout.set("circular");
-            await opened.session.layout.setDimension("2d");
-            await opened.session.data.loadDataset("openflights", datasetBase());
+            await opened.session.data.loadDataset("contiguous-usa", datasetBase());
         });
         const place = await openDataPlace();
         await pickField(place, "Latitude", "latitude");
@@ -388,13 +390,11 @@ describe("the location map", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // San Francisco, Chicago and New York from west to east (the map's frame may start
-        // anywhere around the world, so only near neighbours keep their order); Sydney far south
-        // of London.
+        // California, Illinois and New York from west to east; Minnesota north of Florida.
         await waitFor(() => {
-            assert.isBelow(at(element, "SFO").x, at(element, "ORD").x);
-            assert.isBelow(at(element, "ORD").x, at(element, "JFK").x);
-            assert.isBelow(at(element, "LHR").y, at(element, "SYD").y);
+            assert.isBelow(at(element, "CA").x, at(element, "IL").x);
+            assert.isBelow(at(element, "IL").x, at(element, "NY").x);
+            assert.isBelow(at(element, "MN").y, at(element, "FL").y);
         });
     });
 

@@ -1750,6 +1750,11 @@ describe("review page: baseline changes earlier signatures approve", () => {
         git(r.repo, "commit", "-q", "-m", "approval, and another baseline");
         git(r.repo, "push", "-q", "origin", "feature");
         git(r.repo, "checkout", "-q", "master");
+        // The config's reject branches, as a checkout with full history has them: without one the
+        // server cannot read its rejects and counts nothing.
+        for (const b of CONFIG.rejectBranches.filter((x) => !/[*?[]/.test(x))) {
+            git(r.repo, "update-ref", `refs/remotes/origin/${b}`, "master");
+        }
         r.head = git(r.repo, "rev-parse", "feature");
         return { gh: onePr()(r) };
     };

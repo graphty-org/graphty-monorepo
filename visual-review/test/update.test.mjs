@@ -66,7 +66,7 @@ describe("update from master", () => {
         expect(git(r.repo, "worktree", "list").split("\n")).toHaveLength(1);
     });
 
-    it("takes master's baseline, and the merged tree needs the owner's approval again: the capture shows it as changed", async () => {
+    it("takes master's baseline, which needs no new signature: the capture shows it as changed", async () => {
         const r = conflicted();
         await update(r);
         const head = git(r.remote, "rev-parse", "feature");
@@ -79,7 +79,9 @@ describe("update from master", () => {
             approvals: "visual-review-approvals",
             keys: [makeKey().entry],
         });
-        expect(check[0]).toMatch(/no signature of the owner approves this content/);
+        // The merged tree differs from master only by the pull request's review record, which needs
+        // no approval of its own, so there is nothing new to sign: master's image is master's.
+        expect(check).toEqual([]);
         // CI captures the story again against master's baseline: the pull request's image differs,
         // so it is `changed`, and the gate blocks until the owner reviews it.
         const item = classify({

@@ -108,7 +108,7 @@ describe("Undo from the reader's keys", () => {
     it("names the act when Control+Z is pressed on the drawing", async () => {
         answerUsageData("declined");
         const { session, store } = await openSample();
-        await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Layer/ }));
         await waitFor(() => {
             assert.isTrue(session.canUndo);

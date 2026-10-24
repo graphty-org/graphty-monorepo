@@ -33,5 +33,8 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     cost: "medium",
     origin: "element",
     webgpu: "translate",
+    // The picture is drawn at a dot size of 12 on a node about 85 px across (the Lit Surfaces story),
+    // so a gallery tile shows about as many dots across the node as the default size of 5 shows on a
+    // node of a drawn graph. At 5 the tile's dots are too fine to make out.
     thumbnail: new URL("./thumb.webp?no-inline", import.meta.url).href,
 });

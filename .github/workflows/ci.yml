@@ -30,9 +30,11 @@ on:
 # A plain draft's run (the build job's skip test) has its own group, so it can never cancel or replace
 # a ready run of the same pull request: `opened` (draft) and `ready_for_review` fire a second apart.
 # A Mergify merge-queue draft is a real run and stays in the ready group.
+# The cut pull request (head golden-cut) never cancels: the owner's Finish commits approvals to it and a
+# cut-fix pushes to it, and each cancelled the ~75-minute run that was about to merge the cut (#3356).
 concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' && github.head_ref != 'golden-cut' }}
 
 # No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
 # release commits change every package.json and nx.json sharedGlobals includes .github/workflows/**, and each

@@ -191,8 +191,10 @@ export function rankFiles(files, changed, env = process.env, cwd = process.cwd()
  * @param r a rank() entry
  * @returns the line
  */
-export const explain = (r) =>
-    `${r.file}  score ${r.score}, ${Math.round(r.ms / 1000)} s${r.why.length ? ` (${r.why.join("; ")})` : ""}`;
+export const explain = (r) => {
+    const why = r.why.length ? " (" + r.why.join("; ") + ")" : "";
+    return `${r.file}  score ${r.score}, ${Math.round(r.ms / 1000)} s${why}`;
+};
 
 // ---------------------------------------------------------------- replay
 
@@ -243,6 +245,46 @@ function wouldDrop(prior, t, edited) {
     return passes >= 20 && !prior.some((p) => p.failed && t - p.t < 90 * DAY);
 }
 
+// One gate run's file runs under the drop rule, counted into `out`; returns the files it ran.
+function replayDrops(runs, gate, out) {
+    const ran = new Set();
+    for (const [file, xs] of runs) {
+        const mine = xs.find((x) => x.inv === gate.id);
+        if (!mine) continue;
+        ran.add(file);
+        out.ranMs += mine.ms;
+        if (
+            !wouldDrop(
+                xs.filter((x) => x.t < gate.t),
+                gate.t,
+                gate.changed.has(file),
+            )
+        )
+            continue;
+        out.dropRuns++;
+        out.dropMs += mine.ms;
+        if (mine.failed) out.wouldMiss.push({ file, at: gate.at });
+    }
+    return ran;
+}
+
+// The files history adds would have added to one gate run (a golden failure in 7 days, in a touched package).
+function replayAdds(runs, goldenFailed, gate, ran, out) {
+    const pkgs = new Set([...gate.changed].map((f) => f.split("/")[0]));
+    for (const [file, ts] of goldenFailed) {
+        if (ran.has(file) || !pkgs.has(file.split("/")[0])) continue;
+        if (!ts.some((x) => x < gate.t && gate.t - x < 7 * DAY)) continue;
+        out.addFiles++;
+        out.addMs +=
+            median(
+                runs
+                    .get(file)
+                    .map((x) => x.ms)
+                    .filter(Boolean),
+            ) || UNMEASURED_MS;
+    }
+}
+
 /**
  * The offline replay (design 5): over every gate run in the ledger with files, the history adds (files with a
  * golden failure in 7 days that the run did not run) and their minutes, and the drop rule's would-drops, minutes
@@ -265,40 +307,13 @@ export function replay(ledger, root, { since = "", misses = [] } = {}) {
         .all(...GATE_KINDS, since);
     const cache = new Map();
     const out = { gateRuns: gates.length, addFiles: 0, addMs: 0, dropRuns: 0, dropMs: 0, wouldMiss: [], ranMs: 0 };
-    const goldenFailed = new Map(); // file -> failure times on golden
-    for (const [file, xs] of runs)
-        goldenFailed.set(
-            file,
-            xs.filter((x) => x.golden && x.failed).map((x) => x.t),
-        );
+    const goldenFailed = new Map(
+        [...runs].map(([f, xs]) => [f, xs.filter((x) => x.golden && x.failed).map((x) => x.t)]),
+    );
     for (const g of gates) {
-        const t = Date.parse(g.at);
-        const changed = new Set(changeOf(root, g.sha, cache) ?? []);
-        const ran = new Set();
-        for (const [file, xs] of runs) {
-            const mine = xs.find((x) => x.inv === g.id);
-            if (!mine) continue;
-            ran.add(file);
-            out.ranMs += mine.ms;
-            const prior = xs.filter((x) => x.t < t);
-            if (!wouldDrop(prior, t, changed.has(file))) continue;
-            out.dropRuns++;
-            out.dropMs += mine.ms;
-            if (mine.failed) out.wouldMiss.push({ file, at: g.at });
-        }
-        for (const [file, ts] of goldenFailed) {
-            if (ran.has(file) || !ts.some((x) => x < t && t - x < 7 * DAY)) continue;
-            const pkgs = new Set([...changed].map((f) => f.split("/")[0]));
-            if (!pkgs.has(file.split("/")[0])) continue;
-            out.addFiles++;
-            out.addMs +=
-                median(
-                    runs
-                        .get(file)
-                        .map((x) => x.ms)
-                        .filter(Boolean),
-                ) || UNMEASURED_MS;
-        }
+        const gate = { ...g, t: Date.parse(g.at), changed: new Set(changeOf(root, g.sha, cache) ?? []) };
+        const ran = replayDrops(runs, gate, out);
+        replayAdds(runs, goldenFailed, gate, ran, out);
     }
     out.missesCaught = misses.filter((m) => score(ledger, [m.file], [], m.at).scores.get(m.file).score > 0);
     out.misses = misses.length;

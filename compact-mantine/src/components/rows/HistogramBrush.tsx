@@ -47,7 +47,7 @@ export const BRUSH_ROW_HEIGHT = 16;
  * @param brush - The brush.
  * @returns The moved range.
  */
-export function shiftRange(range: readonly [number, number], by: number, brush: HistogramBrushProps): [number, number] {
+function shiftRange(range: readonly [number, number], by: number, brush: HistogramBrushProps): [number, number] {
     const delta = Math.max(brush.min - range[0], Math.min(brush.max - range[1], by));
     return [range[0] + delta, range[1] + delta];
 }

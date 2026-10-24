@@ -621,4 +621,47 @@ wait`,
         assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
         assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
     });
+
+    it("gives the next free slot to the high lane (the cut's preview), ahead of a gate's shard that waited first", () => {
+        const dir = join(TMP, "high-lane");
+        mkdirSync(dir, { recursive: true });
+        // Four holders fill the slots. A gate's shard starts waiting, looking every 0.02 s; then the cut's preview
+        // starts waiting, looking every second. One slot frees: the preview takes it, the shard keeps waiting.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+for i in 1 2 3 4; do "$GATE" sh -c "touch held.$i; while [ ! -e go.$i ]; do sleep 0.05; done" & done
+until [ -e held.1 ] && [ -e held.2 ] && [ -e held.3 ] && [ -e held.4 ]; do sleep 0.05; done
+hold='while [ ! -e done ]; do sleep 0.05; done'
+TEST_SLOT_GATE=1 BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo shard >> order; $hold" 2> shard.err &
+until grep -q "waiting for one of 4" shard.err 2>/dev/null; do sleep 0.05; done
+BROWSER_SLOT_PRIORITY=high BROWSER_SLOT_POLL=1 "$GATE" sh -c "echo preview >> order; $hold" 2> preview.err &
+until grep -q "waiting for one of 4" preview.err 2>/dev/null; do sleep 0.05; done
+touch go.1
+until [ -s order ]; do sleep 0.05; done
+first=$(head -1 order)
+touch go.2 go.3 go.4
+until [ "$(wc -l < order)" -eq 2 ]; do sleep 0.05; done
+touch done
+wait
+[ "$first" = preview ] || { echo "first: $first"; exit 9; }
+ls -a browser-slots | grep -q '^\\.high-' && { echo "a high mark was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    PIPELINE_WAIT_LOG: "off",
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "no-gates"),
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+    });
 });

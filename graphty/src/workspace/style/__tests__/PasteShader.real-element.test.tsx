@@ -82,15 +82,11 @@ async function mount(set?: Record<string, unknown>): Promise<Mounted & { id: str
 }
 
 /**
- * Opens the code dialog from the gallery's New shader..., with a place chip picked first.
- * @param chip - the place filter's chip, or undefined for All.
+ * Opens the code dialog from the gallery's New shader....
  * @returns the code box.
  */
-async function openNew(chip?: string): Promise<HTMLTextAreaElement> {
+async function openNew(): Promise<HTMLTextAreaElement> {
     const gallery = await openGallery();
-    if (chip !== undefined) {
-        await userEvent.click(within(within(gallery).getByRole("radiogroup", { name: "Place" })).getByText(chip));
-    }
     await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
     return codeBox();
 }
@@ -145,23 +141,27 @@ describe("the code dialog on the real element", () => {
         assert.strictEqual(guide.getAttribute("href"), "https://graphty.app/docs/graphty-element/guide/shaders");
     });
 
-    it("with the Behind chip, New shader... opens with Behind in its place field and the behind template", async () => {
+    it("New shader... is the gallery's first item and opens with a place field; Behind gives the behind template", async () => {
         await mount();
-        const box = await openNew("Behind");
+        const gallery = await openGallery();
+        const items = [...gallery.querySelectorAll<HTMLElement>("button, input")];
+        assert.strictEqual(items[0]?.textContent, "New shader...", "New shader... is at the top of the box");
+        await userEvent.click(within(gallery).getByRole("button", { name: "New shader..." }));
+        const box = await codeBox();
         const dialog = screen.getByRole("dialog", { name: "New shader" });
         const place = within(dialog).getByLabelText<HTMLInputElement>(/^Place/);
-        assert.strictEqual(place.value, "Behind");
-        assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "behind" }));
-        const read = parseShaderText(box.value);
-        assert.isTrue(read.ok);
-        assert.strictEqual(read.ok ? read.registration.descriptor.place : undefined, "behind");
+        assert.strictEqual(place.value, "On the node");
+        assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "paint" }));
 
         // The template follows the field until the reader writes over it.
         await userEvent.click(place);
-        await userEvent.click(await screen.findByRole("option", { name: "Around" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Behind" }));
         await waitFor(() => {
-            assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "around" }));
+            assert.strictEqual(box.value, shaderTemplate({ target: "node", place: "behind" }));
         });
+        const read = parseShaderText(box.value);
+        assert.isTrue(read.ok);
+        assert.strictEqual(read.ok ? read.registration.descriptor.place : undefined, "behind");
     });
 
     it("a while loop shows one problem row on its line with Add disabled; fixed, Add puts it in the project and on the layer, and one Undo removes both", async () => {

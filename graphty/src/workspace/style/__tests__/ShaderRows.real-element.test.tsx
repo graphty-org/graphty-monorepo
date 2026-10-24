@@ -1,9 +1,8 @@
 /**
  * The Node tab's Shaders section on the REAL graphty-element, driven by real input
  * (decisions-v2, section 2): "+" opens the one gallery with focus in its search, Enter adds the
- * named shader at its own place with focus on the new row, the Place dropdown lists only the
- * places a shader allows and moves it without touching the shape, which reads "Hidden" while the
- * shader draws instead of the node; rows reorder by drag and by Alt+Up; the settings show Minimum
+ * named shader at its own place with focus on the new row, choosing asks no place (a shader draws
+ * at its own; the Shape row reads "Hidden" while one draws instead of the node); rows reorder by drag and by Alt+Up; the settings show Minimum
  * size only for a shader that declares it; the tiles are buttons the arrows move through;
  * and the panel never says Effects, Material, On top, On enter or On change. Every assertion reads
  * what the element reports: the layer stack, and what the panel shows.
@@ -66,41 +65,37 @@ describe("the Shaders section", () => {
         });
     });
 
-    it("Instead of the node hides the Shape row with a caption; Around brings it back with the shape unchanged", async () => {
+    it("choosing a shader asks no place: the gallery has no place filter, and a Sticker row shows its place as words", async () => {
         const mounted = await mountElement();
         const layer = await addNodeLayer(mounted.session, { "node.shape": "box" });
         renderPanel(mounted, [layer]);
         const sticker = idOf(mounted.session, "Sticker");
 
-        await addByName("Sticker");
-        await waitFor(() => {
-            assert.equal(usesOn(mounted.session, layer)[0]?.shader, sticker);
-        });
-        const place = await within(section("node", "shaders")).findByLabelText<HTMLInputElement>(/^Place of Sticker/);
-        // A pick hands focus to the new row's Place dropdown, the second decision.
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, place);
-        });
-        await userEvent.click(place);
-        await userEvent.click(await screen.findByRole("option", { name: "Instead of the node" }));
-        const shapeRow = (): HTMLElement => {
-            const found = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.shape"]');
-            assert.isNotNull(found, "the Shape row stays");
-            return found;
-        };
+        const gallery = await openGallery();
+        assert.isNull(within(gallery).queryByRole("radiogroup", { name: "Place" }), "no place filter");
+        for (const words of ["Instead of the node", "Behind"]) {
+            assert.isNull(within(gallery).queryByRole("radio", { name: words }), `no ${words} choice`);
+        }
+        await userEvent.click(within(gallery).getByRole("button", { name: "Sticker" }));
         await waitFor(
             () => {
-                assert.include(shapeRow().textContent, hiddenByWords("Sticker"));
+                assert.deepEqual(usesOn(mounted.session, layer), [{ shader: sticker }]);
             },
             { timeout: TIMEOUT_MS },
         );
-
-        await userEvent.click(place);
-        await userEvent.click(await screen.findByRole("option", { name: "Around" }));
+        const [row] = shaderRows();
+        assert.isDefined(row, "a Sticker row");
+        assert.include(row.textContent, "Instead of the node", "its own place, as words");
+        assert.isNull(within(row).queryByLabelText(/^Place of/), "no Place dropdown");
+        assert.isNull(within(row).queryByRole("combobox"), "no place choice on the row");
+        await waitFor(() => {
+            assert.isTrue(row.contains(document.activeElement), "focus is on the new row");
+        });
+        // The shader draws instead of the node: the Shape row says so, and the shape is kept.
         await waitFor(
             () => {
-                assert.deepEqual(usesOn(mounted.session, layer), [{ shader: sticker, place: "around" }]);
-                assert.notInclude(shapeRow().textContent, "Hidden");
+                const shapeRow = section("node", "shape").querySelector<HTMLElement>('.ws-row[data-line="node.shape"]');
+                assert.include(shapeRow?.textContent, hiddenByWords("Sticker"));
             },
             { timeout: TIMEOUT_MS },
         );
@@ -197,7 +192,7 @@ describe("the Shaders section", () => {
         assert.isNull(minimumSize(), "Frost declares no minimum size");
     });
 
-    it("a shader added through the API shows a row like a built-in: name, Place dropdown, Minimum size", async () => {
+    it("a shader added through the API shows a row like a built-in: name, its place as words, Minimum size", async () => {
         const mounted = await mountElement();
         const added = await mounted.session.shaders.add(`/* graphty-shader 1
 { "id": "acme/ring", "name": "Ring", "place": "around", "minSize": 40,
@@ -218,8 +213,8 @@ vec4 shade(NodeInput n) {
             return rows;
         });
         assert.include(row.textContent, "Ring");
-        const place = within(row).getByLabelText<HTMLInputElement>(/^Place of Ring/);
-        assert.strictEqual(place.value, "Around");
+        assert.include(row.textContent, "Around");
+        assert.isNull(within(row).queryByLabelText(/^Place of/), "no Place dropdown, as on a built-in");
 
         await userEvent.click(within(row).getByRole("button", { name: "Ring settings" }));
         const minimum = await waitFor(() => {
@@ -285,20 +280,5 @@ vec4 shade(NodeInput n) {
         for (const banned of ["On enter", "On change", "Effects", "Material", "On top"]) {
             assert.notInclude(words, banned);
         }
-    });
-
-    it("at 768 px wide the Node tab's place chips wrap: no horizontal scroll, no cut chip text", async () => {
-        await page.viewport(768, 1024);
-        const mounted = await mountElement();
-        const layer = await addNodeLayer(mounted.session);
-        renderPanel(mounted, [layer]);
-        const gallery = await openGallery();
-        const chips = gallery.querySelector<HTMLElement>('[data-filter="place"]');
-        assert.isNotNull(chips);
-        assert.isAtMost(chips.scrollWidth, chips.clientWidth, "the chip row does not scroll sideways");
-        for (const label of chips.querySelectorAll<HTMLElement>("label")) {
-            assert.isAtMost(label.scrollWidth, label.clientWidth, `"${label.textContent ?? ""}" is not cut`);
-        }
-        await page.viewport(1024, 768);
     });
 });

@@ -2,7 +2,7 @@
  * Group outlines and the Selected and Hovered rows' shaders on the REAL graphty-element, driven by
  * real input (decisions-v2, sections 1 and 2): the Shockwave added to Selected plays once when a
  * real click selects a node; Satellites added to Hovered draw on a node only while the pointer is
- * on it; the gallery's Around the group chip lists the group outlines, and Hull added to the
+ * on it; the gallery badges the group outlines Around the group, and Hull added to the
  * Louvain layer and grouped by Louvain draws one outline per community; a click on an outline
  * selects the layer that draws it; and on the Louvain folder, the bulk edit gives every layer its
  * own outline in one undo step. Every assertion reads what the element reports: its layers and
@@ -282,7 +282,7 @@ describe("shaders on the Selected and Hovered rows", () => {
 });
 
 describe("group outlines, Around the group in the gallery", () => {
-    it("the Around the group chip lists the outlines; Hull on the Louvain layer grouped by Louvain draws one outline per community", async () => {
+    it("the gallery badges the outlines Around the group; Hull on the Louvain layer grouped by Louvain draws one outline per community", async () => {
         const { session, store, element } = await openScene();
         const { layer, path } = await runLouvain(session);
         store.set({ inspected: { kind: "layer-row", id: layer.row ?? layer.id } });
@@ -290,14 +290,14 @@ describe("group outlines, Around the group in the gallery", () => {
         await showKind("node");
 
         const gallery = await openGallery();
-        await userEvent.click(
-            within(within(gallery).getByRole("radiogroup", { name: "Place" })).getByText("Around the group"),
-        );
         const tiles = within(within(gallery).getByRole("group", { name: "Shaders" })).getAllByRole("button");
+        const outlines = tiles.filter(
+            (tile) => tile.querySelector(".ws-place-badge")?.textContent === "Around the group",
+        );
         assert.sameMembers(
-            tiles.map((tile) => tile.getAttribute("aria-label")),
+            outlines.map((tile) => tile.getAttribute("aria-label")),
             ["Hull", "Soap bubble"],
-            "only the group outlines",
+            "the group outlines, each badged Around the group",
         );
         await userEvent.click(within(gallery).getByRole("button", { name: "Hull" }));
         await waitFor(() => {

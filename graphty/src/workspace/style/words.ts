@@ -1137,32 +1137,6 @@ export function placeWords(place: ShaderPlace | undefined, tab: ShaderTab = "nod
     }
 }
 
-/** One chip of a gallery's place filter: its words, and the places it shows. */
-export interface PlaceFilter {
-    readonly key: string;
-    readonly label: string;
-    /** The places it shows; empty for All. */
-    readonly places: readonly ShaderPlace[];
-}
-
-/** Each tab's place filter, phrased as what the reader wants (decisions-v2, section 2.2). */
-export const PLACE_FILTERS: Readonly<Record<ShaderTab, readonly PlaceFilter[]>> = {
-    node: [
-        { key: "all", label: "All", places: [] },
-        { key: "on", label: "On the node", places: ["paint", "over"] },
-        { key: "replace", label: "Instead of the node", places: ["replace"] },
-        { key: "around", label: "Around", places: ["around"] },
-        { key: "behind", label: "Behind", places: ["behind"] },
-        { key: "group", label: "Around the group", places: ["group"] },
-    ],
-    edge: [
-        { key: "all", label: "All", places: [] },
-        { key: "on", label: "On the line", places: ["paint"] },
-        { key: "along", label: "Along the line", places: ["along"] },
-    ],
-    background: [],
-};
-
 /** The gallery's origin filter: every shader, the element's own, or those added to this project. */
 export const ORIGIN_FILTERS = [
     { key: "all", label: "All" },
@@ -1170,7 +1144,7 @@ export const ORIGIN_FILTERS = [
     { key: "project", label: "This project" },
 ] as const;
 
-/** The place a tab's "New shader..." starts at under All: the tab's first place. */
+/** The place a tab's "New shader..." starts at: the tab's first place. */
 export const FIRST_PLACE: Readonly<Record<ShaderTab, ShaderPlace | undefined>> = {
     node: "paint",
     edge: "paint",
@@ -1284,7 +1258,6 @@ export const SHADER_STEP_WORDS = {
     remove: (shader: string): string => `removing ${shader}`,
     shown: (shader: string, shown: boolean): string => `${shown ? "showing" : "hiding"} ${shader}`,
     move: (shader: string): string => `moving ${shader}`,
-    place: (shader: string, place: string): string => `putting ${shader} ${place.toLowerCase()}`,
     wireframe: (on: boolean): string => (on ? "turning wireframe on" : "turning wireframe off"),
     /** A shader the catalog no longer holds (a pasted one, deleted). */
     unknown: "a shader",

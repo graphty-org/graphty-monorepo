@@ -265,8 +265,7 @@ export function takeFocusNext(key: string): boolean {
 
 /**
  * Adds a shader at its own place to the end of the list of every layer a
- * write reaches, as one step. The new row's place control takes focus when it is drawn (its
- * dropdown, else its handle), so the second decision comes right after the first.
+ * write reaches, as one step. The new row takes focus when it is drawn.
  * @param ctx - the row.
  * @param id - the shader.
  * @param params - parameter values to write with it (a pasted shader that equals a known one).
@@ -275,7 +274,7 @@ export function takeFocusNext(key: string): boolean {
 export async function addShader(ctx: RowContext, id: string, params: Params = {}): Promise<void> {
     const use: ShaderUse = { shader: id, ...(Object.keys(params).length === 0 ? {} : { params }) };
     const at = ctx.many === undefined ? usesOf(targetsOf(ctx)[0], ctx.side).length : shaderEntries(ctx).length;
-    // The new row's place control takes focus once it is drawn: its dropdown, else its handle.
+    // The new row takes focus once it is drawn.
     focusLineNext(`${shadersChannel(ctx.side)}:${String(at)}` as Channel);
     await editUses(ctx, SHADER_STEP_WORDS.add(nameOf(ctx.session, id)), (uses) => [...uses, use]);
 }
@@ -339,22 +338,6 @@ export function moveShader(ctx: RowContext, from: number, to: number): Promise<v
         const [moved] = next.splice(from, 1);
         next.splice(Math.max(0, Math.min(to, next.length)), 0, moved);
         return next;
-    });
-}
-
-/**
- * Puts a row at another place, as one step: its own place leaves `place` off the use.
- * @param ctx - the row.
- * @param entry - the row.
- * @param place - where it draws now.
- * @param words - the place's words, for the step's name.
- * @returns when it is written.
- */
-export function writePlace(ctx: RowContext, entry: ShaderEntry, place: ShaderPlace, words: string): Promise<void> {
-    const own = entry.descriptor?.place;
-    return changeUse(ctx, entry, SHADER_STEP_WORDS.place(nameOf(ctx.session, entry.use.shader), words), (use) => {
-        const { place: _was, ...rest } = use;
-        return place === own ? rest : { ...rest, place };
     });
 }
 

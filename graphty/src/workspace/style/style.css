@@ -424,7 +424,7 @@
     min-width: 0;
 }
 
-/* The gallery's last item, Paste shader... */
+/* The gallery's first item, New shader... */
 .ws-gallery-paste {
     padding: 4px;
     border-radius: var(--mantine-radius-sm);
@@ -458,16 +458,6 @@
 .ws-paste-problem b {
     flex: none;
     font-variant-numeric: tabular-nums;
-}
-
-/* The gallery's foot, Paste shader..., pinned to the bottom of the pop-out's scrolling body. */
-.ws-gallery-foot {
-    position: sticky;
-    bottom: 0;
-    margin: 0 -16px;
-    padding: 4px 12px;
-    border-top: 1px solid var(--cm-border, var(--mantine-color-default-border));
-    background: var(--cm-bg);
 }
 
 /* A shader's settings pop-out: the panel's property rows, with a label column of its own (the

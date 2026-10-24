@@ -42,7 +42,7 @@ function templateOf(tab: ShaderTab, place: ShaderPlace | undefined): string {
 export interface PasteInit {
     /** The text in the code box; absent: the session's unsent draft, else the place's template. */
     readonly text?: string;
-    /** The place it starts at (the gallery's filter); absent: the tab's first place. */
+    /** The place it starts at (Duplicate and edit: the row's); absent: the tab's first place. */
     readonly place?: ShaderPlace;
     /** The shader this text is a copy of (Duplicate and edit): a pick equal to it still adds a copy. */
     readonly duplicateOf?: string;
@@ -86,8 +86,8 @@ interface PasteShaderDialogProps {
 
 /**
  * The code dialog (decisions-v2, section 2.2), New shader, or Edit shader for Duplicate and edit:
- * its first field is the place, with the same words and diagrams as the gallery's filter, preset
- * from the filter (the tab's first place under All), and the code box starts with that place's
+ * its first field is the place, with the same words and diagrams as the tiles' place badges, preset
+ * to the tab's first place (the row's, for Duplicate and edit), and the code box starts with that place's
  * template, which follows the field until the reader types or pastes over it. Under it the
  * problems the element finds, as rows that put the cursor on their line (a problem with no line is
  * plain text), and Add. While typing pauses the text gets every check Add makes, compiling

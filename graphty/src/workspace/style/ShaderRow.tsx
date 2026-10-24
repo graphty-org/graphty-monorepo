@@ -1,4 +1,4 @@
-import { ContextMenu, PanelField, Popout, PopoutButton } from "@graphty/compact-mantine";
+import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
 import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
@@ -24,7 +24,6 @@ import {
     unbindParam,
     writeGroupBy,
     writeParam,
-    writePlace,
 } from "./shaderSlots";
 import { focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
@@ -32,7 +31,6 @@ import {
     copyNameWords,
     effectOffWords,
     failureWords,
-    GALLERY_WORDS,
     GROUP_BY_WORDS,
     placeWords,
     SHADER_MOVE_WORDS,
@@ -111,57 +109,22 @@ function duplicateAction(
 }
 
 /**
- * The place of a row: a Place dropdown listing only the places the shader allows, each with its
- * diagram, when it allows more than one; else the place's words as a static label.
+ * The place of a row, as its words and diagram. Choosing a shader asks no place: a shader draws at
+ * its own, which only its code (New shader, Edit code) sets.
  * @param props - Component props
- * @param props.ctx - the row
+ * @param props.tab - the row's tab
  * @param props.entry - the row's use
- * @param props.name - the shader's name
- * @param props.fail - posts a failed write's notice
- * @returns The control
+ * @returns The label
  */
-function PlaceControl({
-    ctx,
-    entry,
-    name,
-    fail,
-}: Readonly<{
-    ctx: RowContext;
-    entry: ShaderEntry;
-    name: string;
-    fail: Fail;
-}>): React.JSX.Element {
-    const tab = ctx.side;
+function PlaceLabel({ tab, entry }: Readonly<{ tab: RowContext["side"]; entry: ShaderEntry }>): React.JSX.Element {
     const place = placeOf(entry);
-    const allowed = entry.descriptor?.places ?? (place === undefined ? [] : [place]);
-    if (allowed.length < 2) {
-        return (
-            <span className="ws-place-badge" data-place={place}>
-                <PlaceDiagram place={place} tab={tab} />
-                <Text size="xs" truncate>
-                    {placeWords(place, tab)}
-                </Text>
-            </span>
-        );
-    }
     return (
-        <PanelField
-            label={`${GALLERY_WORDS.place} of ${name}`}
-            kind="select"
-            width="fill"
-            value={place ?? null}
-            data={allowed.map((each) => ({ value: each, label: placeWords(each, tab) }))}
-            glyph={<PlaceDiagram place={place} tab={tab} />}
-            optionGlyphs={Object.fromEntries(
-                allowed.map((each) => [each, <PlaceDiagram key={each} place={each} tab={tab} />]),
-            )}
-            onChange={(picked) => {
-                const next = allowed.find((each) => each === picked);
-                if (next !== undefined && next !== place) {
-                    writePlace(ctx, entry, next, placeWords(next, tab)).catch(fail("changed"));
-                }
-            }}
-        />
+        <span className="ws-place-badge" data-place={place}>
+            <PlaceDiagram place={place} tab={tab} />
+            <Text size="xs" truncate>
+                {placeWords(place, tab)}
+            </Text>
+        </span>
     );
 }
 
@@ -364,7 +327,7 @@ function useRowDrag(
 
 /**
  * One row of a tab's Shaders section (decisions-v2, section 2.1): a drag handle, the picture, the
- * name, the place (a Place dropdown when the shader allows more than one, else a static label), the
+ * name, the place (its words and diagram, never a choice), the
  * settings button and a minus. Rows reorder by dragging the handle, or by Alt+Up and Alt+Down; the
  * order is the draw order inside one place; a move says where the row went. A group outline also
  * has its Group by line. A right-click (or a long press) opens Copy code, Duplicate and edit, Move
@@ -463,7 +426,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
                 </span>
                 {/* The field column: a new row's focus goes to the control here (useFocusLine). */}
                 <span className="ws-shader-place ws-field-control">
-                    {use.off === true ? null : <PlaceControl ctx={ctx} entry={entry} name={name} fail={fail} />}
+                    {use.off === true ? null : <PlaceLabel tab={ctx.side} entry={entry} />}
                 </span>
                 <span className="ws-slot">
                     <SettingsPopout ctx={ctx} entry={entry} name={name} fail={fail} />

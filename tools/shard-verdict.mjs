@@ -15,7 +15,8 @@
  * shard (37k to 435k warnings), doubled the shards' time and failure rate, and passed every gate twice.
  * With the budget a flood fails the first run that has it, with the repeated warning named.
  *
- * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict).
+ * Used by tools/run-tests.sh (the CLI below) and tools/prepush-tests.mjs (shardVerdict); the budget also by
+ * tools/test-quarantine.mjs, the wrapper every shard runs through in CI and in the gate (overBudget).
  *
  * Usage: node tools/shard-verdict.mjs <shard> <exit-status> <log-file> <start-ms> [<command>]
  *   <command> replaces the shard's own (a run of selected test files); prints the cause and exits 1 when the run did not pass; exits with 0 when it did.
@@ -77,6 +78,22 @@ export function topRepeated(log, top = 5) {
 }
 
 /**
+ * Why a run's output is too large: over the budget, with its most repeated lines.
+ * @param log the run's whole output
+ * @param [logBudget] the most bytes it may hold
+ * @returns the cause, or null when it is within the budget
+ */
+export function overBudget(log, logBudget = LOG_BUDGET_BYTES) {
+    const bytes = Buffer.byteLength(log);
+    if (bytes <= logBudget) return null;
+    const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
+    const top = topRepeated(log)
+        .map((l) => `    ${l}`)
+        .join("\n");
+    return `its output is ${mb(bytes)}, over the ${mb(logBudget)} budget (a warning flood?); the most repeated lines:\n${top}`;
+}
+
+/**
  * The verdict on one shard run.
  * @param run the run
  * @param run.code the exit status (null for a signal)
@@ -105,17 +122,9 @@ export function shardVerdict({ code, log, runs = 1, missingReports = [], logBudg
             cause: `exit 0 but no report written by this run: ${missingReports.join(", ")}`,
         };
     }
-    const bytes = Buffer.byteLength(log);
-    if (bytes > logBudget) {
-        const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
-        return {
-            pass: false,
-            cause:
-                `exit 0 but its output is ${mb(bytes)}, over the ${mb(logBudget)} budget (a warning flood?); ` +
-                `the most repeated lines:\n${topRepeated(log)
-                    .map((l) => `    ${l}`)
-                    .join("\n")}`,
-        };
+    const over = overBudget(log, logBudget);
+    if (over) {
+        return { pass: false, cause: `exit 0 but ${over}` };
     }
     return { pass: true };
 }

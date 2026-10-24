@@ -1083,16 +1083,30 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
+                const current = chosen ?? own ?? "auto";
+                // A role the file sets is a fact, not a choice: plain words, never a box to open.
+                if (table.fixed) {
+                    return (
+                        <div key={column.name} className="dp-role" data-testid="fixed-role">
+                            <Text size="xs" fw={500}>
+                                {column.name}
+                            </Text>
+                            <Text size="xs">{options.find((option) => option.value === current)?.label}</Text>
+                            <Text size="xs" c="dimmed">
+                                {TYPE_WORDS[column.type] ?? column.type}
+                            </Text>
+                        </div>
+                    );
+                }
                 return (
                     <div key={column.name} className="dp-role">
                         <Group gap={8} wrap="nowrap" align="flex-end">
                             <Select
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
-                                value={chosen ?? own ?? "auto"}
+                                value={current}
                                 data={options}
                                 allowDeselect={false}
-                                disabled={table.fixed}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
                                     choose(column.name, value ?? undefined);
@@ -1101,7 +1115,6 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {chosen !== undefined && (
                                 <ResetButton
                                     label={column.name}
-                                    disabled={table.fixed}
                                     onClick={() => {
                                         choose(column.name, undefined);
                                     }}
@@ -1116,7 +1129,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             })}
         </fieldset>
     );
-    // Boxes that cannot change say why where they stand, as "Each row is" does above them.
+    // Roles that cannot change say why where they stand, as "Each row is" does above them.
     return table.fixed ? (
         <Input.Wrapper labelElement="div" label="Column roles" description="Set by the file" size="sm">
             {list}
@@ -1267,6 +1280,9 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 scrolls when they do not fit, never a box inside it. */}
             <DataTable
                 label={`Rows of ${table.name}`}
+                // The panel list pitch, not the spreadsheet rows DataTable draws by default.
+                rowHeight={PANEL_GRID.ROW_PITCH}
+                headerHeight={PANEL_GRID.ROW_PITCH}
                 columns={columns}
                 data={rows}
                 // The grid says the count it is given when its rows change; a preview of the first

@@ -201,8 +201,9 @@ run's code):
        `asked owner -- review cut #<cut pr>` marker on the cut pull request.
     3. **Ship** with `node tools/land.mjs ship` after his Finish, when all of these hold. A cut with nothing to
        review ships itself: `land.mjs auto-ship` runs when its preview ends and when verification passes, and ships
-       when the preview of its head is only unchanged and excluded images, its baselines are master's, it is
-       verified, holds no breaking commit and master's build is green. Its decision is the `auto-ship:` line of
+       when the preview of its head is only unchanged and excluded images, its baselines are master's or the owner
+       signed that tree (as the CI gate checks), it is verified, holds no breaking commit and master's build is
+       green. Its decision is the `auto-ship:` line of
        `node tools/land.mjs status`; do not ask the owner about such a cut.
         1. master's build is green, or the cut's landings are only the fix for it;
         2. no breaking commit without the owner's go:

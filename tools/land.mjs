@@ -619,14 +619,6 @@ export function lightGate(ctx) {
 }
 
 /**
- * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
- * @param ctx the run's context
- * @param [cwd] the worktree to push from (golden's)
- * @param [refspec] what to push (golden to golden)
- * @param [dryRun] run the gate and send nothing (a landing's check)
- * @returns `{ code, output }`
- */
-/**
  * The snapshot of the gate's live copy this run's pushes all use (tools/gate-snapshot.sh --hold), taken at the
  * first push and held until this process ends: a landing's check and its push run one version of the gate,
  * so a `tools/live.sh gate` between them cannot re-run the check under a new rule (2026-10-23, #3284). Without
@@ -660,6 +652,14 @@ export async function gateSnapshot(ctx) {
     return ctx.gateSnapshot;
 }
 
+/**
+ * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
+ * @param ctx the run's context
+ * @param [cwd] the worktree to push from (golden's)
+ * @param [refspec] what to push (golden to golden)
+ * @param [dryRun] run the gate and send nothing (a landing's check)
+ * @returns `{ code, output }`
+ */
 async function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
     // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
     // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured

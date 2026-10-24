@@ -56,4 +56,18 @@ describe("check", () => {
         assert.equal(code, 0, out);
         assert.match(out, /passed/);
     });
+
+    it("warns and passes when GitHub refuses nx with a 403 or a rate limit", () => {
+        for (const msg of ["NX   Request failed with status code 403", "API rate limit exceeded for user"]) {
+            const { code, out } = run(["nx.json"], `echo '${msg}' >&2; exit 1`);
+            assert.equal(code, 0, out);
+            assert.match(out, /WARNING: .* refused by GitHub/);
+            assert.match(out, /did NOT check this push/);
+        }
+    });
+
+    it("still fails on any other error", () => {
+        const { code } = run(["nx.json"], "echo 'NX   Request failed with status code 500' >&2; exit 1");
+        assert.equal(code, 1);
+    });
 });

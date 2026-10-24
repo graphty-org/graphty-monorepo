@@ -133,6 +133,49 @@ export function localShards(affected) {
     return [...shards.filter((s) => s["needs-browser"]), ...shards.filter((s) => !s["needs-browser"])];
 }
 
+// Each shard's share of runs that failed (failed or error, of those that passed or failed) in the last 14 days.
+const RATES_SQL = `SELECT shard, 1.0 * SUM(outcome IN ('failed', 'error')) / COUNT(*) AS rate FROM invocation
+  WHERE outcome IN ('passed', 'failed', 'error') AND started_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-14 days')
+  GROUP BY shard`;
+
+/**
+ * Each shard's recent failure rate, from the test ledger. Never throws: without the ledger the map is empty and
+ * the shards keep the order they have.
+ * @param [lib] the test ledger module (tests pass a stand-in)
+ * @param [log] where a line about an unavailable ledger goes
+ * @returns shard name -> failure rate, 0 to 1
+ */
+export function failureRates(lib = ledger, log = console.log) {
+    let db;
+    try {
+        const opened = lib?.openLedger(process.env, ROOT) ?? { why: "the ledger is unavailable" };
+        db = opened.db;
+        if (!db) throw new Error(opened.why);
+        return new Map(
+            db
+                .prepare(RATES_SQL)
+                .all()
+                .map((r) => [r.shard, r.rate]),
+        );
+    } catch (e) {
+        log(`ledger: no failure rates (${e.message.split("\n")[0]}); the shards start in their usual order`);
+        return new Map();
+    } finally {
+        db?.close();
+    }
+}
+
+/**
+ * The shards with the likeliest failures first, so a failing push fails early; a stable sort, so shards with the
+ * same rate (or none) keep their order (localShards': browser shards first).
+ * @param shards the shards to run
+ * @param rates failureRates()
+ * @returns the shards, highest failure rate first
+ */
+export function byFailureRate(shards, rates) {
+    return [...shards].sort((a, b) => (rates.get(b.shard) ?? 0) - (rates.get(a.shard) ?? 0));
+}
+
 /**
  * The shards this push runs, by each one's "local" policy (tools/ci-test-matrix.mjs).
  * @param shards the shards CI would run (localShards)
@@ -742,7 +785,8 @@ async function main() {
         process.exit(1);
     }
     const passes = passed(planned, main);
-    const shards = passes.run;
+    // The likeliest failures start first (graphty-1 to -3 fail 11-18% of runs, graph-format almost never).
+    const shards = byFailureRate(passes.run, failureRates());
     if (shards.length === 0) {
         console.log(nothingToRun(gated, planned));
         return;

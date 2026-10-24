@@ -226,6 +226,44 @@ PUSH_QUEUE_SLOTS=1 "$Q" sh -c 'echo ran > order'`,
         assert.deepEqual(readdirSync(join(ctx.repo, "tmp", "push-queue-copies")), []);
     });
 
+    it("stops before the gate when the remote branch holds a commit the push lacks, unless forced", () => {
+        const ctx = setup();
+        writeFileSync(join(ctx.repo, "b.txt"), "b\n");
+        ctx.git("add", "b.txt");
+        ctx.git("commit", "-q", "-m", "b");
+        ctx.git("push", "-q", "origin", "HEAD:feat/x");
+        ctx.git("checkout", "-q", "-b", "other", "HEAD~1");
+        writeFileSync(join(ctx.repo, "c.txt"), "c\n");
+        ctx.git("add", "c.txt");
+        ctx.git("commit", "-q", "-m", "c");
+        const origin = () =>
+            spawnSync("git", ["--git-dir", join(ctx.root, "origin.git"), "rev-parse", "feat/x"], {
+                encoding: "utf8",
+            }).stdout.trim();
+        const before = origin();
+        const r = spawnSync("bash", ["-c", `"${QUEUE}" sh -c 'touch ran; git push -q origin HEAD:feat/x'`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        // A non-git command is never judged; the git push below is.
+        assert.equal(existsSync(join(ctx.repo, "ran")), true, r.stdout + r.stderr);
+        const refused = spawnSync("bash", ["-c", `"${QUEUE}" git push -q origin HEAD:feat/x`], {
+            cwd: ctx.repo,
+            encoding: "utf8",
+            env: ctx.env,
+        });
+        assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+        assert.match(
+            refused.stderr,
+            /stopped before the gate -- origin's feat\/x is at [0-9a-f]{12}, which [0-9a-f]{12} does not contain/,
+        );
+        assert.match(refused.stderr, /git merge origin\/feat\/x/);
+        assert.equal(origin(), before);
+        drive(ctx, `"$Q" git push -q origin +HEAD:feat/x`);
+        assert.equal(origin(), ctx.git("rev-parse", "HEAD").stdout.trim());
+    });
+
     it("logs a failed command with its exit code", () => {
         const ctx = setup();
         const r = spawnSync("bash", [QUEUE, "sh", "-c", "exit 3"], { cwd: ctx.repo, encoding: "utf8", env: ctx.env });

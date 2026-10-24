@@ -1,9 +1,13 @@
 # Full testing in CI, a light gate on this machine
 
-Status: Proposed, 2026-10-23. Issue #3316. It supersedes the parts of `design/ci/golden-local.md`,
-`design/ci/fast-pipeline.md` and `design/ci/minimal-tests.md` that run the full test suite on this
-machine; each of those documents marks the superseded sections. Until the steps of section 9 land,
-the tools follow those documents.
+Status: Built, not yet switched on, 2026-10-23. Issue #3316; decision record
+`design/decisions/2026-10-23-full-tests-in-ci-adopted.md`. It supersedes the parts of
+`design/ci/golden-local.md`, `design/ci/fast-pipeline.md` and `design/ci/minimal-tests.md` that run the
+full test suite on this machine; each of those documents marks the superseded sections. One switch turns
+it all on: `node tools/verify.mjs backend ci`. Until then the backend is `local` and the tools follow
+those documents. As built, `PREPUSH_LIGHT` defaults to `0` in `tools/prepush.sh`, and `tools/land.mjs`
+sets it to `1` for its pushes only while the backend is `ci`, so the gate turns light exactly when CI
+verification is on and never before it (section 9's order, enforced by one setting).
 
 The owner's request (2026-10-23): "replace our local full-test gate with a lighter test that is
 lint, build, sonarqube, and gpu and put our full testing in CI. make sure our plan ends up being

@@ -25,7 +25,8 @@ about it the next morning, with the name of the landing that did it.
 ### The `golden-good` tag
 
 The sync never merges golden's tip. It merges from a tag on GitHub called `golden-good`: the newest
-golden commit that verification after landing passed (up to `golden-verified`) and
+golden commit that verification after landing passed (up to `golden-verified`, whether the run was in CI
+or on this machine) and
 whose screenshot preview came back clean, with no unstable or failed images. That is the same test
 `node tools/land.mjs cut` uses to choose what ships. The landing tool moves the tag forward after
 every landing and at the start of every sync, and never moves it back.
@@ -47,7 +48,10 @@ release branches, revert branches and Dependabot's are never touched. For each b
 3. From there it finds the newest that also passes the branch's checks on the merged result: the
    build, lint and CI test shards of the packages the branch changes (what nx calls affected,
    measured from the landing). The checks run in a scratch worktree, `.worktrees/branch-sync`,
-   through the same test stage the pre-push gate uses (`tools/prepush-tests.mjs`).
+   through the same test stage the pre-push gate uses (`tools/prepush-tests.mjs`). While
+   verification runs in CI (`node tools/verify.mjs backend ci`, `design/ci/ci-full-testing.md`) the
+   checks are the light gate's: install, build and lint, with no test shard, because CI runs every
+   shard on golden; with the `local` backend they include the shards as above.
 4. Steps 2 and 3 try the newest landing first, which is usually the answer. When it fails, they step
    back by binary search over the landings, so a branch fifty landings behind costs about six tries,
    not fifty.

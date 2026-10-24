@@ -3,9 +3,9 @@
     "file": "graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity-p4.gml",
     "sha256": "d0294006a0e91cbfac46606c4176c9d53684ad600d232457aba2153377864d4b",
     "program": "OGDF (Open Graph Drawing Framework)",
-    "version": "2025.10 (PyPI ogdf-wheel 2025.10, libOGDF.so)",
+    "version": "2025.10 (release tag foxglove-202510, built from source, libOGDF.a)",
     "route": "ogdf",
-    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"Arial\" (OGDF's default), every other setting OGDF's default)",
+    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::readGML, then GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"Arial\" (OGDF's default), every other setting OGDF's default)",
     "standIn": false,
     "about": "OGDF writes these files (the sheet is OGDF's own readGML / writeGML of the generated sheet) and this is OGDF's own drawing of them. drawSVG draws every label in one font size (SVGSettings, 10 px) and ignores fill patterns.",
     "canvas": {
@@ -14,6 +14,6 @@
     },
     "fonts": "OGDF's default font family \"Arial\" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)",
     "svgPostprocessing": "none: the SVG is OGDF's output byte for byte",
-    "date": "2026-10-19",
+    "date": "2026-10-20",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/ogdf.mjs gml-specimen-node-sizes-opacity-p4 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p4.svg"
 }

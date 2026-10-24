@@ -24,6 +24,7 @@ import {
     politicalBlogs,
     politicalBooks,
     stelzlInteractome,
+    veniceTransit,
     wikipathwaysSenescenceAutophagy,
     yeastPerturbation,
 } from "../helpers/datasets.js";
@@ -44,6 +45,7 @@ const LOADERS: Readonly<Record<string, () => SampleGraph>> = {
     "celegans-neural": celegansNeural,
     "political-blogs": politicalBlogs,
     openflights,
+    "venice-transit": veniceTransit,
     "yeast-perturbation": yeastPerturbation,
     "stelzl-interactome": stelzlInteractome,
     "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagy,
@@ -297,6 +299,21 @@ describe("dataset contents", () => {
         expect(snapshot.nodes.get("country")?.value(index)).toBe("United States");
         expect(snapshot.nodes.get("latitude")?.value(index)).toBeCloseTo(33.64, 1);
         expect(Array.from(g.weights ?? []).reduce((a, b) => a + b, 0)).toBe(66771 - 1);
+    });
+
+    it("venice transit: every stop within the city's 20 km extract, ferries and trams included", () => {
+        const snapshot = fromEdgeArrays(veniceTransit());
+        const n = snapshot.nodeCount;
+        const latitude = columnValues(snapshot.nodes, "latitude", n) as number[];
+        const longitude = columnValues(snapshot.nodes, "longitude", n) as number[];
+        expect(latitude.every((lat) => lat > 45.3 && lat < 45.7)).toBe(true);
+        expect(longitude.every((lon) => lon > 11.9 && lon < 12.5)).toBe(true);
+        const redentore = snapshot.ids.requireIndex("1");
+        expect(snapshot.nodes.get("label")?.value(redentore)).toBe("Redentore");
+        expect(snapshot.nodes.get("mode")?.value(redentore)).toBe("ferry");
+        expect(new Set(columnValues(snapshot.nodes, "mode", n))).toEqual(
+            new Set(["bus", "bus and tram", "ferry", "tram"]),
+        );
     });
 });
 

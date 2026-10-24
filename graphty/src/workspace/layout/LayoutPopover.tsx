@@ -12,25 +12,26 @@ interface LayoutPopoverProps {
     session: GraphSession;
     /** Closes the popover, returning focus to Layout. */
     onClose: () => void;
-    /** A layout to open on, for a story. */
+    /** A row to open on, for a story: a layout's id, or `<id>:<engine>`. */
     initialPick?: string;
 }
 
 /**
- * The toolbar's Layout popover: the list of every layout in the element's catalog, the current
- * one checked, "Recommended" and "slow" beside a name, and a layout that cannot run now dimmed
- * with the reason. A tap opens that layout's form. Esc steps back from the form to the list, and
+ * The toolbar's Layout popover: the list of every layout in the element's catalog, each with its
+ * description as a dimmed second line and every engine but its default nested under it, Graphviz's
+ * marked so; the current one checked, "Recommended" and "slow" beside a name, and a row that cannot
+ * run now dimmed with the reason. A tap opens that layout's form. Esc steps back from the form to the list, and
  * a second Esc closes. Applying closes the popover.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.onClose - Closes the popover
- * @param props.initialPick - A layout to open on
+ * @param props.initialPick - A row to open on: a layout's id, or `<id>:<engine>`
  * @returns The popover's body
  */
 export function LayoutPopover({ session, onClose, initialPick }: Readonly<LayoutPopoverProps>): React.JSX.Element {
     const [picked, setPicked] = useState<string | undefined>(initialPick);
     const choices = layoutChoices(session, useLayouts(session));
-    const open = choices.find((choice) => choice.descriptor.id === picked);
+    const open = choices.find((choice) => choice.key === picked);
     const listRef = useRef<HTMLDivElement>(null);
     // On the list, focus sits on the checked row, so Esc (back from a form, or a second time)
     // reaches the popover's own handler.
@@ -56,7 +57,7 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
     if (open !== undefined) {
         return (
             <LayoutForm
-                key={open.descriptor.id}
+                key={open.key}
                 session={session}
                 descriptor={open.descriptor}
                 focusButton
@@ -94,25 +95,26 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
                     <UnstyledButton // NOSONAR(S6811): aria-description is the ARIA 1.3 attribute that gives an option its one-line gloss
                         component="div"
                         role="option"
-                        key={choice.descriptor.id}
+                        key={choice.key}
                         tabIndex={0}
                         className="ws-analyze-entry"
+                        data-nested={choice.nested ? "" : undefined}
                         aria-selected={choice.current}
                         aria-disabled={choice.reason !== null}
-                        aria-description={choice.reason ?? undefined}
+                        aria-description={choice.reason ?? choice.description}
                         onClick={() => {
                             if (choice.reason === null) {
-                                setPicked(choice.descriptor.id);
+                                setPicked(choice.key);
                             }
                         }}
                         onKeyDown={(event: React.KeyboardEvent) => {
                             if ((event.key === "Enter" || event.key === " ") && choice.reason === null) {
                                 event.preventDefault();
-                                setPicked(choice.descriptor.id);
+                                setPicked(choice.key);
                             }
                         }}
                     >
-                        <Group gap={8} wrap="nowrap" align="flex-start">
+                        <Group gap={8} wrap="nowrap" align="flex-start" pl={choice.nested ? 16 : 0}>
                             <span className="ws-analyze-icon" aria-hidden="true" style={{ width: 16 }}>
                                 {choice.current ? <GLYPHS.check size={16} /> : null}
                             </span>
@@ -121,6 +123,11 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
                                     <Text size="sm" c={choice.reason === null ? undefined : "dimmed"}>
                                         {choice.name}
                                     </Text>
+                                    {choice.graphviz ? (
+                                        <Text size="xs" c="dimmed">
+                                            Graphviz
+                                        </Text>
+                                    ) : null}
                                     {choice.recommended ? (
                                         <Badge size="xs" variant="light">
                                             Recommended
@@ -132,6 +139,9 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
                                         </Badge>
                                     ) : null}
                                 </Group>
+                                <Text size="xs" c="dimmed" data-testid="layout-description">
+                                    {choice.description}
+                                </Text>
                                 {choice.reason === null ? null : (
                                     <Text size="xs" c="dimmed">
                                         {choice.reason}

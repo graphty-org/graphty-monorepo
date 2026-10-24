@@ -47,6 +47,8 @@ export interface CameraViewContext {
     readonly fov?: number;
     /** Where the camera is right now, so a view can be relative to it. */
     readonly current: CameraState;
+    /** The side the drawing is meant to be seen from, when the active layout has one. */
+    readonly facing?: CameraViewInput["facing"];
     /** What the caller configured, before the declared defaults are filled in. */
     readonly options?: Readonly<Record<string, unknown>>;
 }
@@ -144,6 +146,7 @@ export function resolveCameraView(id: string, context: CameraViewContext): Camer
         ...(context.insets === undefined ? {} : { insets: context.insets }),
         ...(context.fov === undefined ? {} : { fov: context.fov }),
         current: context.current,
+        ...(context.facing === undefined ? {} : { facing: context.facing }),
         options,
     };
 

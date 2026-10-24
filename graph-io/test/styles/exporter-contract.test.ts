@@ -108,6 +108,28 @@ describe("an exporter without a styles member", () => {
         expect(notes.filter((n) => n.code === "W_STYLE_RULES_NOT_KEPT")).toHaveLength(1);
     });
 
+    it("reports no loss for a property no element ends up carrying", () => {
+        const snapshot = graph();
+        const extracted = styles(snapshot);
+        const nobody: StyleRule = {
+            id: "node.nobody",
+            target: "node",
+            role: "group",
+            origin: "declared",
+            where: { eq: [{ data: "group" }, "none"] },
+            set: { opacity: 0.5 },
+        };
+        const withNobody: ExtractedStyles = {
+            ...extracted,
+            styles: { ...extracted.styles, rules: [...extracted.styles.rules, nobody] },
+        };
+        const reg = createRegistry().registerExporter(minimal());
+        const notes = reg.checkExport(snapshot, "mine", { styles: withNobody });
+        expect(notes.filter((n) => n.code === "W_STYLE_NOT_WRITTEN" && n.count === 0)).toEqual([]);
+        expect(notes.some((n) => n.style?.property === "opacity")).toBe(false);
+        expect(notes.find((n) => n.style?.property === "fill")?.count).toBe(8);
+    });
+
     it("writes the same file as without styles", async () => {
         const snapshot = graph();
         const reg = createRegistry().registerExporter(minimal());

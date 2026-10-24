@@ -513,10 +513,13 @@ export class GraphOps {
     }
 }
 
+/** The graph values a dataset-wide step writes: `SOURCES_VALUE` and `COLUMNS_VALUE` of `commands/data.ts`. */
+const DATASET_VALUES: ReadonlySet<string> = new Set(["sources", "columns"]);
+
 /**
  * The node and edge ids the steps an undo, a redo or a restore passed touched, which the session
  * then selects (design/undo/undo-design.md section 8). Collection stops, and nothing is selected,
- * once a replace or a clear passes or more ids than the limit are touched: selecting everything
+ * once a replace, a clear or another dataset-wide step passes or more ids than the limit are touched: selecting everything
  * says nothing, and a selection built only to be truncated says less.
  */
 export class TouchedIds {
@@ -745,8 +748,18 @@ class GraphEntry implements OpLogEntry {
                 case "replace":
                     into.all();
                     return;
+                case "value":
+                    // A step that rewrites the sources list or the column settings -- a load, a
+                    // join, a replace with a newer copy, a type change -- is about the dataset,
+                    // not elements: selecting the rows it rewrote would select a column's worth.
+                    if (DATASET_VALUES.has(op.name)) {
+                        into.all();
+                        return;
+                    }
+
+                    break;
                 default:
-                    // "value" and "direction" name no element.
+                    // "direction" names no element.
                     break;
             }
         }
@@ -1195,7 +1208,8 @@ class Writer implements GraphWriter {
         const map = (target === "node" ? this.graph.slice.nodes : this.graph.slice.edges) as Map<NodeId, GraphRecord>;
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
-        if (prior === undefined) {
+        // A node an edge made has a row and no record yet: the write gives it one.
+        if (prior === undefined && !(target === "node" && this.store.builder.hasNode(key))) {
             return false;
         }
 
@@ -1204,6 +1218,7 @@ class Writer implements GraphWriter {
         // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
         // bump would cost a deep equality per field for no correctness gain.
         if (
+            prior !== undefined &&
             (!replace || Object.keys(prior).length === Object.keys(values).length) &&
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),

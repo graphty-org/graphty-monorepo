@@ -42,7 +42,7 @@ describe("sourceDescriptors()", () => {
     it("lists the built-in sources and graph-samples with their samples, loading no source code", () => {
         const infos = sourceDescriptors();
         const ids = infos.map((info) => info.id);
-        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "graph-samples"]) {
+        for (const id of ["ndex", "cypher", "neo4j", "neptune", "rest", "openalex", "sparql", "graph-samples"]) {
             assert.include(ids, id);
         }
 

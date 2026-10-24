@@ -5,9 +5,10 @@
  */
 
 import type { AutosaveEntry } from "@graphty/graphty-element";
-import { listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
+import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
+import { baseName } from "../data-page/words";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { reopenedSentence } from "./words";
 
@@ -36,7 +37,9 @@ export async function findRecovered(): Promise<AutosaveEntry | null> {
  * @param entry - the entry.
  */
 export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
-    const name = entry.name === "" ? "Recovered work" : entry.name;
+    // An entry the reader never renamed has no name of its own: until the restore says what the
+    // data is, the header keeps the new-project name.
+    const name = entry.name === "" ? "Untitled" : entry.name;
     store.set((state) => ({
         recovered: null,
         project: { name, id: newProjectId(state) },
@@ -46,15 +49,30 @@ export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): v
         dialog: null,
         opening: {
             name,
-            load: async (_session, element) => {
+            load: async (session, element) => {
                 const report = await element.autosaver.restore(entry.id, { discard: true });
                 store.set((now) => ({
-                    project: now.project && { ...now.project, name: report.name ?? name },
+                    project: now.project && { ...now.project, name: report.name ?? dataName(session) ?? name },
                     notice: { message: reopenedSentence(entry) },
                 }));
             },
         },
     }));
+}
+
+/**
+ * The name a new project takes from its data, as the data page names one: a file's name without
+ * its extension, or a sample's or server's own name.
+ * @param session - the restored session.
+ * @returns the name, or null when the data has none.
+ */
+function dataName(session: GraphSession): string | null {
+    const source = session.data.source();
+    if (source?.name === undefined || source.name === "") {
+        return null;
+    }
+    // `size` is set only when a file was read.
+    return source.size === undefined ? source.name : baseName(source.name);
 }
 
 /**

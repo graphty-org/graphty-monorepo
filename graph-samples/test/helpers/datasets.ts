@@ -18,6 +18,7 @@ import { DATA as openflightsData } from "../../data/openflights.js";
 import { DATA as politicalBlogsData } from "../../data/political-blogs.js";
 import { DATA as politicalBooksData } from "../../data/political-books.js";
 import { DATA as stelzlInteractomeData } from "../../data/stelzl-interactome.js";
+import { DATA as veniceTransitData } from "../../data/venice-transit.js";
 import { DATA as wikipathwaysSenescenceAutophagyData } from "../../data/wikipathways-senescence-autophagy.js";
 import { DATA as yeastPerturbationData } from "../../data/yeast-perturbation.js";
 import { type SampleGraph } from "../../src/types.js";
@@ -38,6 +39,7 @@ export const SOURCE_DATA: Readonly<Record<string, DatasetData>> = {
     "political-blogs": politicalBlogsData,
     "political-books": politicalBooksData,
     "stelzl-interactome": stelzlInteractomeData,
+    "venice-transit": veniceTransitData,
     "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagyData,
     "yeast-perturbation": yeastPerturbationData,
 };
@@ -70,6 +72,8 @@ export const politicalBlogs = (): SampleGraph => buildDataset(politicalBlogsData
 export const politicalBooks = (): SampleGraph => buildDataset(politicalBooksData);
 /** @returns the stelzl-interactome dataset from its repository copy */
 export const stelzlInteractome = (): SampleGraph => buildDataset(stelzlInteractomeData);
+/** @returns the venice-transit dataset from its repository copy */
+export const veniceTransit = (): SampleGraph => buildDataset(veniceTransitData);
 /** @returns the wikipathways-senescence-autophagy dataset from its repository copy */
 export const wikipathwaysSenescenceAutophagy = (): SampleGraph => buildDataset(wikipathwaysSenescenceAutophagyData);
 /** @returns the yeast-perturbation dataset from its repository copy */

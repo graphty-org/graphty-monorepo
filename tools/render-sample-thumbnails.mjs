@@ -9,6 +9,7 @@
  *
  *   graph-samples/thumbnails/<dataset>.webp              every dataset, small and large
  *   graph-samples/thumbnails/generator-<generator>.webp  every generator in GENERATOR_CATALOG
+ *   graphty/public/samples/<sample>.webp                 the graphty app's own samples in APP_SAMPLES
  *
  * graph-samples' pack step copies them into dist/data/v1/ (and build-hosted.mjs into the files
  * graphty.app publishes at https://graphty.app/data/graph-samples/v1/), and each is named by the
@@ -51,6 +52,9 @@ const hostedDir = path.join(root, "graph-samples/public-data/v1");
 const downloadDir = path.join(root, "tmp/graph-samples-hosted");
 const outDir = path.join(root, "graph-samples/thumbnails");
 const bundle = path.join(root, "graphty-element/dist/graphty.bundle.js");
+/** The graphty app's own samples that have no graph-samples dataset to take a picture from. */
+const appSamplesDir = path.join(root, "graphty/public/samples");
+const APP_SAMPLES = ["campus-contacts", "graph-research", "marvel-films", "paper-citations"];
 
 /** The picture's size in pixels: twice a 240 x 150 tile, for sharp screens. */
 const WIDTH = 480;
@@ -65,6 +69,16 @@ const ROAD_NODES = 2500;
 const SNOWBALL_FANOUT = 6;
 /** How far apart positions from the data are drawn: the side of the square they fill, per node's square root. */
 const SPREAD = 6;
+/**
+ * Darker, more solid lines and larger nodes for a dense picture whose default marks are too faint
+ * to read on a light card (venice-transit: 1,874 stops drawn at 480 x 300).
+ */
+const EMPHASIS = {
+    "venice-transit": {
+        edge: { "edge.color": "#3c4252", "edge.opacity": 0.9 },
+        node: { "node.size": 2.5, "node.outline": "#2b2f3a" },
+    },
+};
 
 const { fromBytes } = await import(pathToFileURL(path.join(root, "graph-format/dist/src/index.js")).href);
 const { DATASETS, DEFAULT_DATASET_BASE_URL, GENERATOR_CATALOG, toElementData } = await import(
@@ -327,6 +341,16 @@ async function largeJob(meta) {
 async function jobs(wanted) {
     const want = (name) => wanted.length === 0 || wanted.includes(name);
     const list = [];
+    for (const name of APP_SAMPLES.filter(want)) {
+        const graph = JSON.parse(readFileSync(path.join(appSamplesDir, `${name}.json`), "utf8"));
+        list.push({
+            file: path.join(appSamplesDir, `${name}.webp`),
+            name,
+            directed: graph.directed,
+            records: { nodes: graph.nodes, edges: graph.links },
+            layout: { id: "force", options: { seed: SEED } },
+        });
+    }
     for (const meta of DATASETS.filter((each) => want(each.name))) {
         const small = existsSync(path.join(dataDir, `${meta.name}.gsnp.gz`)) && meta.nodes <= 5000;
         const job = small
@@ -405,11 +429,12 @@ try {
             const picture = await page.evaluate(draw, {
                 name: job.name,
                 data: JSON.stringify({ directed: job.directed, ...job.records }),
+                emphasis: EMPHASIS[job.name] ?? null,
                 layout: job.layout,
                 width: WIDTH,
                 height: HEIGHT,
             });
-            writeFileSync(path.join(outDir, job.file), Buffer.from(picture, "base64"));
+            writeFileSync(path.resolve(outDir, job.file), Buffer.from(picture, "base64"));
             console.log(`${job.file} (${job.layout.engine ?? job.layout.id}, ${job.records.nodes.length} nodes)`);
         } catch (error) {
             failed += 1;
@@ -432,9 +457,10 @@ process.exit(failed === 0 ? 0 : 1);
  * @param job.layout - the layout: its catalogue id, the engine when not the default, and options
  * @param job.width - the picture's width in pixels
  * @param job.height - the picture's height in pixels
+ * @param job.emphasis - darker lines and larger nodes for a dense picture, or null
  * @returns the WebP picture, base64
  */
-async function draw({ name, data, layout, width, height }) {
+async function draw({ name, data, layout, width, height, emphasis }) {
     await globalThis.customElements.whenDefined("graphty-element");
     const element = globalThis.document.querySelector("graphty-element");
     const { session } = element;
@@ -442,8 +468,16 @@ async function draw({ name, data, layout, width, height }) {
         name: "Thin gray lines",
         target: "edge",
         selector: { match: "everything" },
-        set: { "edge.color": "#8a90a0", "edge.opacity": 0.55, "edge.arrowHead": "none" },
+        set: { "edge.color": "#8a90a0", "edge.opacity": 0.55, "edge.arrowHead": "none", ...emphasis?.edge },
     });
+    if (emphasis?.node !== undefined) {
+        await session.styles.add({
+            name: "Larger outlined nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: emphasis.node,
+        });
+    }
     await session.layout.setDimension("2d");
     await session.layout.set(layout.id, {
         ...(layout.engine === undefined ? {} : { engine: layout.engine }),

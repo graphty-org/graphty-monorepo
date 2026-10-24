@@ -441,6 +441,16 @@ function checkTextLeaf(value: Loose, walker: Walker): void {
 }
 
 /**
+ * Check a leaf's side, when it has one.
+ * @param value - The leaf.
+ */
+function checkSide(value: Readonly<Record<string, unknown>>): void {
+    if (value.side !== undefined && value.side !== "nodes" && value.side !== "edges") {
+        throw bad(`A "${String(value.kind)}" leaf's side is "nodes" or "edges".`, { side: value.side });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -511,6 +521,15 @@ function checkTree(value: unknown, walker: Walker): void {
         case "self-loop":
         case "repeated-edge":
             known([]);
+
+            return;
+        case "source":
+            known(["sources", "side"]);
+            checkSide(value);
+
+            if (!Array.isArray(value.sources) || !value.sources.every((key) => typeof key === "string")) {
+                throw bad('A "source" leaf\'s sources are a list of load keys.', { sources: value.sources });
+            }
 
             return;
         case "member":
@@ -606,6 +625,8 @@ export function speaksEdges(
         case "self-loop":
         case "repeated-edge":
             return true;
+        case "source":
+            return node.side !== "nodes";
         case "member":
             return readingOfScope(node.of, referent) !== "induced";
         case "item": {

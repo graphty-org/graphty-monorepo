@@ -1,0 +1,4 @@
+281 nodes, 200 edges
+http://www.wikidata.org/entity/Q127944: Arthur Holly Compton
+then 20 more nodes; complete: true
+40 edges around http://www.wikidata.org/entity/Q127944

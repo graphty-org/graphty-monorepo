@@ -5,12 +5,43 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-21 (tier 3 report rewritten with round 1's results; studio stopped at the round cap).
+Last updated: 2026-10-22 (timeline prototype review ruled: `timeline/decisions.md`; location map
+prototype reviews triaged into `location-map/decisions.md`).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-10-22) TIMELINE PROTOTYPE REVIEWED (four lenses on `feat/timeline-prototype`); rulings in
+  `timeline/decisions.md`, items TL-01 to TL-32, ten rejected. Severity 1 first: Rerun throws
+  `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as
+  the field and a field change leaves a hidden window with no way to clear it (TL-04, TL-05); a
+  stale result reads current when node counts match (TL-03, staleness must compare the window).
+- (2026-10-22) Timeline architecture calls: Results, Mode and Step become field playback settings
+  (`time.settings`, project key `visibility.playback`) so "Show all time" keeps them (TL-12);
+  owner's three values and the `"stale"` default unchanged. One shared histogram brush in
+  compact-mantine fixes alignment, body drag, value text and touch size for every caller (TL-16).
+  Bins, Auto step, ends, jump-to-end and parsing typed dates are element facts; the dock computes
+  no widths (TL-11, TL-18, TL-22, TL-23). Commit 530c136's app-side "Time" precedence is a
+  workaround to delete once TL-06 lands.
+- (2026-10-22) Held against earlier rulings: no pre-set time field on samples ("nothing pre-done in
+  a first session"); no Time chip on the owner-approved Samples dialog; the selection line moves
+  over the histogram because a new row breaks "the drawing moves only when the reader asks"; F6
+  gains the dock as a sixth region only while it is shown.
+- (2026-10-22) LOCATION MAP PROTOTYPE (branch feat/location-map-prototype, build 3137c48f2f):
+  four reviews triaged into `location-map/decisions.md`. 23 items to do, 8 rejected or deferred,
+  and the open one-way doors for the owner. The worst finding: Map that cannot run said nothing
+  and showed "Applied" (three reviews). Fix order: false screens first (refusal, half-filled
+  pair, undo), then lost data (detection, antimeridian, unplaced), then legibility (contrast,
+  node scale, tiles).
+- (2026-10-22) Decided myself: preset views follow the map's facing only while a map frame is
+  active, which settles the Isometric item; wheel zoom centers on the pointer only on a map. The
+  map picker keeps its home in Graph settings, renamed "Source", with one read-only row in the
+  layout form that leads to it. Rejected: clicking a node no longer moving the map (owner's
+  2026-10-20 glide), a combined pair picker, location roles at import.
+- (2026-10-22) Lesson: the reviewers all asked for a refusal mechanism that already exists
+  (`CostEstimate.refusal`, `layout.needs-grouping`). Grep the existing coded-fact paths before
+  naming a new element mechanism.
 - (2026-10-21) TIER 3 REPORT REWRITTEN with round 1's results; the subagent harness again refused
   `tier3/report.md`, so the text went back to the orchestrator to write. Next move is the owner's:
   whether to fund round 2. Owner list is ELEVEN, not nine: the earlier draft missed the edge

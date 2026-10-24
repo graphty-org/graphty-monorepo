@@ -16,10 +16,12 @@ a repository of networks, a graph database, a REST API. It returns the same
 | `requests`      | requests sent                                                    |
 | `bytes`         | response bytes read                                              |
 | `next`          | where to continue a capped load (pass it as `cursor`), else null |
+| `total`         | `{ nodes, edges }` the service holds for the load, when it said  |
 
 The built-in sources are `ndex` (NDEx, the repository of biological networks), `cypher` with its
-`neo4j` and `neptune` presets, and `rest` with its `openalex` preset: see
-[NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md) and [REST](./sources/rest.md). All of
+`neo4j` and `neptune` presets, `rest` with its `openalex` preset, and `sparql`: see
+[NDEx](./sources/ndex.md), [Cypher](./sources/cypher.md), [REST](./sources/rest.md) and
+[SPARQL](./sources/sparql.md). All of
 them are experimental. `listSources()` lists them with their descriptors and samples. To read from your own service, see
 [Writing a source](./writing-a-source.md).
 

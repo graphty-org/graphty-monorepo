@@ -19,6 +19,7 @@ export const SMALL_DATASET_NAMES = [
     "celegans-neural",
     "political-blogs",
     "openflights",
+    "venice-transit",
     "yeast-perturbation",
     "stelzl-interactome",
     "wikipathways-senescence-autophagy",

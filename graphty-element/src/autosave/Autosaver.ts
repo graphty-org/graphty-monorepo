@@ -23,7 +23,7 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { dispatcherOf } from "../session/GraphSession";
 import { onProjectBoundary } from "../session/project/boundary";
-import { markProjectUnsaved } from "../session/projectFile";
+import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession, ProjectSlice } from "../session/types";
@@ -472,6 +472,19 @@ export class Autosaver {
             }),
             session.on("project:status", () => {
                 this.#tell();
+            }),
+            onSourceRecords(session, () => {
+                // A record can change with no row (a refresh that found nothing new, a next page
+                // already held), and the sources part is written with the data part. A change
+                // before the entry starts is a project being opened, which writes nothing here.
+                if (this.#entry.started) {
+                    this.#mark(["data"], false, false);
+                }
+            }),
+            session.on("time:pause", () => {
+                if (this.#entry.unwritten.size > 0 && !this.#stopped) {
+                    this.#schedule();
+                }
             }),
             onProjectBoundary(session, () => {
                 this.#boundary();
@@ -1485,6 +1498,11 @@ export class Autosaver {
         const fire = (): void => {
             this.#kick();
         };
+        // Playback moves the window every step: the write waits for the pause, then happens once.
+        if (this.#session.time.playing) {
+            return;
+        }
+
         if (this.#entry.unwritten.has("data")) {
             this.#debounce?.();
             this.#maxWait?.();

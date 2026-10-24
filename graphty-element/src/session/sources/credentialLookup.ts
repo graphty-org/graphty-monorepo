@@ -4,7 +4,9 @@
  * session's data surface; a session with nothing attached finds nothing.
  */
 
-import type { Credential } from "@graphty/graph-io";
+import { type Credential, credentials, registry } from "@graphty/graph-io";
+
+import { ensureGraphSamplesSource } from "../../data/graphSamplesSource";
 
 /** What answers a lookup: a credential store's `lookup`. */
 export type CredentialResolver = (source: string, origin: string) => Promise<Credential | undefined>;
@@ -29,5 +31,26 @@ export function attachCredentials(owner: object, resolver: CredentialResolver): 
  * @returns the credential, or undefined
  */
 export async function resolve(owner: object, source: string, origin: string): Promise<Credential | undefined> {
-    return RESOLVERS.get(owner)?.(source, origin);
+    return (await RESOLVERS.get(owner)?.(source, origin)) ?? publicLogin(source, origin);
+}
+
+/**
+ * The login a sample of the source publishes for everyone at that origin, so a sample's next
+ * page, refresh and expansions reach the service its first load did.
+ * @param source - the source id
+ * @param origin - the origin about to be contacted
+ * @returns the credential, or undefined when no sample there publishes one
+ */
+function publicLogin(source: string, origin: string): Credential | undefined {
+    ensureGraphSamplesSource();
+    const descriptor = registry.listSources().find((info) => info.id === source)?.descriptor;
+    for (const sample of descriptor?.samples ?? []) {
+        const endpoint = sample.endpoint ?? descriptor?.defaultEndpoint;
+        const login = sample.publicLogin;
+        if (login !== undefined && typeof endpoint === "string" && new URL(endpoint).origin === origin) {
+            return credentials.basic(login.username, login.password);
+        }
+    }
+
+    return undefined;
 }

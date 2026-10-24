@@ -65,6 +65,12 @@ query that returns only scalars (`RETURN count(n)`) fails with `E_SOURCE_NOT_A_G
 `limits: { maxNodes }` a load stops after the page that reached the cap, keeps what came first and
 gives `report.source.next`; pass it back as `cursor` to continue.
 
+A first page of `"all"` on Neo4j with at most one label and no `idProperty` also counts the nodes,
+in one lookup Neo4j answers from its counts whatever the database's size, and gives the count as
+`report.source.total.nodes`, so you can show "100 of 28,455". With `countFirst: true` every
+`"all"` load counts its nodes and relationships (`total.nodes`, `total.edges`), Neptune too. A
+continued page (`cursor`), `"query"` and `"neighborhood"` count nothing.
+
 ## Parameters
 
 | Parameter           | What it does                                                                      |
@@ -80,7 +86,7 @@ gives `report.source.next`; pass it back as `cursor` to continue.
 | `transport`         | `"query-api"`, `"bolt"`, `"neptune-https"` or `"neptune-analytics"`               |
 | `profile`           | `"neo4j"`, `"neptune"` or `"auto"` (default): how the server spells its ids       |
 | `long`              | integers past 2^53: `"f64"` (default, rounded, warns `W_PRECISION`) or `"string"` |
-| `countFirst`        | count first, so `onProgress` gets a total (`"all"` only)                          |
+| `countFirst`        | count nodes and relationships first, for `onProgress` and `report.source.total`   |
 | `pageSize`          | rows per page of `"all"`, 1 to 100000                                             |
 
 Labels, relationship types and property names cannot be query parameters, so they are quoted:

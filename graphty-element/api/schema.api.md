@@ -4,6 +4,10 @@
 
 ```ts
 
+import type { GeoBounds } from 'babylonjs-map/projection';
+import type { LocationFormat } from 'babylonjs-map/location';
+import type { MapSourceId } from 'babylonjs-map';
+import type { ProjectionId } from 'babylonjs-map/projection';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
@@ -16,6 +20,58 @@ export type AdHocData<KeyType extends string | number = string> = Record<KeyType
 
 // @public
 export function areDistinguishableInGrayscale(hex1: string, hex2: string, threshold?: number): boolean;
+
+// @public
+export const Basemap: z.ZodUnion<readonly [z.ZodObject<{
+    source: z.ZodType<BasemapSourceId>;
+    attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+}, z.core.$strict>, z.ZodObject<{
+    tiles: z.ZodString;
+    attribution: z.ZodString;
+    projection: z.ZodOptional<z.ZodEnum<{
+        "web-mercator": "web-mercator";
+        equirectangular: "equirectangular";
+    }>>;
+    tileSize: z.ZodOptional<z.ZodNumber>;
+    minZoom: z.ZodOptional<z.ZodNumber>;
+    maxZoom: z.ZodOptional<z.ZodNumber>;
+    subdomains: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+}, z.core.$strict>, z.ZodObject<{
+    image: z.ZodString;
+    bounds: z.ZodOptional<z.ZodTuple<[z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>], null>>;
+    projection: z.ZodOptional<z.ZodEnum<{
+        "web-mercator": "web-mercator";
+        equirectangular: "equirectangular";
+    }>>;
+    attribution: z.ZodOptional<z.ZodString>;
+    attributionShown: z.ZodOptional<z.ZodBoolean>;
+    beyond: z.ZodOptional<z.ZodEnum<{
+        continue: "continue";
+        clip: "clip";
+    }>>;
+}, z.core.$strict>]>;
+
+// @public
+export type BasemapConfig = z.infer<typeof Basemap>;
+
+// @public
+export type BasemapSourceId = MapSourceId | "none";
+
+// @public
+export interface BasemapStatus {
+    readonly attribution: readonly string[];
+    readonly source: string;
+    readonly state: "off" | "loading" | "ready" | "fallback";
+}
 
 // @public
 export type Binding = {
@@ -87,7 +143,7 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.nodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelWrapEllipsis" | "node.labelWrapAnywhere" | "node.labelWrapSpaceCount" | "node.labelRunAlign" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelMinNodeScreenSize" | "node.labelTextAlign" | "node.labelLocation" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOutlineOpacity" | "node.labelBorderOpacity" | "node.labelPadding" | "node.labelCornerRadius" | "node.labelLineHeight" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.borderWaveAmplitude" | "node.borderWavePeriod" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.shapeParts" | "node.shapeLines" | "node.shapeTexts" | "node.shapeLineWidth" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.gradientColors" | "node.gradientStops" | "node.gradientKind" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageAutoSize" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "node.chartKind" | "node.chartValues" | "node.chartColors" | "node.chartMin" | "node.chartMax" | "node.chartHorizontal" | "node.chartSize" | "node.chartMargin" | "node.chartGap" | "node.chartLineWidth" | "node.chartBorderColor" | "node.chartBorderWidth" | "edge.color" | "edge.width" | "edge.minScreenWidth" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.outlineStyle" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.waveAmplitude" | "edge.wavePeriod" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.route" | "edge.arcHeight" | "edge.nodeGap" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadSide" | "edge.arrowHeadPosition" | "edge.arrowHeadGap" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextFont" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextWeight" | "edge.arrowHeadTextOpacity" | "edge.arrowHeadTextDistance" | "edge.arrowHeadTextRotation" | "edge.arrowHeadTextOffsetX" | "edge.arrowHeadTextOffsetY" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailSide" | "edge.arrowTailPosition" | "edge.arrowTailGap" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextFont" | "edge.arrowTailTextColor" | "edge.arrowTailTextWeight" | "edge.arrowTailTextOpacity" | "edge.arrowTailTextDistance" | "edge.arrowTailTextRotation" | "edge.arrowTailTextOffsetX" | "edge.arrowTailTextOffsetY" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadSide" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailSide" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextBackground" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelWrapEllipsis" | "edge.labelWrapAnywhere" | "edge.labelWrapSpaceCount" | "edge.labelRunAlign" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelLocation" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOutlineOpacity" | "edge.labelBorderOpacity" | "edge.labelPadding" | "edge.labelCornerRadius" | "edge.labelLineHeight" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
@@ -125,6 +181,7 @@ export const defaultRichTextLabelStyle: RichTextStyleType;
 // @public
 export const EdgeArrowTypes: z.ZodEnum<{
     none: "none";
+    image: "image";
     dot: "dot";
     normal: "normal";
     inverted: "inverted";
@@ -146,7 +203,6 @@ export const EdgeArrowTypes: z.ZodEnum<{
     "circle-triangle": "circle-triangle";
     "half-open-flipped": "half-open-flipped";
     "open-box": "open-box";
-    image: "image";
     "cross-delta": "cross-delta";
     "open-cross-delta": "open-cross-delta";
     "open-inverted": "open-inverted";
@@ -206,6 +262,7 @@ export const EdgeStyle: z.ZodObject<{
     arrowHead: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            image: "image";
             dot: "dot";
             normal: "normal";
             inverted: "inverted";
@@ -227,7 +284,6 @@ export const EdgeStyle: z.ZodObject<{
             "circle-triangle": "circle-triangle";
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
-            image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
@@ -419,11 +475,11 @@ export const EdgeStyle: z.ZodObject<{
             pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 none: "none";
+                fill: "fill";
                 pulse: "pulse";
                 bounce: "bounce";
                 shake: "shake";
                 glow: "glow";
-                fill: "fill";
             }>>>;
             animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             badge: z.ZodOptional<z.ZodEnum<{
@@ -453,6 +509,7 @@ export const EdgeStyle: z.ZodObject<{
     arrowTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            image: "image";
             dot: "dot";
             normal: "normal";
             inverted: "inverted";
@@ -474,7 +531,6 @@ export const EdgeStyle: z.ZodObject<{
             "circle-triangle": "circle-triangle";
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
-            image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
@@ -666,11 +722,11 @@ export const EdgeStyle: z.ZodObject<{
             pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
                 none: "none";
+                fill: "fill";
                 pulse: "pulse";
                 bounce: "bounce";
                 shake: "shake";
                 glow: "glow";
-                fill: "fill";
             }>>>;
             animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             badge: z.ZodOptional<z.ZodEnum<{
@@ -698,9 +754,9 @@ export const EdgeStyle: z.ZodObject<{
         textDistance: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     arrowMiddleHead: z.ZodOptional<z.ZodObject<{
-        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            image: "image";
             dot: "dot";
             normal: "normal";
             inverted: "inverted";
@@ -722,25 +778,25 @@ export const EdgeStyle: z.ZodObject<{
             "circle-triangle": "circle-triangle";
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
-            image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
         }>>>;
+        image: z.ZodOptional<z.ZodString>;
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         position: z.ZodOptional<z.ZodNumber>;
-        image: z.ZodOptional<z.ZodString>;
         side: z.ZodOptional<z.ZodEnum<{
             left: "left";
             right: "right";
         }>>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
-        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            image: "image";
             dot: "dot";
             normal: "normal";
             inverted: "inverted";
@@ -762,16 +818,16 @@ export const EdgeStyle: z.ZodObject<{
             "circle-triangle": "circle-triangle";
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
-            image: "image";
             "cross-delta": "cross-delta";
             "open-cross-delta": "open-cross-delta";
             "open-inverted": "open-inverted";
         }>>>;
+        image: z.ZodOptional<z.ZodString>;
+        color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         position: z.ZodOptional<z.ZodNumber>;
-        image: z.ZodOptional<z.ZodString>;
         side: z.ZodOptional<z.ZodEnum<{
             left: "left";
             right: "right";
@@ -844,6 +900,12 @@ export const EdgeStyle: z.ZodObject<{
             arc: "arc";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
+        route: z.ZodOptional<z.ZodEnum<{
+            arc: "arc";
+            straight: "straight";
+            "great-circle": "great-circle";
+        }>>;
+        arcHeight: z.ZodOptional<z.ZodNumber>;
         nodeGap: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
@@ -1024,11 +1086,11 @@ export const EdgeStyle: z.ZodObject<{
         pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            fill: "fill";
             pulse: "pulse";
             bounce: "bounce";
             shake: "shake";
             glow: "glow";
-            fill: "fill";
         }>>>;
         animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         badge: z.ZodOptional<z.ZodEnum<{
@@ -1354,6 +1416,46 @@ export type Lighting = (typeof LIGHTING_VALUES)[number];
 export const LIGHTING_VALUES: readonly ["studio", "headlight", "matte", "flat"];
 
 // @public
+export type LocationSourceFact = {
+    readonly kind: "columns";
+    readonly latitude: string;
+    readonly longitude: string;
+    readonly filled: "latitude" | "longitude" | null;
+} | {
+    readonly kind: "location";
+    readonly column: string;
+    readonly format: LocationFormat;
+} | {
+    readonly kind: "place";
+    readonly column: string;
+    readonly role: "country" | "region" | "city" | null;
+    readonly within: string | null;
+    readonly attribution: readonly {
+        readonly text: string;
+        readonly url: string;
+    }[];
+};
+
+// @public
+export type MapFrameFact = {
+    readonly dimensions: 2 | 3;
+    readonly location: LocationSourceFact;
+    readonly unplaced: readonly (string | number)[];
+    readonly warnings: readonly {
+        readonly code: string;
+        readonly params: Readonly<Record<string, unknown>>;
+    }[];
+} & ({
+    readonly surface: "flat";
+    readonly projection: ProjectionId;
+    readonly bounds: GeoBounds;
+    readonly size: number;
+} | {
+    readonly surface: "globe";
+    readonly radius: number;
+});
+
+// @public
 export const MISSING_DATA_COLOR = "#ff00ff";
 
 // @public
@@ -1507,8 +1609,8 @@ export const NodeStyle: z.ZodObject<{
         lineWidth: z.ZodOptional<z.ZodNumber>;
         texts: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
-            inside: "inside";
             bounds: "bounds";
+            inside: "inside";
         }>>;
         labelPaddingX: z.ZodOptional<z.ZodNumber>;
         labelPaddingY: z.ZodOptional<z.ZodNumber>;
@@ -1973,11 +2075,11 @@ export const NodeStyle: z.ZodObject<{
         pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            fill: "fill";
             pulse: "pulse";
             bounce: "bounce";
             shake: "shake";
             glow: "glow";
-            fill: "fill";
         }>>>;
         animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         badge: z.ZodOptional<z.ZodEnum<{
@@ -2178,11 +2280,11 @@ export const NodeStyle: z.ZodObject<{
         pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
             none: "none";
+            fill: "fill";
             pulse: "pulse";
             bounce: "bounce";
             shake: "shake";
             glow: "glow";
-            fill: "fill";
         }>>>;
         animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         badge: z.ZodOptional<z.ZodEnum<{
@@ -2464,11 +2566,11 @@ export const RichTextStyle: z.ZodObject<{
     pointerCurve: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     animation: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
         none: "none";
+        fill: "fill";
         pulse: "pulse";
         bounce: "bounce";
         shake: "shake";
         glow: "glow";
-        fill: "fill";
     }>>>;
     animationSpeed: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     badge: z.ZodOptional<z.ZodEnum<{
@@ -2589,6 +2691,16 @@ export type RuleTree = {
     readonly text: string;
     readonly caseSensitive?: boolean;
     readonly nodes?: AttributeLeafNodes;
+}
+/**
+* The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+* `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+* Speaks nodes and edges.
+*/
+| {
+    readonly kind: "source";
+    readonly sources: readonly SourceKey[];
+    readonly side?: RuleSide;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -2676,13 +2788,15 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-* each change with no step.
+* edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
+* (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
+* (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
+* follows each change with no step.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered";
+    state: "selected" | "hovered" | "ghosted" | "pinned";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),

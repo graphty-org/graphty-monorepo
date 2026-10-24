@@ -139,11 +139,16 @@ describe("value popovers", () => {
 
     it("shows the row of values opacity cannot take whole, at the picker's width", async () => {
         await openScene(1440, 900);
-        const tab = await openStyle("Everything");
-        if (tab.querySelector('.ws-row[data-line="node.opacity"]') === null) {
-            await userEvent.click(within(tab).getByRole("button", { name: "Add to node visibility" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Opacity" }));
-        }
+        // Opacity alone on a layer is a line of its own; beside a color it is the color's box.
+        const live = document.querySelector("graphty-element")?.session;
+        await live?.styles.add({
+            name: "Faded",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 0.5 },
+        });
+        await live?.styles.settled();
+        const tab = await openStyle("Faded");
         const row = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.opacity"]');
             assert.isNotNull(found, "an opacity row");
@@ -159,11 +164,16 @@ describe("value popovers", () => {
 
     it("varies opacity from 20% to 100%, the app's own range, when a number is picked for it", async () => {
         await openScene(1440, 900);
-        const tab = await openStyle("Everything");
-        if (tab.querySelector('.ws-row[data-line="node.opacity"]') === null) {
-            await userEvent.click(within(tab).getByRole("button", { name: "Add to node visibility" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Opacity" }));
-        }
+        // Opacity alone on a layer is a line of its own; beside a color it is the color's box.
+        const live = document.querySelector("graphty-element")?.session;
+        await live?.styles.add({
+            name: "Faded",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 0.5 },
+        });
+        await live?.styles.settled();
+        const tab = await openStyle("Faded");
         const row = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.opacity"]');
             assert.isNotNull(found, "an opacity row");

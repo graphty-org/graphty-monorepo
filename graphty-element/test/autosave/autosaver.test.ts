@@ -283,6 +283,7 @@ describe("the parts a change writes", () => {
             "data",
             "rest",
             "run:links",
+            "sources",
             "stash",
         ]);
     });
@@ -744,5 +745,41 @@ describe("status", () => {
         assert.strictEqual(saver.status.revision, 2);
         assert.isTrue(saver.status.unexported);
         assert.isString(saver.status.savedAt);
+    });
+});
+
+describe("timeline playback", () => {
+    it("writes nothing while time plays, and once after the pause", async () => {
+        const session = createGraphSession();
+        await session.data.import({
+            type: "csv",
+            config: { data: "source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\nC,D,2026-01-03\nD,E,2026-01-04\n" },
+        });
+        const { store, clock, saver } = await written({ session });
+        await session.time.setField({ edges: { start: "sent" } });
+        await session.time.setSettings({ step: "day" });
+        await saver.flush();
+        const before = store.log.length;
+
+        const steps: number[] = [];
+        await new Promise<void>((resolve) => {
+            session.on("time:step", (step) => {
+                steps.push(step.index);
+                // Every timer autosave could have armed falls due between two steps.
+                clock.advance(60_000);
+            });
+            session.on("time:pause", () => {
+                resolve();
+            });
+            session.time.play({ interval: 0 });
+        });
+
+        assert.isAbove(steps.length, 2);
+        assert.strictEqual(store.log.length, before, "no write while playing");
+        clock.advance(60_000);
+        await vi.waitFor(() => {
+            assert.strictEqual(store.log.length, before + 1, "one write after the pause");
+        });
+        session.dispose();
     });
 });

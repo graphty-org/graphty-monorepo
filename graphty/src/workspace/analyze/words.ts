@@ -372,6 +372,36 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // The location map's options; an empty location column is found from the data.
+    "location-map.location": { label: "Location", empty: "Automatic" },
+    "location-map.latitude": { label: "Latitude", empty: "Automatic" },
+    "location-map.longitude": { label: "Longitude", empty: "Automatic" },
+    "location-map.surface": { label: "Surface", choices: { flat: "Flat map", globe: "Globe" } },
+    "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
+    "location-map.format": {
+        label: "Format",
+        choices: {
+            auto: "Automatic",
+            decimal: "Latitude, longitude",
+            "lon-lat": "Longitude, latitude",
+            geojson: "GeoJSON",
+            wkt: "WKT",
+            iso6709: "ISO 6709",
+            dms: "Degrees, minutes, seconds",
+            geohash: "Geohash",
+            "plus-code": "Plus code",
+            mgrs: "MGRS",
+            utm: "UTM",
+        },
+    },
+    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
+    "location-map.projection": {
+        label: "Projection",
+        choices: { auto: "Automatic", "web-mercator": "Web Mercator", equirectangular: "Equirectangular" },
+    },
+    "location-map.size": { label: "Size" },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -428,11 +458,11 @@ export function isPathFollow(algorithm: string, option: string): boolean {
 export function optionWords(
     algorithm: string,
     option: OptionDescriptor,
-): { label: string; choice: (value: string) => string; empty: string } {
+): { label: string; choice: (value: string) => string; empty?: string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
         label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
-        empty: words?.empty ?? "Not set",
+        empty: words?.empty,
         choice: (value) =>
             words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };
@@ -442,7 +472,7 @@ export function optionWords(
 export type Meaning = WeightMeaning["meaning"] | null;
 
 /** What each meaning reads as on screen (tier2-design.md section 5); the element's "strength" is "closer". */
-const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+export const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
     strength: "closer",
     distance: "farther",
     capacity: "capacity",

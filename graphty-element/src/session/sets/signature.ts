@@ -282,6 +282,10 @@ function rulePart(
         case "repeated-edge":
             // Topology and ids: the serial and the key say it all.
             return "t";
+        case "source":
+            // ponytail: what a load supplied moves with no revision to key it on, so it is never
+            // cached; give provenance a revision if a source rule shows up hot.
+            return null;
         case "member": {
             const part = scopePart(where.of, context, parts, seen);
             return part === null ? null : `(${part})`;

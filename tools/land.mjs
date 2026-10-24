@@ -692,9 +692,8 @@ export function defaultPreview(ctx, pr, cwd = ctx.golden) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    // The cut's preview is what the owner reviews before a ship: its captures take the next browser slot
-    // ahead of landing checks (tools/with-browser.sh).
-    const env = cwd === ctx.cut ? { ...ctx.env, BROWSER_SLOT_PRIORITY: "high" } : ctx.env;
+    // The cut's preview is what the owner reviews before a ship: it goes first (tools/visual-preview.sh).
+    const env = cwd === ctx.cut ? { ...ctx.env, VISUAL_PREVIEW_PRIORITY: "cut" } : ctx.env;
     spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr), "--expect", head], {
         cwd,
         env,

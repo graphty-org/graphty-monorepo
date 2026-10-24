@@ -22,7 +22,7 @@
 # too; the gate's own shards (TEST_SLOT_GATE set) never do.
 #
 # The high lane: with BROWSER_SLOT_PRIORITY=high (the cut's screenshot preview, which the owner reviews before
-# a ship: tools/land.mjs and tools/visual-preview.sh set it) the command takes the next free slot of the four,
+# a ship: tools/visual-preview.sh sets it) the command takes the next free slot of the four,
 # ahead of every other waiter, the gate's shards included: while it waits it leaves a mark
 # (<slot dir>/.high-<pid>), and no command outside the high lane takes a slot while a live mark exists. It
 # never takes a slot from a command that holds one.

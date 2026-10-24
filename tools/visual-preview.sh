@@ -81,9 +81,6 @@ if [[ "$MODE" != "pr" ]]; then
     HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     # The branch of the checkout being pushed: PREPUSH_ROOT when the gate runs from its live copy.
     BRANCH="$(git -C "${PREPUSH_ROOT:-$HERE}" symbolic-ref --short -q HEAD || true)"
-    # The gate's capture of a push to the cut (a cut or a cut fix) takes the next browser slot ahead of
-    # landing checks (tools/with-browser.sh), as tools/land.mjs asks for the cut's own preview.
-    [[ "$BRANCH" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
     PR=""
     if [[ -n "$BRANCH" ]]; then
         PR="$(jq -r --arg b "$BRANCH" '[.pullRequests[]? | select(.head == $b) | .number][0] // empty' \
@@ -267,6 +264,9 @@ if [[ ${#PROJECTS[@]} -eq 0 ]]; then
     exit 0
 fi
 
+# The cut's preview (VISUAL_PREVIEW_PRIORITY, set by tools/land.mjs, or the gate's capture of a push to
+# golden-cut: a cut or a cut fix) takes the next browser slot ahead of landing checks (tools/with-browser.sh).
+[[ -z "${VISUAL_PREVIEW_PRIORITY:-}" && "${BRANCH:-}" != golden-cut ]] || export BROWSER_SLOT_PRIORITY=high
 WRAP=()
 [[ -x "${WITH_BROWSER:-$HERE/tools/with-browser.sh}" ]] && WRAP=("${WITH_BROWSER:-$HERE/tools/with-browser.sh}")
 # Only a preview naming a pull request and its head is decidable on the review page.

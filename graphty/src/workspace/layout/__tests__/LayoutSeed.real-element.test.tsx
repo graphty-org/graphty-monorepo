@@ -17,9 +17,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { LAYOUT_SEED } from "../methods";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 describe("the app's layout seed", () => {
     // At the runner's default 414 px the toolbar is clipped, and Mantine hides a popover whose
     // anchor is hidden.
@@ -27,50 +24,42 @@ describe("the app's layout seed", () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "starts every project on the seeded force layout, and keeps the seed on a method change",
-        async () => {
-            const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
-            render(<Workspace store={store} />);
-            let session: GraphSession | undefined;
-            await waitFor(
-                () => {
-                    session = document.querySelector("graphty-element")?.session;
-                    assert.isDefined(session);
-                },
-                { timeout: TIMEOUT_MS },
-            );
-            if (session === undefined) {
-                throw new Error("the element never came up");
-            }
+    it("starts every project on the seeded force layout, and keeps the seed on a method change", async () => {
+        const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
+        render(<Workspace store={store} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
 
-            assert.strictEqual(session.layout.id, "force");
-            assert.strictEqual(session.layout.engine, "ngraph");
-            assert.strictEqual(session.layout.options.seed, LAYOUT_SEED, "the project starts seeded");
-            assert.strictEqual(
-                screen.getByRole("button", { name: "Undo" }).getAttribute("aria-disabled"),
-                "true",
-                "the seed is where the project starts, not a step to undo",
-            );
+        assert.strictEqual(session.layout.id, "force");
+        assert.strictEqual(session.layout.engine, "ngraph");
+        assert.strictEqual(session.layout.options.seed, LAYOUT_SEED, "the project starts seeded");
+        assert.strictEqual(
+            screen.getByRole("button", { name: "Undo" }).getAttribute("aria-disabled"),
+            "true",
+            "the seed is where the project starts, not a step to undo",
+        );
 
-            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
-            const layoutTool = screen.getByRole("button", { name: "Layout" });
-            await waitFor(() => {
-                assert.isFalse(layoutTool.hasAttribute("aria-disabled"));
-            });
-            await userEvent.click(layoutTool);
-            const popover = await screen.findByRole("dialog", { name: "Layout" });
-            await userEvent.click(within(popover).getByRole("option", { name: /^Random/ }));
-            await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
-            assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
-            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-            const live = session;
-            await waitFor(() => {
-                assert.strictEqual(live.layout.id, "random");
-            });
-            assert.strictEqual(live.layout.options.seed, LAYOUT_SEED, "a picked method is seeded too");
-        },
-        TIMEOUT_MS,
-    );
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        const layoutTool = screen.getByRole("button", { name: "Layout" });
+        await waitFor(() => {
+            assert.isFalse(layoutTool.hasAttribute("aria-disabled"));
+        });
+        await userEvent.click(layoutTool);
+        const popover = await screen.findByRole("dialog", { name: "Layout" });
+        await userEvent.click(within(popover).getByRole("option", { name: /^Random/ }));
+        await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
+        assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
+        await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+        const live = session;
+        await waitFor(() => {
+            assert.strictEqual(live.layout.id, "random");
+        });
+        assert.strictEqual(live.layout.options.seed, LAYOUT_SEED, "a picked method is seeded too");
+    });
 });

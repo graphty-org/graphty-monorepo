@@ -32,9 +32,19 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { workerShare } from "../tools/test-slots.mjs";
+import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
-import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
+
+/**
+ * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
+ * on every browser project below, since none extends the root. The gate runs several shards of
+ * this package side by side in one checkout; sharing a cache, a stale one is re-optimized by every
+ * shard at once, each deleting chunks the others load ("error when mocking a module", "The file
+ * does not exist ... in the optimize deps directory", issue #3319). Outside the gate, Vite's
+ * default directory.
+ */
+const SHARD_CACHE_DIR = shardCacheDir();
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -273,7 +283,7 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
@@ -307,10 +317,6 @@ export default defineConfig({
                     // A browser benchmark needs a page, which this project has not got: it runs in
                     // "browser-bench" below.
                     exclude: ["test/browser/**", "**/node_modules/**"],
-                    // test/lifecycle/autosave-engines.bench.test.ts launches three browsers per size,
-                    // up to 100,000 nodes each.
-                    testTimeout: 600_000,
-                    hookTimeout: 120_000,
                 },
             },
             {
@@ -320,9 +326,6 @@ export default defineConfig({
                     name: "default",
                     server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
-                    // The shared config's figure. Tests that import a whole entry point take several
-                    // seconds on a CI runner or under the pre-push gate, past vitest's default five.
-                    testTimeout: 30000,
                     include: ["test/**/*.test.ts", "test/unit/**/*.test.ts", "test/integration/**/*.test.ts"],
                     exclude: [
                         // Timing benchmarks, which run as their own project -- see "bench" above.
@@ -429,10 +432,6 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Mesh construction under NullEngine is fast; these are the limits the standalone
-                    // config used and no case comes close to them.
-                    testTimeout: 10000,
-                    hookTimeout: 5000,
                 },
             },
             {
@@ -444,6 +443,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
@@ -527,6 +527,7 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
@@ -550,6 +551,7 @@ export default defineConfig({
                 // ci.yml's advisory "performance" job, and by hand with:
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
@@ -591,6 +593,7 @@ export default defineConfig({
                 ],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
@@ -651,6 +654,7 @@ export default defineConfig({
                 // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: {
                     include: [
                         ...PREBUNDLED,
@@ -722,6 +726,7 @@ export default defineConfig({
                 // annotation session draws about one frame a second and does not settle.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
@@ -732,7 +737,6 @@ export default defineConfig({
                         "test/fidelity/oracle-report.test.ts",
                         "test/fidelity/mutants.test.ts",
                     ],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -756,7 +760,6 @@ export default defineConfig({
                 test: {
                     name: "bench-browser",
                     include: ["test/bench-browser/**/*.bench-browser.ts"],
-                    testTimeout: 0,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
@@ -769,6 +772,7 @@ export default defineConfig({
             },
             {
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
@@ -794,8 +798,6 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    // Interaction tests load complex scenes and may need longer timeout
-                    testTimeout: 30000,
                 },
             },
             {
@@ -841,8 +843,6 @@ export default defineConfig({
                         instances: [{ browser: "chromium" }],
                     },
                     setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
-                    // Storybook tests load complex 3D scenes and need longer timeout
-                    testTimeout: 30000,
                 },
             },
             // Autosave lifecycle tests (design/work-protection/plan.md, step 6): every test that reloads,
@@ -862,11 +862,6 @@ export default defineConfig({
                     // The benchmark beside these tests runs in "bench".
                     exclude: ["**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
-                    // On the macOS runners (work-protection-macos.yml) booting the iOS Simulator and
-                    // Safari's first launch take minutes; the workflow's step limits bound them there.
-                    // The project's limits win over the command line's, so they are set here.
-                    testTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 120_000,
-                    hookTimeout: process.env.GRAPHTY_LIFECYCLE_MACOS === "1" ? 900_000 : 60_000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
@@ -894,9 +889,6 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Per provider, sized from measured call latency (test/helpers/llm-regression-env.ts)
-                    testTimeout: getLlmRegressionCaseTimeoutMs(),
-                    hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",
                     fileParallelism: false,
@@ -923,3 +915,6 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

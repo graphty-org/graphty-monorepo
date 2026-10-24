@@ -168,12 +168,9 @@ function kill(pid) {
  * @returns {Promise<void>} once it holds
  */
 function until(cond) {
-    return vi.waitFor(
-        () => {
-            if (!cond()) throw new Error("condition never held");
-        },
-        { timeout: 15_000, interval: 20 },
-    );
+    return vi.waitFor(() => {
+        if (!cond()) throw new Error("condition never held");
+    });
 }
 
 /**

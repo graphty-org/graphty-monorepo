@@ -4,7 +4,6 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { GRAPH_FILE_GML, PLAIN_JSON, WIDE_JSON } from "./fixtures";
 
@@ -45,10 +44,10 @@ const GRAPH_FILE = { type: "gml", name: "les-miserables.gml", config: { data: GR
  */
 async function openMenu(canvasElement: HTMLElement, name: string): Promise<void> {
     const place = within(canvasElement).getByRole("region", { name: "Data place" });
-    const row = await within(place).findByRole("treeitem", { name }, storyWaitOptions(1000));
+    const row = await within(place).findByRole("treeitem", { name });
     row.focus();
     await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-    await within(document.body).findByRole("menu", {}, storyWaitOptions(1000));
+    await within(document.body).findByRole("menu", {});
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -84,13 +83,7 @@ export const AttributePicked: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await load(canvasElement, GRAPH_FILE);
-        await userEvent.click(
-            await within(canvasElement).findByRole(
-                "treeitem",
-                { name: "group, node attribute" },
-                storyWaitOptions(1000),
-            ),
-        );
+        await userEvent.click(await within(canvasElement).findByRole("treeitem", { name: "group, node attribute" }));
     },
 };
 

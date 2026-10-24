@@ -137,7 +137,7 @@ describe("the Graph place", () => {
         const place = screen.getByRole("region", { name: "Graph place" });
         place.style.width = "90px";
         await userEvent.hover(name);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: 3000 });
+        const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Les Miserables");
     });
 

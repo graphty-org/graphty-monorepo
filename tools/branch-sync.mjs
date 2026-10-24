@@ -11,7 +11,7 @@
 // newest landing on golden's first-parent line, at or before golden-good, that merges cleanly into it
 // (git merge-tree, in memory) and passes its affected checks on the merge (build, lint and the test shards
 // of the packages the branch changes, in the scratch worktree .worktrees/branch-sync, at the lowest
-// priority). When the newest fails, a binary search over the landings finds the newest that passes. The
+// priority; no shards while CI verifies golden, the light gate). When the newest fails, a binary search over the landings finds the newest that passes. The
 // merge is a signed merge commit pushed to the branch on origin (a fast-forward of it; the owner's worktree
 // is never touched: tools/branch-push.sh merges it there at the next commit). The result goes in the
 // branch's progress note (tools/branch-note.mjs) as its `sync` line, which `land.mjs status` shows: synced
@@ -26,7 +26,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSyn
 import { join } from "node:path";
 
 import { busyNow, findNote, issueInName, parseNote, readIssues, writeNote } from "./branch-note.mjs";
-import { git, GOLDEN, newestStableCut, NOT_WORK, readLock, tryLock } from "./land.mjs";
+import { git, GOLDEN, lightGate, newestStableCut, NOT_WORK, readLock, tryLock } from "./land.mjs";
 
 export const GOOD_TAG = "golden-good";
 export const ACTIVE_DAYS = 7;
@@ -239,7 +239,7 @@ const alive = (pid) => {
 /**
  * The branch's affected checks on a merge, in the scratch worktree <main>/.worktrees/branch-sync: install,
  * build, lint and the CI test shards of the affected packages (tools/prepush-tests.mjs, the gate's own test
- * stage, from the gate's live copy when there is one), all under `nice -n 19`, with the test and browser slots
+ * stage, from the gate's live copy when there is one; no shards while CI verifies golden), all under `nice -n 19`, with the test and browser slots
  * in their low-priority lanes. Logs go to <main>/tmp/branch-sync/.
  * @param ctx the land.mjs context
  * @param job `{ sha, base, branch }`: the merge to check and the landing it merged (the affected base)
@@ -284,6 +284,26 @@ export function defaultCheck(ctx, job) {
     if (projects.includes("webgpu-graph-algorithms")) step("cd webgpu-graph-algorithms && npm run build:bundle");
     const lint = `pnpm exec nx run-many -t lint --projects=${list} --parallel=3 --exclude-task-dependencies`;
     if (step(lint).status !== 0) return { ok: false, what: `lint (log: ${log})` };
+    return testStage(ctx, step, { dir, log, projects, job });
+}
+
+/**
+ * The test shards of the sync's checks: none while CI verifies golden (the light gate, `lightGate` in land.mjs;
+ * CI runs every shard on golden), else the gate's own test stage on the affected packages.
+ * @param ctx the land.mjs context
+ * @param step defaultCheck's step runner
+ * @param run the check
+ * @param run.dir the scratch worktree
+ * @param run.log the check's log file
+ * @param run.projects the affected packages
+ * @param run.job `{ sha, base, branch }`, as defaultCheck's
+ * @returns `{ ok, what? }`
+ */
+export function testStage(ctx, step, { dir, log, projects, job }) {
+    if (lightGate(ctx) === "1") {
+        appendFileSync(log, "\n[LIGHT] no test shards: tests run in CI verification\n");
+        return { ok: true };
+    }
     const live = join(ctx.main, ".worktrees/gate-live/tools/prepush-tests.mjs");
     const runner = existsSync(live) ? live : "tools/prepush-tests.mjs";
     const ledger = { TEST_LEDGER_KIND: "sync", TEST_LEDGER_BRANCH: job.branch };

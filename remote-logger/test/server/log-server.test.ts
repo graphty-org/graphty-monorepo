@@ -14,23 +14,17 @@ function getNextPort(): number {
 }
 
 /**
- * Helper to wait for server to be listening with a timeout.
+ * Waits for a server to be listening, or for its start to fail. No deadline of its own: the one
+ * hang guard (tools/test-wait-guard.mjs) ends a start that never comes.
  * @param server - The server to wait for
- * @param timeoutMs - Timeout in milliseconds
  */
-async function waitForServer(server: http.Server | https.Server, timeoutMs = 5000): Promise<void> {
+async function waitForServer(server: http.Server | https.Server): Promise<void> {
     return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            reject(new Error(`Server did not start within ${timeoutMs}ms`));
-        }, timeoutMs);
-
         server.once("listening", () => {
-            clearTimeout(timeout);
             resolve();
         });
 
         server.once("error", (err) => {
-            clearTimeout(timeout);
             reject(err);
         });
     });

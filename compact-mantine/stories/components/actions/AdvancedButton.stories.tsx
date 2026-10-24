@@ -15,7 +15,6 @@ import {
 } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A 24px gear button that opens the rarely-changed settings of a row or a section, and shows
@@ -195,7 +194,7 @@ export const OpensAPopout: Story = {
     play: async ({ canvasElement }) => {
         const button = within(canvasElement).getByRole("button", { name: /Range and scale/ });
         await userEvent.click(button);
-        await waitFor(() => expect(button).toHaveAttribute("aria-expanded", "true"), storyWaitOptions(1000));
+        await waitFor(() => expect(button).toHaveAttribute("aria-expanded", "true"));
         await expect(within(document.body).getByRole("dialog")).toBeInTheDocument();
     },
 };

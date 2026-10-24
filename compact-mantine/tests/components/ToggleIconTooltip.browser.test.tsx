@@ -19,12 +19,12 @@ describe("ToggleIconButton's tooltip", () => {
         );
         const button = screen.getByRole("button", { name: "Hide Degree" });
         await userEvent.hover(button);
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe("Turn this layer off");
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("Turn this layer off");
     });
 
     it("shows the label when no tooltip is given", async () => {
         await renderThemed(<ToggleIconButton label="Lock aspect ratio" icon={<UiGlyph name="lock" />} />);
         await userEvent.hover(screen.getByRole("button", { name: "Lock aspect ratio" }));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe("Lock aspect ratio");
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("Lock aspect ratio");
     });
 });

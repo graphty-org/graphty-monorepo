@@ -15,9 +15,6 @@ import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
 import { drawnFrames } from "../helpers/drawn-frames";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -84,100 +81,75 @@ function maxDepth(session: GraphSession): number {
 }
 
 describe("a flat force layout", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "reads force-2d as force drawn by arf, flat in the 3D view",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
+    it("reads force-2d as force drawn by arf, flat in the 3D view", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
 
-            await session.layout.set("force-2d");
-            await settle(graph);
+        await session.layout.set("force-2d");
+        await settle(graph);
 
-            assert.strictEqual(session.layout.id, "force");
-            assert.strictEqual(session.layout.engine, "arf");
-            assert.strictEqual(session.layout.dimension, "3d");
-            assert.strictEqual(session.layout.arrangedDimension, "2d");
-            assert.notInclude(
-                session.catalog.layouts().map((layout) => String(layout.id)),
-                "force-2d",
-            );
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.strictEqual(session.layout.id, "force");
+        assert.strictEqual(session.layout.engine, "arf");
+        assert.strictEqual(session.layout.dimension, "3d");
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+        assert.notInclude(
+            session.catalog.layouts().map((layout) => String(layout.id)),
+            "force-2d",
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "draws flat in the 2D view even when dim: 3 was asked for",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
+    it("draws flat in the 2D view even when dim: 3 was asked for", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
 
-            await session.layout.set("force", { options: { dim: 3, seed: 1 } });
-            await settle(graph);
-            assert.strictEqual(session.layout.arrangedDimension, "3d");
-            assert.isAbove(maxDepth(session), 1e-6, "dim: 3 in the 3D view is deep");
+        await session.layout.set("force", { options: { dim: 3, seed: 1 } });
+        await settle(graph);
+        assert.strictEqual(session.layout.arrangedDimension, "3d");
+        assert.isAbove(maxDepth(session), 1e-6, "dim: 3 in the 3D view is deep");
 
-            await session.layout.setDimension("2d");
-            await settle(graph);
-            assert.strictEqual(session.layout.arrangedDimension, "2d");
-            assert.isBelow(maxDepth(session), 1e-6, "the 2D view wins over dim: 3");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.layout.setDimension("2d");
+        await settle(graph);
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+        assert.isBelow(maxDepth(session), 1e-6, "the 2D view wins over dim: 3");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "draws force flat in the 3D view with dim: 2",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
+    it("draws force flat in the 3D view with dim: 2", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
 
-            await session.layout.set("force", { options: { dim: 2, seed: 1 } });
-            await settle(graph);
-            assert.strictEqual(session.layout.dimension, "3d");
-            assert.strictEqual(session.layout.arrangedDimension, "2d");
-            assert.isBelow(maxDepth(session), 1e-6);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.layout.set("force", { options: { dim: 2, seed: 1 } });
+        await settle(graph);
+        assert.strictEqual(session.layout.dimension, "3d");
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+        assert.isBelow(maxDepth(session), 1e-6);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "draws the d3 engine flat with dim: 2",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
+    it("draws the d3 engine flat with dim: 2", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
 
-            await session.layout.set("force", { engine: "d3", options: { dim: 2 } });
-            await settle(graph);
-            assert.strictEqual(session.layout.arrangedDimension, "2d");
-            assert.isBelow(maxDepth(session), 1e-6);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.layout.set("force", { engine: "d3", options: { dim: 2 } });
+        await settle(graph);
+        assert.strictEqual(session.layout.arrangedDimension, "2d");
+        assert.isBelow(maxDepth(session), 1e-6);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "warns once about an option name the engine does not declare",
-        async () => {
-            const graph = await loadedGraph();
-            const session = graph.getSession();
-            // An unknown option is reported as a `layout-warning` event, W_UNKNOWN_OPTION, not
-            // on the console (c00751a718).
-            const options: unknown[] = [];
-            graph.addListener("layout-warning", (event) => {
-                if (event.code === "W_UNKNOWN_OPTION") {
-                    options.push(...(event.params.options as unknown[]));
-                }
-            });
+    it("warns once about an option name the engine does not declare", async () => {
+        const graph = await loadedGraph();
+        const session = graph.getSession();
+        // An unknown option is reported as a `layout-warning` event, W_UNKNOWN_OPTION, not
+        // on the console (c00751a718).
+        const options: unknown[] = [];
+        graph.addListener("layout-warning", (event) => {
+            if (event.code === "W_UNKNOWN_OPTION") {
+                options.push(...(event.params.options as unknown[]));
+            }
+        });
 
-            await session.layout.set("force", { options: { dimensions: 2 } });
-            await operationQueueOf(graph).waitForCompletion();
+        await session.layout.set("force", { options: { dimensions: 2 } });
+        await operationQueueOf(graph).waitForCompletion();
 
-            const about = options.filter((name) => name === "dimensions");
-            assert.strictEqual(about.length, 1);
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const about = options.filter((name) => name === "dimensions");
+        assert.strictEqual(about.length, 1);
+    });
 });

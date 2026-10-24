@@ -35,9 +35,6 @@ function loadDescription(): string {
         .join(" ");
 }
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 describe("Add a file whose edges the graph already holds", () => {
     it("words the count", () => {
         assert.equal(
@@ -54,13 +51,10 @@ describe("Add a file whose edges the graph already holds", () => {
         const store = createWorkspaceStore({ project: { name: "friends", id: 1 }, place: "graph" });
         render(<Workspace store={store} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -71,7 +65,7 @@ describe("Add a file whose edges the graph already holds", () => {
         act(() => {
             openDataPage(store, { intent: "add", files: [new File(["source,target\nZed,Yan\n"], "others.csv")] });
         });
-        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("model-strip", {});
         assert.isNull(screen.queryByTestId("repeats"));
         assert.isNull(screen.queryByRole("button", { name: "Replace friends.csv" }));
         // What the load makes and the blocked reason, if any, describe Load: no warning.
@@ -90,7 +84,7 @@ describe("Add a file whose edges the graph already holds", () => {
                 files: [new File(["source,target\nAva,Ben\nZed,Yan\n"], "some.csv")],
             });
         });
-        await screen.findByTestId("repeats", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("repeats", {});
         assert.equal(screen.getByRole("button", { name: "Replace friends.csv" }).dataset.variant, "default");
         assert.equal(screen.getByRole("button", { name: "Load" }).dataset.variant, "filled");
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -98,7 +92,7 @@ describe("Add a file whose edges the graph already holds", () => {
         act(() => {
             openDataPage(store, { intent: "add", files: [new File([FRIENDS_V2], "friends-v2.csv")] });
         });
-        const line = await screen.findByTestId("repeats", {}, { timeout: TIMEOUT_MS });
+        const line = await screen.findByTestId("repeats", {});
         assert.equal(line.textContent, repeatsWords(41, "friends"));
         assert.include(loadDescription(), repeatsWords(41, "friends"), "Load's description carries the warning");
         // Every edge repeats: Replace is the primary, and a ready file's focus goes to it.
@@ -111,15 +105,12 @@ describe("Add a file whose edges the graph already holds", () => {
         await userEvent.click(screen.getByRole("button", { name: "Replace friends.csv" }));
 
         await screen.findByRole("heading", { name: "Replace: friends-v2.csv" });
-        await screen.findByTestId("replace-report", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("replace-report", {});
         assert.isNull(screen.queryByTestId("repeats"), "a replace repeats nothing");
         await userEvent.click(screen.getByRole("button", { name: "Replace" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(store.get().page, "panels");
-                assert.strictEqual(live.data.statistics().edgeCount, 41);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(store.get().page, "panels");
+            assert.strictEqual(live.data.statistics().edgeCount, 41);
+        });
     });
 });

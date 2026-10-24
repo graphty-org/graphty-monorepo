@@ -105,13 +105,10 @@ describe("Tooltip - All CSS Values (Browser)", () => {
             await user.hover(button);
 
             // Wait for tooltip to appear: Figma's 1000 ms cold delay (spec 8.3)
-            await waitFor(
-                () => {
-                    const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
-                    expect(tooltip).toBeTruthy();
-                },
-                { timeout: 2000 },
-            );
+            await waitFor(() => {
+                const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
+                expect(tooltip).toBeTruthy();
+            });
 
             const tooltip = document.body.querySelector(".mantine-Tooltip-tooltip");
             expect(getComputedStyle(tooltip!).zIndex).toBe(String(TOOLTIP_Z_INDEX));

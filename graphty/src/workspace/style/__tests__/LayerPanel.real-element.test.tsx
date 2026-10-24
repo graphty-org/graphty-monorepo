@@ -21,9 +21,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Les Miserables in the workspace with its starting rows.
  * @returns The session, the store and the node id of a character by name.
@@ -36,14 +33,11 @@ async function openScene(): Promise<{
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -58,7 +52,7 @@ async function openScene(): Promise<{
  * @param name - The row's name, as its accessible name starts.
  */
 async function clickRow(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
@@ -104,7 +98,7 @@ describe("the layer panel", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
-        const tab = await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByRole("tab", { name: "Style" });
         await userEvent.click(tab);
         await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
@@ -128,7 +122,7 @@ describe("the layer panel", () => {
         const { session } = await openScene();
         const where = { kind: "text" as const, reads: "data.name", mode: "substring" as const, text: "Co" };
         const layer = await openLayer(session, { name: "Group one", selector: { match: "rule", where } });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
         await noticeSays(/^Group one now styles all 77 nodes: no condition is left/);
@@ -146,7 +140,7 @@ describe("the layer panel", () => {
     it("an unfinished card shows no count and, dropped by Done, is said", async () => {
         const { session } = await openScene();
         await openLayer(session, { name: "Plain", selector: { match: "everything" } });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         // A row with no card opens on Add a condition, whose list one more click opens.
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const search = await screen.findByRole("combobox", { name: "Find an attribute" });
@@ -167,7 +161,7 @@ describe("the layer panel", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [idOf("Cosette")] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
         // Fill holds one property: its "+" adds it, with no menu of one item.
         await userEvent.click(await screen.findByRole("button", { name: "Add to node fill" }));
         assert.isNull(screen.queryByRole("menu"), "no menu");
@@ -190,7 +184,7 @@ describe("the layer panel", () => {
             selector: { match: "ids", nodes: [idOf("Cosette")] },
             userData: { [DEFAULT_NAME_KEY]: "Cosette" },
         });
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: /^Remove / }));
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
@@ -212,7 +206,7 @@ describe("the layer panel", () => {
     it("reads a bare column name as an ordinary 'Has a value' card", async () => {
         const { session } = await openScene();
         await openLayer(session, { name: "Named", selector: { match: "expression", where: "name" } });
-        const row = await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+        const row = await screen.findByRole("button", { name: /^Which nodes, / });
         assert.include(row.getAttribute("aria-label") ?? "", "name: has a value");
         await userEvent.click(row);
         const region = await screen.findByRole("group", { name: "Which nodes" });
@@ -223,7 +217,7 @@ describe("the layer panel", () => {
     it("opens a new layer on its Node tab, and a Node tab starts with node lines", async () => {
         await openScene();
         await clickRow("Everything");
-        await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }));
         await userEvent.click(screen.getByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });

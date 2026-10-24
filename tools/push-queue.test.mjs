@@ -6,7 +6,8 @@
 //
 //   node --test tools/push-queue.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import {
     copyFileSync,
     existsSync,
@@ -369,4 +370,82 @@ printf '%s' "$buf"
             assert.equal(r.status, 0, r.stdout + r.stderr);
         });
     }
+});
+
+// The gate runs from a snapshot of its live copy (tools/gate-snapshot.sh), so a `tools/live.sh gate` in the
+// middle of a push changes nothing the push runs. The live copy here is a worktree of the repository, as
+// .worktrees/gate-live is; its hook reads a rule file, makes a new rule live, and reads the rule again.
+describe("push-queue: the gate snapshot", () => {
+    const SNAPSHOT = new URL("./gate-snapshot.sh", import.meta.url).pathname;
+    const HOOK = `#!/bin/sh
+# PREPUSH_ROOT: the gate checks the pushed checkout
+GATE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cat >/dev/null
+echo "rule before: $(cat "$GATE_DIR/tools/rule.txt")"
+echo "rule $(($(git -C "$LIVE" rev-list --count HEAD) + 1))" >"$LIVE/tools/rule.txt"
+git -C "$LIVE" commit -q -am "a new rule goes live" >&2
+echo "rule after: $(cat "$GATE_DIR/tools/rule.txt")"
+`;
+    function setupLive() {
+        const ctx = setup();
+        const live = join(ctx.repo, ".worktrees", "gate-live");
+        writeFileSync(join(ctx.repo, ".gitignore"), ".worktrees/\ntmp/\n");
+        mkdirSync(join(ctx.repo, "tools"));
+        mkdirSync(join(ctx.repo, ".husky"));
+        copyFileSync(QUEUE, join(ctx.repo, "tools", "push-queue.sh"));
+        copyFileSync(SNAPSHOT, join(ctx.repo, "tools", "gate-snapshot.sh"));
+        writeFileSync(join(ctx.repo, "tools", "rule.txt"), "rule 2\n");
+        writeFileSync(join(ctx.repo, ".husky", "pre-push"), HOOK);
+        ctx.git("add", ".");
+        ctx.git("update-index", "--chmod=+x", "tools/push-queue.sh", "tools/gate-snapshot.sh");
+        ctx.git("commit", "-q", "-m", "gate");
+        ctx.git("worktree", "add", "-q", "--detach", live, "HEAD");
+        // husky's generated wrapper, untracked and ignored, as in a real checkout
+        mkdirSync(join(live, ".husky", "_"));
+        writeFileSync(join(live, ".husky", "_", ".gitignore"), "*\n");
+        const wrapper = '#!/bin/sh\nexec sh "$(dirname "$0")/../pre-push" "$@"\n';
+        writeFileSync(join(live, ".husky", "_", "pre-push"), wrapper, { mode: 0o755 });
+        ctx.env.PUSH_QUEUE_GATE = live;
+        ctx.env.LIVE = live;
+        return { ...ctx, live };
+    }
+    const snapshots = (ctx) => readdirSync(join(ctx.repo, ".worktrees")).filter((d) => d.startsWith("gate-snapshot-"));
+    const liveHead = (ctx) =>
+        spawnSync("git", ["-C", ctx.live, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+    const push = (ctx, branch, extra) => drive(ctx, `"$Q" git push -q origin HEAD:${branch}`, extra).stdout;
+
+    it("runs the whole push from one snapshot while live.sh moves the live copy, and removes the old one", () => {
+        const ctx = setupLive();
+        const first = `gate-snapshot-${liveHead(ctx).slice(0, 12)}`;
+        const out = push(ctx, "feat/x");
+        assert.match(out, /rule before: rule 2/);
+        assert.match(out, /rule after: rule 2/, "the rule that went live mid-push is not this push's");
+        assert.deepEqual(snapshots(ctx), [first]);
+        const list = spawnSync("git", ["worktree", "list", "--porcelain"], { cwd: ctx.repo, encoding: "utf8" }).stdout;
+        assert.match(list, /locked gate snapshot/, "locked, so tools/worktree-cleanup.mjs leaves it");
+        // The next push runs the new rule from its start, and the snapshot nobody holds is gone.
+        assert.match(push(ctx, "feat/y"), /rule before: rule 3/);
+        assert.equal(snapshots(ctx).includes(first), false);
+    });
+
+    it("keeps a snapshot a landing holds (--hold) for its next push, and removes it once let go", async () => {
+        const ctx = setupLive();
+        const holder = spawn(SNAPSHOT, ["--hold", ctx.live], { env: ctx.env, stdio: ["pipe", "pipe", "inherit"] });
+        // A failed assertion still lets the holder go, so the test file ends.
+        after(() => holder.stdin.end());
+        const [line] = await once(holder.stdout, "data");
+        const snap = line.toString().trim();
+        assert.ok(existsSync(join(snap, ".gate-snapshot")), snap);
+        // The landing's push: the snapshot as PUSH_QUEUE_GATE; a rule going live meanwhile does not reach it.
+        const out = push(ctx, "feat/x", { PUSH_QUEUE_GATE: snap });
+        assert.match(out, /the gate is the snapshot/);
+        assert.match(out, /rule after: rule 2/);
+        // Another push snapshots the newer rule; the held snapshot stays.
+        assert.match(push(ctx, "feat/y"), /rule before: rule 3/);
+        assert.ok(existsSync(join(snap, ".gate-snapshot")), "a held snapshot is never removed");
+        holder.stdin.end();
+        await once(holder, "exit");
+        push(ctx, "feat/z");
+        assert.equal(existsSync(snap), false, "let go, the next snapshot removes it");
+    });
 });

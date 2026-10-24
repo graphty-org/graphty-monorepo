@@ -29,15 +29,18 @@
  * shared cap of four browsers), and at most two shards without a
  * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
  * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
- *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
- *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
- *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
- *    shards started together failed with deps chunks that "point to missing source files". So in each
- *    package one shard of each family (graphty-element-browser-1 to -5 is one family) fills the
- *    caches first, one at a time with nothing else of that package running -- the one with the
- *    shortest command: browser-1 also runs the benchmarks -- and the rest of the package starts once
- *    all of its warm-ups passed. Per package rather than per family, because the families of one
- *    package are not shown never to share a cache (the root project's is used by every one).
+ *  - On CI's runners no two shards share a Vite dependency cache; here every shard of one package
+ *    shares its checkout. On a cold or stale shared cache each vitest optimizes and swaps a cache
+ *    directory in under the others: four browser shards started together failed with deps chunks
+ *    that "point to missing source files", and xr runs side by side lost chunks they were loading
+ *    (issue #3319). So every shard gets its own Vite cache, node_modules/.vite/shard-<shard>
+ *    (GRAPHTY_TEST_SHARD, shardEnv() below; a package's vitest config sets it as cacheDir through
+ *    shardCacheDir() in tools/test-slots.mjs). Storybook's vitest plugin keeps its own sb-vitest
+ *    cache, which a package's config cannot move, so in each package one shard of each family
+ *    (graphty-element-storybook-1 to -5 is one family) still runs first, one at a time with nothing
+ *    else of that package running -- the one with the shortest command -- and the rest of the
+ *    package starts once all of its warm-ups passed. That warm-up only has to fill the caches every
+ *    shard of the family shares, never one a later shard alone uses.
  *  - The packages that run several shards with --coverage (graphty-element, algorithms) write each
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
@@ -193,14 +196,19 @@ async function vitestTriggers(shard) {
 }
 
 /**
- * The environment one shard adds: its own coverage directory where a package runs several shards.
+ * The environment one shard adds: its name, which gives it its own Vite dependency cache
+ * (shardCacheDir() in tools/test-slots.mjs), and its own coverage directory where a package runs
+ * several shards.
  * @param shard a SHARDS entry
  * @returns extra environment variables
  */
 export function shardEnv(shard) {
-    return ["graphty-element", "algorithms"].includes(shard.package)
-        ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
-        : {};
+    return {
+        GRAPHTY_TEST_SHARD: shard.shard,
+        ...(["graphty-element", "algorithms"].includes(shard.package)
+            ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
+            : {}),
+    };
 }
 
 // graphty-element-browser-3 -> graphty-element-browser; a shard without a number is its own family.

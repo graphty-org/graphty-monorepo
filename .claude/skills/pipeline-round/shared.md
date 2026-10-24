@@ -48,6 +48,9 @@ gh api graphql -f query='{
     golden: pullRequests(headRefName: "golden", baseRefName: "master", states: OPEN, first: 1) { nodes {
       number isDraft autoMergeRequest { enabledAt } headRefOid
       comments(last: 100) { nodes { createdAt body } } } }
+    cut: pullRequests(headRefName: "golden-cut", baseRefName: "master", states: OPEN, first: 1) { nodes {
+      number isDraft autoMergeRequest { enabledAt } headRefOid
+      comments(last: 30) { nodes { createdAt body } } } }
     status: issues(labels: ["release-status"], states: OPEN, first: 1) { nodes { number
       comments(last: 3) { nodes { createdAt body } } } } }
   alarms: search(type: ISSUE, first: 30, query: "repo:graphty-org/graphty-monorepo is:open label:priority:critical") {
@@ -59,6 +62,8 @@ gh api graphql -f query='{
 }' | tee "$d/state.json"
 gh run list -R graphty-org/graphty-monorepo --workflow ci.yml --branch master --event push --limit 3 \
   --json status,conclusion,headSha,url --jq '.[] | "\(.status) \(.conclusion) \(.headSha[0:9]) \(.url)"'
+for wf in deploy-pages.yml release.yml; do gh run list -R graphty-org/graphty-monorepo --workflow $wf --status completed \
+  --limit 1 --json conclusion,headSha,databaseId,url --jq ".[] | \"$wf \(.conclusion) \(.headSha[0:9]) \(.url)\""; done
 ```
 
 issue-round runs the block with `ROUND=issue-round` set, so it writes `tmp/issue-round/state.json` and two clients do

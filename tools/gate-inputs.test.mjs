@@ -266,6 +266,7 @@ describe("pass records (prepush-inputs.mjs passed / record)", () => {
             spawnSync(process.execPath, [join(other, "tools/prepush-inputs.mjs"), ...args], {
                 cwd: other,
                 encoding: "utf8",
+                env: OUR_ENV,
             });
         assert.equal(there("passed", "gate").status, 0, "reused on golden's identical tree");
         writeFileSync(join(other, "a.ts"), "changed\n");
@@ -294,7 +295,7 @@ describe("push-queue with a gate that already passed", () => {
         spawnSync("git", ["init", "-q", "--bare", origin]);
         r.git("remote", "add", "origin", origin);
         const q = join(TMP, `queue-${made}`);
-        const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
+        const env = Object.fromEntries(Object.entries(OUR_ENV).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
         Object.assign(env, {
             PUSH_QUEUE_DIR: join(q, "tickets"),
             PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),

@@ -215,11 +215,11 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
-| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (private, Mantine UI) |
+| `@graphty/graphty` | `graphty/` | 0.8.18 | React wrapper application (Mantine UI), published as the built static app |
 | `@graphty/remote-logger` | `remote-logger/` | 1.3.11 | Remote logging client and server for browser debugging |
 | `@graphty/compact-mantine` | `compact-mantine/` | 0.8.11 | Compact size variants for Mantine UI components, for dense UIs |
 | `@graphty/visual-review` | `visual-review/` | 0.0.1 | Visual review of any Storybook: capture in GitHub Actions, baselines in git (Git LFS), accept or reject in a local page, a pull request gate; a CLI, configured per repository by `visual-review.config.json` |
-| `@graphty/githerd` | `githerd/` | 0.1.0 | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon (private) that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
+| `@graphty/githerd` | `githerd/` | 0.1.0 | Retired 2026-10-18 (code kept, daemon not run). Was the repository pipeline daemon that turned master, pull request and issue events into jobs for Claude sessions; nothing uses it now |
 
 ## Monorepo Structure
 

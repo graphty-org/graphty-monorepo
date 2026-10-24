@@ -696,7 +696,7 @@ describe("the pre-push gate matches CI", () => {
         // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
         // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
         // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
-        // git passes through, except `lfs` and a forced merge-tree exit code.
+        // every other node command runs; git passes through, except `lfs` and a forced merge-tree exit code.
         const STUBS = {
             gh: `#!/bin/bash
 [ -n "$STUB_GH_DIR" ] || exit 0
@@ -715,7 +715,9 @@ if [ "$2" = capture ]; then
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
     printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
+    exit 0
 fi
+exec ${process.execPath} "$@"
 `,
             git: `#!/bin/bash
 case " $* " in
@@ -760,6 +762,10 @@ exec ${realGit} "$@"
                 mkdirSync(join(main, "visual-review/capture"), { recursive: true });
                 mkdirSync(join(main, "visual-review/trusted"), { recursive: true });
                 copyFileSync(new URL("visual-preview.sh", import.meta.url), join(main, "tools/visual-preview.sh"));
+                copyFileSync(
+                    new URL("visual-capture-plan.mjs", import.meta.url),
+                    join(main, "tools/visual-capture-plan.mjs"),
+                );
                 writeFileSync(join(main, "visual-review.config.json"), '{"projects":{"p":{"build":"true"}}}\n');
                 writeFileSync(join(main, "visual-review/capture/c"), "c\n");
                 writeFileSync(join(main, "visual-review/trusted/t"), "t\n");
@@ -1949,6 +1955,18 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
             }),
             ["compact-mantine", "algorithms"],
         );
+    });
+
+    it("captures the style fidelity Storybook when graph-io or graphty-element is affected", () => {
+        const fidelity = { ...base, visual: ["graph-io-fidelity"] };
+        assert.deepEqual(skippedProjects(fidelity), []);
+        assert.deepEqual(
+            skippedProjects({ ...fidelity, affected: ["graphty-element"], changed: ["graphty-element/a.ts"] }),
+            [],
+        );
+        assert.deepEqual(skippedProjects({ ...fidelity, affected: ["layout"], changed: ["layout/src/a.ts"] }), [
+            "graph-io-fidelity",
+        ]);
     });
 
     it("captures everything when off, in the queue or on master, after a dequeue, or with a root file changed", () => {

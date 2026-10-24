@@ -14,8 +14,10 @@ import {
     type ReadableValueKind,
     type RuleTree,
     selectorRule,
+    type SourceKey,
 } from "@graphty/graphty-element/session";
 
+import { sourceName } from "../data-place/words";
 import { edgeName } from "../inspector/words";
 import { countName, readableName, valueFact, valueName } from "./words";
 
@@ -31,8 +33,11 @@ export type FieldGroup = "Data" | "Results" | "Structure";
 export interface CardField {
     readonly path: string;
     readonly on: Side;
-    /** What kind of card it makes: the element's kind, or `name` for the node id. */
-    readonly kind: ReadableValueKind | "name";
+    /**
+     * What kind of card it makes: the element's kind, `name` for the node id, or `source` for the
+     * load an element came from.
+     */
+    readonly kind: ReadableValueKind | "name" | "source";
     readonly name: string;
     readonly group: FieldGroup;
     readonly range?: { readonly min: number; readonly max: number };
@@ -88,6 +93,13 @@ export type Card =
           readonly field: CardField;
           readonly match: "yes" | "no" | Presence;
       }
+    | {
+          /** The loads an element came from (`data.sources()` keys), ticked ones being alternatives. */
+          readonly type: "source";
+          readonly key: string;
+          readonly field: CardField;
+          readonly sources: readonly SourceKey[];
+      }
     | { readonly type: "ends"; readonly key: "ends"; readonly reading: "clipped" | "incident" }
     | {
           readonly type: "fixed";
@@ -103,22 +115,38 @@ export interface SideCards {
     readonly cards: readonly Card[];
 }
 
+/** The Data source field's path: not a column, the load an element came from (a `source` leaf). */
+export const SOURCE_PATH = "@source";
+
+/**
+ * The Data source field of one kind.
+ * @param side - nodes or edges.
+ * @returns the field.
+ */
+const sourceField = (side: Side): CardField => ({
+    path: SOURCE_PATH,
+    on: side,
+    kind: "source",
+    name: "Data source",
+    group: "Data",
+});
+
 /**
  * The fields a card can test on one kind, from graphty-element's readable values: the node id as
  * Name (Structure), the data columns (Data) and each finished run's fields (Results). A node value
- * read at an edge's end is left out: the Ends card says how edges follow the nodes.
+ * read at an edge's end is left out: the Ends card says how edges follow the nodes. With two or
+ * more loads, which one an element came from is a field too, Data source.
  * @param session - the element's session.
  * @param side - nodes or edges.
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
-    return (
-        session.data
-            .readableValues()
-            // A data column that only spells each node's id is the node id, listed once as Node id.
-            .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
-            .map((value) => fieldOf(session, value))
-    );
+    const fields = session.data
+        .readableValues()
+        // A data column that only spells each node's id is the node id, listed once as Node id.
+        .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
+        .map((value) => fieldOf(session, value));
+    return session.data.sources().length >= 2 ? [...fields, sourceField(side)] : fields;
 }
 
 /**
@@ -188,6 +216,8 @@ export function newCard(field: CardField): Card {
             return { type: "category", key, field, match: "values", values: [], gaps: false };
         case "yes-no":
             return { type: "yes-no", key, field, match: "yes" };
+        case "source":
+            return { type: "source", key, field, sources: [] };
         default:
             return { type: "text", key, field, match: "substring", text: "", caseSensitive: false };
     }
@@ -205,6 +235,9 @@ export function leafOf(card: Card): RuleTree | null {
     }
     if (card.type === "fixed") {
         return card.leaf;
+    }
+    if (card.type === "source") {
+        return card.sources.length === 0 ? null : { kind: "source", sources: card.sources };
     }
     const { path } = card.field;
     if (card.match === "present") {
@@ -448,6 +481,11 @@ export function cardOf(session: GraphSession, leaf: RuleTree, fields: readonly C
             return gapsCard(leaf, field, elsewhere);
         case "text":
             return textCard(leaf, field, elsewhere);
+        case "source": {
+            // Offered once two loads are in; a rule kept after one was removed still draws.
+            const f = field(SOURCE_PATH) ?? sourceField(fields[0]?.on ?? "node");
+            return { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
+        }
         case "member":
             return memberCard(session, leaf, elsewhere);
         default:
@@ -697,6 +735,9 @@ export function cardWords(session: GraphSession, card: Card): string {
     if (card.type === "fixed") {
         return card.words;
     }
+    if (card.type === "source") {
+        return sourceWords(session, card);
+    }
     const { name, path } = card.field;
     if (card.match === "present") {
         return `${name}: has a value`;
@@ -721,6 +762,26 @@ export function cardWords(session: GraphSession, card: Card): string {
             return `${name} ${TEXT_WORDS[card.match]} ${card.text.trim()}`;
         }
     }
+}
+
+/**
+ * A Data source card in words: "Data source: hosts.csv", "Data source: pick sources".
+ * @param session - the element's session.
+ * @param card - the card.
+ * @returns the words.
+ */
+function sourceWords(session: GraphSession, card: Extract<Card, { type: "source" }>): string {
+    const loads = session.data.sources();
+    const named = card.sources.map((key) => {
+        const load = loads.find((each) => each.key === key);
+        return load === undefined ? "a removed source" : sourceName(load);
+    });
+    if (named.length === 0) {
+        return `${card.field.name}: pick sources`;
+    }
+    return named.length > 3
+        ? `${card.field.name}: ${String(named.length)} sources`
+        : `${card.field.name}: ${named.join(", ")}`;
 }
 
 /**

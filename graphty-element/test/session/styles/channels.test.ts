@@ -204,6 +204,8 @@ const DECLARED = [
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.route",
+    "edge.arcHeight",
     "edge.nodeGap",
     "edge.sourcePort",
     "edge.targetPort",
@@ -334,9 +336,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-one node channels and one hundred and thirty edge channels", () => {
+    it("splits into one hundred and fifty-one node channels and one hundred and thirty-two edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 151);
-        assert.strictEqual(channelsFor("edge").length, 130);
+        assert.strictEqual(channelsFor("edge").length, 132);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -638,6 +640,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
+        // Unset, the layout decides the route: straight but on a geographic map.
+        "edge.route",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.

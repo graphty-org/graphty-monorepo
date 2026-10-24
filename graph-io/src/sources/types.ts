@@ -429,6 +429,11 @@ export interface SourceDescriptor {
      * has one slot, `default`: `credentialSlots(descriptor)` reads either. @defaultValue []
      */
     readonly credentials?: readonly SourceCredentialSlot[] | undefined;
+    /**
+     * Where an `api-key` credential goes, for a form that asks for the key alone: pass it to
+     * `credentials.apiKey(descriptor.apiKey, key)`. Absent when the caller must say.
+     */
+    readonly apiKey?: { readonly header: string } | { readonly query: string } | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */

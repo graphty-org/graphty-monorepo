@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
  * The element's events that change what the toolbar, Analyze and Layout read: the project, the
  * runs, the selection, and the device facts (whether VR or AR can be entered, or is presenting).
  */
-const EVENTS = ["project:changed", "run:changed", "selection:changed", "capabilities:changed"] as const;
+const EVENTS = ["project:changed", "run:changed", "selection:changed", "capabilities:changed", "time:field"] as const;
 
 /**
  * Re-renders the caller whenever the element reports a change to its project, its runs, its

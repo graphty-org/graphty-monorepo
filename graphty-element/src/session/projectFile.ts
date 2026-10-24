@@ -27,7 +27,9 @@ import {
 } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import type { SessionData } from "./data";
+import { ISSUES_VALUE, type IssueState } from "./issues";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -43,6 +45,7 @@ import {
     type FileStyleLoadValues,
     fileStyleValuesOf,
 } from "./styles/fileStyles/store";
+import { DEFAULT_TIME_SETTINGS, sameSettings } from "./time/TimeApi";
 import type {
     DataSourceInput,
     GraphSession,
@@ -452,13 +455,15 @@ function columns(rows: readonly (Readonly<Record<string, unknown>> | undefined)[
  * @returns The settings as a patch.
  */
 function configOf(session: GraphSession): ProjectConfigPatch {
-    const { data, runAlgorithmsOnLoad, background, selectionStyle, layoutBehavior } = session.config;
-    // Through JSON text, so the settings hold only what the saved file can: no undefined values.
+    const { data, runAlgorithmsOnLoad, background, selectionStyle, pinnedStyle, layoutBehavior } = session.config;
+    // Through JSON text, so the settings hold only what the saved file can: no undefined values,
+    // so an unset `pinnedStyle` is left out.
     const text = JSON.stringify({
         data: { algorithms: data.algorithms, directed: data.directed, knownFields: data.knownFields },
         runAlgorithmsOnLoad,
         background,
         selectionStyle,
+        pinnedStyle,
         layoutBehavior,
     });
     return JSON.parse(text) as ProjectConfigPatch;
@@ -541,6 +546,9 @@ function withoutSecrets<T extends { readonly config?: Readonly<Record<string, un
 
 /** The version of the column declarations the session member carries. */
 const DECLARATIONS_VERSION = 1;
+
+/** The version of the session member's `columns` field. */
+const COLUMNS_VERSION = 1;
 
 /**
  * The `graphty-data` member: the records, the direction and the source. The only builder that
@@ -632,6 +640,8 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         }),
     );
     const { layout, visibility } = session;
+    const columnSettings = dispatcher.state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
+    const issueState = dispatcher.state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
     const columns = [...dispatcher.state.attributes].map(([key, declaration]) => {
         const split = key.indexOf(":");
         return { kind: key.slice(0, split), name: key.slice(split + 1), ...declaration };
@@ -647,6 +657,10 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
             showContext: visibility.showContext,
             // Written only when there are steps, so a project without them saves as before.
             ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+            // Written only when set, so a project without a timeline saves as before.
+            ...(dispatcher.state.visibility.playback === undefined || dispatcher.state.visibility.playback === null
+                ? {}
+                : { playback: dispatcher.state.visibility.playback }),
         },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
@@ -662,6 +676,28 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // The hidden columns, the types columns were given and the renames, when any was made.
+        ...(columnSettings === undefined
+            ? {}
+            : {
+                  columns: {
+                      version: COLUMNS_VERSION,
+                      hidden: columnSettings.hidden,
+                      types: columnSettings.types,
+                      renamed: columnSettings.renamed,
+                  },
+              }),
+        // Written only when a value is named, so a project without names saves as before.
+        ...(dispatcher.state.valueLabels.size === 0
+            ? {}
+            : {
+                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
+                      ...valueLabelOf(key),
+                      label,
+                  })),
+              }),
+        // The data issues: what the loads saw, the ignored issues and the kept repeats, when any.
+        ...(issueState === undefined ? {} : { issues: { version: ISSUES_VERSION, ...issueState } }),
     };
 }
 
@@ -1202,6 +1238,10 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setSteps([]);
     }
 
+    if (!sameSettings(tx.time.settings, DEFAULT_TIME_SETTINGS)) {
+        await tx.execute({ op: "visibility.playback", playback: null });
+    }
+
     await tx.data.clear();
 }
 
@@ -1280,6 +1320,46 @@ function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]
     );
 }
 
+/** What a load's entry in the data member's `sources` holds that the sources member does not. */
+const HELD_CHOICES = ["join", "choices", "mapping", "leftOut"] as const;
+
+/**
+ * Where the data came from: what a read sources member says, with the join, choices and mapping
+ * the data member holds for each load; else the data member's own fields.
+ * @param loads - What the sources member held.
+ * @param legacy - The data member.
+ * @returns The source, the loads and what each supplied.
+ */
+function openedLoads(loads: SourcesRead, legacy: Record<string, unknown>): Record<string, unknown> {
+    return loads.graph === undefined
+        ? legacy
+        : { ...loads.graph, sources: withHeldChoices(loads.graph.sources, legacy.sources) };
+}
+
+/**
+ * The loads a sources member lists, each with the join, choices and mapping the data member's
+ * `sources` holds for the same key, which the sources member does not record.
+ * @param listed - The loads the sources member lists.
+ * @param held - The data member's `sources`.
+ * @returns The loads, with what the data member held for each.
+ */
+function withHeldChoices(listed: unknown, held: unknown): unknown {
+    if (!Array.isArray(listed) || !Array.isArray(held)) {
+        return listed;
+    }
+
+    const byKey = new Map(held.filter(isObject).map((each) => [each.key, each]));
+    return listed.map((each: unknown) => {
+        const saved = isObject(each) ? byKey.get(each.key) : undefined;
+        if (saved === undefined) {
+            return each;
+        }
+
+        const kept = HELD_CHOICES.filter((name) => saved[name] !== undefined).map((name) => [name, saved[name]]);
+        return { ...(each as Record<string, unknown>), ...Object.fromEntries(kept) };
+    });
+}
+
 /**
  * Whether a saved value is shaped like one entry of `data.sources()`.
  * @param value - The saved value.
@@ -1290,8 +1370,11 @@ function isLoadedSource(value: unknown): value is LoadedSource {
         return false;
     }
 
-    const { leftOut, tableRows } = value;
+    const { leftOut, tableRows, join } = value;
     return (
+        // A joined table's join carries the table it joins again from.
+        (join === undefined ||
+            (isObject(join) && isObject(join.table) && Array.isArray(join.table.rows) && isObject(join.choices))) &&
         (tableRows === undefined ||
             (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
         typeof value.added.nodes === "number" &&
@@ -1405,7 +1488,7 @@ async function readProject(
     loads: SourcesRead,
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
-    const { source, sources, provenance } = loads.graph ?? doc.members.get("graphty-data")?.[0] ?? {};
+    const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
@@ -1418,6 +1501,7 @@ async function readProject(
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
     await readDeclarations(opening, state.declarations);
+    await readColumnSettings(opening, state.columns);
 
     // Before the styles, so a layer reading a `graphty.style.` path binds to what it reads.
     if (Array.isArray(state.fileStyles)) {
@@ -1576,6 +1660,10 @@ async function readProject(
                 );
             }
 
+            if (typeof visibility.playback === "object" && visibility.playback !== null) {
+                await tx.execute({ op: "visibility.playback", playback: visibility.playback as never });
+            }
+
             tx.visibility.showContext = visibility.showContext === true;
         });
     }
@@ -1586,10 +1674,43 @@ async function readProject(
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
     }
 
+    await readIssues(opening, state.issues);
+
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/** The version of the session member's `issues` field. */
+const ISSUES_VERSION = 1;
+
+/**
+ * Restore the data issues the session member saved: what the loads saw, the ignored issues and
+ * the kept repeats. A newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param issues - The session member's `issues` field.
+ */
+async function readIssues(opening: Opening, issues: unknown): Promise<void> {
+    if (!isObject(issues)) {
+        return;
+    }
+
+    if (issues.version !== ISSUES_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "graph", found: issues.version as number },
+        });
+        return;
+    }
+
+    const { facts, ignored, kept, fixed } = issues;
+    await attempt(opening, "graph", () =>
+        opening.tx.execute({
+            op: "data.issues",
+            state: { facts, ignored, kept, ...(fixed === undefined ? {} : { fixed }) } as IssueState,
+        }),
+    );
 }
 
 /**
@@ -1623,6 +1744,35 @@ async function readDeclarations(opening: Opening, declarations: unknown): Promis
             `${String(kind)}:${String(name)}`,
         );
     }
+}
+
+/**
+ * Restore the column settings the session member saved: the hidden columns, the types and the
+ * renames. The saved rows already hold the converted values and the new names, so only the
+ * settings are restored. A newer version of the field is reported and skipped.
+ * @param opening - The open.
+ * @param columns - The session member's `columns` field.
+ */
+async function readColumnSettings(opening: Opening, columns: unknown): Promise<void> {
+    if (!isObject(columns)) {
+        return;
+    }
+
+    if (columns.version !== COLUMNS_VERSION) {
+        opening.problems.push({
+            code: "E_UNSUPPORTED_VERSION",
+            params: { slice: "attributes", found: columns.version as number },
+        });
+        return;
+    }
+
+    const { hidden, types, renamed } = columns;
+    await attempt(opening, "attributes", () =>
+        opening.tx.execute({
+            op: "data.columns",
+            settings: { hidden, types, renamed } as unknown as ColumnSettings,
+        }),
+    );
 }
 
 /**

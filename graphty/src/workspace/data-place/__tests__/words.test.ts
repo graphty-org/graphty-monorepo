@@ -45,11 +45,11 @@ function loaded(
     return {
         key: "s1",
         kind: url === null ? "file" : "server",
+        counts: added,
         ...(name === undefined ? {} : { name }),
         ...(url === null ? {} : { config: { url } }),
         tables,
         added,
-        counts: added,
     };
 }
 
@@ -301,6 +301,7 @@ describe("a column's kind", () => {
         assert.equal(typeOf("categorical", "string", "text").typeWord, "Text");
         assert.equal(typeOf("categorical", "category", "category").typeWord, "Category");
         assert.equal(typeOf("categorical", "string").typeWord, "Category", "with no readable kind, what it measures");
+        assert.equal(typeOf("time", "string", "text").typeWord, "Time", "a designated time field of text dates");
     });
 
     it("reads an attribute row's kind from the readable kind it is given", () => {

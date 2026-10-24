@@ -5,12 +5,66 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-21 (tier 3 report rewritten with round 1's results; studio stopped at the round cap).
+Last updated: 2026-10-23 (Location in the Fields list ruled: one "+" pick per kind; menu sections
+ruled; both issue #3315; earlier: timeline prototype review ruled: `timeline/decisions.md`; location map
+prototype reviews triaged into `location-map/decisions.md`).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19, 2026-10-20 and 2026-10-21; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
+- (2026-10-23) LOCATION IN THE FIELDS LIST (issue #3315, owner: the Location "+" does not follow
+  the patterns; a gear for the kind, or one "+" per kind). RULED: one "+" pick per kind of
+  location. The nodes' "+" offers Latitude, Longitude, Coordinates, Country, Region and City as
+  ordinary Fields entries, each its kind's name, one column and a minus, exactly like Label, Weight
+  and Time. Deleted: the "Read as" select, the Place type and Within sub-rows, and the "Auto"
+  place type in the app. Reasons: every other entry's control is a column and Location's was a
+  mode, which is the rule the owner tripped on; a gear fails the latitude and longitude pair (two
+  columns cannot sit in one row's picker) and hides a choice that changes the row's shape; the
+  kind is a fact of the column, so it belongs in the "+" pick, not a setting; "Within" stops being
+  a control because a City entry beside a Country or Region entry already says it. Element work
+  (additive, team's call): `ColumnRole` gains `latitude`, `longitude`, `coordinates`, `country`,
+  `region`, `city`, set through `data.setRole` like the other entries; the element resolves the
+  source (a full pair, else coordinates, else the finest place narrowed by the next coarser one
+  listed), reports a detected column with its resolved role (never `auto`), and marks a listed
+  role it is not reading with a code (`location.unused`, params naming the source in effect).
+  Rejected: the gear (above); an in-row kind select like Figma's effect type (two selects in 240
+  px, and no other Fields entry can change its kind in place); a "Location" heading or group in
+  the "+" menu (the menu stays flat, so it never mixes grouped and ungrouped items).
+- (2026-10-23, issue #3315) MENU SECTIONS RULED: every pick list of catalog choices (Layout,
+  Analyze) uses section headings, never indentation, and every row sits under a heading; Layout
+  gains four headings from the catalog's `family` fact and loses its indented engine rows.
+  See the decision of the same date under "Decisions and reasons" for the build spec.
+- (2026-10-22) TIMELINE PROTOTYPE REVIEWED (four lenses on `feat/timeline-prototype`); rulings in
+  `timeline/decisions.md`, items TL-01 to TL-32, ten rejected. Severity 1 first: Rerun throws
+  `E_DUPLICATE_ID` after any window move for a named run (TL-01); a no-times column is accepted as
+  the field and a field change leaves a hidden window with no way to clear it (TL-04, TL-05); a
+  stale result reads current when node counts match (TL-03, staleness must compare the window).
+- (2026-10-22) Timeline architecture calls: Results, Mode and Step become field playback settings
+  (`time.settings`, project key `visibility.playback`) so "Show all time" keeps them (TL-12);
+  owner's three values and the `"stale"` default unchanged. One shared histogram brush in
+  compact-mantine fixes alignment, body drag, value text and touch size for every caller (TL-16).
+  Bins, Auto step, ends, jump-to-end and parsing typed dates are element facts; the dock computes
+  no widths (TL-11, TL-18, TL-22, TL-23). Commit 530c136's app-side "Time" precedence is a
+  workaround to delete once TL-06 lands.
+- (2026-10-22) Held against earlier rulings: no pre-set time field on samples ("nothing pre-done in
+  a first session"); no Time chip on the owner-approved Samples dialog; the selection line moves
+  over the histogram because a new row breaks "the drawing moves only when the reader asks"; F6
+  gains the dock as a sixth region only while it is shown.
+- (2026-10-22) LOCATION MAP PROTOTYPE (branch feat/location-map-prototype, build 3137c48f2f):
+  four reviews triaged into `location-map/decisions.md`. 23 items to do, 8 rejected or deferred,
+  and the open one-way doors for the owner. The worst finding: Map that cannot run said nothing
+  and showed "Applied" (three reviews). Fix order: false screens first (refusal, half-filled
+  pair, undo), then lost data (detection, antimeridian, unplaced), then legibility (contrast,
+  node scale, tiles).
+- (2026-10-22) Decided myself: preset views follow the map's facing only while a map frame is
+  active, which settles the Isometric item; wheel zoom centers on the pointer only on a map. The
+  map picker keeps its home in Graph settings, renamed "Source", with one read-only row in the
+  layout form that leads to it. Rejected: clicking a node no longer moving the map (owner's
+  2026-10-20 glide), a combined pair picker, location roles at import.
+- (2026-10-22) Lesson: the reviewers all asked for a refusal mechanism that already exists
+  (`CostEstimate.refusal`, `layout.needs-grouping`). Grep the existing coded-fact paths before
+  naming a new element mechanism.
 - (2026-10-21) TIER 3 REPORT REWRITTEN with round 1's results; the subagent harness again refused
   `tier3/report.md`, so the text went back to the orchestrator to write. Next move is the owner's:
   whether to fund round 2. Owner list is ELEVEN, not nine: the earlier draft missed the edge
@@ -93,6 +147,52 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-23, Layout and Analyze section pattern (owner question, issue #3315).** The owner:
+  the two menus must share one pattern, indent or headings, and either every item is in a
+  section or none is. Today Analyze uses headings (Recent, Rank nodes and edges, Find groups,
+  Find paths and edge sets, Measure the graph) with every row under one; Layout uses neither
+  for most rows and indents only Force's six engines, with the eight Graphviz engines flat
+  among the rest (28 rows, one Tab stop each). Decision: headings for both, every row
+  under one, no indentation in any pick list. Reasons: (1) indentation shows one level of
+  "child of the row above" and cannot carry the Graphviz engines, which belong to three
+  different arrangements, so it would stay partial, which is what the owner rejected; (2)
+  Analyze's headings already passed tiers 1-3, and a 28-row list needs landmarks at least as
+  much; (3) headings are a Figma-native pattern (layer and plugin menus) and the
+  ARIA group-in-listbox pattern Analyze already ships, so this is one built-in, not a new
+  control; (4) the element already declares `family` for every layout, so the grouping is the
+  app reading an element fact, like Analyze reading result shapes -- no graph logic in the
+  app, no element change. Rejected: indentation for both (Analyze has no parent rows to
+  indent under, and invented parents become clickable-looking non-options); flat lists with
+  no sections (Analyze would lose the landmarks its tree tests depend on); a Force parent row
+  that expands (a disclosure inside a listbox, a second interaction rule only this list uses);
+  moving engines into the Force form as an "Engine" select (worth considering, but it hides
+  engines the owner asked to see in the list and is a separate question); a Filter box on
+  Layout (28 rows fit; revisit if a plugin pushes it past about 40). Section words are mine
+  to change after a tree test, the pattern is not.
+  Spec for both lists: inside the listbox, one `role="group"` per section with `aria-label` =
+  its heading, the heading drawn as Analyze draws it today (`Text size="xs" fw={600}
+c="dimmed" className="ws-analyze-heading"`, not focusable, not an option); every option
+  inside exactly one group; no `pl` or `data-nested` indent anywhere; an empty section is not
+  drawn. Layout sections, in this order, from the catalog's `family` fact on each descriptor
+  (the app owns the words and order, the element only the fact): `force` -> "Force-directed",
+  `geometric` -> "Shapes", `hierarchical` -> "Hierarchy", `special` and any family the app does
+  not know (a plugin's) -> "Other". Rows inside a section keep catalog order, so Force's
+  default row comes first, then its engines (D3 Force, ForceAtlas2, Spring, Kamada-Kawai,
+  Spring Electrical, ARF), then the Graphviz engines of that family with their "Graphviz"
+  suffix (Stress, Spring embedder, Multilevel spring). Hierarchy: Tree, Two columns, Columns by
+  group, Layered. Shapes: Circle, Rings around a node, Grid, Rings by group, Spiral, Spectral,
+  No crossings, Random, Circles, Rings. Other: Keep positions, Map, Clusters, Treemap. Each
+  row is unchanged otherwise (check, name, Graphviz suffix, Recommended, slow, dimmed line,
+  reason). Analyze keeps Recent and its four headings exactly as they are. Keyboard in Layout:
+  the list is one Tab stop (roving tabindex on the checked row, else the first enabled row);
+  ArrowDown/ArrowUp move across sections and skip headings, Home/End go to the first/last
+  row, Enter or Space opens a row, Esc steps back from the form and a second Esc closes (as
+  now). Analyze's keyboard is unchanged; its arrows already skip headings. Command menus (the
+  main menu, a row's menu) are not pick lists: they keep dividers between groups and no
+  headings. The Style tab's "+ Set another property" and the table's Columns chooser already
+  follow the rule (Menu.Label sections, every item in one) and stay. A test asserts every
+  `family` in the element's layout catalog maps to a heading, as `words.ts` does for result
+  shapes, and a real-input test walks the Layout list by arrows and reads the group names.
 - **2026-10-21, tier 3 report after round 1.** Rewrote the report around round 1 (bars table per
   round, per-task table, learnings in insight order, changes by package with whether round 1
   confirmed them). Reasons for the calls in it: bar 1's F is reported as the rule's, not the

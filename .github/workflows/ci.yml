@@ -15,12 +15,24 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
+    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
+    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
+            verify:
+                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
+                type: boolean
+                required: false
+                default: false
+            shards:
+                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
+                type: string
+                required: false
+                default: ""
     workflow_dispatch:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
@@ -183,6 +195,11 @@ jobs:
             # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
             # request event but tests everything, like master: full=true selects the master path for the
             # build and lint steps below as well.
+            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
+            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
+            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
+            # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
+            # so the summary accepts the jobs it skipped and no screenshots are taken.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
             # only on a pull request's own run, never with a root file changed or the "dequeued" label). The
             # switch stays "false" until master's visual-review/trusted/gate.mjs accepts the not-affected marker:
@@ -191,12 +208,14 @@ jobs:
               id: plan
               env:
                   EVENT: ${{ github.event_name }}
+                  CALLED_REF: ${{ inputs.ref }}
+                  SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
                   SKIP_UNAFFECTED_CAPTURES: "false"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "$EVENT" == "push" ]]; then
+                  if [[ "$EVENT" == "push" && -z "$CALLED_REF" ]]; then
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
                       affected='[]'
@@ -207,7 +226,12 @@ jobs:
                       echo "full=true" >> "$GITHUB_OUTPUT"
                       affected="$all"
                   fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+                  only=()
+                  if [[ -n "$SHARDS" ]]; then
+                      echo "light=true" >> "$GITHUB_OUTPUT"
+                      only=(--only "$SHARDS")
+                  fi
+                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
@@ -279,6 +303,7 @@ jobs:
                       graph-io/dist/
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
+                      babylonjs-map/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -314,6 +339,13 @@ jobs:
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-map build
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-babylonjs-map
+                  path: babylonjs-map/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -928,6 +960,19 @@ jobs:
                   job_name: Test (${{ matrix.shard }})
                   test_step_outcome: ${{ steps.tests.outcome }}
 
+            # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
+            # failing test files and run only those on this machine. continue-on-error: a report that did
+            # not upload never changes the shard's verdict.
+            - name: Upload JUnit results
+              if: ${{ !cancelled() }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: junit-${{ matrix.shard }}
+                  path: test-results/junit-*.xml
+                  retention-days: 7
+                  if-no-files-found: ignore
+
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
               uses: actions/upload-artifact@v4
@@ -1119,7 +1164,7 @@ jobs:
     performance:
         name: Performance Benchmarks
         needs: test
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && !inputs.verify
         continue-on-error: true
         runs-on: ubuntu-24.04
         steps:

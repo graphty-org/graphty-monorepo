@@ -1032,13 +1032,6 @@ html.ws-land-page #root {
     padding: 0 18px 18px;
 }
 
-.ws-land-net-note {
-    display: block;
-    margin: 0;
-    color: var(--ws-land-muted);
-    font-size: 12.5px;
-}
-
 .ws-land-net-sources {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1093,72 +1086,6 @@ html.ws-land-page #root {
 
 .ws-land-net-source:hover small {
     color: var(--ws-land-text);
-}
-
-.ws-land-net-addr {
-    display: flex;
-    gap: 8px;
-}
-
-.ws-land-net-field {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
-    height: 40px;
-    padding: 0 12px;
-    border: 1px solid var(--ws-land-line-strong);
-    border-radius: 9px;
-    background: var(--ws-land-surface);
-}
-
-.ws-land-net-field:focus-within {
-    border-color: var(--ws-land-ring);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ws-land-ring) 25%, transparent);
-}
-
-.ws-land-net-field svg {
-    width: 16px;
-    height: 16px;
-    flex: none;
-    color: var(--ws-land-faint);
-}
-
-.ws-land-net-field input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    background: none;
-    color: var(--ws-land-text);
-    font: inherit;
-    font-size: 14px;
-}
-
-.ws-land-net-field input::placeholder {
-    color: var(--ws-land-faint);
-    opacity: 1;
-}
-
-.ws-land-net-open {
-    height: 40px;
-    padding: 0 14px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: var(--ws-land-go);
-    box-shadow:
-        0 1px 0 rgba(0, 0, 0, 0.08),
-        0 6px 18px rgba(151, 200, 0, 0.28);
-    color: var(--ws-land-on-go);
-    font: inherit;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.ws-land-net-open:hover {
-    filter: brightness(1.05);
 }
 
 /* The usage data question, under the first view until it is answered. */

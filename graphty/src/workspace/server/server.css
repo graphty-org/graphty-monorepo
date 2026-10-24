@@ -1,0 +1,129 @@
+/* Server sources (data prototype spec section 3.9). */
+
+/* The point the server form opens beside: the sidebar's width, no height. */
+.sv-anchor {
+    height: 0;
+}
+
+/* The point a canvas node menu opens at. */
+.sv-point {
+    position: fixed;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.sv-form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* A property row: the label, then its control. */
+.sv-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.sv-control {
+    min-width: 0;
+}
+
+.sv-pair {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.sv-pair > * {
+    flex: 1;
+    min-width: 0;
+}
+
+.sv-pair > button {
+    flex: none;
+}
+
+.sv-code-input textarea {
+    font-family: var(--mantine-font-family-monospace);
+    font-size: 11px;
+}
+
+.sv-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 6px;
+}
+
+.sv-actions > .sv-code {
+    margin-inline-end: auto;
+}
+
+/* A coded chip: a failure in red, a warning quiet. */
+.sv-code,
+.sv-fact,
+.sv-badge {
+    padding: 0 6px;
+    border-radius: 9px;
+    background: var(--mantine-color-default-hover);
+    font-size: 11px;
+    line-height: 18px;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sv-code[data-error] {
+    background: var(--mantine-color-red-light);
+    color: var(--mantine-color-red-light-color);
+}
+
+.sv-preview {
+    min-width: 0;
+    max-height: 280px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.sv-chips,
+.sv-names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.sv-names {
+    max-height: 120px;
+    overflow-y: auto;
+}
+
+.sv-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 11px;
+}
+
+.sv-columns li {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.sv-columns li svg {
+    color: var(--mantine-color-dimmed);
+}

@@ -19,12 +19,13 @@ const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>
     "turn-down": "turn-up",
     "roll-left": "roll-right",
     "roll-right": "roll-left",
+    "zoom-in": "zoom-out",
+    "zoom-out": "zoom-in",
 };
 
 /**
- * The factor one wheel notch, or one press of W or S, changes the camera's distance by. About
- * what the first TAP_FRAMES frames of a held W or S zoom (0.985 ** 8 = 0.886), so a hold carries
- * on from the press without a jump.
+ * The factor one wheel notch changes the camera's distance by: about what a tap of W or S zooms
+ * over its TAP_FRAMES frames (0.985 ** 8 = 0.886).
  */
 const NOTCH_ZOOM = 1.1;
 
@@ -89,9 +90,14 @@ export class OrbitInputController {
 
         const dx = evt.clientX - this.lastX;
         const dy = evt.clientY - this.lastY;
+        const rect = this.canvas.getBoundingClientRect();
+        const from = { x: this.lastX - rect.left, y: this.lastY - rect.top };
         this.lastX = evt.clientX;
         this.lastY = evt.clientY;
-        this.controller.rotate(dx, dy);
+        // On a globe the grabbed point stays under the pointer; elsewhere the drag turns the view.
+        if (!this.controller.dragOnSphere(from, { x: evt.clientX - rect.left, y: evt.clientY - rect.top })) {
+            this.controller.rotate(dx, dy);
+        }
     };
 
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
@@ -102,20 +108,10 @@ export class OrbitInputController {
             return;
         }
 
-        // A zoom key zooms one wheel notch on the press itself, so a tap between two frames is
-        // never lost. Held past TAP_FRAMES frames it keeps zooming every frame (update), and the
+        // The zoom keys too: a press owes frames of motion, a hold moves every frame, and the
         // auto-repeats add nothing: they start late, follow the OS settings, and on macOS (press
-        // and hold shows the accent menu) a held letter often repeats not at all.
-        if (action === "zoom-in" || action === "zoom-out") {
-            this.held.add(action);
-            if (!evt.repeat) {
-                this.zoomBy(action === "zoom-in" ? -1 : 1);
-                this.owed.set(action, TAP_FRAMES);
-            }
-
-            return;
-        }
-
+        // and hold shows the accent menu) a held letter often repeats not at all. A zoom key
+        // must not jump on the press: the first frame zooms as far as every frame after it.
         this.held.add(action);
         if (!evt.repeat) {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
@@ -332,13 +328,10 @@ export class OrbitInputController {
             cam.spin(-this.config.keyboardYawSpeed);
         }
 
-        // A zoom key held past its tap's frames multiplies the distance by 1 - keyboardZoomSpeed
-        // every frame, so it zooms as fast far out as close in; W and S are exact inverses, and
+        // A zoom key multiplies the distance by 1 - keyboardZoomSpeed every frame it is on, from
+        // the first, so it zooms as fast far out as close in; W and S are exact inverses, and
         // held together they cancel, as two arrows do.
-        const { held } = this;
-        const zooming = (action: CanvasKeyAction): boolean => held.has(action) && (owed.get(action) ?? 0) === 0;
-        const both = held.has("zoom-in") && held.has("zoom-out");
-        const zoom = both ? 0 : axisOf(zooming("zoom-out"), zooming("zoom-in"));
+        const zoom = axisOf(on("zoom-out"), on("zoom-in"));
         if (zoom !== 0) {
             cam.zoomBy((1 - this.config.keyboardZoomSpeed) ** -zoom);
         }

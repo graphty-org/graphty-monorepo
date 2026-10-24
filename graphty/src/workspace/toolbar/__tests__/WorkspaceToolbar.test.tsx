@@ -49,6 +49,42 @@ describe("the canvas toolbar", () => {
         assert.equal(icon("Quick actions"), "lucide-search");
     });
 
+    it("draws the clock only while timeline.toggle is registered and shown, and runs it on a click", async () => {
+        let hasTime = false;
+        let runs = 0;
+        const timeline = defineRegistration({
+            owner: "timeline",
+            commands: [
+                {
+                    id: "timeline.toggle",
+                    label: "Timeline",
+                    group: "View",
+                    shown: () => hasTime,
+                    run: ({ workspace }) => {
+                        runs += 1;
+                        workspace.set((state) => ({ timelineOpen: !state.timelineOpen }));
+                    },
+                },
+            ],
+        });
+        const store = createWorkspaceStore(OPEN);
+        render(
+            <Workspace store={store} registrations={[...REGISTRATIONS.filter((r) => r.owner !== "time"), timeline]} />,
+        );
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
+
+        hasTime = true;
+        // In the app a session change re-renders the toolbar; here any store change does.
+        store.set({ legendShown: false });
+        const clock = await within(toolbar).findByRole("button", { name: "Timeline" });
+        await userEvent.click(clock);
+        assert.equal(runs, 1);
+        // Open by default while a field is set, so the first click hides it.
+        assert.isFalse(store.get().timelineOpen);
+        assert.equal(clock.getAttribute("aria-pressed"), "false");
+    });
+
     it("disables everything but Quick actions with nothing drawn, saying why", () => {
         render(<Workspace initialState={OPEN} />);
 
@@ -57,6 +93,9 @@ describe("the canvas toolbar", () => {
             assert.equal(button.getAttribute("aria-disabled"), "true", name);
             assert.equal(button.getAttribute("aria-description"), "Nothing is drawn", name);
         }
+        const table = screen.getByRole("button", { name: "Table" });
+        assert.equal(table.getAttribute("aria-disabled"), "true");
+        assert.equal(table.getAttribute("aria-description"), "The graph is still loading");
         assert.isFalse(screen.getByRole("button", { name: "Quick actions" }).hasAttribute("aria-disabled"));
     });
 

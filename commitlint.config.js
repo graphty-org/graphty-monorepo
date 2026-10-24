@@ -11,6 +11,7 @@ export default {
                 "graph-format",
                 "graph-io",
                 "graph-samples",
+                "babylonjs-map",
                 "webgpu-graph-algorithms",
                 "algorithms",
                 "layout",

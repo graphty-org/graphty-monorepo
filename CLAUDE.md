@@ -197,6 +197,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
+| `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -212,6 +213,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
 | `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped on npm, knows nothing about graphs): `FlatMap` and `Globe` with a raster tile pyramid, zoom level of detail, a bundled public-domain world image, keyless tile sources and their attribution; `babylonjs-map/projection` (Web Mercator, equirectangular, map frames, globe positions) and `babylonjs-map/location` (decimal, GeoJSON, WKT, ISO 6709, DMS, geohash, plus codes, MGRS, UTM) never load Babylon.js |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -229,6 +231,7 @@ graphty-monorepo/
 |-- graph-io/             # @graphty/graph-io package (depends on graph-format)
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
+|-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
@@ -317,6 +320,7 @@ pnpm run coverage:preview:graph-io
 pnpm run coverage:preview:webgpu-graph-algorithms
 pnpm run coverage:preview:graph-samples
 pnpm run coverage:preview:cytoscape-extensions
+pnpm run coverage:preview:babylonjs-map
 ```
 
 Each package also has its own `npm run coverage:preview`.
@@ -344,14 +348,14 @@ The `tools/` directory contains build scripts:
 | `test-slots.mjs` | The machine-wide limit on concurrent test runs: every package's vitest config takes a slot through it and caps a Node run at its share of the cores (`workerShare()`, cores / slots), and `node tools/test-slots.mjs <command>` holds one for a whole command (each pre-push shard); `--gpu <command>` holds the one machine-wide GPU slot instead (the gate's NVIDIA step, which runs beside the shards). Three lanes: a gate's shards (`TEST_SLOT_GATE`, set by `prepush-tests.mjs`) go ahead of every waiting run; `GRAPHTY_SLOT_PRIORITY=low` (the branch sync, `low-priority.sh`) queues behind every other run, and so does EVERY run outside a gate while a gate runs its test shards (its mark, `tmp/test-slots/.gate-<pid>`); a run that holds a slot keeps it. `node tools/test-slots.mjs status` lists the running gates and every holder and waiter. Off on GitHub Actions and with `GRAPHTY_TEST_SLOTS=0` |
 | `vitest-time-budget.mjs` | A Vitest reporter that judges every passing test against its time limit (its own timeout, else the project's `testTimeout`): over 25% it prints a warning (a GitHub Actions annotation in CI); over 50% it fails a pull request's run only when the pull request changed that test's file (`git diff <base>...HEAD`, base from `VITEST_BUDGET_BASE`, which ci.yml sets on pull requests), and says to cut or split the test. Everywhere else -- untouched files, the merge queue, the release train, a dispatch, no base -- it only warns, because one test's duration varies about 2x between CI runs and a gate on every test failed unrelated pull requests. On in ci.yml's test job (`VITEST_BUDGET_CHECK=1`; set it locally, with `VITEST_BUDGET_BASE=origin/master`, to check before pushing), added to every package by `ciReporters()` in `vitest.ci-junit.mjs`. A changed file's slow test that cannot be cut in its pull request goes in `vitest-time-budget-allowlist.json` with a tracking issue; a timeout is never raised to get under either line |
 | `validate-outputs.cjs` | Validates build outputs (ES modules, UMD, types, sourcemaps) |
-| `prepush.sh` | The pre-push gate: build, lint, knip and the fast tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
+| `prepush.sh` | The pre-push gate. While verification runs in CI it is the light gate for every `land.mjs` push (`PREPUSH_LIGHT=1`, which `land.mjs` sets): the source-only checks with SonarQube, build, knip, lint with the type-check, the docs and API checks and the NVIDIA GPU tests when webgpu-graph-algorithms is affected, with no test shard and no screenshot capture (`[LIGHT]` in its summary); `PREPUSH_LIGHT=0`, the default for any other push, is the full gate with the tests. Run by `.husky/pre-push` from the hook's own copy, which is `.worktrees/gate-live` for a push through the queue (see "Where a change takes effect"); `pnpm run prepush:fast` runs it by hand. Lint never rebuilds what the Build step built or restored from nx's cache (shared by every worktree) |
 | `land.mjs` | How every change reaches master: `land <branch>` checks a committed branch merged with golden without the landing lock, then takes the lock only to fast-forward the local integration branch `golden` to the checked commit and push it, refreshes the standing golden pull request and its screenshot preview and starts verification; `cut`, `cut-fix <branch>`, `ship`, `revert <branch>`, `status` (with verification and the open work) and `prune-branches` (a list; `--yes`, by hand, deletes) do the rest, and `sync` is the nightly branch sync (`branch-sync.mjs`). See "Landing changes (golden-local)" |
-| `verify.mjs` | Verification after landing: the full gate with every shard, the local GPU tests, the screenshots and SonarQube on golden's newest commit, beside new landings; on a pass it moves `golden-verified` on GitHub, on a failure it bisects the landings and records the culprit. State in `tmp/golden/verify.json` (main checkout). `start`, `status`, `claim`, `handled`, `watch`; see "Verification after landing" |
+| `verify.mjs` | Verification after landing, on golden's newest commit, beside new landings: with `backend ci`, a full `ci.yml` run through `golden-verify.yml` (the commit pushed to `golden-candidate`); with `backend local`, the explicit fallback (`backend local --reason "<why>"`), the full gate here with every shard, the local GPU tests, the screenshots and SonarQube; on a pass it moves `golden-verified` on GitHub, on a failure it bisects the landings and records the culprit. State in `tmp/golden/verify.json` (main checkout). `start`, `status`, `claim`, `handled`, `watch`, `backend ci\|local`; see "Verification after landing" |
 | `test-ledger.mjs` | The test ledger (`design/ci/test-ledger.md`): every gate, verification and bisect run records each test shard it ran (kind, commit, landed branch, outcome, per-file counts, every failure with its key and signature) as one file in the main checkout's `tmp/test-ledger/records/`, read from the shard's JUnit (`vitest.ci-junit.mjs` names it by `TEST_LEDGER_RUN`); a SQLite index beside them (`node:sqlite`) is rebuilt from them at will. Used by: a land check, which re-runs a failing shard's failing files on golden's tip and excuses what fails there too (`[KNOWN]`, off with `PREPUSH_EXONERATE=0`); verification, which does not bisect the same failures twice (`failed-known`), judges bisect points by its own failures and bisects a flaky test by its history. `status`, `why <file>[ > <test>]`, `sql "<select>"`, `rebuild`, `prune`. The ledger being unavailable never blocks a push |
 | `test-quarantine.mjs` | On by default (the owner's decision of 2026-10-22; `GRAPHTY_TEST_QUARANTINE=0` switches it off, for debugging): intermittent tests stop failing the gate and CI, without being hidden. See "Quarantined tests" under Testing. Every gate shard (`prepush-tests.mjs`) and every CI shard (`plan()` in `ci-test-matrix.mjs`) runs through it: when only tests failed (not a crash, an unhandled error or coverage), it runs the failed test files once more (at most 5 files). A test that failed and then passed on the same inputs -- in that retry, or in two gate runs of the shard with the same input key -- is flaky: it does not fail the shard and goes on the quarantine list; a test that fails on the retry too fails the shard unless it is quarantined. A quarantined test still runs, and every let-through failure is printed loudly (`[FLAKY]`, `[QUARANTINED]`; in CI a warning annotation; in the gate's summary, with no shard pass recorded). The gate adds a new entry to its local state (`tmp/test-quarantine/state.json` in the main checkout), where it holds at once on this machine, and files one issue per test (bug, priority:critical, effort:medium; a comment when it is quarantined again); CI only applies the committed list. An entry leaves when its issue closes (one GraphQL query an hour), after 20 consecutive passing gate runs (counted locally), or 14 days after it was added. Never for GPU tests. `status` lists the list and the counts; `write` puts the local list into the checkout's `test-quarantine.json`, to commit alone and land |
 | `test-quarantine.json` | The committed quarantine list (`test-quarantine.mjs`): file, test name, shard family, issue, reason, since, expires (14 days at most), failure excerpt. Entries come only from the gate (`write`), never by hand; commit the file alone and land it. The gate and CI read the checkout's own. Land checks do not excuse its entries and `land` does not refuse it mixed with other changes: neither is in place today |
 | `branch-sync.mjs` | The nightly branch sync, run as `node tools/land.mjs sync [--branch <b>] [--dry-run]`: merges golden, up to the tag `golden-good` (the newest verified golden commit with a clean screenshot preview), into every branch on GitHub with a commit in the last 7 days, choosing the newest landing that merges cleanly and passes the branch's checks (a binary search when the newest fails), pushes the signed merge, and writes the result into the branch's note. Design: `design/ci/branch-sync.md` |
-| `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of three gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait, and so does a push whose whole gate already passed on exactly these inputs (`prepush-inputs.mjs`, on any branch), which also skips the source-only checks. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
+| `push-queue.sh` | How every push on this machine is made: `tools/push-queue.sh git push origin HEAD:<branch>` (run it from any worktree). Runs the gate's source-only checks first, then waits for one of four gate slots, first come first served, `PUSH_QUEUE_PRIORITY=critical` ahead of every waiting push; a push that affects no package skips the wait, and so does a push whose whole gate already passed on exactly these inputs (`prepush-inputs.mjs`, on any branch), which also skips the source-only checks. The queue and the gate both run from the live copy `.worktrees/gate-live` (see "Where a change takes effect"), whichever copy of the script is called; the untracked `tmp/push-queue.sh` only calls it. A commit whose gate already failed its build, lint, tests or another check of its own is refused before the wait while the commit, the checkout's files and the gate are unchanged; the refusal names the failed step and its log, and `PUSH_QUEUE_RETRY=1` pushes it anyway when the failure was the machine's. A gate in which a process was killed by a signal ("Terminated", "Killed", exit 143 or 137) is the machine's and never refused. Tickets, the push log (`tmp/push-log.jsonl`) and the gate logs (`tmp/push-gate-logs/`) are in the main checkout |
 | `push-base.mjs` | The branch a push merges into, which every gate step measures "this push's changes" from (the SonarQube changed lines, the affected packages and shards, the secret scan, the push queue's fast lane and push log): `PUSH_BASE_REF` once asked, else `branch.<name>.prBase` (`worktree-new.sh` writes it for a branch started from another branch) or a differently named upstream, else one `gh pr view` of the pull request's base, else origin/master. So a branch stacked on another pull request's branch is judged only on its own commits |
 | `prepush-source-checks.sh` | The gate's source-only checks (formatting, offline links, the CI workflow tests, the config and tool checks, the SonarQube changed-lines scan), about two minutes. `push-queue.sh` runs them before a push waits for a slot; `prepush.sh` skips them when they already passed under the checkout's gate key (`prepush-inputs.mjs`) |
 | `shard-verdict.mjs` | Whether a test shard passed: exit 0 AND a vitest run summary for each run its command makes AND the reports it asks for, written by this run. `run-tests.sh` and `prepush-tests.mjs` apply it, because a global pnpm older than 10.29.1 reports a `pnpm exec` killed by a signal as exit 0 (`prepush.sh` warns about one) |
@@ -507,6 +511,9 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
 
+**babylonjs-map:**
+- Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
+
 **cytoscape-extensions:**
 - Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. Dataset downloads are answered from `graph-samples/dist/data/v1/` (`test/setup/local-datasets.mjs`), never the network. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
 - Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance. The Gallery stories run every layout, algorithm, generator, small dataset (served next to the Storybook from graph-samples' build, `staticDirs`) and file format on small seeded graphs, one tile each: an Overview per page and one story per tile, whose Storybook controls pick another network (a seeded graph-samples network of 100 to 50,000 nodes), the seed, the backend (auto, CPU or GPU), more options and a round trip through a file format, with the backend that ran, why, and the time on screen. The Large graphs stories run the force simulations on 2,000 to 50,000 nodes with WebGPU; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
@@ -575,7 +582,10 @@ tests: ci.yml builds every package, Storybook and docs site and skips every test
 screenshot job, and graphty.app deploys after every green master build. A red master build opens a
 revert (`master-guard.yml`). Releases run on the release train every 6 hours
 (see "Release versioning"), which runs the full suite, the T4 GPU lane, Hosts and the security
-audit on the exact commit it releases and publishes Coveralls' coverage from that run. The paid T4
+audit on the exact commit it releases and publishes Coveralls' coverage from that run. While
+verification runs in CI (`node tools/verify.mjs backend ci`), the full suite also runs in CI on
+golden's newest commits (`golden-verify.yml`) and again on the cut pull request, and the local gate
+runs no tests; with the `local` backend the local gate and verification run them here. The paid T4
 GPU lane runs only in the local pre-push gate and on the release train, never on a pull request or
 a master push.
 
@@ -589,6 +599,7 @@ writes this into the golden pull request's description from the landed commit me
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs (in practice the golden pull request), dispatch, called by `release.yml`; push to master (build only, no tests) | Build (the packages, then the Storybooks, Lint, Checks and Docs jobs beside the tests), sharded tests (25 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` summarizes (`Queue Checks Pass` belongs to the retired Mergify queue: its handling is still in the file but no longer used). The test jobs start as soon as the `Build` job has built and uploaded the packages. On a push to master only the build jobs (Build, Storybooks, Lint, Checks, Docs) run; the summaries pass when they do |
+| `golden-verify.yml` | Push to `golden-candidate`, `golden-cut-candidate`, `golden-bisect-1` or `golden-bisect-2` (moved only by `tools/verify.mjs`); dispatch with `ref` and `shards` | CI verification of golden: one job, `Verify`, that calls `ci.yml` as a full run (every shard, Lint, Checks, Docs, Links, cost accuracy, the captures; no Performance), so every check is named `Verify / ...` and none can satisfy master's required `All Checks Pass`. It gates no merge: `verify.mjs` reads the result and moves `golden-verified` |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
 | `release.yml` | Dispatch: the Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts, audit and LLM regression on the candidate; when all pass, in the same run, versions it, pushes the version merge and the tags to master with the release deploy key, and publishes with npm trusted publishing. Anything red before the push holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `release-watch.yml` | After every Release run (`workflow_run`, completed) | The backstop for the release announcements: a Release run that ended badly (failure, cancelled, timed out, startup failure) with no failure comment for that run attempt on the `Release status` issue gets one there (`tools/release-status.mjs run-ended`). Silent on success and skipped runs, on a pending run the release-train concurrency group replaced, and on a first attempt that only lost its T4 spot runner |
@@ -729,11 +740,11 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 36 test shards on a manual dispatch or the release train (a push
+The CI runs 37 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 25 test jobs, each planned to take about 15 minutes or less (the measured durations are
-in `tools/ci-test-matrix.mjs`): `small-node` (graph-format, graph-samples, cytoscape-extensions,
+in `tools/ci-test-matrix.mjs`): `small-node` (graph-format, graph-samples, babylonjs-map, cytoscape-extensions,
 cytoscape-extensions-cytoscape-versions, layout, algorithms-default, githerd) and `small-browser`
 (algorithms-browser, graph-io-browser, remote-logger, compact-mantine, visual-review,
 webgpu-graph-algorithms-browser); every other shard has a job of its own. A group job runs every affected member
@@ -744,6 +755,7 @@ shard. The shards:
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
+- `babylonjs-map`
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
@@ -944,7 +956,8 @@ Each package has its own CLAUDE.md with package-specific guidance:
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing
 - `pnpm run test:changed` runs only the tests your change can affect (`--dry-run` shows them and why); the
   gate runs the same selection for every landing. `PREPUSH_SELECT=0` makes one push run every affected shard
-  whole; verification after landing always runs everything, so a test the selection missed is caught there
+  whole; verification after landing always runs everything (in CI with the `ci` backend), so a test the
+  selection missed is caught there
 - Flaky tests are quarantined automatically; see "Quarantined tests" below
 - Run your own builds and ad hoc test runs through `tools/low-priority.sh` (niceness 10, the low slot lanes),
   so the pre-push gate gets the CPU first. While a gate runs its test shards, every vitest run and browser
@@ -1192,7 +1205,7 @@ The `design/` directory contains architecture documentation:
 ## Landing changes (golden-local)
 
 Every change reaches master the same way: it lands locally in the integration branch `golden`
-through the full pre-push gate, golden is pushed to `golden` on GitHub, and one standing pull
+through the pre-push gate, golden is pushed to `golden` on GitHub, and one standing pull
 request takes golden to master. There are no per-change pull requests. The design, its history and
 its requirements are in `design/ci/golden-local.md`.
 
@@ -1217,7 +1230,8 @@ How to land a change:
 2. Run `node tools/land.mjs land <branch>` with `run_in_background`, then end your turn or do other
    work; its exit notice wakes you. Without the landing lock it merges golden, `origin/golden` and
    `origin/master` and then your branch (`--no-ff`, "land: <branch>") in a check worktree
-   (`.worktrees/land-check-<n>`) and runs the whole pre-push gate on that commit as a dry-run push
+   (`.worktrees/land-check-<n>`) and runs the pre-push gate on that commit as a dry-run push (the light
+   gate, with no test shard, while verification runs in CI; the whole gate otherwise)
    (passes are reused by input key, so only what changed runs). Then it takes the machine-wide lock for
    seconds: when that commit still holds GitHub's golden, golden fast-forwards to it and is pushed, and
    the push takes no gate slot because the identical files already passed. When golden moved meanwhile
@@ -1248,14 +1262,27 @@ How to land a change:
 
 ### Verification after landing
 
-`tools/verify.mjs` checks golden in full after each landing, beside later landings: the pre-push gate
+`tools/verify.mjs` checks golden in full after each landing, beside later landings. **Verification runs
+in CI when the backend is `ci` and locally otherwise** (`node tools/verify.mjs backend ci`, or
+`backend local --reason "<why>"`, never switched automatically; `status` shows which). In CI it pushes the
+commit to `golden-candidate` (`golden-cut-candidate` for the cut), `golden-verify.yml` runs the full
+`ci.yml` suite on it, and `verify.mjs` polls the result every 5 minutes. A look costs no REST call when the
+status broker answers (the commit is the head of the golden or cut pull request, and it shows the run passed
+or still running; never for a bisect point, nor for a commit that already failed in CI). Otherwise it is one
+REST call for the commit's runs, plus one for the run's jobs while it runs or when it did not simply pass on
+its first attempt; a failed run adds one JUnit download per failed test job and one annotations read per
+failed group job. Before the first push it waits while the cut pull request's CI run or a release train is
+running, at one `gh run list` call a look. The run is judged as it judges itself, by `Verify / All Checks
+Pass` (a failed screenshot job beside a green All Checks Pass is a pass), and only a full attempt verifies:
+a green re-run of the failed jobs alone starts a new full run. Locally it runs the pre-push gate
 with every package and shard (`PREPUSH_ALL=1`, passes reused by input key), the local NVIDIA tests
 under the GPU slot, the screenshots of the affected projects and SonarQube on the lines changed since
 master, through the push queue ahead of ordinary pushes, as a dry-run push. There is no daemon: a
 landing records its tip as `wanted` in `tmp/golden/verify.json` (main checkout) and starts a run when
 none is live; a run goes on to anything newer before it ends.
 
-- **Pass:** the ref `golden-verified` on GitHub moves to the commit. Branches start from it and merge
+- **Pass:** the ref `golden-verified` on GitHub moves to the commit (in CI: on a green `Verify / All Checks
+  Pass`). Branches start from it and merge
   it; `cut` takes only commits up to it.
 - **Failure:** the run first confirms it: only the failing test files, up to 5 runs on the failing commit. A
   test that passes any of them is intermittent, and the test ledger decides what that means, because a load- or
@@ -1276,7 +1303,27 @@ none is live; a run goes on to anything newer before it ends.
   fails there; a run that fails for another reason is run once more and never counted. A failure that is
   not reproduced, or that the next verification sees again, gets one `Failing on golden` issue; a culprit's
   failure gets none, and `handled` closes the issues a land check filed for it.
-- **A failure already on golden** never blocks an unrelated landing and is never hidden: when a land check's
+- **A failure in CI** is handled the same way, here: verification reads the failed jobs (one `[FAIL]` line
+  per shard), downloads their JUnit for the exact failing tests, and confirms and bisects those files on this
+  machine. A test that passes all 5 runs here is a CI-only failure: its failed jobs are re-run once in CI;
+  failing again, it is bisected in CI (each point pushed to `golden-bisect-1`), and passing, it is
+  quarantined. When some failures reproduce here and others only in CI, the CI bisect follows both. Until
+  `golden-verify.yml` is on master, a point whose tree lacks it gets no CI run (a push runs the pushed
+  commit's copy of the workflow), so it is judged here instead, its failing files through the local gate,
+  and its evidence says `judgedLocally`. Neither moves `golden-verified`. When the last verified commit fails too, the cause is the
+  environment (the runner image, an outside service, the date): nothing is reverted and it gets a `bug`,
+  `priority:high` issue. A non-test job's failure (Build, Lint, Checks, Docs) is bisected with the light gate
+  over every package. A lost run (startup failure, lost runner) is re-run once, never counted as a verdict.
+- **CI verification unavailable:** a push or run lookup that fails (not a rate limit, which only waits), a
+  run lost twice, a commit that gets no run twice (GitHub sometimes accepts a push and starts nothing;
+  verification deletes and re-pushes the ref first, and `status` prints `no CI run created for <sha>`) sets
+  this state. Only then, after the second lost run or the second missing run, is githubstatus.com consulted:
+  while it reports Actions down, verification does not retry at that look (unreachable counts as up). Both status commands print `CI verification
+  unavailable since <time>, N landings unverified`, and the pipeline round raises one `priority:high` issue.
+  Landings go on through the light gate; `golden-verified`, and so cuts, wait. It clears on the first run
+  that starts; there is no automatic local fallback.
+- **A failure already on golden** (with the full local gate; the light gate runs no shard, so this is dormant
+  while verification runs in CI) never blocks an unrelated landing and is never hidden: when a land check's
   shard fails, the gate runs the failing test files again on golden's tip (in `.worktrees/land-check-<n>-base`,
   up to twice), and excuses the shard when every failing test fails there too (the same message; for an
   expired wait, any failure) and the landing touches none of their files. It files the `Failing on golden`
@@ -1325,7 +1372,8 @@ Rules:
   behind a switch that is off by default.
 - A landing check may defer the test shards of packages affected only as downstream dependents (a
   graph-io change skips graphty-element's) to verification of golden (owner, 2026-10-23); on by default,
-  `PREPUSH_DEFER_DOWNSTREAM=0` turns it off for one push.
+  `PREPUSH_DEFER_DOWNSTREAM=0` turns it off for one push. With the light gate (verification in CI) no
+  shard runs in a landing check, so there is nothing to defer.
 - `Fixes #N` (or `Closes #N`, `Resolves #N`) in a commit message closes the issue when the golden
   pull request merges. Use `Refs #N` for an issue that must stay open.
 - Where this file asks for something in a pull request description (a breaking change's list, a
@@ -1341,7 +1389,8 @@ Rules:
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
   are made on the cut pull request. A fix the cut needs starts from the cut,
   `./tools/worktree-new.sh <branch> origin/golden-cut`, and goes in with `node tools/land.mjs cut-fix <branch>`:
-  it merges the branch into `golden-cut`, pushes it through the gate and starts the cut's preview, then lands
+  it merges the branch into `golden-cut`, pushes it through the gate (the light gate while verification
+  runs in CI, whose run of `golden-cut-candidate` then tests it) and starts the cut's preview, then lands
   the same branch on golden, so both hold the same commits, and starts verification of `golden-cut`. A landing that
   verification shows broke golden is reverted at once and landed again once fixed.
 - `node tools/land.mjs ship`, only after the owner says the cut review is finished: it refuses until the

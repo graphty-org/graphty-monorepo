@@ -8,6 +8,8 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+# The graphty app built into a named folder for a preview server
+graphty/dist-*/
 build/
 *.tsbuildinfo
 

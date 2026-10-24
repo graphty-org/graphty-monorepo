@@ -4,17 +4,17 @@
     "minimumHeadroomBytes": 1024,
     "entries": {
         ".": 666485,
-        "./session": 433500,
+        "./session": 487407,
         "./schema": 14259,
-        "./catalog": 146797,
+        "./catalog": 170586,
         "./commands": 1598,
         "./extend": 86594,
         "./format": 1266,
         "./logging": 10764,
         "./react": 1044,
         "./webgpu": 5547,
-        "./ai": 156061,
+        "./ai": 172387,
         "./credentials": 5263,
-        "./bundle": 3210761
+        "./bundle": 3533169
     }
 }

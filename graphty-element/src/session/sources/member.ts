@@ -376,7 +376,8 @@ function entryOf(
         format: network || load.type === undefined ? undefined : load.type,
         [kind]: part,
         options,
-        mapping: load.mapping === undefined ? undefined : jsonOf(load.mapping),
+        // The roles as given (`choices.mapping`), not the element's whole reading of them.
+        mapping: load.choices?.mapping === undefined ? undefined : jsonOf(load.choices.mapping),
         tables: load.tables.length === 0 ? undefined : [...load.tables],
         tableRows: load.tableRows === undefined ? undefined : [...load.tableRows],
         joinedOnto: load.joinedOnto,
@@ -876,7 +877,7 @@ function loadedOf(raw: Record<string, unknown>): Record<string, unknown> {
         join,
         tables: Array.isArray(raw.tables) ? raw.tables : [],
         tableRows: Array.isArray(raw.tableRows) ? raw.tableRows : undefined,
-        mapping: isObject(raw.mapping) ? raw.mapping : undefined,
+        choices: isObject(raw.mapping) ? { mapping: raw.mapping } : undefined,
         added: countsOf(raw.added),
         leftOut: isObject(raw.leftOut) ? raw.leftOut : undefined,
     });
@@ -1225,7 +1226,7 @@ function readVersion2(
         kind: _kind,
         joinedOnto: _onto,
         join: _join,
-        mapping: _mapping,
+        choices: _choices,
         tables: _tables,
         tableRows: _rows,
         added: _added,

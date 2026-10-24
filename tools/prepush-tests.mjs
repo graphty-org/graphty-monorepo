@@ -29,15 +29,18 @@
  * shared cap of four browsers), and at most two shards without a
  * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
  * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
- *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
- *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
- *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
- *    shards started together failed with deps chunks that "point to missing source files". So in each
- *    package one shard of each family (graphty-element-browser-1 to -5 is one family) fills the
- *    caches first, one at a time with nothing else of that package running -- the one with the
- *    shortest command: browser-1 also runs the benchmarks -- and the rest of the package starts once
- *    all of its warm-ups passed. Per package rather than per family, because the families of one
- *    package are not shown never to share a cache (the root project's is used by every one).
+ *  - On CI's runners no two shards share a Vite dependency cache; here every shard of one package
+ *    shares its checkout. On a cold or stale shared cache each vitest optimizes and swaps a cache
+ *    directory in under the others: four browser shards started together failed with deps chunks
+ *    that "point to missing source files", and xr runs side by side lost chunks they were loading
+ *    (issue #3319). So every shard gets its own Vite cache, node_modules/.vite/shard-<shard>
+ *    (GRAPHTY_TEST_SHARD, shardEnv() below; a package's vitest config sets it as cacheDir through
+ *    shardCacheDir() in tools/test-slots.mjs). Storybook's vitest plugin keeps its own sb-vitest
+ *    cache, which a package's config cannot move, so in each package one shard of each family
+ *    (graphty-element-storybook-1 to -5 is one family) still runs first, one at a time with nothing
+ *    else of that package running -- the one with the shortest command -- and the rest of the
+ *    package starts once all of its warm-ups passed. That warm-up only has to fill the caches every
+ *    shard of the family shares, never one a later shard alone uses.
  *  - The packages that run several shards with --coverage (graphty-element, algorithms) write each
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
@@ -61,7 +64,7 @@ import { partitionByPasses, passStore, shardKeys, testsPassed } from "./prepush-
 import { checkShard, expectedRuns } from "./shard-verdict.mjs";
 import { afterShard, closeFinished, quarantineEnabled, shQuote, splitLog } from "./test-quarantine.mjs";
 import { planRuns, selectBaseOf, selectedCommand, startAdvisory } from "./test-select.mjs";
-import { markGate } from "./test-slots.mjs";
+import { liveTickets, markGate, slotDir } from "./test-slots.mjs";
 
 // The checkout under test: PREPUSH_ROOT when tools/prepush.sh runs from the gate's live copy against
 // another checkout, else this file's own. Its own CI matrix decides the shards, as CI's run on it will.
@@ -193,14 +196,19 @@ async function vitestTriggers(shard) {
 }
 
 /**
- * The environment one shard adds: its own coverage directory where a package runs several shards.
+ * The environment one shard adds: its name, which gives it its own Vite dependency cache
+ * (shardCacheDir() in tools/test-slots.mjs), and its own coverage directory where a package runs
+ * several shards.
  * @param shard a SHARDS entry
  * @returns extra environment variables
  */
 export function shardEnv(shard) {
-    return ["graphty-element", "algorithms"].includes(shard.package)
-        ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
-        : {};
+    return {
+        GRAPHTY_TEST_SHARD: shard.shard,
+        ...(["graphty-element", "algorithms"].includes(shard.package)
+            ? { COVERAGE_DIR: `.coverage-parts/${shard.shard}` }
+            : {}),
+    };
 }
 
 // graphty-element-browser-3 -> graphty-element-browser; a shard without a number is its own family.
@@ -657,6 +665,33 @@ function passed(shards, main) {
 }
 
 // Why a gate runs no shard.
+// Verification after landing (tools/verify.mjs) names this file, and writes it once a newer golden commit is
+// wanted: at the next shard boundary the gate starts no more shards and stops with [SUPERSEDED].
+const SUPERSEDED = process.env.PREPUSH_SUPERSEDED_FILE;
+
+/**
+ * The process groups (each shard's, as started below) that hold a machine-wide test slot: the shards that have
+ * begun their tests rather than wait for a slot.
+ * @returns the group ids
+ */
+function slotHolderGroups() {
+    try {
+        const pgid = (pid) =>
+            Number(
+                readFileSync(`/proc/${pid}/stat`, "utf8")
+                    .replace(/^.*\) /s, "")
+                    .split(" ")[2],
+            );
+        return new Set(
+            liveTickets(slotDir())
+                .filter((t) => t.granted)
+                .map((t) => pgid(t.pid)),
+        );
+    } catch {
+        return new Set(); // no slots (GRAPHTY_TEST_SLOTS=0): no shard counts as begun
+    }
+}
+
 function nothingToRun(gated, planned) {
     if (gated.length === 0) return "No affected package has a test shard to run here.";
     if (planned.length === 0) return "The test selection runs no shard: no test reaches this change.";
@@ -727,6 +762,8 @@ async function main() {
     const known = [];
     const quarantineLines = [];
     let stopping = false;
+    let superseded = false;
+    const dropped = new Set(); // shards stopped by a supersession before their tests began
     const started = Date.now();
     // What the test selector would have run, logged beside what the gate runs; it changes nothing here.
     const advisory = startAdvisory(ROOT, base, main);
@@ -789,7 +826,7 @@ async function main() {
                         logFile: log,
                     });
                 }
-                if (stopping) {
+                if (stopping || dropped.has(shard.shard)) {
                     running.delete(shard.shard);
                     ledgerRecord(shard, main, { ...facts, cancelled: true });
                     // Once stopAll ran, the last shard to settle ends the stage: nothing else is left to.
@@ -924,6 +961,13 @@ async function main() {
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         advisory.report(results);
+        if (superseded) {
+            failed.forEach(keepLog);
+            console.log(
+                `[SUPERSEDED] Stopped for a newer commit (${secs}s): the shards that passed are kept by input key.`,
+            );
+            process.exit(1);
+        }
         if (quarantineLines.length) {
             console.log("Quarantine (tools/test-quarantine.mjs; `node tools/test-quarantine.mjs status`):");
             quarantineLines.forEach((l) => console.log(l));
@@ -949,7 +993,34 @@ async function main() {
 
     // Every waiting shard starts (browser ones then queue on the shared gate), except one startRule
     // holds back until its package's caches are warm, and a third shard without a browser.
+    // At a shard boundary, once verification wrote the marker: nothing more starts, and every shard still waiting
+    // for its test slot stops; a shard whose tests began runs to the end, so its pass is recorded by input key.
+    const supersede = () => {
+        if (superseded || !SUPERSEDED || !existsSync(SUPERSEDED)) return superseded;
+        superseded = true;
+        const notStarted = waiting.splice(0).length;
+        const begun = slotHolderGroups();
+        for (const [name, child] of running) {
+            if (begun.has(child.pid)) continue;
+            dropped.add(name);
+            try {
+                process.kill(-child.pid, "SIGTERM");
+            } catch {
+                // already gone
+            }
+        }
+        console.log(
+            `  [SUPERSEDED] a newer commit is wanted (${SUPERSEDED}): ${notStarted} shard(s) not started, ` +
+                `${dropped.size} stopped before their tests began, ${running.size - dropped.size} running to the end`,
+        );
+        return true;
+    };
+
     const next = () => {
+        if (supersede()) {
+            if (running.size === 0) finish();
+            return;
+        }
         // An index loop: a started shard is spliced out of `waiting` as it goes.
         for (let i = 0; i < waiting.length;) {
             const shard = waiting[i];

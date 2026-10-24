@@ -53,6 +53,7 @@ export const OPENALEX_DESCRIPTOR: SourceDescriptor = Object.freeze({
     credentials: [
         { name: "api_key", kind: "api-key", required: false, plainName: "API key", send: { query: "api_key" } },
     ],
+    apiKey: { query: "api_key" },
     rateLimit: { requests: 10, perMs: 1000 },
     features: ["expand", "probe", "validate", "page"],
     params: [

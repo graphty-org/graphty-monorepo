@@ -206,6 +206,8 @@ function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): S
 interface ImportExtra {
     readonly coalesce?: string;
     readonly origin?: "sample";
+    /** The token of what the rows were read from, for a file the session can read again. */
+    readonly input?: string;
 }
 
 /**
@@ -394,6 +396,254 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/** The roles the `replaceSource` and `reloadSource` doors read their edge table with. */
+const DOOR_SHIPS_MAPPING = {
+    tables: {
+        rows: {
+            rowsAre: "edges" as const,
+            source: { column: "source" },
+            target: { column: "target" },
+            weight: null,
+            time: null,
+            edgeId: null,
+        },
+    },
+};
+/** The load the `replaceSource` door replaces. */
+const DOOR_SHIPS_CSV = "source,target\nr1,r2\nr2,r3\n";
+/** The newer copy the `replaceSource` door replaces it with: r2-r3 gone, r1-r4 new. */
+const DOOR_REPLACE_CSV = "source,target\nr1,r2\nr1,r4\n";
+/** The `replaceSource` door's copy, as the step that merges it names it. */
+const DOOR_REPLACE_SOURCE = { type: "csv", config: { data: DOOR_REPLACE_CSV }, name: "door-ships-2.csv" };
+/** What `data.replaceSource("s1", ...)` dispatches inside its batch. */
+const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-edges", ids: ["1"] } },
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: ["r3"] } },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-ships.csv", config: {} },
+        sources: [],
+        provenance: {},
+    },
+    {
+        op: "data.import",
+        source: DOOR_REPLACE_SOURCE,
+        tables: ["door-ships-2.csv"],
+        tableRows: ["edges"],
+        mode: "merge",
+        held: {
+            // An edge table's ends get node rows of their own, so the nodes they make are drawn.
+            nodes: [{ id: "r1" }, { id: "r2" }, { id: "r4" }],
+            edges: [
+                { source: "r1", target: "r2" },
+                { source: "r1", target: "r4" },
+            ],
+            edgeLines: [2, 3],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+            weight: null,
+            repeated: "first",
+        },
+        mapping: DOOR_SHIPS_MAPPING,
+        input: "i2",
+        key: "s1",
+        origin: "file",
+    },
+];
+/** The `reloadSource` door's load, as the step that reads it again names it. */
+const DOOR_SHIPS_SOURCE = { type: "csv", config: { data: DOOR_SHIPS_CSV }, name: "door-ships.csv" };
+/** What `data.reloadSource("s1", {})` dispatches inside its batch: the same rows, read again. */
+const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-edges", ids: [] } },
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: [] } },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-ships.csv", config: {} },
+        sources: [],
+        provenance: {},
+    },
+    {
+        op: "data.import",
+        source: DOOR_SHIPS_SOURCE,
+        tables: ["door-ships.csv"],
+        tableRows: ["edges"],
+        mode: "merge",
+        held: {
+            nodes: [{ id: "r1" }, { id: "r2" }, { id: "r3" }],
+            edges: [
+                { source: "r1", target: "r2" },
+                { source: "r2", target: "r3" },
+            ],
+            edgeLines: [2, 3],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+            weight: null,
+            repeated: "first",
+        },
+        mapping: DOOR_SHIPS_MAPPING,
+        input: "i2",
+        key: "s1",
+        origin: "file",
+    },
+];
+/** What `data.reloadSource("s1", {})` dispatches: the batch, then its steps. */
+const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
+    {
+        op: "batch",
+        label: "Replaced door-ships.csv",
+        fact: {
+            code: "data.replace-source",
+            params: { key: "s1", name: "door-ships.csv", added: 0, removed: 0, changed: 0 },
+        },
+        steps: RELOAD_SOURCE_STEPS,
+    },
+    ...RELOAD_SOURCE_STEPS,
+];
+/** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
+const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
+    {
+        op: "batch",
+        label: "Replaced door-ships.csv",
+        fact: {
+            code: "data.replace-source",
+            params: { key: "s1", name: "door-ships-2.csv", added: 2, removed: 2, changed: 0 },
+        },
+        steps: REPLACE_SOURCE_STEPS,
+    },
+    ...REPLACE_SOURCE_STEPS,
+];
+
+/** The table the `editJoin` door joins onto one node. */
+const DOOR_JOIN_CSV = "name,score\ndoor-j1,5\n";
+
+/** The join the `editJoin` door edits, as `data.joins()` lists it. */
+const DOOR_JOIN = {
+    source: "s1",
+    onto: null,
+    shape: "node-values",
+    choices: { keys: [{ file: "name", graph: "id" }], shape: "node-values" },
+    rows: 1,
+    matched: 1,
+    columns: ["score"],
+    table: { name: "door-join.csv", columns: ["name", "score"], rows: [{ name: "door-j1", score: 5 }] },
+    before: { "door-j1": { score: null } },
+} as const;
+
+/** What `data.editJoin("s1", ...)` dispatches inside its batch. */
+const EDIT_JOIN_STEPS: readonly SessionCommand[] = [
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "update-rows",
+            target: "node",
+            rows: [{ id: "door-j1", values: { id: "door-j1" } }],
+            replace: true,
+        },
+    },
+    {
+        op: "data.apply",
+        mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-j1", values: { score: 5 } }] },
+    },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-join.csv", config: {} },
+        sources: [
+            {
+                type: "csv",
+                name: "door-join.csv",
+                config: {},
+                key: "s1",
+                kind: "join",
+                join: DOOR_JOIN,
+                tables: ["door-join.csv"],
+                tableRows: ["nodes"],
+                added: { nodes: 0, edges: 0 },
+                counts: { nodes: 1, edges: 0 },
+            },
+        ],
+        provenance: { s1: { nodes: ["door-j1"], edges: [] } },
+    },
+];
+
+/** What `data.setRole({ kind: "node", name: "doorTitle" }, "label")` dispatches inside its batch. */
+const SET_LABEL_ROLE: SessionCommand = {
+    op: "config.set",
+    values: { data: { knownFields: { nodeLabelPath: "doorTitle" } } },
+};
+
+/** What `data.setType({ kind: "node", name: "doorAmount" }, "number")` dispatches inside its batch. */
+const SET_TYPE_STEPS: readonly SessionCommand[] = [
+    {
+        op: "data.apply",
+        mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-amount", values: { doorAmount: 12 } }] },
+    },
+    { op: "data.columns", settings: { hidden: [], types: { "node:doorAmount": "number" }, renamed: {} } },
+];
+
+/** What `data.renameColumn({ kind: "node", name: "doorOld" }, "doorNew")` dispatches inside its batch. */
+const RENAME_STEPS: readonly SessionCommand[] = [
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "update-rows",
+            target: "node",
+            rows: [{ id: "door-old", values: { id: "door-old", doorNew: 1 } }],
+            replace: true,
+        },
+    },
+    {
+        op: "data.columns",
+        settings: { hidden: [], types: {}, renamed: { "node:doorOld": "doorNew" } },
+        move: { kind: "node", from: "doorOld", to: "doorNew" },
+    },
+];
+
+/** What `data.setHidden([{ kind: "node", name: "doorHidden" }], true)` dispatches inside its batch. */
+const HIDE_STEP: SessionCommand = {
+    op: "data.columns",
+    settings: { hidden: ["node:doorHidden"], types: {}, renamed: {} },
+};
+
+/** What `data.fix("padded-space:node:doorName", "trim")` dispatches inside its batch. */
+const TRIM_STEP: SessionCommand = {
+    op: "data.apply",
+    mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-pad", values: { doorName: "Acme" } }] },
+};
+
+/** The issue state `data.fix("padded-space:node:doorName", "trim")` leaves: the issue kept as fixed. */
+const FIXED_STEP: SessionCommand = {
+    op: "data.issues",
+    state: {
+        facts: {},
+        ignored: [],
+        kept: [],
+        fixed: [
+            {
+                id: "padded-space:node:doorName",
+                code: "padded-space",
+                column: { kind: "node", name: "doorName" },
+                count: 1,
+                params: { examples: [" Acme "] },
+                fixedBy: "trim",
+            },
+        ],
+    },
+};
+
+/** What `data.ignoreIssue("padded-space:node:doorName")` dispatches inside its batch. */
+const IGNORE_STEP: SessionCommand = {
+    op: "data.issues",
+    state: { facts: {}, ignored: ["padded-space:node:doorName"], kept: [] },
+};
+
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
 /**
@@ -577,6 +827,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     journal: READ,
     selection: READ,
     visibility: READ,
+    time: READ,
     styles: READ,
     views: READ,
     layout: READ,
@@ -591,6 +842,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     // Its coordinate and pin columns are copies, so a write there moves nothing.
     snapshot: READ,
     fingerprint: READ,
+    recipe: READ,
     // What a find box lists; selects nothing.
     find: READ,
     run: calls([{ op: "algo.run", algorithm: "degree" }], [RUN_DEGREE]),
@@ -603,6 +855,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     project: READ,
     transaction: HISTORY,
     estimate: READ,
+    recommendLayout: READ,
     plan: READ,
     on: LISTEN,
     dispose: LIFECYCLE,
@@ -669,6 +922,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     nodes: READ,
     edges: READ,
     summary: READ,
+    summaryOf: READ,
     filter: READ,
     window: READ,
     set: calls([{ kind: "degree", min: 1 }], [{ op: "visibility.set", filter: { kind: "degree", min: 1 } }]),
@@ -682,6 +936,78 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
         [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
     ),
+};
+
+/**
+ * A door on `session.time` that moves the window: a field on `t` is designated first (not
+ * spied), so with no window it opens the first one at 0, a day wide, and moves from there.
+ * @param args - The arguments.
+ * @param window - The window the move must dispatch.
+ * @returns The door.
+ */
+function timeMove(args: readonly unknown[], window: Readonly<Record<string, unknown>>): Door {
+    return {
+        kind: "dispatches",
+        op: "visibility.window",
+        call: {
+            kind: "call",
+            args,
+            around: async (target) => {
+                const time = target as { setField(field: unknown): Promise<unknown> };
+                await time.setField({ edges: { start: "t" } });
+                return async () => time.setField(null);
+            },
+        },
+        expect: [{ op: "visibility.window", window: { attribute: "data.t", nodes: "ends", ...window } }],
+    };
+}
+
+/** The rows of `TimeApi`. */
+const TIME_API: Readonly<Record<string, Door>> = {
+    field: READ,
+    setField: calls(
+        [{ edges: { start: "t" } }],
+        [
+            {
+                op: "config.set",
+                values: {
+                    data: {
+                        knownFields: { nodeTimePath: null, nodeTimeUnit: null, edgeTimePath: "t", edgeTimeUnit: null },
+                    },
+                },
+            },
+        ],
+    ),
+    ready: READ,
+    extent: READ,
+    bins: READ,
+    changes: READ,
+    current: READ,
+    // The window takes the step in use: with no data, the automatic step is a day.
+    window: calls(
+        [{ attribute: "data.t", from: 0, to: 1 }],
+        [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1, step: "day" } }],
+    ),
+    play: exempt(
+        "Starts a timer, which is not project state; each step it then takes is a visibility.window command, and one play records one step.",
+    ),
+    pause: exempt("Stops the timer; the steps already taken are recorded."),
+    // With no data the automatic step is a day; a first step forward opens the first window.
+    stepBy: timeMove([1], { from: 0, to: 86_400_000, step: "day" }),
+    seek: timeMove([5], { from: 5, to: 86_400_005, step: "day" }),
+    commit: exempt(
+        "Records a cursor that seek({ commit: false }) moved as the visibility.window command seek dispatches; with no cursor it changes nothing.",
+    ),
+    candidates: READ,
+    notices: READ,
+    parse: READ,
+    atStart: READ,
+    atEnd: READ,
+    settings: READ,
+    setSettings: calls([{ mode: "cumulative" }], [{ op: "visibility.playback", playback: { mode: "cumulative" } }]),
+    playing: READ,
+    mode: READ,
+    interval: READ,
 };
 
 /** A layer the style doors add. */
@@ -838,6 +1164,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
     restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
+    toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
 };
@@ -915,6 +1242,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             edgeWeightPath: assigns("w", [
                 { op: "config.set", values: { data: { knownFields: { edgeWeightPath: "w" } } } },
             ]),
+            edgeTimePath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { edgeTimePath: "t" } } } },
+            ]),
+            nodeTimePath: assigns("t", [
+                { op: "config.set", values: { data: { knownFields: { nodeTimePath: "t" } } } },
+            ]),
+            edgeTimeUnit: assigns("s", [
+                { op: "config.set", values: { data: { knownFields: { edgeTimeUnit: "s" } } } },
+            ]),
+            nodeTimeUnit: assigns("s", [
+                { op: "config.set", values: { data: { knownFields: { nodeTimeUnit: "s" } } } },
+            ]),
             positionScale: assigns(2, [{ op: "config.set", values: { data: { knownFields: { positionScale: 2 } } } }]),
             directed: assigns(true, [{ op: "config.set", values: { data: { directed: true } } }]),
             layout: assigns("circular", [
@@ -944,6 +1283,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             background: assigns({ backgroundType: "color", color: "#101010" }, [
                 { op: "config.set", values: { background: { backgroundType: "color", color: "#101010" } } },
             ]),
+            basemapStatus: READ,
+            mapFrame: READ,
+            attributionOffset: CAMERA,
+            cameraTransitionDuration: CAMERA,
             startingCameraDistance: CAMERA,
             autoFrame: CAMERA,
             zoomToPointer: CAMERA,
@@ -1125,6 +1468,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ backgroundType: "color", color: "#202020" }],
                 [{ op: "config.set", values: { background: { backgroundType: "color", color: "#202020" } } }],
             ),
+            basemapStatus: READ,
+            mapFrame: READ,
+            setAttributionOffset: CAMERA,
+            getCameraTransitionDuration: READ,
+            setCameraTransitionDuration: CAMERA,
             setSelectionStyle: calls(
                 [{ color: "#00ff00" }],
                 [{ op: "config.set", values: { selectionStyle: { color: "#00ff00" } } }],
@@ -1843,6 +2191,92 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             source: READ,
             sources: READ,
             sourcesOf: READ,
+            issues: READ,
+            hiddenColumns: READ,
+            // The fix's rows and the issue state it settles, as one batch.
+            fix: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["padded-space:node:doorName", "trim"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Fixed padded-space",
+                        fact: {
+                            code: "data.fix-issue",
+                            params: {
+                                issue: "padded-space:node:doorName",
+                                code: "padded-space",
+                                fix: "trim",
+                                count: 1,
+                            },
+                        },
+                        steps: [TRIM_STEP, FIXED_STEP],
+                    },
+                    TRIM_STEP,
+                    FIXED_STEP,
+                ],
+            },
+            // The ignored id joins the issue state, as one batch.
+            ignoreIssue: {
+                kind: "dispatches",
+                op: "data.issues",
+                call: {
+                    kind: "call",
+                    args: ["padded-space:node:doorName"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Ignored padded-space:node:doorName",
+                        fact: {
+                            code: "data.ignore-issue",
+                            params: { issue: "padded-space:node:doorName", ignored: true },
+                        },
+                        steps: [IGNORE_STEP],
+                    },
+                    IGNORE_STEP,
+                ],
+            },
+            // Every ignored id joins the issue state, as one batch.
+            ignoreIssues: {
+                kind: "dispatches",
+                op: "data.issues",
+                call: {
+                    kind: "call",
+                    args: [["padded-space:node:doorName"]],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-pad", doorName: " Acme " }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Ignored padded-space:node:doorName",
+                        fact: {
+                            code: "data.ignore-issues",
+                            params: { issues: ["padded-space:node:doorName"], ignored: true },
+                        },
+                        steps: [IGNORE_STEP],
+                    },
+                    IGNORE_STEP,
+                ],
+            },
             // The rows only that load supplied go, and the load leaves the list, as one batch.
             removeSource: {
                 kind: "dispatches",
@@ -1889,6 +2323,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                                 config: {},
                                 key: "s1",
                                 kind: "file",
+                                input: "i1",
                                 tables: [],
                                 added: { nodes: 2, edges: 1 },
                                 counts: { nodes: 2, edges: 1 },
@@ -1900,6 +2335,77 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            joins: READ,
+            editJoinReport: READ,
+            matchesSource: READ,
+            // The copy's rows replace the load's as one batch: the gone edge, the load out of the
+            // list, the merge of the copy under the same key, and the load back in its place.
+            replaceSource: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", DOOR_REPLACE_SOURCE],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import({ type: "csv", config: { data: DOOR_SHIPS_CSV }, name: "door-ships.csv" });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REPLACE_SOURCE_EXPECT,
+            },
+            // Reads the load again from what it was read from, as replaceSource's one batch.
+            reloadSource: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", {}],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: RELOAD_SOURCE_EXPECT,
+            },
+            // The values the join wrote go back, and the table joins anew, as one batch.
+            editJoin: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", { keys: [{ file: "name", graph: "id" }] }],
+                    around: async (target) => {
+                        const data = target as {
+                            addNodes(records: unknown[]): Promise<void>;
+                            prepare(
+                                source: unknown,
+                                options: unknown,
+                            ): Promise<{ load(choices: unknown): Promise<void> }>;
+                        };
+                        await data.addNodes([{ id: "door-j1" }]);
+                        const draft = await data.prepare(
+                            { type: "csv", config: { data: DOOR_JOIN_CSV }, name: "door-join.csv" },
+                            { onto: "graph" },
+                        );
+                        await draft.load({ join: { keys: [{ file: "name", graph: "id" }] } });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Joined again door-join.csv",
+                        fact: {
+                            code: "data.edit-join",
+                            params: { key: "s1", name: "door-join.csv", shape: "node-values", matched: 1 },
+                        },
+                        steps: EDIT_JOIN_STEPS,
+                    },
+                    ...EDIT_JOIN_STEPS,
+                ],
+            },
             // Network sources (experimental). The probe and the search ask a service and change nothing;
             // the records and the waiting loads are read from the session.
             testSource: READ,
@@ -1998,6 +2504,103 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValues: READ,
             histogram: READ,
             valueCounts: READ,
+            // The column commands, each one batch.
+            setRole: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ kind: "node", name: "doorTitle" }, "label"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-title", doorTitle: "Title" }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Made doorTitle the label",
+                        fact: { code: "data.set-role", params: { kind: "node", column: "doorTitle", role: "label" } },
+                        steps: [SET_LABEL_ROLE],
+                    },
+                    SET_LABEL_ROLE,
+                ],
+            },
+            previewType: READ,
+            setType: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ kind: "node", name: "doorAmount" }, "number"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-amount", doorAmount: "12" }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Made doorAmount number",
+                        fact: {
+                            code: "data.set-type",
+                            params: { kind: "node", column: "doorAmount", type: "number", fails: 0 },
+                        },
+                        steps: SET_TYPE_STEPS,
+                    },
+                    ...SET_TYPE_STEPS,
+                ],
+            },
+            renameColumn: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ kind: "node", name: "doorOld" }, "doorNew"],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-old", doorOld: 1 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Renamed doorOld to doorNew",
+                        fact: {
+                            code: "data.rename-column",
+                            params: { kind: "node", column: "doorOld", name: "doorNew" },
+                        },
+                        steps: RENAME_STEPS,
+                    },
+                    ...RENAME_STEPS,
+                ],
+            },
+            // A batch around one data.columns, the op a project file's open dispatches bare.
+            setHidden: {
+                kind: "dispatches",
+                op: "data.columns",
+                call: {
+                    kind: "call",
+                    args: [[{ kind: "node", name: "doorHidden" }], true],
+                    around: async (target) => {
+                        const data = target as { addNodes(records: unknown[]): Promise<void> };
+                        await data.addNodes([{ id: "door-hidden", doorHidden: 1 }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Hid 1 columns",
+                        fact: { code: "data.hide-columns", params: { count: 1 } },
+                        steps: [HIDE_STEP],
+                    },
+                    HIDE_STEP,
+                ],
+            },
             declare: {
                 kind: "dispatches",
                 op: "data.declare",
@@ -2044,12 +2647,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         fact: { code: "data.import", params: { name: null, type: "json" } },
                         steps: [
                             { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
-                            imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                            // The token of what the rows were read from, so the load can be read again.
+                            imports("replace", { type: "json", config: { data: TINY_JSON } }, { input: "i1" }),
                         ],
                     },
                     // A graph file names its nodes by its label column, as a draft's load does.
                     { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
-                    imports("replace", { type: "json", config: { data: TINY_JSON } }),
+                    imports("replace", { type: "json", config: { data: TINY_JSON } }, { input: "i1" }),
                 ],
             ),
             // The generated graph's records, through the JSON reader.
@@ -2114,6 +2718,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             report: READ,
             rows: READ,
             styles: READ,
+            suggestJoin: READ,
+            joinReport: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],
@@ -2130,6 +2736,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             errors: [],
                             errorLimit: 100,
                         },
+                        input: "i1",
                     },
                 ],
             ),
@@ -2407,6 +3014,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             arrangedDimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+            optionInEffect: READ,
+            locationColumns: READ,
         },
     },
     {
@@ -2440,6 +3049,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             runAlgorithmsOnLoad: READ,
             background: READ,
             selectionStyle: READ,
+            pinnedStyle: READ,
             startingRows: READ,
             editableBase: READ,
             runPlacement: READ,
@@ -2525,14 +3135,27 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         },
     },
     {
+        name: "TimeApi",
+        file: "src/session/time/TimeApi.ts",
+        half: "session",
+        doors: TIME_API,
+    },
+    {
         name: "SessionVisibilityApi",
         file: "src/session/visibility/VisibilityApi.ts",
         half: "session",
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            drawnMasks: READ,
+            ghosting: READ,
+            ghosted: READ,
+            ghosts: READ,
             rule: READ,
             previewSteps: READ,
+            slideWindow: exempt(
+                "Moves the masks for session.time's cursor only; the window the project records is unchanged until it is committed.",
+            ),
         },
     },
     {
@@ -2705,6 +3328,17 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/LifecycleManager.ts",
         half: "renderer",
         whole: LIFECYCLE,
+    },
+    {
+        name: "BasemapManager",
+        file: "src/managers/BasemapManager.ts",
+        half: "renderer",
+        doors: {
+            sync: RENDER,
+            status: READ,
+            attributionOffset: CAMERA,
+            dispose: LIFECYCLE,
+        },
     },
     {
         name: "RenderManager",

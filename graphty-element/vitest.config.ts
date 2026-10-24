@@ -32,9 +32,20 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { workerShare } from "../tools/test-slots.mjs";
+import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
+
+/**
+ * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
+ * on every browser project below, since none extends the root. The gate runs several shards of
+ * this package side by side in one checkout; sharing a cache, a stale one is re-optimized by every
+ * shard at once, each deleting chunks the others load ("error when mocking a module", "The file
+ * does not exist ... in the optimize deps directory", issue #3319). Outside the gate, Vite's
+ * default directory.
+ */
+const SHARD_CACHE_DIR = shardCacheDir();
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -102,6 +113,12 @@ const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(file
  * whole run (issue #2247).
  */
 const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-setup.ts");
+
+/**
+ * In every browser project's `setupFiles`, with `mapTileCommands` in its `commands`: map tiles come
+ * from a local fixture, never a tile server (vitest.map-tiles.mjs).
+ */
+const MAP_TILES_SETUP = path.join(dirname, "../vitest.map-tiles-setup.ts");
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
@@ -444,6 +461,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
@@ -461,7 +479,7 @@ export default defineConfig({
                     // of starting a browser project at all -- but a file that needs a settled physics
                     // layout or a video encode does not belong in a gate a person waits on.
                     name: "contract",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/label-paint.test.ts",
                         "test/browser/style-layer-ordering.test.ts",
@@ -506,6 +524,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -527,14 +546,16 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -550,14 +571,16 @@ export default defineConfig({
                 // ci.yml's advisory "performance" job, and by hand with:
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/browser/**/*.bench.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         // `--expose-gc` gives the page `gc()`, which history-scale.bench.test.ts calls
@@ -591,11 +614,12 @@ export default defineConfig({
                 ],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -634,6 +658,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -651,6 +676,7 @@ export default defineConfig({
                 // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: {
                     include: [
                         ...PREBUNDLED,
@@ -677,6 +703,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -722,11 +749,12 @@ export default defineConfig({
                 // annotation session draws about one frame a second and does not settle.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, "./test/setup.ts"],
                     include: [
                         "test/fidelity/fidelity.test.ts",
                         "test/fidelity/oracle-report.test.ts",
@@ -736,6 +764,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -760,6 +789,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -769,10 +799,11 @@ export default defineConfig({
             },
             {
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -789,6 +820,7 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -835,12 +867,13 @@ export default defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
+                        commands: mapTileCommands,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, MAP_TILES_SETUP, ".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
                 },

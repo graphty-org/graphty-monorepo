@@ -49,6 +49,13 @@ export interface AnimationOptions {
     camera?: CameraState | { preset: string };
     /** Waypoints for camera animation path (animated mode) */
     cameraPath?: CameraWaypoint[];
+    /**
+     * A tour, in animated mode, in place of `cameraPath`: the names of the views to visit in
+     * order -- camera views (`catalog.cameras()` ids, such as `"fitToGraph"`) or views saved in
+     * `session.views` -- with the duration split evenly between them. Two or more names. A view
+     * that resolves to no position and target (a 2D view) is refused with `E_UNSUPPORTED`.
+     */
+    tour?: readonly string[];
     /** Easing function for camera animations (default: 'easeInOut') */
     easing?: "linear" | "easeInOut" | "easeIn" | "easeOut";
     /** Whether to automatically download the video after capture */

@@ -60,6 +60,7 @@ export type {
     RunSpec,
     RunStatus,
     RunStyle,
+    RunWindow,
     StaleNote,
     StaleReason,
     StartOptions,

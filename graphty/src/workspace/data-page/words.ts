@@ -19,6 +19,13 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     // Not "Time": beside Weight, a column of minutes read it as its own role (tier 2 pilot, T20).
     time: "Date or time",
     edgeId: "Edge id",
+    kind: "Kind",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
     attribute: "Attribute",
 };
 

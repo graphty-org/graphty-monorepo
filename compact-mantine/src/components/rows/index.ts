@@ -29,10 +29,11 @@ export { AdvancedButton, ResetButton, TrailingSlot } from "./TrailingSlot";
 
 // Prop and shape types
 export type { ActionRowProps } from "./ActionRow";
-export type { HistogramBin, HistogramRowProps, MetricRowProps, SparklineRowProps } from "./ChartRow";
+export type { HistogramBin, HistogramOverlay, HistogramRowProps, MetricRowProps, SparklineRowProps } from "./ChartRow";
 export type { CompoundRowProps, CompoundSegment } from "./CompoundRow";
 export type { DataRowHeaderProps, DataRowProps, RankChipProps } from "./DataRow";
 export type { FieldRowProps } from "./FieldRow";
+export type { HistogramBrushProps } from "./HistogramBrush";
 export type { PanelFieldProps } from "./PanelField";
 export type { ProseBlockProps } from "./ProseBlock";
 export type { RampRowProps } from "./RampRow";

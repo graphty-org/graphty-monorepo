@@ -274,6 +274,98 @@ To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where i
 load it with `layout: "recommended"`: see
 [Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
+### location-map
+
+Puts every node at the place its data names, on a map drawn under the graph. With no options it
+finds `latitude` and `longitude` attributes (also `lat`, `lon`, `lng`, `long`) by name, or one
+attribute whose values are locations:
+
+```html
+<graphty-element id="g"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const g = document.getElementById("g");
+    g.nodeData = [
+        { id: "SFO", where: "37.619, -122.375" },
+        { id: "JFK", where: "40 38 23 N, 73 46 44 W" },
+        { id: "LHR", where: "POINT(-0.45 51.47)" },
+    ];
+    g.edgeData = [
+        { source: "SFO", target: "JFK" },
+        { source: "JFK", target: "LHR" },
+    ];
+    g.layout = "location-map";
+    g.layoutConfig = { location: "where" };
+</script>
+```
+
+A location is one attribute (`location`) or two (`latitude` and `longitude`). One attribute can be
+a decimal pair (latitude first, or longitude first when only that fits), GeoJSON, WKT, ISO 6709,
+degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
+should not decide.
+
+To name the location once for the whole project instead of in the layout's options, designate it
+in the data settings; the layout reads it whenever its own `location`, `latitude` and `longitude`
+are unset, and `session.layout.locationColumns()` says which columns it will read:
+
+```ts
+await session.data.setRole({ kind: "node", name: "town" }, "city");
+await session.data.setRole({ kind: "node", name: "nation" }, "country");
+const { kinds, using, unused } = session.layout.locationColumns();
+// kinds: { city: "town", country: "nation" }, using: "city", unused: []
+```
+
+Each kind of location is a role of its own, one column each: `latitude`, `longitude`,
+`coordinates` (one column of whole locations), `country`, `region` and `city`. The layout reads a
+full latitude and longitude pair first, else the coordinates, else the finest place kind given,
+narrowed by the next coarser one (a city by its region, else its country). A kind given but not
+read is listed in `unused` as `{ code: "location.unused", params: { kind, using } }`. Taking the
+last kind away (`setRole(column, null)`) turns the search off. Before any kind is given,
+`kinds` lists what the layout found by itself. The single `nodeLocationPath` form below still works.
+
+- **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
+  with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
+  placed with no settings; a column of names under any other heading is found by its values. The
+  names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
+  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
+  column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
+  `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
+  column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
+  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
+  several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
+
+    ```ts
+    await session.config.set({
+        data: { knownFields: { nodeLocationPath: "city", nodeLocationRole: "city", nodeLocationWithin: "US" } },
+    });
+    ```
+
+- **Surface.** The 2D view always draws a flat map with straight edges. In 3D, `surface: "flat"`
+  (the default) raises each edge as an arc over the map, and `surface: "globe"` draws a globe
+  with great-circle arcs. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+  `line.arcHeight` override the arcs per edge.
+- **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
+  the whole world. `size` is the map's width (or the globe's radius) in scene units.
+- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
+  or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
+  `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
+- **The map.** The layout's `map` option picks the picture, on the flat map and wrapped onto the
+  globe alike: unset (`null`), the bundled Natural Earth world image (no network);
+  `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
+  `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
+  `{ image, bounds }` for one picture; `{ source: "none" }` for none. Zooming in loads finer tiles.
+  Setting a new `map` on the applied layout swaps the picture without moving a node:
+
+    ```javascript
+    g.layoutConfig = { location: "where", surface: "globe", map: { source: "nasa-gibs-blue-marble" } };
+    ```
+
+    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The map is saved with the layout in the project.
+
 ### forceatlas2 (Force-Directed, live)
 
 Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling communities apart:

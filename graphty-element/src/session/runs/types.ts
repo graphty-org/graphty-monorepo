@@ -164,7 +164,22 @@ export interface Progress {
 }
 
 /** Why a finished run went out of date; see {@link StaleNote.reason}. */
-export type StaleReason = "data-changed" | "scope-changed";
+export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
+
+/**
+ * The time window a run over the visible graph was computed in, and what it left visible then.
+ * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
+ */
+export interface RunWindow {
+    /** The attribute the window read. */
+    readonly attribute: string;
+    readonly from: number;
+    readonly to: number;
+    /** How many nodes were visible when the run resolved its scope. */
+    readonly nodes: number;
+    /** How many edges were visible when the run resolved its scope. */
+    readonly edges: number;
+}
 
 /**
  * Why a run's numbers no longer describe what is on screen.
@@ -178,10 +193,16 @@ export interface StaleNote {
     /**
      * Why the numbers no longer describe the graph: `data-changed` when the data the run read
      * was replaced or edited (a reload with new weights), `scope-changed` when the same data
-     * resolves to other elements (a filter, the selection or a set changed). A data change wins
-     * when both happened.
+     * resolves to other elements (a filter, the selection or a set changed), `window-moved` when
+     * the run was computed in a time window and the window in force is another one (even when it
+     * leaves the same nodes visible). A data change wins when both happened.
      */
     readonly reason: StaleReason;
+    /**
+     * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
+     * params: { from, to, nodes, edges } }`.
+     */
+    readonly window?: CodedFact<"window-moved">;
     /** How many elements the run was computed over. */
     readonly ranOn: number;
     /** How many the same scope resolves to now. */
@@ -254,6 +275,8 @@ export interface Caveats {
     readonly filterScope?: boolean;
     /** Whether a time window narrowed what the run looked at. */
     readonly windowScope?: boolean;
+    /** The time window a run over the visible graph was computed in, and its visible counts. */
+    readonly window?: RunWindow;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
     /**
@@ -363,10 +386,15 @@ export interface RunScopeRecord {
      * records none.
      */
     readonly dataDigest?: string;
+    /**
+     * For a scope over the visible graph: the time window in force when it resolved, or null when
+     * there was none. Absent for every other scope.
+     */
+    readonly window?: RunWindow | null;
 }
 
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {

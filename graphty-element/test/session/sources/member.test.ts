@@ -579,7 +579,7 @@ describe("the sources member: reading", () => {
         assert.deepEqual(entries(doc)[0].mapping, mapping);
 
         const { session: reopened } = await open(text);
-        assert.deepEqual(reopened.data.sources()[0].mapping, mapping);
+        assert.deepEqual(reopened.data.sources()[0].choices?.mapping, mapping);
         assert.deepEqual(entries((await save(reopened)).doc)[0].mapping, mapping);
     });
 
@@ -628,7 +628,7 @@ describe("the sources member: reading", () => {
         assert.strictEqual(listed.kind, "join");
         assert.strictEqual(listed.joinedOnto, "s1");
         assert.deepEqual(listed.join, { source: "s2", onto: "s1", ...join });
-        assert.deepEqual(listed.mapping, entry.mapping);
+        assert.deepEqual((listed.choices as { mapping?: unknown } | undefined)?.mapping, entry.mapping);
         // Saved again, the entry is written as it was read.
         assert.deepEqual(entries((await save(reopened)).doc)[1], entry);
     });

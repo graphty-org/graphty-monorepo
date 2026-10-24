@@ -109,6 +109,8 @@
             "{workspaceRoot}/vitest.shared.config.ts",
             "{workspaceRoot}/vitest.ci-junit.mjs",
             "{workspaceRoot}/vitest.browser-coverage-setup.ts",
+            "{workspaceRoot}/vitest.map-tiles.mjs",
+            "{workspaceRoot}/vitest.map-tiles-setup.ts",
             "{workspaceRoot}/pnpm-workspace.yaml",
             "{workspaceRoot}/.npmrc",
             "{workspaceRoot}/.github/workflows/**/*"

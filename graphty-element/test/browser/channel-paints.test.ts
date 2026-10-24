@@ -75,6 +75,8 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
     "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
     "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
+    // An arc height raises only a raised route; every other layout draws edges straight.
+    "edge.arcHeight": { "edge.route": "arc" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },

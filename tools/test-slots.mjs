@@ -109,6 +109,19 @@ export function workerShare(env = process.env, cores = availableParallelism()) {
 }
 
 /**
+ * This run's own Vite cache directory when it runs as one shard of the pre-push gate, which runs
+ * several shards of one package side by side in one checkout (tools/prepush-tests.mjs names each in
+ * GRAPHTY_TEST_SHARD). Sharing one cache, every shard that finds it stale re-optimizes it at once
+ * and deletes the chunks the others are loading (issue #3319). Set it as a vitest config's
+ * `cacheDir`, at the root and on every inline project that does not extend the root.
+ * @param env the environment (GRAPHTY_TEST_SHARD)
+ * @returns node_modules/.vite/shard-<shard>, or undefined (Vite's own default) outside a gate shard
+ */
+export function shardCacheDir(env = process.env) {
+    return env.GRAPHTY_TEST_SHARD ? `node_modules/.vite/shard-${env.GRAPHTY_TEST_SHARD}` : undefined;
+}
+
+/**
  * The ticket directory: GRAPHTY_TEST_SLOTS_DIR (GRAPHTY_GPU_SLOTS_DIR for the GPU slot), else the
  * main checkout's tmp/test-slots (tmp/gpu-slots; every worktree shares it), else one under the system
  * temp directory.

@@ -15,6 +15,12 @@ save and reopen.
 
 ## Top of mind
 
+- (2026-10-23, issue #3315) Location entries behave exactly like Label and Weight: "+"
+  picks the kind, the new entry's column list opens focused, Escape with no pick drops it and
+  focus returns to "+", the minus moves focus to "+". My argument, adopted: a gear makes the
+  number of column pickers depend on a closed popout, so the row changes shape from a control the
+  reader cannot see; changing a column's kind is minus and "+", as for every other entry.
+
 1. (2026-10-21) **Tier 3 round 1 closed; the studio stopped at its 1-round cap with bar 5 still
    failing**, only on the two pre-round severity 3 backlog items (a node's own Fill "+" making a
    one-node layer; the folder's chain icon painting every cluster one color). 55 of 56 succeeded:
@@ -122,6 +128,12 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Decisions and reasons
 
+- **2026-10-23, menu sections (issue #3315, director ruled).** Headings in both lists, no
+  indent, every row in a section. My condition, adopted: headings are not stops. The Layout
+  list becomes one Tab stop with roving focus (checked row first), ArrowUp/Down across
+  sections skipping headings, Home/End, Enter/Space opens, Esc back then close -- the same
+  model Analyze's list already has behind its filter box. No expanding parent rows: one
+  interaction rule per list kind.
 - 2026-10-11..16 (summarized from the old Top of mind) Tier 3 build decisions, mine: one card per
   field in the Which picker, a dashed unchosen card narrows nothing and is never written; bulk cards
   read a shared value or Mixed, ticking writes to every layer, a receipt names layers left matching

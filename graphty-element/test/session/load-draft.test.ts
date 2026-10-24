@@ -68,6 +68,13 @@ describe("session.data.prepare", () => {
         vi.unstubAllGlobals();
     });
 
+    it("names a pair's load after both files", async () => {
+        const session = createGraphSession();
+        await (await pair(session)).load();
+        assert.strictEqual(session.data.sources()[0].name, "people.csv + ties.csv");
+        session.dispose();
+    });
+
     it("reads a CSV pair into two tables without loading anything", async () => {
         const session = createGraphSession();
         const draft = await pair(session);
@@ -441,9 +448,9 @@ describe("session.data.prepare", () => {
     });
 
     it("publishes the roles each table kind takes and requires (#926)", () => {
-        assert.deepEqual(LOAD_ROLES.nodes, { takes: ["key", "label", "time"], requires: [] });
+        assert.deepEqual(LOAD_ROLES.nodes, { takes: ["key", "label", "time", "kind"], requires: [] });
         assert.deepEqual(LOAD_ROLES.edges, {
-            takes: ["source", "target", "weight", "time", "edgeId"],
+            takes: ["source", "target", "weight", "time", "edgeId", "kind"],
             requires: ["source", "target"],
         });
         assert.isTrue(Object.isFrozen(LOAD_ROLES.edges.takes));

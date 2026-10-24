@@ -7,8 +7,9 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
-import { workerShare } from "../tools/test-slots.mjs";
+import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
+import { mapTileCommands } from "../vitest.map-tiles.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -16,18 +17,10 @@ const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
+/** Serves map tiles from a local fixture in every browser project (vitest.map-tiles.mjs). */
+const MAP_TILES_SETUP = "../vitest.map-tiles-setup.ts";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
 
-/**
- * This run's --shard (`2/3` -> `2-3`), or null when it runs every file. The gate runs the
- * graphty-1, -2 and -3 parts side by side, and with `optimizeDeps.force` below each one rebundles
- * the dependencies when its browser project starts. In one shared cache directory that swapped
- * the dependency chunks out from under a part already running: its page's next dynamic import of
- * one (Babylon's dumpTools, behind a screenshot) answered 404, the browser kept that failure for
- * the module, and the test waiting on the picture timed out. So each part bundles into its own.
- */
-const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
-const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -44,6 +37,20 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 };
 
 /**
+ * Makes every request whose URL holds `fragment` fail with 404, as a code file does on a page
+ * whose build was replaced under it; `false` lets them through again.
+ * @param ctx - the browser command context.
+ * @param fragment - a piece of the URL.
+ * @param failing - whether they fail.
+ */
+const failRequests: BrowserCommand<[fragment: string, failing: boolean]> = async (ctx, fragment, failing) => {
+    const glob = `**/*${fragment}*`;
+    await (failing
+        ? ctx.page.route(glob, (route) => route.fulfill({ status: 404, body: "gone" }))
+        : ctx.page.unroute(glob));
+};
+
+/**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
  * object it is handed, so two projects must not share one.
  * @returns the browser config.
@@ -51,9 +58,10 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 const chromium = () => ({
     enabled: true,
     headless: true,
-    provider: playwright(),
+    // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
+    provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
-    commands: { chooseNextFile },
+    commands: { chooseNextFile, failRequests, ...mapTileCommands },
 });
 
 export default defineConfig({
@@ -61,8 +69,12 @@ export default defineConfig({
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
+    // Each pre-push gate shard bundles into its own cache (tools/test-slots.mjs shardCacheDir()):
+    // with `optimizeDeps.force` below, the graphty-1 to -5 parts side by side each rebundle when
+    // their browser project starts, and in one shared directory that swapped the chunks out from
+    // under a part already running (a dynamic import answered 404 and the test timed out).
     // Vitest puts each project's bundle under <cacheDir>/vitest/<project hash>.
-    cacheDir: SHARD_KEY ? `node_modules/.vite/shard-${SHARD_KEY}` : "node_modules/.vite",
+    cacheDir: shardCacheDir(),
     optimizeDeps: {
         include: ["@mantine/hooks"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
@@ -102,7 +114,8 @@ export default defineConfig({
                     // Vitest refuses two projects with different maxWorkers in one group order.
                     sequence: { groupOrder: 2 },
                     browser: chromium(),
-                    setupFiles: "./src/test/setup.ts",
+                    // Map tiles from a local fixture, never a tile server (vitest.map-tiles.mjs).
+                    setupFiles: [MAP_TILES_SETUP, "./src/test/setup.ts"],
                 },
             },
             {
@@ -113,7 +126,7 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
-                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./src/test/setup.ts"],
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", MAP_TILES_SETUP, "./src/test/setup.ts"],
                     // One file at a time. Every file mounts a real element, and the files share
                     // the renderer's main thread: in parallel, nine files took 158 s and single
                     // tests up to 29 s (past the 15 s test timeout), against 90 s and at most
@@ -139,7 +152,7 @@ export default defineConfig({
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
                     browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    setupFiles: [MAP_TILES_SETUP, ".storybook/vitest.setup.ts"],
                     // As graphty-element's storybook project: a story that loads the real element
                     // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
                     // its other browser shards beside it, which crossed the 15-second default.

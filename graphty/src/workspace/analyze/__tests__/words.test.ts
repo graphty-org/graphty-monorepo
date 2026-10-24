@@ -150,7 +150,7 @@ describe("the Analyze popover's words", () => {
         if (method === undefined) {
             return;
         }
-        const ran = (used: string): string =>
+        const ran = (used: string): string | undefined =>
             ranOptionWords({ algorithm: "shortest-path", status: "succeeded", caveats: { method: used } }, method)
                 .empty;
         assert.equal(ran("dijkstra"), "Dijkstra, chosen automatically");

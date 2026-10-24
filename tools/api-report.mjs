@@ -168,6 +168,11 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "text",
     // a BCP 47 locale tag the consumer chose to print numbers in (BindingNumberFormat.locale)
     "locale",
+    // the names of the consumer's columns the location map reads (LocationColumns)
+    "location",
+    "latitude",
+    "longitude",
+    "within",
 ]);
 
 const DECLARATION =

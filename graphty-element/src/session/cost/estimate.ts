@@ -121,6 +121,9 @@ export interface CostEstimate {
  *   `run`: the run whose field the path is, or null for a data attribute.
  * - `layout.needs-two-groups` -- `layout`; `option`; `attribute`; `run`; `groups`: how many
  *   groups the attribute names.
+ * - `layout.needs-location` -- `layout`; `missing`: the role nothing fills (`location`, or the
+ *   `latitude` or `longitude` half of a pair); `attributes`: the node attributes the layout looked
+ *   at. The location map layout found no column to read locations from (since 3.31.0).
  *
  * New codes may be added in a minor release: treat an unknown one as "cannot run".
  * @since 3.17.0
@@ -141,7 +144,8 @@ export type EstimateRefusalCode =
     | "layout.node-missing"
     | "layout.needs-grouping"
     | "layout.grouping-absent"
-    | "layout.needs-two-groups";
+    | "layout.needs-two-groups"
+    | "layout.needs-location";
 
 /** A refusal: the deprecated sentence and the coded fact, made together so they never disagree. */
 export interface EstimateRefusal {

@@ -131,6 +131,8 @@ export function verifyContext(cwd, overrides = {}) {
         spawnRun: defaultSpawnRun,
         publishRef: defaultPublishRef,
         sessionAlive: defaultSessionAlive,
+        killRun: defaultKillRun,
+        captures: defaultCaptures,
         gh: (args) => {
             const r = spawnSync("gh", args, { cwd: main, env, encoding: "utf8" });
             if (r.status !== 0) throw new Error(r.stderr || `gh exited ${r.status}`);
@@ -194,8 +196,22 @@ export function procStart(pid) {
     }
 }
 
+/**
+ * A process's process group (field 5 of /proc/<pid>/stat).
+ * @param pid the process
+ * @returns its group id, or null when there is no such process
+ */
+export function procGroup(pid) {
+    try {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[2]);
+    } catch {
+        return null;
+    }
+}
+
 const alive = (p) => Boolean(p?.pid) && procStart(p.pid) === p.pidStart;
-const me = () => ({ pid: process.pid, pidStart: procStart(process.pid) });
+const me = () => ({ pid: process.pid, pidStart: procStart(process.pid), pgid: procGroup(process.pid) });
 const now = () => new Date().toISOString();
 const short = (sha) => (sha ? sha.slice(0, 10) : "-");
 const isAncestor = (ctx, a, b) => git(ctx, ctx.main, ["merge-base", "--is-ancestor", a, b], { ok: true }).status === 0;
@@ -250,9 +266,47 @@ export function start(ctx) {
 
 function startLocked(ctx, s) {
     const pid = ctx.spawnRun(ctx);
-    s.run = { pid, pidStart: procStart(pid), commit: null, step: "starting", startedAt: now() };
+    // detached: the run leads its own process group, which `stop` ends with every gate it started
+    s.run = { pid, pidStart: procStart(pid), pgid: pid, commit: null, step: "starting", startedAt: now() };
     const flag = ctx.branch === GOLDEN ? "" : " --branch " + ctx.branch;
     return `verification of ${ctx.branch} started (pid ${pid}; node tools/verify.mjs status${flag})`;
+}
+
+/**
+ * Stops the live run: SIGTERM to its process group (the run and every gate, check and test it started) when it
+ * leads one, else to the run alone, under the verify lock, so no landing sees it live meanwhile. The state is
+ * kept as it was (a confirming run or a bisect keeps its points), the run is recorded in `stopped`, and
+ * `start`, or the next landing, resumes from there. A run whose process is already gone is only cleared.
+ * Agents cannot kill processes; this is the supported way to stop verification (2026-10-23: a run killed by
+ * hand left verify.json naming a dead pid at step gate, and golden's tip got no verdict).
+ * @param ctx the context
+ * @returns one line saying what happened
+ */
+export function stop(ctx) {
+    return withState(ctx, (s) => {
+        const r = s.run;
+        if (!r) return `verification of ${ctx.branch}: no run to stop`;
+        const live = alive(r);
+        const how = live ? ctx.killRun(r) : "already gone";
+        s.stopped = { pid: r.pid, commit: r.commit ?? null, step: r.step, at: now(), how };
+        s.run = null;
+        rmSync(ctx.supersededFile, { force: true });
+        const flag = ctx.branch === GOLDEN ? "" : ` --branch ${ctx.branch}`;
+        const what = live ? `stopped (${how})` : "was already gone; cleared";
+        return `verification of ${ctx.branch}: run pid ${r.pid} at ${r.step} ${short(r.commit)} ${what}; node tools/verify.mjs start${flag} resumes it`;
+    });
+}
+
+// SIGTERM to the run's own process group, or to the run alone when it does not lead one (started by hand from a
+// shell, whose job the group is).
+function defaultKillRun(r) {
+    const group = r.pgid ?? procGroup(r.pid);
+    if (group === r.pid) {
+        process.kill(-group, "SIGTERM");
+        return `SIGTERM to process group ${group}`;
+    }
+    process.kill(r.pid, "SIGTERM");
+    return `SIGTERM to pid ${r.pid} (it leads no process group of its own)`;
 }
 
 function defaultSpawnRun(ctx) {
@@ -351,15 +405,7 @@ async function verifyCommit(ctx, { target, from }) {
         });
         return;
     }
-    if (r.code === 0) {
-        if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
-        await withState(ctx, (s) => {
-            s.verified = target;
-            s.last = { commit: target, from, status: "passed", at: now(), log: r.log, verifiedBy: backendOf(ctx) };
-            if (s.run) Object.assign(s.run, { step: "passed", switches: 0 });
-        });
-        return;
-    }
+    if (r.code === 0) return passedCommit(ctx, { target, from, r });
     const failing = failingShards(r.output, await shardNames(ctx));
     const candidates = landMerges(ctx, from, target);
     const facts = failing && ledgerDo(ctx, (l) => gateFacts(ctx, l, target, started));
@@ -389,6 +435,33 @@ async function verifyCommit(ctx, { target, from }) {
         if (s.run) Object.assign(s.run, { step: again ? "failed-known" : "confirm", switches: 0 });
     });
     if (!again) await bisect(ctx);
+}
+
+/**
+ * Records a passed commit and moves golden-verified. In CI, verification also judges golden's screenshots
+ * (design/ci/integrated-cicd-plan-v2.md, step 3): `captures[commit]` says whether the run's captures were clean,
+ * and `land.mjs cut` takes only a commit whose captures were. Screenshots never fail verification.
+ * @param ctx the context
+ * @param job what passed
+ * @param job.target the commit
+ * @param job.from its range's start
+ * @param job.r the gate's result
+ */
+async function passedCommit(ctx, { target, from, r }) {
+    if (ctx.branch === GOLDEN) ctx.publishRef(ctx, target);
+    const ci = backendOf(ctx) === "ci";
+    const captures = ci && ctx.branch === GOLDEN ? await ctx.captures(ctx, target) : null;
+    await withState(ctx, (s) => {
+        s.verified = target;
+        s.last = { commit: target, from, status: "passed", at: now(), log: r.log, verifiedBy: backendOf(ctx) };
+        if (captures) {
+            s.last.captures = captures;
+            // ponytail: the newest CAPTURES_KEPT commits only; a cut is never older than that many verifications
+            const kept = Object.entries(s.captures ?? {}).slice(-(CAPTURES_KEPT - 1));
+            s.captures = Object.fromEntries([...kept, [target, captures]]);
+        }
+        if (s.run) Object.assign(s.run, { step: "passed", switches: 0 });
+    });
 }
 
 /**
@@ -1603,6 +1676,76 @@ async function defaultActionsOperational() {
     }
 }
 
+/** How many verified commits' screenshot verdicts the state keeps. */
+export const CAPTURES_KEPT = 50;
+const CAPTURE_JOB = /^visual \((.+)\)$/;
+const BROKEN_CAPTURE = new Set(["unstable", "failed"]);
+
+/**
+ * Whether a run's screenshot captures are clean: every "visual (<project>)" job succeeded (a crashed capture is
+ * continue-on-error, so the run passes anyway), and each project's newest `visual-<project>-<attempt>` artifact
+ * holds a complete results.json with no unstable or failed image, or the marker of a project it could not affect.
+ * @param jobs the run's jobs (all of them, gating or not)
+ * @param dir where the run's `visual-*` artifacts were downloaded, one directory each
+ * @returns the problems, none when clean
+ */
+export function captureProblems(jobs, dir) {
+    const projects = jobs.map((j) => [j, CAPTURE_JOB.exec(jobName(j))?.[1]]).filter(([, p]) => p);
+    if (!projects.length) return ["the run has no screenshot capture job"];
+    const problems = projects
+        .filter(([j]) => j.conclusion !== "success")
+        .map(([j, p]) => `visual (${p}) ended ${j.conclusion ?? j.status}`);
+    const names = existsSync(dir) ? readdirSync(dir) : [];
+    for (const [, p] of projects) {
+        const prefix = `visual-${p}-`;
+        const attempt = (n) => Number(n.slice(prefix.length));
+        const mine = names.filter((n) => n.startsWith(prefix) && /^\d+$/.test(n.slice(prefix.length)));
+        const newest = mine.sort((a, b) => attempt(b) - attempt(a))[0];
+        problems.push(...resultProblems(p, newest && join(dir, newest)));
+    }
+    return problems;
+}
+
+function resultProblems(project, dir) {
+    if (!dir) return [`no capture of ${project} was uploaded`];
+    if (existsSync(join(dir, "skipped.json"))) return [];
+    const r = readJsonFile(join(dir, "results.json"));
+    if (!r) return [`${project}: no results.json (the capture did not start)`];
+    const broken = (r.items ?? []).filter((i) => BROKEN_CAPTURE.has(i.status));
+    const out = broken.map((i) => `${project}: ${i.status} ${i.id ?? i.file ?? "?"}`);
+    if (r.complete !== true) out.unshift(`${project}: incomplete (${r.items?.length ?? 0} of ${r.expected ?? "?"})`);
+    return out;
+}
+
+/**
+ * The screenshot verdict of a commit CI verified: its golden-verify.yml run (pushed to golden-candidate, or
+ * dispatched with the commit in its name), every job of it, and its `visual-*` artifacts (small: only changed
+ * images are in them). Anything unread is not clean, so such a commit is never cut.
+ * @param ctx the context
+ * @param commit the commit
+ * @returns `{ clean, problems, run, at }`
+ */
+async function defaultCaptures(ctx, commit) {
+    const verdict = (problems, run = null) => ({ clean: problems.length === 0, problems, run, at: now() });
+    const api = (path) => JSON.parse(ctx.gh(["api", `repos/{owner}/{repo}/actions/${path}`]));
+    try {
+        const runs = api(`workflows/${VERIFY_WORKFLOW}/runs?per_page=50`);
+        const pushed = (r) => r.head_sha === commit && r.head_branch === CANDIDATE[ctx.branch];
+        const ours = (r) => pushed(r) || (r.display_title ?? "").includes(commit);
+        const run = (runs.workflow_runs ?? []).find((r) => ours(r) && r.status === "completed");
+        if (!run) return verdict([`no completed ${VERIFY_WORKFLOW} run of ${short(commit)} found`]);
+        const jobs = api(`runs/${run.id}/jobs?per_page=100&filter=latest`);
+        const dir = join(ctx.main, "tmp/golden/verify-captures", String(run.id));
+        rmSync(dir, { recursive: true, force: true });
+        mkdirSync(dir, { recursive: true });
+        // No artifact at all is no error here: captureProblems names each project that has none.
+        ghTry(ctx, ["run", "download", String(run.id), "-p", "visual-*", "-D", dir]);
+        return verdict(captureProblems(jobs.jobs ?? [], dir), run.html_url);
+    } catch (e) {
+        return verdict([`the run's screenshots could not be read: ${e.message.split("\n")[0]}`]);
+    }
+}
+
 /**
  * The one CI re-run of a verification run's failed jobs (`gh run rerun --failed`), read every POLL_MS until the new
  * attempt ends. Its reports are not recorded: the run's own are.
@@ -1890,7 +2033,12 @@ export function describe(ctx) {
         lines.push(
             `  superseded: ${short(s.superseded.commit)} left for ${short(s.superseded.by)} at ${s.superseded.at}`,
         );
+    if (s.stopped && !s.run)
+        lines.push(
+            `  stopped: pid ${s.stopped.pid} at ${s.stopped.step} ${short(s.stopped.commit)} on ${s.stopped.at}`,
+        );
     if (s.last) lines.push(`  last: ${lastLine(s.last)}`);
+    if (s.last?.captures) lines.push(`  screenshots: ${capturesLine(s.last.captures)}`);
     lines.push(...ciLines(ctx, s));
     return lines.join("\n");
 }
@@ -1913,6 +2061,13 @@ function ciLines(ctx, s) {
         lines.push(`  CI verification unavailable since ${since}, ${n} landings unverified (${cause})`);
     }
     return lines;
+}
+
+function capturesLine(c) {
+    const run = c.run ? ` (${c.run})` : "";
+    if (c.clean) return `clean${run}`;
+    const more = c.problems.length > 3 ? `, and ${c.problems.length - 3} more` : "";
+    return `NOT clean, so never cut: ${c.problems.slice(0, 3).join("; ")}${more}${run}`;
 }
 
 // What a finished failure names: the culprit with its evidence, no landing, or intermittent.
@@ -1955,7 +2110,7 @@ function lastLine(l) {
 // ---------------------------------------------------------------- the command line
 
 const USAGE =
-    "usage: node tools/verify.mjs start [--again] | status | claim --session <id> | handled | watch | run  [--branch golden|golden-cut]\n" +
+    "usage: node tools/verify.mjs start [--again] | stop | status | claim --session <id> | handled | watch | run  [--branch golden|golden-cut]\n" +
     '       node tools/verify.mjs backend ci | backend local --reason "<why>"';
 
 /**
@@ -1972,6 +2127,7 @@ export async function cli(argv, overrides = {}) {
     const commands = {
         start: async () => console.log(await start(ctx)),
         status: () => console.log(describe(ctx)),
+        stop: async () => console.log(await stop(ctx)),
         run: () => run(ctx),
         handled: async () => console.log(await handled(ctx)),
         watch: async () => {

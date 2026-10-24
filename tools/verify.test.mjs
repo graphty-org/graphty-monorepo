@@ -24,6 +24,7 @@ import { failureHashes, newRunId, rebuild, writeRecord } from "./test-ledger.mjs
 import {
     backendOf,
     bounds,
+    captureProblems,
     brokerVerdict,
     ciGate,
     claim,
@@ -40,6 +41,7 @@ import {
     run,
     setBackend,
     start,
+    stop,
     verifyContext,
     watch,
     withState,
@@ -333,6 +335,62 @@ describe("a confirming run and a bisect", () => {
         assert.notEqual(atNext.superseded?.commit, tip, "a bisected commit is never recorded as superseded");
         assert.deepEqual(gated, [tip, fixed]);
         assert.equal(readState(ctx).verified, fixed);
+    });
+});
+
+describe("stopping a run", () => {
+    // A run as `start` makes one: detached, so it leads a process group, with a child of its own (the gate). Its
+    // stdout closes only when both are gone.
+    const liveRun = async () => {
+        const { spawn } = await import("node:child_process");
+        const { once } = await import("node:events");
+        const leader = spawn("sh", ["-c", "sleep 600 & echo $!; wait"], {
+            detached: true,
+            stdio: ["ignore", "pipe", "ignore"],
+        });
+        const [pid] = await once(leader.stdout, "data");
+        return { leader, gate: Number(pid), closed: once(leader.stdout, "end") };
+    };
+    const procStartOf = (pid) => {
+        const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+        return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19];
+    };
+
+    it("stops a live run's whole process group, records it stopped, and start resumes it", async () => {
+        const { leader, gate, closed } = await liveRun();
+        const tip = git(repo, "rev-parse", "origin/golden");
+        await withState(ctx, (s) => {
+            s.run = { pid: leader.pid, pidStart: procStartOf(leader.pid), pgid: leader.pid, commit: tip, step: "gate" };
+        });
+        assert.match(describeState(ctx), /running: pid/);
+        const line = await stop(ctx);
+        assert.match(
+            line,
+            new RegExp(`run pid ${leader.pid} at gate .*stopped \\(SIGTERM to process group ${leader.pid}\\)`),
+        );
+        await closed; // the run and its gate are both gone: nobody holds the pipe any more
+        assert.equal(
+            existsSync(`/proc/${gate}/stat`) && !/\) Z /.test(readFileSync(`/proc/${gate}/stat`, "utf8")),
+            false,
+        );
+        const s = readState(ctx);
+        assert.equal(s.run, null);
+        assert.deepEqual([s.stopped.pid, s.stopped.step, s.stopped.commit], [leader.pid, "gate", tip]);
+        assert.match(describeState(ctx), new RegExp(`stopped: pid ${leader.pid} at gate`));
+        assert.match(await start(ctx), /started/, "start resumes it");
+        await settle();
+        assert.equal(readState(ctx).run, null, "the resumed run ended");
+    });
+
+    it("clears a run whose process is gone, which status flags as dead", async () => {
+        const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+        await withState(ctx, (s) => {
+            s.run = { pid: dead, pidStart: "1", commit: null, step: "gate" };
+        });
+        assert.match(describeState(ctx), new RegExp(`run DEAD: pid ${dead} stopped at gate`));
+        assert.match(await stop(ctx), /was already gone; cleared/);
+        assert.equal(readState(ctx).run, null);
+        assert.match(await stop(ctx), /no run to stop/);
     });
 });
 
@@ -933,6 +991,84 @@ describe("verification in CI (ciGate)", () => {
         const r = await ciGate(c, tip);
         assert.equal(r.code, 0);
         assert.match(r.output, /All Checks Pass: success/);
+    });
+
+    // A verification run's visual-<project>-<attempt> artifacts, written where `gh run download -D <dir>` puts them.
+    const artifacts = (files) => (line) => {
+        const out = line.split(" -D ")[1];
+        for (const [name, json] of Object.entries(files)) {
+            mkdirSync(join(out, name.split("/")[0]), { recursive: true });
+            writeFileSync(join(out, name), JSON.stringify(json));
+        }
+        return "";
+    };
+    const visualJobs = (conclusion = "success") => [
+        { id: 51, name: "Verify / Build", conclusion: "success" },
+        { id: 52, name: "Verify / visual (graphty)", conclusion },
+        { id: 53, name: "Verify / visual (layout)", conclusion: "success" },
+        { id: 54, name: "Verify / All Checks Pass", conclusion: "success" },
+    ];
+
+    it("marks a verified commit's screenshots clean or not from its run's captures, without failing it", async () => {
+        const clean = land("cap1", { "cap1.txt": "1\n" });
+        const ok = { complete: true, items: [{ id: "a", status: "unchanged" }] };
+        const { c, calls } = ciCtx([
+            releaseIdle,
+            [/workflows\/golden-verify\.yml\/runs/, runOf(clean, { status: "completed", conclusion: "success" })],
+            [/actions\/runs\/7\/jobs/, { jobs: visualJobs() }],
+            [
+                /^run download 7 -p visual-\* -D /,
+                artifacts({
+                    "visual-graphty-1/results.json": { complete: true, items: [{ id: "a", status: "unstable" }] },
+                    "visual-graphty-2/results.json": ok,
+                    "visual-layout-1/skipped.json": { skipped: "not affected" },
+                }),
+            ],
+        ]);
+        await setBackend(c, "ci");
+        await requestVerification(c, clean);
+        await settle();
+        let s = readState(c);
+        assert.equal(s.verified, clean);
+        assert.deepEqual(s.captures[clean].problems, [], "the newest attempt's capture decides");
+        assert.equal(s.captures[clean].clean, true);
+        assert.match(describeState(c), /screenshots: clean \(https:\/\/github\.test\/runs\/7\)/);
+        assert.equal(calls.filter((l) => l.startsWith("run download")).length, 1, "one download per verified commit");
+
+        const shaky = land("cap2", { "cap2.txt": "2\n" });
+        const d = ciCtx(
+            [
+                releaseIdle,
+                [/workflows\/golden-verify\.yml\/runs/, runOf(shaky, { status: "completed", conclusion: "success" })],
+                [/actions\/runs\/7\/jobs/, { jobs: visualJobs("failure") }],
+                [
+                    /^run download 7 /,
+                    artifacts({
+                        "visual-graphty-1/results.json": { complete: false, expected: 3, items: [ok.items[0]] },
+                    }),
+                ],
+            ],
+            undefined,
+            { stateFile: c.stateFile, lock: c.lock, backendFile: c.backendFile },
+        ).c;
+        await requestVerification(d, shaky);
+        await settle();
+        s = readState(d);
+        assert.equal(s.verified, shaky, "screenshots never fail verification");
+        assert.equal(s.captures[shaky].clean, false);
+        assert.deepEqual(s.captures[shaky].problems, [
+            "visual (graphty) ended failure",
+            "graphty: incomplete (1 of 3)",
+            "no capture of layout was uploaded",
+        ]);
+        assert.equal(s.captures[clean].clean, true, "the earlier verdict is kept");
+        assert.match(describeState(d), /screenshots: NOT clean, so never cut: visual \(graphty\) ended failure/);
+    });
+
+    it("finds no capture job in a run without one, which is not clean", () => {
+        assert.deepEqual(captureProblems([{ name: "Verify / Build", conclusion: "success" }], join(dir, "none")), [
+            "the run has no screenshot capture job",
+        ]);
     });
 
     it("never takes a green re-run of the failed jobs alone as verified: it starts a full run", async () => {

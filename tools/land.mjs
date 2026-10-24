@@ -645,6 +645,40 @@ export function lightGate(ctx) {
 }
 
 /**
+ * The snapshot of the gate's live copy this run's pushes all use (tools/gate-snapshot.sh --hold), taken at the
+ * first push and held until this process ends: a landing's check and its push run one version of the gate,
+ * so a `tools/live.sh gate` between them cannot re-run the check under a new rule (2026-10-23, #3284). Without
+ * the script in the live copy, the pushes run the live copy as before.
+ * @param ctx the run's context
+ * @returns the snapshot's directory, or null
+ */
+export async function gateSnapshot(ctx) {
+    if (ctx.gateSnapshot !== undefined) return ctx.gateSnapshot;
+    const live = ctx.env.PUSH_QUEUE_GATE || join(ctx.main, ".worktrees/gate-live");
+    const script = join(live, "tools/gate-snapshot.sh");
+    ctx.gateSnapshot = null;
+    if (existsSync(join(live, ".gate-snapshot"))) ctx.gateSnapshot = live;
+    else if (existsSync(script)) {
+        const holder = spawn(script, ["--hold", live], { stdio: ["pipe", "pipe", "inherit"] });
+        let out = "";
+        const line = await new Promise((resolve) => {
+            holder.stdout.on("data", (d) => {
+                out += d;
+                if (out.includes("\n")) resolve(out.trim());
+            });
+            holder.on("exit", () => resolve(null));
+        });
+        // The holder lets the snapshot go when this process's end closes its stdin.
+        holder.stdout.destroy();
+        holder.stdin.unref?.();
+        holder.unref();
+        ctx.gateSnapshot = line || null;
+        if (!line) console.error(`land: no snapshot of the live gate ${live}; the pushes use the live copy`);
+    }
+    return ctx.gateSnapshot;
+}
+
+/**
  * Pushes through the push queue, which runs the pre-push gate: light while CI verifies golden (lightGate).
  * @param ctx the run's context
  * @param [cwd] the worktree to push from (golden's)
@@ -652,7 +686,7 @@ export function lightGate(ctx) {
  * @param [dryRun] run the gate and send nothing (a landing's check)
  * @returns `{ code, output }`
  */
-function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
+async function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dryRun = false) {
     // A golden push is measured from the tip it replaces: golden's earlier landings were checked when they
     // landed, and verification runs the full suite on golden's tip after every landing. A cut is measured
     // from master, as CI measures it.
@@ -666,6 +700,8 @@ function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`, dry
         PREPUSH_SELECT_BASE: `origin/${dst}`,
         PREPUSH_LIGHT: lightGate(ctx),
     };
+    const snap = await gateSnapshot(ctx);
+    if (snap) env.PUSH_QUEUE_GATE = snap;
     Object.assign(env, { TEST_LEDGER_KIND: kind, TEST_LEDGER_BRANCH: dst });
     const args = ["git", "push", ...(dryRun ? ["--dry-run"] : []), "origin", refspec];
     // A landing's check runs in its own process group, so a newer landing of the same branch can stop it alone
@@ -1695,7 +1731,22 @@ export function newestStableCut(ctx) {
         if (stablePreview(join(root, name), status)) stable.add(status.head);
     }
     const line = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/master..origin/${VERIFIED}`]);
-    return line.split("\n").find((sha) => stable.has(sha)) ?? null;
+    const clean = capturesClean(ctx);
+    return line.split("\n").find((sha) => stable.has(sha) && clean(sha)) ?? null;
+}
+
+/**
+ * Verification's screenshot verdict (tools/verify.mjs passedCommit): while CI verifies golden, a commit is cut only
+ * when the captures of its CI verification were clean (no crashed capture job, no unstable or failed image), so a
+ * commit CI did not verify itself, or whose captures were not clean, is never cut. With local verification the
+ * local preview alone decides, as before.
+ * @param ctx the run's context
+ * @returns `(sha) => boolean`
+ */
+export function capturesClean(ctx) {
+    const state = readJson(join(ctx.main, "tmp/golden/verify.json"));
+    if (state?.backend?.name !== "ci") return () => true;
+    return (sha) => state.captures?.[sha]?.clean === true;
 }
 
 /**
@@ -1719,7 +1770,8 @@ function pickCut(ctx, given) {
     if (!sha) {
         return {
             error:
-                "no verified golden commit since master has a finished screenshot preview without unstable or failed images.\n" +
+                "no verified golden commit since master has a finished screenshot preview without unstable or failed images\n" +
+                "(and, while CI verifies golden, clean captures in its CI run: node tools/verify.mjs status).\n" +
                 "Give a known-good commit: node tools/land.mjs cut <commit>",
         };
     }

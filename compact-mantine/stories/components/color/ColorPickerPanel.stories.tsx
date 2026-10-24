@@ -137,8 +137,8 @@ export const Default: Story = {
 
 /**
  * Every state, light and dark side by side: the solid picker at rest, a keyboard-focused
- * slider, a focused reticle and value field (forced), no opacity in RGB, and the paint-type bar
- * with Gradient selected.
+ * slider, a focused reticle and value field (forced; the value field's ring goes round the hex and
+ * the opacity together), no opacity in RGB, and the paint-type bar with Gradient selected.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,

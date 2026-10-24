@@ -1404,7 +1404,9 @@ Rules:
   the same branch on golden, so both hold the same commits, and starts verification of `golden-cut`. A landing that
   verification shows broke golden is reverted at once and landed again once fixed.
 - `node tools/land.mjs ship`, only after the owner says the cut review is finished: it refuses until the
-  cut's head is verified, then marks the cut pull request ready and turns on auto-merge. CI runs once on it; green merges it into
+  cut's head is verified, then marks the cut pull request ready and turns on auto-merge. A cut whose
+  preview of its head changes no screenshot ships itself (`land.mjs auto-ship`, run when the preview
+  ends and when verification passes, logged to `tmp/golden/auto-ship.log` and shown by `status`). CI runs once on it; green merges it into
   master. A CI failure there is a difference between this machine and a clean one: find the change
   that caused it from the failure, revert it from golden or fix it, and the pull request goes back
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.

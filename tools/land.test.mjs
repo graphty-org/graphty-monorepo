@@ -35,6 +35,7 @@ import {
     main,
     newestStableCut,
     prBody,
+    previewSettled,
     readLock,
     sync,
 } from "./land.mjs";
@@ -70,6 +71,7 @@ const branch = (name, files, message, base = "origin/master") => {
 let gh;
 let previews;
 let previewHeads;
+let watches; // each [pr, head] a cut's preview watcher waits on, to run auto-ship
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let checks; // the landing checks: the gate on golden's next commit, without the lock, sending nothing
@@ -117,6 +119,7 @@ before(() => {
             gh.push(args);
             const cut = args.includes("golden-cut");
             if (args[1] === "graphql") return graphql(args.find((a) => a.startsWith("query=")));
+            if (args[0] === "run") return JSON.stringify([{ conclusion: gh.master ?? "success" }]);
             // What a cut fix's --reason names: an issue, or a workflow run.
             const issue = args[0] === "api" && /\/issues\/(\d+)$/.exec(args[1]);
             if (issue) return JSON.stringify(gh.issueApi?.[issue[1]] ?? {});
@@ -159,6 +162,7 @@ before(() => {
             previews.push(pr);
             previewHeads.push(git(cwd, "rev-parse", "HEAD"));
         },
+        watchPreview: (_c, pr, sha) => watches.push([pr, sha]),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
         addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
@@ -188,6 +192,7 @@ beforeEach(() => {
     verifies = [];
     previews = [];
     previewHeads = [];
+    watches = [];
     pushResult = 0;
     pushes = 0;
     refspecs = [];
@@ -940,6 +945,7 @@ describe("cuts", () => {
         assert.ok(create.includes("--draft") && create.includes("chore: ship a golden cut into master"));
         assert.match(gh.body, /A cut of `golden` at .*Approvals that ship are made here/);
         assert.deepEqual(previews, [9]);
+        assert.deepEqual(watches, [[9, line[1]]], "auto-ship runs once that preview ends");
         assert.deepEqual(verifies, [["golden-cut", line[1]]], "ship waits for the cut's verification");
     });
 
@@ -1150,6 +1156,135 @@ describe("cuts", () => {
         assert.equal(r.code, 1, r.out);
         assert.match(r.out, /#9 moved since its preview/);
         assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
+    });
+
+    describe("auto-ship", () => {
+        const shipped = () => gh.filter((a) => a[1] !== "list");
+        // A cut head off master (never pushed: the cut pull request's head is all auto-ship reads), verified.
+        const cutHead = (name, files, verified = true) => {
+            const sha = git(branch(name, files, `fix: ${name}`), "rev-parse", "HEAD");
+            const v = join(repo, "tmp/golden/verify-golden-cut.json");
+            if (verified) write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: sha }));
+            else rmSync(v, { force: true });
+            gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: sha };
+            return sha;
+        };
+
+        it("ships a verified cut whose preview of its head changes no image, once", async () => {
+            const sha = cutHead("auto/clean", { "clean.txt": "c\n" });
+            preview("9", sha, ["unchanged", "excluded", "unchanged"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(shipped(), [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ]);
+            assert.match(readFileSync(join(repo, "tmp/golden/auto-ship.log"), "utf8"), /shipped #9 at/);
+
+            // The second event (the verification after the preview) finds it shipped and does nothing.
+            gh.cut = { ...gh.cut, isDraft: false };
+            gh.length = 0;
+            const again = await run("auto-ship");
+            assert.equal(again.code, 0, again.out);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits for the owner when any image changed, or the cut changes a baseline", async () => {
+            const sha = cutHead("auto/changed", { "changed.txt": "c\n" });
+            preview("9", sha, ["unchanged", "changed"]);
+            const r = await run("auto-ship");
+            assert.equal(r.code, 0, r.out);
+            assert.match(r.out, /waiting: #9 waits for the owner: 1 changed \(graphty\/s1.png changed\)/);
+            assert.deepEqual(shipped(), []);
+
+            for (const status of ["new", "removed", "unseeded", "unstable", "moved"]) {
+                preview("9", sha, ["unchanged", status]);
+                await run("auto-ship");
+                assert.deepEqual(shipped(), [], status);
+            }
+
+            cutHead("auto/baseline", { "b.txt": "b\n" });
+            const wt = join(dir, "wt-auto-baseline");
+            mkdirSync(join(wt, "visual-baselines/p"), { recursive: true });
+            write(wt, "visual-baselines/p/s.png", "png\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "test: a baseline");
+            const based = git(wt, "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: based }));
+            gh.cut = { ...gh.cut, headRefOid: based };
+            preview("9", based, ["unchanged"]);
+            const b = await run("auto-ship");
+            assert.match(b.out, /visual-baselines\/p\/s.png differs from master/);
+            assert.deepEqual(shipped(), []);
+
+            const red = cutHead("auto/red", { "red.txt": "r\n" });
+            preview("9", red, ["unchanged"]);
+            gh.master = "failure";
+            const m = await run("auto-ship");
+            delete gh.master;
+            assert.match(m.out, /waits: master's last build is failure/);
+            assert.deepEqual(shipped(), []);
+
+            const bang = git(branch("auto/bang", { "bang.txt": "b\n" }, "feat(x)!: drop y"), "rev-parse", "HEAD");
+            write(join(repo, "tmp/golden"), "verify-golden-cut.json", JSON.stringify({ verified: bang }));
+            gh.cut = { ...gh.cut, headRefOid: bang };
+            preview("9", bang, ["unchanged"]);
+            const k = await run("auto-ship");
+            assert.match(k.out, /owner's go on a breaking commit: feat\(x\)!: drop y/);
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("waits for verification, and for a preview of exactly the head", async () => {
+            const sha = cutHead("auto/unverified", { "uv2.txt": "u\n" }, false);
+            preview("9", sha, ["unchanged"]);
+            const r = await run("auto-ship");
+            assert.match(r.out, /waiting: #9 is not verified yet/);
+            assert.deepEqual(shipped(), []);
+            assert.match(readFileSync(join(repo, "tmp/golden/auto-ship.log"), "utf8"), /not verified yet/);
+
+            const other = cutHead("auto/other", { "o.txt": "o\n" });
+            preview("9", sha, ["unchanged"]);
+            const moved = await run("auto-ship");
+            assert.match(moved.out, /waiting: #9 (moved|has no finished screenshot preview)/);
+            assert.deepEqual(shipped(), []);
+            preview("9", other, ["unchanged"], "running");
+            await run("auto-ship");
+            assert.deepEqual(shipped(), []);
+        });
+
+        it("runs after the preview of the cut's head ends, past an older head's status, not after a newer one", async () => {
+            const older = cutHead("auto/older", { "older.txt": "o\n" });
+            const wt = join(dir, "wt-auto-older");
+            write(wt, "newer.txt", "n\n");
+            git(wt, "add", ".");
+            git(wt, "commit", "-q", "-m", "fix: newer");
+            const sha = git(wt, "rev-parse", "HEAD");
+            preview("9", older, ["unchanged"]);
+            // Resolving on the older head's status would answer false.
+            const waiting = previewSettled(ctx, 9, sha);
+            preview("9", sha, ["unchanged"], "running");
+            preview("9", sha, ["unchanged"]);
+            assert.equal(await waiting, true);
+
+            const replaced = previewSettled(ctx, 9, older);
+            assert.equal(await replaced, false, "a newer head's preview replaced it");
+        });
+
+        it("never ships while a cut is pushing golden-cut", async () => {
+            const sha = cutHead("auto/cutting", { "cutting.txt": "c\n" });
+            preview("9", sha, ["unchanged"]);
+            mkdirSync(ctx.cutLock, { recursive: true });
+            write(ctx.cutLock, "owner.json", JSON.stringify({ pid: process.pid, host: hostname(), since: "now" }));
+            try {
+                const r = await run("auto-ship");
+                assert.equal(r.code, 0, r.out);
+                assert.match(r.out, /waiting: a cut is pushing golden-cut now/);
+                assert.equal(gh.length, 0);
+            } finally {
+                rmSync(ctx.cutLock, { recursive: true, force: true });
+            }
+            rmSync(join(repo, "tmp/golden/verify-golden-cut.json"), { force: true });
+        });
     });
 });
 

@@ -100,7 +100,8 @@ const LAND_SUBJECT = /^land: (\S+)$/;
 // ---------------------------------------------------------------- the context
 
 /**
- * What a command works on; tests replace `gate`, `check`, `spawnRun`, `publishRef` and `sessionAlive`.
+ * What a command works on; tests replace `gate`, `check`, `spawnRun`, `publishRef`, `onVerified` and
+ * `sessionAlive`.
  * @param cwd any directory of the repository
  * @param [overrides] `branch` (golden or golden-cut) and replacements
  * @returns the context
@@ -130,6 +131,7 @@ export function verifyContext(cwd, overrides = {}) {
         ciRerun: defaultCiRerun,
         spawnRun: defaultSpawnRun,
         publishRef: defaultPublishRef,
+        onVerified: defaultOnVerified,
         sessionAlive: defaultSessionAlive,
         killRun: defaultKillRun,
         captures: defaultCaptures,
@@ -338,6 +340,7 @@ export async function run(ctx) {
     ledgerDo(ctx, (l) => l.ensure(ctx.env, ctx.main));
     for (;;) {
         git(ctx, ctx.main, ["fetch", "-q", "origin"], { ok: true });
+        const before = readState(ctx).verified;
         const job = await withState(ctx, (s) => nextJob(ctx, s));
         if (!job) {
             ledgerDo(ctx, (l) => console.log(l.prune(ctx.env, ctx.main)));
@@ -345,6 +348,8 @@ export async function run(ctx) {
         }
         if (job.bisect) await bisect(ctx);
         else if (job.target) await verifyCommit(ctx, job);
+        const after = readState(ctx).verified;
+        if (after && after !== before) ctx.onVerified(ctx, after);
     }
 }
 
@@ -1903,6 +1908,13 @@ function defaultPublishRef(ctx, commit) {
         ok: true,
     });
     if (r.status !== 0) console.error(`verify: could not move ${VERIFIED_REF} to ${short(commit)}: ${r.stderr}`);
+}
+
+// A pass can make the cut shippable: tools/land.mjs auto-ship ships it when its preview changes no image.
+function defaultOnVerified(ctx) {
+    const land = join(dirname(fileURLToPath(import.meta.url)), "land.mjs");
+    const r = spawnSync(process.execPath, [land, "auto-ship"], { cwd: ctx.main, env: ctx.env, stdio: "inherit" });
+    if (r.status !== 0) console.error(`verify: land.mjs auto-ship exited ${r.status ?? r.signal}`);
 }
 
 // ---------------------------------------------------------------- acting on a result

@@ -89,6 +89,7 @@ let gateStarted;
 let concurrent;
 let most;
 let published;
+let onVerified; // each [branch, commit] a pass told auto-ship about
 let runs;
 let ctx;
 
@@ -141,6 +142,7 @@ const fake = {
         return process.pid;
     },
     publishRef: (_c, sha) => published.push(sha),
+    onVerified: (c, sha) => onVerified.push([c.branch, sha]),
     shards: ["s1", "s2"],
 };
 const settle = async () => {
@@ -171,6 +173,7 @@ beforeEach(() => {
     concurrent = 0;
     most = 0;
     published = [];
+    onVerified = [];
     runs = [];
 });
 
@@ -185,6 +188,7 @@ describe("a run", () => {
         assert.equal(s.verified, tip);
         assert.equal(s.last.status, "passed");
         assert.equal(s.run, null, "the run marked itself ended");
+        assert.deepEqual(onVerified, [["golden", tip]], "the pass is told to auto-ship once");
     });
 
     it("leaves a commit a newer landing supersedes at the next shard boundary, records it, and goes on", async () => {
@@ -695,6 +699,7 @@ describe("golden-cut", () => {
         await settle();
         assert.deepEqual(gated, []);
         assert.equal(readState(cut).verified, at);
+        assert.deepEqual(onVerified, [["golden-cut", at]], "a cut taken as verified is a pass too");
 
         git(repo, "checkout", "-q", "-b", "cut-fix", "origin/golden-cut");
         writeFileSync(join(repo, "fix.txt"), "f\n");

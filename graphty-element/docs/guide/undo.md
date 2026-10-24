@@ -71,8 +71,10 @@ returns to the baseline, not to an empty element.
 
 `session.history.clear()` makes the current state the new baseline.
 It also cancels whatever is still pending. To keep that work -- a run a reader started while a
-graph was loading -- pass `{ pending: "keep" }`: each pending item finishes and records its step
-over the new baseline.
+graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
+finishes and records its step over the new baseline. Work that has already changed something, such
+as a transaction halfway through, is cancelled either way, because undoing its step would go back
+past the baseline.
 
 ```typescript
 await session.data.import({ type: "csv", config: { url: "/flights.csv" } });

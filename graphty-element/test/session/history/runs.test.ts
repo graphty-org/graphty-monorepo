@@ -470,6 +470,46 @@ describe("history.clear while a run is pending", () => {
         session.dispose();
     });
 
+    it('aborts, even with { pending: "keep" }, a transaction that already changed something', async () => {
+        const { session } = await gated();
+        let opened: () => void = () => undefined;
+        const gate = new Promise<void>((resolve) => {
+            opened = resolve;
+        });
+        let wrote: () => void = () => undefined;
+        const written = new Promise<void>((resolve) => {
+            wrote = resolve;
+        });
+        const tx = session.transaction("Half done", async (t) => {
+            await t.styles.add({
+                name: "Mid",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            wrote();
+            await gate;
+        });
+        const outcome = tx.then(
+            () => "recorded",
+            () => "aborted",
+        );
+        await written;
+        assert.lengthOf(session.history.pending, 1);
+
+        // Its step would hold the style written before the baseline: undoing it would take the
+        // reader to a state older than the baseline, so it is aborted, as without "keep".
+        session.history.clear({ pending: "keep" });
+        opened();
+        assert.strictEqual(await outcome, "aborted");
+        assert.isFalse(
+            session.styles.list().some((layer) => layer.name === "Mid"),
+            "the transaction's write is rolled back",
+        );
+        assert.lengthOf(session.history.steps, 0, "nothing records a step");
+        session.dispose();
+    });
+
     it("cancels the run by default", async () => {
         const { session, open } = await gated();
         const run = session.runs.start("betweenness", {}, { as: "bet" });

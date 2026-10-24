@@ -1172,15 +1172,19 @@ export class Dispatcher {
     }
 
     /**
-     * Drop every step: the current state becomes the baseline. Unless `keepPending`, every
-     * pending group is cancelled and every open transaction aborted; kept, each records its step
-     * over the new baseline when it seals.
-     * @param keepPending - Leave pending work to finish.
+     * Drop every step: the current state becomes the baseline. Pending work that has already
+     * changed something (a value, the graph, or the lane it took a before-arrangement of) is
+     * cancelled, open transactions aborted, along with the work queued behind it: its step would
+     * undo to a state older than the baseline. Unless `keepPending`, the rest is cancelled too;
+     * kept, it records its step over the new baseline when it seals.
+     * @param keepPending - Leave pending work that has changed nothing yet to finish.
      */
     clear(keepPending = false): void {
-        if (!keepPending) {
-            this.cancelAll(this.cascade(this.ordered()), "cancel");
-        }
+        const pending = this.ordered();
+        const cancel = keepPending
+            ? pending.filter((group) => group.arrangement !== null || group.draft.written())
+            : pending;
+        this.cancelAll(this.cascade(cancel), "cancel");
         this.arrangement.flush();
         this.history.clear(this.arrangement.capture());
         this.steps.clear();

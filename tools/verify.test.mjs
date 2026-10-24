@@ -4,8 +4,7 @@
 //
 //   node tools/verify.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
-import { once } from "node:events";
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -334,6 +333,8 @@ describe("stopping a run", () => {
     // A run as `start` makes one: detached, so it leads a process group, with a child of its own (the gate). Its
     // stdout closes only when both are gone.
     const liveRun = async () => {
+        const { spawn } = await import("node:child_process");
+        const { once } = await import("node:events");
         const leader = spawn("sh", ["-c", "sleep 600 & echo $!; wait"], {
             detached: true,
             stdio: ["ignore", "pipe", "ignore"],

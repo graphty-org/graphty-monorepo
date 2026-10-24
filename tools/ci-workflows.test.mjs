@@ -48,7 +48,7 @@ import {
     related,
     testsPassed,
 } from "./prepush-inputs.mjs";
-import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { byFailureRate, failureRates, gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -208,8 +208,13 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
+            /bg_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
+        // The shards start right after the build, before the static checks they run beside.
+        const testsAt = prepush.indexOf('bg_step "Tests');
+        assert.ok(testsAt > prepush.indexOf('run_step "Build"'), "after the build");
+        assert.ok(testsAt < prepush.indexOf('run_step "Knip (dead code detection)"'), "before Knip and Lint");
+        assert.ok(prepush.indexOf("\nbg_wait\n") > prepush.indexOf('run_step "Public API report'), "read after them");
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
         // (2026-10-17: a push whose every shard passed failed at 90 minutes). No limit on a shard either
         // (the owner's no-arbitrary-timeouts rule): a 30-minute shard clock failed tier 3's graphty shard
@@ -535,6 +540,40 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
+    it("starts the shards with the highest failure rate in the test ledger first, else in the usual order", () => {
+        const shards = localShards(["graph-format", "graphty", "githerd"]);
+        const names = (list) => list.map((s) => s.shard);
+        const rates = new Map([
+            ["graphty-2", 0.16],
+            ["githerd", 0.08],
+            ["graph-format", 0],
+        ]);
+        const ordered = names(byFailureRate(shards, rates));
+        assert.deepEqual(ordered.slice(0, 2), ["graphty-2", "githerd"]);
+        // The rest keep their order (a stable sort), and so does everything without the ledger.
+        const rest = names(shards).filter((n) => !["graphty-2", "githerd"].includes(n));
+        assert.deepEqual(ordered.slice(2), rest);
+        assert.deepEqual(names(byFailureRate(shards, new Map())), names(shards));
+        // The ledger never blocks a push: missing, unopenable or failing, it gives no rates and one line.
+        const lines = [];
+        assert.equal(failureRates(null, (l) => lines.push(l)).size, 0);
+        assert.equal(failureRates({ openLedger: () => ({ why: "no database yet" }) }, (l) => lines.push(l)).size, 0);
+        const broken = {
+            prepare: () => ({
+                all: () => {
+                    throw new Error("database is locked");
+                },
+            }),
+            close: () => {},
+        };
+        assert.equal(failureRates({ openLedger: () => ({ db: broken }) }, (l) => lines.push(l)).size, 0);
+        assert.equal(lines.length, 3);
+        assert.match(lines[1], /no database yet.*usual order/);
+        assert.match(lines[2], /database is locked/);
+        const db = { prepare: () => ({ all: () => [{ shard: "graphty-1", rate: 0.18 }] }), close: () => {} };
+        assert.deepEqual([...failureRates({ openLedger: () => ({ db }) })], [["graphty-1", 0.18]]);
+    });
+
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
         // What the gate schedules: the shards it runs, never the ones it leaves to CI.
         const shards = gateShards(localShards(["graphty-element", "layout"]), null, null);
@@ -571,7 +610,7 @@ describe("the pre-push gate matches CI", () => {
         );
         assert.match(
             prepush,
-            /cleanup\(\) \{\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
+            /cleanup\(\) \{\n {4}bg_kill\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
             "the EXIT trap stops it",
         );
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
@@ -4017,6 +4056,9 @@ describe("pr-status-broker", () => {
 
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    // run_step, bg_step and the functions they use, cut out of tools/prepush-source-checks.sh to run alone.
+    const stepFunctions = (checks) =>
+        checks.slice(checks.indexOf("script_missing() {"), checks.indexOf("trap bg_kill EXIT\n") + 18);
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
@@ -4105,20 +4147,85 @@ describe("the commit and push hooks", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
         for (const step of [...steps, "SonarQube (changed lines)"]) {
-            assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
+            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
+        // The two commonest failures start first, in the background, before any other check.
+        const firstRun = checks.indexOf('    run_step "');
+        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
+        assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         // SonarQube runs only there, so a push it fails never reaches the queue or the build.
         assert.doesNotMatch(prepush, /sonar-gate\.mjs/);
-        const runStep = checks.slice(
-            checks.indexOf("run_step() {"),
-            checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
-        );
-        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+        const steps_ = stepFunctions(checks);
+        const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
             encoding: "utf8",
         });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
+    });
+
+    it("pre-push stops with a clear message when the remote branch moved while the gate ran", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const fn = prepush.slice(
+            prepush.indexOf("remote_moved() {"),
+            prepush.indexOf("\n}\n", prepush.indexOf("remote_moved() {")) + 3,
+        );
+        assert.ok(
+            prepush.indexOf("if remote_moved; then") > prepush.indexOf('record "gate${KNOWN_FAILURES:+-known}"'),
+            "after the pass is recorded",
+        );
+        assert.match(repoFile(".husky/pre-push"), /export PUSH_REMOTE_SHA PUSH_REMOTE_REF PUSH_REMOTE\n/);
+        const dir = mkdtempSync(join(tmpdir(), "prepush-remote-"));
+        try {
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            git("init", "-q", "-b", "main");
+            git("commit", "-q", "--allow-empty", "-m", "a");
+            const a = git("rev-parse", "HEAD").stdout.trim();
+            spawnSync("git", ["init", "-q", "--bare", join(dir, "origin.git")]);
+            git("remote", "add", "origin", join(dir, "origin.git"));
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            git("commit", "-q", "--allow-empty", "-m", "b");
+            const moved = (ref, sha) =>
+                spawnSync("bash", ["-c", `${fn}\nremote_moved`], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { ...process.env, PUSH_REMOTE: "origin", PUSH_REMOTE_REF: ref, PUSH_REMOTE_SHA: sha },
+                }).status === 0;
+            assert.equal(moved("refs/heads/feat/x", a), false, "still where the push began");
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            assert.equal(moved("refs/heads/feat/x", a), true, "moved during the gate");
+            assert.equal(moved("refs/heads/feat/x", "0".repeat(40)), true, "created during the gate");
+            assert.equal(moved("refs/heads/golden", a), false, "golden is land.mjs's to handle");
+            assert.equal(moved("refs/heads/gone", a), false, "a remote that has no answer is not moved");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("pre-push reports a background step's failure at the next step and stops the rest", () => {
+        const steps = stepFunctions(repoFile("tools/prepush-source-checks.sh"));
+        const dir = mkdtempSync(join(tmpdir(), "prepush-bg-"));
+        try {
+            const script = `${steps}
+bg_step slow "sleep 30; echo SLOW-DONE" "${dir}/slow.log"
+bg_step fails "echo FAILED-OUTPUT; exit 1" "${dir}/fails.log"
+until [ -s "${dir}/fails.log" ] && ! kill -0 "\${BG_PIDS[1]}" 2>/dev/null; do sleep 0.05; done
+run_step after "echo AFTER-RAN"`;
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000 });
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stdout, /FAILED-OUTPUT[\s\S]*\[FAIL\] fails failed/);
+            assert.match(r.stdout, /stopped at the first failure: fails/);
+            assert.doesNotMatch(r.stdout, /AFTER-RAN|SLOW-DONE/);
+            const passing = spawnSync(
+                "bash",
+                ["-c", `${steps}\nbg_step ok "echo OK-OUTPUT" "${dir}/ok.log"\nrun_step next "echo NEXT"\nbg_wait`],
+                { encoding: "utf8", timeout: 20000 },
+            );
+            assert.equal(passing.status, 0, passing.stdout + passing.stderr);
+            assert.match(passing.stdout, /OK-OUTPUT[\s\S]*\[PASS\] ok passed/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it("pre-push runs knip and the published-dependency check on a push that affects no package", () => {

@@ -30,10 +30,13 @@ const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
-// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, ...):
+// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
+// PUSH_REMOTE_*, ...):
 // a test sets each one it needs.
 const OUR_ENV = Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_")),
+    Object.entries(process.env).filter(
+        ([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_") && !k.startsWith("PUSH_REMOTE"),
+    ),
 );
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
@@ -430,17 +433,18 @@ describe("prepush.sh with a gate that already passed", () => {
         const r = gateRepo();
         const first = r.gate();
         assert.equal(first.status, 0, first.stdout + first.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar"]);
+        // SonarQube runs in the background beside the other source checks, so the two log in either order.
+        assert.deepEqual(r.steps().sort(), ["links", "sonar"]);
         assert.equal(r.inputs("passed", "gate").status, 0, "a whole-gate pass is recorded");
 
         const second = r.gate();
         assert.equal(second.status, 0, second.stdout + second.stderr);
         assert.match(second.stdout, /\[SKIP\] The whole gate: it already passed on exactly these inputs/);
-        assert.deepEqual(r.steps(), ["links", "sonar"], "no step ran again");
+        assert.deepEqual(r.steps().sort(), ["links", "sonar"], "no step ran again");
 
         const again = r.gate({ PREPUSH_RERUN_ALL: "1" });
         assert.equal(again.status, 0, again.stdout + again.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
     });
 
     it("records no pass that SonarQube did not check, so the next push of the same files is scanned", () => {
@@ -450,14 +454,17 @@ describe("prepush.sh with a gate that already passed", () => {
         assert.equal(r.inputs("passed", "source").status, 1);
         assert.equal(r.inputs("passed", "gate").status, 1);
         assert.equal(r.gate().status, 0);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
+        assert.deepEqual(r.steps().sort(), ["links", "links", "sonar", "sonar"]);
     });
 
     it("PREPUSH_LIGHT=1 runs build, lint and the NVIDIA GPU tests but no test shard and no screenshot", () => {
         const r = gateRepo('["webgpu-graph-algorithms"]');
         const light = r.gate({ PREPUSH_LIGHT: "1" });
         assert.equal(light.status, 0, light.stdout + light.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar", "build", "lint", "gpu"]);
+        // the source checks first (SonarQube beside the rest), then the build, then lint beside the GPU tests
+        assert.deepEqual(r.steps().slice(0, 2).sort(), ["links", "sonar"]);
+        assert.deepEqual(r.steps().slice(2, 3), ["build"]);
+        assert.deepEqual(r.steps().slice(3).sort(), ["gpu", "lint"]);
         assert.match(light.stdout, /\[LIGHT\] tests run in CI verification/);
         assert.equal(r.inputs("passed", "gate").status, 1, "a light pass is not recorded for the full gate's key");
 

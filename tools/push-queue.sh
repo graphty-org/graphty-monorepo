@@ -119,6 +119,27 @@ if [ "${args[0]:-}" = git ]; then
     fi
     branch=${dst#refs/heads/}
     sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
+    remote=${pos[0]:-origin}
+    case " ${args[*]} " in *" --force"* | *" -f "* | *" --mirror "* | *" --delete "* | *" -d "*) forced=1 ;; esac
+    [ "${ref:-}" != "${ref#+}" ] && forced=1
+fi
+
+# Whether the branch on the remote holds a commit this push lacks: git would reject the push, but only after
+# the gate (18 pushes in the 14 days to 2026-10-24 failed so after a passing gate, about 47 minutes each).
+# Asked before the source checks and again once the push holds a gate slot. A forced push, a new branch and a
+# remote that cannot be asked go on; golden, golden-cut and master are tools/land.mjs's to handle.
+remote_moved() {
+    [ -n "$sha" ] && [ -n "$branch" ] && [ "${forced:-0}" = 0 ] || return 1
+    case "$branch" in golden | golden-cut | master) return 1 ;; esac
+    local tip
+    tip=$(git ls-remote "$remote" "refs/heads/$branch" 2>/dev/null | cut -f1)
+    [ -n "$tip" ] && ! git merge-base --is-ancestor "$tip" "$sha" 2>/dev/null || return 1
+    echo "push-queue: stopped before the gate -- $remote's $branch is at ${tip:0:12}, which ${sha:0:12} does not contain" \
+        "(a newer commit's push or the nightly sync's merge moved it), so git would reject this push after the gate." \
+        "Run git fetch $remote && git merge $remote/$branch, then push again." >&2
+}
+if [ "${1:-}" = git ] && remote_moved; then
+    exit 1
 fi
 
 # Refuse a commit the gate already failed, when nothing it depends on changed: the push log's latest
@@ -263,6 +284,9 @@ while [ "$rc" = 0 ] && [ "$fast" = 0 ]; do
     fi
     sleep "${PUSH_QUEUE_POLL:-10}"
 done
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && remote_moved; then
+    rc=1
+fi
 wait_log="$top/tools/wait-log.mjs"
 [ "$use_gate" = 1 ] && wait_log="$gate_dir/tools/wait-log.mjs"
 if [ ${#held_by[@]} -gt 0 ] && [ -f "$wait_log" ]; then

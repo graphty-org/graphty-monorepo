@@ -1,5 +1,7 @@
 # Changes land through a local integration branch, golden, and one standing pull request
 
+> Status: Deprecated 2026-10-21 by design/ci/fast-pipeline.md (issue #3262). The landing model it adopted is replaced; the rest of design/ci/golden-local.md remains in force, and the tools follow it until the fast pipeline is built.
+
 Date: 2026-10-18
 Decided by: the owner
 Changes: how a change reaches master, as laid out in `design/ci/golden-local.md`. It supersedes

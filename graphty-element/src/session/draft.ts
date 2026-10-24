@@ -575,7 +575,8 @@ export class Draft implements LoadDraft {
     }
 
     /**
-     * Load the held rows as one undoable step.
+     * Load the held rows as one undoable step, or as where the history starts
+     * (`history: "start"`).
      * @param choices - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
@@ -599,11 +600,13 @@ export class Draft implements LoadDraft {
                 named.set(held.table.name, plan.mapping.tables[held.table.id].rowsAre);
             }
         }
+        const starts = choices.history === "start" ? { startsHistory: true } : {};
         const command: DataImportCommand = {
             ...importCommand(read.source, choices, plan.held),
             tables: [...named.keys()],
             // A graph file's one name holds both kinds, so it says nothing of what it held.
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
+            ...starts,
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),
@@ -612,7 +615,7 @@ export class Draft implements LoadDraft {
         await send(
             Object.keys(data).length === 0
                 ? command
-                : { op: "batch", steps: [{ op: "config.set", values: { data } }, command] },
+                : { op: "batch", steps: [{ op: "config.set", values: { data } }, command], ...starts },
         );
         this.dispose();
     }

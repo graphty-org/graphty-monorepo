@@ -5,20 +5,23 @@ import "@mantine/core/styles.css";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeAll, vi } from "vitest";
 
-import { loadFrame } from "../workspace/frameLoader";
-
 // The app defines <graphty-element> on demand (elementLoader.ts). Here it never loads it: a test
 // that wants the real element imports "@graphty/graphty-element" itself (the real-element
 // project), and every other test keeps the tag an empty box.
 vi.mock("../elementLoader", () => ({ loadGraphtyElement: () => Promise.resolve() }));
 
 // The project frame loads on demand in the app (workspace/frameLoader.ts); a test has it from the
-// start, so a project it opens shows at once. Loaded before the file's tests and after its imports,
-// so the file's own module mocks (Sentry's, most of all) are the ones the frame gets.
-// A file that mocks a module the frame needs, and never opens a project, cannot load it, and does
-// not need it.
-beforeAll(async () => {
+// start, so a project it opens shows at once. It loads as part of importing the workspace, so only a
+// file that renders the workspace pays for it: the frame is most of the app's code, and loading it
+// in a beforeAll for every file took about 5 seconds a file on an idle machine and 15 to 20 on a
+// loaded core, so files that never open a project ran past the 30-second hook limit while the
+// pre-push gate ran its other shards beside them (issues #3347 and #3348). The file's own module mocks
+// (Sentry's, most of all) are registered before its imports, so they are the ones the frame gets. A
+// file that mocks a module the frame needs cannot load it, and goes on without it.
+vi.mock("../workspace/Workspace", async (importOriginal) => {
+    const { loadFrame } = await import("../workspace/frameLoader");
     await loadFrame().catch(() => undefined);
+    return importOriginal();
 });
 
 // Strict state: every graphty-element these tests create checks that its project state changes

@@ -51,8 +51,16 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 
-import { expectedRuns } from "./shard-verdict.mjs";
-import { checkQuarantine, familyOf, outcomeOf, parseJunit } from "./test-ledger.mjs";
+import { expectedRuns, LOG_BUDGET_BYTES, overBudget } from "./shard-verdict.mjs";
+import {
+    checkQuarantine,
+    failuresBefore,
+    familyOf,
+    headFacts,
+    openLedger,
+    outcomeOf,
+    parseJunit,
+} from "./test-ledger.mjs";
 import { selectedCommand } from "./test-select.mjs";
 
 const DAY = 86_400_000;
@@ -227,13 +235,23 @@ const brief = (list) => list.map((f) => ({ file: f.file, name: f.name, excerpt: 
  * @param o.viaRunTests retry through `bash tools/run-tests.sh --command` (the gate) instead of plain sh (CI)
  * @param o.env the environment
  * @param o.state the local state (emptyState() in CI)
+ * @param [o.logBudget] the most bytes the first run's output may hold (shard-verdict.mjs); a larger one fails
+ *   the shard whatever it exited with, here as in CI, whose test job judges shards only through this wrapper
  * @returns the exit code
  */
-export async function runShard(shardName, command, { root, viaRunTests, env = process.env, state }) {
-    if (!quarantineEnabled(env)) return (await sh(command, env, root)).code;
+export async function runShard(
+    shardName,
+    command,
+    { root, viaRunTests, env = process.env, state, logBudget = LOG_BUDGET_BYTES },
+) {
+    if (!quarantineEnabled(env)) {
+        const r = await sh(command, env, root);
+        return r.code || floodCode(shardName, r.text, logBudget, env);
+    }
     const reports = { dir: join(root, "test-results"), id: env.TEST_LEDGER_RUN ?? "" };
     reports.seen = new Set(reportNames(reports.dir));
     const r1 = await sh(command, env, root);
+    const flood = floodCode(shardName, r1.text, logBudget, env);
     let result = { shard: shardName, firstCode: r1.code, retried: false, flaky: [], excused: [], failing: [] };
     let code = r1.code;
     try {
@@ -243,7 +261,7 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
         const first = newReports(reports, "");
         result.ran = [...(first?.files ?? [])];
         result.failed = brief(first?.failures ?? []);
-        if (r1.code === 0) return 0;
+        if (r1.code === 0) return flood;
         const family = familyOf(shardName);
         const list = activeList(committedList(root), state);
         const runs = expectedRuns(shard?.["test-command"] ?? command);
@@ -253,10 +271,11 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
                 ? await retryFailed({ root, shard, first, family, list, env, viaRunTests, reports })
                 : null;
         if (retry) result = { ...result, ...retry.facts };
-        const d = decide({ family, first, firstOutcome, second: retry?.second, list });
+        const d = blameChange(decide({ family, first, firstOutcome, second: retry?.second, list }), root, family, env);
         result = { ...result, flaky: brief(d.flaky), excused: brief(d.excused), failing: brief(d.failing) };
+        result.suspects = d.suspects;
         printDecision(shardName, d, env, retry ? "" : notRetried(firstOutcome, first, list, family));
-        if (d.pass) code = 0;
+        if (d.pass) code = flood;
     } catch (e) {
         console.log(
             `test-quarantine: ${shardName}: no decision (${e.message.split("\n")[0]}); the shard's own result stands`,
@@ -264,7 +283,56 @@ export async function runShard(shardName, command, { root, viaRunTests, env = pr
     } finally {
         if (env.TEST_QUARANTINE_RESULT) writeFileSync(env.TEST_QUARANTINE_RESULT, JSON.stringify(result));
     }
-    return code;
+    return code || flood;
+}
+
+/**
+ * A land check's flaky tests that the ledger has no failure of before this change: the change made them
+ * intermittent, so they fail the land check (`[NEW-FLAKY]`) instead of going to the quarantine, and the rest are
+ * quarantined with the landing as suspect (design/ci/history-selection.md, section 6). Elsewhere, or with no
+ * ledger, decide() stands, with the landing still named as suspect.
+ * ponytail: an earlier land check of the same branch counts as a failure before; a re-land after a retry is
+ * quarantined, not blamed.
+ * @param d decide()
+ * @param root the checkout
+ * @param family the shard's family
+ * @param env the environment (TEST_LEDGER_KIND)
+ * @param [ledger] openLedger (tests replace it)
+ * @returns decide() with `caused` and `suspects`
+ */
+export function blameChange(d, root, family, env, ledger = openLedger) {
+    if (env.TEST_LEDGER_KIND !== "land-check" || d.flaky.length === 0) return { ...d, caused: [] };
+    const head = headFacts(root, env);
+    const suspects = [{ sha: head.commit, branch: head.branch }];
+    const l = ledger(env, root);
+    if (!l.db) return { ...d, caused: [], suspects };
+    let caused;
+    try {
+        const range = { from: "", before: new Date().toISOString(), commits: [head.commit] };
+        caused = d.flaky.filter((f) => failuresBefore(l.db, { ...f, family }, range) === 0);
+    } finally {
+        l.db.close();
+    }
+    if (caused.length === 0) return { ...d, caused, suspects };
+    const flaky = d.flaky.filter((f) => !caused.includes(f));
+    return { ...d, pass: false, flaky, failing: [...d.failing, ...caused], caused, suspects };
+}
+
+/**
+ * Fails a run whose output is over the budget (a warning flood), naming its most repeated lines.
+ * @param shard the shard
+ * @param text the run's output
+ * @param budget the most bytes it may hold
+ * @param env the environment (GITHUB_ACTIONS makes the first line an error annotation)
+ * @returns 1 when it is over, else 0
+ */
+function floodCode(shard, text, budget, env) {
+    const over = overBudget(text, budget);
+    if (!over) return 0;
+    const [first, ...rest] = `${shard} FAILED: ${over}`.split("\n");
+    console.log(env.GITHUB_ACTIONS === "true" ? `::error::${first}` : `test-quarantine: ${first}`);
+    console.log(rest.join("\n"));
+    return 1;
 }
 
 /**
@@ -349,8 +417,15 @@ function printDecision(shard, d, env, unretried) {
         const line = `[QUARANTINED] ${shard}: ${idOf(f)} failed again; it is quarantined, so it does not fail the shard`;
         console.log(gh ? `::warning::${line}` : `test-quarantine: ${line}`);
     }
+    for (const f of d.caused ?? []) {
+        console.log(
+            `test-quarantine: [NEW-FLAKY] ${shard}: ${idOf(f)} failed and passed on its retry, and the ledger has no failure of it before this change: the change made it intermittent`,
+        );
+    }
     const how = unretried ? `failed (${unretried})` : "failed every time";
-    for (const f of d.failing) console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} ${how}`);
+    for (const f of d.failing.filter((x) => !d.caused?.includes(x))) {
+        console.log(`test-quarantine: [FAIL] ${shard}: ${idOf(f)} ${how}`);
+    }
 }
 
 /**
@@ -454,7 +529,7 @@ export function fileIssue(t, had, gh) {
         ...(t.suspects?.length
             ? [
                   "",
-                  "Suspects, the landings in the range it failed in:",
+                  "Suspects, the landings that may have made it intermittent:",
                   ...t.suspects.map((l) => `- ${l.sha} ${l.branch}`),
               ]
             : []),
@@ -523,6 +598,7 @@ export function afterShard({ main, root, shard, inputKey, result, gh = ghCli, da
                     since: day,
                     expires: plusDays(day, 14),
                     excerpt: f.excerpt,
+                    suspects: result.suspects,
                 });
             }
             if (inputKey && result.failing?.length) state.failedByKey[inputKey] = result.failing;

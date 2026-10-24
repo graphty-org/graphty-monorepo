@@ -48,9 +48,9 @@
  * A shard passes only when it exits 0 AND its log shows a finished vitest run (tools/shard-verdict.mjs). Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
- * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
- * other gates hold is not a failure of this push.
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. Neither a shard nor the
+ * stage has a time limit: a hung test is ended by the one hang guard every vitest config sets (its
+ * testTimeout and hookTimeout), and waiting for slots other gates hold is not a failure of this push.
  */
 
 import { spawn, spawnSync, execFileSync } from "node:child_process";
@@ -447,20 +447,18 @@ const readJson = (file) => {
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const GATE = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
-const TIMEOUT = process.env.PREPUSH_SHARD_TIMEOUT ?? "30m";
 
 /**
  * How one shard runs, from its checkout: through tools/run-tests.sh (with `command` instead of the shard's own when
- * given) under the shard timeout, in a machine-wide test slot (tools/test-slots.mjs) taken outside the timeout so
- * the wait does not count against the shard, and after the browser slot: nothing holding a test slot ever waits
- * for a browser slot, so the two cannot wait on each other.
+ * given), in a machine-wide test slot (tools/test-slots.mjs), and after the browser slot: nothing holding a test
+ * slot ever waits for a browser slot, so the two cannot wait on each other.
  * @param shard a SHARDS entry
  * @param [command] the command to run instead
  * @returns argv
  */
 function shardArgv(shard, command) {
     const what = command ? ["--command", shard.shard, command] : [shard.shard];
-    const cmd = ["timeout", "--kill-after=30s", TIMEOUT, "bash", "tools/run-tests.sh", ...what];
+    const cmd = ["bash", "tools/run-tests.sh", ...what];
     cmd.unshift(process.execPath, join(dirname(fileURLToPath(import.meta.url)), "test-slots.mjs"));
     return shard["needs-browser"] && existsSync(GATE) ? [GATE, ...cmd] : cmd;
 }
@@ -772,16 +770,15 @@ async function main() {
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
-        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside the timeout so the wait
-        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
-        // a browser slot, so the two cannot wait on each other.
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken after the browser slot: nothing
+        // holding a test slot ever waits for a browser slot, so the two cannot wait on each other.
         const what = shard.selected ? ["--command", shard.shard, shard["test-command"]] : [shard.shard];
         // Through the quarantine wrapper (tools/test-quarantine.mjs): when only tests failed, it runs the failed
         // files once more, and a flaky or quarantined test does not fail the shard. The gate's own copies of it
         // and of test-slots.mjs, so a gate fix holds for every branch at once (TEST_SLOT_GATE: the gate lane).
         const shardRun = ["bash", "tools/run-tests.sh", ...what].map(shQuote).join(" ");
         const quarantine = [join(tools, "test-quarantine.mjs"), "run", shard.shard, shardRun, "--via-run-tests"];
-        const cmd = ["timeout", "--kill-after=30s", TIMEOUT, process.execPath, ...quarantine];
+        const cmd = [process.execPath, ...quarantine];
         cmd.unshift(process.execPath, join(tools, "test-slots.mjs"));
         if (shard["needs-browser"] && existsSync(GATE)) {
             cmd.unshift(GATE);

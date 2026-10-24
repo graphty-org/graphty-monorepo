@@ -48,7 +48,7 @@ import {
     related,
     testsPassed,
 } from "./prepush-inputs.mjs";
-import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { byFailureRate, failureRates, gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -61,7 +61,7 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
-// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL,
 // PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
 const withoutPrepushSettings = () =>
     Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
@@ -208,17 +208,24 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
+            /bg_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
+        // The shards start right after the build, before the static checks they run beside.
+        const testsAt = prepush.indexOf('bg_step "Tests');
+        assert.ok(testsAt > prepush.indexOf('run_step "Build"'), "after the build");
+        assert.ok(testsAt < prepush.indexOf('run_step "Knip (dead code detection)"'), "before Knip and Lint");
+        assert.ok(prepush.indexOf("\nbg_wait\n") > prepush.indexOf('run_step "Public API report'), "read after them");
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
-        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
-        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). No limit on a shard either
+        // (the owner's no-arbitrary-timeouts rule): a 30-minute shard clock failed tier 3's graphty shard
+        // under load while its tests still ran. A hung test is ended by vitest's one hang guard.
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.doesNotMatch(code(tool("prepush-tests.mjs")), /"timeout"|PREPUSH_SHARD_TIMEOUT/);
         assert.match(
             code(tool("prepush-tests.mjs")),
             // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
             // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
-            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", shardTimeout\(shard\), process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \[process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -353,6 +360,7 @@ describe("the pre-push gate matches CI", () => {
         "land.mjs",
         "branch-sync.mjs",
         "branch-note.mjs",
+        "ship-risks.mjs",
     ];
     const runStage = (runTests, env = {}, opts = {}) => {
         const { shards = [["broken"], ["slow"]], setup } = opts;
@@ -533,6 +541,40 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
+    it("starts the shards with the highest failure rate in the test ledger first, else in the usual order", () => {
+        const shards = localShards(["graph-format", "graphty", "githerd"]);
+        const names = (list) => list.map((s) => s.shard);
+        const rates = new Map([
+            ["graphty-2", 0.16],
+            ["githerd", 0.08],
+            ["graph-format", 0],
+        ]);
+        const ordered = names(byFailureRate(shards, rates));
+        assert.deepEqual(ordered.slice(0, 2), ["graphty-2", "githerd"]);
+        // The rest keep their order (a stable sort), and so does everything without the ledger.
+        const rest = names(shards).filter((n) => !["graphty-2", "githerd"].includes(n));
+        assert.deepEqual(ordered.slice(2), rest);
+        assert.deepEqual(names(byFailureRate(shards, new Map())), names(shards));
+        // The ledger never blocks a push: missing, unopenable or failing, it gives no rates and one line.
+        const lines = [];
+        assert.equal(failureRates(null, (l) => lines.push(l)).size, 0);
+        assert.equal(failureRates({ openLedger: () => ({ why: "no database yet" }) }, (l) => lines.push(l)).size, 0);
+        const broken = {
+            prepare: () => ({
+                all: () => {
+                    throw new Error("database is locked");
+                },
+            }),
+            close: () => {},
+        };
+        assert.equal(failureRates({ openLedger: () => ({ db: broken }) }, (l) => lines.push(l)).size, 0);
+        assert.equal(lines.length, 3);
+        assert.match(lines[1], /no database yet.*usual order/);
+        assert.match(lines[2], /database is locked/);
+        const db = { prepare: () => ({ all: () => [{ shard: "graphty-1", rate: 0.18 }] }), close: () => {} };
+        assert.deepEqual([...failureRates({ openLedger: () => ({ db }) })], [["graphty-1", 0.18]]);
+    });
+
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
         // What the gate schedules: the shards it runs, never the ones it leaves to CI.
         const shards = gateShards(localShards(["graphty-element", "layout"]), null, null);
@@ -569,7 +611,7 @@ describe("the pre-push gate matches CI", () => {
         );
         assert.match(
             prepush,
-            /cleanup\(\) \{\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
+            /cleanup\(\) \{\n {4}bg_kill\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
             "the EXIT trap stops it",
         );
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
@@ -737,7 +779,13 @@ exec ${realGit} "$@"
         };
         const sandbox = async (fn) => {
             const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
-            const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+            // Without the caller's browser lane (tools/low-priority.sh sets BROWSER_SLOT_PRIORITY=low): the
+            // lane tests read the lane the script itself chooses.
+            const env = Object.fromEntries(
+                Object.entries(process.env).filter(
+                    ([k]) => !k.startsWith("GIT_") && k !== "BROWSER_SLOT_PRIORITY" && !k.startsWith("VISUAL_PREVIEW_"),
+                ),
+            );
             Object.assign(env, {
                 PATH: `${t}/bin:${process.env.PATH}`,
                 GIT_CONFIG_GLOBAL: "/dev/null",
@@ -832,6 +880,28 @@ exec ${realGit} "$@"
             });
         });
 
+        it("captures for the pull request of VISUAL_PREVIEW_BRANCH and leaves it staged on --promote, for land.mjs", () => {
+            sandbox(({ run, head, main, local }) => {
+                // The detached check worktree has no branch: land.mjs names the one it pushes to.
+                mkdirSync(join(main, "tmp/pr-status"), { recursive: true });
+                writeFileSync(
+                    join(main, "tmp/pr-status/status.json"),
+                    JSON.stringify({ pullRequests: [{ head: "golden", number: 7 }] }),
+                );
+                const named = { VISUAL_PREVIEW_BRANCH: "golden" };
+                const r = run({ ...named, STUB_STATUS: "changed" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                const staged = join(local, `.pending-${head}`);
+                const status = JSON.parse(readFileSync(join(staged, "status.json"), "utf8"));
+                assert.deepEqual([status.state, status.pr, status.head], ["done", 7, head]);
+                assert.equal(run(named, "--promote", head).status, 0);
+                assert.ok(existsSync(join(staged, "p/results.json")), "still staged: pending push");
+                assert.ok(!existsSync(join(local, "7")), "never the pull request's preview before the push");
+                assert.equal(run(named, "--discard", head).status, 0);
+                assert.ok(!existsSync(staged));
+            });
+        });
+
         it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
             return sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
@@ -869,6 +939,27 @@ exec ${realGit} "$@"
                 assert.equal(status.state, "failed");
             });
         });
+
+        it("gives the cut's capture the high browser lane, and only the cut's", () =>
+            sandbox(({ run, head, main }) => {
+                mkdirSync(join(main, "tmp"), { recursive: true });
+                const wrapper = join(main, "tmp/with-browser.sh");
+                const lanes = join(main, "tmp/lanes");
+                writeFileSync(wrapper, `#!/bin/sh\necho "\${BROWSER_SLOT_PRIORITY:-none}" >> ${lanes}\nexec "$@"\n`, {
+                    mode: 0o755,
+                });
+                const ordinary = run({ STUB_STATUS: "changed", WITH_BROWSER: wrapper }, "--head", head);
+                assert.equal(ordinary.status, 0, ordinary.stdout + ordinary.stderr);
+                // Discarded first, or a finished capture of the same head would be reused.
+                assert.equal(run({}, "--discard", head).status, 0);
+                const cut = run(
+                    { STUB_STATUS: "changed", WITH_BROWSER: wrapper, VISUAL_PREVIEW_PRIORITY: "cut" },
+                    "--head",
+                    head,
+                );
+                assert.equal(cut.status, 0, cut.stdout + cut.stderr);
+                assert.equal(readFileSync(lanes, "utf8"), "none\nhigh\n");
+            }));
 
         it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
             return sandbox(({ run, head, origin, main, local }) => {
@@ -1192,6 +1283,15 @@ describe("ci.yml", () => {
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
+    });
+
+    it("reports flaky screenshots after the visual jobs without gating anything on them", () => {
+        const jobs = parseJobs(ci);
+        assert.deepEqual(jobs["visual-flaky"].needs, ["visual"]);
+        assert.equal(jobs["visual-flaky"].coe, "true");
+        assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
+        assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
+        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
     });
 
     it("runs no security audit on pull requests or merge-queue runs", () => {
@@ -1626,6 +1726,43 @@ const gitShow = (path) => {
     const r = spawnSync("git", ["show", `origin/master:${path}`], { encoding: "utf8" });
     return r.status === 0 ? r.stdout : undefined;
 };
+
+describe("dependabot.yml", () => {
+    const text = readFileSync(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
+    it("opens every version update against golden, never master", () => {
+        const ecosystems = text.match(/- package-ecosystem: /g).length;
+        assert.equal(text.match(/\n {6}target-branch: golden\n/g)?.length, ecosystems);
+    });
+    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
+        const npm = text.slice(
+            text.indexOf("package-ecosystem: npm"),
+            text.indexOf("package-ecosystem: github-actions"),
+        );
+        const groups = npm.slice(npm.indexOf("groups:"));
+        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
+        // Dependabot puts a dependency in the first group that matches
+        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
+        for (const kind of ["version-updates", "security-updates"]) {
+            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+        }
+    });
+});
+
+describe("the Sentry source map upload", () => {
+    it("runs only in the build graphty.app deploys, a push to master (run 40051811635: 18 of 20 minutes)", () => {
+        const uses = workflow("ci.yml").match(/SENTRY_AUTH_TOKEN: .*/g);
+        assert.ok(uses.length >= 1);
+        for (const line of uses) {
+            assert.equal(
+                line,
+                "SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && " +
+                    "!inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}",
+            );
+        }
+        // deploy-pages.yml publishes only a push run's build, so that one keeps the upload
+        assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
+    });
+});
 
 describe("new required checks start as warnings", () => {
     const ci = workflow("ci.yml");
@@ -2102,7 +2239,25 @@ describe("pr-issue-link.yml", () => {
         assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
-        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+        // never in an environment variable: one over 128 KiB stops the runner starting the step
+        assert.doesNotMatch(wf, /pull_request\.body/);
+    });
+    it("reads a description over 128 KiB from the event file (run 40001752947: E2BIG)", () => {
+        const run = (body) => {
+            const event = join(TMP, "pr-event.json");
+            writeFileSync(event, JSON.stringify({ pull_request: { body } }));
+            const env = { ...process.env, PR_AUTHOR: "someone", GITHUB_EVENT_PATH: event };
+            delete env.PR_BODY;
+            return spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env,
+            });
+        };
+        const long = "- land: fix/some-branch, merged into golden\n".repeat(4000);
+        assert.ok(long.length > 128 * 1024);
+        assert.equal(run(`${long}Fixes #3342\n`).status, 0);
+        assert.equal(run("a".repeat(200 * 1024)).status, 1);
+        assert.equal(run(null).status, 1);
     });
     it("fails with the message that says what to add", () => {
         const run = (env) =>
@@ -2298,6 +2453,11 @@ echo "${aptSays}"`,
 describe("Mergify is retired", () => {
     it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
         assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
+    });
+    it("uploads nothing to Mergify: GitHub refused its token with 403 on every test job", () => {
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
+        }
     });
 });
 
@@ -2508,7 +2668,17 @@ describe("master-guard", () => {
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+    });
+
+    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
+        assert.equal(decide(run("Deploy to GitHub Pages", "cancelled", "workflow_run")), "none");
+        // the guard job's filter lets the deploy's event through, and the name matches deploy-pages.yml's
+        assert.match(workflow("master-guard.yml"), /event == 'workflow_run'/);
+        assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {
@@ -3942,6 +4112,9 @@ describe("pr-status-broker", () => {
 
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    // run_step, bg_step and the functions they use, cut out of tools/prepush-source-checks.sh to run alone.
+    const stepFunctions = (checks) =>
+        checks.slice(checks.indexOf("script_missing() {"), checks.indexOf("trap bg_kill EXIT\n") + 18);
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
@@ -4030,20 +4203,85 @@ describe("the commit and push hooks", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
         for (const step of [...steps, "SonarQube (changed lines)"]) {
-            assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
+            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
+        // The two commonest failures start first, in the background, before any other check.
+        const firstRun = checks.indexOf('    run_step "');
+        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
+        assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         // SonarQube runs only there, so a push it fails never reaches the queue or the build.
         assert.doesNotMatch(prepush, /sonar-gate\.mjs/);
-        const runStep = checks.slice(
-            checks.indexOf("run_step() {"),
-            checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
-        );
-        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+        const steps_ = stepFunctions(checks);
+        const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
             encoding: "utf8",
         });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
+    });
+
+    it("pre-push stops with a clear message when the remote branch moved while the gate ran", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const fn = prepush.slice(
+            prepush.indexOf("remote_moved() {"),
+            prepush.indexOf("\n}\n", prepush.indexOf("remote_moved() {")) + 3,
+        );
+        assert.ok(
+            prepush.indexOf("if remote_moved; then") > prepush.indexOf('record "gate${KNOWN_FAILURES:+-known}"'),
+            "after the pass is recorded",
+        );
+        assert.match(repoFile(".husky/pre-push"), /export PUSH_REMOTE_SHA PUSH_REMOTE_REF PUSH_REMOTE\n/);
+        const dir = mkdtempSync(join(tmpdir(), "prepush-remote-"));
+        try {
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            git("init", "-q", "-b", "main");
+            git("commit", "-q", "--allow-empty", "-m", "a");
+            const a = git("rev-parse", "HEAD").stdout.trim();
+            spawnSync("git", ["init", "-q", "--bare", join(dir, "origin.git")]);
+            git("remote", "add", "origin", join(dir, "origin.git"));
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            git("commit", "-q", "--allow-empty", "-m", "b");
+            const moved = (ref, sha) =>
+                spawnSync("bash", ["-c", `${fn}\nremote_moved`], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { ...process.env, PUSH_REMOTE: "origin", PUSH_REMOTE_REF: ref, PUSH_REMOTE_SHA: sha },
+                }).status === 0;
+            assert.equal(moved("refs/heads/feat/x", a), false, "still where the push began");
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            assert.equal(moved("refs/heads/feat/x", a), true, "moved during the gate");
+            assert.equal(moved("refs/heads/feat/x", "0".repeat(40)), true, "created during the gate");
+            assert.equal(moved("refs/heads/golden", a), false, "golden is land.mjs's to handle");
+            assert.equal(moved("refs/heads/gone", a), false, "a remote that has no answer is not moved");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("pre-push reports a background step's failure at the next step and stops the rest", () => {
+        const steps = stepFunctions(repoFile("tools/prepush-source-checks.sh"));
+        const dir = mkdtempSync(join(tmpdir(), "prepush-bg-"));
+        try {
+            const script = `${steps}
+bg_step slow "sleep 30; echo SLOW-DONE" "${dir}/slow.log"
+bg_step fails "echo FAILED-OUTPUT; exit 1" "${dir}/fails.log"
+until [ -s "${dir}/fails.log" ] && ! kill -0 "\${BG_PIDS[1]}" 2>/dev/null; do sleep 0.05; done
+run_step after "echo AFTER-RAN"`;
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000 });
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stdout, /FAILED-OUTPUT[\s\S]*\[FAIL\] fails failed/);
+            assert.match(r.stdout, /stopped at the first failure: fails/);
+            assert.doesNotMatch(r.stdout, /AFTER-RAN|SLOW-DONE/);
+            const passing = spawnSync(
+                "bash",
+                ["-c", `${steps}\nbg_step ok "echo OK-OUTPUT" "${dir}/ok.log"\nrun_step next "echo NEXT"\nbg_wait`],
+                { encoding: "utf8", timeout: 20000 },
+            );
+            assert.equal(passing.status, 0, passing.stdout + passing.stderr);
+            assert.match(passing.stdout, /OK-OUTPUT[\s\S]*\[PASS\] ok passed/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it("pre-push runs knip and the published-dependency check on a push that affects no package", () => {
@@ -4344,6 +4582,14 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 join(dir, "tools/check-committed-images.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
             );
+            writeFileSync(
+                join(dir, "tools/check-figma-lock.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/release-dry-run.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
@@ -4371,6 +4617,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(first.calls, /links/);
             assert.match(first.calls, /sonar/);
             assert.match(first.calls, /images/);
+            assert.match(first.calls, /release/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);
@@ -4415,6 +4662,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
             writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -4438,6 +4687,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             const calls = readFileSync(join(dir, "calls"), "utf8");
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
             assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
+            assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
+            assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);

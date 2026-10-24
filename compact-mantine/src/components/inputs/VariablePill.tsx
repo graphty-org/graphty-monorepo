@@ -160,7 +160,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 data-kind={kind}
             >
                 {/* The name may be cut to fit the row: the tooltip says it whole. */}
-                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-fill-button"
@@ -208,7 +208,7 @@ export function VariablePill(props: VariablePillProps): React.JSX.Element {
                 </span>
             )}
             <span className="cm-var-pill-slot">
-                <Tooltip label={tooltip} position="top" style={{ whiteSpace: "pre-line" }}>
+                <Tooltip label={tooltip} style={{ whiteSpace: "pre-line" }}>
                     <button
                         type="button"
                         className="cm-var-pill cm-focus-outside"

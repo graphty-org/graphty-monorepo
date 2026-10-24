@@ -14,6 +14,7 @@ import { after, describe, it } from "node:test";
 import {
     activeList,
     afterShard,
+    blameChange,
     closeFinished,
     decide,
     emptyState,
@@ -142,6 +143,42 @@ function checkout({ retryFails, quarantine = [], suite = false, oldNaming = fals
     return { root, first };
 }
 
+describe("blameChange", () => {
+    // A ledger whose failuresBefore() count is `prior[file]`.
+    const ledgerOf = (prior) => () => ({
+        db: { prepare: () => ({ get: (file) => ({ n: prior[file] ?? 0 }) }), close: () => {} },
+    });
+    const d = { pass: true, flaky: [fail(T1), fail(T2)], excused: [], failing: [] };
+    const landCheck = { TEST_LEDGER_KIND: "land-check", TEST_LEDGER_BRANCH: "fix/1-x" };
+
+    it("fails a land check on a flaky test with no failure before the change, and names the landing", () => {
+        const r = blameChange(d, fresh(), "graphty", landCheck, ledgerOf({ [T2.file]: 3 }));
+        assert.equal(r.pass, false);
+        assert.deepEqual(
+            r.caused.map((f) => f.name),
+            [T1.name],
+        );
+        assert.deepEqual(
+            r.flaky.map((f) => f.name),
+            [T2.name],
+            "flaky before the change: quarantined",
+        );
+        assert.deepEqual(
+            r.failing.map((f) => f.name),
+            [T1.name],
+        );
+        assert.equal(r.suspects[0].branch, "fix/1-x");
+    });
+
+    it("changes nothing outside a land check, and with no ledger only names the suspect", () => {
+        assert.equal(blameChange(d, fresh(), "graphty", {}, ledgerOf({})).pass, true);
+        const none = blameChange(d, fresh(), "graphty", landCheck, () => ({ why: "no database yet" }));
+        assert.equal(none.pass, true);
+        assert.equal(none.flaky.length, 2);
+        assert.equal(none.suspects[0].branch, "fix/1-x");
+    });
+});
+
 describe("runShard", () => {
     const run = async (c, env = {}) => {
         const result = join(c.root, "result.json");
@@ -233,6 +270,15 @@ describe("runShard", () => {
         );
     });
 
+    it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {
+        const flood = `for i in 1 2 3 4 5 6 7 8; do echo 'Warning: An update was not wrapped in act(...)'; done; echo ' Test Files  1 passed (1)'`;
+        const opts = (env) => ({ root: fresh(), env: { ...process.env, ...env }, state: emptyState(), logBudget: 200 });
+        for (const env of [{ GRAPHTY_TEST_QUARANTINE: undefined }, { GRAPHTY_TEST_QUARANTINE: "0" }]) {
+            assert.equal(await runShard("graphty-1", flood, opts(env)), 1, JSON.stringify(env));
+            assert.equal(await runShard("graphty-1", "echo ok", opts(env)), 0, "within the budget it passes");
+        }
+    });
+
     it("splits a log at the retry for the ledger", () => {
         assert.deepEqual(splitLog("a\ntest-quarantine: retrying x\nb"), {
             first: "a\n",
@@ -263,6 +309,15 @@ describe("afterShard", () => {
         assert.equal(calls.length, 1, "a test already quarantined files nothing");
         const gpu = afterShard({ main, root, shard: "webgpu-graph-algorithms-node", result: flaky, gh, day: DAY });
         assert.deepEqual(gpu.added, [], "GPU tests are never quarantined");
+    });
+
+    it("names a land check's landing as suspect in the issue", () => {
+        const main = fresh();
+        const root = checkout({}).root;
+        const suspects = [{ sha: "abc123", branch: "fix/1-x" }];
+        afterShard({ main, root, shard: "graphty-2", result: { ...flaky, suspects }, gh, day: DAY });
+        assert.match(calls.at(-1).at(-1), /- abc123 fix\/1-x/);
+        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "kept out of the entry");
     });
 
     it(`ends an entry after ${PASSES_TO_LEAVE} gate runs in a row that passed it; a failure starts the count again`, () => {

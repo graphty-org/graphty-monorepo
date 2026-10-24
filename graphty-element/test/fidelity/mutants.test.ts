@@ -38,7 +38,7 @@ import {
     oracleMeta,
 } from "./oracle/oracle-library";
 import type { PScene } from "./oracle/primitives";
-import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
+import { checkFloors, partsOf, readOracleFloors } from "./oracle/run-oracle";
 
 /**
  * The samples that between them exercise every planted defect: synthetic files, and the specimen sheets that hold
@@ -145,15 +145,16 @@ describe("comparator mutants", () => {
                 after = mutate(g);
                 return after;
             });
+            const standIn = isStandIn(oracleMeta(id));
             const { dropped, unfloored, newlyFailing } = checkFloors(
-                id,
                 {
                     report: r.report,
                     scores: r.scores,
                     sha256,
                     oracleSha256: null,
-                    standIn: isStandIn(oracleMeta(id)),
+                    standIn,
                     matched: null,
+                    parts: partsOf(id, r, r.scores, standIn),
                 },
                 stored,
             );

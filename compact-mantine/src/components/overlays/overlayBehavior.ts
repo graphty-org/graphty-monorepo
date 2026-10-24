@@ -187,7 +187,9 @@ function dismissTooltips(pressedOn: EventTarget | null = null): void {
  * that from `compositionstart` and `compositionend` on the document, so this Escape is framed by
  * the two: the hidden tooltips stay as they are (hidden), and the key goes on. A visible tooltip
  * still takes the Escape that closes it, as a menu does. Read before `dismissTooltips` marks the
- * visible one dismissed.
+ * visible one dismissed. That composition handling is floating-ui's own, not an API it promises:
+ * checked against @floating-ui/react 0.27.20 (Mantine 8.3.18), and the test "a tooltip kept hidden
+ * under a resting pointer does not take the page's Escape" fails if an upgrade changes it.
  * ponytail: a visible HoverCard (floating-ui too) beside a hidden tooltip would let this Escape
  * through as well; no HoverCard is used today.
  * @param event - a keydown anywhere in the document, in the capture phase

@@ -1,4 +1,4 @@
-import { Combobox, TextInput, useCombobox } from "@mantine/core";
+import { Combobox, type ComboboxStore, TextInput, useCombobox } from "@mantine/core";
 import { useId, useMergedRef, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useRef, useState } from "react";
 
@@ -181,6 +181,71 @@ function isSeparator(item: ComboInputItem): item is ComboInputSeparator {
 }
 
 /**
+ * The list's keys in a combo field: Control+ArrowDown (or Alt+ArrowDown) opens the list; with it
+ * open, ArrowUp / ArrowDown move, Home / End jump, Enter picks and Escape closes.
+ * @param event - the key press in the field
+ * @param combobox - the field's combobox store
+ * @param list - the field's list
+ * @param list.hasList - whether the field has a list at all
+ * @param list.choiceCount - how many choices (not separators) the list holds
+ * @param list.syncActive - points aria-activedescendant at the highlighted option
+ * @returns whether the key was the list's (so the field does nothing more with it)
+ */
+function handleListKeys(
+    event: React.KeyboardEvent<HTMLInputElement>,
+    combobox: ComboboxStore,
+    list: { hasList: boolean; choiceCount: number; syncActive: () => void },
+): boolean {
+    if (!combobox.dropdownOpened) {
+        if (list.hasList && event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
+            event.preventDefault();
+            combobox.openDropdown("keyboard");
+            return true;
+        }
+        return false;
+    }
+    // An arrow pressed before the open frame has highlighted the current value still moves
+    // from the current value, not from the top of the list.
+    const fromChecked = (step: () => void) => (): void => {
+        if (combobox.getSelectedOptionIndex() === -1) {
+            combobox.selectActiveOption();
+        }
+        step();
+    };
+    const move: Record<string, () => void> = {
+        ArrowDown: fromChecked(() => combobox.selectNextOption()),
+        ArrowUp: fromChecked(() => combobox.selectPreviousOption()),
+        Home: () => combobox.selectFirstOption(),
+        End: () => {
+            combobox.selectOption(list.choiceCount - 1);
+        },
+    };
+    const mover = move[event.key];
+    if (mover) {
+        event.preventDefault();
+        mover();
+        list.syncActive();
+        return true;
+    }
+    if (event.key === "Enter") {
+        event.preventDefault();
+        if (combobox.getSelectedOptionIndex() !== -1) {
+            combobox.clickSelectedOption();
+        } else {
+            combobox.closeDropdown();
+        }
+        return true;
+    }
+    if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        combobox.closeDropdown();
+        return true;
+    }
+    return false;
+}
+
+/**
  * A combo field (design/figma-spec.md 6.3): a value you can type, with a chevron that opens a list
  * of presets over the field, the current value sitting exactly on top of the field. Figma uses it
  * for font size, auto-layout width and height ("Hug"), gap and export scale.
@@ -290,56 +355,14 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         }
     };
 
-    const listKeys = (event: React.KeyboardEvent<HTMLInputElement>): boolean => {
-        const open = combobox.dropdownOpened;
-        if (!open) {
-            if (hasList && event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
-                event.preventDefault();
-                combobox.openDropdown("keyboard");
-                return true;
-            }
-            return false;
-        }
-        // An arrow pressed before the open frame has highlighted the current value still moves
-        // from the current value, not from the top of the list.
-        const fromChecked = (step: () => void) => (): void => {
-            if (combobox.getSelectedOptionIndex() === -1) {
-                combobox.selectActiveOption();
-            }
-            step();
-        };
-        const move: Record<string, () => void> = {
-            ArrowDown: fromChecked(() => combobox.selectNextOption()),
-            ArrowUp: fromChecked(() => combobox.selectPreviousOption()),
-            Home: () => combobox.selectFirstOption(),
-            End: () => {
-                combobox.selectOption(options.filter((item) => !isSeparator(item)).length - 1);
+    const listKeys = (event: React.KeyboardEvent<HTMLInputElement>): boolean =>
+        handleListKeys(event, combobox, {
+            hasList,
+            choiceCount: options.filter((item) => !isSeparator(item)).length,
+            syncActive: () => {
+                setActiveId(highlightedId());
             },
-        };
-        const mover = move[event.key];
-        if (mover) {
-            event.preventDefault();
-            mover();
-            setActiveId(highlightedId());
-            return true;
-        }
-        if (event.key === "Enter") {
-            event.preventDefault();
-            if (combobox.getSelectedOptionIndex() !== -1) {
-                combobox.clickSelectedOption();
-            } else {
-                combobox.closeDropdown();
-            }
-            return true;
-        }
-        if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            combobox.closeDropdown();
-            return true;
-        }
-        return false;
-    };
+        });
 
     const textProps = {
         value: textDraft ?? currentText,

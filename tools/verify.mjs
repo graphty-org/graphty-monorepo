@@ -985,13 +985,17 @@ async function pollRun(ctx, job) {
     }
     const run = await findRun(ctx, job);
     if (run === NO_ANSWER) return null;
-    if (!run) return noRun(ctx, job);
+    if (!run) {
+        await noRun(ctx, job);
+        return null;
+    }
     return judgeRun(ctx, job, run);
 }
 
 function brokerChecks(ctx, match) {
     const b = readJsonFile(ctx.brokerFile);
-    if (!b || b.error || !(Date.now() - Date.parse(b.fetchedAt) < BROKER_STALE_MS)) return null;
+    const age = Date.now() - Date.parse(b?.fetchedAt);
+    if (!b || b.error || Number.isNaN(age) || age >= BROKER_STALE_MS) return null;
     return (b.pullRequests ?? []).find(match)?.checks ?? null;
 }
 
@@ -1042,10 +1046,12 @@ async function ended(ctx, job, run) {
     if (run.conclusion === "cancelled") {
         return { code: 1, output: `[SUPERSEDED] ${run.html_url} was cancelled; the newest wanted commit is verified` };
     }
-    if (run.conclusion === "startup_failure") return lostRun(ctx, job, run);
-    const jobs = await runJobs(ctx, run.id);
+    const jobs = run.conclusion === "startup_failure" ? [] : await runJobs(ctx, run.id);
     if (jobs === NO_ANSWER) return null;
-    if (!jobs.some(isFailed)) return lostRun(ctx, job, run);
+    if (!jobs.some(isFailed)) {
+        await lostRun(ctx, job, run);
+        return null;
+    }
     await clearTrouble(ctx);
     return failure(ctx, run, jobs);
 }
@@ -1087,14 +1093,10 @@ async function failure(ctx, run, jobs) {
 function groupFailures(ctx, j, members) {
     try {
         const notes = JSON.parse(ctx.gh(["api", `repos/{owner}/{repo}/check-runs/${j.id}/annotations`]));
-        const named = notes.flatMap(
-            (n) =>
-                /failed:(.*)/
-                    .exec(n.message ?? "")?.[1]
-                    .trim()
-                    .split(/\s+/) ?? [],
-        );
-        const failed = members.filter((m) => named.includes(m));
+        const named = new Set();
+        for (const n of notes)
+            for (const m of /failed:(.*)/.exec(n.message ?? "")?.[1].split(/\s+/) ?? []) named.add(m);
+        const failed = members.filter((m) => named.has(m));
         if (failed.length) return failed;
     } catch (e) {
         console.log(`verify: could not read ${j.name}'s failed members: ${e.message.split("\n")[0]}`);
@@ -1123,11 +1125,10 @@ async function lostRun(ctx, job, run) {
     job.say(`${run.html_url} ended ${run.conclusion} with no failed job: not a verdict (loss ${count})`);
     if (count >= 2) {
         await setUnavailable(ctx, `${count} runs of ${short(job.commit)} lost (${run.conclusion})`);
-        if (!(await ctx.actionsOperational())) return null;
+        if (!(await ctx.actionsOperational())) return;
     }
     if (!ghTry(ctx, ["api", "-X", "POST", `repos/{owner}/{repo}/actions/runs/${run.id}/rerun`]))
         await recreate(ctx, job);
-    return null;
 }
 
 // No run for the commit: GitHub accepted a push and created none, or the ref is not at the commit (someone moved
@@ -1136,7 +1137,7 @@ async function noRun(ctx, job) {
     const at = git(ctx, ctx.main, ["ls-remote", "origin", `refs/heads/${job.ref}`], { ok: true }).stdout.split("\t")[0];
     if (at !== job.commit && !job.dispatched) {
         await pushRef(ctx, job);
-        return null;
+        return;
     }
     const attempt = await withState(ctx, (s) => {
         const n = s.noRun?.commit === job.commit ? s.noRun.attempt + 1 : 1;
@@ -1146,10 +1147,9 @@ async function noRun(ctx, job) {
     job.say(`no CI run created for ${short(job.commit)} on ${job.ref}, attempt ${attempt}`);
     if (attempt >= 2) {
         await setUnavailable(ctx, `no CI run created for ${short(job.commit)} twice`);
-        if (!(await ctx.actionsOperational())) return null;
+        if (!(await ctx.actionsOperational())) return;
     }
     await recreate(ctx, job);
-    return null;
 }
 
 /**

@@ -59,6 +59,7 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
+import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
 import {
@@ -1671,18 +1672,22 @@ export class Graphty extends LitElement {
             );
         }
 
+        const dispatcher = dispatcherOf(this.#graph.getSession());
         return (
-            dispatcherOf(this.#graph.getSession())
-                .dispatch({
-                    op: "data.import",
-                    source: {
-                        ...(source.type === undefined ? {} : { type: source.type }),
-                        ...(source.config === undefined ? {} : { config: source.config }),
-                    },
-                    mode: "replace",
-                    coalesce: ELEMENT_SOURCE,
-                    ...(setup ? { setup: true } : {}),
-                })
+            // In the session's load line, so it lands after a load asked for earlier (issue #3382).
+            loadLineOf(dispatcher)
+                .run(() =>
+                    dispatcher.dispatch({
+                        op: "data.import",
+                        source: {
+                            ...(source.type === undefined ? {} : { type: source.type }),
+                            ...(source.config === undefined ? {} : { config: source.config }),
+                        },
+                        mode: "replace",
+                        coalesce: ELEMENT_SOURCE,
+                        ...(setup ? { setup: true } : {}),
+                    }),
+                )
                 // A failed load is published on the data-loading channel by the load itself, before
                 // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
                 .then(

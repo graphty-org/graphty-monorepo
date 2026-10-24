@@ -59,7 +59,7 @@ import {
     SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
-import { LoadLine, type LoadTurn } from "./loadLine";
+import type { LoadLine, LoadTurn } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -165,6 +165,8 @@ interface DataWrites {
     valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
+    /** The session's load line, shared with the graph's own loads, so loads land in call order. */
+    readonly loadLine: LoadLine;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
     send?(command: SessionCommand): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
@@ -470,7 +472,7 @@ export class SessionData implements SessionDataApi {
     /** What click-to-expand keeps beside the graph. */
     private readonly expansions = new ExpansionState();
     /** The loads asked for and not yet dispatched, so they land in the order they were asked for. */
-    private readonly loadLine = new LoadLine();
+    private readonly loadLine: LoadLine;
 
     /**
      * Build the data surface.
@@ -494,6 +496,7 @@ export class SessionData implements SessionDataApi {
         this.records = records;
         this.readConfig = readConfig;
         this.writes = writes;
+        this.loadLine = writes.loadLine;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
@@ -583,7 +586,8 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
-        const turn = this.loadLine.join();
+        // A network source's read honours the signal, so its wait for its turn does too.
+        const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
         try {
             if (source.source !== undefined) {
                 await sourceLoad.importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
@@ -666,8 +670,9 @@ export class SessionData implements SessionDataApi {
                 details: { name, available: DATASET_NAMES },
             });
         }
-        // Its place in line is taken now, so a load asked for later waits for this download.
-        const turn = this.loadLine.join();
+        // Its place in line is taken now, so a load asked for later waits for this download; an
+        // abort while it waits for its turn stops it there and lets the next load through.
+        const turn = this.loadLine.join(signal);
         try {
             let snapshot: GraphSnapshot;
             try {
@@ -834,7 +839,7 @@ export class SessionData implements SessionDataApi {
      */
     async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadSample");
-        const turn = this.loadLine.join();
+        const turn = this.loadLine.join(options.signal);
         try {
             await sourceLoad.loadSample(this.hostInTurn(turn), id, options);
         } finally {
@@ -1027,7 +1032,20 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                importer: () => this.writes.importer(),
+                inLine: async (run) => {
+                    const send = this.writes.importer();
+                    const turn = this.loadLine.join();
+                    try {
+                        await run((command) => {
+                            const ahead = turn.wait();
+                            return ahead === undefined
+                                ? turn.issue(() => send(command))
+                                : ahead.then(() => turn.issue(() => send(command)));
+                        });
+                    } finally {
+                        turn.leave();
+                    }
+                },
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {

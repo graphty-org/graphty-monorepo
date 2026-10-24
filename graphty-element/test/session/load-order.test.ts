@@ -141,6 +141,60 @@ describe("session.data loads that overlap", () => {
         session.dispose();
     });
 
+    it("keeps a prepared draft loaded after a download that is still running", async () => {
+        const session = createGraphSession();
+        const draft = await session.data.prepare({ type: "json", config: { data: TRIANGLE } });
+        const requested = hold("dolphins");
+        const older = session.data.loadDataset("dolphins", { baseUrl });
+        await requested;
+        const newer = draft.load();
+        release("dolphins");
+        await Promise.all([older, newer]);
+        assert.strictEqual(session.data.snapshot().nodeCount, 3, "the draft, loaded last");
+        session.dispose();
+    });
+
+    it("stops a load aborted while it waits for its turn, and lets the next one through", async () => {
+        const session = createGraphSession();
+        let releaseOlder = (): void => undefined;
+        heldTeams.set("5", new Promise<void>((done) => (releaseOlder = done)));
+        const waitingRead = new Promise<void>((done) => readDone.set("2", done));
+        const older = session.data.import({ source: "held-load-order", config: { size: 5 } });
+        const abort = new AbortController();
+        const waiting = session.data.import(
+            { source: "held-load-order", config: { size: 2 } },
+            { signal: abort.signal },
+        );
+        // Its read is done; it only waits for the older load's turn.
+        await waitingRead;
+        abort.abort();
+        const [aborted] = await Promise.allSettled([waiting]);
+        assert.strictEqual(aborted.status, "rejected");
+        const last = session.data.generate("cycle", { n: 7 });
+        releaseOlder();
+        await Promise.all([older, last]);
+        assert.strictEqual(session.data.snapshot().nodeCount, 7, "the load asked for last");
+        await session.undo();
+        assert.strictEqual(session.data.snapshot().nodeCount, 5, "the aborted load never landed");
+        session.dispose();
+    });
+
+    it("lets a later load through once a download that never finishes is aborted", async () => {
+        const session = createGraphSession();
+        const requested = hold("karate");
+        const abort = new AbortController();
+        const stalled = session.data.loadDataset("karate", { baseUrl, signal: abort.signal });
+        await requested;
+        const newer = session.data.generate("cycle", { n: 7 });
+        abort.abort();
+        const [first] = await Promise.allSettled([stalled]);
+        await newer;
+        assert.strictEqual(first.status, "rejected");
+        assert.strictEqual(session.data.snapshot().nodeCount, 7);
+        release("karate");
+        session.dispose();
+    });
+
     it("lets a later load through when an earlier download fails", async () => {
         const session = createGraphSession();
         const requested = hold("nothing-here");

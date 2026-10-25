@@ -2542,8 +2542,9 @@ describe("gpu.yml", () => {
 
     it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {
         // nx names a project that only @nx/eslint infers by reading <root>/package.json relative to the
-        // process's cwd, so from a package directory it fails "have no name provided" (release run
-        // 40119894804, issue #3318). Such a directory needs a project.json with its name.
+        // process's cwd, so from a package directory it failed "have no name provided" (release run
+        // 40119894804, issue #3318) while graph-io/test/fidelity/oracles/tools/web was a project of its
+        // own. That directory is now part of graph-io; this keeps any such directory from coming back.
         assert.match(job(gpu, "test-gpu"), /working-directory: graphty-element\n.*\n {14}run: pnpm exec nx run-many/);
         const r = spawnSync("pnpm", ["exec", "nx", "show", "projects", "--json"], {
             cwd: new URL("../graphty-element/", import.meta.url),
@@ -2551,7 +2552,7 @@ describe("gpu.yml", () => {
             env: { ...process.env, NX_DAEMON: "false" },
         });
         assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
-        assert.ok(JSON.parse(r.stdout).includes("fidelity-web-oracles"));
+        assert.ok(JSON.parse(r.stdout).includes("graph-io"));
     });
 
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {

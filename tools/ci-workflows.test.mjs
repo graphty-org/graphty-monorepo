@@ -1759,8 +1759,8 @@ describe("the Sentry source map upload", () => {
 
     it("injects debug ids before uploading, under the release the build stamped", () => {
         const body = ci.slice(ci.indexOf("- name: Upload graphty's source maps to Sentry"));
-        const inject = body.indexOf("sentry sourcemaps inject dist");
-        const send = body.indexOf('sentry sourcemaps upload --release "$SENTRY_RELEASE" dist');
+        const inject = body.indexOf("sentry-cli sourcemaps inject dist");
+        const send = body.indexOf('sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist');
         assert.ok(inject > 0 && send > inject);
         assert.equal(upload["working-directory"], "graphty");
         assert.equal((ci.match(/SENTRY_RELEASE: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
@@ -1769,11 +1769,12 @@ describe("the Sentry source map upload", () => {
     it("never cancels or fails the build: six master builds were cancelled by a hanging set-commits", () => {
         assert.equal(String(upload["continue-on-error"]), "true");
         assert.ok(Number(upload["timeout-minutes"]) > 0 && Number(upload["timeout-minutes"]) <= 5);
-        // sentry-cli runs only through the bounded wrapper
+        // every sentry-cli call is bounded (written out per line, so knip sees the binary)
         const start = ci.indexOf("- name: Upload graphty's source maps to Sentry");
         const body = ci.slice(start, ci.indexOf("- name: Upload all package builds", start));
-        assert.deepEqual(body.match(/pnpm exec sentry-cli/g), ["pnpm exec sentry-cli"]);
-        assert.match(body, /timeout \d+ pnpm exec sentry-cli "\$@"/);
+        const calls = body.match(/^.*pnpm exec sentry-cli.*$/gm) ?? [];
+        assert.equal(calls.length, 5);
+        for (const call of calls) assert.match(call, /timeout \d+ pnpm exec sentry-cli /);
     });
 });
 

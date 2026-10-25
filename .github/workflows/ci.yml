@@ -429,15 +429,12 @@ jobs:
                   SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  sentry() {
-                      timeout 60 pnpm exec sentry-cli "$@" ||
-                          { echo "::warning::sentry-cli $1 $2 failed or timed out (exit $?); the build is unaffected"; return 1; }
-                  }
-                  sentry sourcemaps inject dist || exit 0
-                  sentry releases new "$SENTRY_RELEASE" || exit 0
-                  sentry releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || true
-                  sentry sourcemaps upload --release "$SENTRY_RELEASE" dist || exit 0
-                  sentry releases finalize "$SENTRY_RELEASE" || true
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them

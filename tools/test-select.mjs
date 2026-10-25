@@ -125,7 +125,7 @@ export function lockSections(text) {
         }
         const sub = section === "importers" && /^ {2}(\S.*):$/u.exec(line);
         if (sub) {
-            importer = sub[1].replaceAll(/^['"]|['"]$/gu, "");
+            importer = sub[1].replaceAll(/(?:^['"])|(?:['"]$)/gu, "");
         }
         top.set(section, `${top.get(section) ?? ""}${line}\n`);
         if (importer !== null) {

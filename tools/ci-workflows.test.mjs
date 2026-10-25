@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { ciCommand, GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -75,11 +75,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 18 jobs", () => {
+    it("runs every shard exactly once on a full run, in 25 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 18);
+        assert.equal(include.length, 25);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -112,12 +112,37 @@ describe("the test matrix", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
         assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
         assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
-        // the three graphty parts keep their reports apart
-        assert.match(browser.coverage, /graphty-1=graphty\/.coverage-parts\/graphty-1\/lcov.info/);
-        assert.match(browser.coverage, /graphty-2=graphty\/.coverage-parts\/graphty-2\/lcov.info/);
-        assert.match(browser.coverage, /graphty-3=graphty\/.coverage-parts\/graphty-3\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
+    });
+
+    it("runs every shard, alone or in a group, through the quarantine wrapper with its own command", () => {
+        const include = plan(PACKAGES);
+        const wrapped = (shard) => ciCommand(SHARDS.find((s) => s.shard === shard));
+        for (const e of include) {
+            const members = e.shard in GROUPS ? GROUPS[e.shard] : [e.shard];
+            for (const m of members) assert.ok(e["test-command"].includes(wrapped(m)), m);
+        }
+        // The wrapper gets back exactly the shard's command, quotes and all.
+        const graphty = SHARDS.find((s) => s.shard === "graphty-1");
+        const r = spawnSync("bash", ["-c", ciCommand(graphty).replace(/^node \S+ run \S+ /, "printf %s ")], {
+            encoding: "utf8",
+        });
+        assert.equal(r.stdout, graphty["test-command"]);
+    });
+
+    // A shard with a job of its own uploads its report through the group's steps, under the same
+    // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
+    it("uploads coverage for every shard with a job of its own that writes it", () => {
+        const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
+        // the five graphty parts keep their reports apart
+        for (const n of [1, 2, 3, 4, 5]) {
+            assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
+        }
+        assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
+        assert.equal(own["graphty-storybook"], undefined);
+        assert.equal(own["graphty-element-default"], undefined);
+        assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -181,7 +206,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
         // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
@@ -189,7 +214,9 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
         assert.match(
             code(tool("prepush-tests.mjs")),
-            /const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", shard.shard\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
+            // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
+            // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \["timeout", "--kill-after=30s", TIMEOUT, process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -283,7 +310,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
         // The runner's fonts, which visual-fonts/ is a snapshot of: this machine has no emoji font.
         assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
-        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
+        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", \.\.\.what/);
         for (const s of SHARDS) {
             // A shard that names its own COVERAGE_DIR (webgpu-graph-algorithms' device-error pass) writes
             // where no other shard does.
@@ -301,46 +328,160 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
-    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
-        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
-        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
-        // running then and is stopped. The stopped shard closing last must still end the stage.
+    // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository. `shards` names
+    // the shards as [shard, package]; `setup(dir, git)` may commit before the run (the repository has no commit).
+    const STAGE_FILES = [
+        "prepush-tests.mjs",
+        // The runner wraps every shard in the machine-wide test slot (it imports the wait log beside it).
+        "test-slots.mjs",
+        "wait-log.mjs",
+        "prepush-inputs.mjs",
+        "push-base.mjs",
+        "shard-verdict.mjs",
+        // and the advisory test selector it starts beside the shards
+        "test-select.mjs",
+        "test-select-rules.json",
+        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+        "test-quarantine.mjs",
+        // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
+        "test-ledger.mjs",
+        "land.mjs",
+        "branch-sync.mjs",
+        "branch-note.mjs",
+    ];
+    const runStage = (runTests, env = {}, opts = {}) => {
+        const { shards = [["broken"], ["slow"]], setup } = opts;
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
-            // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
-            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
-            copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
-            copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
-            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            for (const f of STAGE_FILES) copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            const shard = ([name, pkg = name]) => ({
+                shard: name,
+                package: pkg,
+                "test-command": "true",
+                "needs-browser": false,
+            });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
-                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+                `export const SHARDS = ${JSON.stringify(shards.map(shard))};\n`,
             );
-            writeFileSync(
-                join(dir, "tools/run-tests.sh"),
-                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
-            );
-            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
-            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+            writeFileSync(join(dir, "tools/run-tests.sh"), runTests);
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            assert.equal(git("init", "-q", "-b", "golden").status, 0);
+            setup?.(dir, git);
+            const packages = JSON.stringify([...new Set(shards.map(([n, p = n]) => p))]);
+            return spawnSync(process.execPath, ["tools/prepush-tests.mjs", packages], {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
                     ...withoutPrepushSettings(),
+                    // bin/ holds a fake gh when a test needs one
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
+                    TEST_LEDGER_DIR: join(dir, "tmp/test-ledger"),
+                    ...env,
                 },
             });
-            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
-            assert.match(run.stdout, /Stopped after broken failed/);
-            assert.equal(run.status, 1, run.stdout + run.stderr);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    };
+    const SUMMARY = "echo ' Test Files  1 passed (1)'; echo '      Tests  1 passed (1)'";
+
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still running then
+        // and is stopped. The stopped shard closing last must still end the stage.
+        const run = runStage(
+            'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+        );
+        assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+        assert.match(run.stdout, /Stopped after broken failed/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+    });
+
+    it("runs every shard to the end under PREPUSH_ALL=1 (verification), so one failure cannot hide another", () => {
+        const run = runStage(`if [ "$1" = broken ]; then exit 1; fi\n${SUMMARY}\n`, { PREPUSH_ALL: "1" });
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.match(run.stdout, /Failed: broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+        // and when the failed shard is its package's warm-up, the rest of the package still runs
+        const same = runStage(
+            `if [ "$1" = a-1 ]; then exit 1; fi\n${SUMMARY}\n`,
+            { PREPUSH_ALL: "1" },
+            {
+                shards: [
+                    ["a-1", "a"],
+                    ["a-2", "a"],
+                ],
+            },
+        );
+        assert.match(same.stdout, /\[PASS\] a-2/);
+        assert.match(same.stdout, /Failed: a-1/);
+        assert.equal(same.status, 1, same.stdout + same.stderr);
+    });
+
+    // A land check whose shard "broken" fails with test a.test.ts > t: HEAD is `land: b`, HEAD^1 golden's tip
+    // (origin/golden), on which the same fake run-tests.sh fails the same test the same way. A fake gh files #7.
+    const landedRepo = (dir, git) => {
+        writeFileSync(join(dir, ".gitignore"), "tmp/\ntest-results/\n.worktrees/\nbin/\n");
+        mkdirSync(join(dir, "bin"));
+        writeFileSync(join(dir, "bin/gh"), "#!/bin/sh\necho https://github.com/o/r/issues/7\n", { mode: 0o755 });
+        git("add", ".");
+        git("commit", "-q", "-m", "golden's tip");
+        git("update-ref", "refs/remotes/origin/golden", "HEAD");
+        git("checkout", "-q", "-b", "b");
+        writeFileSync(join(dir, "other.txt"), "x");
+        git("add", ".");
+        git("commit", "-q", "-m", "a change");
+        git("checkout", "-q", "golden");
+        git("merge", "-q", "--no-ff", "-m", "land: b", "b");
+    };
+    const failsWith = (message) =>
+        [
+            'if [ "$1" = --command ]; then shift; fi',
+            `if [ "$1" = broken ]; then mkdir -p test-results; printf '<testsuites><testcase classname="a.test.ts" name="t"><failure>${message}</failure></testcase></testsuites>' > "test-results/junit-broken-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1; fi`,
+            SUMMARY,
+        ].join("\n");
+
+    it("excuses a land check's failure that golden's tip has too, files its issue, and exits 3", () => {
+        const run = runStage(
+            failsWith("Error: broken on golden too"),
+            { TEST_LEDGER_KIND: "land-check" },
+            { setup: landedRepo },
+        );
+        assert.match(run.stdout, /\[BASE\] broken: running the whole shard on golden's tip/);
+        assert.match(run.stdout, /\[KNOWN\] broken: broken\/a\.test\.ts > t fails the same way on golden's tip/);
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.equal(run.status, 3, run.stdout + run.stderr);
+    });
+
+    it("records an excused gate as gate-known, which only a land check's push accepts", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
+        for (const script of [prepush, code(tool("push-queue.sh"))]) {
+            assert.match(script, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
+        }
+    });
+
+    it("blocks a land check's failure that golden's tip does not have, with no database at all", () => {
+        // golden's tip passes: its run-tests.sh is the one committed; the land commit's own fails
+        const run = runStage(
+            SUMMARY,
+            { TEST_LEDGER_KIND: "land-check" },
+            {
+                setup: (dir, git) => {
+                    landedRepo(dir, git);
+                    writeFileSync(join(dir, "tools/run-tests.sh"), failsWith("Error: new"));
+                },
+            },
+        );
+        assert.match(run.stdout, /\[BASE\] broken/);
+        assert.match(run.stdout, /\[FAIL\] broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
     });
 
     it("fails a shard that exits 0 with no vitest run summary in its log", () => {
@@ -348,7 +489,18 @@ describe("the pre-push gate matches CI", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
@@ -418,6 +570,16 @@ describe("the pre-push gate matches CI", () => {
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
+    // The DOCS_API_PACKAGES line and the docs site functions, cut out of prepush.sh to run alone.
+    const docsSetup = (prepush) => {
+        const fn = (name) => {
+            const at = prepush.indexOf(`\n${name}() {\n`);
+            assert.ok(at > 0, `${name} is in tools/prepush.sh`);
+            return prepush.slice(at, prepush.indexOf("\n}\n", at) + 3);
+        };
+        return prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0] + fn("docs_site_affected") + fn("docs_site_step");
+    };
+
     it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
         const prepush = code(tool("prepush.sh"));
         const start = prepush.indexOf("for DOCS_PACKAGE in");
@@ -429,7 +591,7 @@ describe("the pre-push gate matches CI", () => {
                 [
                     "-c",
                     `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
-                        `run_step() { echo "$2"; }\n${loop}`,
+                        `run_step() { echo "$2"; }\n${prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0]}${loop}`,
                 ],
                 { cwd: new URL("..", import.meta.url), encoding: "utf8" },
             ).stdout;
@@ -437,11 +599,58 @@ describe("the pre-push gate matches CI", () => {
         assert.equal(run("graph-format"), "");
     });
 
+    it("builds the docs site as CI's Docs job does when a package with an API reference or the docs change", () => {
+        // A doc comment that split a code span across two lines left a bare `<value>` tag in a TypeDoc
+        // page; only VitePress's Vue compiler rejects that, and it failed CI's Docs job (2026-10-22).
+        const prepush = code(tool("prepush.sh"));
+        // git is stubbed: it records the pathspec it was asked about and answers "changed" when CHANGED is set.
+        const run = (list, changed) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\nBASE=base\nCHANGED=${changed ? 1 : ""}\n` +
+                        `affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$1: $2"; }\n` +
+                        `git() { echo "git $*" >&2; [ -z "$CHANGED" ]; }\n${docsSetup(prepush)}docs_site_step`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            );
+        const site = "node tools/sanitize-api-docs.js && pnpm exec vitepress build docs\n";
+        // An affected package with an API reference: only the other packages' pages are generated here.
+        assert.equal(
+            run("graphty-element,graph-format", false).stdout,
+            "Docs site (VitePress build): pnpm run docs:content && pnpm run docs:api:algorithms && " +
+                "pnpm run docs:api:layout && pnpm run docs:api:cytoscape-extensions && pnpm run docs:api:graph-io && " +
+                site,
+        );
+        // Only docs changed (no package affected): every package's pages, as CI generates them.
+        const docsOnly = run("", true);
+        assert.match(docsOnly.stdout, /pnpm run docs:api:graphty-element && pnpm run docs:api:algorithms/);
+        assert.ok(docsOnly.stdout.endsWith(site));
+        for (const path of [
+            " docs/ ",
+            " visual-review/docs/ ",
+            " graphty-element/docs/ ",
+            " tools/copy-docs-content.js ",
+        ]) {
+            assert.ok(docsOnly.stderr.includes(path), `the docs check looks at${path}`);
+        }
+        // Neither: no step.
+        assert.equal(run("graph-format", false).stdout, "");
+        assert.equal(run("", false).stdout, "");
+        // After the API docs steps, and on the push that affects no package too.
+        const firstExit = prepush.search(/\n\s*exit "\$FAILED"/);
+        const calls = [...prepush.matchAll(/\n\s*docs_site_step\n/g)].map((m) => m.index);
+        assert.equal(calls.length, 2);
+        assert.ok(calls[0] < firstExit && calls[1] > prepush.indexOf("for DOCS_PACKAGE in"));
+    });
+
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
             prepush,
-            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
+            /setsid env TEST_SLOT_GATE="\$\$" VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
         );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
@@ -603,11 +812,17 @@ exec ${realGit} "$@"
             sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
                 mkdirSync(join(main, "tmp"), { recursive: true });
-                writeFileSync(join(main, "tmp/with-browser.sh"), '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
+                const wrapper = join(main, "tmp/with-browser.sh");
+                writeFileSync(wrapper, '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
                     mode: 0o755,
                 });
                 const waited = run(
-                    { STUB_STATUS: "changed", VISUAL_PREVIEW_TIMEOUT: "10s", STUB_SLOT_WAIT: "11" },
+                    {
+                        STUB_STATUS: "changed",
+                        VISUAL_PREVIEW_TIMEOUT: "10s",
+                        STUB_SLOT_WAIT: "11",
+                        WITH_BROWSER: wrapper,
+                    },
                     "--head",
                     head,
                 );
@@ -617,7 +832,7 @@ exec ${realGit} "$@"
 
                 // A capture that holds its slot and never finishes still fails, once its limit is spent.
                 const stuck = run(
-                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0" },
+                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
                     "--head",
                     head,
                 );
@@ -898,7 +1113,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
@@ -3533,7 +3748,18 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -3598,9 +3824,7 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
                 ["a", "k"],
                 ["b", null],
             ]),
-            {
-                b: { key: null, sha: "s", at: "t" },
-            },
+            (key) => (key === null ? { key: null, sha: "s", at: "t" } : null),
         );
         assert.deepEqual(run, shards);
         assert.deepEqual(skipped, []);
@@ -3608,14 +3832,14 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
 
     it("skips only a shard whose recorded pass has exactly this key", () => {
         const shards = [shard("same"), shard("changed")];
-        const passes = { same: { key: "k1", sha: "s", at: "t" }, changed: { key: "old", sha: "s", at: "t" } };
+        const passes = { k1: { key: "k1", sha: "s", at: "t" }, old: { key: "old", sha: "s", at: "t" } };
         const { run, skipped } = partitionByPasses(
             shards,
             new Map([
                 ["same", "k1"],
                 ["changed", "new"],
             ]),
-            passes,
+            (key) => passes[key] ?? null,
         );
         assert.deepEqual(
             run.map((s) => s.shard),
@@ -3710,15 +3934,19 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
     });
 
-    it("records passes per branch and reads them back", () => {
+    it("records passes by kind and key, for every branch, and reads them back", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
         try {
-            const store = passStore(dir, "tools/x");
-            assert.deepEqual(store.read(), {});
-            store.record("a", { key: "k", sha: "s", at: "t" });
-            store.record("b", { key: "k2", sha: "s", at: "t" });
-            assert.deepEqual(Object.keys(passStore(dir, "tools/x").read()).sort(), ["a", "b"]);
-            assert.deepEqual(passStore(dir, "other").read(), {});
+            const k1 = "1".repeat(64);
+            const k2 = "2".repeat(64);
+            const store = passStore(dir);
+            assert.equal(store.get("shard", k1), null);
+            store.record("shard", k1, { shard: "a", branch: "tools/x", sha: "s", at: "t" });
+            store.record("shard", k2, { shard: "b", branch: "other", sha: "s", at: "t" });
+            assert.equal(passStore(dir).get("shard", k1).shard, "a");
+            assert.equal(passStore(dir).get("shard", k2).key, k2);
+            assert.equal(passStore(dir).get("gate", k1), null, "another kind");
+            assert.throws(() => store.record("shard", "../x", {}), /not a pass kind and key/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3740,7 +3968,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -3751,10 +3979,14 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 join(dir, "tools/sonar-gate.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
             );
+            writeFileSync(
+                join(dir, "tools/check-committed-images.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
-            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
+            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\ntmp/\n");
             writeFileSync(join(dir, "a.ts"), "a\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
             git("init", "-q");
@@ -3777,6 +4009,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
             assert.match(first.calls, /sonar/);
+            assert.match(first.calls, /images/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);
@@ -3784,10 +4017,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(run().calls, /run format:check/, "an edit runs them again");
             writeFileSync(join(dir, "new.ts"), "n\n");
             assert.match(run().calls, /run format:check/, "a new file runs them again");
+            assert.equal(run().calls, "");
             git("add", ".");
             git("commit", "-q", "-m", "b");
-            assert.match(run().calls, /run format:check/, "a commit runs them again");
-            assert.equal(run().calls, "");
+            assert.equal(run().calls, "", "a commit of the files they passed on does not run them again");
+            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n# reinstalled\n");
+            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n# reinstalled\n");
+            assert.match(run().calls, /run format:check/, "a new lockfile runs them again");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3812,11 +4048,12 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
+            writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -3826,7 +4063,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(root, "package.json"), JSON.stringify({ scripts }));
             writeFileSync(join(root, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(root, "node_modules/.pnpm/lock.yaml"), "lock\n");
-            writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+            writeFileSync(join(root, ".gitignore"), "node_modules/\ntmp/\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: root }).status, 0, args.join(" "));
             git("init", "-q");
             git("add", ".");
@@ -3839,12 +4076,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.equal(r.status, 0, r.stdout + r.stderr);
             const calls = readFileSync(join(dir, "calls"), "utf8");
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
+            assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
-            assert.ok(existsSync(join(root, ".git/prepush-source-checks")), "the pass is recorded in the checkout");
+            assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

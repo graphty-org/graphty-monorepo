@@ -212,6 +212,21 @@ describe("the lane rules", () => {
         assert.match(s.answer.noLanding, /T4 cap/);
     });
 
+    it("keeps to the T4 cap when the first bad landing's parent needs a point of its own", () => {
+        // m2's first parent p2 is not a landing of the range, so blaming m2 needs a run of p2
+        const git = { ...fakeGit(3), parent: (sha) => ({ m1: "g", m2: "p2", m3: "m2" })[sha] };
+        let s = start({ lane: "gpu", good: "g", bad: "m3", targets: [], afterLocalCard: true }, git);
+        const seen = [];
+        while (!s.answer && seen.length < 10) {
+            const sha = s.next.points[0];
+            seen.push(sha);
+            s = judge(s, [{ sha, status: sha === "m1" ? "success" : "failure", minutes: 120 }]);
+        }
+        assert.ok(!seen.includes("p2"), `ran ${seen.join(", ")}`);
+        assert.ok(s.t4Minutes <= T4_CAP_MINUTES, `${s.t4Minutes} paid minutes`);
+        assert.match(s.answer.noLanding, /T4 cap/);
+    });
+
     it("counts the paid minutes of a lost T4 point toward the cap", () => {
         let s = start({ lane: "gpu", good: "g", bad: "m40", targets: [], afterLocalCard: true }, fakeGit(40));
         let rounds = 0;

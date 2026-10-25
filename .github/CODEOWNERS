@@ -103,3 +103,16 @@
 /tsconfig.base.json @apowers313
 /vite.shared.config.ts @apowers313
 /vitest.browser-coverage-setup.ts @apowers313
+/webgpu-graph-algorithms/scripts/bench-compare.js @apowers313
+/webgpu-graph-algorithms/scripts/bench-targets.js @apowers313
+/webgpu-graph-algorithms/scripts/gpu-policy.js @apowers313
+/webgpu-graph-algorithms/scripts/gpu-report.js @apowers313
+/webgpu-graph-algorithms/scripts/install-redist-warp.sh @apowers313
+/webgpu-graph-algorithms/scripts/print-crash-reports.mjs @apowers313
+/webgpu-graph-algorithms/scripts/probe-browser-flags.mjs @apowers313
+/webgpu-graph-algorithms/scripts/probe-webkit-webgpu.mjs @apowers313
+/webgpu-graph-algorithms/scripts/run-browser-project.js @apowers313
+/webgpu-graph-algorithms/scripts/run-node-shard.js @apowers313
+/webgpu-graph-algorithms/scripts/runner-class.js @apowers313
+/webgpu-graph-algorithms/scripts/warp-guard-verdict.sh @apowers313
+/webgpu-graph-algorithms/scripts/warp-question.sh @apowers313

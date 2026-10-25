@@ -206,6 +206,15 @@ function afterConfirm(s) {
     return finish(s, { status: c.flaky.length === s.targets.length ? "flaky" : "failed", culprit: null });
 }
 
+// Another T4 point would pass the cap on paid minutes: the bisect stops, with no landing named.
+function atT4Cap(s) {
+    if (s.lane !== "gpu" || s.t4Minutes + T4_POINT_MINUTES <= T4_CAP_MINUTES) return null;
+    return finish(s, {
+        culprit: null,
+        noLanding: `stopped at the T4 cap: ${s.t4Minutes} of ${T4_CAP_MINUTES} paid minutes spent`,
+    });
+}
+
 // The first bad merge is the culprit when its parent is the last green commit or passes every run it needs.
 function blame(s, sha) {
     const parent = s.parents[sha];
@@ -213,7 +222,7 @@ function blame(s, sha) {
     const lane = LANES[s.lane];
     const need = s.followed.some((t) => t.rate) ? lane.rateParent : lane.runs;
     const have = s.results[parent]?.runs ?? 0;
-    if (have < need) return { ...s, next: { points: [parent], runs: need - have } };
+    if (have < need) return atT4Cap(s) ?? { ...s, next: { points: [parent], runs: need - have } };
     const why = parentFails(sha, parent, s.results[parent]);
     return finish(s, why ? { culprit: null, noLanding: why } : { culprit: sha });
 }
@@ -233,12 +242,7 @@ export function decide(s) {
     const step = bisectStep({ candidates: s.candidates, points }, lane.width);
     if (step.noLanding) return finish(s, { culprit: null, noLanding: step.noLanding });
     if (step.blame) return blame(s, step.blame);
-    if (s.lane === "gpu" && s.t4Minutes + T4_POINT_MINUTES > T4_CAP_MINUTES)
-        return finish(s, {
-            culprit: null,
-            noLanding: `stopped at the T4 cap: ${s.t4Minutes} of ${T4_CAP_MINUTES} paid minutes spent`,
-        });
-    return { ...s, next: { points: step.points.map((i) => s.candidates[i]), runs: lane.runs } };
+    return atT4Cap(s) ?? { ...s, next: { points: step.points.map((i) => s.candidates[i]), runs: lane.runs } };
 }
 
 /**

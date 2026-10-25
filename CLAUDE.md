@@ -616,7 +616,7 @@ reason); run by `tools/check-links.sh`:
   `deploy-pages.yml` publishes with. It also checks every link inside that built site (VitePress
   sidebars and nav) and that every Storybook deep link (`?path=/story/<id>`) names a story that
   exists (`tools/check-storybook-links.mjs`).
-- **Pre-push** (`tools/prepush.sh`): the offline half, `tools/check-links.sh --offline`, under a second.
+- **`tools/prepush.sh`** (by hand, `pnpm run prepush:fast`; no push runs it now): the offline half, `tools/check-links.sh --offline`, under a second.
   It also builds the docs site as CI's Docs job does (`docs:content`, the API pages, `vitepress build
   docs`; about 3 minutes) when the push affects a package with a `docs:api:<package>` script or changes
   `docs/`, a package's `docs/` that `tools/copy-docs-content.js` copies in, or that script, so a dead
@@ -1300,8 +1300,8 @@ Before shipping a change, ask where it takes effect, because that decides how it
 - **In shared code another branch needs** -- open its pull request, but do not wait for it: merge the
   fix branch (or master, once it has merged) into the blocked branch right away.
 
-The pre-push gate (`.husky/pre-push`, `tools/prepush.sh`) still runs on a plain `git push`, but nothing
-pushes that way any more: `tools/pr-open.sh` and `.husky/post-commit` both skip it, and CI is the gate.
+The pre-push gate (`tools/prepush.sh`) no longer runs on any push: `.husky/pre-push` keeps only the Git LFS
+upload, the secret scan and the committed-images limit, and CI is the gate. `pnpm run prepush:fast` runs it by hand.
 
 ## Parallel agents
 

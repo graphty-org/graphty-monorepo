@@ -32,6 +32,8 @@ const FOLLOWED = /\.(?:[cm]?[jt]sx?|ya?ml|sh|py|json)$/u;
 const PATH_RUN = /[\w@./+-]+/gu;
 const PATH_EXT = /\.(?:[cm]?[jt]sx?|sh|py|json)$/u;
 const JS = /\.[cm]?[jt]sx?$/u;
+/** A workflow's `working-directory: <dir>` (group 1), quoted or not, in block or flow style. */
+const WORKING_DIR = /working-directory:\s*["']?([\w@./+-]+)/gu;
 /** A JS string literal (kept, group 1) or a comment (removed). */
 const JS_COMMENT = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/.*/gu;
 /** A variable a path is written under (`$CLAUDE_PROJECT_DIR/`, `${{ github.workspace }}/`): the checkout's root. */
@@ -119,6 +121,13 @@ export function referencedFiles(root, file, index) {
     } catch {
         return out;
     }
+    // a workflow's `working-directory:` (a job's, a step's or `defaults.run`'s) is a folder its paths resolve from
+    const bases = [posix.dirname(file), ""];
+    if (/\.ya?ml$/u.test(file)) {
+        for (const [, dir] of text.matchAll(WORKING_DIR)) {
+            bases.push(dir.replace(/^\.\//u, "").replace(/\/+$/u, ""));
+        }
+    }
     for (const [run] of text.replaceAll(ROOT_VAR, " ").matchAll(PATH_RUN)) {
         let path = run;
         while (path.endsWith(".")) {
@@ -127,9 +136,10 @@ export function referencedFiles(root, file, index) {
         if (!path.includes("/") || !PATH_EXT.test(path)) {
             continue;
         }
+        const rel = path.replace(/^\/+/u, "");
         const hit = [
             posix.normalize(posix.join(posix.dirname(file), path)),
-            posix.normalize(path.replace(/^\/+/u, "")),
+            ...bases.map((b) => posix.normalize(posix.join(b, rel))),
         ].find((p) => index.files.has(p));
         if (hit && hit !== file) {
             out.add(hit);

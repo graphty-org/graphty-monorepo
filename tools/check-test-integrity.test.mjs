@@ -289,6 +289,22 @@ describe("check-test-integrity: package.json and capture settings", () => {
             r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", "docs:dev": "vitepress" }) }),
             [],
         );
+        has(
+            r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", postinstall: "x" }) }),
+            "scripts.postinstall added",
+        );
+        has(
+            r().change({ "package.json": pkg({ test: "vitest run", lint: "eslint", prelint: "x" }) }),
+            "scripts.prelint added",
+        );
+    });
+
+    it("passes a new script whose name only starts with pre or post", () => {
+        const scripts = { test: "vitest run", preview: "vite preview", "prettier:fix": "p", "postcss:build": "c" };
+        assert.deepEqual(
+            repo({ "package.json": pkg({ test: "vitest run" }) }).change({ "package.json": pkg(scripts) }),
+            [],
+        );
     });
 
     it("reports the root pnpm field changed", () => {

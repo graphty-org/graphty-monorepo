@@ -286,15 +286,30 @@ function dispatchBisect(plan) {
     return `Bisect dispatched: bisect.yml, lane ${plan.inputs.lane}, ${short(plan.inputs.good)}..${short(plan.inputs.bad)}.`;
 }
 
-// A dispatch that fails must not lose the red: the issue and the record still follow.
-function tryBisect(plan) {
+/**
+ * Runs one GitHub side effect of the verdict so that its failure (a rate limit, a 5xx) cannot lose
+ * the verdict: a lost record makes the next slot rerun every lane and bisect the same red again.
+ * @param fn the side effect
+ * @param what what it does, for the warning
+ * @param fallback (why) => the value to return instead
+ * @returns fn's value, or fallback's
+ */
+export function bestEffort(fn, what, fallback) {
     try {
-        return dispatchBisect(plan);
+        return fn();
     } catch (error) {
-        const why = error.message.split("\n")[0];
-        console.log(`::warning::bisect.yml was not dispatched: ${why}`);
-        return `No bisect: dispatching bisect.yml failed (${why}); the pipeline round looks.`;
+        const why = String(error?.message ?? error).split("\n")[0];
+        console.log(`::warning::${what} failed: ${why}`);
+        return fallback(why);
     }
+}
+
+function tryBisect(plan) {
+    return bestEffort(
+        () => dispatchBisect(plan),
+        "dispatching bisect.yml",
+        (why) => `No bisect: dispatching bisect.yml failed (${why}); the pipeline round looks.`,
+    );
 }
 
 function closeRedOnGreen(state, env) {
@@ -325,10 +340,19 @@ async function verdictMain(env) {
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
         bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
-        issue = fileRed(redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect }));
+        const body = redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect });
+        issue = bestEffort(
+            () => fileRed(body),
+            "filing the red issue",
+            () => null,
+        );
         what = red.map((l) => LANES[l].name).join(", ");
     } else if (state !== "owner-item") {
-        closeRedOnGreen(state, env);
+        bestEffort(
+            () => closeRedOnGreen(state, env),
+            "closing the red issue",
+            () => null,
+        );
     }
     // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });

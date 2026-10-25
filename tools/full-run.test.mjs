@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
+import { bestEffort, bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
 
 // master's first parents, newest first: c3 <- c2 <- c1 <- c0
 const CHAIN = ["c3", "c2", "c1", "c0"];
@@ -201,5 +201,26 @@ describe("bisectPlan's targets", () => {
         const failedBefore = tests.map((t) => `${t.shard}: ${t.file} > ${t.name}`);
         const both = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore } });
         assert.equal(JSON.parse(both.inputs.failed_before).length, 100, "only the capped targets' ids");
+    });
+});
+
+describe("bestEffort", () => {
+    it("returns the side effect's value, or the fallback when it throws, so the verdict is still recorded", () => {
+        assert.equal(
+            bestEffort(
+                () => 7,
+                "x",
+                () => null,
+            ),
+            7,
+        );
+        const got = bestEffort(
+            () => {
+                throw new Error("HTTP 403: rate limit exceeded\nmore");
+            },
+            "filing the red issue",
+            (why) => `fallback: ${why}`,
+        );
+        assert.equal(got, "fallback: HTTP 403: rate limit exceeded");
     });
 });

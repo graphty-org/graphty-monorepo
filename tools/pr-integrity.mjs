@@ -67,7 +67,9 @@ const tryGit = (cwd, args) => {
 export function patchId(cwd, mergeBase, head) {
     // the same options as tools/pr-review.sh: --binary, so a changed PNG or .wasm moves the id; the algorithm and
     // renames pinned, so a local diff setting never gives another id than CI's
-    const diff = git(cwd, [
+    // bytes, not text: a non-UTF-8 file decoded to U+FFFD would give another id than pr-review.sh's pipe
+    const bytes = (args, input) => execFileSync("git", args, { cwd, input, maxBuffer: 1 << 30, stdio: "pipe" });
+    const diff = bytes([
         "diff",
         "-U0",
         "--binary",
@@ -78,7 +80,7 @@ export function patchId(cwd, mergeBase, head) {
         mergeBase,
         head,
     ]);
-    return diff ? git(cwd, ["patch-id", "--stable"], diff).split(" ")[0] || null : null;
+    return diff.length ? bytes(["patch-id", "--stable"], diff).toString("utf8").split(" ")[0] || null : null;
 }
 
 /**

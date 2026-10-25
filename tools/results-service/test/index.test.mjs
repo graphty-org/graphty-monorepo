@@ -518,6 +518,11 @@ describe("GET /v1/plan", () => {
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(v.fileMs, { [X]: 106 });
+        // files and no variants (test-changed.mjs's ranking): the same facts over every variant, for those files
+        const flat = (await plan(call, { files: `${X},a.test.ts,b.test.ts,too-old.test.ts` })).body;
+        assert.deepEqual(flat.order, ["b.test.ts", "a.test.ts"]);
+        assert.deepEqual(flat.fileMs, { [X]: 106 });
+        assert.equal((await plan(call, { variants: BROWSER, inputs: "k1" })).body.order, undefined);
     });
 });
 
@@ -574,6 +579,7 @@ describe("GET /v1/candidate", () => {
             candidate: null,
             judged: null,
             recent: [],
+            sites: [],
         });
         s.site("c1", NOW - 2 * HOUR);
         s.site("c2", NOW - HOUR);
@@ -581,6 +587,7 @@ describe("GET /v1/candidate", () => {
             candidate: { sha: "c2", builtAt: NOW - HOUR },
             judged: null,
             recent: [],
+            sites: ["c2", "c1"],
         });
         s.verdict("c1", "red", NOW - 40 * DAY);
         s.verdict("c1", "green-images", NOW - 20);

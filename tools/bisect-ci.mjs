@@ -84,8 +84,21 @@ export const realGit = (cwd = ROOT) => {
         firstParents: (good, bad) => out(["rev-list", "--first-parent", "--reverse", `${good}..${bad}`]).split("\n"),
         parent: (sha) => out(["rev-parse", `${sha}^1`]),
         touches: (sha, paths) => out(["diff", "--name-only", `${sha}^1`, sha, "--", ...paths]) !== "",
+        masterFirstParents: () => new Set(out(["rev-list", "--first-parent", "origin/master"]).split("\n")),
     };
 };
+
+/**
+ * The commits a round would check out that are not on master's first-parent history. A point runs with
+ * master's cache scope and, on the LLM lane, the Google key, so a dispatch (its `state` input above all) may
+ * name only master's own commits.
+ * @param s the state
+ * @param onMaster master's first-parent commits
+ * @returns the commits that are not
+ */
+export function offMaster(s, onMaster) {
+    return [s.good, s.bad, ...(s.next?.points ?? [])].filter((sha) => sha && !onMaster.has(sha));
+}
 
 /**
  * The first round's state: the range's first-parent merges and the confirming run on the red commit.
@@ -294,6 +307,11 @@ async function main() {
                   },
                   realGit(),
               );
+        const off = offMaster(s, realGit().masterFirstParents());
+        if (off.length) {
+            console.error(`::error::bisect.yml tests only master's first-parent commits; not: ${off.join(", ")}`);
+            process.exit(1);
+        }
         return output(s, v.out);
     }
     if (cmd === "run") {

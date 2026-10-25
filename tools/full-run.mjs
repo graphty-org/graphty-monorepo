@@ -45,15 +45,19 @@ export const LANES = {
  * @param o the inputs
  * @param o.mode full or restart
  * @param o.head the commit the run started on (master's head when it was dispatched)
- * @param o.store `GET /v1/candidate`'s answer, or null when the store did not answer
+ * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
  * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
  */
 export function pick({ mode, head, store, firstParents, stray }) {
     if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
-    // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site
-    const sha = mode === "restart" ? head : store.candidate?.sha;
+    // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
+    // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
+    // older commit's build records its site late)
+    const sites = new Set(store.sites ?? []);
+    const byOrder = sites.size ? firstParents(head).find((s) => sites.has(s)) : undefined;
+    const sha = mode === "restart" ? head : (byOrder ?? store.candidate?.sha);
     if (!sha) return { run: true, sha: head, why: "the store records no site yet: testing master's head" };
     const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
@@ -93,11 +97,13 @@ export function verdictOf(lanes, images, ownerItem = "", held = "") {
 }
 
 /**
- * The screenshots that differ in a directory of downloaded visual captures, or null when it holds none.
+ * The screenshots that differ in a directory of downloaded visual captures, or null when it holds none or
+ * lacks a project's capture (one that crashed before writing results.json is not "nothing differs").
  * @param dir the directory
+ * @param [expected] the projects a full run captures (visual-review.config.json)
  * @returns a count, or null
  */
-export function differingImages(dir) {
+export function differingImages(dir, expected = []) {
     if (!dir || !existsSync(dir)) return null;
     // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
     const newest = new Map();
@@ -106,7 +112,7 @@ export function differingImages(dir) {
         if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
     }
     const files = [...newest.values()].map((v) => v.f);
-    if (!files.length) return null;
+    if (!files.length || expected.some((p) => !newest.has(p))) return null;
     let n = 0;
     for (const f of files) {
         const items = JSON.parse(readFileSync(join(dir, f), "utf8")).items ?? [];
@@ -253,7 +259,9 @@ function dispatchBisect(plan) {
 async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
-    const { state, red } = verdictOf(lanes, differingImages(env.CAPTURES), env.LLM_OWNER_ITEM, env.VERSION_HELD);
+    const projects = Object.keys(JSON.parse(readFileSync("visual-review.config.json", "utf8")).projects ?? {});
+    const images = differingImages(env.CAPTURES, projects);
+    const { state, red } = verdictOf(lanes, images, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     let issue = null;
     let what = state;
     if (state === "owner-item") {

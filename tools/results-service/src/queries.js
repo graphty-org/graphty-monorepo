@@ -120,6 +120,37 @@ async function variantFacts(db, variant, inputs, now) {
     return { passedWithInputs: passed?.id ?? null, order: order.map((r) => r.file), fileMs };
 }
 
+// The files' history over every variant, for a caller that names files and no variants (test-changed.mjs's
+// ranking, tools/test-history.mjs scoreFromPlan): failed in the last 7 days, newest first, and the median of
+// each file's last 9 runs. Chunked: D1 binds at most 100 parameters a statement.
+async function fileFacts(db, files, now) {
+    const order = new Map();
+    const fileMs = {};
+    for (let i = 0; i < files.length; i += 90) {
+        const chunk = files.slice(i, i + 90);
+        const failed = await all(
+            db,
+            `SELECT f.file, max(i.started_at) AS at FROM failure f JOIN invocation i ON i.id = f.invocation
+             WHERE f.file IN (${placeholders(chunk)}) AND i.kind IN ${EVIDENCE} AND i.outcome = 'failed'
+               AND i.started_at >= ? GROUP BY f.file`,
+            ...chunk,
+            now - 7 * DAY,
+        );
+        for (const r of failed) order.set(r.file, r.at);
+        const runs = await all(
+            db,
+            `SELECT file, ms FROM (SELECT r.file, r.ms, row_number() OVER (PARTITION BY r.file ORDER BY i.started_at DESC) AS n
+               FROM file_run r JOIN invocation i ON i.id = r.invocation
+               WHERE r.file IN (${placeholders(chunk)}) AND i.kind IN ${EVIDENCE}
+                 AND i.outcome IN ('passed','failed') AND r.ms IS NOT NULL)
+             WHERE n <= 9`,
+            ...chunk,
+        );
+        for (const [file, rs] of Map.groupBy(runs, (r) => r.file)) fileMs[file] = median(rs.map((r) => r.ms));
+    }
+    return { order: [...order].sort((a, b) => b[1] - a[1]).map(([file]) => file), fileMs };
+}
+
 /**
  * GET /v1/plan?sha=&base=&variants=&inputs=&files= : one read per run (5.3). `variants` and `inputs` are
  * comma lists of the same length, pairwise; `files` are the pull request's changed files.
@@ -127,7 +158,8 @@ async function variantFacts(db, variant, inputs, now) {
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns quarantine, failingOnBase, and per variant passedWithInputs, order and fileMs
+ * @returns quarantine, failingOnBase, and per variant passedWithInputs, order and fileMs; with files and no
+ *   variants, also order and fileMs over every variant for those files
  */
 export async function getPlan(q, who, db, now) {
     const variants = list(q.get("variants"));
@@ -137,10 +169,12 @@ export async function getPlan(q, who, db, now) {
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
     const facts = {};
     for (const [v, k] of pairs) facts[v] = await variantFacts(db, v, k, now);
+    const files = list(q.get("files"));
     return {
         quarantine: await activeQuarantine(db, families, now),
-        failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(list(q.get("files")))),
+        failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
         variants: facts,
+        ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),
     };
 }
 
@@ -162,7 +196,8 @@ const latestVerdict = (db, sha) =>
  * @param who the caller
  * @param db the D1 database
  * @param now milliseconds
- * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, and recent
+ * @returns candidate (sha, builtAt) or null, judged: its latest verdict or null, recent, and sites (the last
+ *   200 recorded, newest record first)
  */
 export async function getCandidate(q, who, db, now) {
     const candidate = await newestSite(db);
@@ -174,7 +209,9 @@ export async function getCandidate(q, who, db, now) {
          WHERE v.at >= ? AND v.at = (SELECT max(w.at) FROM verdict w WHERE w.sha = v.sha) ORDER BY v.at DESC`,
         now - 30 * DAY,
     );
-    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent };
+    // the recorded sites, so the pick can order them by master's history (a late record is not a newer commit)
+    const sites = (await all(db, "SELECT sha FROM site ORDER BY built_at DESC LIMIT 200")).map((r) => r.sha);
+    return { candidate, judged: candidate && (await latestVerdict(db, candidate.sha)), recent, sites };
 }
 
 /**

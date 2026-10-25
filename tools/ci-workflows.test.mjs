@@ -1372,6 +1372,14 @@ describe("ci.yml", () => {
         assert.equal(releaseDue(red, "fix: z\n\nRefs #90011"), null);
         assert.equal(releaseDue(red, "feat: unrelated"), null);
         assert.equal(releaseDue([], "Refs #9001"), null, "no open red issue: nothing is due");
+        // a Fixes closes the issue as the merge lands, minutes before this job runs
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = (closedAt) => [{ number: 9001, title: "Full run red: ci on abc", state: "CLOSED", closedAt }];
+        assert.deepEqual(releaseDue(closed("2026-10-25T11:55:00Z"), "Fixes #9001", now), {
+            mode: "restart",
+            issue: 9001,
+        });
+        assert.equal(releaseDue(closed("2026-10-24T11:55:00Z"), "Refs #9001", now), null, "closed long ago");
         const due = job(ci, "release-due");
         assert.match(due, /\n {8}needs: all-checks\n/);
         assert.match(

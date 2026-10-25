@@ -50,6 +50,13 @@ describe("pick", () => {
         assert.deepEqual([p.run, p.sha, p.good], [true, "c3", "c0"]);
     });
 
+    it("takes the newest site by master's order from the head, not by when it was recorded", () => {
+        // c1's site was recorded last (a re-run of its build), so the store's own candidate is c1
+        const s = { candidate: { sha: "c1", builtAt: 9 }, sites: ["c1", "c2"], recent: [] };
+        const p = pick({ mode: "full", head: "c3", store: s, firstParents, stray: code });
+        assert.deepEqual([p.run, p.sha], [true, "c2"]);
+    });
+
     it("a restart tests the commit it was dispatched on, not the newest site", () => {
         const p = pick({ mode: "restart", head: "c2", store: store([]), firstParents, stray: code });
         assert.deepEqual([p.run, p.sha], [true, "c2"]);
@@ -131,6 +138,9 @@ describe("differingImages", () => {
         );
         assert.equal(differingImages(dir), 1);
         assert.equal(differingImages(join(dir, "missing")), null);
+        // a project whose capture wrote no results.json is not clean
+        assert.equal(differingImages(dir, ["layout", "graphty"]), 1);
+        assert.equal(differingImages(dir, ["layout", "graphty", "compact-mantine"]), null);
     });
 });
 

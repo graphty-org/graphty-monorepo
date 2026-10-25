@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { judge, laneFiles, LANES, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
+import { judge, laneFiles, LANES, offMaster, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -230,5 +230,14 @@ describe("bisect.yml", () => {
             3,
             "every lane call passes it",
         );
+    });
+});
+
+describe("offMaster", () => {
+    it("names every good, bad or point commit that is not on master's first-parent history", () => {
+        const master = new Set(["g", "m1", "m2", "b"]);
+        assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["m1", "m2"] } }, master), []);
+        assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["branch1"] } }, master), ["branch1"]);
+        assert.deepEqual(offMaster({ good: "x", bad: "b" }, master), ["x"]);
     });
 });

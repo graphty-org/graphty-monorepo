@@ -21,7 +21,7 @@ const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 describe("pipeline-round skill", () => {
     it("puts the interim rules above every step", () => {
         assert.ok(flat.indexOf("**Interim rules") < flat.indexOf("### 1."));
-        assert.match(flat, /\*\*Production is frozen\.\*\*/);
+        assert.match(flat, /\*\*Production moves only on the owner's go\.\*\*/);
         assert.match(flat, /\*\*Screenshots still gate pull requests\.\*\*/);
         assert.match(flat, /changes a screenshot\*\* gets its own immediate `ACTION NEEDED` line/);
     });

@@ -264,15 +264,12 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}
 
             # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
             # every project (the lint job lints them).
-            # graphty build needs Sentry env vars for error tracking. The auth token, which switches on the
-            # Sentry plugin's source map upload, is set only on a push to master, the one build
-            # deploy-pages.yml publishes: with it graphty's build took 17m36s instead of 53s, and the
-            # release train's and golden verification's Build jobs took 20 minutes instead of the pull
-            # request's 6 (run 40051811635). Without it the plugin is off (graphty/vite.config.ts).
+            # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
+            # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
+            # name by the step after this one, not during the build.
             #
             # The dispatch clause stands on its own rather than sitting inside the master test, because each
             # trigger has to reach exactly one build: a pull request builds in the steps above, a push to master
@@ -290,7 +287,31 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+
+            # graphty's source maps to Sentry, only on a push to master, the one build deploy-pages.yml
+            # publishes. This used to be the @sentry/vite-plugin inside graphty's build, which injected
+            # debug ids and regenerated the source map of every chunk in renderChunk: with the app split
+            # into 24 chunks the build took 13m33s instead of 53s, and the Build job 16 to 24 minutes.
+            # sentry-cli does the same after the build: debug ids into dist's JavaScript and its maps (in
+            # place, so the deployed files carry them), then the upload under the release the build
+            # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
+            # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            - name: Upload graphty's source maps to Sentry (master push)
+              if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+              working-directory: graphty
+              env:
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: |
+                  pnpm exec sentry-cli sourcemaps inject dist
+                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
+                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
+                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
+                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
+                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them

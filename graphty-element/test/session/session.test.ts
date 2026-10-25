@@ -31,6 +31,19 @@ describe("createGraphSession", () => {
         assert.deepEqual(seen, [false], "once, and already not ready");
     });
 
+    it("tells a watcher that subscribes after the disposal, too", async () => {
+        const session = createGraphSession();
+        session.dispose();
+        const told = new Promise<void>((resolve) => {
+            session.on("session:disposed", () => {
+                resolve();
+            });
+        });
+
+        await told;
+        assert.isFalse(session.status.ready);
+    });
+
     it("takes the element's own data defaults when it is given no configuration", () => {
         const session = createGraphSession();
 

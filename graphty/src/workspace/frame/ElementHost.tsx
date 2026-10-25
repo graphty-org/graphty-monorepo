@@ -112,7 +112,10 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             });
             return () => {
                 off();
-                onReady(null, null);
+                // Already handed down when the element left the page first.
+                if (session.status.ready) {
+                    onReady(null, null);
+                }
             };
         }
         return () => {

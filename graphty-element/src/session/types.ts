@@ -2081,9 +2081,10 @@ export interface SessionEventMap {
     "project:status": ProjectStatus;
     /**
      * The session was disposed: `dispose()` was called, or its element left the page. Published
-     * once, after the session stopped answering, and the last event it publishes. A host that
-     * handed the session to readers (a view, a panel) drops it here, so nothing reads a session
-     * whose data verbs now throw `E_DISPOSED`; `status.ready` is false from now on.
+     * once, the last event it publishes, with `status.ready` already false; its data verbs throw
+     * `E_DISPOSED` once `dispose()` returns. A host that handed the session to readers (a view, a
+     * panel) drops it here. Subscribing on a session already disposed calls the handler in a
+     * microtask, so a host that asks too late still hears it.
      */
     "session:disposed": Readonly<Record<string, never>>;
 }

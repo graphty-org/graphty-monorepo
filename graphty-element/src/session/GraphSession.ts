@@ -1074,6 +1074,17 @@ class Session implements ElementSession {
      * @returns A function that stops the subscription.
      */
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void {
+        if (this.disposed) {
+            // Nothing fires again; a host that asks too late to hear about the disposal still does.
+            if (event === "session:disposed") {
+                const watchers: Watchers = new Map([["session:disposed", new Set([handler])]]);
+                queueMicrotask(() => {
+                    publish(watchers, "session:disposed", {});
+                });
+            }
+            return () => undefined;
+        }
+
         let subscribers = this.watchers.get(event);
 
         if (subscribers === undefined) {

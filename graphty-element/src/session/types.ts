@@ -55,6 +55,7 @@ import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
+import type { EnabledFeatures } from "../features/resolve";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
@@ -1779,7 +1780,9 @@ export interface SessionDataApi {
      * @param name - The dataset's name, e.g. `"karate"`.
      * @param options - Whether to replace the graph (the default) or add to it, where to download
      *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
-     *     that abandons the download.
+     *     that abandons the download. Loads land in the order they were asked for, so a load
+     *     asked for after this one waits until this download finishes or fails; aborting the
+     *     signal, even once the download has finished, stops it and lets the next load through.
      * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
      *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
      *     download fails; nothing is recorded then.
@@ -2496,6 +2499,14 @@ export interface ImportOptions {
      * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "keep";
+    /**
+     * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
+     * graph where the history starts, as opening a new project does: the load is never undone or
+     * cancelled by `undo()` (while it is pending `canUndo` is false unless later work is), the
+     * steps recorded before it was called are dropped once it is in, and work dispatched while it
+     * was pending is kept as its own steps.
+     */
+    readonly history?: "step" | "start";
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */
@@ -3697,6 +3708,12 @@ export interface GraphSession {
     readonly status: SessionStatus;
     /** Everything the element can offer, as data. */
     readonly catalog: SessionCatalogApi;
+    /**
+     * The experiments this session switched on, and the requested ids it did not recognise.
+     * Settled when the session is created (for an element's session, when the element first
+     * renders) and the same object afterwards.
+     */
+    readonly features: EnabledFeatures;
     /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
     /**
@@ -3936,6 +3953,11 @@ export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     /** How this session runs algorithms. */
     readonly runs?: SessionRunsOptions;
+    /**
+     * The experiments to switch on, by id, or `["all"]`; absent takes the page default set with
+     * `setDefaultFeatures`. Unknown ids are listed in `features.unknown`, never thrown.
+     */
+    readonly features?: readonly string[];
 }
 
 /**

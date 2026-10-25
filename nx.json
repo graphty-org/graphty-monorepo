@@ -67,6 +67,11 @@
             }
         }
     ],
+    "pluginsConfig": {
+        "@nx/js": {
+            "projectsAffectedByDependencyUpdates": "auto"
+        }
+    },
     "parallel": 3,
     "cacheDirectory": ".nx/cache",
     "targetDefaults": {
@@ -112,8 +117,7 @@
             "{workspaceRoot}/vitest.map-tiles.mjs",
             "{workspaceRoot}/vitest.map-tiles-setup.ts",
             "{workspaceRoot}/pnpm-workspace.yaml",
-            "{workspaceRoot}/.npmrc",
-            "{workspaceRoot}/.github/workflows/**/*"
+            "{workspaceRoot}/.npmrc"
         ]
     },
     "generators": {

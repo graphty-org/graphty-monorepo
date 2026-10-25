@@ -283,13 +283,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     const load = async (): Promise<void> => {
         const { source } = page;
-        // A refused load stays on the page, its problem block shown and Load disabled (T5).
-        if (!(await page.load())) {
+        // A refused load stays on the page, its problem block shown and Load disabled (T5). A new
+        // graph starts its history; data added to an open graph stays undoable.
+        if (!(await page.load(request.intent === "new" ? "start" : undefined))) {
             return;
-        }
-        // A new graph starts its history; data added to an open graph stays undoable.
-        if (request.intent === "new") {
-            session?.history.clear({ pending: "keep" });
         }
         if (session !== null && source?.kind === "files") {
             rememberLoad(session, { files: source.files, choices: page.choices });

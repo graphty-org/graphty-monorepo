@@ -23,6 +23,7 @@ on:
 
 permissions:
     contents: read
+    id-token: write # the results store: each shard's record, kind stress (tools/results/run-group.mjs)
 
 concurrency:
     group: restricted-cpu-stress
@@ -47,12 +48,13 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
         outputs:
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
         steps:
             - uses: actions/checkout@v4
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -78,7 +80,7 @@ jobs:
                   VITE_BASE_PATH: /
 
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: stress-build-packages
                   path: |
@@ -111,7 +113,7 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -125,7 +127,7 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: stress-build-packages
                   path: .
@@ -195,10 +197,11 @@ jobs:
                   exit "$status"
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
 
             - name: Upload the junit reports
               if: always()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
@@ -210,6 +213,7 @@ jobs:
         needs: [build, stress]
         if: always() && needs.build.result == 'success'
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         permissions:
             contents: read
             issues: write
@@ -221,7 +225,7 @@ jobs:
                   node-version: 22.x
 
             - name: Download the junit reports
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: junit-*
                   path: junit

@@ -140,6 +140,20 @@ describe("session.data.loadSample", () => {
         }
     });
 
+    it("a sample load that starts the history drops the steps before it", async () => {
+        const session = createGraphSession();
+        try {
+            const fetch = (): Promise<Response> => Promise.resolve(Response.json([{ id: "a" }, { id: "b" }]));
+            await session.data.addNodes([{ id: "before" }]);
+            await session.data.loadSample("sample-login-demo", { fetch, history: "start" });
+            assert.strictEqual(session.data.nodes().length, 2);
+            assert.lengthOf(session.history.steps, 0, "the history starts at the loaded graph");
+            assert.isFalse(session.canUndo);
+        } finally {
+            session.dispose();
+        }
+    });
+
     it("refuses an id no source lists with E_SOURCE_UNKNOWN, naming the ids it knows", async () => {
         const session = createGraphSession();
         try {

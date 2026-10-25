@@ -593,6 +593,7 @@ export interface CreateGraphSessionOptions {
             readonly minNodes?: number;
         };
     };
+    readonly features?: readonly string[];
     readonly runs?: SessionRunsOptions;
 }
 
@@ -749,6 +750,12 @@ export interface ElementSet {
 }
 
 // @public
+export interface EnabledFeatures {
+    readonly enabled: readonly FeatureId[];
+    readonly unknown: readonly string[];
+}
+
+// @public
 export type Encoding = Partial<Record<Channel, Binding>>;
 
 // @public
@@ -855,6 +862,9 @@ export const EXPORT_STYLE_LOSS_CODES: readonly ["W_STYLE_NOT_WRITTEN", "W_STYLE_
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
+export type FeatureId = "data-management" | "timeline" | "location-map";
 
 // @public
 export interface FieldBand {
@@ -1267,6 +1277,7 @@ export interface GraphSession {
     dispose(): void;
     estimate(command: SessionCommand): CostEstimate;
     execute<C extends SessionCommand>(command: C): CommandOutcome<C>;
+    readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
@@ -2141,6 +2152,7 @@ export type HistoryStepId = string & {
 
 // @public
 export interface ImportOptions {
+    readonly history?: "step" | "start";
     readonly layout?: "recommended" | "keep";
     readonly mode?: "replace" | "merge";
 }
@@ -3232,6 +3244,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;

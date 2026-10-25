@@ -449,6 +449,26 @@ readers' tests (section 2.6), so the saving is in packages whose tests use littl
 package (cytoscape-extensions' 20 test files, graphty-element's Node tests for a graph-format types
 module).
 
+### 5.4 The remaining Node packages and two browser projects, 2026-10-25
+
+Each run broke 10 files of one package (seeded, two at a time, `--seed 3` except graph-samples, one
+at a time with `--seed 2`) and ran every plain vitest shard of the package whole. None found a
+miss, so each package joined `fileLevel`, and graph-io and algorithms, whose browser shards ran
+too, joined `fileLevelBrowser`.
+
+| Package              | Shards run                             | Test files one source file selects | Result                                      |
+| -------------------- | -------------------------------------- | ---------------------------------- | ------------------------------------------- |
+| graph-samples        | graph-samples                          | 6 to 19                            | no miss                                     |
+| layout               | layout                                 | 22 to 26                           | no miss (seed 2 broke package.json: no run) |
+| graph-io             | graph-io, graph-io-browser             | 181 to 186; 2                      | no miss                                     |
+| algorithms           | algorithms-default, algorithms-browser | 42 to 46; 1 or 2                   | no miss                                     |
+| cytoscape-extensions | cytoscape-extensions                   | 10 to 19                           | no miss                                     |
+
+webgpu-graph-algorithms has no shard the selector can run file by file: every command goes through
+`scripts/run-node-shard.js` or `scripts/run-browser-project.js` with a lane variable, so its shards
+always run whole and it stays off the lists. cytoscape-extensions-cytoscape-versions runs whole for
+the same reason.
+
 ## 6. Rollout
 
 Speed first, safety from the checks above:

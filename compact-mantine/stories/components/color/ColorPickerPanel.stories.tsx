@@ -1,7 +1,7 @@
 import { AlphaSlider, ColorSwatch, Group, HueSlider, Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import { useEffect, useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.

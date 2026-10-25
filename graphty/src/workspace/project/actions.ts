@@ -12,7 +12,7 @@ import { browserProjects, type GraphSession, isGraphtyError, projectFileName } f
 import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
-import { focusOpenedGraph } from "../frame/focus";
+import { focusOpenedGraphLater } from "../frame/focus";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -367,17 +367,17 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  * A data file the element opened: it goes through the Data page, or, read into the graph, starts
  * a new graph's history or says it was added.
  * @param workspace - the workspace store.
- * @param session - the session.
  * @param report - what the element said of the file.
  * @param file - the file.
  * @param fresh - whether it opens as a new graph, from the start screen.
+ * @param focusLater - moves focus to the opened graph, unless the reader moved it meanwhile.
  */
 function openedData(
     workspace: CommandContext["workspace"],
-    session: GraphSession,
     report: OpenReport,
     file: File,
     fresh: boolean,
+    focusLater: (focus?: boolean) => void,
 ): void {
     if (report.opened === "graph") {
         // A data file goes through the Data page, where its roles and weight are chosen like
@@ -388,13 +388,12 @@ function openedData(
             workspace.set({ project: null });
         }
         openDataPage(workspace, { intent: fresh ? "new" : "add", files: [file] });
+        focusLater(false);
         return;
     }
-    if (fresh) {
-        // Opened as a new graph, so it starts its history (a project file does so itself).
-        session.history.clear({ pending: "keep" });
-        focusOpenedGraph();
-    } else {
+    // Opened as a new graph, it started its history (`history: "start"`).
+    focusLater(fresh);
+    if (!fresh) {
         workspace.set({ notice: { message: `Added ${file.name} to this project` } });
     }
 }
@@ -406,18 +405,22 @@ function openedData(
  * @param session - the session.
  * @param report - what the element said of the file.
  * @param pending - the file and where it came from.
+ * @param focusLater - moves focus to the opened graph, unless the reader moved it meanwhile.
  */
 async function openedProject(
     workspace: CommandContext["workspace"],
     session: GraphSession,
     report: OpenReport,
     pending: PendingFile,
+    focusLater: (focus?: boolean) => void,
 ): Promise<void> {
     const name = report.name ?? headerName(workspace);
     // The inspector shows the project that opened, and focus goes to its heading: whatever
     // row or control held focus belonged to the graph it replaced.
     workspace.set((state) => ({ project: state.project && { ...state.project, name }, inspected: null }));
-    requestAnimationFrame(focusOpenedGraph);
+    requestAnimationFrame(() => {
+        focusLater();
+    });
     const state = fileState(workspace);
     state.target = pending.storedId ?? null;
     state.recentId = pending.recentId ?? null;
@@ -477,20 +480,28 @@ async function openInSession(
     discard: boolean,
 ): Promise<boolean> {
     const { file, onData, fresh = false } = pending;
+    const focusLater = focusOpenedGraphLater();
     try {
-        const report = await session.project.open(file, { discard, fileName: file.name });
+        // From the start screen a document opens as a new graph, so it starts the history.
+        const report = await session.project.open(file, {
+            discard,
+            fileName: file.name,
+            ...(fresh ? { history: "start" as const } : {}),
+        });
         if (report.opened === "graph" && onData !== undefined) {
             // A data file: imported the way the caller imports one, not as the element's draft.
+            focusLater(false);
             report.draft?.dispose();
             await onData(ctx, fresh);
             return true;
         }
         if (report.opened !== "project") {
-            openedData(ctx.workspace, session, report, file, fresh);
+            openedData(ctx.workspace, report, file, fresh, focusLater);
             return true;
         }
-        await openedProject(ctx.workspace, session, report, pending);
+        await openedProject(ctx.workspace, session, report, pending, focusLater);
     } catch (error) {
+        focusLater(false);
         if (onData !== undefined && isGraphtyError(error) && DATA_REFUSALS.has(error.code)) {
             // A data file the element could not read: the data import says why, in its own words.
             await onData(ctx, fresh);

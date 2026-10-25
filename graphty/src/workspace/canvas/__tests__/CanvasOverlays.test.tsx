@@ -406,45 +406,6 @@ describe("the legend card", () => {
         assert.isNull(screen.queryByText(/p98/));
     });
 
-    it("reserves its own box as the element's view inset, and gives it back when it goes", async () => {
-        const store = renderOver(standIn(facts).session);
-        const card = screen.getByRole("region", { name: "Legend" });
-        await vi.waitFor(() => {
-            const { left, top } = store.get().viewInsets;
-            const reserved = left ?? top ?? 0;
-            assert.isAtLeast(reserved, (left === undefined ? card.offsetHeight : card.offsetWidth) + 12);
-        });
-        act(() => {
-            store.set({ legendShown: false });
-        });
-        assert.deepEqual(store.get().viewInsets, {});
-    });
-
-    it("keeps its inset while a page hides the canvas, so the drawing is where it was when it comes back", async () => {
-        const store = renderOver(standIn(facts).session);
-        const card = screen.getByRole("region", { name: "Legend" });
-        await vi.waitFor(() => {
-            assert.notDeepEqual(store.get().viewInsets, {});
-        });
-        const reserved = store.get().viewInsets;
-        const canvas = card.parentElement;
-        if (canvas === null) {
-            throw new Error("the card has no canvas");
-        }
-        const seen = new Promise<void>((resolve) => {
-            const observer = new ResizeObserver(() => {
-                observer.disconnect();
-                resolve();
-            });
-            observer.observe(canvas);
-        });
-        canvas.style.display = "none";
-        await seen;
-        // The card's own observer fired on the same resize; its report has run by the next frame.
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        assert.deepEqual(store.get().viewInsets, reserved);
-    });
-
     /**
      * An element stand-in whose nodes the card's box does or does not cover.
      * @param covered - The node ids under any rectangle asked about.
@@ -469,20 +430,9 @@ describe("the legend card", () => {
         return { element, zoomToFit };
     }
 
-    it("reserves no room while there is no key, so the drawing has the whole canvas", async () => {
-        const store = renderOver(standIn({}).session);
-        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
-        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-        assert.isUndefined(store.get().viewInsets.left);
-        assert.isUndefined(store.get().viewInsets.top);
-    });
-
     it("never moves the drawing when the key arrives over a node or the canvas changes size", async () => {
         const { element, zoomToFit } = framing(["n1"]);
-        const store = renderOver(standIn(facts).session, {}, [], element);
-        await vi.waitFor(() => {
-            assert.notDeepEqual(store.get().viewInsets, {});
-        });
+        renderOver(standIn(facts).session, {}, [], element);
         const canvas = screen.getAllByRole("region", { name: "Legend" }).at(-1)?.parentElement;
         if (!canvas) {
             throw new Error("the card has no canvas");

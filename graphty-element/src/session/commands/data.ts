@@ -173,6 +173,8 @@ export interface DataImportCommand {
     };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
+    /** Starts the history: see `ImportOptions.history`. */
+    readonly startsHistory?: boolean;
     /**
      * Imports with the same key coalesce while the first waits its turn: the element's two
      * properties assigned one after the other are one load.

@@ -119,7 +119,7 @@ function bringGraph(ctx: CommandContext, name: string, load: GraphLoad, target: 
         return;
     }
     unlessUnsaved(ctx, () => {
-        openProject(ctx.workspace, name, (session) => load(session, "replace"));
+        openProject(ctx.workspace, name, (session) => load(session, { mode: "replace", history: "start" }));
     });
 }
 
@@ -191,7 +191,7 @@ function sampleEntries(
                         bringGraph(
                             ctx,
                             sample.plainName,
-                            (session, mode) => session.data.loadSample(sample.id, { mode }),
+                            (session, load) => session.data.loadSample(sample.id, load),
                             target,
                         );
                     },
@@ -244,7 +244,7 @@ function bringDataset(ctx: CommandContext, dataset: DatasetMeta, target: Target)
     bringGraph(
         ctx,
         dataset.title,
-        (session, mode) => session.data.loadDataset(dataset.name, { ...datasetBase(), mode }),
+        (session, load) => session.data.loadDataset(dataset.name, { ...datasetBase(), ...load }),
         target,
     );
 }
@@ -425,7 +425,7 @@ export function SamplesDialog(): React.JSX.Element {
                     bringGraph(
                         ctx,
                         generator.plainName,
-                        (session, mode) => session.data.generate(generator.name, params, { mode }),
+                        (session, load) => session.data.generate(generator.name, params, load),
                         target,
                     );
                 }}

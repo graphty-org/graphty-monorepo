@@ -8,7 +8,6 @@ import React, { useEffect, useRef } from "react";
 import { AutosaveChip } from "../autosave/AutosaveChip";
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
-import { TOOLBAR_SIDES, toolbarInsets, useOverlayInset } from "../canvas/viewInsets";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
@@ -52,9 +51,6 @@ interface FrameProps {
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
     const { store, element } = useWorkspace();
-    // The toolbar covers the canvas's bottom edge: no fit puts a node under it.
-    const dock = useRef<HTMLDivElement>(null);
-    useOverlayInset(dock, TOOLBAR_SIDES, toolbarInsets);
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -137,7 +133,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
-                            <div className="ws-toolbar-dock" ref={dock}>
+                            <div className="ws-toolbar-dock">
                                 <WorkspaceToolbar />
                             </div>
                             <NoticeSlot />

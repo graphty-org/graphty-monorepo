@@ -15,9 +15,10 @@ import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/ses
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
-import { focusOpenedGraph } from "../frame/focus";
+import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
@@ -26,7 +27,8 @@ import { noticeFileStyles } from "../styles/noticeFileStyles";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
- * element has come up.
+ * element has come up. Each load starts the project's history (`history: "start"`): opening is
+ * not a change to undo, and Undo pressed while it loads never cancels it.
  * @param workspace - the workspace store.
  * @param name - the project's name.
  * @param load - what to load into the new element.
@@ -48,21 +50,22 @@ export function openProject(
 }
 
 /**
- * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
- * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
- * Storybook (its staticDirs), which never reads the network.
+ * This machine's copy, on the dev server and in the tests (vite.sample-data.ts) and in a built
+ * Storybook (its staticDirs), which never read the network.
  */
-const DATASET_BASE =
+const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
 
 /**
- * Where `loadDataset` reads graph-samples' datasets from (see `DATASET_BASE`).
+ * Where the datasets are read from: this machine's copy where there is one, else the site's own
+ * (its site.json's `datasets`), else graph-samples' default.
  * @returns the options naming it, or none for graph-samples' default.
  */
 export function datasetBase(): { readonly baseUrl?: string } {
-    return DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE };
+    const baseUrl = LOCAL_DATASETS ?? siteConfig().datasets;
+    return baseUrl === undefined ? {} : { baseUrl };
 }
 
 /**
@@ -75,7 +78,7 @@ export function datasetBase(): { readonly baseUrl?: string } {
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
     return entry.thumbnail === undefined
         ? undefined
-        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
 }
 
 /**
@@ -85,7 +88,9 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
-    openProject(workspace, dataset.title, (session) => session.data.loadDataset(dataset.name, datasetBase()));
+    openProject(workspace, dataset.title, (session) =>
+        session.data.loadDataset(dataset.name, { history: "start", ...datasetBase() }),
+    );
 }
 
 /**
@@ -99,7 +104,9 @@ export function openGenerated(
     generator: GeneratorDescriptor,
     params: GeneratorParams,
 ): void {
-    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
+    openProject(workspace, generator.plainName, (session) =>
+        session.data.generate(generator.name, params, { history: "start" }),
+    );
 }
 
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
@@ -135,15 +142,25 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param source - what to load.
+ * @param fresh - whether it is a new project's first load, which starts its history.
  */
-async function drawFirst(workspace: WorkspaceStore, session: GraphSession, source: DataSourceInput): Promise<void> {
+async function drawFirst(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    source: DataSourceInput,
+    fresh = false,
+): Promise<void> {
     const draft = await session.data.prepare(source, { guess: "values" });
     const fixed = draft.tables.every((table) => table.fixed);
     const ready = Object.values(draft.missing()).every((roles) => roles.length === 0);
     const lone = draft.tables.length === 1 && !ready;
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
-    await draft.load({ styles: fileStylesChoice(), ...(fixed ? {} : { mapping }) });
+    await draft.load({
+        styles: fileStylesChoice(),
+        ...(fixed ? {} : { mapping }),
+        ...(fresh ? { history: "start" as const } : {}),
+    });
     noticeFileStyles(workspace, session);
     const load = session.data.sources().at(-1);
     if (lone && load !== undefined) {
@@ -179,7 +196,7 @@ async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming
  */
 export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
     openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-        drawFirst(workspace, next, incoming.source),
+        drawFirst(workspace, next, incoming.source, true),
     );
 }
 
@@ -237,33 +254,6 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
 }
 
 /**
- * Settles a newly opened graph once its load does: its history starts (Undo never unloads it) and
- * focus goes to its heading, so its size is heard. The graph is drawn before its load settles, so
- * a reader may already have acted -- changed something, started a run, selected something, moved
- * focus into the drawing or a dialog; then their history and their place are left as they are.
- * @param session - the new project's session.
- * @param focus - whether focus goes to the heading (only on the graph panels).
- */
-export function settleOpened(session: GraphSession, focus = true): void {
-    // ponytail: the opening's steps are told by their ops (data and config); a reader's own data
-    // edit made in that moment keeps the opening undoable too.
-    const { steps, pending } = session.history;
-    const untouched =
-        pending.length === 0 &&
-        steps.every((step) =>
-            step.ops.every((op) => op.startsWith("data.") || op.startsWith("config.") || op === "batch"),
-        );
-    if (!untouched) {
-        return;
-    }
-    session.history.clear();
-    const { nodes, edges } = session.selection;
-    if (focus && nodes.length === 0 && edges.length === 0) {
-        focusOpenedGraph();
-    }
-}
-
-/**
  * Loads a file opened from the start screen into its new project, drawn as a first file is. The
  * graph starts its history (Undo never unloads it) and focus goes to its heading, as for a sample.
  * A file the element refuses was never really opened: back to the start screen, with the reason
@@ -277,10 +267,12 @@ async function openFirst({ workspace, session }: CommandContext, incoming: Incom
     if (session === null) {
         return;
     }
+    const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source);
-        settleOpened(session);
+        await drawFirst(workspace, session, incoming.source, true);
+        focusLater();
     } catch (error) {
+        focusLater(false);
         workspace.set({
             project: null,
             page: "panels",
@@ -292,8 +284,14 @@ async function openFirst({ workspace, session }: CommandContext, incoming: Incom
     }
 }
 
-/** How a whole graph loads into a session: replacing what it holds, or added to it. */
-export type GraphLoad = (session: GraphSession, mode: "replace" | "merge") => Promise<void>;
+/**
+ * How a whole graph loads into a session: replacing what it holds, or added to it, and, for a new
+ * project, as where its history starts.
+ */
+export type GraphLoad = (
+    session: GraphSession,
+    load: { readonly mode: "replace" | "merge"; readonly history?: "start" },
+) => Promise<void>;
 
 /**
  * Adds a whole graph (a server sample, a dataset, a generated graph) by the same rule as
@@ -307,10 +305,10 @@ export type GraphLoad = (session: GraphSession, mode: "replace" | "merge") => Pr
  */
 export function addGraph({ workspace, session }: CommandContext, name: string, load: GraphLoad): void {
     if (workspace.get().project === null || session === null) {
-        openProject(workspace, name, (next) => load(next, "replace"));
+        openProject(workspace, name, (next) => load(next, { mode: "replace", history: "start" }));
         return;
     }
-    load(session, session.data.sources().length === 0 ? "replace" : "merge").catch((error: unknown) => {
+    load(session, { mode: session.data.sources().length === 0 ? "replace" : "merge" }).catch((error: unknown) => {
         workspace.set({ notice: { message: refusalFor(error, name).what } });
     });
 }

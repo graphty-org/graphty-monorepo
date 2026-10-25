@@ -26,7 +26,7 @@ import { after, describe, it } from "node:test";
 
 import { parse as parseYaml } from "yaml";
 
-import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS, storiesPlan } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -5446,5 +5446,127 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
         assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
         assert.equal(verdict("3", "failure").status, 1);
         assert.equal(verdict("3", "cancelled").status, 1);
+    });
+});
+
+describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const stories = job(ci, "stories");
+    const runOf = (name) => {
+        const m = new RegExp(`- name: ${name}\\n[\\s\\S]*?\\n {14}run: \\|\\n([\\s\\S]*?)\\n\\n`).exec(stories);
+        assert.ok(m, `Stories has the step ${name}`);
+        return m[1];
+    };
+
+    it("is a Stories (<project>-<bin>) matrix from the Build job's plan, only when a story was selected", () => {
+        assert.match(stories, /\n {8}name: Stories \(\$\{\{ matrix\.name \}\}\)\n/);
+        assert.match(stories, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.stories-matrix\) \}\}/);
+        assert.match(stories, /fromJSON\(needs\.packages\.outputs\.stories-count \|\| '0'\) > 0/);
+        const build = job(ci, "packages");
+        assert.match(build, /stories-matrix: \$\{\{ steps\.bins\.outputs\.stories-matrix \}\}/);
+        assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)='/);
+    });
+
+    it("is report-only: outside All Checks Pass, and nothing in it fails the job", () => {
+        assert.doesNotMatch(job(ci, "all-checks"), /needs: \[[^\]]*\bstories\b/);
+        assert.match(stories, /\n {8}continue-on-error: true\n/);
+        assert.match(stories, /- name: Capture the selected stories\n[\s\S]*?\n {14}continue-on-error: true\n/);
+        // its partial captures are not visual-* artifacts, which the visual gate and the flaky report read
+        assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
+    });
+
+    it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {
+        assert.match(stories, /git archive HEAD\^1 visual-review\/capture visual-review\/trusted \| tar -x/);
+        assert.match(
+            stories,
+            /run: pnpm exec visual-review capture --project \$\{\{ matrix\.project \}\} --out "\$RUNNER_TEMP\/visual" --reference "\$\{\{ steps\.reference\.outputs\.dir \}\}" --stories "\$STORIES"\n/,
+        );
+        const dir = mkdtempSync(join(TMP, "stories-"));
+        writeFileSync(
+            join(dir, "index.json"),
+            JSON.stringify({
+                v: 5,
+                entries: {
+                    "a--one": { id: "a--one", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--two": { id: "a--two", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--docs": { id: "a--docs", type: "docs", importPath: "./stories/A.stories.ts" },
+                    "b--one": { id: "b--one", type: "story", importPath: "./stories/B.stories.ts" },
+                },
+            }),
+        );
+        const pick = (files, ids) => {
+            const out = join(dir, "out.txt");
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-c", runOf("Pick the selected stories")], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    FILES: JSON.stringify(files),
+                    IDS: JSON.stringify(ids),
+                    STORYBOOK: dir,
+                    GITHUB_OUTPUT: out,
+                },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            return readFileSync(out, "utf8").trim();
+        };
+        assert.equal(pick(["graphty-element/stories/A.stories.ts"], []), "stories=a--one,a--two");
+        assert.equal(pick([], ["c--changed-baseline"]), "stories=c--changed-baseline");
+        assert.equal(
+            pick(["graphty-element/stories/C.stories.ts"], []),
+            "stories=",
+            "an unbuilt file captures nothing",
+        );
+    });
+
+    it("reports a changed picture in the job summary and passes", () => {
+        const dir = mkdtempSync(join(TMP, "stories-report-"));
+        mkdirSync(join(dir, "visual"));
+        writeFileSync(
+            join(dir, "visual", "results.json"),
+            JSON.stringify({
+                reference: null,
+                items: [
+                    { file: "a--one.png", status: "changed" },
+                    { file: "a--two.png", status: "unchanged" },
+                ],
+            }),
+        );
+        const summary = join(dir, "summary.md");
+        const r = spawnSync("bash", ["-e", "-c", runOf("Report the changed pictures \\(does not block\\)")], {
+            encoding: "utf8",
+            env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: summary, NAME: "graphty-element-1" },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        const text = readFileSync(summary, "utf8");
+        assert.match(text, /### Stories \(graphty-element-1\), report-only/);
+        assert.match(text, /\n- changed: a--one\.png\n/);
+        assert.doesNotMatch(text, /- unchanged/);
+    });
+
+    it("storiesPlan() makes one entry per story bin with its project's Storybook artifact", () => {
+        assert.deepEqual(storiesPlan(undefined), []);
+        assert.deepEqual(storiesPlan({ bins: [] }), []);
+        const [e] = storiesPlan({
+            storyBins: [
+                {
+                    name: "graphty-element-1",
+                    project: "graphty-element",
+                    storybook: "graphty-element/storybook-static",
+                    files: ["graphty-element/stories/A.stories.ts"],
+                    ids: [],
+                    ms: 1000,
+                },
+            ],
+        });
+        assert.deepEqual(e, {
+            name: "graphty-element-1",
+            project: "graphty-element",
+            artifact: "build-storybook-element",
+            storybook: "graphty-element/storybook-static",
+            files: ["graphty-element/stories/A.stories.ts"],
+            ids: [],
+        });
+        assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
     });
 });

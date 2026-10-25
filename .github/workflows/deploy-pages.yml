@@ -40,12 +40,23 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
               run: |
+                  # The subject alone proves nothing: any pull request can be merged with this subject. A real
+                  # version merge's second parent is the version commit, which the release's tags point at, and
+                  # only the release deploy key pushes those tags. So the first tag the subject names must
+                  # point at this merge's second parent.
                   subject=${MESSAGE%%$'\n'*}
+                  second="" target=""
                   case "$subject" in
-                      "chore(release): publish "*" onto master") parents=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq '.parents | length') ;;
-                      *) parents=0 ;;
+                      "chore(release): publish "*" onto master")
+                          tag=${subject#chore(release): publish }; tag=${tag% onto master}; tag=${tag%%,*}
+                          second=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq 'if (.parents | length) == 2 then .parents[1].sha else "" end')
+                          ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$(jq -rn --arg t "$tag" '$t | @uri')" --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null || true)
+                          case "$ref" in
+                              "tag "*) target=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${ref#tag }" --jq .object.sha) ;;
+                              "commit "*) target=${ref#commit } ;;
+                          esac ;;
                   esac
-                  if [ "$parents" != 2 ]; then
+                  if [ -z "$second" ] || [ "$target" != "$second" ]; then
                       echo "::notice::${SHA} is not a release's version merge: its site is kept as artifact site-${SHA}, graphty.app stays"
                       echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi

@@ -65,6 +65,7 @@ npm install @graphty/graphty-element @babylonjs/core lit
 - **Extensible** - Plugin architecture for custom layouts, algorithms, and data sources ([Extending Guide](https://graphty.app/docs/graphty-element/guide/extending/))
 - **Graph Algorithms** - Built-in algorithms for analysis ([Algorithms Guide](https://graphty.app/docs/graphty-element/guide/algorithms))
 - **VR/AR Support** - WebXR integration for immersive visualization ([VR/AR Guide](https://graphty.app/docs/graphty-element/guide/vr-ar))
+- **Experiments** - Unfinished features ship switched off; turn them on with the `features` attribute ([Experiments Guide](https://graphty.app/docs/graphty-element/guide/experiments)). API marked `@experimental` may change or disappear in a minor release; only unmarked API waits for a major release to break
 
 ## Browser Support
 

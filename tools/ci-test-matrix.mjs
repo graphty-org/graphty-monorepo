@@ -246,7 +246,7 @@ export const SHARDS = [
         shard: "graphty-element-default",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage",
+            "cd graphty-element && pnpm exec vitest run --project=default --project=mesh --reporter=blob --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage",
         "needs-browser": false,
     },
     // graphty-element browser tests (5 shards)
@@ -254,7 +254,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-browser-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=browser --project=interactions --project=xr --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
         "needs-browser": true,
         // 935 s for the browser and storybook shards together (2026-10-06); a push that changes
         // only the element's source is left to CI here.
@@ -273,7 +273,7 @@ export const SHARDS = [
         shard: "graphty-element-lifecycle",
         package: "graphty-element",
         "test-command":
-            "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs}",
+            "cd graphty-element && pnpm exec vitest run --project=lifecycle --project=autosave-engines --reporter=default ${CI:+--reporter=junit} ${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} ${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs}",
         "needs-browser": true,
         browsers: "chromium firefox webkit",
         // Never in the pre-push gate: it launches three engines for minutes, and WebKit needs system
@@ -293,7 +293,7 @@ export const SHARDS = [
     ...[1, 2, 3, 4, 5].map((n) => ({
         shard: `graphty-element-storybook-${n}`,
         package: "graphty-element",
-        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} --coverage`,
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=storybook --shard=${n}/5 --reporter=blob --reporter=default \${CI:+--reporter=junit} \${VITEST_BUDGET_CHECK:+--reporter=../tools/vitest-time-budget.mjs} \${GRAPHTY_RESULTS_INVOCATION:+--reporter=../tools/results/reporter.mjs} --coverage`,
         "needs-browser": true,
         local: "when-paths-change",
         // Storybook's own config (the vitest project's configDir) and the story helpers.
@@ -377,17 +377,18 @@ export function groupEntry(name, members) {
 }
 
 /**
- * A shard's command as CI's test job runs it: through the quarantine wrapper (tools/test-quarantine.mjs), as
- * the pre-push gate runs it, so a flaky or quarantined test fails neither (the checkout's
- * tools/test-quarantine.json; the failed test files are run once more). On unless GRAPHTY_TEST_QUARANTINE=0,
- * which CI does not set: then the wrapper only runs the command.
+ * A shard's command as CI's test job runs it: through tools/results/run-group.mjs, which runs it through the
+ * quarantine wrapper (tools/test-quarantine.mjs runShard()) as the pre-push gate does, so a flaky or quarantined
+ * test fails neither (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
+ * then writes one record per try to the results store when RESULTS_URL is set. On unless
+ * GRAPHTY_TEST_QUARANTINE=0, which CI does not set: then the wrapper only runs the command.
  * @param shard a SHARDS entry
  * @returns a shell command
  */
 export function ciCommand(shard) {
     const escapedQuote = String.raw`'\''`;
     const quoted = `'${shard["test-command"].replaceAll("'", escapedQuote)}'`;
-    return `node tools/test-quarantine.mjs run ${shard.shard} ${quoted}`;
+    return `node tools/results/run-group.mjs ${shard.shard} ${quoted}`;
 }
 
 /**

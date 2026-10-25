@@ -126,6 +126,10 @@ describe("writing many layers at once", () => {
         assert.strictEqual(session.history.steps.length, steps + 1, "one undo step");
         // Each edit's change carries the report of the pass that drew it: one object, one pass.
         assert.strictEqual(new Set(seen.map((change) => change.painted)).size, 1, "one repaint pass");
+        // One event for the one edit, naming all twelve layers: not twelve, which made every
+        // listener that re-reads the stack do it once per layer.
+        assert.lengthOf(seen, 1, "one style:changed event");
+        assert.sameMembers([...seen[0].layers], ids);
         assert.strictEqual(colorOf(session, "n0"), "#0072b2");
         assert.strictEqual(colorOf(session, "n11"), "#0072b2");
 

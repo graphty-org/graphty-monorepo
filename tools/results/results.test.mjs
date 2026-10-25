@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,7 @@ import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
 import { failureHashes } from "../test-ledger.mjs";
+import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { baseId, fileIssues, junitOf, postRecords, prJudge, recordsOf, runGroup, storeList } from "./run-group.mjs";
 
@@ -468,5 +470,86 @@ describe("fileIssues", () => {
                 .length,
             0,
         );
+    });
+});
+
+describe("cli", () => {
+    const ledger = {
+        v: 1,
+        id: "1792586082000-impa5bd7c48-graphty-element-browser-2",
+        kind: "import-land-check",
+        branch: "fix/1-x",
+        commit: "c".repeat(40),
+        tree: "t".repeat(40),
+        base: null,
+        dirty: false,
+        shard: "graphty-element-browser-2",
+        family: "graphty-element-browser",
+        selected: null,
+        outcome: "failed",
+        started_at: "2026-10-21T12:34:42.000Z",
+        secs: 12.5,
+        files: [["graphty-element/test/browser/a.test.ts", 19, 1, 0, 40, 0]],
+        failures: [
+            {
+                file: "graphty-element/test/browser/a.test.ts",
+                name: "n",
+                line: "Error: x",
+                status: "fail",
+                message: "Error: x",
+            },
+        ],
+    };
+
+    it("turns a ledger record into a local record, its kind in the note", () => {
+        const r = fromLedger(ledger);
+        assert.equal(r.id, `local.ledger.${ledger.id}`);
+        assert.equal(r.variant, "graphty-element-browser|flags=off|whole");
+        assert.deepEqual(r.files, [["graphty-element/test/browser/a.test.ts", 19, 1, 0, 40]]);
+        assert.equal(r.note, "ledger import-land-check on fix/1-x");
+        assert.equal(r.startedAt, Date.parse("2026-10-21T12:34:42.000Z"));
+        assert.equal(fromLedger({ ...ledger, outcome: "weird", selected: ["a"] }).outcome, "infra");
+        assert.equal(fromLedger({ ...ledger, selected: ["a"] }).variant, "graphty-element-browser|flags=off|selected");
+    });
+
+    it("imports every record file, gzipped or not, and counts what the store had", async () => {
+        const dir = join(TMP, "ledger");
+        mkdirSync(join(dir, "2026-10-21"), { recursive: true });
+        for (let i = 0; i < 20; i++) {
+            const rec = JSON.stringify({ ...ledger, id: `r${i}` });
+            const name = join(dir, "2026-10-21", `r${i}.json${i % 2 ? ".gz" : ""}`);
+            writeFileSync(name, i % 2 ? gzipSync(rec) : rec);
+        }
+        writeFileSync(join(dir, "2026-10-21", "broken.json"), "{");
+        const files = ledgerFiles(dir);
+        assert.equal(files.length, 21);
+        const posted = [];
+        const post = async (cfg, rec) => {
+            posted.push(rec.id);
+            if (rec.id.endsWith("r3")) return { ok: false, why: "HTTP 500" };
+            return { ok: true, data: { stored: !rec.id.endsWith("r4") } };
+        };
+        const r = await importLedger({}, files, post);
+        assert.equal(posted.length, 20);
+        assert.deepEqual([r.stored, r.had, r.failed.length], [18, 1, 2]);
+    });
+
+    it("runs the base check's file once per repeat, each its own record of the asked variant", async () => {
+        const root = join(import.meta.dirname, "../..");
+        const file = readdirSync(join(root, "layout/test")).find((n) => n.endsWith(".test.ts"));
+        const runs = [];
+        const run = async (shard, cmd, o) => {
+            runs.push([shard, cmd, o.env.RESULTS_REPEAT, o.env.RESULTS_VARIANT, o.env.GRAPHTY_FLAGS]);
+            return runs.length === 2 ? 1 : 0;
+        };
+        const variant = "layout|flags=off|selected";
+        const code = await baseCheck({ root, variant, file: `layout/test/${file}`, repeat: 3, env: {}, run });
+        assert.equal(code, 1);
+        assert.deepEqual(
+            runs.map((r) => r[2]),
+            ["1", "2", "3"],
+        );
+        assert.ok(runs.every((r) => r[0] === "layout" && r[1].includes(file) && r[3] === variant && r[4] === "off"));
+        assert.equal(await baseCheck({ root, variant: "nope|flags=off|whole", file: "x", env: {}, run }), 2);
     });
 });

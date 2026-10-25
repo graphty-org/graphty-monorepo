@@ -1,0 +1,79 @@
+name: Base check
+
+# Runs one test file on master's code at a pull request's base and writes each run to the results store as kind
+# `base`, which only master's own copy of this workflow may write. The pipeline round dispatches it:
+# - `[KNOWN?]`: a pull request failed a test it did not touch and master has no evidence of; repeat 1. When the
+#   file fails here the same way, the round re-runs the pull request's failed job, whose plan now excuses it, and
+#   this run files one `Failing on master` issue per signature.
+# - `[FLAKY-UNRELATED]`: a pull request saw a test it did not touch fail and pass; repeat 5. A pass and a fail here
+#   quarantine the test, and this run files its priority:critical issue.
+# Design: design/ci/channels-pipeline/results-service.md, sections 6.1 and 6.3.
+
+on:
+    workflow_dispatch:
+        inputs:
+            base:
+                description: The pull request's base commit (a master commit)
+                required: true
+            file:
+                description: The test file, from the repository root
+                required: true
+            variant:
+                description: The variant, as the pull request's job printed it (family|flags=off|selected)
+                required: true
+            repeat:
+                description: How many times to run the file
+                default: "1"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: base-check-${{ inputs.base }}-${{ inputs.file }}-${{ inputs.variant }}
+    cancel-in-progress: false
+
+jobs:
+    check:
+        name: Base check
+        if: github.ref == 'refs/heads/master'
+        runs-on: ubuntu-24.04
+        timeout-minutes: 40
+        permissions:
+            contents: read
+            id-token: write
+            issues: write
+        env:
+            RESULTS_URL: ${{ vars.RESULTS_URL }}
+            GH_TOKEN: ${{ github.token }}
+            HUSKY: "0"
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.base }}
+                  fetch-depth: 2
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Playwright's Chromium
+              run: pnpm exec playwright install chromium
+
+            - name: Run the file
+              env:
+                  FILE: ${{ inputs.file }}
+                  VARIANT: ${{ inputs.variant }}
+                  REPEAT: ${{ inputs.repeat }}
+              run: node tools/results/cli.mjs base-check --build --variant "$VARIANT" --file "$FILE" --repeat "$REPEAT"

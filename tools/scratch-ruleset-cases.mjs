@@ -7,6 +7,8 @@
  *   node tools/scratch-ruleset-cases.mjs --dry-run           # the plan; no GitHub write
  *   node tools/scratch-ruleset-cases.mjs [--post]            # run it (with run_in_background), --post comments on #3418
  *       [--interval <s>] (300 or more)  [--max-hours <h>] (4)
+ *       [--reset]  first force-update scratch/ruleset-trial to origin/master (a run refuses to start when its
+ *                  tip is not on master, as after an earlier run merged its src-merges case into it)
  *
  * It opens one pull request per case into scratch/ruleset-trial as graphty-agent, polls all of them in one
  * GraphQL query at most every 5 minutes, judges each against its expectation, prints a table, and at the end
@@ -136,7 +138,8 @@ export function latestCheck(contexts, name) {
                 : { name: c.name, at: c.startedAt, result: c.status === "COMPLETED" ? c.conclusion : "PENDING" },
         )
         .filter((r) => r.name === name)
-        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        // A run that never started (no time) sorts oldest, so it never hides a finished one.
+        .sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")));
     return runs.length ? runs.at(-1).result : null;
 }
 
@@ -154,6 +157,8 @@ export function observe(node) {
         merged: node.merged,
         reviewDecision: node.reviewDecision,
         checks: Object.fromEntries([...names].map((n) => [n, latestCheck(contexts, n)])),
+        // Only on the Dependabot search: every commit is Dependabot's own (PR Integrity's onlyDependabot).
+        dependabotOnly: node.owned?.nodes?.every((c) => /dependabot\[bot\]/u.test(c.commit?.author?.email ?? "")),
     };
 }
 
@@ -163,9 +168,12 @@ const describe = (o) => `merged=${o.merged} review=${o.reviewDecision ?? "none"}
 const unfinished = (o) => REQUIRED.some((n) => !o.checks[n] || o.checks[n] === "PENDING");
 
 const JUDGES = {
+    // o.kind: "refused" (the ruleset's own refusal), "skip" (no admin rights to try), "merged" or "error".
     admin: (_e, o) => ({
-        verdict: o.refused ? "pass" : "fail",
-        actual: o.refused ? `refused: ${o.output}` : "merged with --admin",
+        verdict: { refused: "pass", skip: "skip" }[o.kind] ?? "fail",
+        actual:
+            { refused: "refused: ", skip: "skipped: ", merged: "merged with --admin", error: "" }[o.kind] +
+            (o.output ?? ""),
     }),
     integrity: (e, o) => {
         const got = o.checks[INTEGRITY];
@@ -220,7 +228,8 @@ export function table(rows) {
 // ---------------------------------------------------------------------------------------------------------
 // GitHub and git, as graphty-agent. Everything below needs the network; the parts above are pure.
 
-class RateLimit extends Error {}
+/** A GitHub rate limit: the run stops (exit 4) instead of retrying. */
+export class RateLimit extends Error {}
 
 let indexCount = 0;
 
@@ -359,7 +368,8 @@ function planAfter(ctx, p, files, git) {
 }
 
 const POLL = `query($q: String!) { repository(owner: "graphty-org", name: "graphty-monorepo") { %PRS% }
-  dependabot: search(query: $q, type: ISSUE, first: 10) { nodes { ... on PullRequest { %FIELDS% } } } }`;
+  dependabot: search(query: $q, type: ISSUE, first: 10) { nodes { ... on PullRequest { %FIELDS%
+  owned: commits(first: 100) { nodes { commit { author { email } } } } } } } }`;
 const FIELDS = `number state merged reviewDecision commits(last: 1) { nodes { commit { statusCheckRollup {
   contexts(first: 100) { nodes { __typename ... on CheckRun { name status conclusion startedAt }
   ... on StatusContext { context state createdAt } } } } } } }`;
@@ -381,17 +391,59 @@ function poll(numbers) {
 }
 
 /**
- * The newest Dependabot pull request whose PR Integrity finished.
+ * The newest Dependabot pull request whose PR Integrity finished and whose commits are all Dependabot's own
+ * (one with a merge of master is an agent pull request to PR Integrity, rightly failed without a Proof).
  * @param list observations of the open Dependabot pull requests
- * @returns one observation, or null
+ * @returns one observation, or null (the case is then skipped)
  */
-const pickDependabot = (list) =>
-    [...list].sort((a, b) => b.number - a.number).find((o) => !["PENDING", null].includes(o.checks[INTEGRITY])) ?? null;
+export const pickDependabot = (list) =>
+    [...list]
+        .sort((a, b) => b.number - a.number)
+        .find((o) => o.dependabotOnly && !["PENDING", null].includes(o.checks[INTEGRITY])) ?? null;
+
+/**
+ * --reset: force-update the scratch branch to origin/master (that one ref only).
+ * @param io { gh, git } (git in the repository)
+ * @returns the sha it now points at
+ */
+export function resetBase(io) {
+    const sha = io.git(["rev-parse", "origin/master"]);
+    try {
+        io.gh(["api", "-X", "PATCH", `repos/${REPO}/git/refs/heads/${BASE}`, "-f", `sha=${sha}`, "-F", "force=true"]);
+    } catch (e) {
+        if (e instanceof RateLimit) throw e;
+        throw new Error(
+            `could not reset ${BASE} to origin/master (${sha.slice(0, 10)}): ${e.message.split("\n").at(-1)}. ` +
+                `The scratch ruleset refuses a force-update to everyone but deploy keys; the owner resets it with ` +
+                `"bash tmp/scratch-ruleset-reset.sh"`,
+        );
+    }
+    console.log(`reset ${BASE} to origin/master (${sha.slice(0, 10)})`);
+    return sha;
+}
+
+/**
+ * Refuses a base that is not on master: every case is built on the premise that the base is a master commit.
+ * @param base the scratch branch's tip
+ * @param io { git }
+ */
+export function requireOnMaster(base, io) {
+    try {
+        io.git(["merge-base", "--is-ancestor", base, "origin/master"]);
+    } catch {
+        throw new Error(
+            `the tip of ${BASE} (${base.slice(0, 10)}) is not on origin/master, so the revert, accept-only and ` +
+                "master-merge cases would test the wrong thing; run again with --reset",
+        );
+    }
+}
 
 function preflight(root, dryRun) {
     let found = false;
     try {
-        found = JSON.parse(gh(["api", `repos/${REPO}/rulesets`])).some((r) => r.name === RULESET);
+        found = gh(["api", "--paginate", "--jq", ".[].name", `repos/${REPO}/rulesets`])
+            .split("\n")
+            .includes(RULESET);
     } catch (e) {
         if (e instanceof RateLimit) throw e;
         if (!dryRun) throw new Error(`cannot list the rulesets of ${REPO}: ${e.message}`);
@@ -471,36 +523,64 @@ async function open(planned, stamp, root) {
     if (later.length) push(later.map((p) => `${p.after}:refs/heads/${p.branch}`));
 }
 
-function tryAdmin(pr) {
+// GitHub's own refusal of a merge the ruleset blocks (GraphQL mergePullRequest), not any failure.
+export const RULESET_REFUSAL = /Repository rule violations found|Waiting on code owner review/iu;
+
+/**
+ * The --admin attempt. Only an account with admin rights can show the ruleset refusing an admin, so without
+ * them the case is skipped; only GitHub's rule-violation refusal passes it.
+ * @param pr the waiting owned-path pull request
+ * @param io { gh }
+ * @returns the outcome: `{ kind, output }`, kind "refused", "skip", "merged" or "error"
+ */
+export function tryAdmin(pr, io = { gh }) {
+    const firstLine = (e) => e.message.split("\n").find((l) => l.trim()) ?? "";
     try {
-        gh(["pr", "merge", String(pr), "--admin", "--merge"]);
-        return { refused: false, output: "" };
+        if (io.gh(["api", `repos/${REPO}`, "-q", ".permissions.admin"]) !== "true") {
+            return { kind: "skip", output: "this account has no admin rights on the repository" };
+        }
+        io.gh(["pr", "merge", String(pr), "--admin", "--merge"]);
+        return { kind: "merged", output: "" };
     } catch (e) {
         if (e instanceof RateLimit) throw e;
-        return { refused: true, output: e.message.split("\n").at(-1).slice(0, 120) };
+        const msg = e.message.replaceAll(/\s+/gu, " ");
+        const hit = RULESET_REFUSAL.exec(msg);
+        if (hit) return { kind: "refused", output: msg.slice(hit.index, hit.index + 120) };
+        return { kind: "error", output: `not the ruleset's refusal: ${firstLine(e).slice(0, 120)}` };
     }
 }
 
-function cleanup(planned, root) {
+/**
+ * Closes every trial pull request and deletes every trial branch. Never throws: what it could not remove (a
+ * rate limit included) is printed and returned, so the caller always reaches its own cleanup.
+ * @param planned the plan entries
+ * @param io { gh, deleteBranch }
+ * @returns the plan entries left behind
+ */
+export function cleanup(planned, io) {
+    const left = [];
     for (const p of planned) {
         try {
-            if (p.pr) gh(["pr", "close", String(p.pr), "--delete-branch"]);
-            else if (p.head)
-                run("git", ["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "--delete", p.branch], {
-                    cwd: root,
-                });
+            if (p.pr) io.gh(["pr", "close", String(p.pr), "--delete-branch"]);
+            else if (p.head) io.deleteBranch(p.branch);
         } catch (e) {
-            if (e instanceof RateLimit) throw e;
+            if (e instanceof RateLimit) {
+                left.push(p);
+                continue;
+            }
             // A merged pull request cannot be closed: delete its branch.
             try {
-                run("git", ["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "--delete", p.branch], {
-                    cwd: root,
-                });
+                io.deleteBranch(p.branch);
             } catch {
-                console.log(`cleanup: could not remove ${p.branch} (pull request ${p.pr ?? "none"})`);
+                left.push(p);
             }
         }
     }
+    if (left.length) {
+        const what = left.map((p) => `${p.branch} (pull request ${p.pr ? `#${p.pr}` : "none"})`).join(", ");
+        console.log(`cleanup: left open, close them by hand: ${what}`);
+    }
+    return left;
 }
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -520,12 +600,13 @@ function judgeAll(byCase, seen, state) {
         if (c.uses) o = state.admin;
         results[c.id] = { ...judge(c.expect, o), pr: c.observe ? o?.number : byCase[c.uses ?? c.id]?.pr };
     }
-    const owned = results["owned-waits"];
+    const admin = CASES.find((c) => c.uses);
+    const owned = results[admin.uses];
     if (!state.admin && owned.verdict === "pass") {
         state.admin = tryAdmin(owned.pr);
-        results["admin-refused"] = { ...judge({ kind: "admin" }, state.admin), pr: owned.pr };
+        results[admin.id] = { ...judge(admin.expect, state.admin), pr: owned.pr };
     } else if (!state.admin && owned.verdict === "fail") {
-        results["admin-refused"] = { verdict: "fail", actual: "not tried: owned-waits did not wait", pr: owned.pr };
+        results[admin.id] = { verdict: "fail", actual: `not tried: ${admin.uses} did not wait`, pr: owned.pr };
     }
     return results;
 }
@@ -534,12 +615,20 @@ async function watch(planned, { interval, maxHours }) {
     const byCase = Object.fromEntries(planned.map((p) => [p.case.id, p]));
     const state = { admin: null };
     const deadline = Date.now() + maxHours * 3600e3;
+    let results = {};
     for (;;) {
         await sleep(interval);
-        const results = judgeAll(byCase, poll(planned.map((p) => p.pr)), state);
-        const open = CASES.filter((c) => !c.observe && results[c.id].verdict === "pending");
-        console.log(`${new Date().toISOString()} pending: ${open.map((c) => c.id).join(", ") || "none"}`);
-        if (!open.length || Date.now() > deadline) return results;
+        try {
+            results = judgeAll(byCase, poll(planned.map((p) => p.pr)), state);
+            const open = CASES.filter((c) => !c.observe && results[c.id].verdict === "pending");
+            console.log(`${new Date().toISOString()} pending: ${open.map((c) => c.id).join(", ") || "none"}`);
+            if (!open.length) return results;
+        } catch (e) {
+            if (e instanceof RateLimit) throw e;
+            // A 502 or a network blip: one bad poll must not end a run of hours.
+            console.log(`${new Date().toISOString()} poll failed, retried next interval: ${e.message.split("\n")[0]}`);
+        }
+        if (Date.now() > deadline) return results;
     }
 }
 
@@ -570,6 +659,7 @@ export function parseArgs(argv) {
         options: {
             "dry-run": { type: "boolean", default: false },
             post: { type: "boolean", default: false },
+            reset: { type: "boolean", default: false },
             interval: { type: "string", default: "300" },
             "max-hours": { type: "string", default: "4" },
         },
@@ -577,6 +667,7 @@ export function parseArgs(argv) {
     const o = {
         dryRun: values["dry-run"],
         post: values.post,
+        reset: values.reset,
         interval: Math.max(300, Number(values.interval)),
         maxHours: Number(values["max-hours"]),
     };
@@ -591,12 +682,22 @@ async function main() {
     const root = run("git", ["rev-parse", "--show-toplevel"]);
     const pre = preflight(root, opts.dryRun);
     const ref = pre.remote ? `origin/${BASE}` : "origin/master";
-    run(
-        "git",
-        ["fetch", "-q", "origin", "master", ...(pre.remote ? [`+refs/heads/${BASE}:refs/remotes/origin/${BASE}`] : [])],
-        { cwd: root },
-    );
-    const base = run("git", ["rev-parse", ref], { cwd: root });
+    const io = { gh, git: (args) => run("git", args, { cwd: root }) };
+    const fetch = () =>
+        io.git([
+            "fetch",
+            "-q",
+            "origin",
+            "master",
+            ...(pre.remote ? [`+refs/heads/${BASE}:refs/remotes/origin/${BASE}`] : []),
+        ]);
+    fetch();
+    if (opts.reset && !opts.dryRun) {
+        resetBase(io);
+        fetch();
+    }
+    const base = io.git(["rev-parse", ref]);
+    if (pre.remote && !opts.dryRun) requireOnMaster(base, io);
     const stamp = new Date().toISOString().replaceAll(/[-:]/gu, "").slice(0, 13);
     const tmp = mkdtempSync(join(tmpdir(), "scratch-ruleset-"));
     const planned = plan({ root, tmp, base, stamp, make: !opts.dryRun });
@@ -609,7 +710,10 @@ async function main() {
         await open(planned, stamp, root);
         return finish(await watch(planned, opts), opts.post);
     } finally {
-        cleanup(planned, root);
+        cleanup(planned, {
+            gh,
+            deleteBranch: (b) => io.git(["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "--delete", b]),
+        });
         rmSync(tmp, { recursive: true, force: true });
     }
 }

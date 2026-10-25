@@ -3,7 +3,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CASES, REQUIRED, judge, latestCheck, observe, parseArgs, table } from "./scratch-ruleset-cases.mjs";
+import {
+    CASES,
+    REQUIRED,
+    RateLimit,
+    cleanup,
+    judge,
+    latestCheck,
+    observe,
+    parseArgs,
+    pickDependabot,
+    requireOnMaster,
+    resetBase,
+    table,
+    tryAdmin,
+} from "./scratch-ruleset-cases.mjs";
 
 const run = (name, status, conclusion, startedAt) => ({ __typename: "CheckRun", name, status, conclusion, startedAt });
 const green = (extra = {}) => ({
@@ -49,6 +63,12 @@ test("latestCheck takes the newest run of a name, pending while it runs", () => 
     assert.equal(latestCheck(contexts, "Lint PR Title"), "PENDING");
     assert.equal(latestCheck(contexts, "legacy"), "ERROR");
     assert.equal(latestCheck(contexts, "All Checks Pass"), null);
+    // A run with no start time sorts oldest, never newest.
+    const stale = [
+        run("PR Integrity", "QUEUED", null, null),
+        run("PR Integrity", "COMPLETED", "SUCCESS", "2026-10-25T10:05:00Z"),
+    ];
+    assert.equal(latestCheck(stale, "PR Integrity"), "SUCCESS");
 });
 
 test("observe reads a poll node", () => {
@@ -102,8 +122,10 @@ test("judge: integrity and admin", () => {
         "pending",
     );
     assert.equal(judge({ kind: "integrity", want: "SUCCESS" }, green({ "PR Integrity": null })).verdict, "pending");
-    assert.equal(judge({ kind: "admin" }, { refused: true, output: "x" }).verdict, "pass");
-    assert.equal(judge({ kind: "admin" }, { refused: false, output: "" }).verdict, "fail");
+    assert.equal(judge({ kind: "admin" }, { kind: "refused", output: "x" }).verdict, "pass");
+    assert.equal(judge({ kind: "admin" }, { kind: "skip", output: "no admin" }).verdict, "skip");
+    assert.equal(judge({ kind: "admin" }, { kind: "merged", output: "" }).verdict, "fail");
+    assert.equal(judge({ kind: "admin" }, { kind: "error", output: "HTTP 502" }).actual, "HTTP 502");
 });
 
 test("table is plain ASCII with one row per case", () => {
@@ -124,4 +146,126 @@ test("parseArgs keeps the poll at 5 minutes or slower", () => {
     assert.equal(parseArgs(["--dry-run", "--post"]).dryRun, true);
     assert.throws(() => parseArgs(["--bogus"]));
     assert.throws(() => parseArgs(["--max-hours", "0"]));
+});
+
+const fail = (message) => () => {
+    throw new Error(message);
+};
+
+test("tryAdmin: skip without admin rights, pass only on the ruleset's refusal", () => {
+    const calls = [];
+    const io = (perm, merge) => ({
+        gh: (args) => {
+            calls.push(args[0] + " " + args[1]);
+            return args[0] === "api" ? perm : merge();
+        },
+    });
+    assert.equal(
+        tryAdmin(
+            7,
+            io("false", () => ""),
+        ).kind,
+        "skip",
+    );
+    assert.deepEqual(calls, ["api repos/graphty-org/graphty-monorepo"]);
+    const refusal =
+        "gh pr merge 7 --admin --merge: GraphQL: Repository rule violations found\n\nWaiting on code owner review from graphty-org/owners. (mergePullRequest)";
+    const r = tryAdmin(7, io("true", fail(refusal)));
+    assert.equal(r.kind, "refused");
+    assert.match(r.output, /^Repository rule violations found/u);
+    for (const other of ["HTTP 502: Bad Gateway", "HTTP 401: Bad credentials", "Pull request is not mergeable"]) {
+        assert.equal(tryAdmin(7, io("true", fail(other))).kind, "error", other);
+    }
+    assert.equal(
+        tryAdmin(
+            7,
+            io("true", () => ""),
+        ).kind,
+        "merged",
+    );
+    assert.throws(
+        () =>
+            tryAdmin(7, {
+                gh: () => {
+                    throw new RateLimit("rate limit");
+                },
+            }),
+        RateLimit,
+    );
+});
+
+test("cleanup goes on past a rate limit and reports what it left", () => {
+    const planned = [
+        { branch: "b1", pr: 1 },
+        { branch: "b2", pr: 2 },
+        { branch: "b3", pr: 3 },
+        { branch: "b4", head: "abc" },
+    ];
+    const closed = [];
+    const deleted = [];
+    const io = {
+        gh: (args) => {
+            if (args[2] === "1") throw new RateLimit("API rate limit exceeded");
+            if (args[2] === "2") throw new Error("already merged");
+            closed.push(args[2]);
+        },
+        deleteBranch: (b) => deleted.push(b),
+    };
+    const left = cleanup(planned, io);
+    assert.deepEqual(closed, ["3"]);
+    assert.deepEqual(deleted, ["b2", "b4"]);
+    assert.deepEqual(
+        left.map((p) => p.branch),
+        ["b1"],
+    );
+    assert.deepEqual(cleanup([{ branch: "x", pr: 9 }], { gh: fail("boom"), deleteBranch: fail("gone") }).length, 1);
+});
+
+test("a base not on master is refused; --reset force-updates only the scratch ref", () => {
+    const onMaster = { git: () => "" };
+    requireOnMaster("aaaaaaaaaaaa", onMaster);
+    assert.throws(() => requireOnMaster("bbbbbbbbbbbb", { git: fail("exit 1") }), /not on origin\/master.*--reset/u);
+    const ghCalls = [];
+    const sha = resetBase({ git: () => "c0ffee1234567", gh: (args) => ghCalls.push(args) });
+    assert.equal(sha, "c0ffee1234567");
+    assert.deepEqual(ghCalls, [
+        [
+            "api",
+            "-X",
+            "PATCH",
+            "repos/graphty-org/graphty-monorepo/git/refs/heads/scratch/ruleset-trial",
+            "-f",
+            "sha=c0ffee1234567",
+            "-F",
+            "force=true",
+        ],
+    ]);
+    assert.throws(
+        () => resetBase({ git: () => "c0ffee1234567", gh: fail("Repository rule violations found") }),
+        /scratch-ruleset-reset\.sh/u,
+    );
+    assert.equal(parseArgs(["--reset"]).reset, true);
+    assert.equal(parseArgs([]).reset, false);
+});
+
+test("pickDependabot takes only a pull request of Dependabot's own commits", () => {
+    const node = (number, emails, integrity = "SUCCESS") => ({
+        number,
+        state: "OPEN",
+        merged: false,
+        commits: {
+            nodes: [
+                {
+                    commit: {
+                        statusCheckRollup: { contexts: { nodes: [run("PR Integrity", "COMPLETED", integrity, "t")] } },
+                    },
+                },
+            ],
+        },
+        owned: { nodes: emails.map((email) => ({ commit: { author: { email } } })) },
+    });
+    const bot = "49699333+dependabot[bot]@users.noreply.github.com";
+    const list = [node(10, [bot, "owner@example.com"]), node(9, [bot]), node(11, [bot], "PENDING")].map(observe);
+    assert.equal(pickDependabot(list).number, 9);
+    assert.equal(pickDependabot([node(12, [bot, "a@b.c"])].map(observe)), null);
 });

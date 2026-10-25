@@ -84,6 +84,7 @@ export function describePlan(plan) {
  * `featuresOn`, the features-on twins too, which are "never" only so the gate skips them): which packages
  * and files the change reaches is the selector's question, and the "when-paths-change" policy would drop
  * shards it runs whole (a graphty-element source change runs its browser shards).
+ * @param featuresOn also include the features-on twins (full-run-only shards)
  * @returns SHARDS entries
  */
 export const candidateShards = (featuresOn = false) =>

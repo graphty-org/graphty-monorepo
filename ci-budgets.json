@@ -23,6 +23,22 @@
         "ttg:full": { "minutes": 180, "why": "red full run to the next green one" },
         "ttg:owner-wait": { "record": true, "why": "recorded, no line" },
         "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },
-        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" }
+        "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" },
+        "job:ci.yml:Cache hygiene": { "minutes": 3, "why": "one list call and a delete per superseded key" },
+        "cache:codeql-*": {
+            "gb": 1.5,
+            "writesPerWeek": 100,
+            "why": "CodeQL overlay base database, 1.3 GB for javascript, one per master push"
+        },
+        "cache:lfs-*": {
+            "gb": 2,
+            "writesPerWeek": 30,
+            "why": "one project's LFS baselines (graphty 0.5 GB), a key per pull request that changes them"
+        },
+        "cache:node-cache-*": { "gb": 1.5, "writesPerWeek": 30, "why": "pnpm store, 0.32 GB, a key per lockfile" },
+        "cache:playwright-*": { "gb": 1.5, "writesPerWeek": 30, "why": "browsers 0.26 GB, debs 0.12 GB" },
+        "cache:import-graph*": { "gb": 0.2, "writesPerWeek": 50, "why": "one import-graph key" },
+        "cache:test-durations-*": { "gb": 0.01, "writesPerWeek": 500, "why": "a key per shard per run, KB each" },
+        "cache:*": { "gb": 0.5, "writesPerWeek": 30, "why": "any other family" }
     }
 }

@@ -1384,6 +1384,22 @@ describe("ci.yml", () => {
         assert.match(due, /\n {8}continue-on-error: true\n/);
     });
 
+    it("deletes superseded cache keys on master pushes only, with no write permission but actions", () => {
+        const hygiene = job(ci, "cache-hygiene");
+        assert.match(
+            hygiene,
+            /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'push' && github.ref == 'refs\/heads\/master' \}\}\n/,
+        );
+        const doc = parseYaml(ci).jobs["cache-hygiene"];
+        assert.deepEqual(doc.permissions, { contents: "read", actions: "write" });
+        // a failed cleanup must not turn master red
+        assert.equal(doc["continue-on-error"], true);
+        assert.match(hygiene, /node tools\/cache-hygiene\.mjs /);
+        assert.match(hygiene, /-X DELETE "repos\/\$GITHUB_REPOSITORY\/actions\/caches\/\$id"/);
+        // no pull-request run reaches it: All Checks Pass does not wait on it
+        assert.ok(!(parseYaml(ci).jobs["all-checks"].needs ?? []).includes("cache-hygiene"));
+    });
+
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
         const steps = job(ci, "performance")
             .split(/\n {12}- /)

@@ -1862,6 +1862,37 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: node tools/release-due.mjs
 
+    # Actions cache hygiene (#3431): the newest key of a family (a key without its trailing hash or run
+    # id) supersedes every older one on the same ref, which nothing restores any more, so this deletes
+    # those and reports each family's size against ci-budgets.json (tools/cache-hygiene.mjs). Master
+    # pushes only; a failure must not turn master red.
+    cache-hygiene:
+        name: Cache hygiene
+        needs: all-checks
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        # actions: write to list and delete caches; contents: read for the checkout.
+        permissions:
+            contents: read
+            actions: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools
+
+            - name: Delete superseded cache keys
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
+                  node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/delete.txt"
+                  while read -r id; do
+                      gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$id" --silent || echo "::warning::cache $id: delete failed"
+                  done < "$RUNNER_TEMP/delete.txt"
+
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
     # pictures in one run -- a timing race. This job lists every one as a warning annotation

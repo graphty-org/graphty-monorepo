@@ -23,7 +23,7 @@ export interface SiteConfig {
     readonly sentryEnvironment?: string;
 }
 
-const SITES: readonly SiteName[] = ["canary", "nightly", "production"];
+const SITES: ReadonlySet<unknown> = new Set<SiteName>(["canary", "nightly", "production"]);
 
 /** Every experiment off: no file, an unreadable one or an invalid one. */
 const OFF: SiteConfig = Object.freeze({ site: "unknown", features: Object.freeze([]) });
@@ -44,7 +44,7 @@ function parse(value: unknown): (Omit<SiteConfig, "features"> & { features: stri
     const { site, features = [], datasets, sentryEnvironment } = value as Record<string, unknown>;
     const isList = Array.isArray(features) && features.every((id) => typeof id === "string");
     const optionalText = (text: unknown): boolean => text === undefined || typeof text === "string";
-    if (!SITES.includes(site as SiteName) || !isList || !optionalText(datasets) || !optionalText(sentryEnvironment)) {
+    if (!SITES.has(site) || !isList || !optionalText(datasets) || !optionalText(sentryEnvironment)) {
         return null;
     }
     return {
@@ -67,9 +67,8 @@ async function read(url: string): Promise<ReturnType<typeof parse>> {
         const response = await fetch(url, { cache: "no-cache" });
         const parsed = response.ok ? parse(await response.json()) : null;
         if (parsed === null) {
-            console.warn(
-                `[graphty] ${url}: ${response.ok ? "not a site configuration" : `HTTP ${String(response.status)}`}; every experiment is off`,
-            );
+            const why = response.ok ? "not a site configuration" : `HTTP ${String(response.status)}`;
+            console.warn(`[graphty] ${url}: ${why}; every experiment is off`);
         }
         return parsed;
     } catch (error: unknown) {

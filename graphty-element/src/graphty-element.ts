@@ -59,6 +59,7 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf, DISPOSED_STATUS } from "./session/GraphSession";
+import { loadLineOf } from "./session/loadLine";
 import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
 import {
@@ -1548,6 +1549,7 @@ export class Graphty extends LitElement {
         this.#graph.clearData();
         this.#loadedPair = undefined;
         this.#assigned = {};
+        this.#pairNext = undefined;
 
         this.requestUpdate("dataSource", oldDataSource);
         this.requestUpdate("dataSourceConfig", oldDataSourceConfig);
@@ -1600,6 +1602,13 @@ export class Graphty extends LitElement {
      * @returns The source; empty when neither is set.
      */
     #source(): ImportSource {
+        // A pair whose load has not settled -- waiting behind autosave or behind a load asked for
+        // earlier that is still reading, or still reading itself -- is not in the graph yet, and
+        // may not even be dispatched: the pair as assigned is the one a half assigned now pairs with.
+        if (this.#pairQueued || this.#pairLoads > 0) {
+            return this.#assigned;
+        }
+
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const pending = dispatcher.pendingCommand(ELEMENT_SOURCE) as { source: ImportSource } | undefined;
         return pending?.source ?? (dispatcher.state.graph.values.get(SOURCE_VALUE) as ImportSource | undefined) ?? {};
@@ -1655,13 +1664,64 @@ export class Graphty extends LitElement {
      */
     #runImport(source: ImportSource, setup: boolean): Promise<void> {
         const { type, config } = source;
-        if (type !== undefined && config !== undefined) {
-            // The pair already loaded, assigned again by a host that re-renders: no load.
-            const last = this.#loadedPair;
-            if (last?.type === type && last.config === config) {
-                return Promise.resolve();
-            }
+        // The pair already loaded, assigned again by a host that re-renders: no load.
+        const last = this.#loadedPair;
+        if (type !== undefined && config !== undefined && last?.type === type && last.config === config) {
+            return Promise.resolve();
+        }
 
+        this.#pairNext = { source, setup };
+        if (this.#pairWaiting !== undefined) {
+            // A pair load still waits for its turn: it loads the pair as now assigned, as one load.
+            return this.#pairWaiting;
+        }
+
+        // Its place in the session's load line is taken now, so it lands after a load asked for
+        // earlier, however long that one reads, and before one asked for later (issue #3382).
+        const line = loadLineOf(dispatcherOf(this.#graph.getSession()));
+        const turn = line.join();
+        const go = (): Promise<void> => {
+            this.#pairWaiting = undefined;
+            const next = this.#pairNext;
+            this.#pairNext = undefined;
+            // Nothing to load when clearData dropped the pair while it waited.
+            return next === undefined
+                ? Promise.resolve()
+                : line.within(turn, () => this.#startImport(next.source, next.setup));
+        };
+        const ahead = turn.wait();
+        this.#pairLoads++;
+        let run: Promise<void>;
+        if (ahead === undefined) {
+            run = go();
+        } else {
+            run = ahead.then(go);
+            this.#pairWaiting = run;
+        }
+        return run.finally(() => {
+            turn.leave();
+            this.#pairLoads--;
+        });
+    }
+
+    /** How many pair loads {@link #runImport} started that have not settled. */
+    #pairLoads = 0;
+
+    /** The pair load waiting for its turn in the load line, which later assignments join. */
+    #pairWaiting: Promise<void> | undefined;
+
+    /** The pair, as last handed to {@link #runImport}: what a waiting pair load loads. */
+    #pairNext: { readonly source: ImportSource; readonly setup: boolean } | undefined;
+
+    /**
+     * The body of {@link #runImport}: start the pair's load.
+     * @param source - The pair.
+     * @param setup - Whether the page declared it before the first update.
+     * @returns Settles once the load ran or failed.
+     */
+    #startImport(source: ImportSource, setup: boolean): Promise<void> {
+        const { type, config } = source;
+        if (type !== undefined && config !== undefined) {
             const pair = { type, config };
             this.#loadedPair = pair;
             const sourceId = Graphty.#sourceIdOf(type);
@@ -1695,18 +1755,22 @@ export class Graphty extends LitElement {
             );
         }
 
+        const dispatcher = dispatcherOf(this.#graph.getSession());
         return (
-            dispatcherOf(this.#graph.getSession())
-                .dispatch({
-                    op: "data.import",
-                    source: {
-                        ...(source.type === undefined ? {} : { type: source.type }),
-                        ...(source.config === undefined ? {} : { config: source.config }),
-                    },
-                    mode: "replace",
-                    coalesce: ELEMENT_SOURCE,
-                    ...(setup ? { setup: true } : {}),
-                })
+            // In the place in the load line #runImport took for it (issue #3382).
+            loadLineOf(dispatcher)
+                .run(() =>
+                    dispatcher.dispatch({
+                        op: "data.import",
+                        source: {
+                            ...(source.type === undefined ? {} : { type: source.type }),
+                            ...(source.config === undefined ? {} : { config: source.config }),
+                        },
+                        mode: "replace",
+                        coalesce: ELEMENT_SOURCE,
+                        ...(setup ? { setup: true } : {}),
+                    }),
+                )
                 // A failed load is published on the data-loading channel by the load itself, before
                 // it rejects; a caller who wants the throw calls `loadFromUrl` and awaits it.
                 .then(
@@ -1717,9 +1781,10 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Replace nodes or edges as one step: now, once the graph is up, so the getter reads the new
-     * records as soon as the assignment returns; before that, on the operation queue's turn, after
-     * the layout the graph starts with, which the new nodes join.
+     * Replace nodes or edges as one step: once the graph is up, in the session's load line, so at
+     * once when no load asked for earlier is still reading (the getter then reads the new records
+     * as soon as the assignment returns) and after that load otherwise; before the graph is up, on
+     * the operation queue's turn, after the layout the graph starts with, which the new nodes join.
      * @param build - The step, built from the graph as it stands when it runs.
      * @param setup - Whether the page declared it before the first update, so it is baseline.
      * @returns Settles once the step is recorded, or failed and was reported.
@@ -1727,18 +1792,27 @@ export class Graphty extends LitElement {
     #replaceData(build: (state: GraphSlice, setup: boolean) => BatchCommand, setup = this.#settingUp): Promise<void> {
         const dispatcher = dispatcherOf(this.#graph.getSession());
         const dispatch = (): Promise<unknown> => dispatcher.dispatch(build(dispatcher.state.graph, setup));
-        // Before the graph is up, the step is built once the queue reaches this turn, and
-        // dispatched after it: its members take turns of their own, which they could not while
-        // this one held the queue.
-        const done = this.#graph.initialized
-            ? dispatch()
-            : operationQueueOf(this.#graph)
-                  .queueOperationAsync("data-add", (context) => {
-                      if (context.signal.aborted) {
-                          throw new Error("Operation cancelled");
-                      }
-                  })
-                  .then(dispatch);
+        // Its place in the session's load line is taken now, so records assigned after a load
+        // that is still reading land after it instead of being replaced by it (issue #3382). With
+        // no load ahead it dispatches at once, so the getter reads the new records on return.
+        // Before the graph is up, and behind a load that was dispatched before it, the step is
+        // built once the queue reaches this turn, and dispatched after it: the load's own step is
+        // queued, and this one is not, so dispatched at once it would land first. Its members take
+        // turns of their own, which they could not while this one held the queue.
+        const queueTurn = (): Promise<void> =>
+            operationQueueOf(this.#graph).queueOperationAsync("data-add", (context) => {
+                if (context.signal.aborted) {
+                    throw new Error("Operation cancelled");
+                }
+            });
+        const turn = loadLineOf(dispatcher).join();
+        const inTurn = (): Promise<unknown> => {
+            const ahead = turn.wait();
+            return ahead === undefined ? turn.issue(dispatch) : ahead.then(queueTurn).then(() => turn.issue(dispatch));
+        };
+        const done = (this.#graph.initialized ? inTurn() : queueTurn().then(inTurn)).finally(() => {
+            turn.leave();
+        });
         return done.then(
             () => undefined,
             (error: unknown) => {

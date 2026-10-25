@@ -181,7 +181,7 @@ describe("the Graph place on the real element", () => {
             "node.labelSize": 72,
         });
         await element.waitForStableFrame();
-        // A point on Officer's name: off the sphere's drawn disc -- above, beside or below it,
+        // A point on Officer's name: off the sphere's drawn disc -- above, beside, below it or on a diagonal,
         // wherever the name is placed -- the first one that answers Officer. Off the disc, only
         // the name can.
         const nameAt = (): { x: number; y: number } | undefined => {
@@ -190,11 +190,16 @@ describe("the Graph place on the real element", () => {
                 return undefined;
             }
             for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off++) {
+                // The label is placed where it fits, so look on the diagonals too.
                 for (const [dx, dy] of [
                     [0, -1],
                     [1, 0],
                     [0, 1],
                     [-1, 0],
+                    [1, -1],
+                    [-1, -1],
+                    [1, 1],
+                    [-1, 1],
                 ]) {
                     const point = { x: at.x + dx * off, y: at.y + dy * off };
                     if (element.elementAt(point)?.id === 2) {

@@ -44,9 +44,10 @@ concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
-# release commits change every package.json and nx.json sharedGlobals includes .github/workflows/**, and each
-# run saved a new 600 MB entry that pushed the Git LFS baseline caches toward eviction.
+# The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
+# .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals
+# includes .github/workflows/**, and each run saved a new 600 MB entry that pushed the Git LFS baseline
+# caches toward eviction. See the "Probe the nx remote cache" step.
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
@@ -91,6 +92,11 @@ jobs:
         # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)
         env:
             NX_PROFILE: nx-profile.json
+        # Only master's runs (its push build, the release train's call) may write the nx remote cache: the
+        # write token is NX_CACHE_TOKEN in environment nx-cache-write (deployment branches: master only),
+        # which overrides the repository secret of the same name, the read token. A pull request can edit
+        # this file, so a write token it could see would let a branch plant build output master trusts.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
         permissions:
             contents: read
@@ -259,6 +265,29 @@ jobs:
             # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
             # train in release.yml audits before it publishes, and
             # dependency-review.yml reviews the pull requests that change dependencies.
+
+            # Turns on nx's remote cache for the build steps below when repository variable NX_CACHE_URL is set
+            # and the Worker accepts the token within 2 seconds; otherwise they build without it (slower, never
+            # wrong). The probe reads an entry with the token, not /v1/health: nx fails the whole build on a
+            # 401, so a wrong, rotated or not yet registered token must turn the cache off here (a 404 or 200
+            # means the token may read). Unset NX_CACHE_URL to turn it off. The token reaches the build steps
+            # through GITHUB_ENV, not a step's env, so no build step reads a secret directly.
+            - name: Probe the nx remote cache
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
 
             # PR: build what the pull request affects (the lint job lints it). The base is named explicitly: the checkout
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's

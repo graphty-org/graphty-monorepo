@@ -368,3 +368,49 @@ describe("events", () => {
         assert.deepStrictEqual(statuses, [], "a restore at connect fires no status event");
     });
 });
+
+describe("waiting for the picture", () => {
+    it("waitForStableFrame and waitForSettled wait for the page's rows held behind the restore", async () => {
+        // The restore's listing waits until the test lets it through, as a slow IndexedDB would.
+        const memory = memoryAutosaveStore();
+        let letListingThrough = (): void => undefined;
+        const listingOpen = new Promise<void>((resolve) => {
+            letListingThrough = resolve;
+        });
+        const store: AutosaveStore = {
+            list: async (key) => {
+                await listingOpen;
+                return memory.list(key);
+            },
+            read: (id) => memory.read(id),
+            remove: (id) => memory.remove(id),
+            commit: (writes, options) => memory.commit(writes, options),
+        };
+        const element = mount(keyFor("stable"), (each) => {
+            each.autosaveOptions = { store };
+        });
+
+        const nodesAt: { stable?: number; settled?: number } = {};
+        const waits = Promise.all([
+            element.waitForStableFrame().then(() => {
+                nodesAt.stable = element.session.data.snapshot().nodeCount;
+            }),
+            element.waitForSettled().then(() => {
+                nodesAt.settled = element.session.data.snapshot().nodeCount;
+            }),
+        ]);
+
+        // The empty canvas is drawn and stable while the restore is still undecided.
+        for (let frame = 0; frame < 600 && !element.isFrameStable; frame++) {
+            await new Promise<void>((resolve) => {
+                requestAnimationFrame(() => resolve());
+            });
+        }
+        assert.isTrue(element.isFrameStable, "the empty canvas reached a stable frame");
+        assert.isTrue(element.autosaver.status.state !== "off", "autosave is on");
+
+        letListingThrough();
+        await waits;
+        assert.deepStrictEqual(nodesAt, { stable: NODES.length, settled: NODES.length }, "the waits saw the rows");
+    });
+});

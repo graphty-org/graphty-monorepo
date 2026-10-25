@@ -42,7 +42,7 @@ import {
     type NodeEventDetail,
     nodeEventDetail,
 } from "./events";
-import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
+import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf, waitFirstFor } from "./Graph";
 import type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { NodeThumbnailOptions } from "./meshes/NodeThumbnail";
@@ -229,6 +229,7 @@ export class Graphty extends LitElement {
         if (this.#builtGraph === undefined) {
             const graph = new Graph(this.#element);
             this.#builtGraph = graph;
+            waitFirstFor(graph, () => this.#pageLoadsQueued());
             // The graph is never rebuilt, so this subscription lives as long as the element.
             graph.onNodeLabelCounts.add((counts) => {
                 this.dispatchEvent(
@@ -1157,6 +1158,24 @@ export class Graphty extends LitElement {
         }
 
         return this.#autosaveControl.ready.then(() => this.#pageGate).then(() => undefined);
+    }
+
+    /**
+     * Settles once the restore is decided and every page load held behind it has run its turn,
+     * so its work is on the graph's queue; a page load added meanwhile is waited for too.
+     */
+    async #pageLoadsQueued(): Promise<void> {
+        // Not connected, autosave never starts and nothing held runs: there is nothing to wait for.
+        if (!this.#autosaveOn() || !this.isConnected) {
+            return;
+        }
+
+        let gate: Promise<unknown>;
+        do {
+            gate = this.#pageGate;
+            await this.#autosaveControl.ready;
+            await gate;
+        } while (gate !== this.#pageGate);
     }
 
     /** Start autosave, in the task after connecting: resolve the key, then restore. */
@@ -4294,6 +4313,9 @@ export class Graphty extends LitElement {
      * changed), so a page that shows the counts shows the final ones. This is what a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
      * event fires one update pass earlier, before the final framing has even been requested, so
      * a picture taken on that event is a picture of a camera still in motion.
+     *
+     * With `autosave` on, it also waits for the restore to be decided and for the data the page
+     * declared, which waits behind it, so it never resolves on the empty canvas before either.
      *
      * It rejects, naming what was still moving, rather than handing back a moving picture.
      * @param options - How the wait is bounded.

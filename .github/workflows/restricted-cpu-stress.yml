@@ -23,6 +23,7 @@ on:
 
 permissions:
     contents: read
+    id-token: write # the results store: each shard's record, kind stress (tools/results/run-group.mjs)
 
 concurrency:
     group: restricted-cpu-stress
@@ -47,6 +48,7 @@ jobs:
     build:
         name: Build
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
         outputs:
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
         steps:
@@ -194,6 +196,7 @@ jobs:
                   exit "$status"
               env:
                   TEST_COMMAND: ${{ matrix.test-command }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
 
             - name: Upload the junit reports
               if: always()
@@ -209,6 +212,7 @@ jobs:
         needs: [build, stress]
         if: always() && needs.build.result == 'success'
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         permissions:
             contents: read
             issues: write

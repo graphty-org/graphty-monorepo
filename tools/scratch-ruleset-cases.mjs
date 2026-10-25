@@ -408,27 +408,27 @@ function preflight(root, dryRun) {
     return { found, remote: true };
 }
 
+function caseLines(c, p) {
+    if (c.uses) return [`  on the pull request of ${c.uses}, once its checks are green: gh pr merge --admin --merge`];
+    if (!p) return ["  no branch: reads the open Dependabot pull requests in the poll query"];
+    const flags = [c.autoMerge && "auto-merge on", c.reviewed && "Proof and fresh review"].filter(Boolean);
+    const suffix = flags.length ? ` (${flags.join(", ")})` : "";
+    return [`  branch: ${p.branch}${suffix}`, ...p.describe.map((d) => `  commit: ${d}`)];
+}
+
 function printPlan(planned, base, pre) {
-    console.log(
-        `scratch ruleset trial plan, base ${pre.remote ? BASE : "origin/master (standing in for " + BASE + ")"} at ${base.slice(0, 10)}`,
-    );
-    console.log(
-        `ruleset '${RULESET}': ${pre.found ? "present" : "MISSING (a real run refuses)"}; branch ${BASE}: ${pre.remote ? "present" : "missing"}`,
-    );
+    const from = pre.remote ? BASE : `origin/master (standing in for ${BASE})`;
+    console.log(`scratch ruleset trial plan, base ${from} at ${base.slice(0, 10)}`);
+    const ruleset = pre.found ? "present" : "MISSING (a real run refuses)";
+    console.log(`ruleset '${RULESET}': ${ruleset}; branch ${BASE}: ${pre.remote ? "present" : "missing"}`);
     for (const c of CASES) {
-        const p = planned.find((x) => x.case === c);
         console.log(`\n${c.id}: ${c.what}`);
         console.log(`  expect: ${expectText(c.expect)}`);
-        if (p) {
-            console.log(
-                `  branch: ${p.branch}${c.autoMerge ? " (auto-merge on)" : ""}${c.reviewed ? " (Proof and fresh review)" : ""}`,
-            );
-            for (const d of p.describe) console.log(`  commit: ${d}`);
-        } else if (c.uses) {
-            console.log(`  on the pull request of ${c.uses}, once its checks are green: gh pr merge --admin --merge`);
-        } else {
-            console.log("  no branch: reads the open Dependabot pull requests in the poll query");
-        }
+        for (const line of caseLines(
+            c,
+            planned.find((x) => x.case === c),
+        ))
+            console.log(line);
     }
 }
 
@@ -580,7 +580,7 @@ export function parseArgs(argv) {
         interval: Math.max(300, Number(values.interval)),
         maxHours: Number(values["max-hours"]),
     };
-    if (Number.isNaN(o.interval) || !(o.maxHours > 0)) {
+    if (Number.isNaN(o.interval) || Number.isNaN(o.maxHours) || o.maxHours <= 0) {
         throw new Error("--interval must be a number of seconds, --max-hours above 0");
     }
     return o;

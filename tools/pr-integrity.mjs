@@ -13,8 +13,8 @@
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
  *   - Proof: a pull request by the agent account has a non-empty `## Proof` section;
- *   - fresh review: a pull request by the agent account has a review marked
- *     `<!-- fresh-review <patch id> -->` with the patch id of its own diff (`patchId` below), so a
+ *   - fresh review: a pull request by the agent account has a review, by that account or a code owner,
+ *     marked `<!-- fresh-review <patch id> -->` with the patch id of its own diff (`patchId` below), so a
  *     merge of master keeps the review and a change to the branch's own diff needs a new one.
  *
  * Exemptions, each decided from git, never from the author's say-so: a revert (the head's tree equals
@@ -180,7 +180,9 @@ function agentProblems(cwd, pr) {
         );
     }
     const id = patchId(cwd, pr.mergeBase, pr.head);
-    if (id && !pr.reviews.some((r) => (r.body ?? "").includes(`<!-- fresh-review ${id} -->`))) {
+    // Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
+    const trusted = (r) => r.user?.login === AGENT || pr.owners.has(r.user?.login);
+    if (id && !pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes(`<!-- fresh-review ${id} -->`))) {
         problems.push(
             `Fresh review: no review is marked <!-- fresh-review ${id} --> (the patch id of this branch's own diff); run tools/pr-review.sh`,
         );

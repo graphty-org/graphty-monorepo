@@ -111,7 +111,14 @@ describe("prIntegrity", () => {
 
         const mb = r.git("merge-base", "master", "HEAD");
         const id = patchId(r.dir, mb, "HEAD");
-        const reviews = [review(AGENT, "COMMENTED", "x", `findings\n<!-- fresh-review ${id} -->`)];
+        const marker = `findings\n<!-- fresh-review ${id} -->`;
+        // another account's review carrying the marker does not count
+        const outsider = [review("stranger", "COMMENTED", "x", marker)];
+        assert.match(
+            prIntegrity(r.dir, pr(r, { author: AGENT, reviews: outsider })).problems.join("\n"),
+            /Fresh review/,
+        );
+        const reviews = [review(AGENT, "COMMENTED", "x", marker)];
         assert.deepEqual(prIntegrity(r.dir, pr(r, { author: AGENT, reviews })).problems, []);
 
         // a merge of master keeps the review; a fix push needs a new one

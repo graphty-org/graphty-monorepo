@@ -447,9 +447,7 @@ const css = `
     background-color: var(--cm-bg-secondary);
     box-shadow: inset 0 0 0 1px var(--cm-border-translucent-strong);
 }
-/* The filled bar in the brand's text step: 3:1 or more on the track in light and dark (WCAG 1.4.11);
-   the fill step was 2.6:1 on white. */
-.cm-slider-bar { background-color: var(--cm-text-brand); }
+.cm-slider-bar { background-color: var(--cm-bg-brand); }
 .cm-slider .cm-slider-thumb {
     box-sizing: border-box;
     border: 2px solid var(--cm-text-onsolid);

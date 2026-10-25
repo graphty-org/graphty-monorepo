@@ -74,7 +74,7 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
     }
     // A locked file the push leaves exactly as the base has it is not judged: the push changes nothing in it.
     const changed = new Set(
-        git(["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", base, "HEAD"])
+        git(["-c", "core.quotePath=false", "diff", "--no-relative", "--name-only", "--no-renames", base, "HEAD"])
             .split("\n")
             .filter(isLocked),
     );
@@ -84,6 +84,7 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
         "core.quotePath=false",
         "log",
         "--cc",
+        "--no-relative",
         "--name-only",
         "--no-renames",
         `--format=%x01%H %h %s%x02%P%x02%(trailers:key=${TRAILER},valueonly,separator=%x20)%x02%(trailers:key=${APPROVES},valueonly,separator=%x2C)`,

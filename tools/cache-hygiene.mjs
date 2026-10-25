@@ -115,9 +115,10 @@ function main(argv) {
     const gone = toDelete(caches, lines(prs));
     const failed = new Set();
     for (const { cache, why } of gone) {
-        const ok = !apply || deleteCache(cache.id);
-        if (!ok) failed.add(cache.id);
-        console.log(`${apply ? (ok ? "deleted" : "FAILED") : "would delete"} ${cache.ref} ${cache.key}: ${why}`);
+        let verb = "would delete";
+        if (apply) verb = deleteCache(cache.id) ? "deleted" : "FAILED";
+        if (verb === "FAILED") failed.add(cache.id);
+        console.log(`${verb} ${cache.ref} ${cache.key}: ${why}`);
     }
     for (const id of failed) console.log(`::warning::cache ${id}: delete failed`);
     const removed = new Set(apply ? gone.map((g) => g.cache.id).filter((id) => !failed.has(id)) : []);

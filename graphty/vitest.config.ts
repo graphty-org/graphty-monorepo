@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
@@ -31,6 +32,50 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
     ctx.page.once("filechooser", (chooser) => {
         void chooser.setFiles({ name, mimeType, buffer: Buffer.from(text) });
     });
+};
+
+/**
+ * The two app modules the app's own tests replace, swapped by Vite as it serves them rather than by
+ * `vi.mock` in the setup file. Every `vi.mock` makes Vitest add a Playwright route to the page's
+ * context, and while a context has a route Playwright switches the browser's HTTP cache off and
+ * holds every request until this process answers it. Registered in the setup file, those routes
+ * covered every test file: each one fetched its whole module graph again, megabytes of dependency
+ * bundles included, through the same Node process that carries every click and keystroke of the
+ * other pages, and on a loaded core one file starting held a neighbour's `userEvent` call for 10 to
+ * 15 seconds (issue #3350).
+ *
+ * - `src/elementLoader.ts` never loads `<graphty-element>`: a test that wants the real element
+ *   imports "@graphty/graphty-element" itself (the real-element project), and every other test
+ *   keeps the tag an empty box.
+ * - `src/workspace/Workspace.tsx` waits for the project frame first. The app loads the frame on
+ *   demand (`workspace/frameLoader.ts`); a test has it from the start, so a project it opens shows
+ *   at once. Only a file that imports the workspace pays for it: the frame is most of the app's
+ *   code, and loading it for every file took about 5 seconds a file on an idle machine and 15 to 20
+ *   on a loaded core (issues #3347 and #3348). A file's own module mocks (Sentry's, most of all) are
+ *   registered before its imports, so they are the ones the frame gets. A file that mocks a module
+ *   the frame needs cannot load it, and goes on without it.
+ * @returns the plugin.
+ */
+const testStandIns = (): Plugin => {
+    const elementLoader = path.join(dirname, "src/elementLoader.ts");
+    const workspace = path.join(dirname, "src/workspace/Workspace.tsx");
+    return {
+        name: "graphty-test-stand-ins",
+        enforce: "pre",
+        transform(code, id) {
+            const file = id.split("?")[0];
+            if (file === elementLoader) {
+                return { code: "export const loadGraphtyElement = () => Promise.resolve();", map: { mappings: "" } };
+            }
+            if (file === workspace) {
+                // On the first line, so every original line keeps its number (and its coverage).
+                const preload =
+                    'import { loadFrame as __loadFrame } from "./frameLoader"; await __loadFrame().catch(() => undefined); ';
+                return { code: preload + code, map: null };
+            }
+            return null;
+        },
+    };
 };
 
 /**
@@ -85,6 +130,7 @@ export default defineConfig({
         projects: [
             {
                 extends: true,
+                plugins: [testStandIns()],
                 test: {
                     name: "browser",
                     include: ["src/**/*.test.{ts,tsx}"],
@@ -101,6 +147,7 @@ export default defineConfig({
             },
             {
                 extends: true,
+                plugins: [testStandIns()],
                 test: {
                     name: "real-element",
                     include: [REAL_ELEMENT_TESTS],

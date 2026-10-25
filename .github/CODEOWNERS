@@ -95,10 +95,7 @@
 /vite.shared.config.ts @apowers313
 /vitest.browser-coverage-setup.ts @apowers313
 
-# Kept from the first list (tools/pr-open.sh's OWNER_PATHS keeps the same entries)
+# Kept from the list this replaced: the rest of .github/ (the pull request template, Dependabot's
+# settings, the composite actions) and the agents' credential guard.
 /.github/ @apowers313
-/tools/ci-* @apowers313
-/tools/test-select* @apowers313
 /tools/claude-owner-credential-guard.mjs @apowers313
-/visual-review/ @apowers313
-/release-*.json @apowers313

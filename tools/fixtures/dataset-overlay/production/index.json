@@ -1,0 +1,53 @@
+[
+    {
+        "name": "karate",
+        "title": "Zachary's karate club",
+        "description": "Friendships among the 34 members of a university karate club, observed before the club split in two after a dispute between its instructor (node 0, Mr. Hi) and its administrator (node 33, the Officer). Edge weights count the contexts in which two members interacted.",
+        "citation": "W. W. Zachary, An information flow model for conflict and fission in small groups, Journal of Anthropological Research 33(4), 452-473 (1977). doi:10.1086/jar.33.4.3629752",
+        "source": "https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py",
+        "license": "Facts published in a 1977 journal article; converted from the networkx 3.1 copy (BSD-3-Clause).",
+        "nodes": 34,
+        "edges": 78,
+        "directed": false,
+        "weighted": true,
+        "attributes": {
+            "club": "dict: the faction each member joined after the split, \"Mr. Hi\" or \"Officer\" (ground truth)"
+        },
+        "groundTruth": "club",
+        "showcases": [
+            "community detection against a known two-way split (Louvain, Leiden, label propagation, Girvan-Newman)",
+            "degree, betweenness and closeness centrality",
+            "minimum cut between nodes 0 and 33",
+            "spring and Kamada-Kawai layouts"
+        ],
+        "hosting": "remote",
+        "bytes": 1561,
+        "sha256": "4eaadc263131ac7305c1d11061b7221030960024bc792a6e8ad84cffbcc4452d",
+        "url": "https://graphty.app/data/graph-samples/v1/karate.gsnp.gz",
+        "thumbnail": "karate.webp"
+    },
+    {
+        "name": "florentine-families",
+        "title": "Florentine families",
+        "description": "Marriage alliances between 15 leading families of Renaissance Florence around 1430. The Medici sit on most shortest paths. networkx drops the isolated Pucci family of the original 16.",
+        "citation": "J. F. Padgett and C. K. Ansell, Robust action and the rise of the Medici, 1400-1434, American Journal of Sociology 98(6), 1259-1319 (1993). doi:10.1086/230190; R. L. Breiger and P. E. Pattison, Cumulated social roles: the duality of persons and their algebras, Social Networks 8(3), 215-256 (1986).",
+        "source": "https://raw.githubusercontent.com/networkx/networkx/networkx-3.1/networkx/generators/social.py",
+        "license": "Facts published in the cited articles; converted from the networkx 3.1 copy (BSD-3-Clause).",
+        "nodes": 15,
+        "edges": 20,
+        "directed": false,
+        "weighted": false,
+        "attributes": {},
+        "groundTruth": null,
+        "showcases": [
+            "betweenness and closeness centrality (the Medici)",
+            "shortest paths",
+            "circular and shell layouts"
+        ],
+        "hosting": "remote",
+        "bytes": 918,
+        "sha256": "078222173ae56add6ef72673d832662bcf939d4d01cb7771cf83d143250966bb",
+        "url": "https://graphty.app/data/graph-samples/v1/florentine-families.gsnp.gz",
+        "thumbnail": "florentine-families.webp"
+    }
+]

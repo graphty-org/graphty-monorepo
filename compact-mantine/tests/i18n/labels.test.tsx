@@ -72,7 +72,7 @@ describe("useLabels", () => {
         expect(defaultLabels.opacity).toBe("Opacity");
         expect(defaultLabels.colorPanelTitle).toBe("Color");
         expect(defaultLabels.colorGenericName).toBe("color");
-        expect(defaultLabels.colorStops).toBe("Color Stops");
+        expect(defaultLabels.colorStops).toBe("Stops");
         expect(defaultLabels.addColorStop).toBe("Add color stop");
         expect(defaultLabels.direction).toBe("Direction");
         expect(defaultLabels.gradientDirection).toBe("Gradient direction");

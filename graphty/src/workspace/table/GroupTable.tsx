@@ -1,4 +1,4 @@
-import { DataTable, type DataTableColumn, UiGlyph } from "@graphty/compact-mantine";
+import { DataTable, type DataTableColumn, PANEL_GRID, UiGlyph } from "@graphty/compact-mantine";
 import type { SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu } from "@mantine/core";
 import type React from "react";
@@ -92,6 +92,9 @@ export function GroupTable({ runLabel, groups, height, onShowMembers }: Readonly
     return (
         <DataTable<Row>
             label={runLabel}
+            // The panel list pitch, not the spreadsheet rows DataTable draws by default.
+            rowHeight={PANEL_GRID.ROW_PITCH}
+            headerHeight={PANEL_GRID.ROW_PITCH}
             data={rows}
             columns={columns}
             getRowId={(row) => String(row.group.group)}

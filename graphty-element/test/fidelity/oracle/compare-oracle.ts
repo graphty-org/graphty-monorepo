@@ -817,11 +817,30 @@ const chordAngle = (pts: readonly Pt[]): number => {
     return (Math.atan2(b[1] - pts[0][1], b[0] - pts[0][0]) * 180) / Math.PI;
 };
 
+/**
+ * Which judgments a comparison keeps: a property of an element this oracle is the reference for, by the element's id,
+ * or by `subject` where the id does not name the element's ends (an extra edge: its graphty id, its ends' node ids).
+ */
+export type OracleJudges = (property: OracleProperty, id: string, subject?: string) => boolean;
+
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
 
-    add(p: OracleProperty, kind: string, id: string, miss: number, oracle: unknown, graphty: unknown): void {
+    constructor(private readonly judges: OracleJudges = () => true) {}
+
+    add(
+        p: OracleProperty,
+        kind: string,
+        id: string,
+        miss: number,
+        oracle: unknown,
+        graphty: unknown,
+        subject?: string,
+    ): void {
+        if (!this.judges(p, id, subject)) {
+            return;
+        }
         const pass = miss <= 0;
         const list = this.results.get(p) ?? [];
         list.push({ id, pass, miss: pass ? 0 : miss, oracle, graphty });
@@ -1222,6 +1241,8 @@ const fillOf = (b: PBox, width: number, height: number): number =>
  *     that copies y-down coordinates into a y-up space), so the fit may reflect; otherwise both
  *     sides are y-down screen drawings and a mirror is a difference to report, never to fit away
  * @param options.standIn - the oracle is another program's drawing standing in for the file's own
+ * @param options.judges - which judgments to keep (default: all): a sheet judged per setting keeps, against each
+ *     reference, only the properties of the settings that reference draws (`judges.ts`)
  * @returns the report, rounded
  */
 export function compareOracle(
@@ -1229,13 +1250,13 @@ export function compareOracle(
     oracleScene: PScene,
     graphtyScene: PScene,
     association: unknown = null,
-    options: { mirror?: boolean; standIn?: boolean } = {},
+    options: { mirror?: boolean; standIn?: boolean; judges?: OracleJudges } = {},
 ): OracleReport {
     const oracle = withoutCaptions(oracleScene, graphtyScene);
     const graphty = withoutCaptions(graphtyScene, oracleScene);
     const T = ORACLE_TOLERANCES;
     const diag = Math.hypot(oracle.width, oracle.height);
-    const j = new Judge();
+    const j = new Judge(options.judges);
 
     // ---- nodes: by id, then by unique label text for the rest
     const { pairs, oracleLeft: stillOracle, graphtyLeft } = pairNodes(oracle, graphty);
@@ -1605,7 +1626,15 @@ export function compareOracle(
     // what graphty draws that the oracle does not: an extra, hidden or duplicate edge is an import defect
     const extraEdges = new Set(unmatchedGraphtyEdges);
     for (const e of oracle.nodesOnly === true ? [] : [...graphty.edges].sort((a, b) => cmp(a.id, b.id))) {
-        j.add("edge.extra", "edge", `graphty:${e.id}`, extraEdges.has(e.id) ? 1 : 0, null, e.id);
+        j.add(
+            "edge.extra",
+            "edge",
+            `graphty:${e.id}`,
+            extraEdges.has(e.id) ? 1 : 0,
+            null,
+            e.id,
+            `${e.source}->${e.target}`,
+        );
     }
     for (const [o, g] of edgePairs) {
         const { id } = o;

@@ -342,7 +342,7 @@ describe("focus after a style line is written or removed", () => {
         ["width", "edge.width", "3", "24", /^Edge width/, "spinbutton"],
         ["color", "edge.color", "blue", "red", /^Edge color(,|$)/, "textbox"],
     ] as const)(
-        "Escape after typing in a %s box shows and says the discard",
+        "Escape after typing in a %s box says the discard and draws nothing (Figma)",
         async (_, channel, first, typed, name, role) => {
             const session = await openScene();
             await session.styles.addRow({ name: "Paint", target: "edge", selector: { match: "everything" } });
@@ -370,7 +370,7 @@ describe("focus after a style line is written or removed", () => {
                     .filter(
                         (node) => node.getAttribute("role") !== "status" && node.getBoundingClientRect().height > 1,
                     );
-                assert.lengthOf(shown, 1, "shown on screen");
+                assert.lengthOf(shown, 0, "nothing drawn, as in Figma");
             });
         },
     );

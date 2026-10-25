@@ -173,7 +173,7 @@ describe("POST /v1/invocations", () => {
         const other = oidc({
             event_name: "workflow_dispatch",
             ref: "refs/heads/master",
-            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            job_workflow_ref: `${REPO}/.github/workflows/links-weekly.yml@refs/heads/master`,
         });
         for (const token of [branch, copy, other]) {
             const res = await call("POST", "/v1/invocations", { token, body: record() });
@@ -499,6 +499,51 @@ describe("GET /v1/plan", () => {
         assert.equal(v.passedWithInputs, "reuse");
         assert.deepEqual(v.order, ["b.test.ts", "a.test.ts"]);
         assert.deepEqual(v.fileMs, { [X]: 106 });
+    });
+});
+
+describe("POST /v1/sites", () => {
+    const SHA = "a".repeat(40);
+    const deployPages = (claims = {}) =>
+        oidc({
+            event_name: "workflow_run",
+            ref: "refs/heads/master",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            ...claims,
+        });
+
+    it("records master's deploy-pages.yml site once, and the candidate pick lists it", async () => {
+        const { call, rows } = service();
+        assert.deepEqual(await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } }), {
+            status: 200,
+            body: { stored: true, sha: SHA },
+        });
+        const again = await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } });
+        assert.deepEqual(again.body, { stored: false, sha: SHA });
+        assert.deepEqual(rows("SELECT sha, built_at, run_id FROM site"), [{ sha: SHA, built_at: NOW, run_id: 4010 }]);
+        assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body.candidate, {
+            sha: SHA,
+            builtAt: NOW,
+        });
+    });
+
+    it("refuses every other writer, a short sha, and test records from deploy-pages.yml", async () => {
+        const { call, rows } = service();
+        const branch = deployPages({
+            ref: "refs/heads/x",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/x`,
+        });
+        const siteRepo = oidc({ repository: "graphty-org/graphty-site", repository_id: "1429353022" });
+        for (const token of [branch, master("ci.yml"), pr(), siteRepo, LOCAL_TOKEN]) {
+            assert.equal((await call("POST", "/v1/sites", { token, body: { sha: SHA } })).status, 403);
+        }
+        assert.equal((await call("POST", "/v1/sites", { token: deployPages(), body: { sha: "abc" } })).status, 400);
+        const id = "4010.1.site.0.1";
+        assert.equal(
+            (await call("POST", "/v1/invocations", { token: deployPages(), body: record({ id }) })).status,
+            403,
+        );
+        assert.deepEqual(rows("SELECT * FROM site"), []);
     });
 });
 

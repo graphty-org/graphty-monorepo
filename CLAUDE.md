@@ -388,6 +388,8 @@ The `tools/` directory contains build scripts:
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers with the change per package since last week, filing a `priority:high` issue when the open count rose. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-cleanup.mjs` | Removes finished worktrees (branch merged into origin/master or origin/golden, gone from origin, or a detached checkout of a commit already there) that pass every safety check: not a live tool, golden or servherd worktree, not locked, taken or reverted, no process, push ticket or Claude session inside, no git activity in the last 3 hours, every commit on a remote, no uncommitted or untracked files. Never by age. `--dry-run` (the default) prints the plan and why the rest are kept; `--apply [--max N]` removes at most N (50) at idle IO priority, moving a non-empty ignored `tmp/` to the main checkout's `tmp/worktree-tmp/` first, and logs to `tmp/worktree-cleanup/log.jsonl`. Runs every 15 minutes as the servherd server `worktree-cleanup` from its live copy (`tools/live-tools.json`) |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
+| `full-run.mjs` | The 6-hour full run's decisions in release.yml (`mode: full` or `restart`): `pick` takes the results store's candidate (the newest master commit with a kept site) and skips one already judged, or one whose merges since a judged commit change only versions or screenshot approvals; `verdict` turns the lanes' results and the captures into `green-clean`, `green-images`, `red` or `owner-item`, records it in the store, files or updates the one "Full run red: <lane> on <sha>" issue (`priority:critical`) and dispatches `bisect.yml` once on red, and closes that issue on green |
+| `release-diff.mjs` | `[--accept-merges] <from> <to>`: exit 1 naming every change that is not a package.json `version` field, a `CHANGELOG.md` or a consumed version plan; release.yml runs it on the version commit. `--accept-merges` also allows `visual-baselines/` and `visual-review-approvals/`, so a commit after a judged one can inherit its verdict |
 | `release-scheduler/` | A Cloudflare Worker that dispatches `release.yml` at 00:00, 06:00, 12:00 and 18:00 UTC as a GitHub App, and opens an issue when it cannot. Setup and operation: its `README.md` |
 
 ### Secret Scan and Secret Files
@@ -535,7 +537,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
 - `lifecycle` - autosave across reloads, closes, discards, freezes, crashes and kills: Node tests that launch Chromium, Firefox and WebKit (Playwright's library API) and Chrome for Testing over the raw DevTools protocol, on the built `./bundle`; its own CI shard, `graphty-element-lifecycle`, with `autosave-engines`
-- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue
+- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, once per UTC day (the first attempt whose CI lane is green; a person's dispatch always runs it; `tools/llm-due.mjs`, which warns as `spend:llm` at $60 in a month), never on a pull request or in the merge queue
 
 ### Running Specific Test Projects
 
@@ -630,9 +632,12 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 
 ### Release versioning
 
-**Shadow mode (channels pipeline step 3, #3424).** release.yml now only tests: every run, scheduled or
-dispatched, is `mode: shadow` unless dispatched with `-f mode=legacy`, and a shadow run lands and publishes
-nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
+**The full run (channels pipeline step 6, #3454).** release.yml now only tests: every scheduled run is
+`mode: full` (`tools/full-run.mjs`), which publishes nothing and ends in one verdict in the results store; a red
+one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
+whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
+in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
+lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
 push starts or restarts a release (the `workflow_run` trigger is gone). Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The

@@ -15,6 +15,7 @@ import { isolateGit } from "../isolated-git-env.mjs";
 import { call, config, EVENT_MS, postFailures, postInvocation, readPlan, RECORD_MS } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 import ResultsReporter, { BATCH_MS, IMMEDIATE, invocationOf } from "./reporter.mjs";
+import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
 import { junitOf, postRecords, recordsOf, runGroup } from "./run-group.mjs";
 
 isolateGit();
@@ -329,5 +330,55 @@ describe("runGroup", () => {
         writeFileSync(join(root, "test-results/results-spool"), "");
         const env = { PATH: process.env.PATH, RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_RUN_ID: "6" };
         assert.equal(await runGroup("fake", undefined, { root, env }), 0);
+    });
+});
+
+describe("planRead", () => {
+    const shards = [
+        { shard: "graphty-element-browser-1", package: "graphty-element" },
+        { shard: "graphty-element-browser-2", package: "graphty-element" },
+        { shard: "layout", package: "layout" },
+    ];
+    it("asks for each affected family, both run shapes", () => {
+        assert.deepEqual(variantsOf(shards, ["graphty-element"]), [
+            "graphty-element-browser|flags=off|whole",
+            "graphty-element-browser|flags=off|selected",
+        ]);
+    });
+    it("takes a selected run's file time over a whole run's", () => {
+        const plan = {
+            variants: {
+                "layout|flags=off|selected": { fileMs: { "a.test.ts": 5 } },
+                "layout|flags=off|whole": { fileMs: { "a.test.ts": 9, "b.test.ts": 7 } },
+            },
+        };
+        assert.deepEqual(durationsOf(plan), { layout: { "a.test.ts": 5, "b.test.ts": 7 } });
+        assert.deepEqual(durationsOf(null), {});
+    });
+    it("fails open: no store writes an unavailable plan and empty durations", async () => {
+        const out = join(TMP, "plan-off");
+        const r = await planRead({ root: process.cwd(), affected: ["layout"], out, env: {} });
+        assert.equal(r.plan, null);
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "results-plan.json"), "utf8")), {
+            unavailable: "results store not configured",
+        });
+        assert.deepEqual(JSON.parse(readFileSync(join(out, "durations.json"), "utf8")), {});
+    });
+    it("reads the plan once and writes its durations", async () => {
+        const { url, seen } = await serve();
+        const out = join(TMP, "plan-on");
+        await planRead({
+            root: process.cwd(),
+            affected: ["layout"],
+            out,
+            sha: "abc",
+            files: ["layout/src/x.ts"],
+            env: { RESULTS_URL: url, GRAPHTY_RESULTS_TOKEN: "t" },
+        });
+        assert.equal(seen.length, 1);
+        const q = new URL(seen[0].url, url).searchParams;
+        assert.equal(q.get("variants"), "layout|flags=off|whole,layout|flags=off|selected");
+        assert.equal(q.get("inputs"), "-,-");
+        assert.equal(q.get("files"), "layout/src/x.ts");
     });
 });

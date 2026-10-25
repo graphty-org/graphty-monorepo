@@ -37,13 +37,16 @@ export function strayChanges(files, before, after, { acceptMerges = false } = {}
     const out = [];
     for (const file of files) {
         if (acceptMerges && ACCEPT_DIRS.some((dir) => file.startsWith(dir))) continue;
-        const old = before(file);
-        const now = after(file);
         if (/(^|\/)CHANGELOG\.md$/.test(file)) continue;
-        if (file.startsWith(".nx/version-plans/") && now === null) continue;
+        // read the trees only where the verdict needs them: one git show per file is the whole cost on a code range
+        if (file.startsWith(".nx/version-plans/") && after(file) === null) continue;
         if (!/(^|\/)package\.json$/.test(file)) {
             out.push(`${file}: not a package.json or a CHANGELOG.md`);
-        } else if (old === null || now === null) {
+            continue;
+        }
+        const old = before(file);
+        const now = after(file);
+        if (old === null || now === null) {
             out.push(`${file}: added or deleted`);
         } else if (withoutVersion(old) !== withoutVersion(now)) {
             out.push(`${file}: changes more than "version"`);

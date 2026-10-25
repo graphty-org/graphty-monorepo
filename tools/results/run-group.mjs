@@ -482,7 +482,7 @@ async function record(shard, o) {
     const cfg = config(env, root);
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
-        onMaster: !(Number(env.RESULTS_REPEATS) > 1),
+        onMaster: (Number(env.RESULTS_REPEATS) || 1) <= 1,
     });
 }
 

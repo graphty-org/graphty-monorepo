@@ -1,8 +1,8 @@
 /**
- * A story's picture is taken the moment its play function ends, and taken again later by another
- * capture: so when the play ends the page must already be the picture, with nothing still on its
- * way that changes it. Each story here once ended while the app was still settling, and drew two
- * different pictures depending on how soon after its play it was shot (issues #3521, #3553).
+ * A story's picture is taken the moment its play function ends, and the screenshot step renders
+ * the story again in the same page for each mode: so when the play ends the page must already be
+ * the picture, the same however soon it is shot and however many times the story was rendered
+ * before. Each story here once drew two different pictures (issues #3521, #3553).
  *
  * Each test runs the story as the story tests do (compose, render, play) and reads the page at
  * once, with no wait: what it reads is what a capture that shoots immediately would draw.

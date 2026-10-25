@@ -131,6 +131,9 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { RenderQuality, RenderQualityChange, RenderQualityCode, ShaderSettings } from "./src/session/shaders";
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// Which experiments an element switched on (element.enabledFeatures)
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
 export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";

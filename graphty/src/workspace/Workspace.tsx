@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { findKept, reopenOwn } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
+import { focusIsLost, focusOpenedGraph, focusOpenedGraphLater, installFocusGuard } from "./frame/focus";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
@@ -92,18 +92,22 @@ export function Workspace({
         }
         store.set({ opening: null });
         loading.current = true;
+        // Focus goes to the graph's heading once it is read, so its size is heard, unless the
+        // reader went somewhere else meanwhile.
+        const focusLater = focusOpenedGraphLater();
         defaults
             .then(() => opening.load(session, host))
-            // A graph opened as a new project starts its history: Undo has nothing to take back
-            // until the reader changes something, so one Undo too many never unloads the graph.
-            // Focus goes to the graph's heading once it is read, so its size is heard.
+            // Each load starts the project's history itself (open.ts passes the element's
+            // `history: "start"`; a project file or kept work does so on opening).
             .then(() => {
-                session.history.clear({ pending: "keep" });
-                if (store.get().page === "panels") {
-                    (opening.focus ?? focusOpenedGraph)();
+                const focus = store.get().page === "panels";
+                focusLater(focus && opening.focus === undefined);
+                if (focus) {
+                    opening.focus?.();
                 }
             })
             .catch((error: unknown) => {
+                focusLater(false);
                 const notice = { message: notReadSentence(opening.name, error, "opened"), error: true };
                 store.set((state) =>
                     state.project?.id === project?.id

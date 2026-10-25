@@ -114,8 +114,10 @@ before(() => {
     git(repo, "commit", "-q", "-m", "base");
     git(repo, "push", "-q", "origin", "master");
     git(dir, "clone", "-q", join(dir, "origin.git"), "other");
+    // These tests exercise the golden flow itself; the retirement has its own test below.
     ctx = context(repo, {
         env,
+        retired: false,
         gh: (_ctx, args) => {
             gh.push(args);
             const cut = args.includes("golden-cut");
@@ -1587,6 +1589,95 @@ describe("cut fixes", () => {
         assert.match(r.out, /already on golden/);
         assert.equal(pushes, 0);
     });
+
+    describe("while golden is being flushed", () => {
+        const flush = () => join(repo, "tmp/golden/flush");
+        beforeEach(() => {
+            mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+            writeFileSync(flush(), "");
+        });
+        after(() => rmSync(flush(), { force: true }));
+
+        it("refuses land and sync, naming the flush, and pushes nothing", async () => {
+            branch("flush/feature", { "ff.txt": "f\n" }, "feat: during the flush");
+            for (const argv of [["land", "flush/feature", "--dry-run"], ["land", "flush/feature"], ["sync"]]) {
+                const r = await run(...argv);
+                assert.equal(r.code, 1, r.out);
+                assert.match(r.out, /golden is being flushed to master \(.*tmp\/golden\/flush exists\)/);
+            }
+            assert.equal(pushes, 0);
+        });
+
+        it("still runs a cut fix, its dry run pushing nothing and its run landing on both", async () => {
+            const wt = branch("flush/cutfix", { "fc.txt": "fix\n" }, "fix: the cut in a flush", "origin/golden-cut");
+            const tip = git(wt, "rev-parse", "HEAD");
+            gh.open = true;
+            gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
+            const dry = await run("cut-fix", "flush/cutfix", "--reason", "500", "--dry-run");
+            assert.equal(dry.code, 0, dry.out);
+            assert.match(dry.out, /dry run: flush\/cutfix merges into golden-cut; nothing pushed/);
+            assert.equal(pushes, 0);
+            const r = await run("cut-fix", "flush/cutfix", "--reason", "500");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
+            git(repo, "fetch", "-q", "origin");
+            assert.ok(onBoth(tip), "on golden-cut and golden");
+        });
+    });
+});
+
+describe("golden retired (#3418)", () => {
+    let saved;
+    before(() => {
+        saved = ctx;
+        ctx = { ...ctx, retired: true };
+    });
+    after(() => {
+        ctx = saved;
+    });
+
+    it("is the default", () => {
+        assert.equal(context(repo, { env }).retired, true);
+    });
+
+    it("refuses land, cut, cut-fix, ship, auto-ship and sync, pointing to pr-open.sh, and pushes nothing", async () => {
+        const before = pushes;
+        for (const argv of [
+            ["land", "any/branch"],
+            ["land", "any/branch", "--dry-run"],
+            ["cut"],
+            ["cut-fix", "any/branch", "--reason", "500"],
+            ["ship"],
+            ["auto-ship"],
+            ["sync"],
+        ]) {
+            const r = await run(...argv);
+            assert.equal(r.code, 1, argv.join(" "));
+            assert.match(
+                r.out,
+                new RegExp(`${argv[0]} is retired: golden no longer reaches master .*tools/pr-open\\.sh`),
+            );
+        }
+        assert.equal(pushes, before);
+    });
+
+    it("still runs status", async () => {
+        const r = await run("status");
+        assert.doesNotMatch(r.out, /is retired/);
+    });
+
+    it("still brings the main checkout to GitHub's master when it refuses", async () => {
+        write(other, "retired-main.txt", "m\n");
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", "chore: master moves");
+        git(other, "pull", "-q", "--no-rebase", "origin", "master");
+        git(other, "push", "-q", "origin", "master");
+        const to = git(other, "rev-parse", "HEAD");
+        const r = await run("land", "any/branch");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /moved the main checkout's master from [0-9a-f]{10} to /);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
+    });
 });
 
 describe("open work", () => {
@@ -1666,7 +1757,7 @@ describe("pruning branches", () => {
 
 describe("the main checkout", () => {
     // A new commit on GitHub's master, made from the other clone, and verification passing it.
-    const advanceVerified = (name) => {
+    const advanceMaster = (name) => {
         write(other, `${name}.txt`, `${name}\n`);
         git(other, "add", ".");
         git(other, "commit", "-q", "-m", `chore: ${name}`);
@@ -1676,38 +1767,35 @@ describe("the main checkout", () => {
         return git(other, "rev-parse", "HEAD");
     };
     const branch = () => git(repo, "symbolic-ref", "--short", "HEAD");
-    // Earlier tests' runs switched it to golden-verified already, and then moved GitHub's back.
-    before(() => {
-        git(repo, "checkout", "-q", "master");
-        git(repo, "branch", "-q", "-D", "golden-verified");
-    });
+    // A main checkout left on golden-verified by the old rule.
+    before(() => git(repo, "checkout", "-q", "-B", "golden-verified", "master"));
     after(() => git(repo, "checkout", "-q", "master"));
 
-    it("switches from master to golden-verified, keeping untracked files and master", async () => {
+    it("switches from golden-verified to master, keeping untracked files and golden-verified", async () => {
         const from = git(repo, "rev-parse", "HEAD");
         write(repo, "keep-untracked.txt", "mine\n");
-        const to = advanceVerified("main-switch");
+        const to = advanceMaster("main-switch");
         const r = await run("status");
         assert.equal(r.code, 0, r.out);
-        assert.equal(branch(), "golden-verified", r.out);
+        assert.equal(branch(), "master", r.out);
         assert.equal(git(repo, "rev-parse", "HEAD"), to);
-        assert.equal(git(repo, "rev-parse", "master"), from, "master is left where it was");
+        assert.equal(git(repo, "rev-parse", "golden-verified"), from, "golden-verified is left where it was");
         assert.equal(readFileSync(join(repo, "keep-untracked.txt"), "utf8"), "mine\n");
         assert.match(
             r.out,
-            new RegExp(`switched the main checkout from master \\(${from.slice(0, 10)}\\) to golden-verified`),
+            new RegExp(`switched the main checkout from golden-verified \\(${from.slice(0, 10)}\\) to master`),
         );
     });
 
-    it("fast-forwards golden-verified when verification passes a newer commit", async () => {
+    it("fast-forwards master when GitHub's master moves", async () => {
         const from = git(repo, "rev-parse", "HEAD");
-        const to = advanceVerified("main-ff");
+        const to = advanceMaster("main-ff");
         const r = await run("status");
         assert.equal(r.code, 0, r.out);
         assert.equal(git(repo, "rev-parse", "HEAD"), to);
         assert.match(
             r.out,
-            new RegExp(`moved the main checkout's golden-verified from ${from.slice(0, 10)} to ${to.slice(0, 10)}`),
+            new RegExp(`moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`),
         );
     });
 
@@ -1719,21 +1807,21 @@ describe("the main checkout", () => {
     it("leaves it alone with a warning when it is on another branch", async () => {
         git(repo, "checkout", "-q", "-b", "side");
         try {
-            advanceVerified("main-side");
+            advanceMaster("main-side");
             const before = git(repo, "rev-parse", "HEAD");
             const r = await run("status");
             assert.equal(branch(), "side");
             assert.equal(git(repo, "rev-parse", "HEAD"), before);
-            assert.match(r.out, /left the main checkout .* alone: it is on side, not golden-verified/);
+            assert.match(r.out, /left the main checkout .* alone: it is on side, not master/);
         } finally {
-            git(repo, "checkout", "-q", "golden-verified");
+            git(repo, "checkout", "-q", "master");
         }
     });
 
     it("leaves it alone with a warning when it has uncommitted changes", async () => {
         write(repo, "a.txt", "dirty\n");
         try {
-            advanceVerified("main-dirty");
+            advanceMaster("main-dirty");
             const before = git(repo, "rev-parse", "HEAD");
             const r = await run("status");
             assert.equal(git(repo, "rev-parse", "HEAD"), before);
@@ -1744,9 +1832,10 @@ describe("the main checkout", () => {
     });
 
     it("leaves it alone with a warning when its branch has commits GitHub's lacks", async () => {
+        git(repo, "checkout", "-q", "golden-verified");
         git(repo, "commit", "-q", "--allow-empty", "-m", "chore: local only");
         const before = git(repo, "rev-parse", "HEAD");
-        advanceVerified("main-ahead");
+        advanceMaster("main-ahead");
         const r = await run("status");
         assert.equal(git(repo, "rev-parse", "HEAD"), before);
         assert.match(r.out, /alone: its golden-verified has commits origin\/golden-verified does not/);

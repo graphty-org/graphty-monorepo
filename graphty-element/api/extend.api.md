@@ -2390,6 +2390,9 @@ export type ScopeInputDeclaration = NonNullable<AlgorithmDescriptor["scopeInput"
 export type Score = number | null | undefined;
 
 // @public
+export function setDefaultFeatures(ids: readonly string[]): void;
+
+// @public
 export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldSpec, "kind">): readonly ResultFieldSpec[];
 
 // @public

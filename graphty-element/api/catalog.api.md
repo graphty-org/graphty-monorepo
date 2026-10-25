@@ -489,6 +489,23 @@ export type Encoding = Partial<Record<Channel, Binding>> & {
 };
 
 // @public
+export interface FeatureDescriptor {
+    readonly id: FeatureId;
+    readonly issue: number;
+    readonly plainName: string;
+    readonly since: string;
+}
+
+// @public
+export type FeatureId = "data-management" | "timeline" | "location-map";
+
+// @public
+export const FEATURES: readonly FeatureDescriptor[];
+
+// @public
+export function featuresFromUrl(url: string | URL, param?: string): string[];
+
+// @public
 export interface FieldBand {
     above?: number;
     atLeast?: number;
@@ -617,6 +634,9 @@ export interface GlyphDescriptor<Id extends string = string> {
     readonly id: Id;
     readonly plainName: string;
 }
+
+// @public
+export const GRADUATED_FEATURES: readonly string[];
 
 export { GraphListing }
 

@@ -10,9 +10,10 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
@@ -21,18 +22,13 @@ import { noticeFileStyles } from "../styles/noticeFileStyles";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
- * element has come up.
+ * element has come up. Each load starts the project's history (`history: "start"`): opening is
+ * not a change to undo, and Undo pressed while it loads never cancels it.
  * @param workspace - the workspace store.
  * @param name - the project's name.
- * @param load - what to load into the new element, as one step with the project's name.
- * @param after - what to do with the session once it is loaded.
+ * @param load - what to load into the new element.
  */
-function openProject(
-    workspace: WorkspaceStore,
-    name: string,
-    load: (tx: TransactionScope) => Promise<void>,
-    after?: (session: GraphSession) => void,
-): void {
+function openProject(workspace: WorkspaceStore, name: string, load: (session: GraphSession) => Promise<void>): void {
     workspace.set((state) => ({
         project: { name, id: newProjectId(state) },
         page: "panels",
@@ -40,15 +36,12 @@ function openProject(
         inspected: null,
         dialog: null,
         // The name is the project's in graphty-element too, so its autosave entry carries it. Set
-        // in the load's own step, so Undo never takes the name back without the graph.
+        // before the load, which starts the history, so Undo never takes the name back.
         opening: {
             name,
             load: async (session) => {
-                await session.transaction(`Open ${name}`, async (tx) => {
-                    await load(tx);
-                    await tx.config.set({ name });
-                });
-                after?.(session);
+                await session.config.set({ name });
+                await load(session);
             },
         },
     }));
@@ -60,25 +53,32 @@ function openProject(
  * @param sample - the sample.
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
-    openProject(
-        workspace,
-        sample.name,
-        (tx) => tx.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() }),
-        (session) => {
-            noticeFileStyles(workspace, session);
-        },
-    );
+    openProject(workspace, sample.name, async (session) => {
+        await session.data.import(
+            { config: { url: sample.url }, name: sample.name },
+            { styles: fileStylesChoice(), history: "start" },
+        );
+        noticeFileStyles(workspace, session);
+    });
 }
 
 /**
- * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
- * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
- * Storybook (its staticDirs), which never reads the network.
+ * This machine's copy, on the dev server and in the tests (vite.sample-data.ts) and in a built
+ * Storybook (its staticDirs), which never read the network.
  */
-const DATASET_BASE =
+const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+
+/**
+ * Where the datasets are read from: this machine's copy where there is one, else the site's own
+ * (its site.json's `datasets`), else graph-samples' default.
+ * @returns the address, or undefined for graph-samples' default.
+ */
+function datasetBase(): string | undefined {
+    return LOCAL_DATASETS ?? siteConfig().datasets;
+}
 
 /**
  * The address of the picture graph-samples publishes of a dataset or a generator, beside the
@@ -90,7 +90,7 @@ const DATASET_BASE =
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
     return entry.thumbnail === undefined
         ? undefined
-        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+        : new URL(entry.thumbnail, datasetBase() ?? DEFAULT_DATASET_BASE_URL).href;
 }
 
 /**
@@ -100,8 +100,12 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+    const baseUrl = datasetBase();
     openProject(workspace, dataset.title, (session) =>
-        session.data.loadDataset(dataset.name, DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE }),
+        session.data.loadDataset(dataset.name, {
+            history: "start",
+            ...(baseUrl === undefined ? {} : { baseUrl }),
+        }),
     );
 }
 
@@ -116,7 +120,9 @@ export function openGenerated(
     generator: GeneratorDescriptor,
     params: GeneratorParams,
 ): void {
-    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
+    openProject(workspace, generator.plainName, (session) =>
+        session.data.generate(generator.name, params, { history: "start" }),
+    );
 }
 
 /**
@@ -128,7 +134,7 @@ export function openGenerated(
 export function openUrl(workspace: WorkspaceStore, url: string): void {
     const file = new URL(url).pathname.split("/").pop() ?? "";
     const name = decodeURIComponent(file).replace(/\.[^.]*$/, "") || new URL(url).hostname;
-    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }));
+    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }, { history: "start" }));
 }
 
 /**

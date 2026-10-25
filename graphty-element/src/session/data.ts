@@ -59,6 +59,7 @@ import {
     SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
+import type { LoadLine, LoadTurn } from "./loadLine";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -164,6 +165,8 @@ interface DataWrites {
     valueLabels(): ReadonlyMap<string, string>;
     /** Publish a progress change as the session's `progress:changed`. */
     progress?(change: ProgressChange): void;
+    /** The session's load line, shared with the graph's own loads, so loads land in call order. */
+    readonly loadLine: LoadLine;
     /** Dispatch any command: the network-source loads and expansions dispatch their own ops. */
     send?(command: SessionCommand): Promise<unknown>;
     /** Publish a session event: the network-source expansions publish theirs. */
@@ -468,6 +471,8 @@ export class SessionData implements SessionDataApi {
     private readonly pendingLoads = new Set<string>();
     /** What click-to-expand keeps beside the graph. */
     private readonly expansions = new ExpansionState();
+    /** The loads asked for and not yet dispatched, so they land in the order they were asked for. */
+    private readonly loadLine: LoadLine;
 
     /**
      * Build the data surface.
@@ -491,6 +496,7 @@ export class SessionData implements SessionDataApi {
         this.records = records;
         this.readConfig = readConfig;
         this.writes = writes;
+        this.loadLine = writes.loadLine;
         this.pages = pages;
         this.orders = new RevisionCache(() => pages.revision());
         this.neighborLists = new RevisionCache(() => pages.revision(), NEIGHBOR_LISTS_KEPT);
@@ -580,14 +586,20 @@ export class SessionData implements SessionDataApi {
      */
     async import(source: DataSourceInput, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("import");
-        if (source.source !== undefined) {
-            await sourceLoad.importSource(this.sourceHost(), { ...source, source: source.source }, options);
-            return;
-        }
+        // A network source's read honours the signal, so its wait for its turn does too.
+        const turn = this.loadLine.join(source.source === undefined ? undefined : options.signal);
+        try {
+            if (source.source !== undefined) {
+                await sourceLoad.importSource(this.hostInTurn(turn), { ...source, source: source.source }, options);
+                return;
+            }
 
-        // Taken before the first await: a transaction routes only what a verb dispatches
-        // synchronously, and detecting the format may have to read the file or fetch the URL.
-        await this.importVia(this.writes.importer(), source, options);
+            // Taken before the first await: a transaction routes only what a verb dispatches
+            // synchronously, and detecting the format may have to read the file or fetch the URL.
+            await this.importVia(this.writes.importer(), source, options, turn);
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -631,7 +643,12 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options, false);
+        const turn = this.loadLine.join();
+        try {
+            await this.importVia(send, recordsSource(graph, name), options, turn, false);
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -653,37 +670,51 @@ export class SessionData implements SessionDataApi {
                 details: { name, available: DATASET_NAMES },
             });
         }
-        let snapshot: GraphSnapshot;
+        // Its place in line is taken now, so a load asked for later waits for this download; an
+        // abort while it waits for its turn stops it there and lets the next load through.
+        const turn = this.loadLine.join(signal);
         try {
-            snapshot = await fetchDataset(name, { baseUrl, signal });
-        } catch (error) {
-            throw new GraphtyError({
-                code: "E_FETCH_FAILED",
-                message: `The dataset "${name}" could not be downloaded.`,
-                source: "data",
-                recoverable: true,
-                details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
-                cause: error,
-            });
+            let snapshot: GraphSnapshot;
+            try {
+                snapshot = await fetchDataset(name, { baseUrl, signal });
+            } catch (error) {
+                throw new GraphtyError({
+                    code: "E_FETCH_FAILED",
+                    message: `The dataset "${name}" could not be downloaded.`,
+                    source: "data",
+                    recoverable: true,
+                    details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                    cause: error,
+                });
+            }
+            await this.importVia(send, recordsSource(snapshot, name), load, turn, false);
+        } finally {
+            turn.leave();
         }
-        await this.importVia(send, recordsSource(snapshot, name), load, false);
     }
 
     /**
      * The body of `import`, dispatching through an importer taken before any await.
-     * @param send - The importer, taken when the verb was called.
+     * @param importer - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
+     * @param turn - The load's place in line, taken when the verb was called: it dispatches only
+     *   once every load asked for before it has.
      * @param fromFile - Whether the source is a graph file the caller opened (not a generated
      *   graph or a downloaded dataset), whose label column then names the nodes.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
-        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        importer: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        turn: LoadTurn,
         fromFile = true,
     ): Promise<void> {
+        const send =
+            options.history === "start"
+                ? (command: DataImportCommand | BatchCommand) => importer({ ...command, startsHistory: true })
+                : importer;
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
             // records stay in the ledger, unlisted, so undoing the replacement lists them again.
@@ -698,7 +729,8 @@ export class SessionData implements SessionDataApi {
         ) {
             const draft = await this.prepare(source);
             try {
-                await draft.loadVia(send, options);
+                await turn.wait();
+                await draft.loadVia((command) => turn.issue(() => send(command)), options);
             } finally {
                 draft.dispose();
             }
@@ -709,31 +741,36 @@ export class SessionData implements SessionDataApi {
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        const step = importCommand(resolved instanceof Promise ? await resolved : resolved, options);
-        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
-        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
-        const { knownFields } = this.readConfig();
-        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
-        // A new graph from a graph file names its nodes by the file's label column, as a draft's
-        // load of it does, unless a label path is configured already. A node without one is still
-        // named by its id. A merge keeps how the graph it joins names its nodes.
-        const names =
-            fromFile &&
-            step.mode !== "merge" &&
-            knownFields.nodeLabelPath === null &&
-            step.source.type !== undefined &&
-            step.source.type !== "csv";
-        const before: BatchCommand["steps"] = [
-            ...(resets
-                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
-                : []),
-            ...(names
-                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
-                : []),
-        ];
-        // The batch is the import in the history, so it carries the import's fact: a page load's
-        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
-        await send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+        const read = resolved instanceof Promise ? await resolved : resolved;
+        // Waited for only when a load asked for earlier is still reading, so one with nothing
+        // ahead of it dispatches before this call returns, as it did before the line existed.
+        await turn.take(() => {
+            const step = importCommand(read, options);
+            // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+            // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+            const { knownFields } = this.readConfig();
+            const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+            // A new graph from a graph file names its nodes by the file's label column, as a draft's
+            // load of it does, unless a label path is configured already. A node without one is still
+            // named by its id. A merge keeps how the graph it joins names its nodes.
+            const names =
+                fromFile &&
+                step.mode !== "merge" &&
+                knownFields.nodeLabelPath === null &&
+                step.source.type !== undefined &&
+                step.source.type !== "csv";
+            const before: BatchCommand["steps"] = [
+                ...(resets
+                    ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                    : []),
+                ...(names
+                    ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                    : []),
+            ];
+            // The batch is the import in the history, so it carries the import's fact: a page load's
+            // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+            return send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+        });
     }
 
     /**
@@ -771,7 +808,10 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
         this.requireLive("expand");
-        return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+        // In line, as a load: its rows are dispatched after every load asked for before it, and a
+        // load asked for after it waits for all of them, so it never adds to the graph that load
+        // replaced (issue #3382).
+        return this.inLine(options.signal, (host) => sourceExpand.expandNodes(host, ids, options), true);
     }
 
     /**
@@ -791,7 +831,7 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("more");
-        return sourceLoad.more(this.sourceHost(), options);
+        return this.inLine(options.signal, (host) => sourceLoad.more(host, options));
     }
 
     /**
@@ -802,7 +842,12 @@ export class SessionData implements SessionDataApi {
      */
     async loadSample(id: string, options: LoadChoices & SourceLoadOptions = {}): Promise<void> {
         this.requireLive("loadSample");
-        await sourceLoad.loadSample(this.sourceHost(), id, options);
+        const turn = this.loadLine.join(options.signal);
+        try {
+            await sourceLoad.loadSample(this.hostInTurn(turn), id, options);
+        } finally {
+            turn.leave();
+        }
     }
 
     /**
@@ -847,7 +892,7 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        return sourceLoad.runPendingSourceLoad(this.sourceHost(), id, options);
+        return this.inLine(options.signal, (host) => sourceLoad.runPendingSourceLoad(host, id, options));
     }
 
     /**
@@ -875,6 +920,48 @@ export class SessionData implements SessionDataApi {
         this.ledger.fromMember(member);
         for (const record of this.ledger.loads()) {
             this.pendingLoads.add(record.key);
+        }
+    }
+
+    /**
+     * What a source load works through when it holds a place in line: it waits its turn once
+     * it has read, and gives the place up as it dispatches.
+     * @param turn - The load's place.
+     * @param hold - Keep the place past the first dispatch, for a verb that dispatches more than
+     *   once and gives it up when it settles.
+     * @returns The host.
+     */
+    private hostInTurn(turn: LoadTurn, hold = false): SourceHost {
+        const host = this.sourceHost();
+        return {
+            ...host,
+            waitTurn: () => turn.wait(),
+            dispatch: (command) =>
+                hold
+                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
+                    : turn.take(() => host.dispatch(command)),
+        };
+    }
+
+    /**
+     * Run a network-source verb in the session's load line: its place taken now, its dispatch
+     * made once every load asked for before it has dispatched.
+     * @param signal - Aborting it while the verb waits for its turn gives up its place.
+     * @param run - The verb, given a host whose dispatch waits for the turn.
+     * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
+     *   once; otherwise it is given up at the first dispatch.
+     * @returns What the verb returned.
+     */
+    private async inLine<T>(
+        signal: AbortSignal | undefined,
+        run: (host: SourceHost) => Promise<T>,
+        hold = false,
+    ): Promise<T> {
+        const turn = this.loadLine.join(signal);
+        try {
+            return await run(this.hostInTurn(turn, hold));
+        } finally {
+            turn.leave();
         }
     }
 
@@ -975,7 +1062,15 @@ export class SessionData implements SessionDataApi {
                     }
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size, pairs };
                 },
-                importer: () => this.writes.importer(),
+                inLine: async (run) => {
+                    const send = this.writes.importer();
+                    const turn = this.loadLine.join();
+                    try {
+                        await run((command) => turn.take(() => send(command)));
+                    } finally {
+                        turn.leave();
+                    }
+                },
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {

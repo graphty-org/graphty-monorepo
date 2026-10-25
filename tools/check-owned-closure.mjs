@@ -30,7 +30,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FOLLOWED = /\.(?:[cm]?[jt]sx?|ya?ml|sh|py|json)$/u;
 /** A run of path characters; one with a `/` and a code or data extension names a repository path. */
 const PATH_RUN = /[\w@./+-]+/gu;
-const PATH_EXT = /\/.*\.(?:[cm]?[jt]sx?|sh|py|json)$/u;
+const PATH_EXT = /\.(?:[cm]?[jt]sx?|sh|py|json)$/u;
 const JS = /\.[cm]?[jt]sx?$/u;
 /** A variable a path is written under (`$CLAUDE_PROJECT_DIR/`, `${{ github.workspace }}/`): the checkout's root. */
 const ROOT_VAR = /\$\{\{[^}]*\}\}\/|\$\{?\w+\}?\//gu;
@@ -117,8 +117,11 @@ export function referencedFiles(root, file, index) {
         return out;
     }
     for (const [run] of text.replaceAll(ROOT_VAR, " ").matchAll(PATH_RUN)) {
-        const path = run.replace(/\.+$/u, "");
-        if (!PATH_EXT.test(path)) {
+        let path = run;
+        while (path.endsWith(".")) {
+            path = path.slice(0, -1);
+        }
+        if (!path.includes("/") || !PATH_EXT.test(path)) {
             continue;
         }
         const hit = [

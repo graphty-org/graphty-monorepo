@@ -87,7 +87,7 @@ shared file verbatim:
 > the same package. Follow CLAUDE.md and the package's CLAUDE.md. Run the affected packages' lint, build and tests.
 > Commit with one `Fixes #N` line per issue the change finishes (`Refs #N` for one that must stay open). Then comment
 > `pipeline-round: ready <branch> <full sha>` on every issue still in the group, open the pull request with
-> `tools/pr-open.sh --proof <file>`, comment `pipeline-round: opened <branch> <url>`, and stop.
+> `tools/pr-open.sh --proof tmp/<name>/proof.md`, comment `pipeline-round: opened <branch> <url>`, and stop.
 
 End the round after starting one job; the next round starts the next while the cap allows.
 

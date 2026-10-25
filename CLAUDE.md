@@ -1211,25 +1211,38 @@ rollout: issue #3418.
    (`pnpm run test:changed --base origin/master`, through `tools/low-priority.sh`), and `node tools/sonar-gate.mjs` (the
    SonarQube changed-lines check; nothing else runs it now). Long runs go in the background.
 3. When the work is finished -- never earlier, because auto-merge merges the first green commit -- write
-   a Proof file (the commands you ran and what they showed) and run
-   `tools/pr-open.sh --proof <file>` (`--refs` for `Refs #N` instead of `Fixes #N`). It merges
+   a Proof file (the commands you ran and what they showed) under `tmp/<task>/` (an untracked file in the
+   worktree is refused) and run `tools/pr-open.sh --proof tmp/<task>/proof.md` (`--refs` for `Refs #N`
+   instead of `Fixes #N`; `--title` when the first commit's header is not a good title). It merges
    `origin/master` if the branch is behind (never a rebase; a conflict exits 2: merge by hand, resolve,
    commit, run again), pushes, opens the pull request into master or reuses the open one, arms
    auto-merge and prints the URL. It returns in seconds and never waits for CI. A subagent opens its own
    pull request this way and stops.
 4. A red pull request stays open with auto-merge armed. Fix it with ordinary commits on its branch; each
    push re-runs CI and cancels the older run. Never merge past a check, never `--admin`.
-5. A breaking (`!` or `BREAKING CHANGE`) commit: `pr-open.sh` opens the pull request without auto-merge;
-   the owner merges it when he gives the go.
+5. `pr-open.sh` leaves auto-merge off, and the owner merges, for a breaking (`!` or `BREAKING CHANGE`)
+   commit, for a change to what judges a pull request or guards the owner (`.github/`, `.claude/`,
+   `tools/ci-*`, `tools/test-select*`, `tools/test-quarantine.json`, visual-review, the release files,
+   the credential guard, `pr-open.sh` itself; the same list as `.github/CODEOWNERS`), and for a pull
+   request someone else opened. `Lint PR Title` also fails any pull request holding a breaking commit
+   until the owner adds the label `breaking-go`, so a breaking commit pushed later cannot merge on its own.
 
 Rules:
 
 - **Never copy, always merge.** Never cherry-pick or rebase; the hooks refuse both (`tools/no-copy.sh`).
 - **Agents act as graphty-agent, never as the owner.** `.claude/settings.json` sets `GIT_CONFIG_GLOBAL`
-  and `GH_CONFIG_DIR` to the agent's config, and a hook (`tools/claude-owner-credential-guard.mjs`)
-  refuses calls that read or use the owner's credentials. Never work around it.
+  and `GH_CONFIG_DIR` to the agent's config (and clears `SSH_AUTH_SOCK`), and a hook
+  (`tools/claude-owner-credential-guard.mjs`) refuses calls that read or use the owner's credentials.
+  Never work around it. This holds for every Claude session started in this repository, the owner's own
+  too, and only from its start: a session started before the change keeps its old environment until
+  restarted. Servers under servherd (the pull request status broker, the review server, the watchers)
+  do not read it and still use the owner's gh login.
 - **Red master first.** `master-guard.yml` opens a revert pull request and a `priority:critical` issue
   when master's build is red. While it is red, the only pull request to open is the fix or the revert.
+  The revert is opened with the workflow token, so it starts no CI: close and reopen it as graphty-agent
+  before turning on its auto-merge.
+- **Taking a change back out of master** is a revert pull request: `git revert -m 1 <merge sha>` on a
+  branch, then `pr-open.sh`. `land.mjs revert` only edits the frozen golden branch.
 - `Fixes #N` in a commit or the description closes the issue when the pull request merges; `Refs #N`
   keeps it open.
 - Where this file asks for something in a pull request description (a breaking change's list, a public
@@ -1246,7 +1259,18 @@ Rules:
   story) waits in `All Checks Pass` until the owner accepts it on the review page. Say so with an
   `ACTION NEEDED` line when it blocks your work.
 - **No pre-push gate on `pr-open.sh`.** It skips `.husky/pre-push` but runs its secret scan and LFS upload;
-  CI is the gate.
+  CI is the gate. SonarQube and the NVIDIA GPU tests run only when you run them (step 2).
+- **Nothing tests master itself.** Master's build runs no tests, and required checks are not "strict", so
+  two pull requests that each pass can break the tests together. Only the scheduled shadow release train
+  (every 6 hours, on a commit it has not passed yet) runs the full suite on master; a red one comments on
+  #3418.
+
+**Rolling out a change to this flow.** Sessions read `CLAUDE.md`, the skills and `.claude/settings.json`
+from the main checkout at their start, and `land.mjs` and `worktree-new.sh` run from the live copy
+`.worktrees/land-live`. So after such a change merges: `tools/live.sh land master`; bring the main
+checkout to master (`git -C <main> switch master`, then `git merge --ff-only origin/master`; the pipeline
+round keeps it there); restart the pull request status broker (servherd `pr-status-broker`) and every
+running Claude session, `/loop` included.
 
 ## Where a change takes effect
 
@@ -1290,8 +1314,9 @@ Several agents often work in this repository at once. They share one disk and on
 
 ### The GitHub API budget
 
-Every agent session and watcher acts as one GitHub account, graphty-agent (the owner's own account has
-its own budget), and so shares one limit of 5,000 REST requests an hour. On 2026-10-04 it ran out twice in one hour: status sweeps that made a few REST
+Every Claude session in this repository acts as one GitHub account, graphty-agent, and the servers under
+servherd (the status broker, the watchers) as the owner's; each account has one limit of 5,000 REST
+requests an hour, shared by everything acting as it. On 2026-10-04 it ran out twice in one hour: status sweeps that made a few REST
 calls per open pull request (35 pull requests, about 100 calls a sweep), run again and again by
 two sessions. Until the limit resets, every `gh` call fails with HTTP 403 and merging stalls.
 

@@ -59,13 +59,26 @@ describe("pipeline-round skill", () => {
         assert.match(flatShared, /open its pull request with `tools\/pr-open\.sh --proof <file>`/);
         assert.match(flatShared, /`git merge origin\/master` \(never rebase\)/);
         assert.doesNotMatch(shared, /origin\/golden/);
-        assert.match(issueRound, /tools\/pr-open\.sh --proof <file>/);
+        assert.match(issueRound, /tools\/pr-open\.sh --proof tmp\/<name>\/proof\.md/);
+        assert.match(flatShared, /keep it in tmp\/<name>\/, because an untracked file in the worktree is refused/);
         assert.doesNotMatch(issueRound, /origin\/golden/);
     });
 
     it("never arms auto-merge on a breaking change or merges past a check", () => {
         assert.match(flatShared, /never merge a pull request past a check or with `--admin`/);
         assert.match(flatShared, /never arm auto-merge on a breaking \(`!`\) change without the owner's go/);
+        assert.match(flatShared, /or on one opened by anyone but graphty-agent, dependabot or a master-guard revert/);
+    });
+
+    it("fixes only graphty-agent's red pull requests, never the owner's", () => {
+        const step = flat.slice(flat.indexOf("### 3. Red pull requests"), flat.indexOf("### 4."));
+        assert.match(step, /opened by graphty-agent \(its `author`\)/);
+        assert.match(step, /#1677/);
+    });
+
+    it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
+        assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
+        assert.match(shared, /git merge -q --ff-only origin\/master/);
     });
 });
 
@@ -74,7 +87,8 @@ describe("CLAUDE.md", () => {
         assert.match(claude, /\n## Shipping a change\n/);
         assert.doesNotMatch(claude, /\n## Landing changes \(golden-local\)\n/);
         assert.doesNotMatch(claude, /\n### Verification after landing\n/);
-        assert.match(claude, /tools\/pr-open\.sh --proof <file>/);
+        assert.match(claude, /tools\/pr-open\.sh --proof tmp\/<task>\/proof\.md/);
+        assert.match(claude, /\*\*Rolling out a change to this flow\.\*\* /);
         assert.doesNotMatch(claude, /node tools\/land\.mjs land <branch>/, "no instruction to land on golden");
     });
 });

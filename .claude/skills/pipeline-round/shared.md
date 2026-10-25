@@ -29,7 +29,9 @@ origin/master` (merged), the issue's state, what npm lists.
 - **Never** stash, `checkout` files, `reset`, `restore` or `clean`; never `--no-verify` on a push; never
   `git worktree remove --force` or `git branch -D`; never dispatch `release.yml`; never merge a pull request past a
   check or with `--admin`; never approve screenshots, call the review page's API or touch `visual-baselines/`; never
-  arm auto-merge on a breaking (`!`) change without the owner's go; never label anything `priority:critical` except
+  arm auto-merge on a breaking (`!`) change without the owner's go, on a pull request `tools/pr-open.sh` left it off
+  for, or on one opened by anyone but graphty-agent, dependabot or a master-guard revert; never label anything
+  `priority:critical` except
   the one fix for a red master.
 - Keep the round short; when a step says stop, end the round.
 
@@ -39,6 +41,9 @@ From the main checkout, `/home/apowers/Projects/graphty-monorepo`:
 
 ```bash
 git fetch -q --prune --no-tags origin
+# Keep the main checkout on master, so new sessions read master's CLAUDE.md, skills and settings.
+[ "$(git symbolic-ref -q --short HEAD)" = master ] && [ -z "$(git status --porcelain -uno)" ] &&
+  git merge -q --ff-only origin/master || echo "main checkout NOT following master: $(git symbolic-ref -q --short HEAD)"
 jq -r '"broker \(.fetchedAt) error=\(.error)", (.pullRequests[] | "#\(.number) \(.head) -> \(.base) draft=\(.draft) \(.state) \(.labels|join(","))")' tmp/pr-status/status.json
 d=tmp/${ROUND:-pipeline-round}; mkdir -p "$d"
 gh api graphql -f query='{
@@ -100,7 +105,8 @@ plus label removal) and goes back to issue-round; one with commits is a stranded
 Every subagent prompt either skill writes ends with this paragraph, verbatim:
 
 > Rules: when the work is finished, open its pull request with `tools/pr-open.sh --proof <file>` (the Proof file
-> holds the commands you ran and what they showed), write `pipeline-round: opened <branch> <url>` on the issue, and
+> holds the commands you ran and what they showed; keep it in tmp/<name>/, because an untracked file in the worktree
+> is refused), write `pipeline-round: opened <branch> <url>` on the issue, and
 > stop -- never wait for CI, never merge, never push to master; never git stash, reset, restore, clean or check out
 > files; never cherry-pick or rebase (merge instead); never wait, sleep or poll inside a turn; at most a few gh calls,
 > never one per pull request in a loop, and on a 403 rate limit stop and say so; act as graphty-agent only and never

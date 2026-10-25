@@ -2020,7 +2020,7 @@ export function buildGraphs(root, dirs, shards) {
         graphs.set(
             dir,
             [...(configs.size > 0 ? configs : [null])].map((config) =>
-                cache(dir, config, () => graphChild(root, dir, config, on), on),
+                cache(dir, config, () => graphChild(root, dir, config, on), on ? "features-on" : ""),
             ),
         );
     }
@@ -2031,7 +2031,7 @@ export function buildGraphs(root, dirs, shards) {
  * Graphs kept in <main checkout>/tmp/test-select/graphs/, keyed by the package's committed tree, so a
  * package nobody changed is not walked again. A package with uncommitted changes is always walked.
  * @param root the checkout
- * @returns `(dir, config, build, on) => graph`, `on` when it was built with the On projects
+ * @returns `(dir, config, build, variant) => graph`, `variant` "features-on" for a graph with the On projects
  */
 function graphCache(root) {
     const git = (args) =>
@@ -2047,13 +2047,13 @@ function graphCache(root) {
     }
     // the list of tests that read files is computed from the rules and kept in each graph
     const rulesHash = createHash("sha256").update(readFileSync(RULES)).digest("hex");
-    return (dir, config, build, on = false) => {
+    return (dir, config, build, variant = "") => {
         let file = null;
         try {
             if (dirPath && git(["status", "--porcelain", "--", dir]) === "") {
                 const tree = git(["rev-parse", `HEAD:${dir}`]);
                 const key = createHash("sha256")
-                    .update([GRAPH_VERSION, rulesHash, tree, config, on ? "features-on" : ""].join("\0"))
+                    .update([GRAPH_VERSION, rulesHash, tree, config, variant].join("\0"))
                     .digest("hex");
                 file = join(dirPath, `${dir}-${key.slice(0, 16)}.json`);
                 const cached = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : null;

@@ -263,9 +263,10 @@ export function judge(s, results) {
 
 /**
  * The command that runs some targets of one shard: its failing files, or the whole shard when none is named.
+ * The matrix and the selector are the point's own (BISECT_ROOT), so an older point may lack either.
  * @param shard the shard's name
  * @param files its failing files
- * @returns arguments for tools/run-tests.sh
+ * @returns arguments for tools/run-tests.sh, or null when the shard does not exist at the point
  */
 export async function runArgs(shard, files) {
     if (shard === "llm-regression")
@@ -274,18 +275,21 @@ export async function runArgs(shard, files) {
             "graphty-element-default",
             `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
         ];
-    const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
-    const { selectedCommand } = await import(pathToFileURL(join(ROOT, "tools/test-select.mjs")).href);
+    const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
+    const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
+    const { selectedCommand } = await at("tools/test-select.mjs");
     const entry = SHARDS.find((x) => x.shard === shard);
-    if (!entry) throw new Error(`no shard named ${shard}`);
-    const command = files.length ? selectedCommand(ROOT, entry, files) : null;
+    if (!entry) return null;
+    // a point older than the selector runs the whole shard
+    const command = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
     return command ? ["--command", shard, command] : [shard];
 }
 
 /**
  * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
- * A target whose file does not exist at the point (a later merge adds it) passes there: vitest would fail on
- * "no test files", and every point before the merge would read as bad.
+ * A target whose file or shard does not exist at the point (a later merge adds or renames it) passes there:
+ * vitest would fail on "no test files", or the run would throw and write no result, so every point before
+ * that merge would read as bad, or be lost and picked again every round.
  * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
  * @param s the state
  * @param sha the point
@@ -301,6 +305,7 @@ export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => 
     for (let i = 0; i < runs; i++)
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
+            if (!args) continue;
             const code = spawn(join(ROOT, "tools/run-tests.sh"), args, { cwd: ROOT, stdio: "inherit" }).status;
             if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
         }

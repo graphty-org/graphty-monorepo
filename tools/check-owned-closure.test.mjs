@@ -121,7 +121,7 @@ describe("unownedClosure, working-directory", () => {
             ".github/workflows/w.yml":
                 "jobs:\n  a:\n    defaults: { run: { working-directory: pkg, shell: bash } }\n" +
                 "    steps:\n      - run: node scripts/shard.js\n" +
-                "      - working-directory: 'other'\n        run: bash scripts/b.sh\n",
+                "      - working-directory: './other//'\n        run: bash scripts/b.sh\n",
             "pkg/scripts/shard.js": "",
             "other/scripts/b.sh": "",
         });

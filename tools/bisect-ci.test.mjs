@@ -322,6 +322,22 @@ describe("runPoint", () => {
         assert.equal(calls.length, 1);
         assert.doesNotMatch(calls[0], /added-later/);
     });
+
+    it("passes a target whose shard does not exist at the point, instead of throwing and writing no result", async () => {
+        const s = {
+            next: { confirm: false },
+            followed: [
+                { id: "a", shard: "graphty-element-default", file: "graphty-element/test/x.test.ts" },
+                { id: "b", shard: "no-such-shard-at-this-point", file: "graphty/src/y.test.ts" },
+            ],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push(args.join(" ")), { status: 1 });
+        const r = await runPoint(s, "p", 2, spawn, () => true);
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
+        assert.equal(calls.length, 2);
+        assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
+    });
 });
 
 describe("the macOS lane's files", () => {

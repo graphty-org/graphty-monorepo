@@ -125,7 +125,9 @@ export function referencedFiles(root, file, index) {
     const bases = [posix.dirname(file), ""];
     if (/\.ya?ml$/u.test(file)) {
         for (const [, dir] of text.matchAll(WORKING_DIR)) {
-            bases.push(dir.replace(/^\.\//u, "").replace(/\/+$/u, ""));
+            let base = dir.replace(/^\.\//u, "");
+            while (base.endsWith("/")) base = base.slice(0, -1); // not /\/+$/: it backtracks on a run of slashes
+            bases.push(base);
         }
     }
     for (const [run] of text.replaceAll(ROOT_VAR, " ").matchAll(PATH_RUN)) {

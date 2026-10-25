@@ -18,6 +18,19 @@ describe("createGraphSession", () => {
         session.dispose();
     });
 
+    it("tells its watchers once that it was disposed, when it no longer answers", () => {
+        const session = createGraphSession();
+        const seen: boolean[] = [];
+        session.on("session:disposed", () => {
+            seen.push(session.status.ready);
+        });
+
+        session.dispose();
+        session.dispose();
+
+        assert.deepEqual(seen, [false], "once, and already not ready");
+    });
+
     it("takes the element's own data defaults when it is given no configuration", () => {
         const session = createGraphSession();
 

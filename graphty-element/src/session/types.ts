@@ -2079,6 +2079,13 @@ export interface SessionEventMap {
      * changed. Mirrored on the element as `graphty-project-status`.
      */
     "project:status": ProjectStatus;
+    /**
+     * The session was disposed: `dispose()` was called, or its element left the page. Published
+     * once, after the session stopped answering, and the last event it publishes. A host that
+     * handed the session to readers (a view, a panel) drops it here, so nothing reads a session
+     * whose data verbs now throw `E_DISPOSED`; `status.ready` is false from now on.
+     */
+    "session:disposed": Readonly<Record<string, never>>;
 }
 
 /**

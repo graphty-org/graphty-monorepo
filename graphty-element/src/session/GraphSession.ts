@@ -1115,6 +1115,8 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        // The last event: a host drops the session here, before anything re-reads it.
+        publish(this.watchers, "session:disposed", {});
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();

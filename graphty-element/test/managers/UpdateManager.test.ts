@@ -2,7 +2,7 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
-import { UpdateManager } from "../../src/managers/UpdateManager";
+import { nodeFramingBox, UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -184,6 +184,53 @@ describe("UpdateManager", () => {
             updateManager.update();
 
             assert.strictEqual(framings, 1, "the request is answered on the first pass after the paint arrives");
+        });
+
+        // A repaint that has ARRIVED is applied in batches within a frame budget, so on a slow
+        // frame some nodes keep their old size for a frame or more. A framing answered in between
+        // measured those nodes at the old size, and nothing re-framed when theirs landed: the
+        // Pajek 1crn fidelity story was framed one CSS pixel apart from one load to the next,
+        // depending on how many nodes the first frame painted (issue #3479).
+        it("waits for arrived paint that is still being applied before answering a framing request", async () => {
+            graph.getLayoutManager().running = false;
+            // Past the first paint batch (128 nodes), so the right-most node is painted on a later frame.
+            await graph.addNodes(
+                Array.from({ length: 200 }, (_, i) => ({ id: `far${String(i)}`, position: { x: 10 + i, y: 0, z: 0 } })),
+            );
+            updateManager.stepFrames(5);
+
+            await graph.getSession().styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            await graph.getSession().styles.settled();
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPendingNodes, "the repaint has arrived and is not drawn yet");
+
+            let lastMaxX = Number.NaN;
+            graph.eventManager.addListener("zoom-to-fit-complete", (event) => {
+                lastMaxX = (event as unknown as { boundingBoxMax: { x: number } }).boundingBoxMax.x;
+            });
+
+            // Every look at the clock finds the frame's budget spent, so each frame paints one batch.
+            let clock = 0;
+            const now = vi.spyOn(performance, "now").mockImplementation(() => (clock += 1000));
+            try {
+                updateManager.enableZoomToFit();
+                for (let i = 0; i < 10 && (painter.hasPending || !updateManager.zoomToFitCompleted); i++) {
+                    updateManager.update(16);
+                }
+            } finally {
+                now.mockRestore();
+            }
+            updateManager.stepFrames(3);
+
+            assert.isFalse(painter.hasPending, "every batch was drawn");
+            const drawn = nodeFramingBox(graph.getNodes());
+            assert.isDefined(drawn);
+            assert.closeTo(lastMaxX, drawn.max.x, 1e-6, "the camera framed the nodes at the sizes they are drawn at");
         });
 
         /**

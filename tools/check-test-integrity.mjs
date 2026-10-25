@@ -32,7 +32,8 @@ const VITEST_CONFIG = /(^|\/)vitest(\.[\w-]+)*\.config\.[cm]?[jt]s$/;
 const PREVIEW = /(^|\/)\.storybook\/preview\.[cm]?[jt]sx?$/;
 const PACKAGE_JSON = /(^|\/)package\.json$/;
 
-// Counted on code lines only: comments are stripped first, so removing a commented-out test is free.
+// Counted over each file's whole text with its comments removed, so removing a commented-out test is
+// free and commenting tests out, with // or /* */, counts as removing them.
 const DECL = /(?<![.\w$])(?:it|test|bench)(?:\.\w+)*\s*\(/g;
 const STORY_EXPORT = /^export\s+const\s+\w+/;
 const ASSERT = /(?<![.\w$])(?:expect|assert)\s*[.(]/g;
@@ -55,7 +56,23 @@ function code(line) {
     const kept = cut < 0 ? line : line.slice(0, cut);
     return kept.trimStart().startsWith("*") ? "" : kept;
 }
-const count = (re, line) => (code(line).match(re) || []).length;
+const hits = (re, line) => (line.match(re) || []).length;
+
+// Escapes, strings, line comments and block comments, in source order: a comment opener inside a
+// string (a glob such as "src/**/*.test.ts") or a regex escape (/\/\//) is not a comment.
+const LEXEME = new RegExp(
+    [
+        String.raw`\\[\s\S]`,
+        String.raw`"(?:\\.|[^"\\\n])*"`,
+        String.raw`'(?:\\.|[^'\\\n])*'`,
+        String.raw`\`(?:\\[\s\S]|[^\`\\])*\``,
+        String.raw`\/\/[^\n]*`,
+        String.raw`\/\*[\s\S]*?(?:\*\/|$)`,
+    ].join("|"),
+    "g",
+);
+// A file's lines with every comment blanked; a block comment keeps its line breaks.
+const codeLines = (text) => text.replace(LEXEME, (m) => (m[0] === "/" ? m.replaceAll(/[^\n]/g, "") : m)).split("\n");
 const toNumber = (s) => s.split("*").reduce((p, f) => p * Number(f.replaceAll("_", "").trim()), 1);
 
 function values(re, lines) {
@@ -91,15 +108,20 @@ function parseDiff(text) {
     return files;
 }
 
-const delta = (f, measure) =>
-    f.added.reduce((s, l) => s + measure(l), 0) - f.removed.reduce((s, l) => s + measure(l), 0);
+// A file's text before (`old`) or after (`new`) the change; empty on the side where it does not exist.
+function sideText(f, read, side) {
+    if (side === "old") return f.status === "A" ? "" : read.old(f.oldPath);
+    return f.status === "D" ? "" : read.new(f.newPath);
+}
+const sum = (lines, measure) => lines.reduce((s, l) => s + measure(l), 0);
+const delta = (f, measure) => sum(f.lines.new, measure) - sum(f.lines.old, measure);
 const pathOf = (f) => (f.status === "D" ? f.oldPath : f.newPath);
 const isTestFile = (f) => TEST_FILE.test(f.oldPath) || TEST_FILE.test(f.newPath);
 const isConfig = (f) => VITEST_CONFIG.test(f.oldPath) || VITEST_CONFIG.test(f.newPath);
 
 function declMeasure(f) {
     const stories = STORIES.test(pathOf(f));
-    return (l) => count(DECL, l) + (stories && STORY_EXPORT.test(l) ? 1 : 0);
+    return (l) => hits(DECL, l) + (stories && STORY_EXPORT.test(l) ? 1 : 0);
 }
 
 // A net count over the whole change: `sign` -1 reports a drop, +1 a rise.
@@ -170,11 +192,7 @@ const overlaps = (a, b) => prefix(a).startsWith(prefix(b)) || prefix(b).startsWi
 // or an include entry dropped where no exclude entry under it was dropped too (a test file removed
 // from both is the test count's to judge).
 function includeExcludeFindings(configs, read) {
-    const text = (f, side) => {
-        if (side === "old") return f.status === "A" ? "" : read.old(f.oldPath);
-        return f.status === "D" ? "" : read.new(f.newPath);
-    };
-    const all = (key, side) => configs.flatMap((f) => entries(text(f, side), key));
+    const all = (key, side) => configs.flatMap((f) => entries(sideText(f, read, side), key));
     const [inc0, inc1, exc0, exc1] = [
         all("include", "old"),
         all("include", "new"),
@@ -231,8 +249,8 @@ function packageFindings(f, read) {
 }
 
 function chromaticFindings(f, read) {
-    const before = chromaticBlocks(f.status === "A" ? "" : read.old(f.oldPath));
-    const after = chromaticBlocks(f.status === "D" ? "" : read.new(f.newPath));
+    const before = chromaticBlocks(sideText(f, read, "old"));
+    const after = chromaticBlocks(sideText(f, read, "new"));
     const fresh = after.filter((b) => !before.includes(b));
     return fresh.length ? [`${pathOf(f)}: parameters.chromatic added or changed: ${fresh[0]}`] : [];
 }
@@ -240,19 +258,22 @@ function chromaticFindings(f, read) {
 // Every finding for parsed diff files; `read.old(path)` and `read.new(path)` return a file's text.
 function findings(files, read) {
     const tests = files.filter(isTestFile);
+    for (const f of tests)
+        f.lines = { old: codeLines(sideText(f, read, "old")), new: codeLines(sideText(f, read, "new")) };
     const out = [
         ...netFinding(tests, declMeasure, -1, "tests"),
-        ...netFinding(tests, () => (l) => count(ASSERT, l), -1, "assertions"),
+        ...netFinding(tests, () => (l) => hits(ASSERT, l), -1, "assertions"),
         // A new file's conditional or known-failure tests are new tests; only `.only` counts there.
-        ...netFinding(tests, (f) => (l) => count(f.status === "A" ? ONLY : SKIP, l), 1, "skip/only/todo"),
+        ...netFinding(tests, (f) => (l) => hits(f.status === "A" ? ONLY : SKIP, l), 1, "skip/only/todo"),
     ];
     out.push(...includeExcludeFindings(files.filter(isConfig), read));
     for (const f of files) {
         if (isTestFile(f) || isConfig(f)) {
             out.push(...numberFindings(f, RETRY, { grows: true, added: true, what: "retry" }));
         }
+        // A timeout added to a test file that already existed lengthens a wait that had the default.
         if (isTestFile(f) && !isConfig(f))
-            out.push(...numberFindings(f, TIMEOUT, { grows: true, added: false, what: "timeout" }));
+            out.push(...numberFindings(f, TIMEOUT, { grows: true, added: f.status !== "A", what: "timeout" }));
         if (isConfig(f)) out.push(...configFindings(f));
         if (PACKAGE_JSON.test(f.oldPath) || PACKAGE_JSON.test(f.newPath)) out.push(...packageFindings(f, read));
         if (STORIES.test(pathOf(f)) || PREVIEW.test(pathOf(f))) out.push(...chromaticFindings(f, read));

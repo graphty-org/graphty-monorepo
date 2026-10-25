@@ -59,6 +59,7 @@ const ONE = TWO.replace(/ {4}it\("two"[\s\S]*?\n {4}\}\);\n/, "");
 // Spelled in pieces so this file does not itself read as a focused test or a retry.
 const FOCUSED = ["it", "only"].join(".");
 const RETRY_3 = ["retry", " 3"].join(":");
+const TIMEOUT_30S = ["timeout", " 30000"].join(":");
 
 const has = (found, text) =>
     assert.ok(
@@ -91,6 +92,25 @@ describe("check-test-integrity: tests and assertions", () => {
     it("passes a commented-out test removed, and counts a regex's .test( as no test", () => {
         const before = `${ONE}// it("old", () => {});\nconst ok = /x/.test(s);\n`;
         assert.deepEqual(repo({ "a.test.ts": before }).change({ "a.test.ts": ONE }), []);
+    });
+
+    it("reports tests commented out with a block comment, and an assertion after a URL removed", () => {
+        has(
+            repo({ "a.test.ts": TWO }).change({
+                "a.test.ts": TWO.replace('    it("two"', '    /*\n    it("two"').replace("\n});\n", "\n    */\n});\n"),
+            }),
+            "tests -1 net",
+        );
+        const url = `${ONE}it("u", () => { const u = "http://x"; expect(u).toBe(u); });\n`;
+        has(
+            repo({ "a.test.ts": url }).change({ "a.test.ts": url.replace("expect(u).toBe(u); ", "") }),
+            "assertions -1",
+        );
+    });
+
+    it("passes a comment opener inside a string or a regex", () => {
+        const glob = `${ONE}const g = ["src/**/*.test.ts"]; const r = /\\/\\//;\n`;
+        assert.deepEqual(repo({ "a.test.ts": ONE }).change({ "a.test.ts": glob }), []);
     });
 
     it("reports a story export removed", () => {
@@ -133,6 +153,19 @@ describe("check-test-integrity: skips, timeouts, retries", () => {
             repo({ "a.test.ts": TWO }).change({ "a.test.ts": TWO.replace("expect(2)", "expect(2 )") }),
             [],
         );
+    });
+
+    it("reports a timeout added to a wait in an existing test file, and passes one in a new file", () => {
+        has(
+            repo({ "a.test.ts": ONE }).change({
+                "a.test.ts": ONE.replace(
+                    "expect(1).toBe(1);",
+                    `await vi.waitFor(() => expect(1).toBe(1), { ${TIMEOUT_30S} });`,
+                ),
+            }),
+            "timeout timeout added",
+        );
+        assert.deepEqual(repo({ "a.test.ts": ONE }).change({ "b.test.ts": TWO }), []);
     });
 
     it("reports a retry added to a test, but not the code under test's retries option", () => {

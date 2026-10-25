@@ -12,22 +12,17 @@ dependencies, every page is drawn, and its numbers are sample data.
 The goal is one place that answers "is anything in the pipeline unhealthy, and where?" for any
 period from the last hour to the last year, with no area that can fail silently.
 
-The pipeline it watches (issue #3418, `design/ci/channels-pipeline.md`):
-
-- Every change is a pull request into master, opened by the agent account `graphty-agent` with
-  auto-merge on. A light pull-request check (target 5 to 10 minutes) gates the merge.
-- Master is the canary channel (canary.graphty.app). A commit is promoted to nightly
-  (nightly.graphty.app, npm tag `next`) when its screenshots are unchanged or the owner approves
-  them, and to production (graphty.app, npm tag `latest`) only on the owner's go.
-- A full run every 6 hours tests master in full, bisects a failure and reverts the culprit. Until
-  that is built, the release train runs in shadow mode: it runs every lane on master's newest
-  commit, publishes nothing and opens no "Release held" issue.
-- CI time budgets live in `ci-budgets.json`. Intermittent tests are detected and quarantined
-  automatically (`tools/test-quarantine.mjs`, `tools/test-quarantine.json`).
-- A Cloudflare Worker with a D1 database (the results service, `tools/results-service/`) records
-  CI test groups and failures. The local test ledger (`tools/test-ledger.mjs`) records local shard
-  runs. The status broker (`tools/pr-status-broker.mjs`) writes every open pull request's state to
-  `tmp/pr-status/status.json` once a minute.
+The pipeline it watches (issue #3418, `design/ci/channels-pipeline.md`): every change is a pull
+request into master, opened by the agent account `graphty-agent` with auto-merge on and gated by a
+light check (target 5 to 10 minutes). Master is the canary channel (canary.graphty.app); a commit is
+promoted to nightly (nightly.graphty.app, npm `next`) when its screenshots are unchanged or the
+owner approves them, and to production (graphty.app, npm `latest`) only on the owner's go. A full
+run every 6 hours tests master, bisects and reverts; until it is built, the release train runs in
+shadow mode (every lane, nothing published, no "Release held" issue). Inputs: CI time budgets
+(`ci-budgets.json`), the quarantine (`tools/test-quarantine.mjs`), the results service (a
+Cloudflare Worker with a D1 database, `tools/results-service/`), the local test ledger
+(`tools/test-ledger.mjs`) and the status broker (`tools/pr-status-broker.mjs`, every open pull
+request in `tmp/pr-status/status.json` each minute).
 
 Problems seen in October 2026 that nothing showed until a person went looking, and what now
 exposes each:
@@ -40,7 +35,7 @@ exposes each:
   within 24 hours earns even though master itself runs no tests.
 - **Flaky stories and tests held one merge for five days.** A needs-a-person row for any pull
   request blocked by a flake for over 24 hours, and pull requests blocked by a flake on the Flaky
-  tests page.
+  tests page. A flake that blocks many pull requests at once is still booked as flaky, not shared.
 - **Most intermittent failures appear only under local machine load.** CI and local flake rates on
   one chart, and local vs CI disagreement.
 - **The weekly CPU-restricted stress run failed and filed nothing.** The stress run is "bad" when it
@@ -70,8 +65,9 @@ Dashboard Design", 2006), and Grafana's overview dashboards that link to detail 
 - Every front-page tile and chart links to its section on an area page, carrying the time range.
   Every table row links to its pull request, run, issue or test.
 - A tab bar under the header lists the pages. Each tab shows the status symbol of the worst
-  threshold on its page, not only of the front-page tiles, so a problem on a page nobody opened is
-  still visible.
+  threshold on its page, counting every tile there, including those also on the front page, so a
+  problem on a page nobody opened is still visible. Every front-page tile that is warn or bad
+  repeats on the page it links to, so following a red tile always lands on red.
 
 Drill-down beats long scroll here because the areas answer different questions (a merge delay is a
 different investigation from a release hold) and each area page holds tables and histograms that
@@ -112,7 +108,9 @@ eye about a second sooner, so current state goes top left and trends below.
   open release holds, runner saturation, screenshot reviews waiting, pull requests blocked by a
   flake over 24 hours, auto-merge armed but stuck, quarantine entries past 7 days, pull requests
   open past 24 hours (with their dominant phase and cause, "fix wait: flaky storybook-2"). Rows in
-  "ok" never appear. Beside it, the source strip.
+  "ok" never appear. The age column is time in the row's state, and the row names its clock
+  ("flake block, from 1st fail"); a pull request with two problems is one row naming both.
+- **Sources strip.** Every source, not only the healthy ones; a "no data" source is listed too.
 
 Histograms, the flake matrix, per-job budgets, DORA, size vs failure, local vs CI and cost are on
 the area pages.
@@ -122,11 +120,11 @@ the area pages.
 Each area page has the same skeleton: a row of KPI tiles, time charts on the shared axis,
 distributions, then tables sorted by impact. Sections have anchors (`#queue-vs-run`).
 
-- **Pull requests.** Tiles: created, merged, backlog, oldest open, time to merge, first attempt,
-  reverts, stuck auto-merge. Charts: created vs merged; backlog; time by phase per day; failure
+- **Pull requests.** Tiles: created, merged, backlog, oldest open, time to merge, screenshot
+  backlog, reverts, stuck auto-merge. Charts: created vs merged; backlog; time by phase per day; failure
   cause per day; time to merge p50/p95; time-to-merge histogram; failure rate by size; agent vs
   human. Tables: open pull requests (with a phase bar each), most failed attempts, reverts.
-- **CI.** Tiles: queue p50/p95, run p50/p95 (per job and per run), first-attempt pass, reruns,
+- **CI.** Tiles: runners now (org, the front page's bullet), queue p50/p95, run p50/p95 (per job and per run), first-attempt pass, reruns,
   budget violations, CI minutes. Charts: runner demand per hour over the picked range; queue vs
   run time; reruns; queue-time histogram. Table: budget bullets per job. Bar: minutes by workflow.
 - **Flaky tests.** Tiles: newly flaky, flake rate CI, flake rate local, quarantined, detected to
@@ -146,13 +144,10 @@ Notation. Times are UTC instants; "in range" means the event's time lies in the 
 p50 and p95 come from raw events in each bucket, never averaged across buckets. Rates are ratios of
 sums. Each metric lists its definition, encoding, target and source.
 
-Encodings: **tile** (number, sparkline, change against the previous equal range, status),
-**bullet** (bar against a limit tick), **channel tile** (state, version, age, last 14 outcomes as
-dots), **line** (p50 solid, p95 dashed), **multi-line** (2 to 4 lines, one axis, one unit),
-**stacked** (bar per bucket), **100% bar** (one bar split into shares, labels on the segments),
-**strip** (state band over time), **diverging** (inflow up, outflow down), **histogram** (log
-bins), **matrix** (items by time bucket, shade = count), **dot** (p50 dot, p95 whisker, log axis),
-**table** (sorted, with a mini-bar column).
+Encodings: **tile** (number, sparkline, change against the previous range, status), **bullet**,
+**channel tile** (state, version, age, last 14 outcomes), **line** (p50 solid, p95 dashed),
+**multi-line**, **stacked**, **100% bar** (labels on segments), **strip**, **diverging**,
+**histogram** (log bins), **matrix**, **dot** (p50 dot, p95 whisker, log axis), **table**.
 
 Excluded checks. "Summary" checks only restate other checks or judge pull-request metadata, so
 counting them would make every failure look shared: `All Checks Pass`, `Queue Checks Pass`,
@@ -188,7 +183,9 @@ as passing in the first-attempt pass rate. A capture error is a failure like any
 - **Runner demand (history).** Per bucket: the peak of running plus queued jobs, replayed from
   every job's `created_at`, `started_at` and `completed_at`, drawn as a stacked bar (running up to
   60, queued above it) with the 60 line; each saturated bucket is labeled with its **saturated
-  hours** (time with 60 running and at least one queued). Bucket maximum, never an average.
+  hours** (time with 60 running and at least one queued), the partial bucket included. The y axis
+  runs to the range's peak plus 10%, so 20 queued jobs read as a block. Bucket maximum, never an
+  average.
 - **Release holds open.** A hold opens when a `release.yml` attempt fails a lane before landing,
   and closes when an attempt on a later commit passes every lane or a release lands. The lane comes
   from the failing job's name (`releaseLanes` in config: T4 GPU, LLM regression, Hosts, macOS work
@@ -227,19 +224,23 @@ as passing in the first-attempt pass rate. A capture error is a failure like any
   the area page. Warn when runner wait is over 25%.
 - **Failure rate by cause.** Each failed attempt (the visual gate excepted) gets one cause, checked
   in this order:
-    1. **infrastructure**: job conclusion `startup_failure`, a lost runner, a timeout cancel, or an
-       annotation naming an outside 5xx;
+    1. **infrastructure**: job conclusion `startup_failure`, a lost runner, an annotation naming an
+       outside 5xx, or a timeout cancel when the runner was lost or the same job timed out in 3 or
+       more pull requests (a hang caused by the change is the change's);
     2. **conflict**: auto-merge disabled for a merge conflict, or broker `mergeable` = CONFLICTING;
-    3. **shared** (the owner's "already broken on master"): the same failing test, or before
-       test-level data the same failing job, fails in 3 or more distinct pull requests within 24
-       hours, or fails on the next master full run. Master's own push runs only the build, so
-       master's result for the base commit rarely exists; this rule does not need it;
-    4. **flaky** (the owner's rule): every failing test passed on a rerun of the same commit, or was
-       already flaky or quarantined;
+    3. **flaky** (the owner's rule): every failing test passed on a rerun of the same commit, or was
+       already flaky or quarantined. A flake seen in 3 or more pull requests stays flaky, with
+       "flaky, 3+ PRs" in the tooltip;
+    4. **shared** (the owner's "already broken on master"): a failure that does not pass on a
+       rerun of the same commit, where the same test (before test-level data, the same job) fails
+       in 3 or more distinct pull requests within 24 hours, or fails on the next master full run.
+       Master's own push runs only the build, so its result for the base commit rarely exists;
+       this rule does not need it;
     5. **change**: everything else.
 
-    Causes are re-classified when later evidence arrives (a third pull request, the next full run),
-    so recent days can move. Stacked per day with "change" at the bottom in neutral gray; 100% bar
+    Flaky is checked before shared because one popular flake (a storybook test that blocked 9 pull
+    requests) would otherwise be booked against master. Causes are re-classified when later
+    evidence arrives (a rerun, a third pull request, the next full run), so recent days can move. Stacked per day with "change" at the bottom in neutral gray; 100% bar
     for the range; tile of the share not caused by the change, target under 20%. Before 2026-10-25
     classified at job level, and labeled so.
 
@@ -303,15 +304,18 @@ as passing in the first-attempt pass rate. A capture error is a failure like any
   time, passed after a retry, held. Stacked bars; tile of the first-attempt share, target 90%.
 - **Hold causes.** Holds opened in range by lane (section 3.1). Sorted horizontal bars.
 - **Trigger to success.** Release run `created_at` to the success of its last job; p50 and p95.
-  Budget `run:release.yml:full`, 75 min.
+  Budget `run:release.yml:full`, 75 min, judged against p95 (as every budget is).
 - **Lead time to each channel.** For each commit merged to master, time until canary serves it
   (deploy completed), nightly (`channel_move` or npm `next`), production (npm `latest` or a
   `graphty-site` deploy). Dot plot per channel on a log axis with target ticks: canary 30 min,
   nightly 1 d, production none.
-- **Change failure rate.** Promotions followed within 7 days by a revert or by a fix referencing a
-  master-guard or "Failing on" issue, divided by promotions. Weekly line, under 15%.
+- **Change failure rate, per channel.** Promotions to the channel followed within 7 days by a
+  revert or by a fix referencing a master-guard or "Failing on" issue, divided by promotions to
+  it. Every merge is a canary promotion, so canary's rate equals the rework rate and is drawn once,
+  as rework. Nightly is a weekly line, under 15%. Production promotions are rare, so it is a count
+  for the range ("1 of 3"), never a percentage.
 - **(added) Rework rate (DORA 2024).** Merges that revert or fix a change merged in the previous 7
-  days, divided by merges. Same chart as change failure rate.
+  days, divided by merges. Same chart as nightly's change failure rate.
 - **(added) Deployment frequency and time to restore.** Promotions per day per channel; p50 length
   of a master red span. Read as trends, not targets (dora.dev).
 
@@ -369,8 +373,10 @@ not read as a change of health:
 - to 2026-10-17: one pull request per change, merged by the Mergify queue. Complete history.
 - 2026-10-18 to 2026-10-24: golden-local. Changes landed locally into `golden`; no pull requests,
   and master runs only built. Pull request charts show a hatched band, "golden-local: no pull
-  requests"; master green time shows golden verification, hatched.
-- from 2026-10-25: the channels pipeline.
+  requests"; master green time shows golden verification, hatched. Organization-wide job charts
+  (runner demand, queue vs run time) are drawn through it, because golden verification ran in CI.
+- from 2026-10-25: the channels pipeline. Test-level data (CI flake rate, failure cause) starts
+  here; the job-level stretch before it is labeled "job level" on the chart.
 
 ## 5. Units
 
@@ -409,9 +415,10 @@ Missing data is loud; that is the dashboard's main defense against blind spots.
   and filed 0; bad when it has not run in 8 days. Its record (kind `stress`) carries the count of
   failing tests and of issues filed.
 - **Unreachable source:** "no data" (dash symbol, hatched panel), never 0.
-- **Partial bucket.** The current bucket is unfinished. Bars are hollow with a dashed outline;
-  lines end in a dashed segment; both are labeled "partial" on the axis. No other color or opacity
-  marks it.
+- **Partial bucket.** The current bucket is unfinished. A partial bar keeps its segment colors as
+  a light tint with a dashed outline in each segment's color, so a stacked bar still shows its
+  parts (today's queued jobs stay orange); lines end in a dashed segment; both are labeled
+  "partial" on the axis. Hollow bars mean a thin sample (n under 10), nothing else.
 - **Before a source's history begins** the chart is hatched "no history" (results service before
   2026-10-25, local shard times before 2026-10-23).
 - An empty table names what it lacks in two or three words ("no open holds").
@@ -438,7 +445,8 @@ color, a symbol and a word:
   with a legend only for segments too narrow to hold one.
 - Failure causes have their own hues: "change" is neutral gray, and the four causes that are not
   the change (flaky, shared, infrastructure, conflict) get magenta, brown, slate and olive, used by
-  no other chart.
+  no other chart. Histogram bins over a target use the dark warn amber, never orange; plain
+  ranked bars (hold causes) are neutral gray.
 - Every threshold that colors a tile is printed on the tile or in its tooltip.
 - Lines are 2 px; dashes mean p95 and nothing else. Targets and limits are thin dotted gray rules
   labeled at their right end; the 60-runner limit is a solid rule because it is a hard limit.
@@ -477,15 +485,10 @@ in config; there is no other alerting.
 - **One y-axis per chart.** Two measures of different scale are two charts on the shared x-axis.
 
 Runners-up: **Apache ECharts 6** (Apache-2.0), the escape hatch for one chart that outgrows
-Recharts (a zoomable matrix, over 10,000 points, linked zoom); not the main library because its
-configuration sits outside JSX, it needs a hand-mapped theme and its canvas is opaque to screen
-readers and screenshot review. **Grafana** (AGPL-3.0, fed from SQLite) gives a time picker and
-alerting free, but is a second server with its own look and cannot read D1 directly.
-
-Rejected: Chart.js and uPlot (canvas, weak React support; uPlot draws only time series), Observable
-Plot and Vega-Lite (render outside React, own theming), Tremor (Tailwind, clashes with Mantine; not
-updated since January 2025), Evidence.dev and Metabase (business-intelligence tools with their own
-server or build step).
+Recharts (a zoomable matrix, over 10,000 points); its configuration sits outside JSX and its canvas
+is opaque to screen readers. **Grafana** (AGPL-3.0) is a second server with its own look that cannot
+read D1. Rejected: Chart.js and uPlot (canvas), Observable Plot and Vega-Lite (outside React),
+Tremor (Tailwind; unmaintained since January 2025), Evidence.dev and Metabase (BI servers).
 
 ## 10. Data design
 
@@ -647,34 +650,39 @@ from `.env`, and it never prints the token.
 Recorded where the designer's and the engineer's reviews differed or left a choice open.
 
 1. **Front-page runner chart: peak demand with saturated hours.** The designer asked for peak
-   demand (running plus queued) against the 60 line; the engineer asked for minutes saturated or
-   queued job-minutes per day. Chosen: stacked peak demand with the 60 line, each saturated day
-   labeled with its saturated hours. The bar shows how far over the limit demand went; the label
-   shows how long, so a one-minute spike and a six-hour episode no longer look alike.
-2. **"Already broken on master" becomes the shared rule.** The engineer showed the base commit's
-   master test result almost never exists. The owner's five causes stay; that cause is computed
-   by the shared rule (3 or more pull requests in 24 hours, or the next full run) and labeled
-   "shared". Infrastructure stays separate because its evidence is direct (a lost runner, a 5xx).
-3. **Sample data is mostly healthy.** The designer needs the mockup to test whether exceptions
-   stand out; the engineer's incidents must still show. The sample has one bad tile (today's
-   runner saturation), one warn (the screenshot backlog) and one no-data (nightly), and the
-   incidents appear as needs-a-person rows and on the area pages.
-4. **One partial treatment.** Bars hollow with a dashed outline, lines a dashed final segment, both
-   labeled "partial". A line cannot be hollow, so this is the nearest single rule.
-5. **Colors narrowed, not multiplied.** Nine categories cannot each have a unique color-blind-safe
-   hue. The claim is narrowed to "the same measure keeps its color", 100% bars carry labels on the
-   segments, and only failure causes get hues of their own because they sit beside the phase bar.
-6. **The Local page stays.** The engineer offered retiring it; it stays because local-only flakes
-   were the largest October finding. `test:changed` and `run-tests.sh` write records, and the
-   volume rule shows when they stop.
-7. **Alerting is in the first version** (engineer's request): one push after 30 minutes bad, once
-   per episode. Grafana remains rejected; this needs no second server.
-8. **The visual gate is owner wait,** not a failure, in every metric (engineer). The designer's
-   owner-wait phase already assumed it.
-9. **The runner tile counts the whole organization,** because the 60-job limit is per
-   organization; it is labeled "org".
-10. **Every chart follows the picker** (both reviewers): runner demand on the CI page is 672 hourly
-    points on 28 d, with no fixed 7-day exception.
+   demand against the 60 line; the engineer asked for time saturated. Both: stacked peak demand
+   with the 60 line, each saturated bucket labeled with its saturated hours, so a one-minute spike
+   and a six-hour episode no longer look alike.
+2. **"Already broken on master" becomes the shared rule.** The base commit's master test result
+   almost never exists, so that cause is computed from 3 or more pull requests in 24 hours or the
+   next full run, and labeled "shared".
+3. **Flaky is checked before shared** (engineer, round 2). A shared failure must also fail its
+   rerun; a flake across 3 or more pull requests stays flaky. The alternative booked October's
+   five-day flake hold against master, the case where honest flake blame matters most.
+4. **Sample data is mostly healthy, and consistent.** The sample has one bad tile (runners now),
+   two warns that follow from one another (the screenshot backlog, and the oldest open pull
+   request, which a 26-hour flake block implies) and one no-data (nightly). Warns with no incident
+   behind them (a 3-hour stuck auto-merge, a release first-attempt rate just under target, a local
+   disagreement on 31 pairs) were removed, so most tabs are calm.
+5. **The tab symbol counts every tile on its page** (designer offered ignoring tiles the front page
+   shows). Kept: a tab that hides its page's alarms would break the rule that a red front tile
+   leads to red, which is why the runners-now tile now opens the CI page.
+6. **One partial treatment.** Tinted segments with dashed outlines, lines with a dashed final
+   segment, both labeled "partial". Hollow is left for thin samples.
+7. **Colors narrowed, not multiplied.** The same measure keeps its color, 100% bars carry labels,
+   only failure causes get hues of their own, and orange never marks "over target".
+8. **The Local page stays** (engineer offered retiring it): local-only flakes were the largest
+   October finding, and the volume rule shows when its writers stop.
+9. **Alerting is in the first version** (engineer): one push after 30 minutes bad, once per
+   episode. Grafana remains rejected.
+10. **The visual gate is owner wait,** not a failure, in every metric.
+11. **The runner tile counts the whole organization,** because the 60-job limit is per
+    organization.
+12. **Every chart follows the picker** (both reviewers), including 672 hourly points of runner
+    demand on 28 d.
+13. **Change failure rate is per channel** (engineer, round 2). Canary's equals the rework rate,
+    so it is drawn once; production is a count, because a weekly percentage of 0 or 1 promotions
+    says nothing.
 
 ## 14. Open questions
 

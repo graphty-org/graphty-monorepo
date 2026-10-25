@@ -43,7 +43,7 @@ jobs:
               env: { HUSKY: "0" }
             - run: pnpm exec nx run graphty-element:build
               env: { NODE_OPTIONS: "--max-old-space-size=8192" }
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: work-protection-bundle
                   path: graphty-element/dist/graphty.bundle.js
@@ -138,7 +138,7 @@ jobs:
               run: pnpm exec vitest run --project=lifecycle test/lifecycle/ios-simulator.test.ts
             - name: Keep the Simulator's screen and Safari's log of a failed scenario
               if: failure()
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ios-diagnostics
                   path: graphty-element/test-results/ios

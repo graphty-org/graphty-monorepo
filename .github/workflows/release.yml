@@ -571,7 +571,7 @@ jobs:
                   path: ${{ runner.temp }}/builds
 
             - name: Keep the builds for the publish job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
@@ -619,7 +619,7 @@ jobs:
             # The version commit itself, so the land job pushes exactly this commit (the tags name it, and the
             # publish job checks it out) without running nx again.
             - name: Keep the version commit for the land job
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: release-commit-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/release.bundle

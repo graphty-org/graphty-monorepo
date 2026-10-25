@@ -1,0 +1,231 @@
+# .github/workflows/bisect.yml -- finds the merge that turned a full run red (design/ci/channels-pipeline/channels.md
+# section 6). release.yml dispatches it once per red full run with the last green full-run commit (`good`), the red
+# one (`bad`), the lane that failed and its failing tests. The rules are tools/bisect-core.mjs's (verify.mjs's); the
+# state between rounds is tools/bisect-ci.mjs's.
+#
+# One run is one round. The first confirms: only the failing test files, 5 runs on the red commit (2 for the LLM
+# lane), under the full run's own runner class. Each later round runs at most 8 points of the range's first-parent
+# merges at once, a matrix job each, then `judge` folds the results in and, while no answer is reached, dispatches
+# this workflow again with the new state. A lane workflow (gpu, hosts, macOS) is called for one point a round, with
+# a concurrency group per point; the T4 only after the local NVIDIA card (`after_local_card`) and never past 4 paid
+# hours a bisect. The answer -- the culprit merge, or why no merge is named -- is the last round's job summary and
+# its `bisect-answer` artifact; the pipeline round opens the revert.
+name: Bisect
+on:
+    workflow_dispatch:
+        inputs:
+            lane:
+                description: "the lane that failed"
+                type: choice
+                default: ci
+                options: [ci, llm, gpu, hosts, macos]
+            good:
+                description: "the last green full-run commit"
+                type: string
+                required: true
+            bad:
+                description: "the red full run's commit"
+                type: string
+                required: true
+            run_id:
+                description: "the red full run"
+                type: string
+                required: true
+            targets:
+                description: 'the failing tests, JSON [{"shard", "file", "name"}] (empty: the whole lane)'
+                type: string
+                default: "[]"
+            failed_before:
+                description: "ids of targets the results store saw fail before the range, JSON"
+                type: string
+                default: "[]"
+            after_local_card:
+                description: "gpu: the local NVIDIA card did not reproduce it, so bisect on the T4"
+                type: boolean
+                default: false
+            state:
+                description: "set only by this workflow: the bisect's state for its next round"
+                type: string
+                default: ""
+permissions: { contents: read }
+# One bisect per red commit; its next round waits for this one to end.
+concurrency:
+    group: bisect-${{ inputs.bad }}
+    cancel-in-progress: false
+
+jobs:
+    plan:
+        name: Plan the round
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        outputs:
+            done: ${{ steps.plan.outputs.done }}
+            points: ${{ steps.plan.outputs.points }}
+            files: ${{ steps.plan.outputs.files }}
+            started: ${{ steps.plan.outputs.started }}
+        steps:
+            - uses: actions/checkout@v4
+              with: { fetch-depth: 0 } # the range's first-parent merges and their parents
+            - id: plan
+              env:
+                  LANE: ${{ inputs.lane }}
+                  GOOD: ${{ inputs.good }}
+                  BAD: ${{ inputs.bad }}
+                  TARGETS: ${{ inputs.targets }}
+                  FAILED_BEFORE: ${{ inputs.failed_before }}
+                  AFTER_LOCAL_CARD: ${{ inputs.after_local_card }}
+                  STATE: ${{ inputs.state }}
+              run: |
+                  node tools/bisect-ci.mjs plan --out state.json
+                  echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+            - uses: actions/upload-artifact@v7
+              with: { name: bisect-state, path: state.json, retention-days: 14 }
+
+    # A point of the ci or LLM lane: master's copy of the tool runs the point's own tree, with its own shard commands.
+    point:
+        name: Point ${{ matrix.sha }}
+        needs: plan
+        if: ${{ needs.plan.outputs.done != 'true' && (inputs.lane == 'ci' || inputs.lane == 'llm') }}
+        runs-on: ubuntu-24.04 # the full run's test runner class
+        # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
+        environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
+        timeout-minutes: 120
+        strategy:
+            fail-fast: false
+            max-parallel: 8 # with a full run's 28-job matrix and the pull requests, inside the 60 Linux runners
+            matrix:
+                sha: ${{ fromJSON(needs.plan.outputs.points) }}
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: "${{ matrix.sha }}" }
+            - uses: actions/checkout@v4
+              with: { path: .bisect-tools, sparse-checkout: tools }
+            - name: Move the tool out of the tree under test
+              run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
+            - uses: actions/download-artifact@v8
+              with: { name: bisect-state, path: "${{ runner.temp }}/state" }
+            - uses: pnpm/action-setup@v6
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              env: { HUSKY: "0" }
+            - run: git lfs pull --include "visual-fonts/**" # run-tests.sh draws browser shards with the runner's fonts
+            # the oracle PNGs a graphty-element browser shard reads, as ci.yml's test job pulls them
+            - name: Pull the oracle images the browser shards read
+              run: |
+                  samples=graphty-element/test/browser/oracle-scorecard-samples.json
+                  if [ -f "$samples" ]; then
+                      git lfs pull --include "$(node -p "require('./$samples').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+                  fi
+            - uses: ./.github/actions/drop-microsoft-apt-source
+            - uses: ./.github/actions/playwright-system-deps
+            # every browser a shard may launch (the lifecycle shard runs Firefox and WebKit too)
+            - run: pnpm exec playwright install chromium firefox webkit
+            - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
+              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
+            - name: Build every package
+              id: build
+              # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
+              run: pnpm exec nx run-many -t build
+            - name: Run the failing files
+              env:
+                  BISECT_ROOT: ${{ github.workspace }}
+                  VITE_LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
+                  VITE_GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  SHA: ${{ matrix.sha }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/result"
+                  node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
+                      --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
+            # a point whose build failed ran no test: it is a bad point, not a lost one to test again. Only the build
+            # step's own failure: an install, apt or download that failed (the network) leaves the point lost, so
+            # it runs again rather than being blamed
+            - name: Record a point that could not build
+              if: ${{ failure() && steps.build.outcome == 'failure' }}
+              env:
+                  SHA: ${{ matrix.sha }}
+              run: |
+                  mkdir -p "$RUNNER_TEMP/result"
+                  [ -f "$RUNNER_TEMP/result/$SHA.json" ] ||
+                      node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" setup-failed \
+                          --state "$RUNNER_TEMP/state/state.json" --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
+            - uses: actions/upload-artifact@v7
+              if: ${{ always() }}
+              with: { name: "bisect-result-${{ matrix.sha }}", path: "${{ runner.temp }}/result/", retention-days: 14 }
+
+    # The lane workflows, one point a round, each in a concurrency group of its own (bisect-<bad>-<point>).
+    gpu:
+        needs: plan
+        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'gpu' }}
+        # the called timings job lists the run's jobs and takes OIDC for the store, as release.yml grants
+        permissions: { contents: read, actions: read, id-token: write }
+        uses: ./.github/workflows/gpu.yml
+        with:
+            ref: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            files: ${{ needs.plan.outputs.files }}
+            bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
+    hosts:
+        needs: plan
+        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'hosts' }}
+        permissions: { contents: read, actions: read, id-token: write }
+        uses: ./.github/workflows/hosts.yml
+        with:
+            ref: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            files: ${{ needs.plan.outputs.files }}
+            bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
+    macos:
+        needs: plan
+        if: ${{ needs.plan.outputs.done != 'true' && inputs.lane == 'macos' }}
+        permissions: { contents: read, actions: read, id-token: write }
+        uses: ./.github/workflows/work-protection-macos.yml
+        with:
+            candidate: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            files: ${{ needs.plan.outputs.files }}
+            bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
+
+    judge:
+        name: Judge the round
+        needs: [plan, point, gpu, hosts, macos]
+        if: ${{ always() && needs.plan.result == 'success' }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions: { contents: read, actions: write } # dispatches the next round
+        steps:
+            - uses: actions/checkout@v4
+              with: { sparse-checkout: tools }
+            - uses: actions/download-artifact@v8
+              with: { name: bisect-state, path: state }
+            - uses: actions/download-artifact@v8
+              if: ${{ inputs.lane == 'ci' || inputs.lane == 'llm' }}
+              with: { pattern: bisect-result-*, path: results, merge-multiple: true }
+            - name: A lane point is judged by its one run
+              if: ${{ needs.plan.outputs.done != 'true' && inputs.lane != 'ci' && inputs.lane != 'llm' }}
+              env:
+                  SHA: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+                  STATUS: ${{ needs[inputs.lane].result }}
+                  STARTED: ${{ needs.plan.outputs.started }}
+              run: |
+                  mkdir -p results
+                  # ponytail: wall time from the plan, queueing included, so the T4 cap errs on the safe side
+                  echo "{\"sha\":\"$SHA\",\"status\":\"$STATUS\",\"minutes\":$(( ($(date +%s) - STARTED) / 60 + 1 ))}" > results/lane.json
+            - name: Judge
+              id: judge
+              if: ${{ needs.plan.outputs.done != 'true' }}
+              run: mkdir -p results && node tools/bisect-ci.mjs judge --state state/state.json --results results --out next.json
+            - name: Dispatch the next round
+              if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  LANE: ${{ inputs.lane }}
+                  GOOD: ${{ inputs.good }}
+                  BAD: ${{ inputs.bad }}
+                  RUN_ID: ${{ inputs.run_id }}
+              run: |
+                  gh workflow run bisect.yml --ref "$GITHUB_REF_NAME" -f lane="$LANE" -f good="$GOOD" -f bad="$BAD" \
+                      -f run_id="$RUN_ID" -f state="$(cat next.json)"
+            - name: Keep the answer
+              if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
+              run: cp "$([ -f next.json ] && echo next.json || echo state/state.json)" answer.json
+            - uses: actions/upload-artifact@v7
+              if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
+              with: { name: bisect-answer, path: answer.json, retention-days: 90 }

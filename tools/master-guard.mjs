@@ -1,5 +1,5 @@
 // Keeps master green (design/ci/ci-cd-plan.md section 12). Run by .github/workflows/master-guard.yml when
-// CI, Hosts or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
+// CI or the graphty.app deploy finishes on master, with the finished run in GITHUB_EVENT_PATH.
 //
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
@@ -14,10 +14,8 @@
 //   failed step names a culprit. Not when a newer master run superseded it (superseded).
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
-// - Hosts red on master (the nightly; a push to master no longer runs Hosts): open (or add to) a
-//   priority:critical issue naming the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
-//   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
-//   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
+// - The T4 GPU lane (gpu.yml) and Hosts (hosts.yml) run only in the release train, which files its own
+//   "Release held" issue, so neither is this script's business.
 // - Deploy to GitHub Pages red: open (or add to) one priority:critical issue, so a green master whose build never
 //   reached graphty.app is not mistaken for a shipped one. No freeze and no revert: the commit passed CI.
 //
@@ -124,9 +122,6 @@ export function decide(run) {
             return "stopped";
         }
         return run.conclusion === "success" ? "green" : "none";
-    }
-    if (run.name === "Hosts" && failed && run.event === "schedule") {
-        return "hardware-red";
     }
     if (run.name === DEPLOY && failed) {
         return "deploy-red";
@@ -633,32 +628,6 @@ async function main() {
         await attempt("close reverts no longer needed", () =>
             closeStaleReverts(gh, { sha, url: run.html_url, green: true }),
         );
-    }
-
-    if (action === "hardware-red") {
-        await attempt("open or update the lane's issue", async () => {
-            const file = run.path.split("/").pop();
-            const green = await gh(`/actions/workflows/${file}/runs?branch=master&status=success&per_page=1`);
-            const last = green.workflow_runs[0]?.head_sha;
-            let since = "No earlier green run on master was found.";
-            if (last) {
-                // ponytail: compare lists at most 250 commits; a lane red that long has bigger problems
-                const { commits } = await gh(`/compare/${last}...${sha}`);
-                const merges = commits // the pull requests that landed, not the branch merges inside them
-                    .filter((c) => mergedPrs(c.commit.message).length)
-                    .map((c) => `- ${c.sha.slice(0, 7)} ${c.commit.message.split("\n")[0]}`);
-                since = `Merges since its last green run (${last.slice(0, 7)}):\n\n${merges.join("\n") || "- none: the lane went red on a commit it had passed before (a flake, or the hardware)"}`;
-            }
-            const report = `${run.name} failed on master at ${sha} (${run.event}): ${run.html_url}\n\n${since}`;
-            const title = `${run.name} lane red on master`;
-            await fileIssue(gh, {
-                prefix: title,
-                title,
-                labels: labels("medium"),
-                body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
-                comment: report,
-            });
-        });
     }
 
     if (action === "deploy-red") {

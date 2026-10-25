@@ -179,9 +179,11 @@ names they gave. The field is there only when at least one row was left out.
 
 Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
 into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
-`loadDataset`, `loadSample`, a prepared draft's `load()`, the element's `addDataFromSource`,
-`loadFromFile` and `loadFromUrl`, and its `data-source` attributes. So a dataset you pick while
-another is still downloading replaces it, and undo goes back to the first one.
+`loadDataset`, `loadSample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
+attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
+graph as much as for one that replaces it. So a dataset you pick while another is still downloading
+replaces it, and undo goes back to the first one.
 
 A load waits for the loads ahead of it to finish reading. A download that never finishes holds
 back every load asked for after it. Pass a `signal` and abort it to let the next load through:

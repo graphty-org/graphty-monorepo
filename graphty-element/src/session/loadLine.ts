@@ -79,6 +79,25 @@ export class LoadLine {
     private tail: Promise<void> = Promise.resolve();
     /** How many joined and have not left. */
     private waiting = 0;
+    /** A place handed to the next `join`, by {@link within}. */
+    private handoff: LoadTurn | undefined;
+
+    /**
+     * Run `start` with `turn` handed to the first load it asks for, so a door that waited for its
+     * turn and then asks another door to load keeps its own place instead of joining at the back.
+     * The door must take its place synchronously, as every load door does.
+     * @param turn - The place, already at the head of the line.
+     * @param start - Asks for the load.
+     * @returns What `start` returned.
+     */
+    within<T>(turn: LoadTurn, start: () => T): T {
+        this.handoff = turn;
+        try {
+            return start();
+        } finally {
+            this.handoff = undefined;
+        }
+    }
 
     /**
      * Take a place behind every load asked for before this one. Call it synchronously, at the
@@ -90,6 +109,12 @@ export class LoadLine {
      * @returns The place.
      */
     join(signal?: AbortSignal): LoadTurn {
+        const handed = this.handoff;
+        if (handed !== undefined) {
+            this.handoff = undefined;
+            return handed;
+        }
+
         const ahead = this.waiting === 0 ? undefined : this.tail;
         this.waiting++;
         let release = (): void => undefined;

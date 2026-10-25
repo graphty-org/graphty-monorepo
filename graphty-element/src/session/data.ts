@@ -808,7 +808,10 @@ export class SessionData implements SessionDataApi {
      */
     expand(ids: readonly NodeId[], options: ExpandOptions = {}): Promise<void> {
         this.requireLive("expand");
-        return sourceExpand.expandNodes(this.sourceHost(), ids, options);
+        // In line, as a load: its rows are dispatched after every load asked for before it, and a
+        // load asked for after it waits for all of them, so it never adds to the graph that load
+        // replaced (issue #3382).
+        return this.inLine(options.signal, (host) => sourceExpand.expandNodes(host, ids, options), true);
     }
 
     /**
@@ -828,7 +831,7 @@ export class SessionData implements SessionDataApi {
      */
     more(options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("more");
-        return sourceLoad.more(this.sourceHost(), options);
+        return this.inLine(options.signal, (host) => sourceLoad.more(host, options));
     }
 
     /**
@@ -889,7 +892,7 @@ export class SessionData implements SessionDataApi {
      */
     runPendingSourceLoad(id: string, options: SourceLoadOptions = {}): Promise<void> {
         this.requireLive("runPendingSourceLoad");
-        return sourceLoad.runPendingSourceLoad(this.sourceHost(), id, options);
+        return this.inLine(options.signal, (host) => sourceLoad.runPendingSourceLoad(host, id, options));
     }
 
     /**
@@ -924,15 +927,44 @@ export class SessionData implements SessionDataApi {
      * What a source load works through when it holds a place in line: it waits its turn once
      * it has read, and gives the place up as it dispatches.
      * @param turn - The load's place.
+     * @param hold - Keep the place past the first dispatch, for a verb that dispatches more than
+     *   once and gives it up when it settles.
      * @returns The host.
      */
-    private hostInTurn(turn: LoadTurn): SourceHost {
+    private hostInTurn(turn: LoadTurn, hold = false): SourceHost {
         const host = this.sourceHost();
+        const send = (command: SessionCommand): Promise<unknown> =>
+            hold ? host.dispatch(command) : turn.issue(() => host.dispatch(command));
         return {
             ...host,
             waitTurn: () => turn.wait(),
-            dispatch: (command) => turn.issue(() => host.dispatch(command)),
+            dispatch: (command) => {
+                const ahead = turn.wait();
+                return ahead === undefined ? send(command) : ahead.then(() => send(command));
+            },
         };
+    }
+
+    /**
+     * Run a network-source verb in the session's load line: its place taken now, its dispatch
+     * made once every load asked for before it has dispatched.
+     * @param signal - Aborting it while the verb waits for its turn gives up its place.
+     * @param run - The verb, given a host whose dispatch waits for the turn.
+     * @param hold - Keep the place until the verb settles, for a verb that dispatches more than
+     *   once; otherwise it is given up at the first dispatch.
+     * @returns What the verb returned.
+     */
+    private async inLine<T>(
+        signal: AbortSignal | undefined,
+        run: (host: SourceHost) => Promise<T>,
+        hold = false,
+    ): Promise<T> {
+        const turn = this.loadLine.join(signal);
+        try {
+            return await run(this.hostInTurn(turn, hold));
+        } finally {
+            turn.leave();
+        }
     }
 
     /**

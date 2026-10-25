@@ -131,7 +131,6 @@ jobs:
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
             docs: ${{ steps.optional.outputs.docs }}
-            tool-tests: ${{ steps.optional.outputs.tool-tests }}
             cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
@@ -261,8 +260,7 @@ jobs:
             # only when a docs input changed (the pre-push gate's rule: docs/, a package's docs/ that
             # tools/copy-docs-content.js copies in, that script, tools/sanitize-api-docs.js, or an affected package
             # with a root `docs:api:<package>` script, or a file a docs page pulls in with `<!--@include: ...-->`);
-            # the CI workflow tests only when tools/, .github/, .husky/, .claude/, a root file or a package file they
-            # read changed;
+            # (the CI workflow tests run on every pull request: they read files all over the repository);
             # Cost Estimate Accuracy only when the estimator or what it reads and times changed. Every other run (the full run, a dispatch, a
             # master push) runs them all, so nothing runs nowhere.
             - name: Plan the optional jobs
@@ -273,7 +271,7 @@ jobs:
                   AFFECTED: ${{ steps.plan.outputs.affected }}
               run: |
                   if [[ "$EVENT" != "pull_request" || "$MERGE_QUEUE" == "true" ]]; then
-                      printf 'docs=true\ntool-tests=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
+                      printf 'docs=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   # --no-renames: a file moved out of a watched folder counts by its old path too
@@ -293,15 +291,11 @@ jobs:
                       m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
-                  # plus the package files the tool tests read: visual-review's template, gate, capture, docs page and
-                  # vitest config, compact-mantine's Figma fixture, a package's scripts/ (run-browser-project.js), and
-                  # every test file (the bare-git test reads them all)
-                  tool_tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$|^visual-review/(templates|trusted|capture|docs)/|^visual-review/vitest\.config\.mjs$|^compact-mantine/tests/figma/|^[^/]+/scripts/|\.test\.[^/]+$')
                   {
                       echo "docs=$docs"
-                      echo "tool-tests=$tool_tests"
-                      # the estimator, the catalog it reads costs from, the session and algorithm code it times, and algorithms itself
-                      echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)|test/session/cost)/|^algorithms/src/')"
+                      # the estimator, the catalog it reads costs from, the session and algorithm code it times, algorithms and
+                      # graph-format, and what runs the job: graphty-element's test:cost script and vitest config, the lockfile, ci.yml
+                      echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)/|test/session/cost/|package\.json$|vitest\.config\.ts$)|^(algorithms|graph-format)/src/|^pnpm-lock\.yaml$|^\.github/workflows/ci\.yml$')"
                   } | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
@@ -904,14 +898,13 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption. On a pull
-            # request only when it changed the tooling they test (the Build job's "Plan the optional jobs").
+            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
             - name: CI workflow tests
-              if: needs.packages.outputs.light != 'true' && needs.packages.outputs.tool-tests == 'true'
+              if: needs.packages.outputs.light != 'true'
               run: pnpm run test:ci-workflows
 
-            # Every job of every workflow has the timeout its budget in ci-budgets.json asks for, and no build step
-            # reads a secret or depends on the event (tools/ci-budgets.mjs).
+            # Every job that has a budget in ci-budgets.json has the timeout it asks for (a job with none is a
+            # warning), and no build step reads a secret or depends on the event (tools/ci-budgets.mjs).
             - name: CI budgets
               run: node tools/ci-budgets.mjs lint
 
@@ -920,7 +913,8 @@ jobs:
             - name: Links (offline)
               run: ./tools/check-links.sh --offline
 
-            # No checked-in commit tooling may turn GPG signing off (moved here from tools/prepush-source-checks.sh).
+            # No checked-in commit tooling may turn GPG signing off (also in tools/prepush-source-checks.sh until that script
+            # is deleted).
             - name: No signing bypass in tools/ and .husky/
               run: "! git grep -niE -e 'no-gpg[-]sign' -e 'gpg[s]ign *[= ] *false' -- tools/ .husky/"
 
@@ -1046,9 +1040,9 @@ jobs:
                   name: build-packages
                   path: .
 
-            # Build unified documentation on every run, so a pull request that breaks the docs
-            # (a dead link included: VitePress fails the build on one) fails here rather than on
-            # master. The docs and both gh-pages builds are uploaded on every run because the
+            # Build unified documentation on every run that has a Docs job (a pull request only on a docs input,
+            # the Build job's "Plan the optional jobs"), so one that breaks the docs (a dead link included:
+            # VitePress fails the build on one) fails here rather than on master. The docs and both gh-pages builds are uploaded on every run because the
             # "Links" job checks every link to graphty.app against the site they assemble into.
             - name: Build docs
               run: npm run docs:build

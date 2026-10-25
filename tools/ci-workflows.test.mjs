@@ -1430,7 +1430,7 @@ describe("ci.yml", () => {
         // the benchmarks need only the build, and a light run (master) skips them
         assert.match(job(ci, "performance"), /needs: packages\n/);
         assert.match(job(ci, "performance"), /&& needs.packages.outputs.light != 'true'\n/);
-        assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true' && /);
+        assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(
             build,
@@ -6136,21 +6136,20 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
 
     it("plans them in Build and hands them to the other jobs", () => {
         const build = job(ci, "packages");
-        for (const o of ["docs", "tool-tests", "cost-accuracy"]) {
+        for (const o of ["docs", "cost-accuracy"]) {
             assert.match(build, new RegExp(`\\n {12}${o}: \\$\\{\\{ steps\\.optional\\.outputs\\.${o} \\}\\}\\n`));
         }
     });
 
     it("runs every optional job on any run but a pull request", () => {
         for (const event of ["push", "workflow_dispatch", "workflow_call"]) {
-            assert.deepEqual(optional([], { event }), { docs: "true", "tool-tests": "true", "cost-accuracy": "true" });
+            assert.deepEqual(optional([], { event }), { docs: "true", "cost-accuracy": "true" });
         }
     });
 
-    it("a pull request touching no docs, tooling or cost files runs none of them", () => {
-        assert.deepEqual(optional(["graph-format/src/a.ts"], { affected: ["graph-format"] }), {
+    it("a pull request touching no docs or cost files runs neither", () => {
+        assert.deepEqual(optional(["graph-samples/src/a.ts"], { affected: ["graph-samples"] }), {
             docs: "false",
-            "tool-tests": "false",
             "cost-accuracy": "false",
         });
     });
@@ -6173,46 +6172,24 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         }
     });
 
-    it("runs the tool tests when a package file a tool test reads changed", () => {
-        for (const f of [
-            "visual-review/templates/visual-review.yml",
-            "visual-review/vitest.config.mjs",
-            "visual-review/trusted/lib/results.mjs",
-            "compact-mantine/tests/figma/figma-fixture.mjs",
-            "visual-review/docs/index.md",
-            "webgpu-graph-algorithms/scripts/run-browser-project.js",
-            "graphty-element/test/foo.test.ts",
-        ]) {
-            assert.equal(optional([f])["tool-tests"], "true", f);
-        }
-        assert.equal(optional(["visual-review/src/x.mjs"])["tool-tests"], "false");
-    });
-
-    it("runs the tool tests when tools/, .github/, .husky/, .claude/ or a root file changed", () => {
-        for (const f of [
-            "tools/x.mjs",
-            ".github/workflows/x.yml",
-            ".husky/pre-push",
-            ".claude/skills/x.md",
-            "nx.json",
-        ]) {
-            assert.equal(optional([f])["tool-tests"], "true", f);
-        }
-        assert.equal(optional(["graphty/src/a.ts"])["tool-tests"], "false");
-    });
-
     it("runs Cost Estimate Accuracy on a pull request only when its files changed", () => {
         assert.equal(optional(["graphty-element/src/session/cost/estimate.ts"])["cost-accuracy"], "true");
-        for (const f of ["graphty-element/src/catalog/algorithms.ts", "algorithms/src/shortest-path/dijkstra.ts"]) {
+        for (const f of [
+            "graphty-element/src/catalog/algorithms.ts",
+            "algorithms/src/shortest-path/dijkstra.ts",
+            "graph-format/src/a.ts",
+            "graphty-element/package.json",
+            ".github/workflows/ci.yml",
+        ]) {
             assert.equal(optional([f])["cost-accuracy"], "true", f);
         }
         assert.equal(optional(["graphty-element/src/Graph.ts"])["cost-accuracy"], "false");
         assert.match(jobs["cost-accuracy"].if, /&& needs\.packages\.outputs\.cost-accuracy == 'true'$/);
     });
 
-    it("gates Docs and the tool tests on the plan, and All Checks Pass accepts a Docs it skipped", () => {
+    it("gates Docs on the plan and runs the tool tests on every pull request, and All Checks Pass accepts a skipped Docs", () => {
         assert.match(jobs.docs.if, /&& needs\.packages\.outputs\.docs == 'true'$/);
-        assert.match(step("checks", "CI workflow tests").if, /needs\.packages\.outputs\.tool-tests == 'true'/);
+        assert.equal(step("checks", "CI workflow tests").if, "needs.packages.outputs.light != 'true'");
         const summary = step("all-checks", "Check all jobs passed");
         assert.equal(summary.env.DOCS, "${{ needs.packages.outputs.docs }}");
         assert.match(summary.run, /\[\[ "\$DOCS" == "false" \]\] && strict='\["packages","build","lint","checks"\]'/);

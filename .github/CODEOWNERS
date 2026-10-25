@@ -48,6 +48,7 @@
 # tools/: the integrity, features, budgets, pull request and quick-check scripts
 /tools/check-test-integrity.mjs @apowers313
 /tools/check-owned-closure.mjs @apowers313
+/tools/pr-integrity.mjs @apowers313
 /tools/check-features.mjs @apowers313
 /tools/ci-budgets.mjs @apowers313
 /tools/pr-open.sh @apowers313

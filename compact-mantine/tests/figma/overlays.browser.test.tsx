@@ -16,6 +16,7 @@ import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
@@ -92,13 +93,17 @@ function box(el: Element): DOMRect {
 
 /** Poll until `fn` returns a value. vi.waitFor keeps polling on the real clock under fake timers. */
 async function waitFor<T>(fn: () => T | null | undefined): Promise<T> {
-    return vi.waitFor(() => {
-        const value = fn();
-        if (!value) {
-            throw new Error("timed out");
-        }
-        return value;
-    });
+    // Wait until the hang guard, as setup does for Testing Library, not Vitest's 1 s default.
+    return vi.waitFor(
+        () => {
+            const value = fn();
+            if (!value) {
+                throw new Error("timed out");
+            }
+            return value;
+        },
+        { timeout: WAIT_GUARD_MS },
+    );
 }
 
 /** Two animation frames: React has committed whatever a timer that just fired scheduled. */

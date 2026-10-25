@@ -533,7 +533,7 @@ export const RULESET_REFUSAL = /Repository rule violations found|Waiting on code
  * @param io { gh }
  * @returns the outcome: `{ kind, output }`, kind "refused", "skip", "merged" or "error"
  */
-export function tryAdmin(pr, io = { gh }) {
+export function tryAdmin(pr, io) {
     const firstLine = (e) => e.message.split("\n").find((l) => l.trim()) ?? "";
     try {
         if (io.gh(["api", `repos/${REPO}`, "-q", ".permissions.admin"]) !== "true") {
@@ -577,7 +577,7 @@ export function cleanup(planned, io) {
         }
     }
     if (left.length) {
-        const what = left.map((p) => `${p.branch} (pull request ${p.pr ? `#${p.pr}` : "none"})`).join(", ");
+        const what = left.map((p) => `${p.branch} (pull request ${p.pr ? "#" + p.pr : "none"})`).join(", ");
         console.log(`cleanup: left open, close them by hand: ${what}`);
     }
     return left;
@@ -603,7 +603,7 @@ function judgeAll(byCase, seen, state) {
     const admin = CASES.find((c) => c.uses);
     const owned = results[admin.uses];
     if (!state.admin && owned.verdict === "pass") {
-        state.admin = tryAdmin(owned.pr);
+        state.admin = tryAdmin(owned.pr, { gh });
         results[admin.id] = { ...judge(admin.expect, state.admin), pr: owned.pr };
     } else if (!state.admin && owned.verdict === "fail") {
         results[admin.id] = { verdict: "fail", actual: `not tried: ${admin.uses} did not wait`, pr: owned.pr };

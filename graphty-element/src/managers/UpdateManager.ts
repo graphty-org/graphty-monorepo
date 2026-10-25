@@ -19,7 +19,7 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
-import { modelsLoading } from "../models/ModelCache";
+import { modelsFreeing, modelsLoading } from "../models/ModelCache";
 import { texturesLoading } from "../models/TextureCache";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
@@ -1214,6 +1214,12 @@ export class UpdateManager implements Manager {
 
         // A model still loading replaces its nodes' placeholder shapes when it lands.
         if (modelsLoading(this.graphContext.getScene()) || texturesLoading(this.graphContext.getScene())) {
+            return false;
+        }
+
+        // A template nothing uses is freed by counting frames, which a graph drawing on demand
+        // stops making once the picture is finished.
+        if (modelsFreeing(this.graphContext.getScene())) {
             return false;
         }
 

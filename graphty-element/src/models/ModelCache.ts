@@ -169,6 +169,16 @@ export function modelsLoading(scene: Scene): boolean {
     return caches.get(scene)?.loading === true;
 }
 
+/**
+ * Whether a scene holds a template no node draws and no layer names, which it frees after
+ * {@link IDLE_FRAMES} frames: a graph drawing on demand has to keep drawing until then.
+ * @param scene - The scene.
+ * @returns True while such a template waits to be freed.
+ */
+export function modelsFreeing(scene: Scene): boolean {
+    return caches.get(scene)?.freeing === true;
+}
+
 /** The models one scene draws. */
 export class ModelCache {
     private readonly entries = new Map<string, Entry>();
@@ -216,6 +226,20 @@ export class ModelCache {
      */
     get loading(): boolean {
         return this.running > 0 || this.queue.length > 0 || this.dirty.size > 0;
+    }
+
+    /**
+     * Whether a loaded template counts down to being freed (see {@link tick}).
+     * @returns True while one does.
+     */
+    get freeing(): boolean {
+        for (const entry of this.entries.values()) {
+            if (entry.idle >= 0 && entry.template !== null && this.drawing(entry).nodes === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

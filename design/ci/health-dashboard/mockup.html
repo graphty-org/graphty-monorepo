@@ -184,6 +184,7 @@
             }
             .page {
                 display: none;
+                scroll-margin-top: 28px;
             }
             .page:target,
             .page:has(:target) {
@@ -537,14 +538,42 @@
                 background: var(--bad);
             }
             .sw.none {
+                border: 3px solid transparent;
+                padding: 0 5px;
+                background:
+                    linear-gradient(var(--none), var(--none)) padding-box,
+                    repeating-linear-gradient(45deg, var(--none) 0 2px, var(--hatch) 2px 4px) border-box;
+            }
+            .sw.idle {
                 background: var(--none);
-                box-shadow: inset 0 0 0 1px var(--hatch);
             }
             .sw.low {
+                white-space: normal;
+                padding: 0;
                 background: transparent;
-                color: var(--ink2);
-                box-shadow: inset 0 0 0 1px var(--line);
+                color: var(--muted);
                 font-weight: 600;
+                letter-spacing: 0;
+            }
+            .mk::before {
+                content: "";
+                display: inline-block;
+                width: 4px;
+                height: 12px;
+                margin-right: 6px;
+                vertical-align: -1px;
+            }
+            .mk.bad::before {
+                background: var(--bad);
+            }
+            .mk.warn::before {
+                background: var(--warn);
+                box-shadow: inset 0 0 0 1px var(--warnedge);
+            }
+            .kcap {
+                margin: -8px 0 10px;
+                color: var(--muted);
+                font-size: 12px;
             }
             .pstate {
                 display: flex;
@@ -617,9 +646,6 @@
                 gap: 14px;
                 align-items: baseline;
                 padding: 6px 0;
-            }
-            .tr {
-                border-top: 1px solid var(--faint);
             }
             .tr.past {
                 color: var(--muted);
@@ -744,8 +770,12 @@
                 color: var(--ink2);
             }
             .cl.bad {
-                color: var(--bad);
+                color: var(--ink);
                 font-weight: 600;
+            }
+            .cl.r {
+                right: 0;
+                text-align: right;
             }
             .shards .srow,
             .hott .hrow {
@@ -928,7 +958,7 @@
                         </ul>
                     </li>
                     <li>
-                        <a class="ni warn" data-p="flaky" href="#flaky" aria-label="Flaky tests: WARNING"
+                        <a class="ni bad" data-p="flaky" href="#flaky" aria-label="Flaky tests: FAILING"
                             ><span class="bar"></span>Flaky tests</a
                         >
                         <ul class="sub sub-flaky">
@@ -942,7 +972,7 @@
                         >
                     </li>
                     <li>
-                        <a class="ni none" data-p="costs" href="#costs" aria-label="Costs: NO DATA"
+                        <a class="ni ok" data-p="costs" href="#costs" aria-label="Costs: OK"
                             ><span class="bar"></span>Costs</a
                         >
                     </li>
@@ -952,7 +982,7 @@
                         >
                     </li>
                 </ul>
-                <p class="sample">Sample data: the incidents of 2026-10-25, as of 23:10 UTC</p>
+                <p class="sample">Sample data: the incidents of 2026-10-25, as of 23:30 UTC</p>
             </nav>
             <main>
                 <section id="overview" class="page">
@@ -962,14 +992,22 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
+                    <p class="kcap">
+                        Each block is its category's state now. Under it: the headline measure now, and the last 24 h,
+                        hourly.
+                    </p>
                     <ol class="status" aria-label="Category status">
                         <li class="col">
-                            <a class="blk bad" href="#master" aria-label="Master: FAILING, no green build 3.2 h"
+                            <a
+                                class="blk bad"
+                                href="#master"
+                                aria-label="Master: FAILING, 5 pull requests red on one check, Test (graphty-*)"
                                 ><span class="bn">Master</span><span class="bw">FAILING</span
-                                ><span class="by">no green build 3.2 h</span><span class="by bym">+ 2 more</span
+                                ><span class="by">5 PRs red on one check</span
+                                ><span class="by bym">+ green time 87%</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#master"
@@ -1013,7 +1051,7 @@
                         <li class="col">
                             <a class="blk bad" href="#ci" aria-label="CI: FAILING, runner wait p90 31 min"
                                 ><span class="bn">CI</span><span class="bw">FAILING</span
-                                ><span class="by">runner wait p90 31 min</span><span class="by bym">+ 4 more</span
+                                ><span class="by">runner wait p90 31 min</span><span class="by bym">+ 5 more</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#ci"
@@ -1037,16 +1075,16 @@
                         </li>
                         <li class="col">
                             <a
-                                class="blk warn"
+                                class="blk bad"
                                 href="#flaky"
-                                aria-label="Flaky tests: WARNING, 3 pull requests held by a flake"
-                                ><span class="bn">Flaky tests</span><span class="bw">WARNING</span
+                                aria-label="Flaky tests: FAILING, 3 pull requests held by a flake"
+                                ><span class="bn">Flaky tests</span><span class="bw">FAILING</span
                                 ><span class="by">3 pull requests held by a flake</span
-                                ><span class="by bym">+ 2 no issue</span
+                                ><span class="by bym">+ 2 more</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#flaky"
-                                ><span class="kn">Flake rate, per 1,000</span><span class="kv">1.4</span
+                                ><span class="kn">Flake rate, since 20:42</span><span class="kv">1.4</span
                                 ><span class="kt">target &lt; 2</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
                                     <rect class="band" x="0" y="2" width="120" height="2" />
@@ -1059,7 +1097,7 @@
                         <li class="col">
                             <a class="blk bad" href="#releases" aria-label="Releases: FAILING, audit and T4 red"
                                 ><span class="bn">Releases</span><span class="bw">FAILING</span
-                                ><span class="by">audit and T4 red</span><span class="by bym">+ a workflow</span
+                                ><span class="by">audit and T4 red</span><span class="by bym">+ 2 more</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#releases"
@@ -1097,9 +1135,8 @@
                             ></a>
                         </li>
                         <li class="col">
-                            <a class="blk none" href="#costs" aria-label="Costs: NO DATA, usage tokens not set"
-                                ><span class="bn lab">Costs</span><span class="bw lab">NO DATA</span
-                                ><span class="by lab">usage tokens not set</span
+                            <a class="blk ok" href="#costs" aria-label="Costs: OK"
+                                ><span class="bn">Costs</span><span class="bw">OK</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#costs"
@@ -1116,41 +1153,33 @@
                         <li class="col">
                             <a class="blk bad" href="#data" aria-label="Data sources: FAILING, stress run filed 0 of 27"
                                 ><span class="bn">Data sources</span><span class="bw">FAILING</span
-                                ><span class="by">stress run filed 0 of 27</span><span class="by bym">+ 3 no data</span
+                                ><span class="by">stress run filed 0 of 27</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#data"
-                                ><span class="kn">Sources not OK</span><span class="kv">4<small> of 12</small></span
+                                ><span class="kn">Sources not OK</span><span class="kv">1<small> of 8</small></span
                                 ><span class="kt">target 0</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,8.5 8,8.5 12.9,8.5 17.9,8.5 22.8,8.5 27.8,8.5 32.7,8.5 37.7,8.5 42.7,8.5 47.6,3 52.6,3 57.5,3 62.5,3 67.4,3 72.4,3 77.3,3 82.3,3 87.3,3 92.2,3 97.2,3 102.1,3 107.1,3 112,3 117,3"
+                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,14 52.6,14 57.5,14 62.5,14 67.4,14 72.4,14 77.3,14 82.3,14 87.3,14 92.2,14 97.2,14 102.1,14 107.1,14 112,14 117,14"
                                     />
-                                    <line class="seg bad" x1="3" y1="8.5" x2="8" y2="8.5" />
-                                    <line class="seg bad" x1="8" y1="8.5" x2="12.9" y2="8.5" />
-                                    <line class="seg bad" x1="12.9" y1="8.5" x2="17.9" y2="8.5" />
-                                    <line class="seg bad" x1="17.9" y1="8.5" x2="22.8" y2="8.5" />
-                                    <line class="seg bad" x1="22.8" y1="8.5" x2="27.8" y2="8.5" />
-                                    <line class="seg bad" x1="27.8" y1="8.5" x2="32.7" y2="8.5" />
-                                    <line class="seg bad" x1="32.7" y1="8.5" x2="37.7" y2="8.5" />
-                                    <line class="seg bad" x1="37.7" y1="8.5" x2="42.7" y2="8.5" />
-                                    <line class="seg bad" x1="42.7" y1="8.5" x2="47.6" y2="3" />
-                                    <line class="seg bad" x1="47.6" y1="3" x2="52.6" y2="3" />
-                                    <line class="seg bad" x1="52.6" y1="3" x2="57.5" y2="3" />
-                                    <line class="seg bad" x1="57.5" y1="3" x2="62.5" y2="3" />
-                                    <line class="seg bad" x1="62.5" y1="3" x2="67.4" y2="3" />
-                                    <line class="seg bad" x1="67.4" y1="3" x2="72.4" y2="3" />
-                                    <line class="seg bad" x1="72.4" y1="3" x2="77.3" y2="3" />
-                                    <line class="seg bad" x1="77.3" y1="3" x2="82.3" y2="3" />
-                                    <line class="seg bad" x1="82.3" y1="3" x2="87.3" y2="3" />
-                                    <line class="seg bad" x1="87.3" y1="3" x2="92.2" y2="3" />
-                                    <line class="seg bad" x1="92.2" y1="3" x2="97.2" y2="3" />
-                                    <line class="seg bad" x1="97.2" y1="3" x2="102.1" y2="3" />
-                                    <line class="seg bad" x1="102.1" y1="3" x2="107.1" y2="3" />
-                                    <line class="seg bad" x1="107.1" y1="3" x2="112" y2="3" />
-                                    <line class="seg bad" x1="112" y1="3" x2="117" y2="3" />
-                                    <circle class="now" cx="117" cy="3" r="2.4" /></svg
+                                    <line class="seg bad" x1="42.7" y1="14" x2="47.6" y2="14" />
+                                    <line class="seg bad" x1="47.6" y1="14" x2="52.6" y2="14" />
+                                    <line class="seg bad" x1="52.6" y1="14" x2="57.5" y2="14" />
+                                    <line class="seg bad" x1="57.5" y1="14" x2="62.5" y2="14" />
+                                    <line class="seg bad" x1="62.5" y1="14" x2="67.4" y2="14" />
+                                    <line class="seg bad" x1="67.4" y1="14" x2="72.4" y2="14" />
+                                    <line class="seg bad" x1="72.4" y1="14" x2="77.3" y2="14" />
+                                    <line class="seg bad" x1="77.3" y1="14" x2="82.3" y2="14" />
+                                    <line class="seg bad" x1="82.3" y1="14" x2="87.3" y2="14" />
+                                    <line class="seg bad" x1="87.3" y1="14" x2="92.2" y2="14" />
+                                    <line class="seg bad" x1="92.2" y1="14" x2="97.2" y2="14" />
+                                    <line class="seg bad" x1="97.2" y1="14" x2="102.1" y2="14" />
+                                    <line class="seg bad" x1="102.1" y1="14" x2="107.1" y2="14" />
+                                    <line class="seg bad" x1="107.1" y1="14" x2="112" y2="14" />
+                                    <line class="seg bad" x1="112" y1="14" x2="117" y2="14" />
+                                    <circle class="now" cx="117" cy="14" r="2.4" /></svg
                             ></a>
                         </li>
                     </ol>
@@ -1158,16 +1187,7 @@
                         Last 24 hours<span class="h2sub">each time a member went past its target; ongoing first</span>
                     </h2>
                     <div class="eps">
-                        <a class="ep" href="#master-red"
-                            ><span class="eb bad"></span><span class="et">20:01 - now</span
-                            ><span class="ec">Master</span
-                            ><span class="ex"
-                                >No green master build for 3.2 h: 6 builds hung in the Sentry source-map upload, then 5
-                                more were cancelled</span
-                            ><span class="en">ongoing</span
-                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
-                                <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="ep" href="#master-shared"
+                        <a class="ep" href="#master-shared"
                             ><span class="eb bad"></span><span class="et">18:03 - now</span
                             ><span class="ec">Master</span
                             ><span class="ex"
@@ -1178,12 +1198,12 @@
                         ><a class="ep" href="#ci-runners"
                             ><span class="eb bad"></span><span class="et">19:20 - now</span><span class="ec">CI</span
                             ><span class="ex"
-                                >Runners saturated: 22 jobs running, 52 runs queued, master builds waiting 68 min</span
+                                >Runners saturated: 57 of 60 jobs running, 235 queued, master builds queued 68 min</span
                             ><span class="en">ongoing</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="ep" href="#flaky-hotspots"
-                            ><span class="eb warn"></span><span class="et">19:01 - now</span
+                            ><span class="eb bad"></span><span class="et">19:01 - now</span
                             ><span class="ec">Flaky tests</span
                             ><span class="ex"
                                 >Two flaky stories hold 3 pull requests: Football conference picker, Find no-match
@@ -1196,14 +1216,21 @@
                             ><span class="ec">Releases</span
                             ><span class="ex"
                                 >Security audit and T4 GPU red on candidate a870943ef; shadow mode opened no hold</span
-                            ><span class="en">28 h</span
+                            ><span class="en">ongoing</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="ep" href="#releases-wf"
                             ><span class="eb bad"></span><span class="et">18:03 - now</span
                             ><span class="ec">Releases</span
                             ><span class="ex"
-                                >promote.yml fails on every push to master: 131 runs, a workflow error</span
+                                >promote.yml fails on every push to master, 131 runs; fix #3577 waits on the owner</span
+                            ><span class="en">ongoing</span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="ep" href="#releases-trains"
+                            ><span class="eb warn"></span><span class="et">18:00 - now</span
+                            ><span class="ec">Releases</span
+                            ><span class="ex">The 18:00 train skipped every lane on new master commit 1fa254bf3</span
                             ><span class="en">ongoing</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
@@ -1215,19 +1242,28 @@
                             ><span class="en">ongoing</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="ep past" href="#master-red"
+                            ><span class="eb bad"></span><span class="et">20:01 - 23:06</span
+                            ><span class="ec">Master</span
+                            ><span class="ex"
+                                >No green master build for 3.1 h: 11 builds cancelled when Build hung in the Sentry
+                                upload</span
+                            ><span class="en">cleared 24 min ago</span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="ep past" href="#master-shared"
                             ><span class="eb warn"></span><span class="et">19:48 - 20:20</span
                             ><span class="ec">Master</span
                             ><span class="ex"
                                 >All Checks Pass crashed alone in 2 pull requests: "Argument list too long"</span
-                            ><span class="en">cleared 2.8 h ago</span
+                            ><span class="en">cleared 3.2 h ago</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="ep past" href="#master-shared"
                             ><span class="eb warn"></span><span class="et">20:15 - 20:52</span
                             ><span class="ec">Master</span
                             ><span class="ex">Checks (Figma lock) refused branches that merged master</span
-                            ><span class="en">cleared 2.3 h ago</span
+                            ><span class="en">cleared 2.6 h ago</span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
@@ -1244,14 +1280,15 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
                         <span class="sw bad">FAILING</span
                         ><span
-                            >No green master build for 3.2 h: every build since 20:01 was cancelled. Also failing: green
-                            time 87%, and Test (graphty-*) is red in 5 open pull requests.</span
+                            >Test (graphty-*) is red in 5 open pull requests since 18:03; suspects #3495, #3496, #3497.
+                            Also failing: green time 87%, after no green build from 20:01 to 23:06. Master is green now,
+                            but 5 newer builds are still queued, the oldest for 68 min.</span
                         >
                     </p>
                     <div class="rows">
@@ -1260,24 +1297,23 @@
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#master-red"
-                            ><span class="nm">Red now<small>newest commit with no green build</small></span
-                            ><span class="val">3.2<small> h</small></span
-                            ><span class="tg">target 0, red &gt;= 15 min or 2 builds</span
+                            ><span class="nm">Red now<small>green since 23:06; newest build queued 68 min</small></span
+                            ><span class="val">0</span><span class="tg">target 0, red &gt;= 15 min or 2 builds</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,25 102.1,18.1 107.1,11.3 112,4.4 117,3"
+                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,25 102.1,18.1 107.1,11.3 112,4.4 117,25"
                                     />
                                     <line class="seg bad" x1="102.1" y1="18.1" x2="107.1" y2="11.3" />
                                     <line class="seg bad" x1="107.1" y1="11.3" x2="112" y2="4.4" />
-                                    <line class="seg bad" x1="112" y1="4.4" x2="117" y2="3" />
-                                    <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
-                            ><span class="st"><span class="sw bad">FAILING</span></span
+                                    <circle class="now" cx="117" cy="25" r="2.4" /></svg></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#master-red"
-                            ><span class="nm">Green time<small>cancelled and timed out count as red</small></span
+                            ><span class="nm"
+                                >Green time<small>cancels are red unless superseded or by hand</small></span
                             ><span class="val">87<small> %</small></span
                             ><span class="tg">target &gt;= 95%, red &lt; 90</span
                             ><span class="sp"
@@ -1322,8 +1358,8 @@
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#releases-trains"
                             ><span class="nm"
-                                >Untested master age<small>oldest master commit no full run judged</small></span
-                            ><span class="val">6.5<small> h</small></span
+                                >Untested master age<small>the 18:00 train skipped new commit 1fa254bf3</small></span
+                            ><span class="val">6.8<small> h</small></span
                             ><span class="tg">target &lt;= 7 h, red &gt; 13</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
@@ -1346,7 +1382,7 @@
                     </div>
                     <h2 id="master-red">
                         Master builds<span class="h2sub"
-                            >last 24 h by minute; gray = cancelled because a newer build superseded it, not
+                            >last 24 h by minute; gray = cancelled by hand or superseded, as GitHub records it; not
                             counted</span
                         >
                     </h2>
@@ -1359,35 +1395,41 @@
                         <rect class="g" x="0" y="0" width="1082" height="18" />
                         <rect class="s" x="1082" y="0" width="52" height="18" />
                         <rect class="g" x="1134" y="0" width="67" height="18" />
-                        <rect class="r" x="1201" y="0" width="189" height="18" />
-                        <rect x="1390" y="0" width="50" height="18" style="fill: url(#nh)" />
+                        <rect class="r" x="1201" y="0" width="185" height="18" />
+                        <rect class="g" x="1386" y="0" width="24" height="18" />
+                        <rect x="1410" y="0" width="30" height="18" style="fill: url(#nh)" />
                     </svg>
                     <div class="ticks">
                         <span style="left: 0%">00:00</span><span style="left: 12.5%">03:00</span
                         ><span style="left: 25%">06:00</span><span style="left: 37.5%">09:00</span
                         ><span style="left: 50%">12:00</span><span style="left: 62.5%">15:00</span
                         ><span style="left: 75%">18:00</span><span style="left: 87.5%">21:00</span
-                        ><span style="left: 96.5%">now</span>
+                        ><span style="left: 97.9%">now</span>
                     </div>
                     <div class="tbl t-spans">
-                        <div class="thead">
-                            <span>red span</span><span>builds</span><span>cause</span><span>fix</span>
-                        </div>
+                        <div class="thead"><span>span</span><span>builds</span><span>cause</span><span>fix</span></div>
                         <div class="tr">
-                            <span><b>20:01 - now</b><br /><small>3.2 h</small></span
-                            ><span>11 cancelled<br /><small>4 queued, oldest 68 min</small></span
+                            <span
+                                ><span class="mk bad">20:01 - 23:06</span><br /><small
+                                    >3.1 h, cleared 24 min ago</small
+                                ></span
+                            ><span>11 cancelled<br /><small>bfc880719 passed 23:06</small></span
                             ><span
-                                >6 Build jobs ended at their 12 min timeout in
-                                <i>Upload source maps to Sentry</i> (19:47 - 20:41): a hang. 5 more cancelled 21:21 -
-                                22:19, cause not named yet. master-guard raised no alarm until #3561 (21:14).</span
+                                >Build hung in <i>Upload source maps to Sentry</i> in every build from 19:47 to 21:50; 6
+                                jobs ended at their 12 min timeout (hangs). None was superseded or cancelled by hand, so
+                                all are red. master-guard raised no alarm until #3561 (21:14).</span
                             ><span
                                 ><a class="ln" href="#">#3559</a> merged 21:08<br /><a class="ln" href="#">#3570</a>
                                 open</span
                             >
                         </div>
                         <div class="tr past">
-                            <span>18:02 - 18:54</span><span>10 cancelled</span
-                            ><span>superseded: the 18:52 build passed before they ended</span><span>--</span>
+                            <span>18:02 - 18:54<br /><small>gray, not red</small></span
+                            ><span>10 cancelled by hand</span
+                            ><span
+                                >cancelled together at 18:54 by the owner's session to free runners; the run's cancel
+                                actor is a person</span
+                            ><span>--</span>
                         </div>
                     </div>
                     <h2 id="master-shared">
@@ -1403,9 +1445,8 @@
                         </div>
                         <div class="tr">
                             <span
-                                ><span class="sw bad">5</span> <b>Test (graphty-*)</b><br /><small
-                                    >family of 5 bins</small
-                                ></span
+                                ><span class="mk bad"><b>Test (graphty-*)</b></span
+                                ><br /><small>family of 5 bins</small></span
                             ><span
                                 ><a class="ln" href="#">#3567</a> <a class="ln" href="#">#3500</a>
                                 <a class="ln" href="#">#3498</a> <a class="ln" href="#">#3550</a>
@@ -1452,7 +1493,7 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
@@ -1533,22 +1574,56 @@
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
                     </div>
+                    <h2>
+                        Where the time goes<span class="h2sub"
+                            >pull requests merged in 24 h, median minutes per stage; owner waits left out</span
+                        >
+                    </h2>
+                    <div class="bars">
+                        <div class="br">
+                            <span class="bl">waiting for runners</span
+                            ><span class="bv"
+                                ><span class="hb" style="width: 100%"></span><span class="bn2">21 min</span></span
+                            >
+                        </div>
+                        <div class="br">
+                            <span class="bl">checks running</span
+                            ><span class="bv"
+                                ><span class="hb" style="width: 85.7%"></span><span class="bn2">18 min</span></span
+                            >
+                        </div>
+                        <div class="br">
+                            <span class="bl">red and being fixed</span
+                            ><span class="bv"
+                                ><span class="hb" style="width: 42.9%"></span><span class="bn2">9 min</span></span
+                            >
+                        </div>
+                        <div class="br">
+                            <span class="bl">green to merged</span
+                            ><span class="bv"
+                                ><span class="hb" style="width: 19%"></span><span class="bn2">4 min</span></span
+                            >
+                        </div>
+                    </div>
                     <h2>Waiting on the owner<span class="h2sub">auto-merge is off by rule</span></h2>
                     <div class="tbl t-owner">
                         <div class="thead"><span>pull request</span><span>why</span><span>waiting</span></div>
                         <div class="tr">
                             <span><a class="ln" href="#">#3577</a> fix(ci): promote.yml sets WORK in a step</span
-                            ><span>touches .github/ (code owners)</span><span>24 min</span>
+                            ><span
+                                >touches .github/ (code owners);
+                                <span class="mk bad">fixes Releases: promote.yml failing</span></span
+                            ><span>44 min</span>
                         </div>
                         <div class="tr">
                             <span><a class="ln" href="#">#3576</a> fix(visual-review): scroll the body</span
-                            ><span>touches visual-review</span><span>35 min</span>
+                            ><span>touches visual-review</span><span>55 min</span>
                         </div>
                         <div class="tr">
                             <span
                                 ><a class="ln" href="#">#3565</a> ci(visual-review): quarantine unstable story
                                 tests</span
-                            ><span>touches visual-review and .github/</span><span>1.6 h</span>
+                            ><span>touches visual-review and .github/</span><span>1.9 h</span>
                         </div>
                     </div>
                 </section>
@@ -1563,14 +1638,15 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
                         <span class="sw bad">FAILING</span
                         ><span
-                            >Runner wait p90 is 31 min (red &gt; 15). Also failing: longest queued now 68 min,
-                            first-attempt pass rate 66%, saturated time 2.6 h, hangs 6.</span
+                            >Runner wait p90 is 31 min (red &gt; 15): 57 of the plan's 60 jobs are running and 235 are
+                            queued. Also failing: longest queued now 68 min, first-attempt pass rate 66%, saturated time
+                            2.6 h, hangs 6.</span
                         >
                     </p>
                     <div class="rows">
@@ -1601,7 +1677,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-runners"
-                            ><span class="nm">Longest queued now<small>52 runs queued</small></span
+                            ><span class="nm">Longest queued now<small>a master build run, no job yet</small></span
                             ><span class="val">68<small> min</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
@@ -1648,7 +1724,8 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-runners"
-                            ><span class="nm">Saturated time<small>running at the plateau, jobs queued</small></span
+                            ><span class="nm"
+                                >Saturated time<small>running within 3 of the limit, jobs queued</small></span
                             ><span class="val">2.6<small> h</small></span
                             ><span class="tg">target 0, red &gt;= 1 h</span
                             ><span class="sp"
@@ -1666,9 +1743,19 @@
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="row" href="https://www.githubstatus.com/"
+                            ><span class="nm"
+                                >Runners not being assigned<small
+                                    >jobs wait with room to run; githubstatus.com</small
+                                ></span
+                            ><span class="val">0<small> min</small></span
+                            ><span class="tg">target 0 min, red &gt;= 15</span><span class="sp"></span
+                            ><span class="st"></span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#master-red"
                             ><span class="nm"
-                                >Hangs<small>jobs ended at their own timeout; cleared 2.3 h ago</small></span
+                                >Hangs<small>jobs ended at their own timeout; cleared 2.8 h ago</small></span
                             ><span class="val">6</span><span class="tg">target 0 in 7 d, red any in 24 h</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
@@ -1712,11 +1799,11 @@
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#ci-superseded"
+                        ><a class="row dim" href="#ci-superseded"
                             ><span class="nm"
-                                >Superseded runs running<small>pull request has a newer commit</small></span
-                            ><span class="val">3</span><span class="tg">target 0, red &gt;= 5</span
-                            ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
+                                >Superseded runs running<small>no cancel-in-progress; not judged yet</small></span
+                            ><span class="val">2</span><span class="tg">informational until it fires</span
+                            ><span class="sp"></span><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
@@ -1775,7 +1862,7 @@
                         </div>
                         <details class="sd" open>
                             <summary class="srow">
-                                <span class="nm">graphty-element-browser-3</span><span class="num">31</span
+                                <span class="nm">graphty-element-browser-3</span><span class="num">11</span
                                 ><span class="num">15.6</span><span class="num">18.2</span
                                 ><span
                                     ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1810,7 +1897,7 @@
                             </div>
                         </details>
                         <a class="srow" href="#"
-                            ><span class="nm">graphty-element-storybook-2</span><span class="num">31</span
+                            ><span class="nm">graphty-element-storybook-2</span><span class="num">11</span
                             ><span class="num">13.8</span><span class="num">16.9</span
                             ><span
                                 ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1821,7 +1908,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="srow" href="#"
-                            ><span class="nm">graphty-element-browser-1</span><span class="num">31</span
+                            ><span class="nm">graphty-element-browser-1</span><span class="num">11</span
                             ><span class="num">12.9</span><span class="num">14.1</span
                             ><span
                                 ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1832,7 +1919,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="srow" href="#"
-                            ><span class="nm">graphty-1</span><span class="num">31</span><span class="num">11.2</span
+                            ><span class="nm">graphty-1</span><span class="num">11</span><span class="num">11.2</span
                             ><span class="num">12.5</span
                             ><span
                                 ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1843,7 +1930,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="srow" href="#"
-                            ><span class="nm">graphty-storybook</span><span class="num">31</span
+                            ><span class="nm">graphty-storybook</span><span class="num">11</span
                             ><span class="num">10.1</span><span class="num">11.7</span
                             ><span
                                 ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1854,7 +1941,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="srow" href="#"
-                            ><span class="nm">compact-mantine (in small-browser)</span><span class="num">31</span
+                            ><span class="nm">compact-mantine (in small-browser)</span><span class="num">11</span
                             ><span class="num">6.2</span><span class="num">7</span
                             ><span
                                 ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
@@ -1864,7 +1951,18 @@
                             ><span class="note2"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="more" href="#">30 more shards, all within budget</a>
+                        ><a class="srow dim" href="#"
+                            ><span class="nm">graphty-element-lifecycle</span><span class="num">4</span
+                            ><span class="num">9.1</span><span class="num">10.2</span
+                            ><span
+                                ><svg class="sbar" viewBox="0 0 200 14" width="200" height="14" aria-hidden="true">
+                                    <rect class="p90" x="0" y="3" width="102" height="8" />
+                                    <rect class="p90" x="0" y="3" width="91" height="8" />
+                                    <line class="bud" x1="150" y1="0" x2="150" y2="14" /></svg></span
+                            ><span class="note2 tg">n=4, not judged</span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="more" href="#">29 more shards, all within budget</a>
                     </div>
                 </section>
                 <section id="ci-runners" class="page">
@@ -1878,14 +1976,14 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
                         <span class="sw bad">FAILING</span
                         ><span
-                            >52 runs are queued now, the oldest for 68 min. Running jobs have sat at 22 since 19:20;
-                            master builds wait in the same queue.</span
+                            >57 jobs are running against the Team plan's limit of 60, and 235 jobs are queued. Five
+                            master builds wait in the same queue as runs with no job yet, the oldest for 68 min.</span
                         >
                     </p>
                     <div class="rows">
@@ -1916,7 +2014,7 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
-                            ><span class="nm">Longest queued now<small>52 runs queued</small></span
+                            ><span class="nm">Longest queued now<small>a master build run, no job yet</small></span
                             ><span class="val">68<small> min</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
@@ -1938,7 +2036,8 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
-                            ><span class="nm">Saturated time<small>at the plateau with jobs queued</small></span
+                            ><span class="nm"
+                                >Saturated time<small>running within 3 of the limit, jobs queued</small></span
                             ><span class="val">2.6<small> h</small></span
                             ><span class="tg">target 0, red &gt;= 1 h</span
                             ><span class="sp"
@@ -1956,40 +2055,50 @@
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#ci-superseded"
+                        ><a class="row" href="https://www.githubstatus.com/"
                             ><span class="nm"
-                                >Superseded runs still running<small>pull request has a newer commit</small></span
-                            ><span class="val">3</span><span class="tg">target 0, red &gt;= 5</span
-                            ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
+                                >Runners not being assigned<small
+                                    >jobs wait with room to run; githubstatus.com</small
+                                ></span
+                            ><span class="val">0<small> min</small></span
+                            ><span class="tg">target 0 min, red &gt;= 15</span><span class="sp"></span
+                            ><span class="st"></span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="row dim" href="#ci-superseded"
+                            ><span class="nm"
+                                >Superseded runs still running<small>no cancel-in-progress; not judged yet</small></span
+                            ><span class="val">2</span><span class="tg">informational until it fires</span
+                            ><span class="sp"></span><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
                     </div>
                     <h2>
-                        Running jobs and queued runs<span class="h2sub"
-                            >organization, GitHub-hosted Linux and Windows; macOS and machine.dev T4 jobs are not
-                            counted</span
+                        Running and queued jobs<span class="h2sub"
+                            >organization, GitHub-hosted, one count axis; machine.dev T4 jobs are not counted</span
                         >
                     </h2>
                     <div class="chart">
                         <svg
                             viewBox="0 0 960 120"
                             preserveAspectRatio="none"
-                            aria-label="jobs running and runs queued per hour"
+                            aria-label="jobs running and queued per hour"
                         >
-                            <line class="plat" x1="0" y1="74.9" x2="960" y2="74.9" />
+                            <line class="plat" x1="0" y1="89" x2="960" y2="89" />
                             <polyline
                                 class="run"
-                                points="0,104.8 41.7,106.7 83.5,108.5 125.2,108.5 167,106.7 208.7,108.5 250.4,104.8 292.2,102.9 333.9,99.2 375.7,101.1 417.4,102.9 459.1,99.2 500.9,95.5 542.6,97.3 584.3,93.6 626.1,89.9 667.8,82.4 709.6,76.8 751.3,74.9 793,74.9 834.8,74.9 876.5,74.9 918.3,74.9 960,74.9"
+                                points="0,114.2 41.7,114.7 83.5,115.1 125.2,115.1 167,114.7 208.7,115.1 250.4,113.8 292.2,113.3 333.9,112.4 375.7,112.8 417.4,113.3 459.1,112 500.9,110.6 542.6,111 584.3,109.7 626.1,108.3 667.8,106.1 709.6,103.4 751.3,100.2 793,96.2 834.8,92.6 876.5,90.3 918.3,90.3 960,90.3"
                             />
                             <polyline
                                 class="q"
-                                points="0,116 41.7,116 83.5,116 125.2,116 167,116 208.7,116 250.4,116 292.2,116 333.9,116 375.7,116 417.4,116 459.1,116 500.9,116 542.6,116 584.3,116 626.1,116 667.8,112.3 709.6,106.7 751.3,99.2 793,76.8 834.8,54.4 876.5,39.5 918.3,30.1 960,18.9"
+                                points="0,116 41.7,116 83.5,116 125.2,116 167,116 208.7,116 250.4,116 292.2,116 333.9,116 375.7,116 417.4,116 459.1,116 500.9,116 542.6,116 584.3,116 626.1,116 667.8,115.1 709.6,113.8 751.3,110.6 793,102.5 834.8,84.5 876.5,62 918.3,35 960,10.2"
                             /></svg
-                        ><span class="cl" style="top: calc(62.4% - 20px); left: 0"
-                            >plateau 22 jobs (the Team plan states 60)</span
-                        ><span class="cl ink" style="top: calc(82.7% - 22px); left: 34%">running</span
-                        ><span class="cl bad" style="top: 2%; left: 84%">queued runs</span>
+                        ><span class="cl" style="top: -4px; left: 0">240 jobs</span
+                        ><span class="cl" style="top: 70px; left: 0"
+                            >limit 60 (Team plan, from config); peak 58 at 22:40</span
+                        ><span class="cl ink r" style="top: 92px">57 running</span
+                        ><span class="cl bad r" style="top: -4px; right: 34px">235 queued</span>
                     </div>
                     <div class="ticks">
                         <span style="left: 0%">00:00</span><span style="left: 13%">03:00</span
@@ -2003,109 +2112,99 @@
                     </h2>
                     <div class="two">
                         <div>
-                            <h3>Running now, 22 jobs</h3>
+                            <h3>Running now, 57 jobs</h3>
                             <div class="bars">
                                 <div class="br">
-                                    <span class="bl">CI, pull_request</span
+                                    <span class="bl">CI, pull_request<small> test shards</small></span
                                     ><span class="bv"
                                         ><span class="hb" style="width: 100%"></span
-                                        ><span class="bn2">11 jobs</span></span
+                                        ><span class="bn2">47 jobs</span></span
                                     >
                                 </div>
                                 <div class="br">
                                     <span class="bl">CodeQL</span
                                     ><span class="bv"
-                                        ><span class="hb" style="width: 36.4%"></span
+                                        ><span class="hb" style="width: 8.5%"></span
                                         ><span class="bn2">4 jobs</span></span
+                                    >
+                                </div>
+                                <div class="br">
+                                    <span class="bl">Hosts, pull_request<small> 1 macOS</small></span
+                                    ><span class="bv"
+                                        ><span class="hb" style="width: 6.4%"></span
+                                        ><span class="bn2">3 jobs</span></span
                                     >
                                 </div>
                                 <div class="br">
                                     <span class="bl">PR Integrity, pull_request</span
                                     ><span class="bv"
-                                        ><span class="hb" style="width: 36.4%"></span
-                                        ><span class="bn2">4 jobs</span></span
-                                    >
-                                </div>
-                                <div class="br">
-                                    <span class="bl">Hosts, pull_request</span
-                                    ><span class="bv"
-                                        ><span class="hb" style="width: 18.2%"></span
+                                        ><span class="hb" style="width: 4.3%"></span
                                         ><span class="bn2">2 jobs</span></span
                                     >
                                 </div>
                                 <div class="br">
                                     <span class="bl">CI, push to master</span
                                     ><span class="bv"
-                                        ><span class="hb" style="width: 9.1%"></span
+                                        ><span class="hb" style="width: 2.1%"></span
                                         ><span class="bn2">1 job</span></span
                                     >
                                 </div>
                             </div>
                         </div>
                         <div>
-                            <h3>Queued now, 52 runs</h3>
+                            <h3>Queued now, 235 jobs</h3>
                             <div class="bars">
                                 <div class="br">
                                     <span class="bl">CI, pull_request</span
                                     ><span class="bv"
                                         ><span class="hb" style="width: 100%"></span
-                                        ><span class="bn2">20 runs</span></span
+                                        ><span class="bn2">214 jobs</span></span
                                     >
                                 </div>
                                 <div class="br">
                                     <span class="bl">PR Integrity</span
                                     ><span class="bv"
-                                        ><span class="hb" style="width: 50%"></span
-                                        ><span class="bn2">10 runs</span></span
-                                    >
-                                </div>
-                                <div class="br">
-                                    <span class="bl">PR Title</span
-                                    ><span class="bv"
-                                        ><span class="hb" style="width: 40%"></span
-                                        ><span class="bn2">8 runs</span></span
-                                    >
-                                </div>
-                                <div class="br">
-                                    <span class="bl">PR Issue Link</span
-                                    ><span class="bv"
-                                        ><span class="hb" style="width: 40%"></span
-                                        ><span class="bn2">8 runs</span></span
-                                    >
-                                </div>
-                                <div class="br">
-                                    <span class="bl">CI, push to master</span
-                                    ><span class="bv"
-                                        ><span class="hb" style="width: 20%"></span
-                                        ><span class="bn2">4 runs</span></span
+                                        ><span class="hb" style="width: 4.2%"></span
+                                        ><span class="bn2">9 jobs</span></span
                                     >
                                 </div>
                                 <div class="br">
                                     <span class="bl">CodeQL</span
                                     ><span class="bv"
-                                        ><span class="hb" style="width: 10%"></span
-                                        ><span class="bn2">2 runs</span></span
+                                        ><span class="hb" style="width: 2.8%"></span
+                                        ><span class="bn2">6 jobs</span></span
+                                    >
+                                </div>
+                                <div class="br">
+                                    <span class="bl">PR Title, PR Issue Link</span
+                                    ><span class="bv"
+                                        ><span class="hb" style="width: 2.8%"></span
+                                        ><span class="bn2">6 jobs</span></span
                                     >
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <p class="note">All in graphty-monorepo; no other graphty-org repository ran a job in 24 h.</p>
-                    <h2 id="ci-superseded">Superseded runs still running</h2>
+                    <p class="note">
+                        Also queued: 5 CI push-to-master runs with no job created yet, the oldest since 22:22. All in
+                        graphty-monorepo; no other graphty-org repository ran a job in 24 h.
+                    </p>
+                    <h2 id="ci-superseded">
+                        Superseded runs still running<span class="h2sub"
+                            >workflows without cancel-in-progress, and if: always() jobs after a cancel; CI and Hosts
+                            cancel their own</span
+                        >
+                    </h2>
                     <div class="tbl t-sup">
                         <div class="thead">
                             <span>run</span><span>pull request</span><span>newer commit pushed</span>
                         </div>
                         <div class="tr">
-                            <span>CI 40242301877</span><span><a class="ln" href="#">#3498</a></span
+                            <span>PR Integrity</span><span><a class="ln" href="#">#3498</a></span
                             ><span>41 min ago</span>
                         </div>
                         <div class="tr">
-                            <span>Hosts 40241880212</span><span><a class="ln" href="#">#3500</a></span
-                            ><span>33 min ago</span>
-                        </div>
-                        <div class="tr">
-                            <span>CI 40242517420</span><span><a class="ln" href="#">#3571</a></span
+                            <span>CodeQL</span><span><a class="ln" href="#">#3571</a></span
                             ><span>12 min ago</span>
                         </div>
                     </div>
@@ -2121,11 +2220,11 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
-                        <span class="sw ok">OK</span
+                        <span class="sw idle">IDLE</span
                         ><span
                             >No local gate has run since 2026-10-25: pull requests are opened with tools/pr-open.sh,
                             which skips it. These members are left out of the rollup until local shard runs happen
@@ -2143,10 +2242,9 @@
                             ><span class="val">--</span><span class="tg">target &lt; 2%, red &gt; 5%</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
-                                    <rect class="band" x="0" y="2" width="120" height="2" />
-                                    <polyline
-                                        points="3,15.1 8,11.8 12.9,14 17.9,9.6 22.8,16.2 27.8,12.9 32.7,10.7 37.7,14"
-                                    /></svg></span
+                                    <rect x="0" y="1" width="120" height="26" style="fill: url(#nh)" />
+                                    <text class="nht" x="60" y="18" text-anchor="middle">no history</text>
+                                </svg></span
                             ><span class="st"><span class="sw low">n=0</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
@@ -2176,14 +2274,14 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span>24 h</span><span class="on">7 d</span><span>28 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
-                        <span class="sw warn">WARNING</span
+                        <span class="sw bad">FAILING</span
                         ><span
-                            >3 open pull requests are held by a flake, the oldest for 4.2 h. Also: 2 tests were flaky in
-                            CI and have no open issue.</span
+                            >3 open pull requests are held by a flake (red at 3), the oldest for 4.5 h. Also: 2 tests
+                            were flaky in CI and have no open issue, and net new flaky is +2.</span
                         >
                     </p>
                     <div class="rows">
@@ -2194,7 +2292,7 @@
                         <a class="row" href="#flaky-hotspots"
                             ><span class="nm"
                                 >Blocked by a flake<small>newest failure flaky, or an unstable story</small></span
-                            ><span class="val">3</span><span class="tg">target 0, red any &gt;= 24 h</span
+                            ><span class="val">3</span><span class="tg">target 0, red &gt;= 3 or any &gt;= 24 h</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
                                     <rect class="band" x="0" y="24" width="120" height="2" />
@@ -2205,12 +2303,10 @@
                                     <line class="seg warn" x1="97.2" y1="17.7" x2="102.1" y2="10.3" />
                                     <line class="segedge" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
                                     <line class="seg warn" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
-                                    <line class="segedge" x1="107.1" y1="10.3" x2="112" y2="3" />
-                                    <line class="seg warn" x1="107.1" y1="10.3" x2="112" y2="3" />
-                                    <line class="segedge" x1="112" y1="3" x2="117" y2="3" />
-                                    <line class="seg warn" x1="112" y1="3" x2="117" y2="3" />
+                                    <line class="seg bad" x1="107.1" y1="10.3" x2="112" y2="3" />
+                                    <line class="seg bad" x1="112" y1="3" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
-                            ><span class="st"><span class="sw warn">WARNING</span></span
+                            ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#flaky-hotspots"
@@ -2220,7 +2316,7 @@
                             ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#"
+                        ><a class="row dim" href="#"
                             ><span class="nm"
                                 >Flake rate<small
                                     >per 1,000 test-file runs, CI; per-test results since 20:42</small
@@ -2233,7 +2329,7 @@
                                     <text class="nht" x="50.1" y="18" text-anchor="middle">no history</text>
                                     <polyline points="102.1,12.9 107.1,7.4 112,11.8 117,8.5" />
                                     <circle class="now" cx="117" cy="8.5" r="2.4" /></svg></span
-                            ><span class="st"></span
+                            ><span class="st"><span class="sw low">partial window, 2.8 h of 24</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
@@ -2377,7 +2473,7 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span><span>28 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
@@ -2385,7 +2481,8 @@
                         ><span
                             >Security audit and T4 GPU have been red on the newest tested candidate, a870943ef, for 28
                             h. Shadow mode opens no hold issue; the lanes are read from job results. Also failing:
-                            promote.yml on every push.</span
+                            promote.yml on every push, whose fix #3577 waits on the owner; and the 18:00 train skipped a
+                            new master commit.</span
                         >
                     </p>
                     <div class="rows">
@@ -2432,7 +2529,7 @@
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#releases-wf"
                             ><span class="nm"
-                                >Release workflows failing<small>promote.yml, every push since 18:03</small></span
+                                >Release workflows failing<small>promote.yml; fix #3577 waits on the owner</small></span
                             ><span class="val">131<small> runs</small></span
                             ><span class="tg">target 0, red &gt;= 3</span
                             ><span class="sp"
@@ -2450,6 +2547,13 @@
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="row" href="#releases-trains"
+                            ><span class="nm"
+                                >Train skipped a new commit<small>18:00 attempt, 1fa254bf3 untested</small></span
+                            ><span class="val">yes</span><span class="tg">target no</span><span class="sp"></span
+                            ><span class="st"><span class="sw warn">WARNING</span></span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Tagged, not on npm<small>tag time vs npm's time</small></span
                             ><span class="val">0</span><span class="tg">target 0, red after 30 min</span
@@ -2463,10 +2567,10 @@
                             ><span class="st"><span class="sw low">n=3</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row dim" href="#"
-                            ><span class="nm">Canary age<small>channel not built yet (#3418)</small></span
-                            ><span class="val">--</span><span class="tg">target &lt; 6 h, red &gt; 24</span
-                            ><span class="sp"></span><span class="st"><span class="sw none">NO DATA</span></span
+                        ><a class="row dim" href="#data-notsetup"
+                            ><span class="nm">Channel members<small>canary, nightly, production; #3418</small></span
+                            ><span class="val">--</span><span class="tg">canary age target &lt; 6 h</span
+                            ><span class="sp"></span><span class="st"><span class="sw low">not set up</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
@@ -2479,11 +2583,11 @@
                             <span>lane</span><span>result</span><span>red since</span><span>job</span>
                         </div>
                         <div class="tr">
-                            <span>audit</span><span><span class="sw bad">failed</span></span
+                            <span>audit</span><span><span class="mk bad">failed</span></span
                             ><span>10-24 18:45</span><span>Security audit (20 s)</span>
                         </div>
                         <div class="tr">
-                            <span>t4</span><span><span class="sw bad">failed</span></span
+                            <span>t4</span><span><span class="mk bad">failed</span></span
                             ><span>10-24 19:25</span><span>T4 GPU / Test (NVIDIA T4) (39 min)</span>
                         </div>
                         <div class="tr">
@@ -2512,7 +2616,7 @@
                         <div class="tr">
                             <span>10-25 18:00</span><span>1fa254bf3</span
                             ><span
-                                ><span class="sw warn">untested</span> skipped every lane on a new master commit</span
+                                ><span class="mk warn">untested:</span> skipped every lane on a new master commit</span
                             >
                         </div>
                         <div class="tr past">
@@ -2537,11 +2641,11 @@
                             <span>workflow</span><span>runs, 24 h</span><span>failing since</span><span>cause</span>
                         </div>
                         <div class="tr">
-                            <span>promote.yml</span><span><span class="sw bad">131 of 131</span></span
+                            <span>promote.yml</span><span><span class="mk bad">131 of 131 failed</span></span
                             ><span>18:03, merge of #3511</span
                             ><span
                                 >workflow error: WORK read from the runner context in job env; fix
-                                <a class="ln" href="#">#3577</a> open</span
+                                <a class="ln" href="#">#3577</a> waits on the owner (code owners), 44 min</span
                             >
                         </div>
                         <div class="tr past">
@@ -2560,14 +2664,14 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span>7 d</span><span class="on">28 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
-                        <span class="sw none">NO DATA</span
+                        <span class="sw ok">OK</span
                         ><span
-                            >Projected 229 USD for October against 300. Sentry and Cloudflare usage are not read: their
-                            read-only tokens are not set.</span
+                            >Every money line is within budget: projected 229 USD for October against 300. Sentry and
+                            Cloudflare usage are not set up (no read-only token yet) and are left out.</span
                         >
                     </p>
                     <h2>Money this month<span class="h2sub">projected to 10-31; 28 d by day</span></h2>
@@ -2629,11 +2733,13 @@
                         </div>
                         <div class="tr dim">
                             <span>Sentry usage<small>events / quota</small></span
-                            ><span>--</span><span></span><span></span><span><span class="sw none">NO DATA</span></span>
+                            ><span>--</span><span></span><span></span
+                            ><span><a class="sw low" href="#data-notsetup">not set up</a></span>
                         </div>
                         <div class="tr dim">
                             <span>Cloudflare usage<small>requests / allowance</small></span
-                            ><span>--</span><span></span><span></span><span><span class="sw none">NO DATA</span></span>
+                            ><span>--</span><span></span><span></span
+                            ><span><a class="sw low" href="#data-notsetup">not set up</a></span>
                         </div>
                     </div>
                     <h2>Unit costs<span class="h2sub">for comparison; never part of the status</span></h2>
@@ -2736,14 +2842,15 @@
                             <div class="range" role="group" aria-label="Range">
                                 <span class="on">24 h</span><span>7 d</span>
                             </div>
-                            <span class="upd">updated 2 min ago, 23:10 UTC</span>
+                            <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="pstate">
                         <span class="sw bad">FAILING</span
                         ><span
                             >The weekly stress run failed in <i>File the load-sensitive tests</i>: 27 failures, over its
-                            cap of 25, so it filed nothing. Also: Sentry and Cloudflare usage have no token.</span
+                            cap of 25, so it filed nothing. Every other source is OK. Four members have no writer or
+                            token yet; they are listed at the end, out of the status.</span
                         >
                     </p>
                     <div class="rows">
@@ -2759,7 +2866,8 @@
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#data-sources"
-                            ><span class="nm">Sources past their age limit<small>12 sources</small></span
+                            ><span class="nm"
+                                >Sources past their age limit<small>8 judged; 1 idle, 3 not set up</small></span
                             ><span class="val">0</span><span class="tg">target 0, red any past 2x</span
                             ><span class="sp"></span><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -2769,12 +2877,6 @@
                                 >Sources thin for their activity<small>rows per run vs the 7 d median</small></span
                             ><span class="val">0</span><span class="tg">target 0, red under 20%</span
                             ><span class="sp"></span><span class="st"></span
-                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
-                                <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row dim" href="#data-sources"
-                            ><span class="nm">Sources with no data<small>no token, or nothing writes them</small></span
-                            ><span class="val">3</span><span class="tg">target 0</span><span class="sp"></span
-                            ><span class="st"><span class="sw none">NO DATA</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
@@ -2806,7 +2908,7 @@
                         <div class="tr">
                             <span>10-25 08:42, 40177689577</span
                             ><span
-                                ><span class="sw bad">failed</span> in File the load-sensitive tests: 27 failures over
+                                ><span class="mk bad">failed</span> in File the load-sensitive tests: 27 failures over
                                 the cap of 25 (all in oracle-scorecard.test.ts, Git LFS pictures missing)</span
                             ><span>0; <a class="ln" href="#">#3539</a> tracks it</span>
                         </div>
@@ -2858,24 +2960,35 @@
                             ><span>10 h</span><span>36 h</span><span></span><span></span><span></span>
                         </div>
                         <div class="tr dim">
-                            <span>Billing: Sentry usage<small>stats API</small></span
-                            ><span>never</span><span>36 h</span><span></span><span>token not set</span
-                            ><span><span class="sw none">NO DATA</span></span>
-                        </div>
-                        <div class="tr dim">
-                            <span>Billing: Cloudflare usage<small>GraphQL Analytics</small></span
-                            ><span>never</span><span>36 h</span><span></span><span>token not set</span
-                            ><span><span class="sw none">NO DATA</span></span>
-                        </div>
-                        <div class="tr dim">
-                            <span>Quarantine feed<small>new flaky entries</small></span
-                            ><span>10-24</span><span>--</span><span></span><span>CI writes none</span
-                            ><span><span class="sw none">NO DATA</span></span>
-                        </div>
-                        <div class="tr dim">
                             <span>Local writer<small>test ledger, push log</small></span
                             ><span>9 h</span><span>--</span><span>no local gate since 10-25</span><span></span
                             ><span><span class="sw low">idle</span></span>
+                        </div>
+                    </div>
+                    <h2 id="data-notsetup">
+                        Not set up<span class="h2sub">no writer or token yet; out of the status until it exists</span>
+                    </h2>
+                    <div class="tbl t-sup">
+                        <div class="thead"><span>member</span><span>shown on</span><span>unblocked by</span></div>
+                        <div class="tr">
+                            <span>Sentry usage<small>events / quota</small></span
+                            ><span>Costs</span><span>the owner: a read-only Sentry token (org:read)</span>
+                        </div>
+                        <div class="tr">
+                            <span>Cloudflare usage<small>requests / allowance</small></span
+                            ><span>Costs</span
+                            ><span>the owner: a read-only Cloudflare token (Account Analytics, Billing: Read)</span>
+                        </div>
+                        <div class="tr">
+                            <span
+                                >Channel members<small
+                                    >canary, nightly and production age; change failure rate</small
+                                ></span
+                            ><span>Releases</span><span>the release channels, <a class="ln" href="#">#3418</a></span>
+                        </div>
+                        <div class="tr">
+                            <span>Feed of CI's flaky detections<small>quarantine counts</small></span
+                            ><span>Flaky tests</span><span>its issue, opened in rollout step 2</span>
                         </div>
                     </div>
                 </section>

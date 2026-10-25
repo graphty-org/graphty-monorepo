@@ -12,7 +12,7 @@ serves them through a public read API.
 
 The mockup is `design/ci/health-dashboard/mockup.html`: open it in a browser. It needs no network
 and no script, its pages are reached from the left navigation, and its sample data is the
-pipeline's real incidents of 2026-10-25 as the page would have shown them at 23:10 UTC (numbers
+pipeline's real incidents of 2026-10-25 as the page would have shown them at 23:30 UTC (numbers
 rounded, some filled in). This is version 2; version 1 is in git history.
 
 ## Changes from version 1
@@ -39,13 +39,16 @@ October 2026:
 2026-10-25, each on the front page within one collector cycle (5 minutes), and each drawn in the
 mockup down to the page where it is acted on:
 
-- **Runners saturated.** From about 19:20 UTC the organization's running jobs sat at 22 while
-  runs queued (52 at 23:05); master builds waited 68 minutes. CI: runner wait, longest queued now,
-  saturated time. The Runners page names who held the runners.
-- **An hour of cancelled master builds.** Every master build from 19:47 to 20:41 ended `cancelled`
-  when the Build job hit its 12-minute timeout in a hung Sentry source-map upload, and master-guard
-  raised nothing because it acted only on `failure` (#3558, #3560). Master: red now, green time;
-  CI: hangs.
+- **Runners saturated.** From about 19:20 UTC jobs queued while running jobs climbed to the
+  Team plan's limit: at 23:27, 56 Linux jobs and 1 macOS job were running against a limit of 60,
+  235 jobs were queued, and five master builds had waited as queued runs since 22:22. CI: runner
+  wait, longest queued now, saturated time. The Runners page names who held the runners.
+- **Two hours of cancelled master builds.** Every master build from 19:47 to 21:50 ended
+  `cancelled` when the Build job hung in the Sentry source-map upload (six of them at its 12-minute
+  timeout), and master-guard raised nothing because it acted only on `failure` (#3558, #3560).
+  Master: red now, green time; CI: hangs. Earlier, ten builds created 18:02 to 18:47 were cancelled
+  by hand at 18:54 to free runners; GitHub names who cancelled them, so they are drawn gray as
+  "cancelled by hand", listed and not red.
 - **A master bug turned every pull request red on one check.** `Test (graphty-*)` failed in five
   open pull requests from 18:03 (#3572); earlier the Figma lock in `Checks` refused every branch
   that merged master (#3556). Master: red on the same check, with the suspect merges.
@@ -53,18 +56,19 @@ mockup down to the page where it is acted on:
   large (#3552), while every check it summarizes passed. Master: red on the same check, which now
   counts an aggregator failing alone.
 - **Flaky stories and tests held merges.** Two stories drew differently by timing (#3521, #3553)
-  and held three pull requests. Flaky tests: blocked by a flake, with screenshot captures as their
-  own families.
+  and held three pull requests. Flaky tests: blocked by a flake (red at 3 pull requests), with
+  screenshot captures as their own families.
 - **The CPU-restricted stress run filed nothing.** It failed in its filing step (27 failures over a
   cap of 25), after two weeks of finding nothing (#3539). Data sources: stress run, read from
   GitHub's job results, not from the run's own post.
 - **Release lanes red in shadow mode.** The newest candidate a full train tested (a870943ef) has
   failed its audit and T4 GPU lanes since 2026-10-24 19:25, shadow mode opens no "Release held"
   issue, and `promote.yml` failed on all 131 master pushes from 18:03. Releases: lanes red on the
-  candidate, release workflows failing.
+  candidate, release workflows failing, which also says that the fix (#3577) waits on the owner.
 
-So a source that is missing, late or thin for its activity is never drawn as zero or as a calm
-chart: the members that read it show NO DATA (3.1).
+So a source that is late, thin for its activity or has lost its token is never drawn as zero or
+as a calm chart: the members that read it show NO DATA (3.1). A source that does not exist yet by
+design is "not set up", gray and out of the status, so a category can be green on day one.
 
 ## 2. Layout
 
@@ -72,7 +76,8 @@ chart: the members that read it show NO DATA (3.1).
 
 It fits 1440 x 900 without scrolling, and every page works down to 1024 wide with no sideways
 scroll (the mockup's overview). From the top: the title, the range picker and "updated 2 min ago,
-23:10 UTC"; the seven category blocks, each with its headline measure under it; then "Last 24
+23:30 UTC"; a muted caption, "under each block: its headline measure now, and the last 24 h
+hourly"; the seven category blocks, each with its headline measure under it; then "Last 24
 hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
 SRE ("symptoms first, causes second"): the blocks say whether anything is wrong and where, the
 measures give each category's number, and the episodes say what happened and link to where to act.
@@ -83,7 +88,7 @@ Seven blocks in pipeline order: **Master, Pull requests, CI, Flaky tests, Releas
 sources**. Each block is filled with its state's color and holds the category name; the state word
 (OK, WARNING, FAILING, NO DATA); when not OK, the member that set it in a few words ("runner wait
 p90 31 min"; the threshold is on the detail page); the others not OK, named when there is one
-("+ a workflow") and counted when there are more ("+ 3 more"); and a chevron. The whole block links
+("+ promote.yml failing") and counted when there are more ("+ 3 more"); and a chevron. The whole block links
 to the category's page. Below 1280 px the blocks wrap into rows of four.
 
 The blocks always show now: each member is judged over its own window (section 4), whatever range
@@ -136,23 +141,28 @@ Every category page has a breadcrumb, its title and range picker, its state word
 naming the member that set it and the others not OK, one row per member (name and one-line
 definition, value, SLA, sparkline, state, chevron; OK members carry no word), then its sections:
 
-- **Master**: a 24 h strip by minute (green, red, gray for superseded cancels); red spans with
-  builds, cause and fix; shared failures with the pull requests failing, start, suspect merges and
-  issue.
-- **Pull requests**: open pull requests; where their time goes; "Waiting on the owner" (auto-merge
-  off by rule: breaking, code-owner paths, screenshots), left out of the time members.
+- **Master**: a 24 h strip by minute (green, red, gray for cancels that are not failures:
+  superseded, or cancelled by hand); red spans with builds, cause and fix; shared failures with the
+  pull requests failing, start, suspect merges and issue.
+- **Pull requests**: where the time goes for pull requests merged in the range (median minutes per
+  stage: waiting for runners, checks running, red and being fixed, merging); "Waiting on the owner"
+  (auto-merge off by rule: breaking, code-owner paths, screenshots), left out of the time members,
+  each naming the red member its merge would fix.
 - **CI**: why first attempts failed (shared, an aggregator alone, the change, flaky,
   infrastructure); Shard times (section 6). Hangs link to the red span they caused.
-- **Runners**: running jobs and queued runs over 24 h against the plateau; who holds the runners,
-  now and during saturated spans, by repository, workflow and event, as sorted bars; superseded runs
-  still running. Only GitHub-hosted Linux and Windows jobs count (macOS has its own limit; T4 jobs
-  are machine.dev's).
-- **Local runs**: "no local gate since 2026-10-25"; its members are idle (3.1).
+- **Runners**: running and queued jobs over 24 h on one count axis, with the plan's limit from
+  config as a reference line and the observed peak as a label beside it; who holds the runners,
+  now and during saturated spans, by repository, workflow and event, as sorted bars; runs still
+  queued with no job created; superseded runs still running. Every GitHub-hosted job counts against
+  the limit of 60 and a macOS job also against its own 5; machine.dev T4 jobs are not counted.
+- **Local runs**: "no local gate since 2026-10-25"; the page state is a gray IDLE, and its members
+  are idle with hatched "no history" sparklines (3.1).
 - **Flaky tests**: Hotspots (section 5); Quarantine, which states that no entries exist.
 - **Releases**: the lanes of the newest tested candidate; train attempts, including those that
   skipped every lane; release workflows; the channels once they exist.
-- **Costs**: section 7. **Data sources**: the stress run's history, then one row per source (last
-  write, limit, volume for its activity, last error, state).
+- **Costs**: section 7. **Data sources**: the stress run's history; one row per source (last
+  write, limit, volume for its activity, last error, state); then "Not set up", the one list of
+  members with no writer or token yet, each with what unblocks it.
 
 ## 3. Status, SLAs and color
 
@@ -164,14 +174,24 @@ definition, value, SLA, sparkline, state, chevron; OK members carry no word), th
   incidents). Its block names the member that set it; of two at the same state, the one furthest
   past its threshold.
 - **Every member names the sources it reads.** When one of them is past its age limit, thin for its
-  activity (section 9) or has never written (a token not set), the member shows NO DATA, gray and
-  hatched, with the reason ("token not set"), in its own category. NO DATA counts as yellow: a
-  category whose worst member is NO DATA shows a gray NO DATA block, and one with any yellow or red
-  member shows that instead.
+  activity (section 9), or has a token that stopped working, the member shows NO DATA, gray and
+  hatched, with the reason ("token rejected since 10-24"), in its own category. NO DATA counts as
+  yellow: a category whose worst member is NO DATA shows a gray NO DATA block, and one with any
+  yellow or red member shows that instead.
+- **Not set up.** A member whose source has no writer yet by design (the release channels, a feed
+  of CI's flaky detections) or waits on an owner decision (a read-only billing token) is drawn gray
+  as "not set up" and left out of the rollup, like idle. It is listed once, on the Data sources
+  page, with the issue or owner decision that unblocks it, and its row elsewhere links there. So
+  Costs, Releases and Data sources can be green on day one, and gray keeps meaning "something we
+  rely on stopped".
 - **Low sample.** A member with fewer events than its minimum (5 unless stated) is drawn gray with
-  "n=3" and left out of the rollup: one failure in two runs is not a trend.
+  "n=3" and left out of the rollup: one failure in two runs is not a trend. So is a member whose
+  source covers less than its window ("partial window, 2.8 h of 24").
 - **Idle.** A member whose activity stopped by design (the local gate, retired on 2026-10-25) is
-  drawn gray as "n=0" and left out of the rollup, and its page says why.
+  drawn gray as "n=0" and left out of the rollup, and its page says why with a gray IDLE state.
+- **A fix waiting on the owner.** When the pull request that fixes a red member waits on the owner
+  (auto-merge off by rule), the member's row, its episode and the Pull requests page say "fix #N
+  waits on the owner", so a red member is not read as unattended.
 - **Clearing.** A windowed member ("hangs in 24 h") stays past its threshold until the window
   passes, but its row and its episode say "cleared 2.3 h ago" once the current value has recovered,
   and the alert's clear message fires then.
@@ -187,8 +207,11 @@ fills are the same in dark mode. A small yellow mark gets a dark edge (yellow al
 white), and on a hatched fill every label sits on a solid gray panel. Check the real screenshots in
 a deuteranopia simulation before release, not only the swatches.
 
-The words OK, WARNING, FAILING and NO DATA mean only an SLA state. A shard over budget, a failed
-lane or a quarantined test is described in plain words ("median over budget", "failed").
+The words OK, WARNING, FAILING and NO DATA mean only an SLA state, and only they are filled chips;
+a page whose members are all out of the rollup says IDLE, in gray. A shard over budget, a failed
+lane or an untested candidate is plain words with a 4 px mark in its color before them, as in the
+episode list ("failed", "untested"). "n=3", "idle", "partial window" and "not set up" are muted
+text. A NO DATA chip in a table is a solid gray label in a hatched frame.
 
 Away from the status line and the navigation bars, color marks exceptions only: a not-OK state word,
 a breached sparkline, a bar over budget, a failed lane. Data is gray with the current item in ink.
@@ -206,10 +229,23 @@ only the target.
 
 Shared definitions:
 
-- **Master state** comes from the newest completed `ci.yml` push run on master. `failure`,
-  `cancelled` and `timed_out` are red, except a run cancelled because a newer master run for a later
-  commit had already started (a superseded concurrency cancel), which is not counted. A job that
-  ended at its own `timeout-minutes` is a hang, never a superseded cancel.
+- **Master state** comes from the newest completed `ci.yml` push run on master. `failure` and
+  `timed_out` are red. A `cancelled` run is classified from GitHub's own record, never from timing:
+    - **superseded**, gray, not counted: its check-run annotation reads "Canceling since a higher
+      priority waiting request for '<group>' exists". `ci.yml`'s push concurrency group is
+      `ci-<sha>`, so no master build is ever superseded by another; the rule is kept for other
+      workflows and for a later change of the group.
+    - **cancelled by hand**, gray, listed but not red: the run's cancel actor (from the run's
+      timeline, or an annotation naming a user, "The run was canceled by @<user>") is a person or a
+      session acting as one. The ten builds created 18:02 to 18:47 on 2026-10-25 and cancelled at
+      18:54 to free runners were this.
+    - **every other cancel is red**, including a job that ended at its own `timeout-minutes` (also a
+      hang) and the Sentry cancels of 19:47 to 21:50.
+
+    The master state keeps the last red or green verdict through a gray run. The newest build that is
+    queued or running, and for how long, is shown beside "Red now", so a stale green is not read as
+    current.
+
 - **Excluded checks**, which restate other checks or judge metadata: `All Checks Pass`, `Queue
 Checks Pass`, `Lint PR Title`, `Link PR Issue`, `Visual report`, `Draft state`. They are left out
   while a check they summarize also failed. **One that fails while every check it depends on passed
@@ -234,7 +270,7 @@ uses. (H) marks a category's headline.
 
 | Member                | Measure, window                                            | Target | Red                   |
 | --------------------- | ---------------------------------------------------------- | ------ | --------------------- |
-| Red now               | length of the current red span                             | 0      | >= 15 min or 2 builds |
+| Red now               | length of the current red span; newest build queued, age   | 0      | >= 15 min or 2 builds |
 | Green time (H)        | share of wall time master's newest commit was green, 24 h  | >= 95% | < 90%                 |
 | Red on the same check | most open pull requests failing one check or family        | <= 1   | >= 3                  |
 | Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | passed | failed                |
@@ -243,7 +279,8 @@ uses. (H) marks a category's headline.
 
 A red Master alerts at once (section 13). Untested master age replaces both "full-run verdict age"
 and "since the last passing train": a quiet night on which the train skips an unchanged master
-does not grow it, and a train that skips a new commit (the 18:00 attempt on 2026-10-25) does.
+does not grow it, and a train that skips a new commit (the 18:00 attempt on 2026-10-25) does; the
+row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 ### 4.2 Pull requests
 
@@ -263,29 +300,43 @@ Times leave out pull requests waiting on the owner (auto-merge off by rule).
 | Member                       | Measure, window                                                   | Target   | Red               |
 | ---------------------------- | ----------------------------------------------------------------- | -------- | ----------------- |
 | Runner wait (H)              | p90 of job start minus created, organization, 24 h                | <= 5 min | > 15              |
-| Longest queued now           | oldest queued job right now                                       | <= 5 min | > 15              |
-| Saturated time               | time running at the plateau with jobs queued over 2 min, 24 h     | 0        | >= 1 h            |
+| Longest queued now           | oldest queued job, or queued run with no job yet, right now       | <= 5 min | > 15              |
+| Saturated time               | jobs queued > 2 min while running >= limit - 3, 24 h              | 0        | >= 1 h            |
+| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit, now         | 0 min    | >= 15 min         |
 | First-attempt pass rate      | pull request check suites passing attempt 1, 24 h                 | >= 85%   | < 70%             |
 | Hangs                        | jobs ended at their own timeout, or past 2x budget                | 0 in 7 d | any in 24 h       |
 | PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | <= 1x    | > 2x              |
 | Full-run shards over budget  | shards whose median passes their budget, 7 d (section 6)          | 0        | >= 3, or one > 2x |
 | Pull request bins over 8 min | share of bins past the 8 min packing target, 24 h                 | <= 10%   | > 25%             |
 | Reruns                       | run attempts above 1 / runs, 24 h                                 | < 5%     | > 15%             |
-| Superseded runs running      | pull request runs whose pull request has a newer commit           | 0        | >= 5              |
+| Superseded runs running      | see below; informational until it has fired on real data          | --       | --                |
 
-The plateau is the organization's concurrent-job limit as observed: the Team plan states 60, but on
-2026-10-25 running jobs sat at 22 while 52 runs queued, so the collector records the level at which
-running jobs stop rising while jobs queue, and the Runners page shows both.
+**Runner use is counted in jobs**, from the jobs API (`filter=latest`) of every unfinished run,
+never from run status: a run reports `queued` while some of its jobs run (run 40240348348 had 9 jobs
+running and 19 queued). The limit comes from config (`slas.json`: `linux_windows: 60`, `macos: 5`,
+the Team plan); every GitHub-hosted job counts against the 60, and a macOS job also against its 5.
+The observed peak is a label beside the limit line, never a threshold, so a miscount or a GitHub
+problem is never learned as "the limit". "Runners not being assigned" is the other cause of a
+queue: jobs wait while there is room, so the cause is outside the repository; its row links
+githubstatus.com, so nobody cancels full runs for a GitHub problem. The cost is one jobs call per
+unfinished run each cycle, about 40 calls every 5 minutes on 2026-10-25, well inside the App's
+hourly budget.
+
+"Superseded runs running" counts only what nothing else cancels: runs of workflows without
+`cancel-in-progress` on `pull_request` (PR Integrity, CodeQL) whose pull request has a newer
+commit, and jobs with `if: always()` still running after their run was cancelled. `ci.yml` and
+`hosts.yml` cancel their own superseded pull request runs. It gets a state once it has fired on
+real data.
 
 ### 4.4 Flaky tests
 
-| Member                         | Measure, window                                                        | Target | Red         |
-| ------------------------------ | ---------------------------------------------------------------------- | ------ | ----------- |
-| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI, 24 h                | < 2    | > 10        |
-| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | 0      | any >= 24 h |
-| Flaky in CI with no open issue | distinct tests flaky in CI, 7 d, with no open issue                    | 0      | >= 3        |
-| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed), 7 d         | <= 0   | > 3         |
-| Detected to fixed              | median days from flaky issue opened to fixed, 28 d (min 5)             | <= 3 d | > 7 d       |
+| Member                         | Measure, window                                                        | Target | Red                  |
+| ------------------------------ | ---------------------------------------------------------------------- | ------ | -------------------- |
+| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI, 24 h                | < 2    | > 10                 |
+| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | 0      | >= 3, or any >= 24 h |
+| Flaky in CI with no open issue | distinct tests flaky in CI, 7 d, with no open issue                    | 0      | >= 3                 |
+| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed), 7 d         | <= 0   | > 3                  |
+| Detected to fixed              | median days from flaky issue opened to fixed, 28 d (min 5)             | <= 3 d | > 7 d                |
 
 "Flaky in CI with no open issue" replaces the quarantine members of version 2: CI keeps no
 quarantine state and files no issues (`tools/test-quarantine.mjs`), and the committed list is
@@ -302,17 +353,20 @@ judged like a legacy one; hold issues are read too. Lanes: `ci`, `t4`, `hosts`, 
 | ------------------------------ | ---------------------------------------------------------------------- | ------ | ------------ |
 | Lanes red on the candidate (H) | lanes red on the newest candidate a train tested (a hold)              | 0      | open >= 6 h  |
 | Release workflows failing      | failed runs of `release.yml`, `promote.yml`, `release-watch.yml`, 24 h | 0      | >= 3         |
+| Train skipped a new commit     | the newest attempt skipped every lane on an untested master commit     | no     | --           |
 | Tagged, not on npm             | versions tagged but not listed by `npm view <pkg> time`                | 0      | after 30 min |
 | Train first-attempt pass       | attempts that tested and passed first time, 7 d (min 5)                | >= 90% | < 75%        |
 
-The channel members (canary, nightly and production age, merge to canary and nightly, change
-failure rate) follow the channels pipeline design once the channels exist; until then they are NO
-DATA ("channel not built yet").
+"Train skipped a new commit" is yellow at once, so a skipped candidate is seen hours before
+untested master age passes its target. The channel members (canary, nightly and production age,
+merge to canary and nightly, change failure rate) follow the channels pipeline design once the
+channels exist; until then they are not set up ("channel not built yet, #3418").
 
 ### 4.6 Costs
 
 Month to date, projected to month end. Only money sets the state; list-price values and per-run
-figures are for comparison (section 7). Budgets are configured; these are sample values.
+figures are for comparison (section 7). Budgets are configured; these are sample values. The two
+usage members are not set up until their read-only tokens exist (section 16).
 
 | Member               | Measure                                          | Target     | Red    |
 | -------------------- | ------------------------------------------------ | ---------- | ------ |
@@ -330,14 +384,14 @@ figures are for comparison (section 7). Budgets are configured; these are sample
 | Stress run                      | the weekly run, from GitHub's job and step results | passed and filed | filing failed, or not run in 8 d |
 | Sources past their age limit    | sources past their limit (section 9)               | 0                | any past 2x                      |
 | Sources thin for their activity | rows per unit of activity / the 7 d median         | 0 below 50%      | any below 20%                    |
-| Sources with no data            | sources that never wrote: no token, or no writer   | 0                | --                               |
 | Collector                       | since its last run                                 | <= 10 min        | > 20 min                         |
 | GitHub App rate limit           | requests left in the collector App's hour          | > 50%            | < 20%                            |
 | Daily write budget              | rows written today / the daily limit               | < 50%            | > 90%                            |
 
 The stress run is yellow when it found nothing three weeks running, and red when its filing step
 failed or it had failing tests and filed fewer issues. It is read from GitHub, because a run that
-crashes before posting posts nothing.
+crashes before posting posts nothing. Sources that are not set up are not a member: they are
+listed under "Not set up" on this page, each with what unblocks it, out of the status.
 
 ## 5. Flake hotspots
 
@@ -363,7 +417,9 @@ never mixed.
 ## 6. Shard and test-file times
 
 The Shard times section of the CI page has one row per shard of the **full runs** (the release
-train's `ci` lane), worst against budget first: runs (n), median and p90 of the test step (attempt 1,
+train's `ci` lane), worst against budget first: runs (n; shadow trains run at most four a day and
+skip an unchanged master, so expect 5 to 15 in 7 days, and a shard under 5 runs is drawn gray as
+"n=4" and left out of "full-run shards over budget"), median and p90 of the test step (attempt 1,
 successful runs, from the results store's `invocation.secs`), and a bar: median dark, p90 a light
 extension, the `ci-budgets.json` budget a vertical line. The median is vermillion past the budget;
 the p90 extension is yellow with a dark edge when only it passes; a plain note says which. A shard
@@ -391,8 +447,8 @@ The page shows the money lines (projected, so far against budget, 28 d projectio
 total, which equals the headline; the usage members; "unit costs" for comparison only (money per
 release train, list-price value per merged pull request); money and list-price value by workflow as
 two sorted-bar lists, never summed. Ranges 7 d and 28 d. Rates live in
-`tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate or token
-shows NO DATA, never zero.
+`tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate or a
+rejected token shows NO DATA, never zero, and a token not yet created is not set up.
 
 ## 8. Time ranges and buckets
 
@@ -405,7 +461,7 @@ shows NO DATA, never zero.
 The picker changes charts and tables, never the status line or the members' state. Counts are
 summed per bucket, rates are ratios of sums, durations come from the bucket's histogram, stocks show
 the end-of-bucket value and peaks the bucket maximum. **Times are in UTC**, named once in the header
-("updated 2 min ago, 23:10 UTC"), because the runs, issues and the release schedule all speak UTC.
+("updated 2 min ago, 23:30 UTC"), because the runs, issues and the release schedule all speak UTC.
 The current bucket is partial and drawn hollow. On 28 d views the golden-local week (2026-10-18 to
 10-24, no pull requests) is shaded, so a change of process is not read as a change of health.
 
@@ -420,7 +476,7 @@ The current bucket is partial and drawn hollow. On 28 d views the golden-local w
 | Weekly stress run (from GitHub)                     | Sundays              | 8 d                 |
 | Host matrix                                         | nightly              | 30 h                |
 | Billing (Cost Explorer, Cloudflare, Sentry)         | daily                | 36 h                |
-| Quarantine feed                                     | each new flaky entry | -- (none exists)    |
+| Feed of CI's flaky detections                       | each new flaky entry | not set up          |
 | Local writer (test ledger, push log)                | each local run       | idle, not judged    |
 
 Red at twice the yellow age. **Volume is judged per unit of activity**: rows per CI run for CI
@@ -479,7 +535,8 @@ recomputes those buckets, their parents and the page items. A bucket holds count
 - **Collector Lambda**, every 5 minutes (EventBridge Scheduler, reserved concurrency 1): runs and
   jobs created or finished since its cursor, plus every queued and in-progress job, across every
   organization repository with Actions activity (runner demand is organization-wide); one GraphQL
-  query each for pull requests and issues; `release.yml` and `restricted-cpu-stress.yml` job and
+  query each for pull requests and issues; one jobs call (`filter=latest`) per unfinished run, about
+  40 calls a cycle at the 2026-10-25 peak; `release.yml` and `restricted-cpu-stress.yml` job and
   step conclusions; npm hourly; billing daily. Then rollups, status and alerts (section 13). The
   collector alone covers runners, master, shared failures, release lanes and the stress run.
 - **CI posts** (results wiring, #3429): each shard run with per-file results and every failed or
@@ -539,10 +596,10 @@ Results are small JSON, capped at 50 rows with `truncated`, and carry each sourc
 `stale: true` past its limit, so an agent reports a stale dashboard instead of trusting a calm one.
 Tools: `health_status()` (each category's state, the member that set it, and the last 24 h of
 episodes); `category(name)`; `master()` (red spans, full-run verdict, untested age, shared failures
-with suspects); `runners()` (queued now, plateau, holders); `release_lanes()`; `pull_requests(number?,
+with suspects); `runners()` (running and queued jobs against the limit, holders, saturated or not being assigned); `release_lanes()`; `pull_requests(number?,
 state?)`; `owner_queue()` (screenshots, owner merges, `breaking-go`); `flaky_hotspots(range, level,
 under?)`; `test_history(file, test?, range)`; `shard_times(range, kind, shard?)`; `ci_runs(...)` and
-`run(runId)`; `costs(month?)`; `sources()`.
+`run(runId)`; `costs(month?)`; `sources()` (each source's age and state, and the not-set-up list).
 
 The pipeline-round and issue-round skills call `health_status` first instead of sweeping GitHub.
 They say the data is up to 5 minutes old, and that an agent confirms on GitHub or in the pull
@@ -598,6 +655,11 @@ Decided here and easy to change:
 - **The navigation shows the state as its bar only**; the word is in the accessible name and on
   every page header. "Data sources WARNING" filled the 200 px column.
 - **Times in UTC**, named once in the header, rather than the reader's zone.
+- **Not set up is not NO DATA.** A member that cannot have data yet by design is gray and out of
+  the status, listed once on Data sources; NO DATA is kept for a source that broke. A block that is
+  gray every day teaches readers to ignore gray.
+- **"Train skipped a new commit" as its own Releases member**, rather than only a note on untested
+  master age: it is yellow the moment it happens.
 - **Thresholds**, budgets and which measure heads each category: tune after two weeks of data.
 
 Where the two reviews of version 2 disagreed:
@@ -630,5 +692,5 @@ One-way doors, for the owner:
 3. The CodeConnections approval, and the collector's read-only GitHub App (actions, checks, pull
    requests, issues, metadata).
 4. Read-only tokens for the cost lines: Cloudflare (Account Analytics: Read, Billing: Read) and
-   Sentry (org:read). Until they exist, those members show NO DATA.
+   Sentry (org:read). Until they exist, those members are not set up, out of the status.
 5. The email address the CloudWatch alarm sends to.

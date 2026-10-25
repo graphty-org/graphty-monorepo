@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isDue, llmPasses, spendWarning, STEP } from "./llm-due.mjs";
+import { isDue, llmPasses, PAID, spendWarning, STEP } from "./llm-due.mjs";
 
 const job = (steps) => ({ name: "LLM regression", steps });
 
@@ -16,6 +16,20 @@ describe("llmPasses", () => {
             { name: "Hosts", steps: [{ name: "Run", conclusion: "success", completed_at: "2026-10-24T07:00:00Z" }] },
         ];
         assert.deepEqual(llmPasses(jobs), ["2026-10-24T07:00:00Z"]);
+    });
+
+    it("counts failed and cancelled test steps toward the month's spend, since they sent paid calls", () => {
+        const jobs = [
+            job([{ name: STEP, conclusion: "failure", completed_at: "2026-10-24T01:00:00Z" }]),
+            job([{ name: STEP, conclusion: "cancelled", completed_at: "2026-10-24T03:00:00Z" }]),
+            job([{ name: STEP, conclusion: "skipped", completed_at: "2026-10-24T05:00:00Z" }]),
+            job([{ name: STEP, conclusion: "success", completed_at: "2026-10-24T07:00:00Z" }]),
+        ];
+        assert.deepEqual(llmPasses(jobs, PAID), [
+            "2026-10-24T01:00:00Z",
+            "2026-10-24T03:00:00Z",
+            "2026-10-24T07:00:00Z",
+        ]);
     });
 
     it("ignores a skipped test step (a run where the lane was not due) and a job with no steps", () => {

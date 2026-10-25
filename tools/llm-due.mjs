@@ -6,7 +6,7 @@
 // at $60 in a calendar month, the owner's ceiling (2026-10-12).
 //
 // Until the results store exists (design/ci/channels-pipeline.md section 4), "an LLM run today" is read
-// from release.yml's own runs through the Actions API; the store's query replaces fetchRuns.
+// from release.yml's own runs through the Actions API; the store's query replaces fetchPasses.
 //
 //   TRIGGER=schedule GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-due.mjs
 //   prints due=true|false (and appends it to $GITHUB_OUTPUT when set)
@@ -20,14 +20,20 @@ export const STEP = "LLM regression tests";
 const COST_PER_RUN = 0.94;
 const MONTHLY_CEILING = 60;
 
+// Conclusions of a test step that sent paid calls: a failed or cancelled run cost money too.
+export const PAID = ["success", "failure", "cancelled"];
+
 /**
- * Completion times of passed LLM steps in one run's jobs.
+ * Completion times of LLM test steps in one run's jobs that ended with one of `conclusions`.
  * @param jobs the Actions API's jobs
+ * @param conclusions the step conclusions counted (passed only, by default)
  * @returns ISO times
  */
-export function llmPasses(jobs) {
+export function llmPasses(jobs, conclusions = ["success"]) {
     return jobs.flatMap((job) =>
-        (job.steps ?? []).filter((s) => s.name === STEP && s.conclusion === "success").map((s) => s.completed_at),
+        (job.steps ?? [])
+            .filter((s) => s.name === STEP && conclusions.includes(s.conclusion))
+            .map((s) => s.completed_at),
     );
 }
 
@@ -78,9 +84,10 @@ async function gh(path, jq) {
  * @param repo owner/name
  * @param since YYYY-MM-DD
  * @param ownRun this run's id, left out
+ * @param conclusions the step conclusions counted
  * @returns ISO times
  */
-async function fetchPasses(repo, since, ownRun) {
+async function fetchPasses(repo, since, ownRun, conclusions) {
     // ponytail: most release.yml runs are master-push restarts that only pick and skip in a minute; a run that
     // reached the LLM lane ran CI first, so only runs of 15 minutes or more are read job by job, 8 at a time.
     // The results store's LLM-run query replaces this list.
@@ -94,7 +101,10 @@ async function fetchPasses(repo, since, ownRun) {
     const worker = async () => {
         for (let id = queue.pop(); id !== undefined; id = queue.pop()) {
             passes.push(
-                ...llmPasses(await gh(`repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=100`, ".jobs[]")),
+                ...llmPasses(
+                    await gh(`repos/${repo}/actions/runs/${id}/jobs?filter=all&per_page=100`, ".jobs[]"),
+                    conclusions,
+                ),
             );
         }
     };
@@ -120,7 +130,7 @@ async function main() {
     const due = isDue({ trigger: TRIGGER, passes, day });
     if (due) {
         const monthStart = new Date(Date.parse(`${month}-01`) - DAY_MS).toISOString().slice(0, 10);
-        await fetchPasses(repo, monthStart, ownRun).then(
+        await fetchPasses(repo, monthStart, ownRun, PAID).then(
             (all) => {
                 const count = all.filter((t) => t?.startsWith(month)).length + 1;
                 const warning = spendWarning(count, month);

@@ -570,6 +570,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
+    features: READ,
     config: READ,
     capabilities: READ,
     acceleration: MACHINE,
@@ -976,6 +977,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             autosaveRestore: AUTOSAVE_SETTING,
             autosaveOptions: AUTOSAVE_SETTING,
             autosaver: READ,
+            features: exempt("Which experiments the page switches on; not part of the work a project saves."),
+            enabledFeatures: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],

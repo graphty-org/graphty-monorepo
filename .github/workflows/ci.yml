@@ -1722,7 +1722,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1738,6 +1738,10 @@ jobs:
                     - project: graphty-element
                       shard: graphty-element-storybook-1
                       command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: graph-io-fidelity
+                      shard: graph-io-browser
+                      command: cd graph-io && pnpm exec vitest run --config vitest.storybook.config.ts
+                      lfs: ",graph-io/test/fidelity/oracles/*.png"
         steps:
             # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
             # every step below but the summary is.
@@ -1762,7 +1766,7 @@ jobs:
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               if: steps.skip.outputs.skip != 'true'
-              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**${{ matrix.lfs }}"
 
             - uses: pnpm/action-setup@v4
               if: steps.skip.outputs.skip != 'true'
@@ -1869,7 +1873,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element]
+                project: [graphty, graphty-element, graph-io-fidelity]
         steps:
             - uses: actions/checkout@v4
               with:

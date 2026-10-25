@@ -12,6 +12,7 @@
 /.claude/ @apowers313
 /CLAUDE.md @apowers313
 /tools/ci-* @apowers313
+/tools/run-ci-workflow-tests.mjs @apowers313
 /tools/test-quarantine.json @apowers313
 /tools/test-quarantine.mjs @apowers313
 /tools/test-select* @apowers313

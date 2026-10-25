@@ -863,6 +863,12 @@ export class UpdateManager implements Manager {
             }
         } while (painter.hasPendingNodes && performance.now() < deadline);
 
+        if (resized.size > 0) {
+            for (const group of this.redrawGroups()) {
+                resized.add(group);
+            }
+        }
+
         // A repaint can change how a node is drawn in ways that move where its edges stop without
         // moving the node, so the frame that finishes the repaint visits every edge. So does any
         // frame that resized a node, and the edges of those nodes, found in one walk however many
@@ -881,6 +887,32 @@ export class UpdateManager implements Manager {
                 edge.invalidatePositionCache();
             }
         }
+    }
+
+    /**
+     * Place the groups that follow their members on the box the members now make, and draw each
+     * over it. A frame that places no node -- the layout stopped, nothing framing -- still applies
+     * paint, and paint that resizes a member moves its group's box, while paint that rebuilds a
+     * group's mesh leaves the new mesh unstretched until the group is drawn again (issue #3478).
+     * @returns The group nodes drawn again, whose edges have to be measured again.
+     */
+    private redrawGroups(): Node[] {
+        const { groups } = this.dataManager;
+        if (groups.length === 0) {
+            return [];
+        }
+
+        this.layoutManager.placeGroups();
+        const drawn: Node[] = [];
+        for (const { group } of groups) {
+            const node = this.dataManager.nodes.get(group);
+            if (node !== undefined) {
+                node.update();
+                drawn.push(node);
+            }
+        }
+
+        return drawn;
     }
 
     /**

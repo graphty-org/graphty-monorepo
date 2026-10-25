@@ -1728,7 +1728,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"'))
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1744,6 +1744,9 @@ jobs:
                     - project: graphty-element
                       shard: graphty-element-storybook-1
                       command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: algorithms
+                      shard: algorithms-browser
+                      command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
                     - project: compact-mantine
                       shard: compact-mantine
                       command: cd compact-mantine && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -1878,7 +1881,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty, graphty-element, compact-mantine]
+                project: [graphty, graphty-element, algorithms, compact-mantine]
         steps:
             - uses: actions/checkout@v4
               with:

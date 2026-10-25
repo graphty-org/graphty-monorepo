@@ -171,11 +171,10 @@ const css = `
 .cm-compound-unit { color: var(--cm-text-secondary); }
 
 /* Chart, ramp and prose rows (spec 9.8). */
-/* A bar painted in a mapping's color can be as dark as the dark panel (a palette's black end), so
-   in the dark scheme each painted bar carries a 1px ring in the chart's mark ink, 3:1 or more
-   against the panel, and the bar keeps its own color inside it. */
-[data-mantine-color-scheme="dark"] .cm-histogram-bar[data-painted] {
-    box-shadow: inset 0 0 0 1px var(--cm-icon-secondary);
+/* A bar painted in a mapping's color can be as dark as the dark panel (a palette's black end): the
+   AA option rings each painted bar in the dark scheme, 3:1 against the panel. */
+.cm-histogram-bar[data-painted] {
+    box-shadow: inset 0 0 0 1px var(--cm-chart-bar-ring);
 }
 /* A histogram with a range: the bars inside it in a darker brand step than the plain accent, and
    the bars outside it in a pale gray, so the two differ by lightness at 3:1 or more in both schemes. */

@@ -2,6 +2,7 @@
  * The pop-out color picker's value field (hex box and opacity box joined) is ringed as one control
  * when it takes focus: the ring is drawn all the way round, over the opacity part as well as the
  * hex part. Read from the pixels the browser paints, after opening the picker by click and by key.
+ * The picker opens on itself, as Figma's does, so the reader then moves into the value field.
  */
 import { MantineProvider } from "@mantine/core";
 import { render } from "@testing-library/react";
@@ -117,6 +118,7 @@ describe("ColorPickerPanel value field focus ring", () => {
     it("rings the hex and the opacity parts together when the pop-out is opened by a click", async () => {
         renderField();
         await userEvent.click(page.getByRole("button", { name: "Pick fill color" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Color value" }));
         await expect.element(page.getByRole("textbox", { name: "Color value" })).toHaveFocus();
 
         expect(await ringedEdges()).toEqual(ALL_RINGED);
@@ -130,7 +132,12 @@ describe("ColorPickerPanel value field focus ring", () => {
         }
         expect(document.activeElement).toBe(chit);
         await userEvent.keyboard("{Enter}");
-        await expect.element(page.getByRole("textbox", { name: "Color value" })).toHaveFocus();
+        await expect.element(page.getByTestId("popout-panel")).toBeInTheDocument();
+        const value = page.getByRole("textbox", { name: "Color value" }).element();
+        for (let step = 0; step < 20 && document.activeElement !== value; step += 1) {
+            await userEvent.tab();
+        }
+        expect(document.activeElement).toBe(value);
 
         expect(await ringedEdges()).toEqual(ALL_RINGED);
     });
@@ -138,6 +145,7 @@ describe("ColorPickerPanel value field focus ring", () => {
     it("keeps the ring round the whole field when focus moves to the opacity box", async () => {
         renderField();
         await userEvent.click(page.getByRole("button", { name: "Pick fill color" }));
+        await userEvent.click(page.getByRole("textbox", { name: "Color value" }));
         await expect.element(page.getByRole("textbox", { name: "Color value" })).toHaveFocus();
         await userEvent.tab();
         await expect.element(page.getByTestId("color-picker-opacity")).toHaveFocus();

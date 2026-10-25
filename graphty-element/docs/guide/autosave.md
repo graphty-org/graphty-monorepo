@@ -151,7 +151,9 @@ copy survives it.
 - `element.autosaver.status.persisted` says whether the browser granted persistent storage.
   `element.autosaver.requestPersistence()` asks for it (Firefox shows the reader a prompt), and so
   does `autosaveOptions = { persist: true }`, once per page load.
-- `status.ephemeral` is `"likely"` in what looks like a private window or another site's frame.
+- `status.ephemeral` is `"likely"` in a Safari or Firefox private window and in another site's
+  frame. Chrome's Incognito cannot be told from a normal profile, so it reads `"unknown"`; its
+  storage is never persisted, so the warning below still fires there.
 - `graphty-autosave-at-risk` fires once per page load when work that was never saved to a file is
   in storage that is not persisted, or probably private. Its detail is
   `{ code: "W_AUTOSAVE_ORIGIN_EPHEMERAL", params: { persisted, ephemeral, unexported } }`. That is

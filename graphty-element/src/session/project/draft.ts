@@ -348,6 +348,11 @@ export interface Draft {
      * @param rows - The rows, with their prior and new values.
      */
     arrange(rows: RowPatch): void;
+    /**
+     * Whether it has changed anything yet: a value, an op-log write or arranged rows.
+     * @returns True once it has.
+     */
+    written(): boolean;
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
     /**
@@ -618,6 +623,7 @@ export function createProjectStore(
 
                     draft.rows = draft.rows === null ? rows : mergeRowPatches(draft.rows, rows);
                 },
+                written: () => draft.entries.size > 0 || draft.log.length > 0 || draft.rows !== null,
                 seal,
                 rollback() {
                     const patch = seal();

@@ -90,12 +90,23 @@ function frames(graph: Graph, count: number): void {
  * What a registered type needs beyond its defaults to build over `n1 -> n2 -> n3`. A type that
  * builds with neither fails the case below: a new engine is covered by default, never skipped.
  */
-const FIXTURES: Record<string, { options?: Record<string, unknown>; accelerator?: true }> = {
+const FIXTURES: Record<
+    string,
+    { options?: Record<string, unknown>; accelerator?: true; nodes?: Record<string, unknown>[] }
+> = {
     bfs: { options: { start: "n1" } },
     bipartite: { options: { nodes: ["n1", "n3"] } },
     // Told to keep three dimensions, fixed echoes the stored Z into 2D: the element must flatten it.
     fixed: { options: { dim: 3 } },
     multipartite: { options: { subsetKey: { a: ["n1", "n3"], b: ["n2"] } } },
+    // Reads each node's location from its columns.
+    "location-map": {
+        nodes: [
+            { id: "n1", latitude: 45.43, longitude: 12.33 },
+            { id: "n2", latitude: 45.44, longitude: 12.34 },
+            { id: "n3", latitude: 45.45, longitude: 12.35 },
+        ],
+    },
     // Exists only on an accelerator; the fake stands in for one (it has no CPU simulation to run).
     "spring-electrical": { accelerator: true },
 };
@@ -124,7 +135,7 @@ async function lifted(type: string, variant: "free" | "pinned" | "held"): Promis
     }
 
     const session = graph.getSession();
-    await session.data.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
+    await session.data.addNodes(fixture.nodes ?? [{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
     await session.data.addEdges([
         { src: "n1", dst: "n2" },
         { src: "n2", dst: "n3" },

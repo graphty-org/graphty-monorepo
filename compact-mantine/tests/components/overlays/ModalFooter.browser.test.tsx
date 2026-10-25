@@ -1,5 +1,5 @@
 /**
- * ModalFooter geometry in a real browser: the buttons sit clear of the modal's rounded corner.
+ * ModalFooter geometry in a real browser: Figma's 40px footer, the last button 8px from the edge.
  */
 import { Button, Modal } from "@mantine/core";
 import { waitFor } from "@testing-library/react";
@@ -11,7 +11,7 @@ import { renderThemed, resetHarness } from "../../harness/measure";
 afterEach(resetHarness);
 
 describe("ModalFooter", () => {
-    it("is 48 tall with its buttons 16px from the right edge and 12px above the bottom", async () => {
+    it("is 40 tall with its buttons 8px from the right edge and 8px above the bottom", async () => {
         await renderThemed(
             <Modal opened onClose={() => undefined} title="Save">
                 <input aria-label="Title" />
@@ -32,8 +32,8 @@ describe("ModalFooter", () => {
         const buttons = footer.querySelectorAll("button");
         const last = buttons[buttons.length - 1].getBoundingClientRect();
         const modal = content.getBoundingClientRect();
-        expect(footer.getBoundingClientRect().height).toBeCloseTo(48, 0);
-        expect(modal.right - last.right).toBeCloseTo(16, 0);
-        expect(modal.bottom - last.bottom).toBeCloseTo(12, 0);
+        expect(footer.getBoundingClientRect().height).toBeCloseTo(40, 0);
+        expect(modal.right - last.right).toBeCloseTo(8, 0);
+        expect(modal.bottom - last.bottom).toBeCloseTo(8, 0);
     });
 });

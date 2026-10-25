@@ -23,6 +23,9 @@
  *   env SKIP_UNAFFECTED_CAPTURES ("true" turns it on), PULL_REQUEST ("true" on a pull request's
  *   own run), LABELS (JSON array of the pull request's label names), BASE_REF (the base branch)
  * Prints one GITHUB_OUTPUT line: visual-skip=<JSON array of visual-review project ids>
+ *
+ *        node tools/visual-capture-plan.mjs --affected <affected-projects-json>
+ * Prints the visual-review projects those nx projects can change, one per line (tools/visual-preview.sh).
  */
 
 import { execFileSync } from "node:child_process";
@@ -31,6 +34,11 @@ import { fileURLToPath } from "node:url";
 
 // nx names remote-logger "@graphty/remote-logger"; every project's directory is its unscoped name.
 const dirName = (project) => project.replace(/^@graphty\//, "");
+
+// A visual-review project that is not an nx project of its own, and the nx projects whose changes
+// can change its drawings: the style fidelity Storybook is part of graph-io and draws with
+// graphty-element's source.
+const DRAWN_BY = { "graph-io-fidelity": ["graph-io", "graphty-element"] };
 
 /**
  * The visual-review projects a run may leave uncaptured.
@@ -52,8 +60,19 @@ export function skippedProjects({ on, pullRequest, labels, visual, all, affected
     if (changed.some((f) => !dirs.has(f.split("/")[0]))) {
         return [];
     }
+    const captured = affectedVisual(visual, affected);
+    return visual.filter((p) => !captured.includes(p));
+}
+
+/**
+ * The visual-review projects whose drawings the affected nx projects can change.
+ * @param visual - the visual-review project ids
+ * @param affected - the nx projects nx calls affected
+ * @returns the affected visual-review projects
+ */
+export function affectedVisual(visual, affected) {
     const hit = new Set(affected.map(dirName));
-    return visual.filter((p) => !hit.has(p));
+    return visual.filter((p) => (DRAWN_BY[p] ?? [p]).some((d) => hit.has(d)));
 }
 
 /**
@@ -78,18 +97,22 @@ const isMain = (() => {
     }
 })();
 
-if (isMain) {
+const visualProjects = () =>
+    Object.keys(JSON.parse(readFileSync(new URL("../visual-review.config.json", import.meta.url), "utf8")).projects);
+
+if (isMain && process.argv[2] === "--affected") {
+    for (const p of affectedVisual(visualProjects(), JSON.parse(process.argv[3]))) console.log(p);
+} else if (isMain) {
     const [all, affected] = process.argv.slice(2).map((a) => JSON.parse(a));
     const env = process.env;
     const on = env.SKIP_UNAFFECTED_CAPTURES === "true";
     const pullRequest = env.PULL_REQUEST === "true";
-    const config = JSON.parse(readFileSync(new URL("../visual-review.config.json", import.meta.url), "utf8"));
     const changed = on && pullRequest ? changedFiles(`origin/${env.BASE_REF}...HEAD`) : [];
     const skip = skippedProjects({
         on,
         pullRequest,
         labels: JSON.parse(env.LABELS || "[]") ?? [],
-        visual: Object.keys(config.projects),
+        visual: visualProjects(),
         all,
         affected,
         changed,

@@ -541,6 +541,33 @@ describe.skipIf(!available)("6.4 select trigger", () => {
         expectMeasured(part(container, ".cm-field-caret"), { color: "#0000004d" });
     });
 
+    // Figma keeps the caret on a disabled select, dimmed with its text. A color check alone passed
+    // while a rule hid the caret, so this asks whether the caret is drawn at all.
+    it.each([
+        ["Select", <Select key="s" aria-label="Device" data={["No device"]} defaultValue="No device" disabled />],
+        ["NativeSelect", <NativeSelect key="n" aria-label="Device" data={["No device"]} disabled />],
+        [
+            "PanelField kind=select",
+            <PanelField
+                key="p"
+                label="Layout"
+                kind="select"
+                data={["Force", "Radial"]}
+                value="Radial"
+                onChange={() => undefined}
+                disabled
+            />,
+        ],
+    ])("disabled %s still draws its caret", async (_name, ui) => {
+        const { container } = await renderFigma(ui);
+        const caret = part(container, ".cm-field-caret");
+        expect(caret.checkVisibility({ visibilityProperty: true, opacityProperty: true })).toBe(true);
+        const box = caret.getBoundingClientRect();
+        expect(box.width).toBeGreaterThan(0);
+        expect(box.height).toBeGreaterThan(0);
+        expectMeasured(caret, { color: "#0000004d" });
+    });
+
     it("AA option: the trigger border becomes the 3:1 field edge", async () => {
         const { container } = await renderFigma(
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" />,
@@ -562,9 +589,8 @@ describe.skipIf(!available)("6.4 select trigger", () => {
             <Select aria-label="Device" data={["No device"]} defaultValue="No device" disabled />,
             { highContrast: true },
         );
-        // A select that cannot change reads as a fixed value, not a box to open: no caret and a
-        // disabled edge (3650da1d89), even in the AA option; a disabled control is exempt from the
-        // 3:1 edge (WCAG 1.4.11).
+        // A disabled field draws its edge in the disabled ink (the shared field rules), even in the AA
+        // option; a disabled control is exempt from the 3:1 edge (WCAG 1.4.11).
         expectMeasured(field(container), { borderTopColor: "#e6e6e6", outlineColor: "#00000000" });
     });
 
@@ -659,7 +685,7 @@ describe.skipIf(!available)("6.5 listbox", () => {
         const highlight = measure(selected, ["backgroundColor", "borderTopLeftRadius", "left", "right"], {
             pseudo: "::before",
         });
-        expect(highlight.style.backgroundColor).toBe("#0768cf");
+        expect(highlight.style.backgroundColor).toBe("#0d99ff");
         expect(highlight.style.borderTopLeftRadius).toBe("5px");
         expect(highlight.style.left).toBe("8px");
         expect(highlight.style.right).toBe("8px");
@@ -767,6 +793,22 @@ describe.skipIf(!available)("6.5 listbox", () => {
         expect(d.bottom).toBeLessThanOrEqual(window.innerHeight - 6 + 0.5);
     });
 
+    it("AA option: the highlight is the darker brand in both schemes (#0768cf / #0a6dc2)", async () => {
+        for (const [scheme, fill] of [
+            ["light", "#0768cf"],
+            ["dark", "#0a6dc2"],
+        ] as const) {
+            const { container } = await renderFigma(
+                <Select aria-label="Stroke align" data={DATA} defaultValue="Inside" style={{ width: 76 }} />,
+                { scheme, highContrast: true },
+            );
+            await drive(part(container, "input"), "open");
+            const dropdown = await listbox();
+            expectMeasured(part(dropdown, "[data-checked]"), { backgroundColor: fill }, { pseudo: "::before" });
+            await resetHarness();
+        }
+    });
+
     it("hovering another option moves the only fill to it", async () => {
         const hovered = await figmaElement("ii/select-listbox-option-hover", { index: 87 });
         const { container } = await renderFigma(
@@ -776,7 +818,7 @@ describe.skipIf(!available)("6.5 listbox", () => {
         const dropdown = await listbox();
         const [center, inside] = [...dropdown.querySelectorAll<HTMLElement>(".cm-listbox-option")];
         await userEvent.hover(center);
-        expectMeasured(center, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
+        expectMeasured(center, { backgroundColor: "#0d99ff" }, { pseudo: "::before" });
         expectMeasured(inside, { backgroundColor: "#00000000" }, { pseudo: "::before" });
         expectMeasured(center, figmaSpec(hovered, ["color"]));
         // The check stays with the value.
@@ -795,7 +837,7 @@ describe.skipIf(!available)("6.5 listbox", () => {
         const dropdown = await listbox();
         // The only filled row is the selected one.
         const filled = [...dropdown.querySelectorAll(".cm-listbox-option")].filter(
-            (row) => hex(computed(row, "::before").backgroundColor) === "#0768cf",
+            (row) => hex(computed(row, "::before").backgroundColor) === "#0d99ff",
         );
         expect(filled.map((row) => row.textContent)).toEqual(["Inside"]);
         await userEvent.keyboard("{ArrowDown}{Enter}");
@@ -944,7 +986,7 @@ describe.skipIf(!available)("6.5 listbox", () => {
         );
         await drive(part(container, "input"), "open");
         const dropdown = await listbox();
-        expectMeasured(part(dropdown, ".cm-listbox-group-label"), { height: 24, color: "#0000008c" });
+        expectMeasured(part(dropdown, ".cm-listbox-group-label"), { height: 24, color: "#00000080" });
         expectMeasured(part(dropdown, "[data-combobox-disabled]"), { color: "#0000004d", opacity: "1" });
         const groups = dropdown.querySelectorAll<HTMLElement>(".cm-listbox-group");
         expectMeasured(groups[1], {
@@ -1074,7 +1116,7 @@ describe.skipIf(!available)("6.3 combo input", () => {
         const { container } = await renderFigma(
             <ComboInput label="Width" defaultValue="Hug" suffix="Hug" divided options={[{ value: "Hug" }]} />,
         );
-        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#0000008c", fontSize: "11px" });
+        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#00000080", fontSize: "11px" });
         expectMeasured(part(container, ".cm-combo-chevron"), {
             width: 25,
             borderLeftWidth: "1px",
@@ -1131,6 +1173,13 @@ describe.skipIf(!available)("6.6 variable pill", () => {
         );
     });
 
+    it("AA option: the bound fill's chit ring is 3:1 against the panel (#00000073)", async () => {
+        const { container } = await renderFigma(<VariablePill swatch="#0d99ff" name="rsu/brand" />, {
+            highContrast: true,
+        });
+        expectMeasured(part(container, ".cm-var-chit"), { boxShadow: "#00000073 0px 0px 0px 1px inset" });
+    });
+
     it("bound fill row: 156 x 24, 1px --cm-border outline, 14px chit at 5,5, name at x+24; hover adds Detach", async () => {
         const row = await figmaElement("rs/fill-variable-bound", { index: 53 });
         const chit = await figmaElement("rs/fill-variable-bound", { index: 55 });
@@ -1145,6 +1194,8 @@ describe.skipIf(!available)("6.6 variable pill", () => {
         expectMeasured(part(container, ".cm-var-detach"), { width: 0, opacity: "0" });
         const c = part(container, ".cm-var-chit");
         expectMeasured(c, figmaSpec(chit, ["width", "height", "borderRadius"]));
+        // The chit's ring is the translucent border it had before the AA ring (b3f7efee11).
+        expectMeasured(c, { boxShadow: "#0000001a 0px 0px 0px 1px inset" });
         expect(c.getBoundingClientRect().left - button.getBoundingClientRect().left).toBeCloseTo(
             chit.box[0] - row.box[0],
             0,

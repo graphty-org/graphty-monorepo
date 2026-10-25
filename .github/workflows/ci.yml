@@ -1715,12 +1715,12 @@ jobs:
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
     # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
-    # (two full runs whose Stories parity shows zero differences); until then the plain story tests in the
+    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
     # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
     # different pictures fail its test) is retried once and reported flaky when the retry passes.
-    stories:
-        name: Stories (${{ matrix.project }})
+    story-tests:
+        name: Story tests (${{ matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
         runs-on: ubuntu-24.04
@@ -1812,7 +1812,7 @@ jobs:
               if: ${{ !cancelled() }}
               uses: actions/upload-artifact@v4
               with:
-                  name: stories-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/stories/merged/
                   retention-days: 30
                   if-no-files-found: ignore
@@ -1833,12 +1833,12 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # Stories parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
+    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
     # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
     # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
-    stories-parity:
-        name: Stories parity (${{ matrix.project }})
-        needs: [stories, visual]
+    story-tests-parity:
+        name: Story tests parity (${{ matrix.project }})
+        needs: [story-tests, visual]
         if: ${{ !cancelled() }}
         runs-on: ubuntu-24.04
         continue-on-error: true
@@ -1864,7 +1864,7 @@ jobs:
               continue-on-error: true
               uses: actions/download-artifact@v4
               with:
-                  name: stories-${{ matrix.project }}-${{ github.run_attempt }}
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
                   path: captures/new
 
             - name: Compare
@@ -1884,7 +1884,7 @@ jobs:
                   PROJECT: ${{ matrix.project }}
               run: |
                   {
-                      echo "### Stories parity ($PROJECT)"
+                      echo "### Story tests parity ($PROJECT)"
                       echo '```'
                       tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
                       echo '```'

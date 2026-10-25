@@ -7,8 +7,8 @@
  *
  * Plain `createElement` rather than JSX so the file lints under the stories' `.ts` rule set.
  */
-import { userEvent } from "@storybook/test";
 import { createElement, type ReactNode } from "react";
+import { userEvent } from "storybook/test";
 
 import { PANEL_INK } from "../../src/constants/panel";
 import { settleFocusTooltip } from "./settled";

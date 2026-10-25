@@ -167,6 +167,12 @@ export interface ProjectOpenOptions {
     readonly discard?: boolean;
     /** The file's name, for the project's name when the file holds none. A `File`'s own name is used otherwise. */
     readonly fileName?: string;
+    /**
+     * For a document that is not a project: `"step"` (the default) adds its contents as one
+     * undoable step; `"start"` makes the session after it where the history starts, as
+     * `ImportOptions.history` does for a load. A project always starts the history.
+     */
+    readonly history?: "step" | "start";
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -1804,7 +1810,13 @@ export function projectOf(
 
         const graph = nodeLinkOf(data);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-        const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        // A project opens with a fresh history: its opened state is the baseline, and the steps
+        // before it go when it is in. Undo pressed while it opens never cancels it, and work the
+        // reader starts meanwhile stays theirs to undo.
+        const opening: TransactionOptions = {
+            fact: { code: "project.open", params: { name: name ?? null } },
+            starts: true,
+        };
         projectBoundary(session, "open");
         await session.transaction(
             "Open project",
@@ -1820,12 +1832,9 @@ export function projectOf(
                 params: { kind: SOURCE_RECORD_MEMBER },
             });
         }
-        // A project opens with a fresh history: its opened state is the baseline. Work the reader
-        // started since the open landed (a run, a style edit) and that has changed nothing yet is
-        // kept and records over it; a run of the replaced graph is already stale and cancelled.
-        session.history.clear({ pending: "keep" });
         fresh = false;
-        adopt(pointNow());
+        // Saved at the baseline: anything the reader did while it opened is a change.
+        adopt({ ...pointNow(), step: null });
     };
 
     /**
@@ -1834,11 +1843,13 @@ export function projectOf(
      * @param doc - the read document
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param starts - whether it starts the history (`ProjectOpenOptions.history`)
      */
     const openDocument = async (
         doc: ReadDocument,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
         const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
@@ -1865,7 +1876,7 @@ export function projectOf(
 
                 await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
             },
-            OPEN_DOCUMENT,
+            starts ? { ...OPEN_DOCUMENT, starts } : OPEN_DOCUMENT,
         );
     };
 
@@ -1931,7 +1942,7 @@ export function projectOf(
             if (isProject) {
                 await openProject(doc, fileName, options.discard === true, problems, restored);
             } else {
-                await openDocument(doc, problems, restored);
+                await openDocument(doc, problems, restored, options.history === "start");
             }
 
             return Object.freeze({

@@ -3,7 +3,7 @@
  * test-changed.mjs -- run only the tests the change in this worktree can affect (design/ci/minimal-tests.md,
  * section 1.1). Exposed as `pnpm run test:changed`.
  *
- * The change is everything since the merge base with origin/golden: commits, staged and unstaged edits and
+ * The change is everything since the merge base with origin/master: commits, staged and unstaged edits and
  * untracked files git does not ignore. tools/test-select.mjs decides per test shard, with the gate's own
  * rules: "none" runs nothing, "files" runs one `vitest run` of the selected files with the shard's config and
  * --project filters (no coverage, no --shard slice), "all" runs the shard as CI does (tools/run-tests.sh).
@@ -17,7 +17,7 @@
  *   --budget   run only the highest-ranked selected files that fit in <s> seconds of recorded time
  *              (whole-shard runs are not cut)
  *   --all      every shard the change touches runs whole
- *   --base     compare with another ref (default origin/golden)
+ *   --base     compare with another ref (default origin/master)
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
+import { config, readPlan } from "./results/client.mjs";
 import { projectGraph } from "./prepush-inputs.mjs";
 import { budget, explain, rankFiles } from "./test-history.mjs";
 import { planRuns, selectChange, selectedCommand } from "./test-select.mjs";
@@ -141,7 +142,7 @@ function run(p) {
 
 async function main(argv) {
     const baseAt = argv.indexOf("--base");
-    const base = baseAt === -1 ? "origin/golden" : argv[baseAt + 1];
+    const base = baseAt === -1 ? "origin/master" : argv[baseAt + 1];
     const changed = changedSince(ROOT, base);
     console.log(`${changed.length} file(s) changed since the merge base with ${base}.`);
     if (changed.length === 0) {
@@ -150,7 +151,7 @@ async function main(argv) {
     const shards = candidateShards();
     let selection;
     try {
-        selection = (await selectChange(ROOT, changed, shards)).shards;
+        selection = (await selectChange(ROOT, changed, shards, undefined, false, { base, head: null })).shards;
     } catch (e) {
         console.log(`The selector failed (${e.message.split("\n")[0]}); every candidate shard runs whole.`);
         selection = [];
@@ -159,7 +160,12 @@ async function main(argv) {
         selection = selection.map((s) => (s.mode === "none" ? s : { ...s, mode: "all", reasons: ["--all"] }));
     }
     const at = argv.indexOf("--budget");
-    const ranked = rankPlan(planRuns(ROOT, shards, selection), changed, at === -1 ? undefined : Number(argv[at + 1]));
+    const runs = planRuns(ROOT, shards, selection);
+    const files = runs.filter((p) => p.mode === "files").flatMap((p) => p.files.map((f) => f.file));
+    const cfg = files.length > 0 ? config() : null;
+    const storePlan = cfg ? await readPlan(cfg, { files }) : null;
+    const ranker = (f, c) => rankFiles(f, c, process.env, ROOT, storePlan);
+    const ranked = rankPlan(runs, changed, at === -1 ? undefined : Number(argv[at + 1]), ranker);
     const plan = ranked.plan;
     console.log([...describePlan(plan), ...ranked.lines].join("\n"));
     const todo = plan.filter((p) => p.mode !== "none");

@@ -1,4 +1,5 @@
 import {
+    type AbstractEngine,
     type AbstractMesh,
     Camera,
     type EffectLayer,
@@ -352,7 +353,10 @@ export class UpdateManager implements Manager {
     private framingHasNothingToFrame = false;
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
-    private drawWatcher: Nullable<Observer<Scene>>;
+    private drawWatcher: Nullable<Observer<Scene>> = null;
+
+    /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
+    private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
     /**
      * Creates a new update manager
@@ -383,9 +387,7 @@ export class UpdateManager implements Manager {
         // only thing that knows a draw finished. Watching the scene -- rather than counting update
         // passes -- is what keeps the flag honest when frames are pumped by hand: `stepFrames`
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
-        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
-            this.noteFrameDrawn();
-        });
+        this.watchFrames();
     }
 
     /**
@@ -395,8 +397,20 @@ export class UpdateManager implements Manager {
      */
     rebindScene(camera: CameraManager): void {
         this.camera = camera;
-        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
+        this.watchFrames();
+    }
+
+    /**
+     * Watch the current scene for drawn frames and its engine for a new canvas size. A canvas of a
+     * new size draws the graph at a new aspect, so the frame drawn before it is no longer final.
+     */
+    private watchFrames(): void {
+        const scene = this.graphContext.getScene();
+        this.drawWatcher = scene.onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
+        });
+        this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
+            this.viewMoved();
         });
     }
 
@@ -413,9 +427,9 @@ export class UpdateManager implements Manager {
      * Dispose the update manager
      */
     dispose(): void {
-        if (this.drawWatcher) {
-            this.graphContext.getScene().onAfterRenderObservable.remove(this.drawWatcher);
-        }
+        const scene = this.graphContext.getScene();
+        scene.onAfterRenderObservable.remove(this.drawWatcher);
+        scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
     }
 
     /**
@@ -1086,6 +1100,17 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Say that the element moved what the canvas shows without moving anything a pass tracks -- a
+     * camera placed without animation, a canvas resized -- so the next frame drawn is the final one
+     * and the frame before it is not (issue #3377). Nothing else here would notice: the layout is
+     * at rest, no framing is owed, and no style work is queued. A reader's own drag is not counted,
+     * on purpose; see {@link UpdateManager.frameIsStable}.
+     */
+    viewMoved(): void {
+        this.drawnFrameIsFinished = false;
+    }
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -1279,6 +1304,14 @@ export class UpdateManager implements Manager {
      */
     private noteFrameDrawn(): void {
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
+            return;
+        }
+
+        // `stateIsFinished` is the last pass's answer, and work can arrive between that pass and
+        // this frame: a load that brings nodes and starts the layout, then a resize that calls
+        // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
+        if (!this.pictureIsFinished()) {
+            this.stateIsFinished = false;
             return;
         }
 

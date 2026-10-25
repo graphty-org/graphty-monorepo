@@ -9,7 +9,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
-import { cyclePanel, installFocusGuard } from "../focus";
+import { cyclePanel, focusOpenedGraphLater, INSPECTOR_TITLE_ID, installFocusGuard } from "../focus";
 
 let stop: () => void = () => undefined;
 
@@ -124,5 +124,39 @@ describe("the focus guard", () => {
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Title" }));
         cyclePanel(-1);
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Row" }));
+    });
+});
+
+describe("focus after a graph opens", () => {
+    /**
+     * The graph's heading in the inspector, and a control the reader can go to while it loads.
+     * @returns the page.
+     */
+    function Opened(): React.JSX.Element {
+        return (
+            <div>
+                <button type="button">Elsewhere</button>
+                <div data-inspected="graph">
+                    <h2 id={INSPECTOR_TITLE_ID} tabIndex={-1}>
+                        Les Miserables
+                    </h2>
+                </div>
+            </div>
+        );
+    }
+
+    it("goes to the graph's heading when the reader did nothing while it loaded", () => {
+        render(<Opened />);
+        const focusLater = focusOpenedGraphLater();
+        focusLater();
+        assert.equal(document.activeElement, screen.getByRole("heading", { name: "Les Miserables" }));
+    });
+
+    it("stays where the reader went while it loaded", async () => {
+        render(<Opened />);
+        const focusLater = focusOpenedGraphLater();
+        await userEvent.click(screen.getByRole("button", { name: "Elsewhere" }));
+        focusLater();
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Elsewhere" }));
     });
 });

@@ -24,9 +24,15 @@
  *
  * Usage:
  *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] [--json] [--defer-downstream]
- *       the selection for the change from the merge base of <base> (default origin/golden) to <head>
+ *       the selection for the change from the merge base of <base> (default origin/master) to <head>
  *       (default HEAD), as text or JSON; --defer-downstream leaves out the packages reached only as
  *       dependents or readers of a changed one
+ *   node tools/test-select.mjs [--root <checkout>] [--base <ref>] [--head <ref>] --plan [--durations <file.json>]
+ *       the pull request light check's plan as JSON: each shard family's selected files packed into bins of at
+ *       most 8 min (lightPlan(); --durations is `{ "<family>": { "<file>": ms } }`), the shards that run whole
+ *       or not at all, and the stories of each visual-review project (selectStories())
+ *   node tools/test-select.mjs [--root <checkout>] --cache-key
+ *       the key of the import graphs cached in <main checkout>/tmp/test-select/graphs (graphCacheKey())
  *   node tools/test-select.mjs [--root <checkout>] --graph <package> [--config <file>]
  *       (internal) one package's import graph as JSON, built in a child process because creating a
  *       Vitest sets NODE_ENV and VITEST* in the process that does it
@@ -52,7 +58,8 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser }`
+ * @returns `{ everything, smoke, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser,
+ *   stories }`
  */
 export function loadRules(root) {
     const raw = JSON.parse(readFileSync(RULES, "utf8"));
@@ -66,6 +73,7 @@ export function loadRules(root) {
     }
     return {
         everything: [...raw.everything.patterns.map(toRe), ...shared],
+        smoke: { patterns: (raw.smoke?.patterns ?? []).map(toRe), shards: raw.smoke?.shards ?? [] },
         noTests: raw.noTests.patterns.map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
@@ -73,6 +81,13 @@ export function loadRules(root) {
         readAtRunTime: toRe(raw.readAtRunTime.pattern),
         fileLevel: new Set(raw.fileLevel.packages),
         fileLevelBrowser: new Set(raw.fileLevelBrowser?.packages ?? []),
+        stories: {
+            global: raw.stories.global.map(toRe),
+            projectGlobal: raw.stories.projectGlobal,
+            lockfile: toRe(raw.stories.lockfile),
+            theme: raw.stories.theme,
+            drawnBy: raw.stories.drawnBy,
+        },
     };
 }
 
@@ -98,6 +113,107 @@ export function globToRe(glob) {
             .join("")}$`,
         "u",
     );
+}
+
+const LOCK = "pnpm-lock.yaml";
+// top-level lockfile sections that change only along with an importer's block (a catalog bump rewrites the
+// versions in the importers that use it); any other section (settings, overrides, patchedDependencies)
+// changes what every package installs
+const FOLLOWS_IMPORTERS = new Set(["importers", "catalogs", "packages", "snapshots"]);
+
+/**
+ * A pnpm lockfile's top-level sections and each section's entries (an importer, a package, a snapshot), as
+ * text.
+ * @param text the lockfile
+ * @returns `{ top: Map(section -> text), entries: Map(section -> Map(entry key -> text)) }`
+ */
+export function lockSections(text) {
+    const top = new Map();
+    const entries = new Map();
+    let section = null;
+    let entry = null;
+    for (const line of text.split("\n")) {
+        const head = /^(\S[^:]*):/u.exec(line);
+        if (head) {
+            section = head[1];
+            entry = null;
+            entries.set(section, new Map());
+        }
+        const sub = section !== null && /^ {2}(\S.*):$/u.exec(line);
+        if (sub) {
+            entry = sub[1].replaceAll(/(?:^['"])|(?:['"]$)/gu, "");
+        }
+        top.set(section, `${top.get(section) ?? ""}${line}\n`);
+        if (entry !== null) {
+            const m = entries.get(section);
+            m.set(entry, `${m.get(entry) ?? ""}${line}\n`);
+        }
+    }
+    return { top, entries };
+}
+
+/**
+ * The importers (package directories, "." for the root) whose resolved dependencies differ between two
+ * lockfiles, as nx's projectsAffectedByDependencyUpdates "auto" reads them. null when the change cannot be
+ * put on importers: a lockfile is missing, a section every package installs from changed, the resolved
+ * packages changed while no importer did, or a package or snapshot both lockfiles hold was rewritten (a
+ * re-resolved transitive dependency, which reaches importers whose own block did not change).
+ * @param before the lockfile text at the base, or null
+ * @param after the lockfile text at the head, or null
+ * @returns importer paths, or null
+ */
+export function changedImporters(before, after) {
+    if (before === null || after === null) {
+        return null;
+    }
+    const a = lockSections(before);
+    const b = lockSections(after);
+    const differ = (x, y) => [...new Set([...x.keys(), ...y.keys()])].filter((k) => x.get(k) !== y.get(k));
+    const of = (s, sec) => s.entries.get(sec) ?? new Map();
+    const importers = differ(of(a, "importers"), of(b, "importers"));
+    const sections = differ(a.top, b.top);
+    const rewritten = ["packages", "snapshots"].some((sec) =>
+        differ(of(a, sec), of(b, sec)).some((k) => of(a, sec).has(k) && of(b, sec).has(k)),
+    );
+    if (sections.some((k) => !FOLLOWS_IMPORTERS.has(k)) || importers.length === 0 || rewritten) {
+        return sections.length === 0 ? [] : null;
+    }
+    return importers;
+}
+
+/**
+ * changedImporters() for the lockfile at the merge base of base and head and at head.
+ * @param root the checkout
+ * @param base a commit-ish
+ * @param head a commit-ish, or null for the working tree
+ * @returns importer paths, or null
+ */
+export function lockfileImporters(root, base, head) {
+    const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+    const show = (rev) => {
+        try {
+            return rev ? git(["show", `${rev}:${LOCK}`]) : readFileSync(join(root, LOCK), "utf8");
+        } catch {
+            return null;
+        }
+    };
+    return changedImporters(show(git(["merge-base", base, head ?? "HEAD"]).trim()), show(head));
+}
+
+/**
+ * The changed paths with a changed lockfile put on the packages whose dependencies it changed: each
+ * importer stands as a change to its package.json (the root importer's is the root package.json, which runs
+ * everything). The lockfile stays when which importers changed is unknown.
+ * @param changed repo-relative changed paths
+ * @param importers changedImporters(), or null/undefined when unknown
+ * @returns changed paths
+ */
+export function withLockfile(changed, importers) {
+    if (!changed.includes(LOCK) || !Array.isArray(importers)) {
+        return changed;
+    }
+    const manifests = importers.map((dir) => (dir === "." ? "package.json" : `${dir}/package.json`));
+    return [...new Set([...changed.filter((f) => f !== LOCK), ...manifests])];
 }
 
 /**
@@ -248,10 +364,13 @@ function specsReaching(file, graph, allSpecs, rev, add) {
  * @param input.deleted Set of changed paths that no longer exist, optional
  * @param input.deferDownstream leave out the tests of packages reached only as dependents or readers of a
  *   changed package (a landing check defers them to verification, design/ci/fast-pipeline.md), optional
- * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs })}`
+ * @param input.lockfile the lockfile importers whose dependencies changed (changedImporters()); without it a
+ *   changed lockfile runs everything, optional
+ * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs }),
+ *   unexplainedRoot, smoke: Map(shard -> reason) }`; smoke names the shards a workflow change runs whole
  */
 export function selectPackages({
-    changed,
+    changed: changed0,
     packages,
     deps,
     refs,
@@ -260,7 +379,9 @@ export function selectPackages({
     rootImporters,
     deleted,
     deferDownstream,
+    lockfile,
 }) {
+    const changed = withLockfile(changed0, lockfile);
     const dirs = [...packages.values()];
     const pkgOf = (f) => dirs.find((d) => f.startsWith(`${d}/`));
     const out = new Map(dirs.map((d) => [d, { mode: "none", reasons: [], specs: new Map() }]));
@@ -280,8 +401,12 @@ export function selectPackages({
     };
     const everything = (f) => {
         dirs.forEach((d) => whole(d, `${f} changes how every shard runs`));
-        return { everything: f, packages: out, unexplainedRoot: [] };
+        return { everything: f, packages: out, unexplainedRoot: [], smoke: new Map() };
     };
+    // a lockfile change withLockfile() could not put on importers
+    if (changed.includes(LOCK)) {
+        return everything(LOCK);
+    }
     const trigger = [...root.keys()].find((f) => rules.everything.some((re) => re.test(f)));
     if (trigger) {
         return everything(root.get(trigger) === trigger ? trigger : `${root.get(trigger)} (through ${trigger})`);
@@ -303,7 +428,11 @@ export function selectPackages({
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
     }
-    return { everything: null, packages: out, unexplainedRoot };
+    const smokeBy = changed.find((f) => rules.smoke?.patterns.some((re) => re.test(f)));
+    const smoke = new Map(
+        smokeBy ? rules.smoke.shards.map((sh) => [sh, `${smokeBy} changes how CI runs shards (smoke shard)`]) : [],
+    );
+    return { everything: null, packages: out, unexplainedRoot, smoke };
 }
 
 /**
@@ -362,8 +491,8 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
 }
 
 /**
- * Whether a package's tests read a root file: those that import it are selected, and a package whose tests
- * name it runs whole.
+ * Whether a package's tests read a root file: those that import it are selected, test files that name it
+ * are selected, and a package whose other test-side files or configs name it runs whole.
  * @param f a root file
  * @param dir the package
  * @param ctx `{ graphs, out, whole }` as rootFiles has them
@@ -379,11 +508,17 @@ function readBy(f, dir, { graphs, out, whole }) {
         gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
         return true;
     }
-    if (namedBy(f, dir, known ? gs : null)) {
-        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
-        return true;
+    const by = namedBy(f, dir, known ? gs : null);
+    if (by.size === 0) {
+        return false;
     }
-    return false;
+    const specs = new Set(known ? gs.flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs)) : []);
+    if ([...by].every((x) => specs.has(x))) {
+        by.forEach((spec) => addSpec(out.get(dir), spec, `it names ${f}, which it may read at run time`));
+    } else {
+        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
+    }
+    return true;
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);
@@ -400,7 +535,7 @@ const namesByGraphs = new WeakMap();
  * @param file a root file
  * @param dir the package
  * @param graphs its graphs, or null
- * @returns boolean
+ * @returns Set of the files that name it (empty when none does)
  */
 function namedBy(file, dir, graphs) {
     // keyed by the graphs themselves (a package without them by its directory): each selection has its own
@@ -410,18 +545,25 @@ function namedBy(file, dir, graphs) {
         cache.set(key, namesIn(dir, graphs));
     }
     const { paths, bases } = cache.get(key);
-    if (file.startsWith("tools/") && bases.has(file.slice(file.lastIndexOf("/") + 1))) {
-        return true;
+    const by = new Set();
+    if (file.startsWith("tools/")) {
+        bases.get(file.slice(file.lastIndexOf("/") + 1))?.forEach((f) => by.add(f));
     }
     const parts = file.split("/");
-    return parts.some((_, i) => (i === parts.length - 1 || i > 0) && paths.has(parts.slice(0, i + 1).join("/")));
+    parts.forEach((_, i) => {
+        if (i === parts.length - 1 || i > 0) {
+            paths.get(parts.slice(0, i + 1).join("/"))?.forEach((f) => by.add(f));
+        }
+    });
+    return by;
 }
 
 /**
- * The paths and file names the string literals of a package's test-side files name.
+ * The paths and file names the string literals of a package's test-side files name, each with the files
+ * that name it.
  * @param dir the package
  * @param graphs its graphs, or null for every file of the package
- * @returns `{ paths: Set, bases: Set }`
+ * @returns `{ paths: Map(path -> Set of files), bases: Map(file name -> Set of files) }`
  */
 function namesIn(dir, graphs) {
     const candidates = graphs
@@ -434,14 +576,15 @@ function namesIn(dir, graphs) {
         : execFileSync("git", ["ls-files", "--", dir], { cwd: grepRoot, encoding: "utf8", maxBuffer: 1 << 28 })
               .split("\n")
               .filter(Boolean);
-    const paths = new Set();
-    const bases = new Set();
+    const paths = new Map();
+    const bases = new Map();
+    const add = (m, k, f) => m.set(k, (m.get(k) ?? new Set()).add(f));
     for (const f of candidates) {
         for (const literal of safeRead(join(grepRoot, f)).matchAll(/["'`]([^"'`\n]+)["'`]/gu)) {
             for (const [token] of literal[1].matchAll(/[\w@.+-]+(?:\/[\w@.+-]+)*/gu)) {
                 const path = token.replace(/^(?:\.{1,2}\/)+/u, "");
-                paths.add(path);
-                bases.add(path.slice(path.lastIndexOf("/") + 1));
+                add(paths, path, f);
+                add(bases, path.slice(path.lastIndexOf("/") + 1), f);
             }
         }
     }
@@ -849,11 +992,22 @@ export function wholePackageRule(rel, rules) {
  * @param graphs Map(dir -> [graph...])
  * @param allowed Set of package directories where file-level selection is allowed; omitted, every one is
  * @param browserAllowed Set of package directories whose browser projects may be selected file by file too
+ * @param smoke selectPackages().smoke: shards that run whole whatever their package's selection
  * @returns `[{ shard, package, mode, files, total, reasons, measured? }]`; total is the shard's test file
  *   count when known; measured `{ mode, files }` is the file-level answer where it was not allowed
  */
-export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set()) {
+export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                shard: shard.shard,
+                package: shard.package,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+            };
+        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
@@ -1068,6 +1222,246 @@ export function planRuns(root, shards, selection) {
         });
     }
     return plan;
+}
+
+/** The longest a light-check test bin is planned to run (design/ci/channels-pipeline/merging.md section 4.1). */
+export const BIN_LIMIT_MS = 8 * 60_000;
+/** Milliseconds counted for a file of a family with no recorded file at all. */
+const NO_HISTORY_MS = 30_000;
+
+/**
+ * Packs one shard family's selected test files into bins of at most `limitMs` each, longest file first, each
+ * into the first bin it fits (first-fit decreasing). A file with no recorded time counts as the family's longest
+ * recorded file; a file longer than the limit gets a bin of its own.
+ * @param files the selected test files (repository paths)
+ * @param fileMs Map(file -> recorded ms) over the whole family, not only the selected files
+ * @param [limitMs] the most one bin may hold
+ * @returns `[{ files, ms }]`, the longest bin first; `files` sorted
+ */
+export function packBins(files, fileMs, limitMs = BIN_LIMIT_MS) {
+    const longest = Math.max(0, ...fileMs.values()) || NO_HISTORY_MS;
+    const sized = [...new Set(files)]
+        .map((file) => ({ file, ms: fileMs.get(file) ?? longest }))
+        .sort((a, b) => b.ms - a.ms || a.file.localeCompare(b.file));
+    const bins = [];
+    for (const { file, ms } of sized) {
+        const bin = bins.find((b) => b.ms + ms <= limitMs);
+        if (bin) {
+            bin.files.push(file);
+            bin.ms += ms;
+        } else {
+            bins.push({ files: [file], ms });
+        }
+    }
+    for (const b of bins) b.files.sort();
+    return bins.sort((a, b) => b.ms - a.ms);
+}
+
+/**
+ * A shard's family: its name without a slice number (as tools/test-ledger.mjs's familyOf).
+ * @param shard a shard name
+ * @returns the family name
+ */
+const familyOf = (shard) => shard.replace(/-\d+$/u, "");
+
+/**
+ * The light check's test plan (design/ci/channels-pipeline/merging.md section 4.1): each shard family's
+ * selected files packed into bins of at most BIN_LIMIT_MS, each bin one `vitest run` of its files. A family
+ * with a shard that runs whole runs every shard of it as today.
+ * @param root the checkout
+ * @param shards SHARDS entries
+ * @param selection selectShards() for them
+ * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
+ *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
+ */
+export function lightPlan(root, shards, selection, durations = {}) {
+    const out = { bins: [], whole: [], none: [] };
+    const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
+    for (const [family, runs] of families) {
+        if (runs.some((r) => r.mode === "all")) {
+            out.whole.push(...runs.flatMap((r) => r.covers));
+            continue;
+        }
+        const fileMs = new Map(Object.entries(durations[family] ?? {}));
+        let n = 0;
+        for (const run of runs) {
+            if (run.mode === "none") {
+                out.none.push(...run.covers);
+                continue;
+            }
+            for (const bin of packBins(
+                run.files.map((f) => f.file),
+                fileMs,
+            )) {
+                n += 1;
+                const command = selectedCommand(root, run.shard, bin.files);
+                out.bins.push({
+                    name: `${family}-${n}`,
+                    family,
+                    shard: run.shard.shard,
+                    covers: run.covers,
+                    ...bin,
+                    command,
+                });
+            }
+        }
+    }
+    return out;
+}
+
+// --- which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5) ------------
+
+/**
+ * Whether a lockfile change moves a package whose name matches `re` (a Playwright, Storybook or font bump
+ * changes every picture). Unknown (a lockfile missing) counts as moved.
+ * @param before the lockfile at the base, or null
+ * @param after the lockfile at the head, or null
+ * @param re the package-name pattern
+ * @returns boolean
+ */
+export function lockMoves(before, after, re) {
+    if (before === null || after === null) {
+        return true;
+    }
+    const a = lockSections(before).entries;
+    const b = lockSections(after).entries;
+    return ["packages", "snapshots"].some((sec) => {
+        const x = a.get(sec) ?? new Map();
+        const y = b.get(sec) ?? new Map();
+        return [...new Set([...x.keys(), ...y.keys()])].some((k) => x.get(k) !== y.get(k) && re.test(k));
+    });
+}
+
+/**
+ * Whether a shard runs its package's storybook Vitest project, where each story file is a test file.
+ * @param shard a SHARDS entry
+ * @returns boolean
+ */
+const storyShard = (shard) => (shardRuns(shard) ?? []).some((r) => r.projects.includes("storybook"));
+
+/**
+ * Why every story of a project runs, or null: a global input, its own Storybook setup, the shared theme or a
+ * lockfile move.
+ * @param project the visual-review project id
+ * @param dir the project's Storybook directory (its storybook-static's parent)
+ * @param changed changed repo-relative paths
+ * @param rules loadRules(root).stories
+ * @param lockMoved whether the lockfile moved a package every picture depends on
+ * @returns a reason or null
+ */
+function storiesGlobal(project, dir, changed, rules, lockMoved) {
+    if (lockMoved) {
+        return `${LOCK} moves a package every picture depends on`;
+    }
+    const own = rules.projectGlobal.map(
+        (p) => new RegExp(p.replaceAll("{dir}", dir.replaceAll(".", String.raw`\.`)), "u"),
+    );
+    const theme = rules.theme.projects.includes(project) ? [new RegExp(rules.theme.pattern, "u")] : [];
+    const hit = changed.find((f) => [...rules.global, ...own, ...theme].some((re) => re.test(f)));
+    return hit ? `${hit} changes every story of the project` : null;
+}
+
+/**
+ * The stories one visual-review project runs from the test selection: its storybook shards' answer, or for a
+ * project without a story import graph every story when a package that draws it is selected at all.
+ * @param project the visual-review project id
+ * @param pkg the package that holds its stories
+ * @param shards `[{ shard: SHARDS entry, sel: selectShards() entry }]`
+ * @param drawnBy packages whose selection runs the project whole when it has no story graph
+ * @returns `{ mode, files, reasons }`
+ */
+function storiesFromTests(project, pkg, shards, drawnBy) {
+    const own = shards.filter((s) => s.shard.package === pkg && storyShard(s.shard));
+    if (own.length > 0) {
+        const all = own.find((s) => s.sel.mode === "all");
+        if (all) {
+            return { mode: "all", files: [], reasons: all.sel.reasons };
+        }
+        const files = [...new Set(own.flatMap((s) => (s.sel.files ?? []).map((f) => f.file)))].sort();
+        return { mode: files.length > 0 ? "files" : "none", files, reasons: [] };
+    }
+    // ponytail: no story graph for these projects yet, so any selected package that draws them runs all of them
+    const hit = shards.find((s) => drawnBy.includes(s.shard.package) && s.sel.mode !== "none");
+    return hit
+        ? { mode: "all", files: [], reasons: [`${hit.shard.package} is selected and ${project} has no story graph`] }
+        : { mode: "none", files: [], reasons: [] };
+}
+
+/**
+ * Which stories of each visual-review project a change runs: every story on a global input (test-select-rules
+ * "stories"), the stories whose import closure reaches a changed file (the storybook shards' selection),
+ * and every story whose baseline changed. Unknown means run: a project without a story import graph runs
+ * whole whenever a package that draws it is selected.
+ * @param input what the change is
+ * @param input.projects visual-review.config.json `projects`
+ * @param input.changed changed repo-relative paths
+ * @param input.everything selectChange().everything
+ * @param input.shards SHARDS entries
+ * @param input.selection selectShards() for them
+ * @param input.rules loadRules(root).stories
+ * @param input.lockMoved lockMoves() for the change (false when the lockfile did not change)
+ * @returns `[{ project, mode: "all"|"files"|"none", files, baselines, reasons }]`; baselines are the story ids
+ *   whose baseline image changed, which run whatever the mode
+ */
+export function selectStories({ projects, changed, everything, shards, selection, rules, lockMoved }) {
+    const paired = shards.map((shard) => ({ shard, sel: selection.find((s) => s.shard === shard.shard) }));
+    const known = paired.filter((p) => p.sel);
+    return Object.entries(projects).map(([project, cfg]) => {
+        const dir = cfg.storybook.replace(/\/storybook-static$/u, "");
+        const pkg = dir.split("/")[0];
+        const prefix = `visual-baselines/${project}/`;
+        const baselines = changed
+            .filter((f) => f.startsWith(prefix) && f.endsWith(".png"))
+            .map((f) => f.slice(prefix.length, -".png".length))
+            .sort();
+        const global = everything
+            ? `${everything} runs everything`
+            : storiesGlobal(project, dir, changed, rules, lockMoved);
+        const sel = global
+            ? { mode: "all", files: [], reasons: [global] }
+            : storiesFromTests(project, pkg, known, rules.drawnBy[project] ?? [pkg]);
+        return { project, ...sel, baselines };
+    });
+}
+
+const STORY_FILE = /\.stories\.[cm]?[jt]sx?$/u;
+
+/**
+ * The light check's `Stories (<project>-<bin>)` jobs (merging.md section 4.1): each project's selected story
+ * files packed into bins of at most BIN_LIMIT_MS, as test files are. A project selected whole bins every story
+ * file under its Storybook directory; a changed baseline's story id goes into the project's first bin.
+ * @param stories selectStories()
+ * @param projects visual-review.config.json `projects`
+ * @param listFiles (dir) => the repository paths under dir
+ * @param [durations] lightPlan()'s durations; a project's are its package's `<package>-storybook` family's
+ * @returns `[{ name, project, storybook, files, ids, ms }]`, `name` is `<project>-<n>`
+ */
+export function storyBins(stories, projects, listFiles, durations = {}) {
+    const out = [];
+    for (const s of stories) {
+        const { storybook } = projects[s.project];
+        const dir = storybook.replace(/\/storybook-static$/u, "");
+        const files = s.mode === "all" ? listFiles(dir).filter((f) => STORY_FILE.test(f)) : s.files;
+        if (files.length === 0 && s.baselines.length === 0) {
+            continue;
+        }
+        // ponytail: a story file's play-test time stands in for its capture time until the store records captures
+        const fileMs = new Map(Object.entries(durations[`${dir.split("/")[0]}-storybook`] ?? {}));
+        const bins = files.length > 0 ? packBins(files, fileMs) : [{ files: [], ms: 0 }];
+        bins.forEach((bin, i) =>
+            out.push({
+                name: `${s.project}-${i + 1}`,
+                project: s.project,
+                storybook,
+                files: bin.files,
+                ids: i === 0 ? s.baselines : [],
+                ms: bin.ms,
+            }),
+        );
+    }
+    return out;
 }
 
 // --- building the import graph of one package, in a child process ------------------------------------
@@ -1686,6 +2080,27 @@ function graphCache(root) {
     };
 }
 
+/**
+ * The key of the whole set of cached graphs, for CI's actions/cache entry (design/ci/channels-pipeline/
+ * budgets-and-trust.md section 1.8): a hash of what the graphs are built from -- every package's committed
+ * tree, the root's tracked code, config and lockfile files, the rules and this walk -- never of the commit,
+ * so a change to docs or to the workflows keeps the key.
+ * @param root the checkout
+ * @param dirs the package directories
+ * @returns hex
+ */
+export function graphCacheKey(root, dirs) {
+    const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 }).trim();
+    const rootFiles = git(["ls-files"])
+        .split("\n")
+        .filter((f) => !f.includes("/") && /\.([cm]?[jt]s|json|ya?ml)$/u.test(f));
+    const paths = [...[...dirs].sort(), ...rootFiles.sort(), "tools/test-select.mjs", "tools/test-select-rules.json"];
+    const trees = paths.map((p) => `${p}=${git(["rev-parse", "HEAD:" + p])}`);
+    return createHash("sha256")
+        .update([GRAPH_VERSION, ...trees].join("\0"))
+        .digest("hex");
+}
+
 /** Bumped when the graph's shape or the walk changes, so cached graphs of the old walk are not used. */
 const GRAPH_VERSION = 6;
 
@@ -2016,9 +2431,11 @@ function graphChild(root, dir, config) {
  * @param shards SHARDS entries
  * @param graphs optional prebuilt graphs (Map(dir -> [graph...])); built for the changed packages otherwise
  * @param deferDownstream selectPackages' option of that name
+ * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
+ *   it a changed lockfile runs everything
  * @returns `{ everything, packages, shards }`
  */
-export async function selectChange(root, changed, shards, graphs, deferDownstream = false) {
+export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
     if (!graph) {
         throw new Error("nx's project graph could not be read");
@@ -2038,8 +2455,12 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
         rootImporters: rootImportGraph(root, [...packages.values()]),
         deleted: new Set(changed.filter((f) => !existsSync(join(root, f)))),
         deferDownstream,
+        lockfile: lockRefs && changed.includes(LOCK) ? lockfileImporters(root, lockRefs.base, lockRefs.head) : null,
     });
-    return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser) };
+    return {
+        ...sel,
+        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+    };
 }
 
 const LOCAL_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["'](\.{1,2}\/[^"']+)["']/gu;
@@ -2100,6 +2521,50 @@ export function describe(selection) {
     return lines.join("\n");
 }
 
+/**
+ * The light check's plan JSON (`--plan`): the test bins and the stories of a change.
+ * @param root the checkout
+ * @param input the change
+ * @param input.changed changed paths
+ * @param input.selection selectChange()
+ * @param input.shards SHARDS
+ * @param input.base the base ref
+ * @param input.head the head ref
+ * @param input.durations lightPlan()'s durations
+ * @returns `{ changed, everything, bins, whole, none, stories, storyBins }`
+ */
+function planOf(root, { changed, selection, shards, base, head, durations }) {
+    const show = (rev) => {
+        try {
+            return execFileSync("git", ["show", `${rev}:${LOCK}`], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+        } catch {
+            return null;
+        }
+    };
+    const rules = loadRules(root).stories;
+    const mb = execFileSync("git", ["merge-base", base, head], { cwd: root, encoding: "utf8" }).trim();
+    const lockMoved = changed.includes(LOCK) && lockMoves(show(mb), show(head), rules.lockfile);
+    const projects = JSON.parse(readFileSync(join(root, "visual-review.config.json"), "utf8")).projects;
+    const stories = selectStories({
+        projects,
+        changed,
+        everything: selection.everything,
+        shards,
+        selection: selection.shards,
+        rules,
+        lockMoved,
+    });
+    const listFiles = (dir) =>
+        execFileSync("git", ["ls-files", "--", dir], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+    return {
+        changed: changed.length,
+        everything: selection.everything,
+        ...lightPlan(root, shards, selection.shards, durations),
+        stories,
+        storyBins: storyBins(stories, projects, listFiles, durations),
+    };
+}
+
 async function main(argv) {
     const arg = (name) => {
         const i = argv.indexOf(name);
@@ -2114,8 +2579,22 @@ async function main(argv) {
         return;
     }
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-    const changed = changedFiles(root, arg("--base") ?? "origin/golden", arg("--head") ?? "HEAD");
-    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"));
+    if (argv.includes("--cache-key")) {
+        console.log(graphCacheKey(root, new Set(SHARDS.map((s) => s.package))));
+        return;
+    }
+    const base = arg("--base") ?? "origin/master";
+    const head = arg("--head") ?? "HEAD";
+    const changed = changedFiles(root, base, head);
+    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"), {
+        base,
+        head,
+    });
+    if (argv.includes("--plan")) {
+        const durations = arg("--durations") ? JSON.parse(readFileSync(arg("--durations"), "utf8")) : {};
+        console.log(JSON.stringify(planOf(root, { changed, selection, shards: SHARDS, base, head, durations })));
+        return;
+    }
     if (argv.includes("--json")) {
         console.log(
             JSON.stringify({

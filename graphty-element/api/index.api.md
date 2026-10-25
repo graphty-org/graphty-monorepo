@@ -1956,6 +1956,12 @@ export type ElementAtResult = {
 };
 
 // @public
+export interface EnabledFeatures {
+    readonly enabled: readonly FeatureId[];
+    readonly unknown: readonly string[];
+}
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -2071,6 +2077,9 @@ export interface ExportResult {
 
 // @public
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+// @public
+export type FeatureId = "data-management" | "timeline" | "location-map";
 
 // @public
 export interface FindAtLeastRow {
@@ -2385,6 +2394,8 @@ export class Graph implements GraphContext {
     runAlgorithmsFromTemplate(): Promise<void>;
     get runAlgorithmsOnLoad(): boolean;
     set runAlgorithmsOnLoad(value: boolean);
+    // @internal
+    saveCameraPlacement(): () => void;
     saveCameraPreset(name: string, camera?: CameraState): void;
     // (undocumented)
     scene: Scene;
@@ -2719,10 +2730,13 @@ export class Graphty extends LitElement {
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
+    get enabledFeatures(): EnabledFeatures;
     estimateAnimationCapture(options: Pick<AnimationOptions, "duration" | "fps" | "width" | "height">): Promise<CaptureEstimate>;
     exitXR(): Promise<void>;
     exportCameraPresets(): Record<string, CameraState>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
+    get features(): readonly string[] | undefined;
+    set features(value: readonly string[] | string | null | undefined);
     firstUpdated(changedProperties: Map<string, unknown>): void;
     get fitInsets(): FitInsets;
     set fitInsets(value: Partial<FitInsets>);
@@ -5487,6 +5501,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
@@ -6408,6 +6423,7 @@ export class UpdateManager implements Manager {
     thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
+    viewMoved(): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

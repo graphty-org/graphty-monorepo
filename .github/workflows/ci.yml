@@ -1521,7 +1521,7 @@ jobs:
             # Kept even when capture crashed, so the owner sees the partial results.json.
             - name: Upload captures
               if: always()
-              uses: actions/upload-artifact@v7
+              uses: actions/upload-artifact@v4
               with:
                   name: visual-${{ matrix.project }}-${{ github.run_attempt }}
                   path: ${{ runner.temp }}/visual/

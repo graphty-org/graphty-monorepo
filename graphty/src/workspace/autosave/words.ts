@@ -7,12 +7,7 @@
  * sentences. It asks no question of the browser and keeps no state.
  */
 
-import type {
-    AutosaveAvailable,
-    AutosaveCode,
-    AutosaveEntry,
-    AutosaveStatus,
-} from "@graphty/graphty-element";
+import type { AutosaveAvailable, AutosaveCode, AutosaveEntry, AutosaveStatus } from "@graphty/graphty-element";
 
 /** How every one of the chip's labels begins. */
 const AUTOSAVE_CHIP_PREFIX = "Autosave";

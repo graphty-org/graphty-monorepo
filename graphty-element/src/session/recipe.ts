@@ -199,14 +199,12 @@ export function recipeOf(session: GraphSession): RecipeDocument {
             ...("hidden" in column && column.hidden === true ? { hidden: true as const } : {}),
         }));
 
-    const joins = session.data
-        .joins()
-        .map((join): RecipeJoin => ({
-            source: join.source,
-            onto: join.onto,
-            shape: join.shape,
-            choices: join.choices,
-        }));
+    const joins = session.data.joins().map((join): RecipeJoin => ({
+        source: join.source,
+        onto: join.onto,
+        shape: join.shape,
+        choices: join.choices,
+    }));
 
     const ignoredIssues = session.data
         .issues({ includeIgnored: true })

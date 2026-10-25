@@ -168,8 +168,7 @@ describe("UpdateManager view masks", () => {
      */
     function buildManager(): UpdateManager {
         const dataManager = { nodes, edges } as unknown as DataManager;
-        const observable = { add: () => null, remove: () => true };
-        const scene = { onAfterRenderObservable: observable, getEngine: () => ({ onResizeObservable: observable }) };
+        const scene = { onAfterRenderObservable: { add: () => null, remove: () => true } };
         const graphContext = { getScene: () => scene } as unknown as GraphContext;
 
         return new UpdateManager(null as never, null as never, null as never, dataManager, null as never, graphContext);

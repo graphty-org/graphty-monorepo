@@ -528,16 +528,77 @@ describe("GET /v1/candidate", () => {
         assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
             candidate: null,
             judged: null,
+            recent: [],
         });
         s.site("c1", NOW - 2 * HOUR);
         s.site("c2", NOW - HOUR);
         assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body, {
             candidate: { sha: "c2", builtAt: NOW - HOUR },
             judged: null,
+            recent: [],
         });
+        s.verdict("c1", "red", NOW - 40 * DAY);
+        s.verdict("c1", "green-images", NOW - 20);
         s.verdict("c2", "green-clean", NOW - 10);
-        const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
+        const { judged, recent } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
         assert.deepEqual([judged.sha, judged.state], ["c2", "green-clean"]);
+        assert.deepEqual(
+            recent.map((v) => [v.sha, v.state]),
+            [
+                ["c2", "green-clean"],
+                ["c1", "green-images"],
+            ],
+            "each commit's latest verdict of the last 30 days, newest first",
+        );
+    });
+});
+
+describe("POST /v1/verdicts", () => {
+    it("takes a verdict only from master's release.yml, under its own run", async () => {
+        const { call, env } = service();
+        const body = { sha: "c9", state: "red", lane: "ci", issue: 12 };
+        const post = (token, b = body) => call("POST", "/v1/verdicts", { token, body: b });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: true });
+        assert.deepEqual((await post(master("release.yml"))).body, { stored: false }, "a repeated post stores nothing");
+        for (const token of [master("ci.yml"), master("bisect.yml"), pr(), LOCAL_TOKEN]) {
+            assert.equal((await post(token)).status, 403);
+        }
+        assert.equal((await post(master("release.yml"), { ...body, state: "approved" })).status, 400);
+        assert.equal((await post(master("release.yml"), { ...body, issue: "12" })).status, 400);
+        const [v] = env.DB.sqlite.prepare("SELECT run_id, attempt, sha, state, lane, issue FROM verdict").all();
+        assert.deepEqual({ ...v }, { run_id: 4010, attempt: 1, sha: "c9", state: "red", lane: "ci", issue: 12 });
+        const { judged } = (await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body;
+        assert.equal(judged, null, "a verdict without a site is no candidate");
+    });
+});
+
+describe("GET /v1/failures", () => {
+    it("lists a run's failing tests by shard, and those master saw fail before the good commit", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.site("good", NOW - 10 * HOUR);
+        s.inv("3001.1.test.graphty-element-browser-2.1", { at: NOW - HOUR, outcome: "failed" });
+        s.inv("3001.1.test.graphty-element-browser-2.2", { at: NOW - HOUR, outcome: "failed" });
+        s.fail("3001.1.test.graphty-element-browser-2.1", { name: "old > flake" });
+        s.fail("3001.1.test.graphty-element-browser-2.2", { name: "old > flake" });
+        s.fail("3001.1.test.graphty-element-browser-2.1", { name: "new > break" });
+        s.inv("30011.1.test.layout.1", { at: NOW - HOUR, outcome: "failed" });
+        s.fail("30011.1.test.layout.1", { file: "layout/x.test.ts", name: "another run" });
+        s.inv("2000.1.test.graphty-element-browser-2.1", { at: NOW - 20 * HOUR, outcome: "failed" });
+        s.fail("2000.1.test.graphty-element-browser-2.1", { name: "old > flake" });
+        s.inv("local.1.h.2.graphty-element-browser-2", { kind: "local", at: NOW - 20 * HOUR, outcome: "failed" });
+        s.fail("local.1.h.2.graphty-element-browser-2", { name: "new > break" });
+        const read = async (q) => (await call("GET", `/v1/failures?${q}`, { token: LOCAL_TOKEN })).body;
+        const shard = "graphty-element-browser-2";
+        assert.deepEqual(await read("run=3001&good=good"), {
+            tests: [
+                { shard, file: X, name: "new > break" },
+                { shard, file: X, name: "old > flake" },
+            ],
+            failedBefore: [`${shard}: ${X} > old > flake`],
+        });
+        assert.deepEqual((await read("run=3001")).failedBefore, [], "no good commit: nothing is known before it");
+        assert.equal((await call("GET", "/v1/failures?run=30%25", { token: LOCAL_TOKEN })).status, 400);
     });
 });
 

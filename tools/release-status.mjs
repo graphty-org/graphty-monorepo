@@ -8,8 +8,6 @@
 //   held            a train attempt failed and the release is held (a restart that fails again too)
 //   published       the train landed the release on master and every version is on npm
 //   publish-failed  the publish job failed (a re-run of it reports again, success or failure)
-//   red             a full run's verdict is red: --what names the lanes, --issue the "Full run red" issue
-//   owner-item      a full run failed for a reason no code change fixes (--what says which)
 //   run-ended       a backstop (release-watch.yml): a release run ended badly (--what is its conclusion) and no
 //                   failure comment here names that run and attempt -- it never reached its own announce step
 // Attempts that do nothing (nothing releasable, a release pending, a hold open) are not outcomes and
@@ -57,20 +55,11 @@ export function statusComment(outcome, f, notify = "") {
         case "publish-failed":
             text = `**Publish failed**${rerun} on ${sha}: not every version is tagged and on npm. Details: ${ref(f.issue)}. Re-running the failed jobs of the run publishes what is missing.`;
             break;
-        case "red":
-            // the bisect's own sentence: a lane with no bisect, no green run before, or a failed dispatch says so
-            text = `**Full run red**${rerun}: ${f.what || "a lane"} failed on ${sha}. Nothing was published. ${f.bisect || "See the issue for the bisect."} Details: ${ref(f.issue)}.`;
-            break;
-        case "owner-item":
-            text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
-            break;
         case "run-ended":
             text = `**Release run ended ${f.what || "badly"}**${rerun} on ${sha}, and no comment here reported a failure for it: it stopped before announcing its outcome. Read the run; re-running its failed jobs retries it.`;
             break;
         default:
-            throw new Error(
-                `unknown outcome "${outcome}" (held, published, publish-failed, red, owner-item, run-ended)`,
-            );
+            throw new Error(`unknown outcome "${outcome}" (held, published, publish-failed, run-ended)`);
     }
     const mention = notify.trim() ? notify.trim() + " " : "";
     return `${mention}${text}\n\nRun: ${f.run}`;
@@ -89,7 +78,7 @@ export function reportsFailure(body, run, attempt) {
     return (
         body.trimEnd().endsWith(`Run: ${run}`) &&
         n === String(attempt || 1) &&
-        /\*\*(Release held|Publish failed|Release run ended|Full run red|Owner item)\b/.test(body)
+        /\*\*(Release held|Publish failed|Release run ended)\b/.test(body)
     );
 }
 
@@ -196,17 +185,6 @@ export function pushMessage(outcome, f) {
             ],
             ...fail,
         },
-        red: {
-            title: "Full run RED",
-            lines: [`${f.what || "A lane"} failed on ${sha}`, retry || `Bisecting; see ${ref(f.issue)}`],
-            ...fail,
-        },
-        "owner-item": {
-            title: "Full run OWNER ITEM",
-            lines: [`${f.what || "A lane"} on ${sha}`, "No code change fixes it"],
-            priority: 0,
-            sound: "pushover",
-        },
         "run-ended": {
             title: "Release RUN ENDED BADLY",
             lines: [`Run ${f.what || "failed"} on ${sha} before announcing`, retry],
@@ -261,7 +239,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { values, positionals } = parseArgs({
         allowPositionals: true,
         options: Object.fromEntries(
-            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix", "bisect"]
+            ["sha", "run", "attempt", "issue", "what", "tags", "since", "fix"]
                 .map((k) => [k, { type: "string" }])
                 .concat([["restart", { type: "boolean" }]]),
         ),

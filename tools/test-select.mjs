@@ -2341,7 +2341,7 @@ const indexCache = new Map();
  * @param root the checkout
  * @returns `{ files: Set, has(path): boolean }`
  */
-export function pathIndex(root) {
+function pathIndex(root) {
     if (!indexCache.has(root)) {
         let files = [];
         try {

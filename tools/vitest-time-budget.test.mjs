@@ -231,10 +231,8 @@ describe("with the results store", () => {
     it("reads the history from the store, writes it back there and to the file", async () => {
         const s = await serve({ [KEY]: [7] });
         const history = join(mkdtempSync(join(TMP, "store-")), "shard-x.json");
-        // A pull request's run never writes to the store, so this test must not inherit CI's pull_request event.
-        await withEnv(
-            { VITEST_BUDGET_CHECK: "1", RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t", GITHUB_EVENT_NAME: "push" },
-            () => finish(history),
+        await withEnv({ VITEST_BUDGET_CHECK: "1", RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" }, () =>
+            finish(history),
         );
         assert.deepEqual(
             s.seen.map((r) => [r.method, r.url]),

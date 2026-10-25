@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
@@ -135,12 +135,18 @@ export const Find: Story = {
     },
 };
 
-/** Nothing matches (`#/graph-place/find-no-match`). */
+/** Nothing matches, with an example rule over the data (`#/graph-place/find-no-match`). */
 export const FindNoMatch: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await find(canvasElement, "xyz");
+        // The box asks the element whether the text reads as a rule once typing pauses, and only
+        // its answer ("no") brings the example: until then the line is a bare "No match". Ended at
+        // the answer, the story draws the same line however late it is shot.
+        await waitFor(() => {
+            expect(canvasElement.querySelector(".ws-find-example")).not.toBeNull();
+        }, storyWaitOptions(1000));
     },
 };
 

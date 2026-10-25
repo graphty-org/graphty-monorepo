@@ -1,0 +1,6 @@
+{
+    "site": "production",
+    "features": [],
+    "datasets": "https://graphty.app/data/graph-samples/v1/",
+    "sentryEnvironment": "production"
+}

@@ -7689,7 +7689,11 @@ export class Graph implements GraphContext {
      */
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
-            this.#annotations = new AnnotationMeshes(this.scene);
+            // a picture that arrives after the frame was called final has to be drawn, on demand too
+            this.#annotations = new AnnotationMeshes(this.scene, () => {
+                this.renderManager.requestFrame();
+            });
+            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);

@@ -21,7 +21,10 @@
  * `git revert -m 1 <m>` on the merge base, for a first-parent merge <m> of master the title, the
  * description or a commit names) skips Proof, review, test integrity and the baselines signature; an
  * accept-only pull request (only visual-baselines/ and visual-review-approvals/) skips Proof, review
- * and test integrity, and its signature is checked; dependabot[bot] skips Proof and review.
+ * and test integrity, and its signature is checked; dependabot[bot] skips Proof and review only while
+ * every commit on the pull request is Dependabot's own (GitHub's commit list: author dependabot[bot],
+ * committed and signed by GitHub, `onlyDependabot` below). A commit anyone else pushed to its branch (a
+ * merge of master included) makes it an agent pull request: Proof and the fresh review apply.
  *
  * Usage (in Actions, with GH_TOKEN, GITHUB_REPOSITORY and GITHUB_EVENT_PATH):
  *   node tools/pr-integrity.mjs [--base origin/master]
@@ -145,7 +148,8 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 /**
  * What kind of pull request this is, for the exemptions.
  * @param cwd the repository
- * @param pr `{ base, mergeBase, head, author, text, files }`
+ * @param pr `{ base, mergeBase, head, author, byDependabot, text, files }`; byDependabot false when a
+ *   commit on it is not Dependabot's own
  * @returns `{ revert, acceptOnly, dependabot, agent }`
  */
 export function classify(cwd, pr) {
@@ -153,8 +157,8 @@ export function classify(cwd, pr) {
     return {
         revert: revertedMerge(cwd, pr),
         acceptOnly: pr.files.length > 0 && pr.files.every(accept),
-        dependabot: pr.author === DEPENDABOT,
-        agent: pr.author === AGENT,
+        dependabot: pr.author === DEPENDABOT && pr.byDependabot !== false,
+        agent: pr.author === AGENT || (pr.author === DEPENDABOT && pr.byDependabot === false),
     };
 }
 
@@ -264,6 +268,21 @@ const describe = (kind) =>
         .filter(Boolean)
         .join(", ") || "an ordinary pull request";
 
+/**
+ * Whether every commit of a pull request is Dependabot's own, from GitHub's commit list (pulls/N/commits):
+ * the author account dependabot[bot], committed by GitHub (web-flow) with a verified signature. A git
+ * author name is free text; the account and GitHub's signature are not.
+ * ponytail: GitHub maps the author account from the commit's email; the web-flow signature is what an
+ * agent cannot produce for a commit it wrote locally.
+ * @param commits the API's commits
+ * @returns boolean
+ */
+export function onlyDependabot(commits) {
+    return commits.every(
+        (c) => c.author?.login === DEPENDABOT && c.committer?.login === "web-flow" && c.commit?.verification?.verified,
+    );
+}
+
 async function main(argv) {
     const i = argv.indexOf("--base");
     const base = i === -1 ? "origin/master" : argv[i + 1];
@@ -280,12 +299,30 @@ async function main(argv) {
         ? readFileSync(join(cwd, ".github/CODEOWNERS"), "utf8")
         : "";
     const head = event.head.sha;
+    const byDependabot =
+        event.user.login === DEPENDABOT
+            ? onlyDependabot(
+                  JSON.parse(
+                      execFileSync(
+                          "gh",
+                          [
+                              "api",
+                              "--paginate",
+                              "--slurp",
+                              `repos/${process.env.GITHUB_REPOSITORY}/pulls/${event.number}/commits`,
+                          ],
+                          { encoding: "utf8", maxBuffer: 1 << 28 },
+                      ),
+                  ).flat(),
+              )
+            : undefined;
     const { kind, problems } = prIntegrity(cwd, {
         base,
         head,
         title: event.title,
         body: event.body ?? "",
         author: event.user.login,
+        byDependabot,
         reviews,
         owners: ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners),
         codeowners,

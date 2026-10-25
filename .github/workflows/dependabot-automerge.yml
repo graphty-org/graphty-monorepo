@@ -17,7 +17,8 @@ permissions:
 jobs:
     automerge:
         name: Arm auto-merge
-        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        # github.actor: only Dependabot's own push arms it, never a commit someone else pushed to its branch
+        if: github.event.pull_request.user.login == 'dependabot[bot]' && github.actor == 'dependabot[bot]'
         runs-on: ubuntu-24.04
         timeout-minutes: 5
         environment: dependabot-automerge

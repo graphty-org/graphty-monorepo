@@ -5044,8 +5044,7 @@ export class Graph implements GraphContext {
     async waitForSettled(): Promise<void> {
         // Suggested styles first: their reordering moves reach the queue only once they are due.
         await this.#suggestionsStacked;
-        // Wait for operation queue to complete all operations
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
         // Style edits are not queued: they are written at once and repainted on the session's
         // derivation lane, which this waits for, along with anything a finished run painted.
         await this.session.styles.settled();
@@ -5152,7 +5151,7 @@ export class Graph implements GraphContext {
         // the picture, so a frame that is final right now is final about the wrong graph. Suggested
         // styles before the queue, because they queue their reordering only once they are due.
         await this.#suggestionsStacked;
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
 
         if (!this.updateManager.frameIsStable) {
             await this.untilFrameStableEvent(track);
@@ -5163,6 +5162,17 @@ export class Graph implements GraphContext {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         if (declutter instanceof LabelDeclutter) {
             await declutter.whenPublished();
+        }
+    }
+
+    /**
+     * Wait until every queued operation has run, including a queued command that gave its slot up
+     * to wait for a key held beside the queue: the queue goes idle while that one is still owed.
+     */
+    private async untilQueueDrained(): Promise<void> {
+        await this.operationQueue.waitForCompletion();
+        while (await dispatcherOf(this.session).waitersSettled()) {
+            await this.operationQueue.waitForCompletion();
         }
     }
 

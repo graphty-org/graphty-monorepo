@@ -53,7 +53,7 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
-import { type EnabledFeatures, resolveFeatures } from "../features/resolve";
+import { type EnabledFeatures, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -661,10 +661,6 @@ class Session implements ElementSession {
     }
 
     /**
-     * Whether `undo()` would do something.
-     * @returns True when it would undo a step or cancel pending work.
-     */
-    /**
      * The experiments this session switched on; settled on first read, so an element's session
      * sees every attribute the page declared.
      * @returns The enabled and unknown ids.
@@ -674,6 +670,10 @@ class Session implements ElementSession {
         return this.resolvedFeatures;
     }
 
+    /**
+     * Whether `undo()` would do something.
+     * @returns True when it would undo a step or cancel pending work.
+     */
     get canUndo(): boolean {
         return this.dispatcher.nextUndo !== null;
     }
@@ -2269,11 +2269,14 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
     const { config, acceleration, runs, features } = options;
+    // Copied now, as documented: a later setDefaultFeatures, or a change to the caller's array,
+    // must not reach a session that already exists.
+    const requested = Object.freeze([...(features ?? pageDefaultFeatures())]);
     return buildSession({
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
-        ...(features === undefined ? {} : { features: () => features }),
+        features: () => requested,
     });
 }
 

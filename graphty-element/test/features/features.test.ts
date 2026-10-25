@@ -38,6 +38,11 @@ describe("resolveFeatures", () => {
         assert.deepEqual(resolved.unknown, ["warp-drive"]);
     });
 
+    it("skips entries that are not strings instead of throwing", () => {
+        const fromUntypedCaller = ["timeline", 7, null] as unknown as string[];
+        assert.deepEqual(resolveFeatures(fromUntypedCaller), { enabled: ["timeline"], unknown: [] });
+    });
+
     it("turns on every declared experiment for all", () => {
         assert.deepEqual(resolveFeatures(["all"]).enabled, ["timeline", "location-map"]);
     });
@@ -74,6 +79,21 @@ describe("createGraphSession({ features })", () => {
             assert.strictEqual(session.features, session.features);
         } finally {
             session.dispose();
+        }
+    });
+
+    it("keeps what it settled at creation when the page default or the caller's array changes", () => {
+        const asked = ["timeline"];
+        const named = createGraphSession({ features: asked });
+        const unnamed = createGraphSession();
+        try {
+            asked.push("location-map");
+            setDefaultFeatures(["all"]);
+            assert.deepEqual(named.features.enabled, ["timeline"]);
+            assert.deepEqual(unnamed.features.enabled, []);
+        } finally {
+            named.dispose();
+            unnamed.dispose();
         }
     });
 

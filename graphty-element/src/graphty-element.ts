@@ -1033,8 +1033,12 @@ export class Graphty extends LitElement {
      */
     set features(value: readonly string[] | string | null | undefined) {
         const oldValue = this.#featuresValue;
-        this.#featuresValue =
-            typeof value === "string" ? value.split(/\s+/).filter((id) => id !== "") : (value ?? undefined);
+        if (typeof value === "string") {
+            this.#featuresValue = value.split(/\s+/).filter((id) => id !== "");
+        } else {
+            // A copy, so the caller changing its array afterwards does not change what was set.
+            this.#featuresValue = Array.isArray(value) ? Object.freeze([...value]) : undefined;
+        }
         this.requestUpdate("features", oldValue);
     }
 

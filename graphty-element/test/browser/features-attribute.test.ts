@@ -34,4 +34,12 @@ describe("the features attribute", () => {
         assert.deepEqual(detail, { enabled: [], unknown: ["later-idea", "other"] });
         assert.strictEqual(element.enabledFeatures, detail);
     });
+
+    it("keeps the ids it was given when the caller changes its array afterwards", () => {
+        const element = document.createElement("graphty-element");
+        const ids = ["timeline"];
+        element.features = ids;
+        ids.push("location-map");
+        assert.deepEqual(element.features, ["timeline"]);
+    });
 });

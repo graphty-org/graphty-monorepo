@@ -33,6 +33,14 @@ export function setDefaultFeatures(ids: readonly string[]): void {
 }
 
 /**
+ * The page default as it is now. No entry point exports it.
+ * @returns The ids last passed to `setDefaultFeatures`.
+ */
+export function pageDefaultFeatures(): readonly string[] {
+    return pageDefault;
+}
+
+/**
  * Resolve requested ids against this build's experiments.
  * @param requested - The ids asked for; absent means the page default (`setDefaultFeatures`).
  * @returns The experiments switched on and the ids not recognised, frozen. Never throws.
@@ -40,7 +48,8 @@ export function setDefaultFeatures(ids: readonly string[]): void {
 export function resolveFeatures(requested?: readonly string[]): EnabledFeatures {
     const asked = new Set<string>();
     for (const raw of requested ?? pageDefault) {
-        const id = raw.trim().toLowerCase();
+        // A caller the types did not check may pass anything; only strings can name an id.
+        const id = typeof raw === "string" ? raw.trim().toLowerCase() : "";
         if (id !== "") {
             asked.add(id);
         }

@@ -125,7 +125,13 @@ export async function baseCheck({ root, variant, file, repeat = 1, env = process
     const flags = variant.includes("|flags=on|") ? "on" : "off";
     let worst = 0;
     for (let i = 1; i <= repeat; i++) {
-        const runEnv = { ...env, RESULTS_VARIANT: variant, GRAPHTY_FLAGS: flags, RESULTS_REPEAT: String(i) };
+        const runEnv = {
+            ...env,
+            RESULTS_VARIANT: variant,
+            GRAPHTY_FLAGS: flags,
+            RESULTS_REPEAT: String(i),
+            RESULTS_REPEATS: String(repeat),
+        };
         console.log(`base-check: ${file} at ${variant}, run ${i} of ${repeat}`);
         worst = Math.max(worst, await run(shard.shard, cmd, { root, env: runEnv }));
     }

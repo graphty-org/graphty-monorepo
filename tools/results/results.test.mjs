@@ -426,6 +426,9 @@ describe("the pull request rules", () => {
             /gh workflow run base-check\.yml --ref master -f base=b1 -f file=a\.test\.ts -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
         );
         assert.equal(judge(plan, report(fail("flips")), report()).pass, true);
+        // a family with no file-level answer counts every one of its files as touched
+        const unknown = { ...plan, unknownFamilies: [FAMILY] };
+        assert.deepEqual(tags(judge(unknown, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
         // a plan with no `affected` (the everything plan) counts every test as touched
         const everything = { quarantine: [], failingOnBase: [] };
         assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
@@ -571,6 +574,11 @@ describe("fileIssues", () => {
             calls.filter((c) => c[1] === "comment").map((c) => c[2]),
             ["41", "12"],
         );
+        // a closed earlier issue is reopened, so the new quarantine is tracked on an open one
+        assert.deepEqual(
+            calls.filter((c) => c[1] === "reopen").map((c) => c[2]),
+            ["41", "12"],
+        );
     });
 
     it("files one Failing on master issue per signature a base run failed every time", async () => {
@@ -596,6 +604,11 @@ describe("fileIssues", () => {
         assert.equal(
             (await fileIssues(null, [rec("failed", failures)], [{ ok: true, data: { kind: "full" } }], failing, gh))
                 .length,
+            0,
+        );
+        // one repeat of several proves nothing alone
+        assert.equal(
+            (await fileIssues(null, [rec("failed", failures)], answers, failing, gh, 0, { onMaster: false })).length,
             0,
         );
     });

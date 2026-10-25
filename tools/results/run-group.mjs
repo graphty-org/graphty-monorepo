@@ -11,7 +11,8 @@
 // within 5 s is written to test-results/results-spool/<id>.json.
 //
 // On a pull request with RESULTS_PLAN set (the light check's `results-plan` artifact: GET /v1/plan's answer plus
-// `base` and `affected` (the test files whose file or import closure the pull request changed)), the store's
+// `base`, `affected` (the test files whose file or import closure the pull request changed) and `unknownFamilies`
+// (families the selector has no file-level answer for: every file touched)), the store's
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
 // `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. A re-run attempt reads the quarantine and the master
 // evidence again, so a base check made after the first attempt counts. An unreadable or unavailable plan (a store
@@ -68,7 +69,8 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  */
 export function prJudge(plan, { shard, family, variant, base }) {
     const affected = plan?.affected ? new Set(plan.affected) : null;
-    const touched = (f) => !affected || affected.has(f.file);
+    const unknown = (plan?.unknownFamilies ?? []).includes(family);
+    const touched = (f) => !affected || unknown || affected.has(f.file);
     const onBase = (plan?.failingOnBase ?? []).filter((b) => b.variant.split("|")[0] === family);
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
@@ -167,10 +169,22 @@ function findIssue(gh, signature) {
     }
 }
 
+// An earlier issue that was closed (fixed, then the test regressed) is reopened, so the new quarantine or failure
+// is tracked on an open issue, never as a comment nobody watches.
+function reopen(gh, number) {
+    try {
+        gh(["issue", "reopen", String(number)]);
+    } catch {
+        // already open, or GitHub refused: the comment still lands
+    }
+    return number;
+}
+
 // One `Failing on master` issue per signature a base run failed every time (6.3): a comment when it exists.
 function fileFailingOnMaster(gh, f, sha) {
     const { signature, line } = failureHashes(f.message, f.file);
-    const had = findIssue(gh, signature);
+    const found = findIssue(gh, signature);
+    const had = found && reopen(gh, found);
     const body = [
         `\`${idOf(f)}\` fails on master ${sha} in its base check.`,
         "",
@@ -214,9 +228,12 @@ function fileFailingOnMaster(gh, f, sha) {
  * @param failing runShard()'s failing tests `{ file, name }`
  * @param gh `(args) => stdout`
  * @param [now] milliseconds
+ * @param [o] options
+ * @param [o.onMaster] whether a base run that failed files `Failing on master` (false for one repeat of several,
+ *   which alone proves nothing: the repeats together decide, through the store's flaky verdict)
  * @returns the issues filed or commented on: `{ signature, number }`
  */
-export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now()) {
+export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now(), { onMaster = true } = {}) {
     const out = [];
     const day = (ms) => new Date(ms).toISOString().slice(0, 10);
     // both tries' answers can name one test: one issue for it
@@ -235,12 +252,13 @@ export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now
             ],
             extra: ["", marker(t.signature)],
         };
-        const number = fileIssue(entry, t.had ?? findIssue(gh, t.signature), gh);
+        const earlier = t.had ?? findIssue(gh, t.signature);
+        const number = fileIssue(entry, earlier && reopen(gh, earlier), gh);
         if (number)
             out.push({ signature: t.signature, number, kind: "flaky", family: t.family, file: t.file, name: t.name });
     }
     const last = recs.at(-1);
-    if (answers.at(-1)?.data?.kind === "base" && last?.outcome === "failed") {
+    if (onMaster && answers.at(-1)?.data?.kind === "base" && last?.outcome === "failed") {
         const broken = last.failures.filter((f) => failing.some((x) => x.file === f.file && x.name === f.name));
         const bySignature = new Map(broken.map((f) => [failureHashes(f.message, f.file).signature, f]));
         for (const f of bySignature.values()) {
@@ -407,7 +425,8 @@ export async function runGroup(
     const head = headFacts(root, env);
     // no file (the full path), an unreadable one or a store outage: the committed list stands
     let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
-    if (plan?.unavailable) plan = null;
+    // a family the store was not asked about (a bin of a package nx did not call affected) keeps the committed list
+    if (plan?.unavailable || (plan?.families && !plan.families.includes(family))) plan = null;
     if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
         plan = await refreshPlan(plan, { cfg: config(env, root), sha: head.commit, family, variant });
     const rules =
@@ -462,7 +481,9 @@ async function record(shard, o) {
     });
     const cfg = config(env, root);
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
-    await fileIssues(cfg, recs, answers, result.failing ?? [], gh);
+    await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
+        onMaster: !(Number(env.RESULTS_REPEATS) > 1),
+    });
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

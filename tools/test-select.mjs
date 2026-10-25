@@ -998,22 +998,22 @@ export function wholePackageRule(rel, rules) {
  */
 export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
-        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
-            return {
-                shard: shard.shard,
-                package: shard.package,
-                total: null,
-                mode: "all",
-                files: [],
-                reasons: [smoke.get(shard.shard)],
-            };
-        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
         const own = runs && gs.length > 0 && !gs.includes(null) ? shardSpecs(runs, gs) : null;
         const base = { shard: shard.shard, package: shard.package, total: own ? own.specs.size : null };
         const sel = measuredShard(p, own);
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                ...base,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+                measured: { mode: sel.mode, files: sel.files },
+            };
+        }
         if (!p.fileLevel || sel.mode === "all") {
             return { ...base, ...sel };
         }
@@ -1203,7 +1203,8 @@ export function planRuns(root, shards, selection) {
         const command = s.mode === "files" ? selectedCommand(root, shard, files) : null;
         if (s.mode === "files" && !command) {
             const why = "its command is not a plain vitest run, so it runs whole";
-            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard] });
+            const measured = { mode: s.mode, files: s.files ?? [] };
+            plan.push({ shard, mode: "all", files: [], reasons: [why], covers: [shard.shard], measured });
             continue;
         }
         const same = command && plan.find((p) => p.command === command);
@@ -1274,7 +1275,8 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
  * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard], touched }`;
  *   `touched` is every test file the import graphs selected, also in a shard that runs whole (the pull request rules
- *   read it: a test outside it was not changed by the pull request, nor anything it imports); a
+ *   read it: a test outside it was not changed by the pull request, nor anything it imports) and `unknown` every
+ *   family with a shard that has no file-level answer, all of whose files count as touched; a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
@@ -1283,6 +1285,8 @@ export function lightPlan(root, shards, selection, durations = {}) {
     const runsPlanned = planRuns(root, shards, selection);
     const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
     out.touched = [...touched].sort();
+    const unknown = runsPlanned.filter((r) => r.mode === "all" && (r.measured?.mode ?? "all") === "all");
+    out.unknown = [...new Set(unknown.map((r) => familyOf(r.shard.shard)))].sort();
     const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {

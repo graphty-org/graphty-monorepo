@@ -394,11 +394,13 @@ jobs:
                       "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
                   # What the pull request rules read with the store's answer (tools/results/run-group.mjs prJudge):
                   # the base, and the test files the change touched: the ones it changed and the ones whose imports
-                  # reach a changed file (not the ones a rule runs). An unavailable or everything plan stays as it
-                  # is: every test counts as touched, and an outage leaves the committed quarantine list in force.
+                  # reach a changed file (not the ones a rule runs), and the families with no file-level answer
+                  # (every file of those counts as touched). An unavailable or everything plan stays as it is:
+                  # every test counts as touched, and an outage leaves the committed quarantine list in force.
                   jq -s --arg base "$(git rev-parse "origin/$BASE_REF")" --rawfile changed "$RUNNER_TEMP/changed.txt" \
                       'if .[0].unavailable or .[1].everything then .[0] else .[0] + {base: $base,
-                          affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique)} end' \
+                          affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique),
+                          unknownFamilies: (.[1].unknown // [])} end' \
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
                       && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
@@ -1125,6 +1127,9 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+                  # the job may write issues; the token is not left in .git/config for a pull request's code
+                  # (the repository is public, so the Git LFS pull below needs no credential)
+                  persist-credentials: false
 
             - uses: pnpm/action-setup@v6
 

@@ -78,9 +78,29 @@ jobs:
 
             - name: Install Playwright system packages
               uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium firefox webkit
 
-            - name: Install Playwright's Chromium
-              run: pnpm exec playwright install chromium
+            - name: Install Playwright's browsers
+              run: pnpm exec playwright install chromium firefox webkit
+
+            # as ci.yml's test job: the style fidelity oracle pictures, and lavapipe for the WebGPU node families
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(inputs.variant, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
+
+            - name: Install Mesa lavapipe and export the lane's environment
+              if: startsWith(inputs.variant, 'webgpu-graph-algorithms-node')
+              run: |
+                  sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+                  icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
+                  if [ -z "$icd" ]; then echo "::error::no lavapipe ICD json"; exit 1; fi
+                  {
+                      echo "VK_DRIVER_FILES=$icd"
+                      echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
+                      echo "GRAPHTY_GPU_REQUIRE=any"
+                      echo "XDG_RUNTIME_DIR=/tmp"
+                  } >> "$GITHUB_ENV"
 
             - name: Run the file
               env:

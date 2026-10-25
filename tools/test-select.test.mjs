@@ -1501,7 +1501,14 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
         const shards = ["graphty-1", "graphty-2"].map(byName);
         const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), sel("graphty-2", "all")]);
         // the files the import graphs selected stay touched for the pull request rules, though the family runs whole
-        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [], touched: [...many(2)].sort() });
+        // graphty-2 has no file-level answer, so every graphty file counts as touched
+        assert.deepEqual(out, {
+            bins: [],
+            whole: ["graphty-1", "graphty-2"],
+            none: [],
+            touched: [...many(2)].sort(),
+            unknown: ["graphty"],
+        });
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {

@@ -633,6 +633,9 @@ describe("flaky tests from master's records", () => {
         // a file that did not load (no test passed) is not a pass of the test
         const unloaded = { ...passing("4010.1.full.4"), files: [[X, 0, 1, 0, 30]], failures: [] };
         assert.deepEqual((await call("POST", "/v1/invocations", { token, body: unloaded })).body.flaky, []);
+        // nor one cut short after some of its tests passed
+        const cut = { ...passing("4010.1.full.5"), files: [[X, 3, 0, 0, 300]], failures: [] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: cut })).body.flaky, []);
         const gpu = { variant: "webgpu-graph-algorithms-node|flags=off|whole" };
         await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.gpu.1"), ...gpu } });
         const gpuPass = { ...passing("4010.1.gpu.2"), ...gpu };

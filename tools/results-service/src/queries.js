@@ -396,14 +396,14 @@ export async function trendFor(db, kind, posted, budgets, now) {
 }
 
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other
-// ran its file, with the same skip count and at least one test passing, without failing it (6.1): a file that did
-// not load passed nothing. Only pairs that include `id` are asked.
+// ran its file to the end (the same test count and skip count) without failing it (6.1): a file that did not load
+// or was cut short is no pass of the test. Only pairs that include `id` are asked.
 const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, a.id AS failedIn, b.id AS passedIn
      FROM invocation a JOIN failure f ON f.invocation = a.id
      JOIN file_run ra ON ra.invocation = a.id AND ra.file = f.file
      JOIN invocation b ON b.sha = a.sha AND b.variant = a.variant AND b.inputs = a.inputs AND b.id != a.id
      JOIN file_run rb ON rb.invocation = b.id AND rb.file = f.file AND coalesce(rb.skipped, 0) = coalesce(ra.skipped, 0)
-       AND coalesce(rb.passed, 0) > 0
+       AND coalesce(rb.passed, 0) + coalesce(rb.failed, 0) = coalesce(ra.passed, 0) + coalesce(ra.failed, 0)
      WHERE (a.id = ? OR b.id = ?) AND a.kind IN ${MASTER_EVIDENCE} AND b.kind IN ${MASTER_EVIDENCE}
        AND a.outcome IN ('passed','failed') AND b.outcome IN ('passed','failed')
        AND NOT EXISTS (SELECT 1 FROM failure g WHERE g.invocation = b.id AND g.file = f.file AND g.name = f.name)`;

@@ -844,7 +844,7 @@ describe("misses found by mutation testing", () => {
         assert.deepEqual([...sel.specs.keys()], ["graphty/src/a.test.tsx"]);
     });
 
-    it("a design/ file a test names in a string runs its package whole (graph-io's style defaults record)", () => {
+    it("a design/ file a test names in a string runs that test (graph-io's style defaults record)", () => {
         const g = {
             ...empty("graph-io")[0],
             projects: { unit: { specs: ["graph-io/test/styles/core.test.ts"], setup: [] } },
@@ -853,7 +853,8 @@ describe("misses found by mutation testing", () => {
         const sel = run(["design/graph-io/style-tool-defaults.md"], ["graph-io"], {
             graphs: new Map([["graph-io", [g]]]),
         }).packages.get("graph-io");
-        assert.equal(sel.mode, "all");
+        assert.equal(sel.mode, "files");
+        assert.deepEqual([...sel.specs.keys()], ["graph-io/test/styles/core.test.ts"]);
         assert.ok(
             [...run(["design/graph-io/other-notes.md"], ["graph-io"]).packages.values()].every(
                 (p) => p.mode === "none",

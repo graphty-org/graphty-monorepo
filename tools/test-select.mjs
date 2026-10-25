@@ -469,8 +469,8 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
 }
 
 /**
- * Whether a package's tests read a root file: those that import it are selected, and a package whose tests
- * name it runs whole.
+ * Whether a package's tests read a root file: those that import it are selected, test files that name it
+ * are selected, and a package whose other test-side files or configs name it runs whole.
  * @param f a root file
  * @param dir the package
  * @param ctx `{ graphs, out, whole }` as rootFiles has them
@@ -486,11 +486,17 @@ function readBy(f, dir, { graphs, out, whole }) {
         gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
         return true;
     }
-    if (namedBy(f, dir, known ? gs : null)) {
-        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
-        return true;
+    const by = namedBy(f, dir, known ? gs : null);
+    if (by.size === 0) {
+        return false;
     }
-    return false;
+    const specs = new Set(known ? gs.flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs)) : []);
+    if ([...by].every((x) => specs.has(x))) {
+        by.forEach((spec) => addSpec(out.get(dir), spec, `it names ${f}, which it may read at run time`));
+    } else {
+        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
+    }
+    return true;
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);
@@ -507,7 +513,7 @@ const namesByGraphs = new WeakMap();
  * @param file a root file
  * @param dir the package
  * @param graphs its graphs, or null
- * @returns boolean
+ * @returns Set of the files that name it (empty when none does)
  */
 function namedBy(file, dir, graphs) {
     // keyed by the graphs themselves (a package without them by its directory): each selection has its own
@@ -517,18 +523,25 @@ function namedBy(file, dir, graphs) {
         cache.set(key, namesIn(dir, graphs));
     }
     const { paths, bases } = cache.get(key);
-    if (file.startsWith("tools/") && bases.has(file.slice(file.lastIndexOf("/") + 1))) {
-        return true;
+    const by = new Set();
+    if (file.startsWith("tools/")) {
+        bases.get(file.slice(file.lastIndexOf("/") + 1))?.forEach((f) => by.add(f));
     }
     const parts = file.split("/");
-    return parts.some((_, i) => (i === parts.length - 1 || i > 0) && paths.has(parts.slice(0, i + 1).join("/")));
+    parts.forEach((_, i) => {
+        if (i === parts.length - 1 || i > 0) {
+            paths.get(parts.slice(0, i + 1).join("/"))?.forEach((f) => by.add(f));
+        }
+    });
+    return by;
 }
 
 /**
- * The paths and file names the string literals of a package's test-side files name.
+ * The paths and file names the string literals of a package's test-side files name, each with the files
+ * that name it.
  * @param dir the package
  * @param graphs its graphs, or null for every file of the package
- * @returns `{ paths: Set, bases: Set }`
+ * @returns `{ paths: Map(path -> Set of files), bases: Map(file name -> Set of files) }`
  */
 function namesIn(dir, graphs) {
     const candidates = graphs
@@ -541,14 +554,15 @@ function namesIn(dir, graphs) {
         : execFileSync("git", ["ls-files", "--", dir], { cwd: grepRoot, encoding: "utf8", maxBuffer: 1 << 28 })
               .split("\n")
               .filter(Boolean);
-    const paths = new Set();
-    const bases = new Set();
+    const paths = new Map();
+    const bases = new Map();
+    const add = (m, k, f) => m.set(k, (m.get(k) ?? new Set()).add(f));
     for (const f of candidates) {
         for (const literal of safeRead(join(grepRoot, f)).matchAll(/["'`]([^"'`\n]+)["'`]/gu)) {
             for (const [token] of literal[1].matchAll(/[\w@.+-]+(?:\/[\w@.+-]+)*/gu)) {
                 const path = token.replace(/^(?:\.{1,2}\/)+/u, "");
-                paths.add(path);
-                bases.add(path.slice(path.lastIndexOf("/") + 1));
+                add(paths, path, f);
+                add(bases, path.slice(path.lastIndexOf("/") + 1), f);
             }
         }
     }

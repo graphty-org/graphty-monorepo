@@ -359,6 +359,7 @@ type OpenReport = Awaited<ReturnType<GraphSession["project"]["open"]>>;
  * A data file the element opened: it goes through the Data page, or, read into the graph, starts
  * a new graph's history or says it was added.
  * @param workspace - the workspace store.
+ * @param session - the session.
  * @param report - what the element said of the file.
  * @param file - the file.
  * @param fresh - whether it opens as a new graph, from the start screen.

@@ -590,7 +590,7 @@ describe("the project file", () => {
         const { session } = harness;
 
         // The reader's edit is dispatched the moment the open is pending work.
-        let styled: Promise<unknown> | undefined;
+        let styled: PromiseLike<unknown> | undefined;
         const off = session.on("history:changed", () => {
             if (session.history.pending.some((each) => each.label === "Open project")) {
                 off();

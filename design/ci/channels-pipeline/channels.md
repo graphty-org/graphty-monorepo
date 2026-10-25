@@ -33,16 +33,11 @@ Why this shape, against the record:
 ## 2. What each deploy contains
 
 Every site is assembled once, by `tools/assemble-pages-site.sh` in `deploy-pages.yml`, from one
-master commit's push build. The tarball is identical on all three sites:
-
-- the graphty app (`graphty/dist`);
-- the unified VitePress docs (`docs/.vitepress/dist`), including the TypeDoc API pages;
-- the Storybooks of graphty-element, graphty, compact-mantine, algorithms, layout,
-  cytoscape-extensions and graph-io's fidelity stories;
-- the algorithms and layout gh-pages demos;
-- the hosted datasets under `/data/graph-samples/v1/`, built by
-  `graph-samples/scripts/build-hosted.mjs --reuse-published`;
-- the build stamp `<meta name="graphty-build" content="commit=<sha> release=<tag>">`.
+master commit's push build, and the tarball is identical on all three sites: the graphty app, the
+VitePress docs with the API pages, the seven Storybooks (graphty-element, graphty, compact-mantine,
+algorithms, layout, cytoscape-extensions, graph-io fidelity), the algorithms and layout demos, the
+hosted datasets under `/data/graph-samples/v1/` (`graph-samples/scripts/build-hosted.mjs`), and the
+build stamp `<meta name="graphty-build" content="commit=<sha> release=<tag>">`.
 
 The last deployed github-pages artifact measured 373 MB (2026-10-24 18:17 UTC). The hosted datasets
 are under 1 MB today.
@@ -77,8 +72,8 @@ still serves its own copy; production's simply never loses a dataset a published
 
 ## 3. Where the built files live
 
-Committing a 373 MB site into a git repository on every nightly would pass GitHub's 1 GB
-repository guidance within days, so the site repositories do not keep sites in git. Instead:
+A 373 MB site committed to git four times a day would pass GitHub's 1 GB repository guidance
+within days, so sites are kept as release assets, not in git:
 
 - Each nightly is a GitHub release in graphty-nightly, tag `nightly-<commit>`, with two assets:
   `site.tar.zst` (the canary tarball of that commit, byte for byte) and `channel.json`.
@@ -90,15 +85,12 @@ repository guidance within days, so the site repositories do not keep sites in g
   `site.json`, then runs `actions/upload-pages-artifact` and `actions/deploy-pages`. The monorepo
   starts it with a token of the existing Pages GitHub App (secrets `GRAPHTY_PAGES_APP_ID`,
   `GRAPHTY_PAGES_APP_KEY`), which needs Contents and Actions write on both site repositories.
-- Git history in the site repositories is one small commit per deploy, `deployed.json`
-  (`{ "tag", "sha256", "at", "by" }`), so the history is the audit log of what each site served.
+- Each deploy commits one small `deployed.json` (tag, sha256, time, approver): the audit log.
 
-Retention: every release that reached production is kept for good. Nightly releases that never
-reached production are pruned to the newest 40 (about ten days at four a day) by the nightly job
-itself. A rollback target older than that is a production release, which always exists.
+Retention: production releases are kept for good; nightly releases that never reached production
+are pruned to the newest 40 (about ten days) by the nightly job.
 
-`channel.json`, the record of one promotion, also written to the Cloudflare store's `promotions`
-table:
+`channel.json`, the record of one promotion (also a row in the Cloudflare store):
 
 ```json
 { "channel": "nightly", "commit": "<candidate sha>", "versionCommit": "<chore(release) sha>",
@@ -160,8 +152,7 @@ LLM lane was what failed, or when the diff since the last LLM-green commit touch
 AI code or the lockfile. That keeps it within the owner's roughly $60 a month (four candidates a
 day at $0.94 would be $113). The T4 runs on every candidate, as the owner ruled on 2026-10-13.
 
-Each lane writes its results to the Cloudflare store as its last step (shape in the test-store
-section). Coverage keeps going to Coveralls from the called CI run (`coverage.yml`), advisory.
+Each lane records its results in the Cloudflare store as its last step; Coveralls stays advisory.
 
 **Verdict.** One job, `verdict`, reads every lane's result and the capture and ends in exactly one
 of four states, written to the store and announced by `tools/release-status.mjs` on the
@@ -183,11 +174,9 @@ existing `workflow_run` trigger on a green master push starts a restart, but onl
 merge references that issue (`Refs #N`, `Fixes #N`) or is the revert the pipeline round opened for
 it. A restart first runs only the previously failing tests on the new tip (minutes, through the
 same filter the bisect uses); only when they pass does it run the full run there. A merge that is
-not a fix waits for the next slot. This answers the "moving target" failure: tier 3 took 49.6 hours
-and 82 gate runs partly because every retry tested new code with new reasons to fail.
+not a fix waits for the next slot. This answers tier 3's 49.6 hours, where every retry tested new code.
 
-`concurrency: release-train` with `cancel-in-progress: false` stays: one run at a time, at most one
-waiting.
+`concurrency: release-train` (no cancelling) stays: one run at a time, at most one waiting.
 
 ## 6. Red: bisect, revert, fix forward
 
@@ -268,10 +257,9 @@ re-runs alone; npm `next` and the nightly site may differ for that long, and the
 
 **Consequence of plain versions under `next`.** npm resolves a range such as `^3.30.0` to the
 highest version whatever its dist-tag, so a consumer with a caret range gets nightly versions on a
-fresh install. That follows from the owner's choice of the same version numbers on both tags. The
-graphty-element installation docs therefore say: pin an exact version, or install
-`@graphty/graphty-element@latest`, to stay on production. Volume: at most four versions a day per
-changed package, usually one or two for graphty-element.
+fresh install. It follows from using the same version numbers on both tags; the
+installation docs say to pin an exact version to stay on production. At most four versions a day
+per changed package.
 
 ## 8. Promotion to production
 
@@ -318,9 +306,9 @@ overlay keeps every dataset. Caret-range consumers still resolve to the highest 
 version is also deprecated (`npm deprecate <name>@<version> "<reason>"`, same token) and the real
 fix ships as the next patch through the hotfix path.
 
-**Rollback of nightly**: `npm dist-tag add <name>@<previous> next` and a deploy of the previous
-graphty-nightly release, both through `promote.yml`'s twin input `channel: nightly` (no approval
-needed for nightly). Usually unnecessary: the revert and the next green run supersede it.
+**Rollback of nightly**: usually unnecessary, because the revert and the next green run supersede
+it. Otherwise `promote.yml` with `channel: nightly` moves `next` back and redeploys the previous
+graphty-nightly release, behind the same owner approval (it needs the same token).
 
 **Rollback of canary**: revert on master.
 
@@ -347,8 +335,7 @@ needed for nightly). Usually unnecessary: the revert and the next green run supe
   `tools/bisect-core.mjs`, `release-hold.json` and `visual-review/trusted/**`, with "require review
   from code owners" on master. The site repositories' `site.json` and `deploy.yml` are code-owned
   there too.
-- Secrets: `RELEASE_DEPLOY_KEY` (repository), `GRAPHTY_PAGES_APP_*` (repository),
-  `NPM_DIST_TAG_TOKEN` (production environment only). Trusted-publisher entries keep naming
+- `NPM_DIST_TAG_TOKEN` lives only in `production`; trusted-publisher entries keep naming
   `release.yml` with no environment, so they need no change.
 
 ## 12. What release.yml becomes, and what is deleted
@@ -374,30 +361,17 @@ Deleted or retired in this area:
 - `land.mjs cut`, `cut-fix` and `ship`, and the cut and golden pull requests, with the rest of the
   golden machinery (listed in the merging section).
 
-Kept unchanged: `release-watch.yml`, `gpu-rerun-on-runner-loss.yml`, `master-guard.yml` (master
-moves by pull requests again, so its revert of a red master build is useful again),
-`tools/release-status.mjs`, `tools/publish-hold.mjs`, `tools/release-version.sh`,
-`tools/release-diff.mjs`, `tools/changelog-renderer.cjs`, the Cloudflare scheduler.
+Kept unchanged: `release-watch.yml`, `gpu-rerun-on-runner-loss.yml`, `master-guard.yml` (useful
+again now that pull requests move master), the release tools named above, the scheduler.
 
 ## 13. Migration order
 
-Each step is reversible and measured. Golden is flushed first: what it holds ships through the
-current release (#3318); nothing new lands on it.
-
-1. **Canary**: owner adds DNS for canary.graphty.app and verifies the domain; `deploy-pages.yml`
-   moves to canary and starts keeping `site-<sha>` for 14 days. graphty.app stays on this
-   repository's Pages until step 4. Measure: merge to canary under 30 minutes.
-2. **Full run in shadow**: release.yml runs `mode: full` on canary's commit and records its verdict,
-   publishing nothing; the old train is off once golden is flushed. Measure: green run under 60
-   minutes; share of reds that are product defects versus tooling.
-3. **Nightly**: graphty-nightly exists, DNS set, the Pages app installed; promotion to nightly and
-   npm `next` switched on. Measure: one screenshot review per nightly with changed images.
-4. **Production**: the machine account exists and agents use it; the admin bypass is removed; the
-   `production` environment and `NPM_DIST_TAG_TOKEN` exist; graphty.app moves to graphty-site at a
-   quiet hour (GitHub reissues its certificate, so expect a short outage); first `promote.yml`.
-   Measure: npm `latest` and graphty.app always on the same commit.
-5. **Delete** what section 12 lists; update the pipeline-round skill and every CLAUDE.md in the same
-   pull request.
+After golden is flushed through the current release (#3318): (1) canary on its domain, keeping
+`site-<sha>`; (2) the full run in shadow, publishing nothing (measure: green under 60 minutes,
+share of reds that are tooling); (3) nightly and npm `next`; (4) once the machine account,
+`production` environment and token exist, graphty.app moves to graphty-site at a quiet hour
+(GitHub reissues its certificate: a short outage) and the first `promote.yml` runs; (5) delete
+section 12's list and update the pipeline-round skill and every CLAUDE.md in the same pull request.
 
 ## 14. The owner's actions
 

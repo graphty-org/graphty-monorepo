@@ -52,6 +52,9 @@ the item named corrects the design's text in its own branch.
 
 ## 2. How to read an item
 
+The number after an agent item's name is its GitHub issue; owner and pipeline-round items are
+tracked on #3418's checklist.
+
 Each item: **who** (agent, owner, or the pipeline round), **size** (S under about 150 changed lines
 or an hour of owner time, M under about 400; nothing larger, larger work is split), what it changes,
 **needs** (items first), **done** (a check anyone can run), **undo**, and its branch (section 5).
@@ -105,22 +108,22 @@ on `fileLevel` runs whole shards under its own budget key), step 9, and the feat
 
 ### Step 0: flush golden
 
-**t4-graph-fix** -- agent, S, CP. nx could not build its project graph in the T4 lane, one of the
+**t4-graph-fix** (#3318) -- agent, S, CP. nx could not build its project graph in the T4 lane, one of the
 two causes holding #3318. Done: `gpu.yml` dispatched on the branch passes its graph step. Undo:
 revert.
 
-**audit-fix** -- agent, S, off the path. The audit flags zod and body-parser (#3393). Done:
+**audit-fix** (#3393) -- agent, S, off the path. The audit flags zod and body-parser (#3393). Done:
 `pnpm audit --prod` reports neither. With no patched version, it waits; #3318 then releases
 through a `mode: legacy` dispatch once the fix is in, and only `deletion` waits. Undo: revert.
 
-**sentry-build-fix** -- agent, M, CP. Corrects branch `perf/ci-build-sentry-after-build` (#3415) per
+**sentry-build-fix** (#3415) -- agent, M, CP. Corrects branch `perf/ci-build-sentry-after-build` (#3415) per
 merging section 5.3: a `sentry` job after Build on every event (inject debug ids, re-upload
 graphty's dist), the upload alone master-only in environment `master-build`, `VITE_SENTRY_*` as
 repository variables. Done: in its CI run `graphty:build` under 2 min and Build under 6; no secret
 in the Build step's env; graphty's dist hashes equal on a pull request run and a master run of one
 tree. Undo: revert the land commit.
 
-**flush-stop-landing** -- agent, S, CP. In `land.mjs`, the top-level `land` and `sync` commands
+**flush-stop-landing** (#3419) -- agent, S, CP. In `land.mjs`, the top-level `land` and `sync` commands
 refuse while the main checkout's `tmp/golden/flush` exists; the `land` that `cutFixThenLand` calls
 after merging into `golden-cut` passes a flag and is not refused (about five lines). Put live with
 `tools/live.sh land` as soon as it lands. Atop the pipeline-round skill, an **interim rules**
@@ -137,7 +140,7 @@ paragraph, in force from the flush until `shipping-instructions-switch` replaces
 Done: with the file present, `node tools/land.mjs land <branch> --dry-run` exits 1 naming the flush,
 and `node tools/land.mjs cut-fix <branch> --dry-run` succeeds. Undo: delete the file.
 
-**freeze-graphty-app** -- agent, S, CP, the last golden landing. `deploy-pages.yml` assembles and
+**freeze-graphty-app** (#3420) -- agent, S, CP, the last golden landing. `deploy-pages.yml` assembles and
 uploads `site-<sha>` (14 days) on every green master build, but deploys graphty.app only when the
 build's head commit is the version merge release.yml's `land` job pushed. So #3318's release, and
 later a `mode: legacy` release, moves graphty.app with npm `latest`, and nothing else does. Needs:
@@ -161,7 +164,7 @@ patch).
 **owner-finish-flush** -- owner, S, CP (section 13 item 1). When the round says the cut's preview is
 ready: decide its changed screenshots, Finish with Face ID. Done: the cut's gate is green.
 
-**main-follows-master** -- agent, S, CP, right after `flush-ship`. `MAIN_FOLLOWS = "master"` in
+**main-follows-master** (#3421) -- agent, S, CP, right after `flush-ship`. `MAIN_FOLLOWS = "master"` in
 `land.mjs` and `worktree-new.sh`'s default base `origin/master`, live at once with
 `tools/live.sh land`, so the main checkout and every new worktree read master's
 `.claude/settings.json`, skills and CLAUDE.md. Golden is an ancestor of master by then, so nothing is
@@ -171,12 +174,12 @@ origin/master` is master's tip. Undo: set it back.
 
 ### Step 1: owner setup (parallel with steps 0, 2 and 4)
 
-**owner-inputs** -- agent, S, day 0. Posts on #3418 everything the owner items say "the session
+**owner-inputs** (#3422) -- agent, S, day 0. Posts on #3418 everything the owner items say "the session
 gives": each environment's secret list (names and where each value comes from), the Cloudflare
 commands, the scratch-ruleset command (once `pr-integrity-workflow` exists), the site deploy keys'
 public halves. Done: each owner item below links its comment.
 
-**agent-identity-files** -- agent, S, no commit. Generate `~/.ssh/graphty-agent_ed25519` and
+**agent-identity-files** (#3423) -- agent, S, no commit. Generate `~/.ssh/graphty-agent_ed25519` and
 `~/.ssh/graphty-agent-signing_ed25519`; write `~/.config/git-agent/config` (budgets section 2.2,
 with `core.sshCommand "ssh -i ~/.ssh/graphty-agent_ed25519 -o IdentitiesOnly=yes -o
 IdentityAgent=none"`), an empty `~/.config/npm-agent/npmrc` and `~/.config/gnupg-agent/`; generate the
@@ -218,27 +221,27 @@ repositories list the key and the Pages source.
 
 ### Step 2: results store, write-only
 
-**results-worker** -- agent, two pull requests, CP. (a) M: `tools/results-service/` (Worker, D1
+**results-worker** (#3426) -- agent, two pull requests, CP. (a) M: `tools/results-service/` (Worker, D1
 migration, `/v1/health`) and `results-service.yml` deploying from master. (b) M: OIDC with audience
 `graphty-results`; `full`, `bisect`, `base` only from master's ref and workflow; `local` by token
 hash; `deploy` from the site repositories. It stores and answers, nothing more. Needs:
 `owner-cloudflare`, `agent-env-and-guard`. Done: tests pass; `/v1/health` answers; a `full` record
 from a branch ref is refused. Undo: delete the Worker.
 
-**results-reporter** -- agent, M. The pure tools: `tools/results/` (client; `run-group.mjs`: inputs
+**results-reporter** (#3427) -- agent, M. The pure tools: `tools/results/` (client; `run-group.mjs`: inputs
 key, run, retry failed files once, one record per test group, spool); a Vitest failure reporter
 (batched past the 20th); 5 s and 2 s timeouts, fail open; `test-history.mjs` and
 `vitest-time-budget.mjs` reading and writing the store (`vitest-time-budget.mjs` keeps its cache file
 as the fallback). No workflow edit. Done: tests, including a store that never answers.
 
-**durations-timings** -- agent, M. `ci-budgets.json` (section 7 values) and `tools/ci-budgets.mjs`
+**durations-timings** (#3428) -- agent, M. `ci-budgets.json` (section 7 values) and `tools/ci-budgets.mjs`
 (`report`, `trend`, `lint`): `trend` files or updates exactly one issue per key over its alarm
 (design 7), and posts one comment per pull request whose key is over 1.5 times master's median;
 `lint` fails a job whose `timeout-minutes` is not twice its budget, and a secret in Build's env
 (the one-build-for-every-event rule). No workflow edit. Done: tests, including a seeded secret in
 Build's env failing `lint`.
 
-**results-wiring** -- agent, M, CP, the step-2 workflow pull request. The reporter step and a last
+**results-wiring** (#3429) -- agent, M, CP, the step-2 workflow pull request. The reporter step and a last
 `timings` job (`if: always()`, posting job, step, `NX_PROFILE` task and queue rows) in ci.yml,
 release.yml, gpu.yml, hosts.yml, the macOS, lifecycle and LLM jobs; `restricted-cpu-stress.yml`
 writes kind `stress`; `timeout-minutes` set on every job so `ci-budgets.mjs lint` passes on master
@@ -247,19 +250,19 @@ writes kind `stress`; `timeout-minutes` set on every job so `ci-budgets.mjs lint
 p95 write under 500 ms; no job slowed over 5 s by the store; stored runs match their JUnit; a slow
 scratch run warns and stays green. Undo: revert.
 
-**results-queries** -- agent, M. The Worker's read side, with endpoint tests: the plan read
+**results-queries** (#3430) -- agent, M. The Worker's read side, with endpoint tests: the plan read
 (quarantine computed at read time, master-evidence excuses, per-file durations), the full run's
 candidate pick, the state `release-due` reads, the trend alarm computation, `age:nightly`. Needs:
 `results-worker`. Done: each endpoint's test against seeded records. Undo: revert.
 
-**cache-hygiene** -- agent, S. Each cache key family's size and write rate in `ci-budgets.json`; a
+**cache-hygiene** (#3431) -- agent, S. Each cache key family's size and write rate in `ci-budgets.json`; a
 master job deleting superseded keys (keeping one LFS key per project and one import-graph key);
 monthly `bytes:lfs` and `bytes:actions-cache` rows. In `results-wiring`'s pull request. Done: a
 second master build leaves one key per family.
 
 ### Step 3: freeze npm, switch identity
 
-**release-shadow-and-legacy** -- agent, M, CP, the first pull request into master after the flush.
+**release-shadow-and-legacy** (#3424) -- agent, M, CP, the first pull request into master after the flush.
 release.yml's `land` and `publish` off; `workflow_run` removed, so a held release never restarts
 the train; a red shadow run files no "Release held" issue (one comment on #3418 instead). Every
 release.yml job that reads a secret declares its environment (`land` and `publish` in `release`,
@@ -275,22 +278,22 @@ and any npm token; each now lives only in its environment. Done (agent): `gh api
 repos/graphty-org/graphty-monorepo/actions/secrets --jq '.secrets[].name'` lists none of them; a
 `mode=legacy` dry run still reads each.
 
-**test-integrity-check** -- agent, M, CP. `tools/check-test-integrity.mjs` with tests (budgets
+**test-integrity-check** (#3432) -- agent, M, CP. `tools/check-test-integrity.mjs` with tests (budgets
 section 4.1) and its replay over the 96 `land:` merges of 2026-10-18 to 10-24. Done: every false
 positive fixed in the check; the real-hit count in section 6.2 and on #3418. Undo: delete.
 
-**codeowners-and-closure** -- agent, S, CP. `.github/CODEOWNERS` (section 6.2) and
+**codeowners-and-closure** (#3433) -- agent, S, CP. `.github/CODEOWNERS` (section 6.2) and
 `tools/check-owned-closure.mjs` over the selector's import graph. Done: the replay over the 117
 landings counts the owned ones (about 27 expected); the closure check names no unowned file on master
 once the list grows by what it named. Undo: delete CODEOWNERS.
 
-**pr-integrity-workflow** -- agent, M, CP. `pr-integrity.yml` (section 6.4: integrity, owned closure,
+**pr-integrity-workflow** (#3434) -- agent, M, CP. `pr-integrity.yml` (section 6.4: integrity, owned closure,
 Proof, fresh-review patch id, breaking guard, signed baselines via master's `approval.mjs`, the three
 exemptions); `.github/pull_request_template.md`; `pr-issue-link.yml` accepts `dependabot[bot]`;
 `dependabot-automerge.yml` (Actions updates wait for the owner). Needs: `test-integrity-check`,
 `codeowners-and-closure`. Done: `scratch-ruleset-cases`. Undo: drop it from the required checks.
 
-**agent-env-and-guard** -- agent, M, CP, the second pull request into master after the flush.
+**agent-env-and-guard** (#3425) -- agent, M, CP, the second pull request into master after the flush.
 `.claude/settings.json` `env`: `GH_CONFIG_DIR`, `GIT_CONFIG_GLOBAL`, `NPM_CONFIG_USERCONFIG`,
 `GNUPGHOME`, `SSH_AUTH_SOCK=""`. A PreToolUse hook `tools/claude-owner-credential-guard.mjs` with
 tests, in the style of `claude-no-foreground-wait.mjs`: refuses Bash, Read, Grep and Glob calls
@@ -312,7 +315,7 @@ pattern and passes an ordinary call of each tool. Undo: remove the block and the
 creates a scratch ruleset with exactly the planned settings on `scratch/ruleset-trial`. Needs:
 `pr-integrity-workflow`. Undo: delete it.
 
-**scratch-ruleset-cases** -- agent, S, CP. Against the scratch ruleset, each logged on #3418: an
+**scratch-ruleset-cases** (#3435) -- agent, S, CP. Against the scratch ruleset, each logged on #3418: an
 owned-path pull request waits and a `graphty/src/` one auto-merges; `--admin` refused; a revert, an
 accept-only and a Dependabot pull request pass PR Integrity, a `feat!:` title and an unsigned PNG
 fail it; a master merge keeps the fresh review and a fix push loses it. Needs:
@@ -325,55 +328,55 @@ off; Actions read-only and "Allow Actions to approve" off. Needs: every step-3 p
 owner's account is closed and reopened as the agent first. Undo: add the bypass actor back, remove
 the four required checks, turn squash and "Allow Actions to approve" back on.
 
-**step-3-acceptance** -- agent, S, CP. On the real ruleset, each logged on #3418: graphty.app's
+**step-3-acceptance** (#3436) -- agent, S, CP. On the real ruleset, each logged on #3418: graphty.app's
 stamp still names #3318's version merge (or step 0's commit if #3318 waits on `audit-fix`);
 `bypass_actors` only `DeployKey`; an agent `*@*` tag push refused; an owned-path pull request waits;
 the review server's accept commit is the agent's.
 
 ### Step 4: selection readiness
 
-**select-mutate-names** -- agent, S. `test-select-mutate.mjs --name <n>` gives each run its own
+**select-mutate-names** (#3437) -- agent, S. `test-select-mutate.mjs --name <n>` gives each run its own
 `.worktrees/select-mutate-<n>`. Done: two runs at once leave both reports.
 
-**file-level-selection** -- agent, S. A clean `test-select-mutate.mjs <package> --name <package>`
+**file-level-selection** (#3439) -- agent, S. A clean `test-select-mutate.mjs <package> --name <package>`
 run, at most 4 at once on this machine, for graph-io, webgpu-graph-algorithms, algorithms, layout,
 graph-samples and cytoscape-extensions. The clean ones join `fileLevel` (and `fileLevelBrowser`) in
 one owned pull request with `affected-input-fixes`; a package whose run is not clean gets its
 longest shard sliced under 8 min in a pull request of its own. Needs: `select-mutate-names`. Done:
 each clean run in the Proof, or every slice under 8 min in CI. Undo: remove the entry.
 
-**affected-input-fixes** -- agent, S. Merging section 4.3: `.github/workflows/**` out of
+**affected-input-fixes** (#3438) -- agent, S. Merging section 4.3: `.github/workflows/**` out of
 `sharedGlobals`, `projectsAffectedByDependencyUpdates: "auto"`, `^\.github/` and
 `^pnpm-lock\.yaml$` out of `everything.patterns`, the smoke-shard rule. In `file-level-selection`'s
 pull request. Done: a workflow-only commit selects only the tool tests and smoke shards; a lockfile
 bump of one package's dependency affects only its dependents. Undo: revert.
 
-**light-check-replay** -- agent, M. `packBins()` in `tools/test-select.mjs` (bins of at most 8 min
+**light-check-replay** (#3440) -- agent, M. `packBins()` in `tools/test-select.mjs` (bins of at most 8 min
 from per-file durations, an unknown file counted as the family's longest) with tests; the replay of
 `tmp/test-select/advisory.jsonl` through it sets each light-check key in `ci-budgets.json`. Needs:
 `durations-timings`; merges after `results-wiring` so the durations it reads are the store's. Done:
 the replay's table (key, p50, p90) on #3418, cited in each `why`. Undo: revert.
 
-**story-parity-spike** -- agent, M. Stories section 9's spike: 50 stories each of graphty and
+**story-parity-spike** (#3389) -- agent, M. Stories section 9's spike: 50 stories each of graphty and
 graphty-element, dev and production mode, measured in CI by a new `visual-review parity` command
 (which merges; the harness may not). Done: the outcome recorded on #3418. Undo: none needed.
 
 ### Step 5: pull requests into master
 
-**nx-cache-worker** -- agent, S. `tools/nx-cache-worker/` over R2 (merging section 5.2), deployed by
+**nx-cache-worker** (#3441) -- agent, S. `tools/nx-cache-worker/` over R2 (merging section 5.2), deployed by
 one more job in `results-service.yml`; write token in `nx-cache-write`, read token a repository
 secret; the writing job declares `nx-cache-write` only on master. Needs: `owner-cloudflare`,
 `owner-environments`, `results-worker`. Done: master writes entries; an unaffected package is a
 remote hit on a pull request; a pull request write gets 403. Undo: unset the two variables.
 
-**light-check-plan** -- agent, M. A per-entry `files` field in `ci-test-matrix.mjs`; the story
+**light-check-plan** (#3442) -- agent, M. A per-entry `files` field in `ci-test-matrix.mjs`; the story
 selector in `test-select.mjs` (import closure, global inputs, the lockfile exception); default base
 `origin/master` there and in `test-changed.mjs`; the import-graph cache key. Branched from
 `light-check-replay`'s branch, merging it, since both edit `test-select.mjs`. Needs:
 `light-check-replay`, `affected-input-fixes`. Done: tests; a one-package plan's bins are all under
 8 min. Undo: revert.
 
-**light-check-workflow** -- agent, three ci.yml pull requests in order, CP. Merging section 4.1.
+**light-check-workflow** (#3443) -- agent, three ci.yml pull requests in order, CP. Merging section 4.1.
 
 - (a) M: Plan inside Build with one store read as `results-plan`; Build with the cache probe;
   `Test (<family>-<bin>)` through `run-group.mjs`. Needs: `light-check-plan`, `nx-cache-worker`,
@@ -391,7 +394,7 @@ selector in `test-select.mjs` (import closure, global inputs, the lockfile excep
 
 Undo: revert the ci.yml commit.
 
-**store-reads-live** -- agent, M, CP, once `results-wiring` has 3 days of records. Quarantine and
+**store-reads-live** (#3388) -- agent, M, CP, once `results-wiring` has 3 days of records. Quarantine and
 the master excuse from the plan (`[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN?]`), with one
 `priority:critical` issue per quarantined test filed or updated by the reading step;
 `base-check.yml` (input `repeat`); the light check reads quarantine from the store, while the full
@@ -401,17 +404,17 @@ Insights upload deleted (settled 29). Needs: `results-queries`, `light-check-wor
 seeded unrelated flaky test passes as `[FLAKY-UNRELATED]` and files exactly one issue; `base-check.yml
 repeat: 5` quarantines it; 14,203 imported. Undo: revert.
 
-**pr-open-and-review** -- agent, M, CP. `tools/pr-review.sh` (headless `claude -p`, `/code-review`
+**pr-open-and-review** (#3444) -- agent, M, CP. `tools/pr-review.sh` (headless `claude -p`, `/code-review`
 at `high`, issue plus diff plus Proof only, report with its patch id) and `tools/pr-open.sh` (merging
 section 2.2, including the webgpu reminder). Done: on a scratch branch `pr-open.sh` returns in under
 30 s with auto-merge armed and PR Integrity green; a webgpu-graph-algorithms change prints the
 reminder. Undo: revert.
 
-**skill-test-scaffold** -- agent, S. `tools/pipeline-round-skill.test.mjs`: the skill's sections
+**skill-test-scaffold** (#3445) -- agent, S. `tools/pipeline-round-skill.test.mjs`: the skill's sections
 exist in section 12's order and name no deleted command. Reviewed alone. Done: it fails on today's
 skill and passes on `shipping-instructions-switch`'s.
 
-**shipping-instructions-switch** -- agent, M in words, CP, written from step 3 on and merged last
+**shipping-instructions-switch** (#3446) -- agent, M in words, CP, written from step 3 on and merged last
 in step 5, so instructions and flow change at one moment. Root CLAUDE.md per migration section 6's
 step-5 rows ("Shipping a change", under 600 words, replaces the landing and verification sections;
 the five agent rules of budgets section 4.4; merges master after `agent-env-and-guard`, which edits
@@ -431,11 +434,11 @@ Undo: restore the sections, `git branch golden origin/master`.
 `pr-open.sh`, oldest first, at most 10 open at once. Done: the broker's file shows no waiting branch
 without a pull request.
 
-**step-5-acceptance** -- agent, S, CP. Over the first 20 merged pull requests: median to All Checks
+**step-5-acceptance** (#3447) -- agent, S, CP. Over the first 20 merged pull requests: median to All Checks
 Pass within budget; 18 merged untouched; master green after each; one Dependabot pull request
 auto-merged and built.
 
-**quick-check-and-prepush** -- agent, S, after `step-5-acceptance` (the live gate follows master,
+**quick-check-and-prepush** (#3448) -- agent, S, after `step-5-acceptance` (the live gate follows master,
 and step 5's undo needs today's gate). `tools/check-quick.sh` and `check:quick` (merging section 6,
 with `GIT_CONFIG_GLOBAL=/dev/null` for tests, SonarQube changed lines, and the real-GPU run with
 `GRAPHTY_GPU_REQUIRE=nvidia`, the EGL path and the unset list when webgpu-graph-algorithms is
@@ -443,31 +446,31 @@ affected); `.husky/pre-push` down to LFS, secret scan and images. Done: `pnpm ru
 under 6 min on a one-package change and runs the GPU tests on a webgpu change; under 10 s of
 push-hook time. Undo: restore the hook.
 
-**kept-tools-strip** -- agent, M, after `step-5-acceptance`, for the same reason. The gate lane and
+**kept-tools-strip** (#3449) -- agent, M, after `step-5-acceptance`, for the same reason. The gate lane and
 marks out of `test-slots.mjs`, the sync merge out of `branch-push.sh`, the gate-shard lane out of
 `with-browser.sh`, the sync fields out of `branch-note.mjs`. Done: their tests pass; two local
 vitest runs still share slots. Undo: revert.
 
 ### Step 6: the full run every 6 hours, publishing nothing
 
-**bisect-core** -- agent, M. `tools/bisect-core.mjs` with tests: `verify.mjs`'s rules (channels
+**bisect-core** (#3450) -- agent, M. `tools/bisect-core.mjs` with tests: `verify.mjs`'s rules (channels
 section 6). Done: three recorded verifications (a culprit, a flaky-before, no culprit) replay to
 `verify.mjs`'s answers. Undo: delete.
 
-**bisect-workflow** -- agent, M, CP. `bisect.yml` (concurrency `bisect-<sha>`, the full run's load
+**bisect-workflow** (#3451) -- agent, M, CP. `bisect.yml` (concurrency `bisect-<sha>`, the full run's load
 conditions, at most 8 points, `max-parallel` sized so a bisect and a full run fit the runner
 budget); a `files` input and per-point concurrency on gpu, hosts and macOS; T4 capped at 4 paid
 hours after the local card; LLM limits of channels section 5. Needs: `bisect-core`. Done: a broken
 scratch range names its culprit merge. Undo: revert.
 
-**release-diff** -- agent, S. `tools/release-diff.mjs` with its tests. Done: tests over two real
+**release-diff** (#3452) -- agent, S. `tools/release-diff.mjs` with its tests. Done: tests over two real
 release pairs.
 
-**full-run-calls** -- agent, S, ci.yml. `reuse_build_run`, On shards after their Off twins (none
+**full-run-calls** (#3453) -- agent, S, ci.yml. `reuse_build_run`, On shards after their Off twins (none
 while `FEATURES` is empty), Performance outside the verdict, `release-due`. Needs:
 `light-check-workflow` (b). Done: a dispatched `reuse_build_run` skips Build.
 
-**full-run-release** -- agent, M, CP, release.yml. Channels sections 5 and 13: `mode`, the catch-up
+**full-run-release** (#3454) -- agent, M, CP, release.yml. Channels sections 5 and 13: `mode`, the catch-up
 step, the store's candidate pick, `verdict` with the gate on green-clean, the red issue
 (`priority:critical`) and one bisect dispatch; a restart runs only on a merge referencing the red
 issue, its failing tests first; the full path reads quarantine from the store; new outcomes (red
@@ -477,40 +480,40 @@ link, lifecycle and Cost Estimate Accuracy lanes. Needs: `full-run-calls`, `bise
 verdict; a second dispatch on the same commit skips as judged; a merge not referencing the red issue
 starts no restart. Undo: stop the scheduler.
 
-**version-dry-run** -- agent, S, release.yml, after `full-run-release`. `version-dry-run` against
+**version-dry-run** (#3455) -- agent, S, release.yml, after `full-run-release`. `version-dry-run` against
 `release-approvals.json`. Done: a seeded major without an entry fails the dry run. Undo: revert.
 
-**llm-once-a-day** -- agent, S, in `full-run-release`'s branch. The `llm` job runs when the ci.yml
+**llm-once-a-day** (#3456) -- agent, S, in `full-run-release`'s branch. The `llm` job runs when the ci.yml
 lane is green and the store has no LLM run that UTC day, or on an owner `mode=full`; `spend:llm`
 warns at $60. Sections 3, 9 and 11, channels section 5 and CLAUDE.md's `llm-regression` line
 corrected. Done: two days of slots, exactly one LLM run a day. Undo: one condition.
 
-**deploy-record-and-hosts** -- agent, S. `deploy-pages.yml` records `site-<sha>` in the store;
+**deploy-record-and-hosts** (#3457) -- agent, S. `deploy-pages.yml` records `site-<sha>` in the store;
 `hosts.yml` loses its cron. Done: the store lists the last master build's site. Undo: revert.
 
-**scheduler-updates** -- agent, S, owned. `tools/release-scheduler/`: dispatch with `mode: full`;
+**scheduler-updates** (#3458) -- agent, S, owned. `tools/release-scheduler/`: dispatch with `mode: full`;
 the ancestry check with Contents: read (design 4); the daily "exactly one write deploy key, id
 164375816" check that files `priority:critical` (design 6.3). Needs: `owner-cloudflare`,
 `full-run-release`. Done: its tests; a seeded second deploy key files one issue. Undo: revert.
 
-**autosave-compat-lane** -- agent, M. A lifecycle test opening production's autosave and project
+**autosave-compat-lane** (#3459) -- agent, M. A lifecycle test opening production's autosave and project
 files with the candidate, and the reverse refusing without touching data (channels section 10).
 Done: passes on master; a seeded format change fails it. Undo: remove it.
 
-**step-6-acceptance** -- agent, S, CP. 8 consecutive slots passed, or failed with a culprit whose
+**step-6-acceptance** (#3460) -- agent, S, CP. 8 consecutive slots passed, or failed with a culprit whose
 revert made the next pass; none skipped but as judged; during a slot with a bisect running, queue
 time p95 under 10 minutes. Needs: `step-5-acceptance`.
 
 ### Step 7: nightly and npm `next`
 
-**nightly-publish-environment** -- agent, S, CP, lands alone first. `publish` keeps `environment:
+**nightly-publish-environment** (#3461) -- agent, S, CP, lands alone first. `publish` keeps `environment:
 release` and adds `--tag next` for the nightly path; `pnpm install --frozen-lockfile
 --ignore-scripts`; `land` pushes `site-<sha>` and `channel/nightly`. `mode: legacy` keeps
 publishing `latest` from the same `release` job behind its `production` approval job, so the
 binding below does not break it. Needs: `step-6-acceptance`, `step-5-acceptance`. Done: a release
 dry run under `--ignore-scripts` succeeds. Undo: revert.
 
-**site-deploy-workflow** -- agent, S. `tools/channel/site-deploy.yml` (the site repositories'
+**site-deploy-workflow** (#3462) -- agent, S. `tools/channel/site-deploy.yml` (the site repositories'
 `deploy.yml`: check the asset against `deployed.json`, deploy, report kind `deploy`) and
 `graphty/sites/nightly.json`. Done: a wrong-hash dry run refuses. Undo: revert.
 
@@ -518,7 +521,7 @@ dry run under `--ignore-scripts` succeeds. Undo: revert.
 `deploy.yml` to graphty-nightly and graphty-site; set the custom domain nightly.graphty.app on
 graphty-nightly and enforce HTTPS. Done: a dry dispatch on graphty-nightly runs.
 
-**nightly-site** -- agent, M, CP. release.yml's `site` job (prerelease, tarball and `channel.json`,
+**nightly-site** (#1020) -- agent, M, CP. release.yml's `site` job (prerelease, tarball and `channel.json`,
 sha256 to the store, `deployed.json` to graphty-nightly, wait for the report), `land` and `publish`
 on for `next`, the `age:nightly` stall alarm, announcements of a promoted nightly; a nightly
 promotion waits while a publish hold is open. Needs: `nightly-publish-environment`,
@@ -532,23 +535,23 @@ binding (a publisher with no environment accepts any), so every publisher is use
 its edit and none can expire; a refused publish is a publish hold, cleared with `gh run rerun <run
 id> --failed`. Done: the next `next` publish succeeds from `release`.
 
-**nightly-approval** -- agent, M. The review page and server (not `trusted/`): offer the oldest
+**nightly-approval** (#3463) -- agent, M. The review page and server (not `trusted/`): offer the oldest
 unpromoted green-images candidate, frozen, decisions by hash; Finish opens the accept-only pull
 request whose merge resumes it (`promote-nightly`); live via `tools/live.sh visual-review`. Needs:
 `nightly-site`. Done: a candidate with a changed image waits; Finish's pull request merges and the
 candidate promotes. Undo: revert.
 
-**immutable-release-probe** -- agent, S. On a scratch repository with immutable releases on, check
+**immutable-release-probe** (#3464) -- agent, S. On a scratch repository with immutable releases on, check
 that `gh release edit --prerelease` and `--latest` work; report on #3418.
 
 **owner-immutable-releases** -- owner, S, after `immutable-release-probe` reports they work.
 
-**step-7-acceptance** -- agent, S, CP. Migration section 3's step-7 checks for one automatic and one
+**step-7-acceptance** (#3465) -- agent, S, CP. Migration section 3's step-7 checks for one automatic and one
 approved promotion; CLAUDE.md "Release versioning" and "A new package's first npm publish" rewritten.
 
 ### Step 8: production promotion and the domain move
 
-**promote-workflow** -- agent, M, CP. `promote.yml` (channels section 8) and
+**promote-workflow** (#3267) -- agent, M, CP. `promote.yml` (channels section 8) and
 `graphty/sites/production.json`. Can be built and dry-run during step 6; merges after
 `step-7-acceptance`. Done: a dry run waits for the owner and moves nothing; it refuses a nightly that
 was not clean or approved, a hash mismatch, an open publish hold, a version missing on npm, and a
@@ -559,36 +562,36 @@ Undo: do not dispatch it.
 `NPM_DIST_TAG_TOKEN` (granular, write on `@graphty`, bypass 2FA) in `production` and
 `NPM_DIST_TAG_TOKEN_EXPIRES`. Done: a no-op `npm dist-tag add` from the workflow succeeds.
 
-**dataset-overlay-and-site-check** -- agent, M. `tools/dataset-overlay.mjs` with its test over two
+**dataset-overlay-and-site-check** (#3466) -- agent, M. `tools/dataset-overlay.mjs` with its test over two
 real `build-hosted.mjs` outputs, and `tools/check-site.mjs` (file list and hashes, every page and
 dataset 200 over HTTPS, build stamp). Done: both tests pass. Undo: revert.
 
 **owner-domain-swap** -- owner, S, CP (item 10), after the first promotion filled graphty-site and
 `check-site.mjs` passed on it. Undo: swap back.
 
-**canary-deploy** -- agent, S, CP, after `owner-domain-swap`. `deploy-pages.yml` deploys every green
+**canary-deploy** (#3467) -- agent, S, CP, after `owner-domain-swap`. `deploy-pages.yml` deploys every green
 master build to graphty-monorepo's Pages with domain canary.graphty.app (the version-merge rule
 goes); `mode: legacy` removed, `promote.yml` being the urgent path now. Done: after the next master
 build canary's stamp equals master's tip. Undo: revert.
 
-**links-against-canary** -- agent, S. `check-links.sh` resolves `https://graphty.app` links against
+**links-against-canary** (#3468) -- agent, S. `check-links.sh` resolves `https://graphty.app` links against
 canary, and a 404 for a path the newest nightly serves reads "pending promotion"; `links-weekly.yml`
 likewise. Needs: `canary-deploy`. Done: a seeded link to a nightly-only page reports "pending
 promotion". Undo: revert.
 
-**step-8-acceptance** -- agent, S, CP. Migration section 3's step-8 checks; CLAUDE.md "GitHub Pages
+**step-8-acceptance** (#3469) -- agent, S, CP. Migration section 3's step-8 checks; CLAUDE.md "GitHub Pages
 URLs" and "Build System" and `graph-samples/CLAUDE.md`'s dataset paragraph rewritten.
 
 ### Step 9: stories as tests, per project (after step 6, off the critical path)
 
-**compact-mantine-storybook-9** -- agent, M, product, from day 0. The upgrade, its own pull request,
+**compact-mantine-storybook-9** (#3470) -- agent, M, product, from day 0. The upgrade, its own pull request,
 `Figma-Approved:` if a picture moves.
 
-**story-test-harness** -- agent, M, after `story-parity-spike`. `@graphty/visual-review/vitest` and
+**story-test-harness** (#3471) -- agent, M, after `story-parity-spike`. `@graphty/visual-review/vitest` and
 `visual-review/capture/story-test.mjs`, `merge-results`, production semantics (stories sections 3
 and 4). Done: one graphty story's PNG byte-equals the old capture's. Undo: revert.
 
-**stories-switch-project** -- agent, S each, in parallel: graphty, graphty-element, compact-mantine
+**stories-switch-project** (#3472) -- agent, S each, in parallel: graphty, graphty-element, compact-mantine
 (after its Storybook 9 upgrade), algorithms and layout, cytoscape-extensions, graph-io-fidelity. Its
 owned `.storybook/vitest.setup.*`, both captures in each full run, `visual-review parity`; a switched
 project's Stories job fails a pull request that adds a `FEATURES` row and changes an existing story's
@@ -598,13 +601,13 @@ removals go in one batch pull request. Undo: put the entry back.
 **owner-rebaseline** -- owner, M, only on "no parity": one Finish per project; any change to
 `gate.mjs` or `approval.mjs` is his or authorized on the issue.
 
-**old-capture-removal** -- agent, M, after the last switch. Stories section 11's list; with no byte
+**old-capture-removal** (#3473) -- agent, M, after the last switch. Stories section 11's list; with no byte
 parity from the spike, one built-Storybook capture stays in the full run. CLAUDE.md "Visual review"
 rewritten. Done: a full run green without it. Undo: revert.
 
 ### Features track (product work, beside steps 5 to 8)
 
-**features-module** -- agent, two pull requests. (a) M, product: features section 3's module in
+**features-module** (#3474) -- agent, two pull requests. (a) M, product: features section 3's module in
 graphty-element, the API report, docs and README stating the `@experimental` promise. Additive, so
 no owner approval. (b) S, owned: the real `tools/check-features.mjs` replacing the stub (an
 `@experimental` export must name a `FEATURES` row; the element reads no host URL, storage or
@@ -614,18 +617,18 @@ export fails the check.
 **owner-experimental-promise** -- owner, S, any time. Confirm or change on #3418 what
 `@experimental` promises; the round asks once, with an `ACTION NEEDED` line, when (a) is ready.
 
-**app-site-config** -- agent, S, before step 7. The app fetches `site.json` first (missing or invalid
+**app-site-config** (#3475) -- agent, S, before step 7. The app fetches `site.json` first (missing or invalid
 = every experiment off), applies `featuresFromUrl(location.href)`, shows the site name; the per-site
 build branches in `sentry.ts` and `open.ts` go. Done: real-element tests with and without
 `site.json`.
 
-**on-configuration** -- agent, S, with the first `FEATURES` row. A setup file calling
+**on-configuration** (#3476) -- agent, S, with the first `FEATURES` row. A setup file calling
 `setDefaultFeatures(["all"])`, On shards, element stories against Off baselines. Done: the first
 flag's pull request changes no screenshot and no test.
 
 ### Step 10: deletion
 
-**deletion** -- agent, three owner-reviewed pull requests, each undone by `git revert -m 1`. Needs:
+**deletion** (#3477) -- agent, three owner-reviewed pull requests, each undone by `git revert -m 1`. Needs:
 steps 5 to 8 accepted, 7 days without undo, #3318 closed, `audit-fix`. (a) Whole-file deletions of
 section 15's list, `test-quarantine.mjs` and `tools/test-quarantine.json` included. (b) The
 workflow-part removals (ci.yml's Mergify, draft and verify parts). (c) The instructions: the

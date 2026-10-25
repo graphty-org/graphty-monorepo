@@ -47,6 +47,29 @@ export function mergeIndex(production, promoted) {
 }
 
 /**
+ * Judges one file both directories hold.
+ * @param file - its name
+ * @param old - production's bytes
+ * @param next - the promoted build's bytes
+ * @returns keep (take production's file), note, or problem (the overlay must fail)
+ */
+function judge(file, old, next) {
+    if (sha(old) === sha(next)) return {};
+    if (file.endsWith(".webp")) return { note: `${file}: thumbnail replaced` };
+    if (!file.endsWith(".gsnp.gz")) {
+        return { problem: `${file}: differs from production's and is not a dataset or a thumbnail` };
+    }
+    if (sha(gunzipSync(old)) === sha(gunzipSync(next))) {
+        return { keep: true, note: `${file}: same snapshot, gzip differs; production's file kept` };
+    }
+    return {
+        problem:
+            `dataset ${file.slice(0, -".gsnp.gz".length)}: ${file} has different content than production serves; ` +
+            "a changed dataset needs a new path (a new name or a v2 directory), never an overwrite",
+    };
+}
+
+/**
  * Plans the overlay without writing anything.
  * @param productionDir - what production serves
  * @param promotedDir - the promoted build's data directory
@@ -60,29 +83,12 @@ export function planOverlay(productionDir, promotedDir) {
     for (const file of readdirSync(productionDir).sort()) {
         if (file === "index.json") continue;
         const target = join(promotedDir, file);
-        if (!existsSync(target)) {
-            copies.push(file);
-            notes.push(`${file}: kept from production`);
-            continue;
-        }
-        const old = readFileSync(join(productionDir, file));
-        const next = readFileSync(target);
-        if (sha(old) === sha(next)) continue;
-        if (file.endsWith(".webp")) {
-            notes.push(`${file}: thumbnail replaced`);
-        } else if (file.endsWith(".gsnp.gz")) {
-            if (sha(gunzipSync(old)) === sha(gunzipSync(next))) {
-                copies.push(file);
-                notes.push(`${file}: same snapshot, gzip differs; production's file kept`);
-            } else {
-                problems.push(
-                    `dataset ${file.slice(0, -".gsnp.gz".length)}: ${file} has different content than production serves; ` +
-                        "a changed dataset needs a new path (a new name or a v2 directory), never an overwrite",
-                );
-            }
-        } else {
-            problems.push(`${file}: differs from production's and is not a dataset or a thumbnail`);
-        }
+        const verdict = existsSync(target)
+            ? judge(file, readFileSync(join(productionDir, file)), readFileSync(target))
+            : { keep: true, note: `${file}: kept from production` };
+        if (verdict.keep) copies.push(file);
+        if (verdict.note) notes.push(verdict.note);
+        if (verdict.problem) problems.push(verdict.problem);
     }
     let index = null;
     const oldIndex = join(productionDir, "index.json");

@@ -11,7 +11,8 @@
 // within 5 s is written to test-results/results-spool/<id>.json.
 //
 // On a pull request with RESULTS_PLAN set (the light check's `results-plan` artifact: GET /v1/plan's answer plus
-// `base` and `affected`, the test files whose file or import closure the pull request changed), the store's
+// `base`, `affected` (the test files whose file or import closure the pull request changed) and `wholeFamilies`
+// (the families it runs whole, every file of them touched)), the store's
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
 // `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. An unreadable plan applies no quarantine and excuses
 // nothing. Elsewhere the committed list stands. When the store answers that a record proved a test flaky, this
@@ -67,7 +68,8 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  */
 export function prJudge(plan, { shard, family, variant, base }) {
     const affected = plan?.affected ? new Set(plan.affected) : null;
-    const touched = (f) => !affected || affected.has(f.file);
+    const whole = (plan?.wholeFamilies ?? []).includes(family);
+    const touched = (f) => !affected || whole || affected.has(f.file);
     const onBase = (plan?.failingOnBase ?? []).filter((b) => b.variant.split("|")[0] === family);
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
@@ -383,7 +385,8 @@ export async function runGroup(
     const family = familyOf(shardName);
     const variant = env.RESULTS_VARIANT || `${family}|flags=${flags}|${selected ? "selected" : "whole"}`;
     const head = headFacts(root, env);
-    const plan = env.RESULTS_PLAN ? readPlanFile(env.RESULTS_PLAN) : undefined;
+    // no file: the run made no light plan (the full path), so the committed list stands
+    const plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : undefined;
     const rules =
         env.GITHUB_EVENT_NAME === "pull_request" && plan !== undefined
             ? {

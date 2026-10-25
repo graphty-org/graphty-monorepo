@@ -392,6 +392,15 @@ jobs:
                   fi
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
                       "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                  # What the pull request rules read with the store's answer (tools/results/run-group.mjs prJudge):
+                  # the base, the test files the change selected and the families it runs whole (every file of
+                  # those counts as touched). An unavailable plan or an everything plan stays as it is: no excuse.
+                  jq -s --arg base "$(git rev-parse "origin/$BASE_REF")" \
+                      'if .[0].unavailable or .[1].everything then .[0] else .[0] + {base: $base,
+                          affected: ([.[1].bins[].files[]] | unique),
+                          wholeFamilies: ([.[1].whole[] | sub("-[0-9]+$"; "")] | unique)} end' \
+                      "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
+                      && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
                       | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
 
@@ -1243,6 +1252,17 @@ jobs:
                   key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
                   restore-keys: test-durations-${{ matrix.shard }}-
 
+            # The light check's read of the results store (the Packages job's results-plan artifact): on a pull
+            # request it carries the store's quarantine and the master excuse (tools/results/run-group.mjs). Absent
+            # on the full path, where tools/test-quarantine.json stands.
+            - name: Download the results plan
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan
+
             # VITEST_BUDGET_CHECK reports every passing test over 10 s, or over 3 times its median in
             # VITEST_DURATION_HISTORY (tools/vitest-time-budget.mjs), as a warning; it never fails the shard.
             # Only here, not in the pre-push gate, whose machine runs several shards at once.
@@ -1251,6 +1271,7 @@ jobs:
               run: ${{ matrix.test-command }}
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 

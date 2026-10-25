@@ -414,6 +414,9 @@ describe("the pull request rules", () => {
             /gh workflow run base-check\.yml --ref master -f base=b1 -f file=a\.test\.ts -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
         );
         assert.equal(judge(plan, report(fail("flips")), report()).pass, true);
+        // a family the change runs whole counts every one of its files as touched
+        const whole = { ...plan, wholeFamilies: [FAMILY] };
+        assert.deepEqual(tags(judge(whole, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
     it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {

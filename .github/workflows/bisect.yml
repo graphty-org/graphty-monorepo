@@ -102,7 +102,7 @@ jobs:
               with: { path: .bisect-tools, sparse-checkout: tools }
             - name: Move the tool out of the tree under test
               run: mv .bisect-tools "$RUNNER_TEMP/bisect-tools"
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
             - uses: actions/setup-node@v4
               with: { node-version: 22.x, cache: pnpm }
             - run: pnpm install --frozen-lockfile

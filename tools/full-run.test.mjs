@@ -92,6 +92,25 @@ describe("verdictOf", () => {
     });
 });
 
+describe("verdictOf: the pick and the version dry run", () => {
+    it("is red on a failed pick alone, whatever the skipped lanes say", () => {
+        const skipped = Object.fromEntries(Object.keys(LANES).map((l) => [l, "skipped"]));
+        assert.deepEqual(verdictOf({ ...skipped, pick: "failure" }, null), { state: "red", red: ["pick"] });
+        assert.equal(verdictOf({ ...ALL_GREEN, pick: "success" }, 0).state, "green-clean");
+    });
+
+    it("is an owner item when only the dry run failed on held projects", () => {
+        const lanes = { ...ALL_GREEN, version_dry_run: "failure" };
+        assert.equal(verdictOf(lanes, 0, "", "graphty-element").state, "owner-item");
+        assert.equal(verdictOf(lanes, 0, "", "").state, "red", "a dry run that failed otherwise is red");
+        assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "", "graphty-element").state, "red");
+    });
+
+    it("plans no bisect for a failed pick", () => {
+        assert.match(bisectPlan({ red: ["pick"], sha: "s", good: "g", run: 1, failures: null }).why, /candidate pick/);
+    });
+});
+
 describe("differingImages", () => {
     it("counts the items of every capture that are not unchanged or excluded", () => {
         const dir = mkdtempSync(join(tmpdir(), "full-run-"));

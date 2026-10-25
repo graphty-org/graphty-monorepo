@@ -87,6 +87,8 @@ jobs:
         needs: plan
         if: ${{ needs.plan.outputs.done != 'true' && (inputs.lane == 'ci' || inputs.lane == 'llm') }}
         runs-on: ubuntu-24.04 # the full run's test runner class
+        # GOOGLE_API_KEY is a secret of environment full-run, as for release.yml's llm job
+        environment: ${{ inputs.lane == 'llm' && 'full-run' || '' }}
         timeout-minutes: 120
         strategy:
             fail-fast: false

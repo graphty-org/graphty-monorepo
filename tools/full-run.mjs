@@ -7,7 +7,8 @@
 //       writes run, sha, why and good to GITHUB_OUTPUT
 //   node tools/full-run.mjs verdict   the verdict on the tested commit: posted to the store, the red issue filed or
 //                                     closed, one bisect dispatched, the outcome announced
-//       env SHA, GOOD, LANES (JSON { lane: result }), LLM_OWNER_ITEM, CAPTURES (a directory of results.json),
+//       env SHA, GOOD, LANES (JSON { lane: result }, with pick's own result), LLM_OWNER_ITEM, VERSION_HELD
+//           (the version dry run's held projects), CAPTURES (a directory of results.json),
 //           RUN_ID, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
 //
 // The store is the source of truth for verdicts; every read fails open ("unknown means run"): a store that does
@@ -28,6 +29,8 @@ const PASSING_IMAGES = new Set(["unchanged", "excluded"]);
 
 /** The lanes in the order a red names them, each with its reader-facing name and its bisect.yml lane. */
 export const LANES = {
+    // the pick job itself: a pick that failed tested nothing, so it is red on its own and nothing is recorded
+    pick: { name: "candidate pick", bisect: null },
     ci: { name: "CI", bisect: "ci" },
     llm: { name: "LLM regression", bisect: "llm" },
     t4: { name: "T4 GPU", bisect: "gpu" },
@@ -68,16 +71,22 @@ export function pick({ mode, head, store, firstParents, stray }) {
 
 /**
  * The verdict on a full run (channels 5).
- * @param lanes `{ lane: result }` for every lane in LANES; an LLM lane that was not due is `skipped`
+ * @param lanes `{ lane: result }` for every lane in LANES; an LLM lane that was not due is `skipped`; `pick`
+ *   may be left out
  * @param images the screenshots that differ from their baselines, or null when no capture was found
  * @param ownerItem why a red LLM lane is the owner's to fix (a refused key or balance), or empty
+ * @param held the projects the version dry run held for want of a release-approvals.json entry, or empty
  * @returns `{ state, red }`: red lists the lanes that did not pass, in LANES order
  */
-export function verdictOf(lanes, images, ownerItem = "") {
+export function verdictOf(lanes, images, ownerItem = "", held = "") {
+    if ((lanes.pick ?? "success") !== "success") return { state: "red", red: ["pick"] };
     // only the LLM lane may be skipped (not due that day); any other lane that did not run is not a pass
-    const passed = (l) => lanes[l] === "success" || (l === "llm" && (lanes[l] ?? "skipped") === "skipped");
+    const passed = (l) =>
+        l === "pick" || lanes[l] === "success" || (l === "llm" && (lanes[l] ?? "skipped") === "skipped");
     const red = Object.keys(LANES).filter((l) => !passed(l));
     if (red.length === 1 && red[0] === "llm" && ownerItem) return { state: "owner-item", red };
+    // a planned major or first publish waits for the owner's release-approvals.json entry: his item, not a bug
+    if (red.length === 1 && red[0] === "version_dry_run" && held) return { state: "owner-item", red };
     if (red.length) return { state: "red", red };
     // no capture at all is not "nothing differs": the owner looks
     return { state: images === 0 ? "green-clean" : "green-images", red };
@@ -244,9 +253,15 @@ function dispatchBisect(plan) {
 async function verdictMain(env) {
     const cfg = config(env);
     const lanes = JSON.parse(env.LANES);
-    const { state, red } = verdictOf(lanes, differingImages(env.CAPTURES), env.LLM_OWNER_ITEM);
+    const { state, red } = verdictOf(lanes, differingImages(env.CAPTURES), env.LLM_OWNER_ITEM, env.VERSION_HELD);
     let issue = null;
-    let what = state === "owner-item" ? env.LLM_OWNER_ITEM : state;
+    let what = state;
+    if (state === "owner-item") {
+        what =
+            red[0] === "llm"
+                ? env.LLM_OWNER_ITEM
+                : `${env.VERSION_HELD} would publish a major or a first version: add its release-approvals.json entry`;
+    }
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
         const bisect = dispatchBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
@@ -257,7 +272,8 @@ async function verdictMain(env) {
         if (open)
             sh("gh", ["issue", "close", open, "--comment", `The full run is ${state} on ${env.SHA}: ${env.RUN_URL}`]);
     }
-    if (cfg) await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
+    // a failed pick judged no commit: recording red on one would make the next slot skip it
+    if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
     output({ state, issue: issue ? String(issue) : "", what });
 }
 

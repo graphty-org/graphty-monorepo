@@ -565,7 +565,8 @@ jobs:
     verdict:
         name: Verdict
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
-        if: ${{ always() && (inputs.mode == 'full' || inputs.mode == 'restart') && needs.pick.outputs.release == 'true' }}
+        # a pick that failed is judged too (red, its own lane), so a broken slot files the red issue
+        if: ${{ always() && (inputs.mode == 'full' || inputs.mode == 'restart') && (needs.pick.outputs.release == 'true' || (needs.pick.result != 'success' && needs.pick.result != 'skipped')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # Pushover
@@ -576,7 +577,7 @@ jobs:
             id-token: write # the results store
         env:
             GH_TOKEN: ${{ github.token }}
-            SHA: ${{ needs.pick.outputs.sha }}
+            SHA: ${{ needs.pick.outputs.sha || github.sha }}
             GOOD: ${{ needs.pick.outputs.good }}
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -602,8 +603,9 @@ jobs:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   CAPTURES: ${{ runner.temp }}/visual
                   LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
+                  VERSION_HELD: ${{ needs.version_dry_run.outputs.held }}
                   LANES: >-
-                      {"ci": "${{ needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
+                      {"pick": "${{ needs.pick.result }}", "ci": "${{ needs.ci.result }}", "llm": "${{ needs.llm.result }}", "t4": "${{ needs.t4.result }}",
                       "hosts": "${{ needs.hosts.result }}", "autosave_macos": "${{ needs.autosave_macos.result }}",
                       "audit": "${{ needs.audit.result }}", "version_dry_run": "${{ needs.version_dry_run.result }}"}
               run: node tools/full-run.mjs verdict

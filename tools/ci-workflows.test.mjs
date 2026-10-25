@@ -3186,9 +3186,11 @@ describe("release.yml", () => {
         assert.match(verdict, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run\]/);
         assert.match(
             verdict,
-            /if: \$\{\{ always\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.pick.outputs.release == 'true' \}\}/,
+            /if: \$\{\{ always\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && \(needs.pick.outputs.release == 'true' \|\| \(needs.pick.result != 'success' && needs.pick.result != 'skipped'\)\) \}\}/,
         );
-        for (const lane of ["ci", "llm", "t4", "hosts", "autosave_macos", "audit"]) {
+        // a held major's projects make the dry run's failure an owner item
+        assert.match(verdict, /VERSION_HELD: \$\{\{ needs.version_dry_run.outputs.held \}\}/);
+        for (const lane of ["pick", "ci", "llm", "t4", "hosts", "autosave_macos", "audit"]) {
             assert.match(verdict, new RegExp(`"${lane}": "\\$\\{\\{ needs.${lane}.result \\}\\}"`), lane);
         }
         assert.match(verdict, /run: node tools\/full-run.mjs verdict\n/);
@@ -5544,6 +5546,16 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         assert.equal(verdict("").status, 1, "skipped Lint, Checks and Docs fail a run that reused nothing");
         assert.equal(verdict("5", { build: "skipped" }).status, 1, "Storybooks must still succeed");
         assert.equal(verdict("5", { lint: "failure" }).status, 1);
+    });
+});
+
+describe("bisect.yml's LLM points", () => {
+    it("run in environment full-run, which holds GOOGLE_API_KEY, as release.yml's llm job does", () => {
+        const jobs = parseYaml(readFileSync(".github/workflows/bisect.yml", "utf8")).jobs;
+        const release = parseYaml(readFileSync(".github/workflows/release.yml", "utf8")).jobs;
+        assert.equal(release.llm.environment, "full-run");
+        assert.equal(jobs.point.environment, "${{ inputs.lane == 'llm' && 'full-run' || '' }}");
+        assert.match(JSON.stringify(jobs.point.steps), /secrets.GOOGLE_API_KEY/);
     });
 });
 

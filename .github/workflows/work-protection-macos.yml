@@ -68,7 +68,7 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - run: pnpm exec playwright install webkit
             - name: Kill and relaunch (Playwright WebKit)
@@ -95,7 +95,7 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - name: Allow Safari to be automated
               run: sudo safaridriver --enable
@@ -129,7 +129,7 @@ jobs:
             - run: pnpm install --frozen-lockfile
               working-directory: .
               env: { HUSKY: "0" }
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with: { name: work-protection-bundle, path: graphty-element/dist }
             - name: App switch, memory warning, Safari or its web content process killed
               timeout-minutes: 30

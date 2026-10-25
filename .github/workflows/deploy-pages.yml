@@ -84,7 +84,7 @@ jobs:
 
             # Download all artifacts from CI workflow
             - name: Download graphty app build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graphty
                   path: ./graphty/dist/
@@ -92,7 +92,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graphty-element Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-element
                   path: ./graphty-element/storybook-static/
@@ -100,7 +100,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graphty Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-app
                   path: ./graphty/storybook-static/
@@ -108,7 +108,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download compact-mantine Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-compact-mantine
                   path: ./compact-mantine/storybook-static/
@@ -116,7 +116,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download algorithms Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-algorithms
                   path: ./algorithms/storybook-static/
@@ -124,7 +124,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download layout Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-layout
                   path: ./layout/storybook-static/
@@ -132,7 +132,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download cytoscape-extensions Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-cytoscape-extensions
                   path: ./cytoscape-extensions/storybook-static/
@@ -140,7 +140,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graph-io-fidelity Storybook
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-graph-io-fidelity
                   path: ./graph-io/fidelity-stories/storybook-static/
@@ -148,7 +148,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download unified docs
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-docs
                   path: ./docs/.vitepress/dist/
@@ -156,7 +156,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download algorithms gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-algorithms
                   path: ./algorithms/gh-pages/
@@ -164,7 +164,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download layout gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-layout
                   path: ./layout/gh-pages/
@@ -180,7 +180,7 @@ jobs:
             # only a dataset whose recorded checksum changed is built from its sources. The script records every
             # source's URL and SHA-256, so its hash keys the download cache for those builds.
             - name: Download graph-format build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graph-format
                   path: ./graph-format/dist/
@@ -188,7 +188,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graph-io build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graph-io
                   path: ./graph-io/dist/
@@ -196,7 +196,7 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graph-samples build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graph-samples
                   path: ./graph-samples/dist/

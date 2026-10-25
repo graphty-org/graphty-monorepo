@@ -253,6 +253,24 @@ describe("records", () => {
         ]);
         assert.deepEqual(recs[1].files, [["pkg/test/a.test.ts", 1, 0, 0, 500]]);
         assert.equal(recs[0].baseSha, "b");
+        // a first try that exited 0 and still failed the shard (its output over the budget) is no pass
+        const flood = recordsOf({
+            id: "9.1.job.pkg",
+            head: { commit: "c", tree: "t", base: "b", dirty: false },
+            variant: "pkg|flags=off|whole",
+            inputs: "i",
+            env: "e",
+            code: 1,
+            result: { firstCode: 0, retried: false },
+            startedAt: 1000,
+            endedAt: 9000,
+            dir,
+            runId: "run1",
+        });
+        assert.deepEqual(
+            flood.map((r) => r.outcome),
+            ["error"],
+        );
     });
 });
 

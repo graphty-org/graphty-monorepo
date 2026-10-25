@@ -21,10 +21,10 @@ const files = [
 const failed = [];
 for (const file of files) {
     const { status, signal } = spawnSync(process.execPath, [file], { cwd: root, stdio: "inherit" });
-    if (status !== 0) failed.push(`${file} (${signal ?? `exit ${status}`})`);
+    if (status !== 0) failed.push(`${file} (${signal ?? "exit " + status})`);
 }
 console.log(`\ntest:ci-workflows: ${files.length - failed.length} of ${files.length} test files passed`);
 if (failed.length) {
-    console.log(`failed:\n${failed.map((f) => `  ${f}`).join("\n")}`);
+    console.log(`failed:\n${failed.map((f) => "  " + f).join("\n")}`);
     process.exit(1);
 }

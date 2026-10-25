@@ -479,6 +479,12 @@ async function failOpen(what, fn) {
     }
 }
 
+// A stored row's key, as the Worker's keyOf makes it.
+function storeKey(s) {
+    if (s.task) return `task:${s.task}`;
+    return s.step ? `step:${s.workflow}:${s.job}:${s.step}` : `job:${s.workflow}:${s.job}`;
+}
+
 /**
  * Master's medians, from the store's per-key answer, under each row's own key. The store keys a row by its
  * stored identity (the Worker's keyOf), so a queue row is its job's `(queue)` step and the run row is job `(run)`.
@@ -490,11 +496,7 @@ async function failOpen(what, fn) {
 export function mediansByKey(run, rows, byStoreKey) {
     return Object.fromEntries(
         storeRows(run, rows).flatMap((s, i) => {
-            const key = s.task
-                ? `task:${s.task}`
-                : s.step
-                  ? `step:${s.workflow}:${s.job}:${s.step}`
-                  : `job:${s.workflow}:${s.job}`;
+            const key = storeKey(s);
             return byStoreKey[key] === undefined ? [] : [[rows[i].key, byStoreKey[key]]];
         }),
     );

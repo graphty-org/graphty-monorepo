@@ -1065,6 +1065,7 @@ export const READ_ONLY: readonly string[] = [
     "UpdateManager.isZoomToFitEnabled",
     "UpdateManager.meshesShownOrHidden",
     "UpdateManager.stopAutoZoomToFit",
+    "UpdateManager.viewMoved",
     "UpdateManager.whyFrameIsNotStable",
     "VercelAiProvider.configure",
     "VercelAiProvider.generate",

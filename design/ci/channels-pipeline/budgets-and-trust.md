@@ -33,6 +33,8 @@ Four levels, all from data CI already has:
 | Job           | `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` (one call per run; returns every job with `started_at`, `completed_at`)  | `job:ci.yml:Build`            |
 | Step          | The same call: each job lists its steps with start and end                                                                      | `step:ci.yml:Build:Build all` |
 | Nx task       | `NX_PROFILE=tmp/nx-profile.json` on every `nx run-many` / `nx affected` call (Nx writes a Chrome trace with one entry per task) | `task:graphty:build`          |
+| Queue         | The same call: a job's `created_at` to its `started_at`, so waiting for a runner is never read as slowness                      | `queue:ci.yml:Test (*)`       |
+| Time to green | The store: a full run's `red` verdict to the next green full run on a later commit                                              | `ttg:full`                    |
 
 Test file durations travel in the test-group records of the test results section, not here; per-test
 slowness stays with `tools/vitest-time-budget.mjs`. Matrix jobs are keyed by matrix name
@@ -41,7 +43,8 @@ slowness stays with `tools/vitest-time-budget.mjs`. Matrix jobs are keyed by mat
 ### 1.2 The budgets file
 
 `ci-budgets.json` at the repository root. It is owned by the owner through CODEOWNERS (section
-2.4), so raising a budget is a reviewed pull request, never a side effect of another change.
+2.4), so raising a budget is a reviewed pull request, never a side effect of another change. The
+example below shows the shape; the starting numbers are the main document's section 7, which wins.
 
 ```json
 {
@@ -87,8 +90,10 @@ which:
    that is over 1.5 times that median and at least 60 seconds slower, writes or updates ONE comment
    on the pull request (marker `<!-- ci-budgets -->`) naming the key, both numbers and the files
    the pull request changed under that task's project. It never sets a failing exit code;
-5. sends the run's rows to the store (section 1.5) with `curl --max-time 10`. A failed send prints
-   a warning and the job still passes.
+5. sends the run's rows to the store (section 1.5) with `curl --max-time 10`, with two run-level
+   numbers beside them: the Git LFS bytes the run downloaded and the repository's Actions cache size
+   (one `GET /actions/cache/usage` call), both trend-alarmed like durations. A failed send prints a
+   warning and the job still passes.
 
 **One build for every event.** The Sentry regression hid because the plugin switched on only where
 `SENTRY_AUTH_TOKEN` was set, a push to master, so pull requests never paid for it. Rule: a build
@@ -136,8 +141,7 @@ CREATE INDEX durations_key_time ON durations (key, run_kind, recorded_at);
 - `POST /durations`: one body per run (a full run is about 45 jobs, 500 steps, 60 Nx tasks: about
   600 rows; a pull request run about 150). `GET /durations/medians?keys=...&kind=master&n=10`.
 - Volume: 4 full runs, about 15 master pushes and 30 pull request runs a day is about 16,000 rows,
-  under D1's free 100,000 writes a day beside the test records. At 70% of the quota the Worker opens
-  one issue; the answer is the $5 a month Workers Paid plan.
+  inside the Workers Paid plan the test records already need (results section 9).
 - 120 days of rows, pruned by the Worker's daily cron. Cancelled rows are excluded from medians.
 
 ### 1.6 Trend alarms
@@ -206,7 +210,8 @@ How a session picks them up, with no secret in any committed file:
 - `MASTER_GUARD_TOKEN`, the optional token master-guard.yml uses so its revert pull requests start
   CI (a pull request opened with the workflow's own token starts no workflows), becomes a second
   fine-grained token of the agent account with contents and pull requests write only. Its revert
-  pull requests are then authored by the agent account and merge like any other.
+  pull requests are then authored by the agent account, carry a Proof generated from the red run's
+  URL, and pass PR Integrity as mechanical reverts (section 4.5).
 
 **Residual risk.** Agents run as the owner's Unix user, so they can read his `gh` token
 (`~/.config/gh/hosts.yml`) and use his GPG key. The split is real only once the owner runs
@@ -224,19 +229,24 @@ passkey. Until then it stops accidents, not a determined agent.
 
 ### 2.4 CODEOWNERS
 
-`.github/CODEOWNERS` (new) has one line per path, each `<path> @apowers313` (CODEOWNERS takes one
-pattern per line): `/.github/`, `/tools/`, `/.husky/`, `/.claude/`, `/ci-budgets.json`, `/nx.json`,
-`/release-hold.json`, `/sonar-project.properties`, `/eslint.config.js`, `/vitest.shared.config.ts`,
-`/vitest.ci-junit.mjs`, `**/vitest*.config.*`, `/lychee.toml`, `/.lycheeignore`,
-`/.secretlintignore`, `/visual-review/trusted/`, `/visual-review/passkeys.json`,
-`/visual-review.config.json` and `CLAUDE.md` (every one, at any depth).
+`.github/CODEOWNERS` (new) has one line per path, each `<path> @apowers313`. The list is the main
+document's section 6.2: only paths that can loosen a check or take authority (the workflows,
+CODEOWNERS itself, `.claude/`, the root CLAUDE.md, the budgets and hold files, nx.json, the shared
+vitest config and JUnit reporter setup, each `.storybook/vitest.setup.*`, visual-review's `trusted/`
+and `capture/`, its config, the nightly and production site configurations, and the pipeline's own
+tools in `tools/`).
 
-Deliberately not owned: test files (agents write tests every day; the integrity check in section
-4.1 covers weakening) and `visual-baselines/` and `visual-review-approvals/` (the visual gate already
-requires the owner's passkey-signed statement of the exact tree, which is stronger than a review).
+Deliberately not owned, because the integrity check (section 4.1) covers what in them can weaken a
+check: test files, package vitest and Storybook configs, package CLAUDE.md files, the rest of
+`tools/`, and every `package.json` (a change to any `scripts` entry needs an owner approval through
+the integrity check, so a dependency bump stays unowned while redefining `lint:knip` as a no-op does
+not). Also not owned: `visual-baselines/` and `visual-review-approvals/`, which the visual gate's
+passkey-signed statement of the exact tree already covers.
 
-During the rollout most pull requests touch owned paths; that review is the intended brake on six
-pipeline systems in five weeks.
+The first draft owned all of `tools/`, `.github/`, `.husky/` and every CLAUDE.md: 43 of the 117
+golden landings of 2026-10-18 to 10-24 would have waited for the owner. The narrow list holds 27,
+about 4 a day at today's rate and about 9 at 40 merges a day, which the pipeline round batches into
+one daily review list.
 
 ---
 
@@ -260,10 +270,17 @@ release.yml as `RELEASE_DEPLOY_KEY`.
   without a pull request, and it stays.
 - pull request rule: `require_code_owner_review: true`, `required_approving_review_count: 0` (a pull
   request that touches no owned path needs no review and auto-merges on green),
-  `dismiss_stale_reviews_on_push: true`, `require_last_push_approval: true` (an approval does not
-  survive a new push by the agent).
-- required checks: the light check summary job the pull request section names, `Lint PR Title`,
-  and `Link PR Issue`.
+  `dismiss_stale_reviews_on_push: true`, `require_last_push_approval: false`. GitHub documents
+  last-push approval only as part of required approvals; with 0 its effect is unverified, and if it
+  forced one approval everywhere no agent pull request would auto-merge. Dismissing stale reviews
+  already stops an approval surviving an agent's later push. The owned and unowned cases are tested on
+  a scratch ruleset with exactly these settings before the real one changes.
+- required checks: `All Checks Pass`, `Lint PR Title`, `Link PR Issue`, `PR Integrity`.
+- **Tags**: a tag ruleset on `*@*` (nx's `{projectName}@{version}`, which decide the next versions and
+  changelogs) and `site-*`: creation only by the release deploy key, update and delete for nobody.
+  The release jobs push tags with the deploy key and create GitHub releases on the existing tags.
+- **The owner's own pull requests**: GitHub does not count an author's approval and the owner is the
+  only code owner, so a pipeline edit he wants is made by an agent session and approved by him.
 - Repository Actions settings: default workflow permissions read-only; "Allow GitHub Actions to
   create and approve pull requests" off.
 - **Secrets that change the outside world live in master-only environments.** A same-repository
@@ -275,14 +292,22 @@ release.yml as `RELEASE_DEPLOY_KEY`.
       an npm token.
     - environment `nightly` (master only, no reviewer): the token that pushes built files to the
       nightly site repository.
-    - environment `production` (master only, required reviewer: the owner, "prevent self-review" on):
-      the production site token and the `latest` dist-tag move. Approving this deployment IS the
-      owner's promotion trigger, enforced by GitHub (a clean candidate had nothing for the passkey to
-      sign).
-    - Secrets used by tests (`GOOGLE_API_KEY` for LLM regression, `SENTRY_AUTH_TOKEN`) go to an
-      environment `full-run`, master only, so they are spent only by the scheduled full run.
+    - environment `production` (master only, required reviewer: the owner, "prevent self-review"
+      off): the production site key and the `latest` dist-tag token. Approving this deployment IS the
+      owner's promotion trigger, enforced by GitHub. "Prevent self-review" would refuse his approval
+      of a run he dispatched himself, and the agent is no reviewer, so it adds nothing.
+    - environment `full-run` (master only): `GOOGLE_API_KEY` for LLM regression. ci.yml also runs
+      on `pull_request`, where a job naming this environment would fail its branch policy, so jobs
+      shared by both events declare it conditionally:
+      `environment: ${{ github.event_name == 'pull_request' && '' || 'full-run' }}`.
+    - environment `master-build` (master only): `SENTRY_AUTH_TOKEN`, declared by the master-push
+      Sentry upload job, which is not part of the full run.
+    - environment `dependabot-automerge` (master only): `AGENT_AUTOMERGE_TOKEN` (merging section 4.5).
 
 ### 3.3 Order of the change
+
+This is rollout step 3 of the main document: after the flush has shipped, before any per-branch pull
+request opens.
 
 1. The agent account and its credentials exist (section 2.2); the owner's credentials are off the
    machine.
@@ -320,7 +345,9 @@ matching `*.test.*`, `*.spec.*`, `*.stories.*` or a vitest config:
 - the count of assertions (`expect(`, `assert`, `assert.`) in a file drops;
 - a timeout number grows (`timeout:`, `testTimeout`, `hookTimeout`, a `{ timeout: N }` argument to
   `waitFor` or `expect.poll`), or `retry:`/`retries` is added or raised;
-- a coverage threshold drops.
+- a coverage threshold drops;
+- a vitest config's `include`, `exclude`, `testTimeout`, `hookTimeout` or `retry` loosens;
+- any `package.json` `scripts` entry changes (CI's commands are package scripts).
 
 It passes anyway when the pull request has an approving review from a code owner on its head
 commit; the check re-runs on `pull_request_review`, so the owner's approval clears it without
@@ -333,9 +360,8 @@ misses an assertion rewritten to expect a wrong value; the fresh-context review 
 
 ### 4.2 Proof of work
 
-`.github/pull_request_template.md` (new) has a `## Proof` section. `pr-issue-link.yml` (reused; it
-already requires an issue line) also requires, for pull requests authored by graphty-agent, a
-non-empty `## Proof` section holding at least one of:
+`.github/pull_request_template.md` (new) has a `## Proof` section. PR Integrity requires, for pull
+requests authored by graphty-agent (except the exemptions of section 4.5), a non-empty `## Proof` section holding at least one of:
 
 - the command run and the last lines of its output (`pnpm run test:changed`, a shard through
   `./tools/run-tests.sh`);
@@ -352,7 +378,7 @@ Before an agent enables auto-merge, a review subagent that has not seen the auth
 reads only the issue, `git diff origin/master...HEAD` and the Proof section, using the existing
 `/code-review` skill at `high`. It posts its findings as one `COMMENT` review from the agent account
 with the marker `<!-- fresh-review <head sha> -->`. The author fixes or answers each finding before
-enabling auto-merge; a new push needs a new review. A light check ("Fresh review") confirms a marker
+enabling auto-merge; a new push needs a new review. PR Integrity confirms a marker
 for the head commit: it catches forgetting, not malice, which CODEOWNERS and section 4.1 cover.
 
 ### 4.4 Lines added to CLAUDE.md
@@ -362,6 +388,25 @@ coverage threshold to pass a check; every pull request has a `## Proof`; a fresh
 the diff before auto-merge; pipeline and CI-config changes go in their own pull request; a budget is
 raised only by a pull request to `ci-budgets.json` with a new measurement.
 
+### 4.5 Breaking changes, and pull requests no agent session writes
+
+**Breaking changes.** PR Integrity fails a pull request whose title or any commit has `!` or a
+`BREAKING CHANGE:` footer, unless a code owner approved the head commit. Every package is published,
+so the rule needs no scope list. Nothing lowers nx's major bump once such a commit is on master (not
+even a revert), and the grouped major stays held, so the guard must come before the merge.
+
+**Exemptions**, each decided by a mechanical check, never by the author's say-so:
+
+| Pull request                                                                                                   | Proof | Fresh review | Test integrity | Why                                                                              |
+| -------------------------------------------------------------------------------------------------------------- | ----- | ------------ | -------------- | -------------------------------------------------------------------------------- |
+| A revert: its tree equals `git revert -m 1 <m>` of a first-parent merge `m` of master, recomputed by the check | no    | no           | no             | it restores a tree master already had; removing the culprit's tests is the point |
+| An accept pull request: touches only `visual-baselines/` and `visual-review-approvals/`                        | no    | no           | no             | the passkey-signed gate judges it at promotion                                   |
+| `dependabot[bot]`                                                                                              | no    | no           | yes            | no agent wrote it; a dependency bump never needs to drop a test                  |
+
+master-guard's and the round's reverts still carry a Proof naming the red run; the accept pull
+request is opened by the review server, which runs as the agent account. Each kind has a test in
+rollout step 3's done criteria.
+
 ---
 
 ## 5. The pipeline round's new job
@@ -369,10 +414,11 @@ raised only by a pull request to `ci-budgets.json` with a new measurement.
 The skill keeps its shape (one round, priority order, never waits in a turn, asks the owner once
 per item) and loses about two thirds of its 45 KB. In order:
 
-1. **Red full run.** The full run's record in the store names the failing tests. The round starts
-   the bisect over master's first-parent merges since the last green full run (the full-run
-   section's workflow), and when it names a culprit opens the revert pull request as the agent
-   (auto-merge on green), comments on the culprit's issue, and starts the fix forward on a branch.
+1. **Red full run.** The Worker has already dispatched the bisect (results section 5.2); the round
+   never starts a second one. It runs the GPU bisect on the local NVIDIA card only when `bisect.yml`
+   records `gpu: local`. When a culprit is named it opens the revert pull request as the agent unless
+   the store records one open for that culprit (auto-merge on green), comments on the culprit's
+   issue, and starts the fix forward on a branch.
    No culprit (bisect names none, or the failure is outside the code: a lost T4 spot runner, an
    advisory with no patched version) means one issue and one `ACTION NEEDED` line if only the owner
    can act.
@@ -386,7 +432,9 @@ per item) and loses about two thirds of its 45 KB. In order:
 6. **Held release or failed publish.** As today's section 2.
 7. **Agent pull requests that are red, conflicted or have unanswered review findings.** Merge
    master into the branch (never rebase), fix, push. A pull request waiting on the owner's
-   code-owner review is listed in the round's report, not chased.
+   code-owner review is never merged with master unless it conflicts (the push would dismiss his
+   approval); all such pull requests go into one daily review list with one `ACTION NEEDED` line.
+   Also: 14 days before `NPM_DIST_TAG_TOKEN_EXPIRES`, one `ACTION NEEDED` line to renew the token.
 8. **Finished worktrees.** `tools/worktree-cleanup.mjs`, as today.
 
 Bounds: the round never mixes a test, budget, quarantine or workflow change with a product fix,

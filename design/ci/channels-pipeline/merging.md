@@ -74,6 +74,9 @@ Rules that follow from it:
   because landing waited 14 minutes or more. `pr-open.sh` does not wait, so the hand-off is gone.
 - **Fixes to an open pull request** are ordinary commits on its branch; each push re-runs the light
   check, and the newer run cancels the older (ci.yml's `concurrency` group, kept).
+- **A pull request waiting for the owner's code-owner review** is never merged with master by
+  `pr-open.sh` or the round unless it conflicts: the push would dismiss his approval
+  (`dismiss_stale_reviews_on_push`). Checks are not strict, so it does not need to be current.
 - **A red pull request** stays open with auto-merge armed. The session that owns the branch (named in
   the issue's `in-progress` comment) fixes it; if that session is gone, the pipeline round picks it up
   from the broker's file (section 9) and starts a fix subagent. A pull request red for 24 hours with
@@ -89,40 +92,24 @@ the release push) and the repository admin role (`bypass_mode: pull_request`, wh
 admin-merge button the owner banned). Every agent acts through the owner's admin account, so GitHub
 cannot tell the two apart and no review means anything.
 
-The change:
-
-1. **The machine account** (owner creates it; suggested login `graphty-agent`) is an organization
-   member with the **write** role on graphty-monorepo, never admin or maintain. Its fine-grained token
-   (repository graphty-monorepo; contents, pull requests, issues, checks read, actions read/write for
-   `gh workflow run` of the hotfix run and bisects) lives in the root `.env` as `AGENT_GITHUB_TOKEN`.
-   The SSH signing key agents already use (`~/.ssh/git_signing_claude.pub`, set as
-   `user.signingkey`) is registered on the machine account, so agent commits show as verified for
-   that account instead of the owner. `tools/worktree-new.sh` writes `user.name`, `user.email` (the
-   account's noreply address) and a credential helper that reads `AGENT_GITHUB_TOKEN` into each new
-   worktree's local git config, and exports `GH_TOKEN` for the `gh` calls the tools make.
-2. **CODEOWNERS** (new file `.github/CODEOWNERS`, owner `@apowers313`) covers the pipeline:
-   `.github/**`, `tools/**`, `.husky/**`, `nx.json`, `vitest.*.mjs`, `vitest.shared.config.ts`,
-   `vite.shared.config.ts`, `eslint.config.js`, the CI budgets file, `visual-review/trusted/**`,
-   `visual-review/passkeys.json`, `visual-review-approvals/**`, `CLAUDE.md`, `**/CLAUDE.md`,
-   `.claude/**` and `CODEOWNERS` itself.
-3. **The ruleset** keeps "require a pull request" with 0 required approvals, turns on
-   `require_code_owner_review`, keeps the required checks ("All Checks Pass", "Lint PR Title"), and
-   drops the admin role from the bypass list. The deploy key stays (release pushes). With 0 approvals
-   and code-owner review on, only pull requests that touch an owned path wait for the owner; the
-   first pull request after the switch is a deliberate test of exactly that (one owned path, one
-   unowned) before agents rely on it.
+The change is designed in the main document, section 6 (superseded here: the token in `.env` and
+per-worktree git config, the broad CODEOWNERS list, two required checks): a Write-only machine
+account configured once through `.claude/settings.json`, a narrow CODEOWNERS list, code-owner
+review with 0 approvals, the bypass reduced to the release deploy key, protected tags, and four
+required checks. It is switched on in rollout step 3, before any per-branch pull request opens.
 
 Failure modes:
 
-- **Pipeline pull requests wait for the owner.** That is the point (21.7% of commits since
-  2026-09-24 were pipeline work). The pipeline round lists them in one `ACTION NEEDED` line per batch;
-  pipeline and product changes go in separate pull requests so neither holds up the other.
+- **Pipeline pull requests wait for the owner.** That is the point. Measured against the 117 golden
+  landings of 2026-10-18 to 10-24, the narrow list holds 27 (about 4 a day); the pipeline round
+  batches them into one review list a day, and pipeline and product changes go in separate pull
+  requests so neither holds up the other.
 - **The token expires or is revoked.** `pr-open.sh` and the broker fail loudly with the HTTP status;
   the pipeline round files one `priority:critical` issue. Nothing falls back to the owner's account.
 - **The owner's own token is still on this machine.** `gh auth status` shows `apowers313` logged in
   with `repo` and `workflow` scopes in `~/.config/gh/hosts.yml`, readable by every agent session on
-  this Unix account. Rulesets cannot stop an admin token from editing the ruleset itself. This is an
-  open question for the owner (section 11).
+  this Unix account. Rulesets cannot stop an admin token from editing the ruleset itself. The owner
+  logs it out here (main section 13 item 3).
 
 ## 4. The light check
 
@@ -131,19 +118,19 @@ Failure modes:
 ci.yml keeps its name and its one required summary, "All Checks Pass", so the ruleset needs no new
 check names. On a pull request it runs:
 
-- **Plan (first step of `Build`)** (always): `nx show projects --affected --base=<merge base with origin/master>`; `node tools/test-select.mjs --base origin/master --head HEAD --json` for the test files of each shard; the story selector for affected stories; one read of test history from the Cloudflare store (fails open).
+- **Plan (first step of `Build`)** (always): `nx show projects --affected --base=<merge base with origin/master>`; `node tools/test-select.mjs --base origin/master --head HEAD --json` for the test files of each shard; the story selector for affected stories; the run's one read of the Cloudflare store, handed to every job as the artifact `results-plan` (fails open). The selector's Vite import graphs (about 100 MB, keyed per package tree, cold in CI) are restored read-only from an `actions/cache` entry that only master builds write; a miss builds them, and the step has its own budget (`step:ci.yml:Build:Plan`, measured cold before the budgets are set).
 - **Build** (something is affected): `nx affected -t build` with the remote cache (section 5); uploads the dist folders, as today.
-- **Checks** (always (each is seconds to a minute)): `prettier --check` on changed files; `nx affected -t lint typecheck`; the public API report when graphty-element is affected; `tools/check-links.sh --offline`; `check-committed-images.mjs`, `check-data-source-migration.mjs`, `check-legacy-use.mjs`; knip on affected packages.
-- **Tool tests** (only when `.github/**`, `tools/**`, `nx.json` or a root config changed): `tools/ci-workflows.test.mjs`, `tools/*.test.mjs`, "Release dry run".
-- **`Test (<shard>)`** (the selector chose files for it): each selected shard runs its selected files once, with the shard's own command from `tools/ci-test-matrix.mjs`, without coverage and without slicing, through `tools/test-quarantine.mjs` (now backed by the store).
-- **`Stories (<project>)`** (a story was selected): build the affected Storybook (cached), run the selected stories as tests; a changed picture is reported, not a failure.
+- **Checks** (always; each is seconds to a minute): every step today's ci.yml Checks job runs, unchanged: Knip and Knip (production dependencies), Published dependencies, ESLint root config, Formatting, Bundle size (graphty-element and cytoscape-extensions), Public API report, Declared build tools, Release hold list, Element data sources on graph-io, Migration count script, Legacy graph API use, No committed walk screenshots, compact-mantine Figma lock. Added: `nx affected -t lint typecheck`, `tools/check-links.sh --offline`, "No signing bypass in tools/ and .husky/" (the one source check only `prepush-source-checks.sh` runs today, moved into ci.yml before that script is deleted), `ci-budgets.mjs lint`, `check-features.mjs`, `check-test-integrity.mjs` runs in PR Integrity.
+- **Tool tests** (only when `.github/**`, `tools/**`, `nx.json` or a root config changed): CI workflow tests (`pnpm run test:ci-workflows`), `tools/*.test.mjs`, "Release dry run", the SonarQube gate script tests. These are the gate-tooling self-tests, the only steps that leave the always-on list.
+- **`Test (<shard>)`** (the selector chose files for it): each selected shard runs its selected files once, with the shard's own command from `tools/ci-test-matrix.mjs`, without coverage and without slicing, through `tools/results/run-group.mjs` (the store-backed successor of `tools/test-quarantine.mjs`).
+- **`Stories (<project>)`** (a story was selected): run the selected stories as tests in the project's storybook Vitest project (no `build-storybook`); a changed picture is reported, not a failure. Until rollout step 9 switches a project, the old `visual` capture runs beside it, report-only and outside All Checks Pass.
 - **Docs** (`docs/`, a package `docs/`, or a package with a `docs:api:*` script changed): `vitepress build docs`.
 - **All Checks Pass** (always): the summary; skipped jobs count as passed.
 
 Moved to the 6-hour full run: coverage thresholds (they need whole shards),
 the network half of the link check, `graphty-element-lifecycle`, `Cost Estimate Accuracy` when its
-files did not change, the whole-shard `webgpu-graph-algorithms-node*` passes (their selected files
-still run), and every story the selector did not pick.
+files did not change, and every story the selector did not pick. A package not yet on the selector's
+`fileLevel` list (section 4.4) still runs its affected shards whole.
 
 ### 4.2 Target time and budgets
 
@@ -153,8 +140,22 @@ whole shards: `webgpu-graph-algorithms-node` (finished at 20.9), `graph-io` (20.
 capture (18.8) and the two grouped small shards (16.5). The light check removes the long poles by
 running selected files instead of whole shards, and the build by caching.
 
-Critical path for a change inside one package: checkout and `pnpm install` 1.5 min, Build 3 min
-(most packages cache hits), selected tests 3 min, or Storybook build 3.6 plus selected stories 2 min.
+Critical path for a change inside one package: checkout and `pnpm install` 1.5 min, plan about 1
+(graphs from cache), Build 3 min (most packages cache hits), then selected tests 3 min or selected
+stories 2 to 4 min in parallel: about 9 minutes, plus queue time while a full run holds runners
+(recorded separately, budgets section).
+
+These numbers hold only where file-level selection exists. `tools/test-select-rules.json` lists
+graph-format, remote-logger, compact-mantine, graphty and graphty-element in `fileLevel` (and only
+the last three in `fileLevelBrowser`); graph-io, webgpu-graph-algorithms, algorithms, layout,
+graph-samples and cytoscape-extensions run whole shards, and those are the long poles above
+(`webgpu-graph-algorithms-node` 20.9, `graph-io` 20.4). So rollout step 4 runs
+`tools/test-select-mutate.mjs` on each of them and adds each to `fileLevel` (and `fileLevelBrowser`
+where it has a browser project) after a clean run, or slices its longest shard under 8 minutes.
+Until then its pull requests have their own budget key, `run:ci.yml:pr-<package>`, from the
+measured whole-shard time, so the general warning does not fire on every such pull request.
+compact-mantine selects all 1,004 stories on any compact-mantine change (stories section), about
+11 minutes.
 
 Budgets (in the CI budgets file, owned by the time-limits section):
 
@@ -180,8 +181,15 @@ The two biggest causes are configuration, not code:
 - **`pnpm-lock.yaml` runs everything** (122 of the 350, a rule in `tools/test-select-rules.json`).
   nx already hashes each project's external dependencies; set
   `pluginsConfig["@nx/js"].projectsAffectedByDependencyUpdates: "auto"` in nx.json so a lockfile
-  change affects only the projects whose resolved dependencies changed, and drop the rule. A bump of
-  a tool every package uses (vitest, playwright) still affects every package, correctly.
+  change affects only the projects whose resolved dependencies changed. A bump of a tool every
+  package uses (vitest, playwright) still affects every package, correctly.
+
+The selector's own rule must change too, or it still runs everything: in
+`tools/test-select-rules.json`, `everything.patterns` loses `^\.github/` (replaced by the smoke-shard
+rule above) and `^pnpm-lock\.yaml$`; it keeps `^package\.json$`, `^patches/`, `^nx\.json$` and the
+tool files. Stories keep one deliberate lockfile exception: a lockfile change that moves Playwright,
+Chromium, Storybook, Vitest or a font package runs every story, because those change every picture;
+any other lockfile change selects stories like code.
 
 Both changes also make the build cache hit (section 5), which is why it never hit before.
 
@@ -201,6 +209,30 @@ What a miss costs now: a test the selector skipped fails in the 6-hour run, the 
 the pipeline round reverts it, and the miss becomes a rule in `test-select-rules.json` in the same fix
 (the process in design/ci/minimal-tests.md section 5). In the replay the selector missed 11 of 351
 failing files, all of them failures not caused by the change.
+
+### 4.5 Dependabot
+
+Today the pipeline round lands Dependabot's branches through golden by hand. With pull requests into
+master:
+
+- `.github/dependabot.yml`'s `target-branch: golden` becomes `master` (rollout step 5).
+- **Arming auto-merge.** Dependabot cannot arm it, and a merge armed with `GITHUB_TOKEN` would start
+  no master build (GitHub starts no workflow for an event caused by that token). New
+  `.github/workflows/dependabot-automerge.yml`, on `pull_request_target` for `dependabot[bot]` only:
+  `dependabot/fetch-metadata`, then `gh pr merge --auto --merge` with the agent account's
+  `AGENT_AUTOMERGE_TOKEN` (pull requests write only) from a master-only environment. It never checks
+  out the pull request's code.
+- **Required checks.** `pr-issue-link.yml` accepts `dependabot[bot]` without an issue line; PR
+  Integrity exempts it from Proof and fresh review (no agent wrote it) and still applies test
+  integrity and the breaking-change rule.
+- **What its runs get.** A `pull_request` run that Dependabot triggers has a read-only `GITHUB_TOKEN`,
+  only Dependabot secrets, and no OIDC token. So it reads no remote cache (builds without it), and
+  posts no store record (spooled; the backfill job, which runs on master's ref, posts it as kind `pr`).
+  Both fail open: longer, never looser. A read-only cache token may be added as a Dependabot secret
+  later if those runs are too slow.
+- **GitHub Actions updates** touch `.github/workflows/`, so each waits for the owner's review, by
+  design: an action update can do anything a workflow can.
+- **Security advisories** take the hotfix path (main section 1.2) when production is affected.
 
 ## 5. Build caching
 
@@ -231,6 +263,10 @@ pushed the Git LFS baseline caches toward eviction from the 10 GB Actions cache.
   probe result goes into the job summary.
 - The existing "Reuse" step (download the builds of an earlier run of the same branch, which needs
   `actions: read` and a REST listing of runs) is deleted; the cache covers it.
+- **Release merges.** Each nightly's version merge changes every `package.json`, so every task hash
+  changes. Pull requests based before it keep hitting the old entries; one that merges master after
+  it misses until the version merge's master build has written new entries, about 10 minutes, up to
+  four times a day. Expected hit rate otherwise: every package the pull request does not affect.
 
 ### 5.3 The Sentry Build fix
 
@@ -238,7 +274,8 @@ Commit 0436c01e02 on branch `perf/ci-build-sentry-after-build` (Fixes #3415): th
 injected debug ids and regenerated the source map of every one of graphty's 24 chunks during the
 build, which took `graphty:build` from 1m23s to 13m33s and the master Build job to 16 to 24 minutes.
 The fix removes the plugin and, on master pushes only, runs `sentry-cli` after "Build all"
-(`sourcemaps inject`, 1 s; then the release upload, named `github.sha`). Measured: graphty's build 60 to
+(`sourcemaps inject`, 1 s; then the release upload, named `github.sha`). `SENTRY_AUTH_TOKEN` lives in
+the master-only environment `master-build`, declared by that upload job, not in `full-run`. Measured: graphty's build 60 to
 63 s. It lands through the current release path before the switch, because the
 master-push build is what canary deploys from. The `graphty:build` budget (section 4.2) is set so that
 the next regression of this kind warns within one run instead of four days.
@@ -253,8 +290,12 @@ whenever an agent wants an answer before CI:
 3. `node tools/test-changed.mjs --base origin/master`: the same selection CI makes, run with the
    shard commands from `tools/ci-test-matrix.mjs`, without coverage;
 4. `node tools/sonar-gate.mjs` (SonarQube on changed lines, about a minute; the server is reachable
-   only on the owner's network, so this is the only place it runs; off that network it passes with a
-   warning, as today).
+   only on the owner's network; off that network it passes with a warning, as today);
+5. when webgpu-graph-algorithms is affected, its NVIDIA tests on the local card under
+   `node tools/test-slots.mjs --gpu`, as the pre-push gate runs them today. Pull requests otherwise
+   get only lavapipe and SwiftShader, so this is the only real-GPU look before the full run's T4.
+   `hosts.yml` keeps its advisory pull request trigger on `webgpu-graph-algorithms/` and
+   `graph-format/`.
 
 It runs with every `GRAPHTY_*`, `PREPUSH_*` and `VK_*` variable removed (`env -u`), so no setting of
 the old gate can change what a test sees. It runs no tool self-tests and no screenshots: those caused
@@ -323,8 +364,8 @@ Deleted (after golden is flushed through release #3318):
 
 - `tools/land.mjs` and its live copy `.worktrees/land-live`; `tools/verify.mjs`; `tools/branch-sync.mjs`;
   `tools/push-queue.sh`, `tools/prepush.sh`, `tools/prepush-source-checks.sh`, `tools/prepush-tests.mjs`,
-  `tools/prepush-inputs.mjs`'s pass records, `.worktrees/gate-live`; `tools/branch-note.mjs` (the pull
-  request is the record of where work stands); `golden-verify.yml`;
+  `tools/prepush-inputs.mjs`'s pass records, `.worktrees/gate-live`; `golden-verify.yml`
+  (`tools/branch-note.mjs` is kept without its sync fields: unfinished branches have no pull request);
 - in ci.yml: the Mergify handling (`MERGE_QUEUE`, "Queue Checks Pass", lines 44 to 86 and 126), the
   `Draft state` job and draft special cases, the `golden-cut` concurrency exception, the `verify`
   input, the "Reuse" step; the `VITEST_BUDGET_BASE` expression simplified to the pull request's base.
@@ -339,18 +380,17 @@ Insights upload (live, cannot fail a job).
 Added: `tools/pr-open.sh`, `tools/check-quick.sh`, `tools/nx-cache-worker/`, `.github/CODEOWNERS`, the
 `nx-cache-write` environment.
 
-Rollout order: the Sentry fix and section 4.3's input fixes first (through the current path), then
-the machine account, CODEOWNERS and the bypass removal, then the cache, then the light check and
-`pr-open.sh`; the deletions come last, after golden is flushed.
+Rollout order: main section 12. The machine account, CODEOWNERS and the bypass removal (step 3) come
+before any per-branch pull request (step 5); the deletions come last.
 
 ## 11. Decisions made here, and open questions for the owner
 
 Decided (two-way doors, each an edit to undo): pull requests opened only when finished and never as
 drafts; subagents open their own pull requests; non-strict required checks; the skew-break trigger of
 2 in 7 days; R2 for the build cache with master-only writes; workflows out of `sharedGlobals`;
-SonarQube only in the local quick check; the budget numbers in section 4.2; `branch-note.mjs` deleted.
+SonarQube in the local quick check (and the master watcher); the budget numbers in section 4.2.
 
-Open, the owner's own:
+Settled since (main section 13 item 3, kept here for the reasoning):
 
 1. **Your GitHub token on this machine.** `~/.config/gh/hosts.yml` holds `apowers313`'s token with
    `repo` and `workflow` scopes, readable by every agent on this Unix account. While it is there, an

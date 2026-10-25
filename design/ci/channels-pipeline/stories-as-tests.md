@@ -35,22 +35,25 @@ not the merge.
 The visual step is a Storybook project annotation, `afterEach`, added only in each project's
 `.storybook/vitest.setup.ts` (so Storybook's own UI never runs it). It runs after the story's play
 function has finished, while the story is still mounted. Each step mirrors one step of today's
-`shootOnce()` in `visual-review/capture/capture.mjs`, so the bytes can stay identical:
+`shootOnce()` in `visual-review/capture/capture.mjs`, aiming for identical bytes. Nobody has shown yet
+that a shot inside Vitest's tester iframe matches capture.mjs's shot of Storybook's `iframe.html`
+(preview-head, the layout parameter's padding and `staticDirs` may differ), so section 9 starts with a
+spike that measures it:
 
-| Today (capture.mjs)                                                                                                                   | In the story test                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fresh Playwright context: 1200 x 900, `deviceScaleFactor: 2`, `timezoneId: "UTC"`, `locale: "en-US"`                                  | Vitest `browser.viewport: { width: 1200, height: 900 }`; the Playwright provider's `contextOptions` set the same scale, time zone and locale                                                                                                                                                        |
-| `CHROMIUM_ARGS` (SwiftShader WebGL, CPU rasterization, sRGB, no LCD text, no hinting)                                                 | The provider's `launchOptions.args` import the same exported `CHROMIUM_ARGS`                                                                                                                                                                                                                        |
-| `FONTCONFIG_FILE=visual-fonts/fonts.conf`, a private font cache, `TZ=UTC`                                                             | `launchOptions.env`, built by the exported `pinnedFonts()`; the run's font fingerprint goes into results.json `environment.fonts` as today                                                                                                                                                          |
-| `navigator.gpu` deleted by an init script                                                                                             | Deleted at the top of `vitest.setup.ts`, before any story module loads                                                                                                                                                                                                                              |
-| `?chromatic=true` so `isChromatic()` is true                                                                                          | `history.replaceState` adds `chromatic=true` to the tester page's URL in `vitest.setup.ts`, so stories that branch on `isChromatic()` (graphty/.storybook/preview.tsx, graphty-element/stories/helpers.ts, cytoscape-extensions/stories/demo.ts and three more) draw what they draw for the capture |
-| Clock installed at 2026-01-01T12:00:00Z, then resumed                                                                                 | `vi.useFakeTimers({ now: CLOCK_START, toFake: ["Date"], shouldAdvanceTime: true })` before each story renders: the same fixed start that keeps running                                                                                                                                              |
-| Wait for Storybook's render phase, error display means `failed`                                                                       | The story test itself: a render error or a failed play fails the test                                                                                                                                                                                                                               |
-| `document.fonts.ready`, one frame, `document.fonts.ready`                                                                             | The same three lines                                                                                                                                                                                                                                                                                |
-| Project `waitFor` (graphty-element's `waitForStableFrame`, cytoscape-extensions' and graph-io-fidelity's `whenDone`), `failOnConsole` | Read from the same `visual-review.config.json` entry; console lines are collected by a wrapper the setup file installs                                                                                                                                                                              |
-| `parameters.chromatic.delay`                                                                                                          | Same parameter, same wait (19 story files set one; each is a fixed wait and is recorded as debt to replace with a condition, never added to)                                                                                                                                                        |
-| `screenshotWholePage()`: throwaway 1 x 1 shot, two frames, measure, full page, slices of 8,192 device px stitched with pngjs filter 4 | A Vitest browser command (runs in Node with Playwright's page): the same throwaway shot and two frames, then the tester frame is resized to the measured scroll size and screenshotted; tall pages use the same slicing and stitching code                                                          |
-| Modes (`parameters.chromatic.modes`, graphty's light and dark)                                                                        | The hook re-renders the composed story with each mode's globals and shoots each; file names from the exported `fileName(id, mode)`                                                                                                                                                                  |
+| Today (capture.mjs)                                                                                                                   | In the story test                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh Playwright context: 1200 x 900, `deviceScaleFactor: 2`, `timezoneId: "UTC"`, `locale: "en-US"`                                  | Vitest `browser.viewport: { width: 1200, height: 900 }`; the Playwright provider's `contextOptions` set the same scale, time zone and locale                                                                                                                                                                                                                                                                                     |
+| `CHROMIUM_ARGS` (SwiftShader WebGL, CPU rasterization, sRGB, no LCD text, no hinting)                                                 | The provider's `launchOptions.args` import the same exported `CHROMIUM_ARGS`                                                                                                                                                                                                                                                                                                                                                     |
+| `FONTCONFIG_FILE=visual-fonts/fonts.conf`, a private font cache, `TZ=UTC`                                                             | `launchOptions.env`, built by the exported `pinnedFonts()`; the run's font fingerprint goes into results.json `environment.fonts` as today                                                                                                                                                                                                                                                                                       |
+| `navigator.gpu` deleted by an init script                                                                                             | Deleted at the top of `vitest.setup.ts`, before any story module loads                                                                                                                                                                                                                                                                                                                                                           |
+| `?chromatic=true` so `isChromatic()` is true                                                                                          | `history.replaceState` adds `chromatic=true` to the tester page's URL in `vitest.setup.ts`, so stories that branch on `isChromatic()` (graphty/.storybook/preview.tsx, graphty-element/stories/helpers.ts, cytoscape-extensions/stories/demo.ts and three more) draw what they draw for the capture                                                                                                                              |
+| Clock installed at 2026-01-01T12:00:00Z, then resumed                                                                                 | `vi.useFakeTimers({ now: CLOCK_START, toFake: ["Date"], shouldAdvanceTime: true })` before each story renders: the same fixed start that keeps running                                                                                                                                                                                                                                                                           |
+| Wait for Storybook's render phase, error display means `failed`                                                                       | The story test itself: a render error or a failed play fails the test                                                                                                                                                                                                                                                                                                                                                            |
+| `document.fonts.ready`, one frame, `document.fonts.ready`                                                                             | The same three lines                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Project `waitFor` (graphty-element's `waitForStableFrame`, cytoscape-extensions' and graph-io-fidelity's `whenDone`), `failOnConsole` | Read from the same `visual-review.config.json` entry; console lines are collected by a wrapper the setup file installs                                                                                                                                                                                                                                                                                                           |
+| `parameters.chromatic.delay`                                                                                                          | Same parameter, same wait (19 story files set one; each is a fixed wait and is recorded as debt to replace with a condition, never added to)                                                                                                                                                                                                                                                                                     |
+| `screenshotWholePage()`: throwaway 1 x 1 shot, two frames, measure, full page, slices of 8,192 device px stitched with pngjs filter 4 | A Vitest browser command (runs in Node with Playwright's page): the same throwaway shot and two frames, then the outer page's viewport and the tester iframe are both resized to the measured scroll size and the outer page is shot with `clip` set to the iframe's box (Playwright cannot shoot a frame's whole document directly); pages taller than 8,192 device px are shot as clipped slices and stitched by the same code |
+| Modes (`parameters.chromatic.modes`, graphty's light and dark)                                                                        | The hook re-renders the composed story with each mode's globals and shoots each; file names from the exported `fileName(id, mode)`                                                                                                                                                                                                                                                                                               |
 
 The comparison runs in the same Node command, with today's code unchanged:
 `readBaseline()`, `classify()` and `sha256()` from `visual-review/trusted/lib/compare.mjs`, the
@@ -62,12 +65,12 @@ today: `unchanged` (with `flaky: true` when only the second matched), `changed`,
 
 What the test does with the result:
 
-| Status                                                       | Test outcome on a pull request and in the full run                                                        |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `unchanged`, `moved`, `excluded`                             | Passes                                                                                                    |
-| `changed`, `new`                                             | Passes. The image is written for review (section 4). It never blocks a merge                              |
-| `unstable` (two shots disagree)                              | Fails. An image that is not reproducible is a determinism defect, handled like any flaky test (section 6) |
-| `failed` (render error, never settled, `failOnConsole` line) | Fails, as the play test does today                                                                        |
+| Status                                                       | Test outcome on a pull request and in the full run                                                                                                                                                                                                 |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unchanged`, `moved`, `excluded`                             | Passes                                                                                                                                                                                                                                             |
+| `changed`, `new`                                             | Passes. The image is written for review (section 4). It never blocks a merge                                                                                                                                                                       |
+| `unstable` (two shots disagree)                              | A flaky test (results section 6.1): fails a pull request as `[NEW-FLAKY]` when the pull request touched the story's import closure or master never saw it unstable; otherwise quarantined with a `priority:critical` issue. Fails nothing silently |
+| `failed` (render error, never settled, `failOnConsole` line) | Fails, as the play test does today                                                                                                                                                                                                                 |
 
 Code location: one new module, `visual-review/capture/story-test.mjs`, exporting the browser
 command (`visualShot`), the annotation (`visualAfterEach(project)`), the provider options
@@ -104,11 +107,16 @@ file (today `tools/test-select-rules.json`):
 
 1. **Global inputs run every story of the project:** its `.storybook/**` (preview, main,
    preview-head, vitest.setup), its `vitest.config.ts`, `visual-review.config.json`,
-   `visual-fonts/**`, `visual-review/capture/**`, `visual-review/trusted/lib/compare.mjs`,
-   `pnpm-lock.yaml` (a Playwright or Chromium bump changes every image), and the shared theme
-   (compact-mantine's theme for graphty and compact-mantine; graphty-element's `src/` for
-   algorithms, layout, graphty and graph-io-fidelity, as `tools/visual-capture-plan.mjs` maps them
-   today).
+   `visual-fonts/**`, `visual-review/capture/**`, `visual-review/trusted/lib/compare.mjs`, a lockfile
+   change that moves Playwright, Chromium, Storybook, Vitest or a font package (the one deliberate
+   exception to merging section 4.3's lockfile rule: those change every image), and the shared theme
+   (compact-mantine's theme for graphty and compact-mantine). graphty-element's `src/` is NOT global
+   for algorithms, layout, graphty and graph-io-fidelity where the import graph follows those stories
+   into graphty-element's source (the stories import the element, so a changed element file selects
+   exactly the stories that reach it); only a project whose stories reach the element in a way the
+   graph builder cannot follow (a built bundle, a URL) keeps today's whole-project rule from
+   `tools/visual-capture-plan.mjs`. 59 of the last 200 golden merges touched graphty-element's `src/`;
+   with the old rule each would run all 575 graph-io-fidelity and 399 graphty stories.
 2. **A changed baseline runs its story:** a change under `visual-baselines/<project>/<id>*.png`
    (the owner's accept commit) runs that story, so the accept pull request proves the new baseline
    matches.
@@ -117,20 +125,33 @@ file (today `tools/test-select-rules.json`):
    runs every story of the project. Selection can only make a run longer, never skip an affected
    story silently.
 
-Baselines are fetched only for what runs: the job runs `git lfs pull --include` with the selected
-stories' files instead of the whole project (graph-io-fidelity's baselines are 437 MB, graphty's
-285 MB; all seven projects 880 MB), with the existing `actions/cache` keyed by the files' hashes.
+Baselines are fetched only for what runs, without filling the Actions cache (10.5 GB of 10 GB in
+169 entries, measured 2026-10-24): one LFS cache entry per project, keyed by the git tree of that
+project's `visual-baselines/<project>/`, saved only by master builds and the full run and restored
+read-only on pull requests (with restore-keys, so an older tree still helps); then `git lfs pull
+--include` fetches the selected stories' files on top. graph-io-fidelity's baselines are 437 MB,
+graphty's 285 MB, all seven projects 880 MB; the bytes each run downloads are recorded with its
+durations.
+
+**Shards.** graph-io-fidelity's 575 stories (19 to 22 minutes as one job) run in shards of at most 8
+minutes on a pull request and in the full run, as graphty-element's storybook project already runs in
+5, combined by `merge-results`.
+
+**compact-mantine** is on Storybook 8.6.18 without the `storybookTest` plugin: its stories run from
+one hand-written file (`tests/stories/play.storybook.test.tsx`) that imports every story through an
+eager `import.meta.glob`. The import graph therefore selects all 1,004 stories for any compact-mantine
+change, and a per-story-file `afterEach` annotation does not apply. Until it is upgraded (section 9),
+every compact-mantine pull request runs its whole story set (about 11 minutes, budgeted as such).
 
 **In the full run every 6 hours:** every story of every project, in both shards layouts as
 defined in `tools/ci-test-matrix.mjs`, plus `merge-results`. This is the capture the owner
 reviews and the gate judges. An owner-triggered out-of-schedule full run (the hotfix path) is the
 same run.
 
-**Feature flags:** screenshots are taken in the everything-off configuration only, so baselines
-show today's behavior and turning a flag on in the app cannot change a baseline. The
-everything-on configuration runs the same story tests without the visual step. A story written
-for an experimental feature switches the feature on in its own args and is screenshotted like any
-story (decided here; reversible).
+**Feature flags:** baselines are taken in the everything-off configuration only. In the full run's
+everything-on configuration, graphty-element's stories are compared with the same Off baselines and
+the app's stories run without comparison (features section 7.4, which wins). A story written for an
+experimental feature switches the feature on in its own parameters and has its own baselines.
 
 ## 6. Results in the test results service, keyed by baseline hash
 
@@ -198,25 +219,29 @@ The flow for a full run on master's tip, commit C:
    arrives decided. An image that changed three times between promotions is looked at once, and a
    Finish round is never repeated for an image whose bytes did not change.
 4. **Finish** commits the accepted PNGs, the review record and the signed approval as one accept
-   commit A whose parent is C, on branch `visual/approve-<C short sha>`, pushed by the review
-   server as it pushes accept commits today, and opens a pull request from it to master that
-   merges on the light checks (channels section, "Promotion to nightly"). A differs from C only
-   under `visual-baselines/` and `visual-review-approvals/`; parenting it on C, not on master's
-   tip, keeps that true however far master has moved, and the merge into master is an ordinary
-   merge (never a rebase). A conflict (a later pull request changed the same baseline) is resolved
-   with the existing `visual-review update <pr>`.
-5. **The accept pull request's light checks** run exactly the stories whose baselines changed
-   (rule 2 of section 5) against A's baselines; each now reads `unchanged`. Their results are the
-   artifact the resume step needs.
-6. **The resume step** (release.yml with `mode: promote-nightly`, channels section) cannot hand
-   the gate C's own capture: those results say `changed` for exactly the images the owner
-   approved, and the gate passes only `unchanged` and `excluded`. So it first overlays the accept
-   pull request's re-check on C's full results with `merge-results` (sound because A's code is
-   C's code; the step checks that `git diff --name-only C A` holds only those two directories),
-   then runs the gate unchanged, from the promoted side so a candidate cannot loosen it:
+   commit A whose parent is C, on branch `visual/approve-<C short sha>`. The review server runs as the
+   agent account (`GH_CONFIG_DIR` from `.claude/settings.json`), so the agent pushes A and opens the
+   pull request to master; it is never the owner's credential, which is no longer on the machine. A
+   differs from C only under `visual-baselines/` and `visual-review-approvals/`, which PR Integrity
+   checks and then exempts it from Proof, fresh review and test integrity: the passkey-signed approval
+   is its proof. Parenting A on C keeps that true however far master has moved; the merge into master
+   is an ordinary merge. A conflict (a later pull request changed the same baseline) is resolved with
+   the existing `visual-review update <pr>`. Rollout step 3 tests this path (an accept-only pull
+   request passes PR Integrity) before nightly depends on it.
+5. **The accept pull request's light check** runs the stories whose baselines changed (rule 2 of
+   section 5), but on `refs/pull/N/merge`, which is master's current tip merged with A, not C. A merge
+   since C may have changed an approved story's rendering, so that result is reported and decides
+   nothing; the pull request merges on its other checks.
+6. **The resume step** (release.yml's catch-up, channels section 5 and 7) runs the gate unchanged on
+   C's own full-run capture against A's baselines. A's PNGs are byte copies of C's captures, so for
+   every approved image `capture_sha == baseline_sha` and the gate reads it as `unchanged`; it still
+   passes only with a passkey-signed statement of exactly A's baselines tree. The step first checks
+   that `git diff --name-only C A` holds only the two directories, then runs the gate from the
+   promoted side so a candidate cannot loosen it:
    `git archive <channel/nightly> visual-review/trusted | tar -x -C "$gate"`, then
-   `node "$gate/visual-review/trusted/cli.mjs" gate --captures <overlaid dir> --base <channel/nightly> --head A`.
-   A is in master's history once its pull request merged, so the gate's ancestry rule holds.
+   `node "$gate/visual-review/trusted/cli.mjs" gate --captures <C's capture> --base <channel/nightly> --head A`.
+   A is in master's history once its pull request merged, so the gate's ancestry rule holds. Nothing
+   is re-rendered.
 7. **Rejected images:** the review page names the pull request that changed each one (section 6);
    the pipeline round reverts it or fixes forward on master, and the next full run is the next
    candidate.
@@ -232,8 +257,9 @@ run after it. On a pull request the story tests run the pull request's own `stor
 which is acceptable because a pull request's screenshots decide nothing. The full run, whose
 captures the gate judges, replaces `visual-review/capture/` and `visual-review/trusted/` with the
 copies at the current nightly commit before running the story tests, the same `git archive` step
-as today. CODEOWNERS on `visual-review/**`, every `.storybook/**` and every `vitest.config.ts`
-means a change there also needs the owner's review before it reaches master.
+as today. CODEOWNERS on `visual-review/trusted/`, `visual-review/capture/` and every
+`.storybook/vitest.setup.*`, and the integrity check on vitest configs, mean a change that could
+loosen the capture needs the owner's review before it reaches master.
 
 ## 8. Environment parity is a bug class
 
@@ -267,7 +293,18 @@ How mismatches are found, mechanically:
 
 ## 9. Migration, project by project, starting with graphty
 
-Each project moves the same way. The old capture stays authoritative for it until it switches,
+**First, a spike** (rollout step 4), before the six-project plan is committed to: the visual step on 50
+stories each of graphty and graphty-element, both captures on the same CI runner, byte parity
+measured with `visual-review parity`. Its outcome decides the rest, and both outcomes are planned:
+
+- **Parity** (every hash equal, or every difference traced to a fixable harness bug): the projects
+  migrate as below with no re-baselining.
+- **No parity** (a systematic difference between the tester iframe and Storybook's `iframe.html`
+  that cannot be removed): each project gets one re-baseline pull request with no product change,
+  its new images captured by the story tests, reviewed and signed by the owner in one Finish, and the
+  old capture job goes in the same step. The owner sees each image once.
+
+Then each project moves the same way. The old capture stays authoritative for it until it switches,
 and the gate does not care which code wrote a results.json.
 
 1. Enable the visual step in the project's storybook Vitest project.
@@ -275,19 +312,19 @@ and the gate does not care which code wrote a results.json.
    `visual-review parity --project <p> <old> <new>` compares the two results.json files item by
    item by `capture` hash and fails on any difference, listing it.
 3. Each difference is a bug in the new harness or a state-leak bug in a story, fixed at its
-   mechanism. No project re-baselines to make the switch easier: that would put hundreds of
-   images in front of the owner for no product change.
+   mechanism. A project re-baselines only on the spike's "no parity" outcome above, never to hide a
+   story's bug.
 4. Switch after two consecutive full runs with zero differences: the project's matrix entry
    leaves ci.yml's `visual` job, and its full-run captures come from the story tests.
 
-| Order | Project              | Baselines                  | Today's capture job (median, from first start)   | Work specific to it                                                                                                                                           |
-| ----- | -------------------- | -------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | graphty              | 399 (light and dark modes) | about 7 min                                      | Storybook project exists (graphty-storybook shard, 2.1 min of Vitest); viewport already 1200 x 900; first user of modes and of `isChromatic()` in preview.tsx |
-| 2     | graphty-element      | 275                        | about 6 min                                      | Exists, 5 shards, so first user of `merge-results`; `waitForStableFrame` and the "Graph settled timeout" console rule                                         |
-| 3     | compact-mantine      | 1,004                      | about 11 min                                     | Exists; most images, cheapest renders                                                                                                                         |
-| 4     | algorithms, layout   | 27, 17                     | about 1.5 min each                               | New storybook Vitest projects (`storybookTest` plugin) and shards in `tools/ci-test-matrix.mjs`                                                               |
-| 5     | cytoscape-extensions | 181                        | about 5 min                                      | New project; `whenDone` waits; CPU path only because `navigator.gpu` is deleted                                                                               |
-| 6     | graph-io-fidelity    | 575                        | about 19 to 22 min, the longest job of every run | New project with `-c fidelity-stories/.storybook`; LFS baselines 437 MB, so selected-file LFS pulls matter most here                                          |
+| Order | Project              | Baselines                  | Today's capture job (median, from first start)   | Work specific to it                                                                                                                                                                                                                                                               |
+| ----- | -------------------- | -------------------------- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | graphty              | 399 (light and dark modes) | about 7 min                                      | Storybook project exists (graphty-storybook shard, 2.1 min of Vitest); viewport already 1200 x 900; first user of modes and of `isChromatic()` in preview.tsx                                                                                                                     |
+| 2     | graphty-element      | 275                        | about 6 min                                      | Exists, 5 shards, so first user of `merge-results`; `waitForStableFrame` and the "Graph settled timeout" console rule                                                                                                                                                             |
+| 3     | compact-mantine      | 1,004                      | about 11 min                                     | Storybook 8.6.18, no `storybookTest`: first upgrade to Storybook 9 and the plugin (or split the glob file into one test per story file). It is locked to Figma, so an upgrade that moves any picture needs the owner's `Figma-Approved:` trailer and goes in its own pull request |
+| 4     | algorithms, layout   | 27, 17                     | about 1.5 min each                               | New storybook Vitest projects (`storybookTest` plugin) and shards in `tools/ci-test-matrix.mjs`                                                                                                                                                                                   |
+| 5     | cytoscape-extensions | 181                        | about 5 min                                      | New project; `whenDone` waits; CPU path only because `navigator.gpu` is deleted                                                                                                                                                                                                   |
+| 6     | graph-io-fidelity    | 575                        | about 19 to 22 min, the longest job of every run | New project with `-c fidelity-stories/.storybook`; LFS baselines 437 MB, so selected-file LFS pulls matter most here                                                                                                                                                              |
 
 Estimated cost after the switch, to be measured in step 2 for graphty: the screenshot adds the
 shot, PNG encoding and a hash per story and mode (under a second at 2,400 x 1,800 device px), and
@@ -307,7 +344,7 @@ time jumps shows up in the trend alarm like any other task.
 | A baseline is an LFS pointer                              | `readBaseline()` throws with "run git lfs pull"; the test fails with that message                                                                                                    |
 | A shard is killed mid-run                                 | Its partial directory is missing; `merge-results` writes an incomplete result; the gate refuses it; the full run's failed job is re-run                                              |
 | A story never settles                                     | The test fails (`failed`); there is no silent second try; recurrence is judged in the store                                                                                          |
-| Two shots disagree                                        | `unstable`: the test fails, critical flaky-test issue                                                                                                                                |
+| Two shots disagree                                        | `unstable`: the flaky rule (results 6.1): `[NEW-FLAKY]` on the pull request that caused it, else quarantined with a critical issue                                                   |
 | A Playwright, Chromium or font bump                       | A global input: every story runs on that pull request; real changes wait for the owner at the next promotion                                                                         |
 | A new story                                               | `new`: passes on the pull request, the owner accepts its first baseline at promotion                                                                                                 |
 | A story renamed                                           | `renames.json` as today: `moved` when the picture is the same                                                                                                                        |

@@ -146,8 +146,8 @@ else is not.
 Network sources and click-to-expand (`session/commands/doors.ts`, `session/sources/`) are
 described as experimental in comments but are shipped behavior today. They are not put behind a
 flag: switching them off by default would change today's behavior, which is breaking. Their
-comments are changed to say "stable" or they get an `@experimental` tag with no flag (section 4)
--- decided: the tag, since their API may still change.
+comments are changed to say "stable"; whether they later get an `@experimental` tag with no flag
+waits on the owner's answer about what the tag promises (section 11).
 
 ## 4. The API report
 
@@ -174,6 +174,10 @@ api-extractor, which already understands the TSDoc `@experimental` modifier (it 
   owner's judgment, and the owner rules say states end on events.
 
 What `@experimental` promises a third party is the one open question for the owner (section 11).
+**Until he answers, no experiment adds a public export or type**: `tools/check-features.mjs` fails on
+any `@experimental` tag in the API report, experiments are reached only through catalog keys and
+attributes gated at run time (whose shapes are data, so changing them breaks no type), and a piece
+that needs typed public API waits for the answer before it merges.
 
 ## 5. The app: one build, per-site runtime configuration
 
@@ -204,11 +208,13 @@ The sources live in the monorepo, so a change is an ordinary reviewed pull reque
 `graphty/sites/nightly.json`, so an agent cannot switch on an experiment for readers of those
 sites. Canary's file is not owner-gated: canary is what master holds.
 
-**How a site gets its file.** The build artifact never contains `site.json`. The step that writes
-a site (canary: `deploy-pages.yml` through `tools/assemble-pages-site.sh`; nightly and production:
-the promotion workflows of the release section, which copy the same files into the
-`graphty-nightly` and `graphty-production` site repositories) copies the matching
-`graphty/sites/<site>.json` in as `site.json`. Changing production's features without new code is
+**How a site gets its file.** The build artifact never contains `site.json`. The step that deploys
+a site (canary: `deploy-pages.yml`; nightly and production: the site repositories' `deploy.yml`,
+started by the promotion, channels section 3) copies `graphty/sites/<site>.json` in as `site.json`,
+read from master's tip at the moment the promotion is dispatched, not from the promoted nightly
+commit: the file is reviewed configuration, not code, and the owner-owned version on master is the
+one he approved. Its blob id is recorded in `channel.json`. The site repositories are
+graphty-org/graphty-nightly and graphty-org/graphty-site. Changing production's features without new code is
 a configuration-only promotion: the same build, a new `site.json`, one workflow run the owner
 triggers.
 
@@ -307,9 +313,11 @@ equal Off).
 
 **Cost.** A full run today is 25 test jobs of about 15 minutes or less (31 to 64 minutes wall
 time). The On shards add 16 jobs, about 3.5 job-hours per full run and 14 a day at four runs a
-day, free on GitHub's standard runners because the repository is public. At GitHub Free's limit of
-20 concurrent jobs the 41 jobs run in about two more waves, adding about 15 minutes of wall time to
-a run that has 6 hours; at Team's 60 they run at once. On a pull request the On pass reruns only
+day, free on GitHub's standard runners because the repository is public. The limit is concurrency:
+a full run is already 51 to 59 jobs, and with the On shards and the stories migration's double
+capture it reaches 70 to 75 against Team's 60 concurrent Linux jobs. So the full run's test matrix
+has `max-parallel: 40` (about 20 runners stay free for pull requests and bisects) and the On shards
+start after the Off shards finish; the run has 6 hours. On a pull request the On pass reruns only
 the affected files of two packages, typically one to three minutes.
 
 ### 7.4 The screenshot invariant
@@ -382,6 +390,9 @@ this, every shape change during an experiment's life is a major release, which w
 the experiments or produce majors the grouped-major rule forbids. The alternative is to give
 experiments no public types at all until graduation, which fits catalog entries and attributes
 but not the timeline's commands and result types.
+
+The design does not decide this by default: it is in the owner's action list (main section 13,
+item 1). Until he answers, the alternative applies (section 4).
 
 Everything else in this section is decided above and reversible by an ordinary pull request:
 attribute syntax, `all`, the URL parameter on production, no live switching, no pair testing,

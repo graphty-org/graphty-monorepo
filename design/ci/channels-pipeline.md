@@ -3,15 +3,16 @@
 Status: design, 2026-10-24. Issue #3418. Replaces the golden-local pipeline
 (`design/ci/golden-local.md`, `design/ci/fast-pipeline.md`). Each area's detailed design is an
 appendix in `design/ci/channels-pipeline/`; where an appendix disagrees with this document, this
-document wins (section 11 lists each disagreement and how it was settled).
+document wins. [settled.md](channels-pipeline/settled.md) lists the disagreements between the first
+drafts and how each was settled.
 
-- [channels.md](channels-pipeline/channels.md): sites, full run, bisect, promotion, rollback
-- [merging.md](channels-pipeline/merging.md): pull requests, light check, build cache, quick check, merge queue
+- [channels.md](channels-pipeline/channels.md): sites, full run, bisect, promotion, rollback, autosave
+- [merging.md](channels-pipeline/merging.md): pull requests, light check, build cache, quick check, Dependabot
 - [results-service.md](channels-pipeline/results-service.md): the Cloudflare test results store
 - [stories-as-tests.md](channels-pipeline/stories-as-tests.md): screenshots inside each story's test
 - [features.md](channels-pipeline/features.md): feature flags
 - [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md): time budgets, agent account, bypass, agent rules, pipeline round
-- [migration.md](channels-pipeline/migration.md): rollout, deletions, owner actions
+- [migration.md](channels-pipeline/migration.md): rollout steps in detail, deletions
 
 ## 1. Overview
 
@@ -35,25 +36,28 @@ production moves `latest` to the same versions and deploys the same site tarball
    Commits are pushed to the branch; a branch push runs no CI.
 2. **Review and quick check, locally (2 to 6 min).** A review subagent that has not seen the
    author's conversation reads the issue and `git diff origin/master...HEAD`; the author fixes what
-   it finds. `tools/pr-open.sh` runs the quick check (format, lint and typecheck of affected
-   packages, affected tests, SonarQube on changed lines), merges `origin/master` if behind, pushes,
-   opens the pull request as the agent account, posts the review, arms auto-merge and exits.
+   it finds. `tools/pr-open.sh` runs the quick check, merges `origin/master` if behind, pushes, opens
+   the pull request as the agent account, posts the review, arms auto-merge and exits.
 3. **Light check in CI (p50 10 to 22 min).** Format, lint, typecheck, affected build from a remote
    cache, affected test files, affected stories as screenshot tests, tool tests only when tools
    changed. A changed screenshot is reported, never a failure. Green merges into master.
 4. **Canary.** The master push builds everything (about 8 min once the Sentry fix is in) and deploys
    canary.graphty.app.
-5. **Full run, every 6 hours (about 50 min)** on the commit canary serves: every shard in both
-   feature-flag configurations, every story's screenshot, T4 GPU, Hosts, macOS work protection, the
-   audit, LLM regression. Red: bisect master's merges with only the failing tests, revert by pull
-   request, fix forward.
+5. **Full run, every 6 hours** on the commit canary serves: every shard in both feature-flag
+   configurations, every story's screenshot, T4 GPU, Hosts, macOS work protection, the audit, LLM
+   regression when AI code changed. Measured 65 to 93 min today; target 60 to 75 (section 3). Red:
+   bisect master's merges with only the failing tests, revert by pull request, fix forward.
 6. **Nightly.** Green with no changed screenshot: version, publish npm `next`, deploy
    nightly.graphty.app. Changed screenshots: wait for the owner's Finish, then the same, no re-test.
 7. **Production.** The owner dispatches `promote.yml` and approves the `production` deployment:
    `latest` moves to the nightly's versions and graphty.app gets its tarball.
 
-**Hotfix:** merge as usual; the owner dispatches `release.yml` with `mode=full` and promotes straight
-through (about 1.5 hours). **Rollback:** `promote.yml` with the previous nightly.
+**Hotfix** (also every security fix): the fix merges as usual. If canary is red for another reason,
+the pipeline round reverts that culprit first; the owner decides canary's pending screenshots, then
+dispatches `release.yml -f mode=full` and promotes straight through (about 2 hours). A hotfix ships
+everything canary holds, all of which passed that full run; there is no hotfix branch, so nx's tags
+stay on master's history. **Rollback:** `promote.yml` with the previous nightly, refused across an
+autosave format change (section 3).
 
 ### 1.3 What runs where
 
@@ -61,8 +65,8 @@ through (about 1.5 hours). **Rollback:** `promote.yml` with the previous nightly
 - **`.husky/pre-push`:** LFS upload, secret scan, committed-images limit (seconds)
 - **Pull request (`ci.yml`):** light check (p50 10 min for one package, 22 for global inputs)
 - **Master push (`ci.yml`, `deploy-pages.yml`):** build, Storybooks, docs, canary deploy (about 8 min build)
-- **Every 6 h (`release.yml`):** full run, verdict, nightly promotion (about 50 min)
-- **Red full run (`bisect.yml`):** confirm and bisect the failing tests (minutes per point)
+- **Every 6 h (`release.yml`):** full run, verdict, nightly promotion (60 to 75 min target)
+- **Red full run (`bisect.yml`):** confirm, then every bisect point at once (about 10 min a phase)
 - **Owner trigger (`promote.yml`):** dist-tag move, production deploy (minutes)
 - **Cloudflare:** results and durations (Worker + D1), build cache (R2), scheduler (calls under 5 s, fail open)
 
@@ -74,64 +78,108 @@ Detail: [merging.md](channels-pipeline/merging.md).
   when finished, never as a draft. A subagent opens its own pull request and stops.
 - **Required checks:** `All Checks Pass`, `Lint PR Title`, `Link PR Issue`, `PR Integrity`
   (section 6.4). Not strict: nothing re-runs when master moves.
-- **The light check:** a plan step (nx affected from the merge base, `tools/test-select.mjs`, the
-  story selector, one store read); Build with the cache; Checks (prettier on changed files, `nx
-affected -t lint typecheck`, the API report, offline links, the committed-image, data-source and
-  legacy checks, knip, `ci-budgets.mjs lint`, `check-features.mjs`); tool tests only when
-  `.github/`, `tools/`, `nx.json` or a root config changed; each selected shard's files once without
-  coverage; selected stories; Docs when docs inputs changed. Coverage thresholds, the network link
-  check, `graphty-element-lifecycle` and whole-shard passes move to the full run.
-- **Two input fixes:** `.github/workflows/**` leaves `sharedGlobals`, and
-  `projectsAffectedByDependencyUpdates: "auto"` replaces "the lockfile runs everything".
+- **The light check:** a plan step (nx affected from the merge base, `tools/test-select.mjs` with
+  its import graphs restored from a master-written cache, the story selector, the one store read of
+  the run); Build with the cache; **Checks**: every step today's ci.yml Checks job runs (format, ESLint
+  root config, knip and knip production, published dependencies, both bundle sizes, the API report,
+  declared tools, the release-hold list, data sources on graph-io, the migration count script, legacy
+  API use, committed images, the compact-mantine Figma lock), plus `nx affected -t lint typecheck`,
+  offline links, the signing-bypass check moved out of `prepush-source-checks.sh`, `ci-budgets.mjs
+lint` and `check-features.mjs`; **tool tests** (CI workflow tests, release dry run, the SonarQube
+  gate script tests, `tools/*.test.mjs`) only when `.github/`, `tools/`, `nx.json` or a root config
+  changed; each selected shard's files once without coverage; selected stories (no Storybook build);
+  Docs when docs inputs changed. Coverage thresholds, the network link check,
+  `graphty-element-lifecycle`, Cost Estimate Accuracy and whole-shard passes move to the full run.
+- **Selection must exist before the switch:** file-level selection covers graph-format,
+  remote-logger, compact-mantine, graphty and graphty-element today. Each other package joins
+  `fileLevel` after a clean `tools/test-select-mutate.mjs` run, or its longest shard is sliced under
+  8 min; until then its pull requests run whole shards under their own budget key (section 7).
+- **Input fixes:** `.github/workflows/**` leaves `sharedGlobals`, and `^\.github/` and
+  `^pnpm-lock\.yaml$` leave `everything.patterns` in `tools/test-select-rules.json` (a workflow or
+  matrix change runs the tool tests plus one smoke shard of each kind);
+  `projectsAffectedByDependencyUpdates: "auto"` replaces "the lockfile runs everything". Deliberate
+  exception: a lockfile change that moves Playwright, Chromium, Storybook, Vitest or a font package
+  runs every story.
 - **Build cache:** nx's self-hosted remote cache on a Worker over R2 (`tools/nx-cache-worker/`,
-  14-day lifecycle). Writes only from master (environment `nx-cache-write`), so a branch cannot plant
-  an artifact master trusts. A 2-second probe; no answer means build without it.
+  14-day lifecycle). Writes only from master (environment `nx-cache-write`). A 2-second probe; no
+  answer means build without it. Each nightly's version merge changes every `package.json`, so for
+  the roughly 10 minutes until that master build writes new entries, light checks miss the cache.
 - **Sentry fix** (#3415, branch `perf/ci-build-sentry-after-build`) lands first: `graphty:build`
   13m33s to about 60 s.
-- **No merge queue at first.** The bisect records skew breaks (a culprit whose check passed while
-  master gained an overlapping merge). Two in 7 days, or one that kept canary red over 6 hours: the
-  pipeline round proposes Mergify (light check per batch; `merge_group` is the alternative).
+- **Real GPU:** the quick check runs the local NVIDIA tests under `test-slots --gpu` when
+  webgpu-graph-algorithms is affected (advisory). `hosts.yml` keeps its advisory pull request trigger.
+- **Dependabot** targets master. `dependabot-automerge.yml` (`pull_request_target`, only
+  `dependabot/fetch-metadata` and `gh pr merge --auto` with the agent's token) arms auto-merge; Link PR
+  Issue and PR Integrity accept `dependabot[bot]` without an issue line, Proof or review; test
+  integrity still applies. Its runs get no Actions secrets and no OIDC token: no cache, no store
+  record (both fail open). Actions updates touch `.github/` and wait for the owner by design.
+  Security advisories ship through the hotfix path.
+- **No merge queue at first.** The bisect records skew breaks. Two in 7 days, or one that kept canary
+  red over 6 hours: the pipeline round proposes Mergify (`merge_group` is the alternative).
 - **Red master build:** `master-guard.yml` opens a revert pull request as the agent account.
-- **API budget:** the agent's own account; status from `tools/pr-status-broker.mjs`; no wait loops.
 
 ## 3. Channels and promotion
 
 Detail: [channels.md](channels-pipeline/channels.md).
 
-- **One tarball.** `tools/assemble-pages-site.sh` assembles the site once per master build (app,
-  docs, seven Storybooks, demos, `/data/graph-samples/v1/`, a build stamp; about 373 MB), uploaded
-  as artifact `site-<sha>` (14 days). Master push builds are also kept 14 days; the full run and the
-  bisect reuse them (ci.yml input `reuse_build_run`), so the full run tests the bytes canary serves.
-- **Where built files live.** Not in git (373 MB four times a day). A promotion attaches the tarball
-  and `channel.json` (versions, full-run id, screenshot state, sha256, approver) to a public
+- **One tarball.** `tools/assemble-pages-site.sh` assembles the site once per master build (about
+  373 MB), uploaded as artifact `site-<sha>` (14 days). The full run and the bisect reuse each master
+  build (ci.yml input `reuse_build_run`), so the full run tests the bytes canary serves.
+- **Where built files live.** A promotion attaches the tarball and `channel.json` to a public
   prerelease `site-<sha>` in graphty-monorepo, then pushes a small `deployed.json` to the site
   repository with its deploy key; the site's `deploy.yml` downloads the asset, checks the sha256,
-  writes `site.json` (section 8) and deploys. Production assets are kept; other nightlies are pruned
-  to the newest 40.
-- **The full run** (`release.yml`, dispatched by the existing Cloudflare scheduler at 00, 06, 12, 18
-  UTC with `mode: full`) takes canary's commit, skips one the store says was already judged, and runs
-  in parallel ci.yml (every shard, the full capture), `gpu.yml`, `hosts.yml`,
-  `work-protection-macos.yml`, the audit and LLM regression (once per candidate; re-run on a restart
-  only if it failed or AI code or the lockfile changed; inside the $60 a month ceiling). A `verdict`
-  job ends in `green-clean`, `green-images`, `red` or `owner-item` (no code fixes it: a lost T4 spot
-  runner, an unpatched advisory, a refused API key). A planned major bump waits like `green-images`.
-- **Red:** issue "Full run red: <lane> on <sha>" (`priority:critical`: canary is master). The store
-  dispatches `bisect.yml` as soon as a test failed its run and its retry. It confirms (5 runs), then
-  bisects first-parent merges since the last green full run, reusing each merge's build, with the
-  rules moved from `tools/verify.mjs` into `tools/bisect-core.mjs`: a culprit only when its parent
-  passes all 5; a test flaky before the range is quarantined, never bisected; a newly intermittent
-  one is bisected with "fails 1 of 5" as bad. GPU failures bisect first on the local NVIDIA card. The
-  round opens the revert. A restart runs only on a merge referencing the red issue, failing tests
-  first; other merges wait for the next slot.
-- **Nightly promotion** reuses today's `version` (with `release-hold.mjs apply`), `land` (deploy
-  key, atomic version merge and tags, fast-forward of `channel/nightly`) and `publish` (`--tag next`,
-  trusted publishing) jobs, then `site`. A publish failure after the push is today's publish hold.
-- **Production promotion** (`promote.yml`, environment `production`: the owner as reviewer,
-  self-review prevented, master only) refuses a nightly that was not clean or approved, has a
-  publish hold, or misses a version on npm; moves `latest` per package with `NPM_DIST_TAG_TOKEN`;
-  appends production's dataset overlay (append-only: changed bytes at an existing path fail); deploys
-  graphty-site; finalizes the GitHub releases; fast-forwards `channel/production`. Idempotent. A
+  writes `site.json` and deploys. `channel.json` lists the version of every released project at the
+  version commit; `promote.yml` diffs that against npm's `latest`, so skipping nightlies moves every
+  package that changed in between.
+- **The full run** (`release.yml`, dispatched at 00, 06, 12, 18 UTC with `mode: full`) takes canary's
+  commit and skips it when already judged, or when its diff from the last judged commit is only
+  release-version merges (`tools/release-diff.mjs`). The version and major-bump dry run is its own job
+  beside the lanes, not in `pick` (it took 29 min in run 40119894804); every project gets a starting
+  tag so no history scan is unbounded. Lanes in parallel: ci.yml (test matrix `max-parallel: 40`, so
+  about 20 of Team's 60 runners stay free for pull requests and bisects; On shards after Off ones),
+  `gpu.yml`, `hosts.yml`, `work-protection-macos.yml`, the audit, and LLM regression only when the diff
+  since the last LLM-green candidate touches graphty-element's AI code, prompts, schemas or the
+  lockfile (the green commit it inherits is recorded; the store warns at $50 in a month). Performance
+  Benchmarks becomes `needs: build`, outside the verdict, filing its own issue. A `verdict` job ends in
+  `green-clean`, `green-images`, `red` or `owner-item`. A candidate whose dry run plans a major is an
+  `owner-item` naming the merge that carried it (section 6.4).
+- **Concurrency:** release.yml loses its `workflow_run` trigger. `release-router.yml` (no
+  concurrency group) reads the store and the red issue and dispatches release.yml only when a restart
+  or a resume is due. Every release.yml run first catches up: it resumes any approved awaiting
+  candidate and runs the slot if canary's commit is unjudged, so a run the `release-train` group
+  replaces loses nothing.
+- **Red:** issue "Full run red: <lane> on <sha>" (`priority:critical`). The store dispatches
+  `bisect.yml` once per full run (`workflow_dispatch`, concurrency `bisect-<sha>`); tests broken later
+  are appended and picked up by its next phase. It confirms (5 runs), then runs every first-parent
+  merge since the last green full run as one matrix, each point's 5 runs in parallel processes,
+  reusing each merge's build, under `tools/bisect-core.mjs` (rules from `tools/verify.mjs`): a culprit
+  only when its parent passes all 5 (20 for a newly intermittent test); flaky before the range is
+  quarantined, never bisected. Failures that name no test bisect by their own job: coverage by the
+  shard with coverage, links, cost, docs, build and budget lint by that job, evidence "judged by 1
+  run"; `infra`, `owner-item` and a red last-green commit (environment) go to the round unbisected.
+  GPU failures bisect first on the local NVIDIA card, run by the round when the bisect records it. The
+  round opens the revert unless the store has one open for that culprit. A restart runs only on a
+  merge referencing the red issue, failing tests first. Budget `ttg:full` (red verdict to green
+  restart), starting at 3 hours.
+- **Nightly promotion** reuses today's `version`, `land` (deploy key, version merge and tags,
+  `channel/nightly`) and `publish` (`--tag next`, then `gh release edit --prerelease --latest=false`)
+  jobs, then `site`. While a publish hold is open, slots still run; promoting a new version set waits
+  for the hold to clear.
+- **Production promotion** (`promote.yml`, environment `production`: the owner as required reviewer,
+  "prevent self-review" off because the agent is no reviewer, master only) refuses a nightly that was
+  not clean or approved, has a publish hold, misses a version on npm, or would roll back across an
+  autosave or project format change; checks the token's scope and every package's dist-tags before
+  moving any; moves `latest` with `NPM_DIST_TAG_TOKEN`; appends production's dataset overlay; deploys
+  graphty-site with `graphty/sites/production.json` read from master's tip (its blob id in
+  `channel.json`); clears the prerelease marks; fast-forwards `channel/production`. Idempotent. A
   `config_only` input redeploys the current tarball with a new `site.json`.
+- **Autosave across sites:** each site is its own origin, so saved work and AI keys do not follow a
+  reader between them; that is intended, and the app shows the site name from `site.json`. A change to
+  the autosave or project format must stay readable by the previous production build, or refuse
+  without touching the data; a full-run test opens a database the candidate wrote with production's
+  build.
+- **Links:** `https://graphty.app` links resolve against canary; `links-weekly.yml` reports a 404 on
+  graphty.app for a path the newest nightly serves as "pending promotion", not dead.
 
 ## 4. Test results and durations in Cloudflare
 
@@ -139,60 +187,64 @@ Detail: [results-service.md](channels-pipeline/results-service.md).
 
 - **What:** Worker `graphty-results` with D1 (`tools/results-service/`, client `tools/results/`),
   deployed by `results-service.yml` from master. Replaces the local ledger and the quarantine files.
+- **One read per run:** the plan step reads the plan once (one retry with backoff on a full run) and
+  hands it to every job as an artifact.
 - **Writes:** every CI test job runs `node tools/results/run-group.mjs <shard>`: compute the inputs
-  key, read the plan once, run, retry failed files once, post one record per test group as its last
-  step (file counts and milliseconds, failures). A Vitest reporter posts each failure as it happens,
-  so a dead job keeps its evidence and the bisect starts early.
+  key, run, retry failed files once, post one record per test group as its last step (file rows in
+  16-row statements, inside D1's 100-parameter limit). A Vitest reporter posts the first 20 failures
+  as they happen, then one summary event.
 - **Inputs key:** today's shard input key, the selected files, runner image, Node and browser
-  versions, flag configuration, and for a story test its baseline blob. A new picture or a new runner
-  image starts a new history instead of looking flaky.
-- **Rules:** flaky = passed and failed on the same commit and inputs key, quarantined at once with a
-  `priority:critical` issue. Broken = failed run and retry: dispatches the bisect on a full run;
-  fails a pull request unless master fails it the same way (the file is re-run at the base commit;
-  `[KNOWN]` and a "Failing on master" issue). Quarantine leaves on issue close, 20 passes or 14 days;
-  never GPU tests or the screenshot gate. Full runs and bisects excuse nothing. A clean local failure
-  where CI passed the same tree files a parity issue.
-- **History** only skips a group whose exact inputs key passed, and orders recent failures first.
-- **Fail open:** 5 s for plan and record, 2 s for a failure event, one try. No plan means no reuse,
-  no quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled as an
-  artifact and re-posted by a non-required backfill job.
-- **Credentials:** CI uses the job's OIDC token (audience `graphty-results`); the Worker takes the
-  kind (`pr`, `full`, `bisect`, `base`) from its claims. Local runs use `GRAPHTY_RESULTS_TOKEN` and
-  write only kind `local`, never evidence. Issues and dispatches use the `graphty-release-scheduler`
-  App (a second key).
+  versions, flag configuration, and for a story test its baseline blob.
+- **Rules:** flaky = passed and failed on the same commit and inputs key, quarantined with a
+  `priority:critical` issue, but on a pull request it fails the check (`[NEW-FLAKY]`) when the pull
+  request changed the test's file or import closure or master has no earlier flaky evidence for it.
+  Broken = failed run and retry: starts the bisect on a full run; fails a pull request unless master
+  fails it the same way. Quarantine leaves on issue close, 20 passes or 14 days; never GPU tests or the
+  screenshot gate. Full runs and bisects excuse nothing.
+- **Evidence only from master's code:** kinds `full`, `bisect` and `base` are accepted only when the
+  OIDC `ref` is `refs/heads/master` and `job_workflow_ref` names master's workflow file. A pull
+  request's failure is excused only by such records; when none exists, the Worker dispatches
+  `base-check.yml` on master for that file at the base, and re-runs the pull request's failed job if
+  the base fails the same way. A pull request's own client can never excuse or quarantine.
+- **Fail open:** 5 s for plan and record, 2 s for a failure event. No plan means no reuse, no
+  quarantine, no excuse: longer and stricter, never looser. An unsent record is spooled and re-posted.
+- **Credentials:** CI uses the job's OIDC token; local runs write only kind `local`. Issues and
+  dispatches use the `graphty-release-scheduler` App, which gains Contents: read for the ancestry check.
 - **Cost:** about 110,000 rows a day: Workers Paid ($5 a month).
-- **Rollout:** a week write-only; then reads go live; then local records are imported and the ledger
-  deleted.
 
 ## 5. Stories become tests
 
 Detail: [stories-as-tests.md](channels-pipeline/stories-as-tests.md).
 
 - **One render per story.** An `afterEach` in each project's `.storybook/vitest.setup.ts` shoots the
-  story at the end of its test with today's capture settings (1200 x 900, scale 2, the same Chromium
-  flags and pinned fonts, `navigator.gpu` removed, `chromatic=true`, the fixed clock, the same
-  waits and stitching) and compares it with the baseline using unchanged `compare.mjs`. New module
-  `visual-review/capture/story-test.mjs`, published as `@graphty/visual-review/vitest`.
+  story at the end of its test with today's capture settings and compares it with the baseline using
+  unchanged `compare.mjs`. A page taller than 900 px is shot by resizing the outer page and the tester
+  iframe, then clipping the page screenshot to the iframe. New entry point `@graphty/visual-review/vitest`.
 - **Outcomes:** `unchanged` passes; `changed` and `new` pass and are written for review; `unstable`
-  (two shots disagree) fails as flaky; a render error fails.
-- **Same output:** today's `results.json` and artifacts, so the review page and gate are unchanged;
-  `visual-review merge-results` combines shards.
+  follows the flaky rule of section 4; a render error fails.
 - **Selection:** a story file runs when its import closure holds a changed file; every story of a
-  project runs when a global input changed (`.storybook/`, vitest config, `visual-review.config.json`,
-  fonts, capture code, lockfile, shared theme); a changed baseline runs its story; unknown means run.
-  Only selected baselines are pulled from LFS. The full run shoots everything.
-- **Approval gates nightly.** Changed images make a pending status `promotion/screenshots`, not a
-  red check; one notification; the page offers the newest candidate and carries decisions by image
-  hash. Finish commits an accept commit parented on the candidate and opens a pull request that
-  merges on the light check (its stories now `unchanged`); the resume step overlays that re-check on
-  the candidate's capture and runs the gate unchanged, with gate code from `channel/nightly`. The
-  gate step leaves ci.yml. A pull request's capture code decides nothing; the full run uses the copy
-  at the nightly commit.
-- **Parity is a bug class:** different bytes in two environments are filed and fixed, never
-  absorbed; CI is the reference until local captures match it on two days.
-- **Migration** per project (graphty, graphty-element, compact-mantine, algorithms and layout,
-  cytoscape-extensions, graph-io-fidelity): both captures run in each full run, `visual-review
-parity` compares hashes, and a project switches after two consecutive clean runs. No re-baselining.
+  project runs when its global inputs change (`.storybook/`, vitest config,
+  `visual-review.config.json`, fonts, capture code, the lockfile exception of section 2, the shared
+  theme); graphty-element's `src/` counts as global for a dependent project only where the graph
+  cannot follow the stories' imports; unknown means run. graph-io-fidelity's stories run in shards of
+  at most 8 min. The LFS cache is one per project, keyed by its baselines tree, saved only from master
+  and the full run; pull requests restore it and `git lfs pull --include` the selected files.
+- **compact-mantine** is on Storybook 8.6 with one hand-written glob test, so the import graph selects
+  all 1,004 stories for any compact-mantine change. Until it moves to Storybook 9 and `storybookTest`
+  (a Figma-Approved change if any picture moves), every compact-mantine pull request pays its full
+  story run (about 11 min).
+- **Approval gates nightly.** Changed images make a pending status `promotion/screenshots`; the page
+  offers the newest candidate C and carries decisions by image hash. Finish (the review server, as the
+  agent account) commits accept commit A on C and opens a pull request touching only
+  `visual-baselines/` and `visual-review-approvals/`; the signed approval is its proof (section 6.4).
+  The resume step runs the gate unchanged, from `channel/nightly`, on C's own capture against A's
+  baselines: A's PNGs are byte copies of C's captures, so they match by `capture_sha == baseline_sha`
+  without re-rendering on master's newer code.
+- **Parity is a bug class:** different bytes in two environments are filed and fixed, never absorbed;
+  CI is the reference until local captures match it on two days.
+- **Migration:** first a spike measures byte parity on 50 graphty and graphty-element stories. Either
+  parity holds, or each project gets one owner-reviewed re-baseline with no product change, signed in
+  one Finish. Then per project both captures run in each full run and it switches after two clean runs.
 
 ## 6. Agent identity, review and the admin bypass
 
@@ -203,44 +255,62 @@ Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) sections 
 A GitHub Team machine account (the owner creates it; suggested `graphty-agent`; a third seat), 2FA,
 **Write** on graphty-monorepo only. `.claude/settings.json` sets `GH_CONFIG_DIR=~/.config/gh-agent`
 and `GIT_CONFIG_GLOBAL=~/.config/git-agent/config` (name, noreply email, SSH push and signing keys),
-so every agent session, worktree and hook acts as the agent and its commits verify for it.
-`MASTER_GUARD_TOKEN` becomes an agent token. Agents never approve; they arm auto-merge.
+so every agent session, worktree, hook and the review server act as the agent. `MASTER_GUARD_TOKEN`
+becomes an agent token. Agents never approve; they arm auto-merge. The owner's own pipeline edits
+are made by an agent session and approved by him, since GitHub never counts an author's approval.
 
 Agents run as the owner's Unix user: the split is enforced only once his `gh` token and GPG key are
 out of their reach (section 13 item 3).
 
 ### 6.2 CODEOWNERS
 
-The owner owns `/.github/`, `/tools/` (including the results service, cache Worker, bisect and
-channel tools), `/.husky/`, `/.claude/`, every `CLAUDE.md`, `/ci-budgets.json`, `/nx.json`,
-`/release-hold.json`, `/sonar-project.properties`, `/eslint.config.js`, `/vitest.shared.config.ts`,
-`/vitest.ci-junit.mjs`, `**/vitest*.config.*`, `**/.storybook/`, `/visual-review/`,
-`/visual-review.config.json`, `/lychee.toml`, `/.lycheeignore`, `/.secretlintignore`,
-`/graphty/sites/nightly.json`, `/graphty/sites/production.json`. Not owned: test files (the
-integrity check covers them), `visual-baselines/` and `visual-review-approvals/` (the passkey-signed
-gate covers them).
+Owned are only the paths that can loosen a check or take authority: `/.github/workflows/`,
+`/.github/CODEOWNERS`, `/.claude/`, `/CLAUDE.md`, `/ci-budgets.json`, `/release-hold.json`, `/nx.json`,
+`/vitest.shared.config.ts`, `/vitest.ci-junit.mjs`, `**/.storybook/vitest.setup.*`,
+`/visual-review/trusted/`, `/visual-review/capture/`, `/visual-review.config.json`,
+`/graphty/sites/nightly.json`, `/graphty/sites/production.json`, and in `tools/` the results, cache,
+scheduler and channel directories, `bisect-core`, the release tools, `ci-test-matrix`, `run-tests`,
+the selector and its rules, and the integrity, features, budgets, `pr-open` and quick-check scripts.
+Package CLAUDE.md files, package vitest and Storybook configs and the rest of `tools/` are left to
+the integrity check. Of the 117 golden landings of 2026-10-18 to 10-24, 27 touched this list (43
+touched the longer first draft): about 4 owner reviews a day today, which the pipeline round batches
+into one review list a day.
 
-### 6.3 Ruleset and secrets
+### 6.3 Rulesets and secrets
 
 - Ruleset 23973898: bypass = the release deploy key only; code-owner review required with 0
-  approvals (an unowned pull request auto-merges), stale reviews dismissed, last push approved.
+  approvals; stale reviews dismissed; last-push approval off (with 0 approvals its effect is
+  unverified, and dismissal already stops an approval surviving a push). A pull request waiting for
+  the owner is never merged with master unless it conflicts, because the push would dismiss him.
+- Tag ruleset on `*@*` and `site-*`: created only by the deploy key, never updated or deleted; the
+  release jobs push tags with it and create releases on existing tags.
 - `channel/nightly` and `channel/production`: updated only by the deploy key, never deleted.
 - Actions: default permissions read-only; Actions may not approve pull requests.
-- **Outside-world secrets live in master-only environments** (a same-repo branch runs its own
-  workflow files with repository secrets and can dispatch them): `release` (deploy key, Pushover,
-  npm publish; the 13 trusted publishers are bound to it), `nightly` (nightly site key), `production`
-  (owner reviews: graphty-site key, `NPM_DIST_TAG_TOKEN`), `full-run` (`GOOGLE_API_KEY`,
-  `SENTRY_AUTH_TOKEN`), `nx-cache-write`.
+- **Outside-world secrets live in master-only environments**: `release` (deploy key, Pushover, npm
+  publish), `nightly` (nightly site key), `production` (owner reviews: graphty-site key,
+  `NPM_DIST_TAG_TOKEN`), `full-run` (`GOOGLE_API_KEY`), `master-build` (`SENTRY_AUTH_TOKEN`, declared
+  by the master-push upload job), `nx-cache-write`. ci.yml jobs that also run on pull requests
+  declare them conditionally (`environment: ${{ github.event_name == 'pull_request' && '' || 'full-run' }}`).
 
 ### 6.4 Rules with checks (`pr-integrity.yml`, check `PR Integrity`)
 
 - **Test integrity** (`tools/check-test-integrity.mjs`): fails when a test file, declaration or
-  assertion disappears, a `.skip`, `.only` or `.todo` appears, a timeout or retry grows, or a coverage
-  threshold drops. A code-owner approval on the head commit clears it.
+  assertion disappears, a `.skip`, `.only` or `.todo` appears, a timeout or retry grows, a coverage
+  threshold drops, a vitest config's include, exclude, timeout or retry loosens, or any package.json
+  `scripts` entry changes. A code-owner approval on the head commit clears it.
+- **No unapproved breaking change:** fails when the title or any commit carries `!` or a
+  `BREAKING CHANGE:` footer, unless a code owner approved the head commit. One that reaches master
+  anyway (a commit message edited after review) is caught by the full run's dry run: an `owner-item`
+  naming the merge, recovered with a `release-hold.json` entry or a version plan, as for
+  graphty-element 3.1.0, never by waiting.
 - **Proof:** agent pull requests carry `## Proof` (command and output, the test that failed before
   the fix, or a capture).
-- **Fresh review:** the review subagent's report, posted by `pr-open.sh`, marked with the head
-  commit; a new push needs a new review.
+- **Fresh review:** the review subagent's report, posted by `pr-open.sh`, marked with the head commit.
+- **Exempt from Proof, fresh review and test integrity**, each checked mechanically: a pull request
+  whose tree equals `git revert -m 1` of a named master first-parent merge (master-guard's reverts
+  carry a Proof naming the red run); one touching only `visual-baselines/` and
+  `visual-review-approvals/` (the passkey-signed gate judges it). Dependabot is exempt from Proof and
+  review only.
 - It re-runs on review and comment events without re-running ci.yml. Pipeline and CI-config changes
   go in their own pull request, never with a product fix.
 
@@ -248,25 +318,26 @@ gate covers them).
 
 Detail: [budgets-and-trust.md](channels-pipeline/budgets-and-trust.md) section 1.
 
-- **Levels:** run, job, step, nx task (`NX_PROFILE`). Per-test slowness stays with
-  `tools/vitest-time-budget.mjs`, its history now read from the store.
+- **Levels:** run, job, step, nx task (`NX_PROFILE`), and queue (job created to started), so an alarm
+  tells queueing from slowness. Per-test slowness stays with `tools/vitest-time-budget.mjs`.
 - **`ci-budgets.json`** (code-owned; a raise is a reviewed pull request with a new measurement). The
   budget is the warn line. Starting values (minutes): `run:ci.yml:pr` 20, `run:ci.yml:pr-global` 30,
-  `run:release.yml:full` 75, `run:ci.yml:full` 60, `run:gpu.yml` 60, `run:hosts.yml` 60,
-  `job:ci.yml:Build` 6, `step:ci.yml:Build:Build all` 5, `task:graphty:build` 2, `job:ci.yml:Test
-(*)` 15, `job:ci.yml:Stories (*)` 15. A new job gets 1.5 times its median over its first 5 runs.
-- **Every run warns, never fails.** A last `timings` job (`if: always()`) reads jobs and steps (one
-  API call) and the nx profiles, writes a summary, warns per key over budget, comments once on a pull
-  request over 1.5 times master's median and 60 s slower on a key (naming its changed files under
-  that project), and posts rows to the store (10 s, fail open).
+  one `run:ci.yml:pr-<package>` per package still on whole shards (from its measured whole-shard
+  time), `run:release.yml:full` 75, `run:ci.yml:full` 60, `run:gpu.yml` 60, `run:hosts.yml` 60,
+  `job:ci.yml:Build` 6, `step:ci.yml:Build:Plan` 2, `step:release.yml:version-dry-run` 5,
+  `task:graphty:build` 2, `job:ci.yml:Test (*)` 15, `job:ci.yml:Stories (*)` 10, `ttg:full` 180. A new
+  job gets 1.5 times its median over its first 5 runs.
+- **Every run warns, never fails.** A last `timings` job (`if: always()`) reads jobs and steps and
+  the nx profiles, warns per key over budget, comments once on a pull request over 1.5 times master's
+  median and 60 s slower on a key, and posts rows, Git LFS bytes and the Actions cache size to the
+  store (10 s, fail open).
 - **Hang guards:** `timeout-minutes` = twice the budget (at least 10), checked by `lint`. A hung job
   is a defect, never re-run or raised.
 - **One build for every event:** `lint` fails a build step whose env holds a secret or whose `if:`
   depends on event or ref, which is how the Sentry regression hid from pull requests.
-- **Trend alarms** (the Worker, after each master or full-run post): the median of the last 5 runs
-  over budget, or over 1.3 times the 10 before and 60 s slower. One issue per key (`priority:high`)
-  naming runs and the merge range; closes when the median recovers. A culprit only by running the
-  task on a merge and its parent. The Sentry regression would have alarmed in about 5 hours.
+- **Trend alarms** (the Worker): the median of the last 5 runs over budget, or over 1.3 times the 10
+  before and 60 s slower. One issue per key naming the merge range; closes when the median recovers.
+  The Sentry regression would have alarmed in about 5 hours.
 
 ## 8. Feature flags
 
@@ -277,231 +348,174 @@ Detail: [features.md](channels-pipeline/features.md).
   page's URL, storage or environment; no `GRAPHTY_FEATURES` exists anywhere. One build for every
   site. Removing a flag is an ordinary pull request.
 - **graphty-element** (`src/features/`), all additive: attribute and property `features` (ids, or
-  `all`), read-only `enabledFeatures` (`{ enabled, unknown }`), event `graphty-features`,
-  `createSession({ features })`, `featuresFromUrl(url)` in `./catalog`, `setDefaultFeatures(ids)` in
-  `./extend`, descriptors `FEATURES` and `GRADUATED_FEATURES`, error `E_FEATURE_OFF { feature, key }`.
-  Experimental catalog entries are always registered with a `feature` field and filtered per session
-  (the composed catalog's cache key includes the feature set), so features off gives today's
-  identical arrays and a key whose feature is off is refused in one place. Saved projects record
-  `requires`. Unknown ids never throw.
-- **The app** fetches `site.json` (`cache: "no-cache"`) before loading the element, validates it
-  (missing or invalid = every experiment off), adds `featuresFromUrl(location.href)` and sets the
-  `features` attribute. Its own experimental UI follows `enabledFeatures.enabled`. `site.json` also
-  holds the site name, the dataset base (`/data/graph-samples/v1/`, same origin) and Sentry's
-  environment, replacing build-time branches. Sources: `graphty/sites/{canary,nightly,production}.json`.
-- **API report:** experimental API carries `@experimental <id>`; `tools/check-features.mjs` fails on
-  undeclared or graduated ids, a missing issue or an untagged flagged API; `--list` shows flag age.
-- **Two configurations.** On = `setDefaultFeatures(["all"])` in a setup file (public API, no
-  environment) for graphty-element's and graphty's projects: affected files on a pull request, every
-  shard in the full run, with graphty-element's stories compared against the Off baselines. App
-  stories run On without comparison. No baseline is approved for On. Nightly needs both green. No On
-  shard is planned while `FEATURES` is empty.
+  `all`), read-only `enabledFeatures`, event `graphty-features`, `createSession({ features })`,
+  `featuresFromUrl(url)` in `./catalog`, `setDefaultFeatures(ids)` in `./extend`, descriptors
+  `FEATURES` and `GRADUATED_FEATURES`, error `E_FEATURE_OFF { feature, key }`. Experimental catalog
+  entries are always registered with a `feature` field and filtered per session. Saved projects
+  record `requires`. Unknown ids never throw.
+- **No experimental public types until the owner decides** what `@experimental` promises (section 13
+  item 1): experiments are reached only through catalog keys and attributes gated at run time, and
+  `check-features.mjs` fails on any `@experimental` export. A piece that needs typed API (the
+  timeline's commands) waits for the answer.
+- **The app** fetches `site.json` (`cache: "no-cache"`) before loading the element (missing or
+  invalid = every experiment off), adds `featuresFromUrl(location.href)` and sets the `features`
+  attribute. Sources: `graphty/sites/{canary,nightly,production}.json`.
+- **Two configurations.** On = `setDefaultFeatures(["all"])` in a setup file for graphty-element's and
+  graphty's projects: affected files on a pull request, every shard in the full run, element stories
+  compared against the Off baselines. Nightly needs both green. No On shard while `FEATURES` is empty.
 - **Candidates:** `location-map`, `timeline`, `data-management`. Each starts with a pull request that
-  declares the flag and gates and no behavior; the Stories job fails it on any changed existing
-  story. Its branch merges master, adds the gates and is split into pull requests (never rebased).
+  declares the flag and gates and no behavior; the Stories job fails it on any changed existing story.
 
 ## 9. Owner decisions this design implements
 
-Binding decisions of 2026-10-24 and 25:
-
-1. Three channels and domains, each a Pages site with its own builds and datasets; one code
-   repository; separate built-file repositories; the owner does DNS, domain verification and the npm
-   trusted-publishing transition (sections 1, 3, 13).
-2. No golden; one pull request per branch, light checks, auto-merge; Mergify only if combined pull
-   requests keep breaking master (section 2).
-3. The full run every 6 hours with LLM regression once per candidate; red means bisect, revert, fix
-   forward by the pipeline round; clean promotes automatically; changed screenshots wait for the
-   owner's approval; nightly publishes `next` (sections 3, 5).
-4. Production is the owner's judgment and trigger, same versions, same build (section 3).
-5. Hotfix: merge, out-of-schedule full run, promote straight through (section 1.2).
-6. Flush golden through #3318, then delete its machinery (section 12).
-7. Results and durations in a Worker and D1, written per test group, failures sent at once, one read
-   per run, fail open, unknown means run, blame only by evidence (section 4).
-8. Stories become tests, judged against the same baseline hash, selected by changed code, all every
-   6 hours; environment differences are bugs; CI is the reference (section 5).
-9. Feature flags with the element's URL helper, per-site runtime configuration, two test
-   configurations (section 8).
-10. Time limits per job, step, build task and overall, in a reviewed file, with trend alarms and a
-    pull request warning (section 7).
-11. No admin bypass; a Team machine account for agents; owner review of pipeline changes; the
-    release deploy key stays (section 6).
-12. Update the pipeline-round skill and every CLAUDE.md (section 12).
-
-Owner rules still applied: no admin merge (no bypass); nothing unapproved reaches production; holds,
-never release exclusions; a major never auto-promotes; states end on events (hang guards end only
-silent jobs); nothing is weakened to pass (6.4); flaky tests are critical; graphty-element stays
-self-sufficient and neutral; only the owner approves screenshots; agents never edit `gate.mjs`,
-`approval.mjs` or `passkeys.json`.
+Binding decisions of 2026-10-24 and 25: three channels and domains (1, 3); no golden, per-branch pull
+requests with auto-merge, Mergify only on evidence (2); the 6-hour full run, bisect and revert,
+automatic clean promotion, screenshot approval gating nightly, `next` at nightly (3, 5); production
+by the owner's judgment, same versions and build (3); the hotfix path (1.2); flush through #3318,
+then delete golden's machinery (12); results in a Worker and D1, fail open, evidence only (4);
+stories as tests (5); feature flags with per-site runtime configuration (8); time budgets with trend
+alarms (7); no admin bypass, a machine account, code-owned pipeline (6); the pipeline-round skill and
+every CLAUDE.md updated (12). Owner rules applied throughout: no admin merge; nothing unapproved
+reaches production (12 step 3 freezes it first); holds, never exclusions; breaking changes and the
+held grouped major need the owner (6.4); states end on events; nothing weakened to pass; flaky tests
+are critical; graphty-element self-sufficient and neutral; only the owner approves screenshots.
 
 ## 10. What we learned and where it shows up
 
 - Tier 3 took about 60 hours and froze every other landing: No integration branch or landing lock; big work lands in small flagged pieces (2, 8)
-- Six landing systems in five weeks: One ordered rollout with a measured "done" per step; pipeline paths code-owned (6.2, 12)
+- Six landing systems in five weeks: One ordered rollout with a measured "done" per step; pipeline paths code-owned from before the switch (6.2, 12)
 - The pipeline's own checks caused most gate failures (32 of 35 on 10-24): Tool tests only when tools change; the gate tooling is deleted (2, 12)
 - Screenshots were the only red job in 29 of 53 runs; 3 to 6 Finish rounds per cut: A changed image never fails a pull request; one approval per nightly, decisions carried by hash (5)
-- Local and CI screenshots differed and were worked around: CI is the reference; each mismatch filed; parity proven before local results count (4, 5)
+- Local and CI screenshots differed and were worked around: CI is the reference; each mismatch filed; parity measured before the migration (4, 5)
 - Agents waited on gates inside turns (103 wakes in a day): `pr-open.sh` arms auto-merge and exits; the round reacts to recorded events (2, 12)
 - Gate settings leaked into its own tests: Clean CI environment; the quick check strips `GRAPHTY_*` and `PREPUSH_*`; no feature state from the environment (2, 8)
 - A Build regression went unnoticed for four days: Per-task budgets, a pull request warning, trend alarms; one build for every event (7)
-- Golden sat nine hours on failures it already had: A failing pull request re-runs the file on its base and is excused loudly (4)
-- Flaky tests were blamed on the wrong landing; killed runners read as failures: Flaky only by same commit and inputs; culprit only when its parent passes 5 of 5; `infra` never counts (3, 4)
+- Golden sat nine hours on failures it already had: A failing pull request is excused by master's own evidence, loudly (4)
+- Flaky tests were blamed on the wrong landing; killed runners read as failures: Flaky only by same commit and inputs; culprit only when its parent passes; `infra` never counts (3, 4)
+- 78% of flaky tests are flaky when written: `[NEW-FLAKY]` fails the pull request that wrote or touched one (4)
 - Tier 3's retries tested new code each time (49.6 hours): A restart runs failing tests first, only on a merge referencing the red issue (3)
-- graphty.app ran code no full run had passed; rebuilding at release ships untested bytes: graphty.app and `latest` move together, by promoting the same tarball and versions a nightly passed (3)
-- 12 empty release attempts while master did not move; one red lane stopped releases for days: The full run tests canary and skips judged commits; the switch does not wait on the held release (3, 12)
-- The shared GitHub account ran out of API requests: Agents have their own account; the store and alarms use a GitHub App (2, 4)
-- Agents held the owner's authority; "no admin merge" was a rule, not a control: Write-only machine account, no bypass, code-owned pipeline, master-only secrets (6)
-- Agents raised timeouts and narrowed checks to go green: Test integrity, proof of work, fresh-context review (6.4)
+- graphty.app ran code no full run had passed: graphty.app and `latest` move together, by promoting the same tarball and versions a nightly passed, and are frozen during the rollout (3, 12)
+- 12 empty release attempts; one red lane stopped releases for days; a lost pending run went unnoticed: Judged commits are skipped; every release run catches up; the switch does not wait on the held release (3, 12)
+- Agents held the owner's authority; "no admin merge" was a rule, not a control: Write-only machine account, no bypass, code-owned pipeline, protected tags, master-only secrets (6)
+- Agents raised timeouts and narrowed checks to go green: Test integrity, proof of work, fresh-context review, a breaking-change guard (6.4)
 
-## 11. Contradictions between the drafts, and how they were settled
+## 11. Costs
 
-1. Store names: `tools/test-store/`, `TEST_STORE_TOKEN` (migration) vs `tools/results-service/`,
-   `graphty-results`, `GRAPHTY_RESULTS_TOKEN` (results-service). The latter.
-2. D1 cost: free plan (migration, budgets) vs about 110,000 rows a day (results-service, counting
-   file rows and index writes). Workers Paid, an owner action.
-3. Durations: a Worker cron polling into `duration` (results-service) vs a `timings` job posting
-   keyed rows (budgets). One table in the budgets shape, written by `timings` (`if: always()` sees
-   killed jobs); no cron poll.
-4. Production repository: `graphty-production` (features) vs graphty-site (others, exists).
-   graphty-site.
-5. Site delivery: release assets in the site repositories via a Pages App (channels) vs a git commit
-   per promotion via deploy keys (migration). Git cannot carry 373 MB four times a day and deploy keys
-   cannot create releases: the tarball is a prerelease asset in graphty-monorepo, and a deploy key
-   pushes only `deployed.json`, which triggers the site's deploy. No App.
-6. Dataset overlay: channels appended production's datasets at nightly time, which needs the
-   production key outside the owner's approval. It moves to production promotion; cost: a `next`
-   consumer on the default URL gets a 404 for a dataset newer than production.
-7. Promotion: a job in release.yml to avoid new trusted publishers (migration) vs `promote.yml`
-   (channels). `promote.yml`: it never runs `npm publish`. Trusted publishing: "no change" (channels,
-   migration) vs bound to environment `release` (budgets). Bound, because a branch can edit and
-   dispatch release.yml; editing the 13 entries is the owner's transition.
-8. `NPM_DIST_TAG_TOKEN` (channels) over `NPM_PROMOTE_TOKEN` (migration).
-9. Drafts kept (migration) vs deleted (merging). Deleted.
-10. Pre-push with format, lint and typecheck (migration) vs seconds-only pre-push plus the quick check
-    (merging). merging.
-11. SonarQube only as the master watcher (migration) vs in the quick check (merging). Both.
-12. `branch-note.mjs` deleted (merging) vs kept (migration). Kept without sync fields: unfinished
-    branches have no pull request yet.
-13. Mergify trigger: three master failures a week (migration) vs two skew breaks in 7 days or one red
-    over 6 hours (merging). merging: it counts only breaks a queue would stop.
-14. Required checks: two (merging) vs more (budgets). Four, with integrity, proof and review in
-    `pr-integrity.yml` so review events do not re-run ci.yml.
-15. Fresh review "before auto-merge" vs `pr-open.sh` arming auto-merge at once. The review runs
-    before `pr-open.sh`, which posts it.
-16. Four CODEOWNERS lists. The union plus `/visual-review/` and `**/.storybook/`, minus
-    `visual-baselines/` and `visual-review-approvals/`.
-17. Agent git identity per worktree with a token in `.env` (merging) vs `GH_CONFIG_DIR` and global
-    config in `.claude/settings.json` (budgets, migration). The latter covers every checkout.
-18. `site.json` in the site repositories with `channel`, `dataBaseUrl` (channels) vs
-    `graphty/sites/` with `site`, `datasets` (features). features: one repository, reviewed there.
-19. On-configuration stories without screenshots (stories) vs compared with Off baselines (features).
-    features: stronger and adds no images.
-20. Canary domain first (channels) vs at the domain swap (migration). A Pages site has one custom
-    domain, so migration's order.
-21. Shadow full run (channels) vs straight to red handling (migration). Step 4 bisects and reverts but
-    publishes nothing; step 5 turns on nightly; `latest` stays put until the first promotion.
-22. Stories shadow: 5 full runs overall (migration) vs two clean runs per project (stories). Per
-    project, two.
-23. Fail-open timeouts 3 s (migration) vs 5 and 2 s (results-service). The latter; 10 s for `timings`.
-24. Build reuse: "Reuse" deleted for the cache (merging) vs `reuse_build_run` (channels). Both: the
-    old step goes; the full run reuses the master build it tests.
-25. Budget numbers differed between merging and budgets. One file; the budget is the warn line.
-26. "Zero changed screenshots" for a flag's first pull request was not enforced, since changed images
-    pass. The Stories job fails such a pull request on any changed existing story.
-27. Red full-run priority `high` (old train hold) vs `critical` (channels). Critical: it is a red
-    master.
-28. master-guard's revert job: deleted (migration) vs kept (channels, merging). Kept, as the agent.
-29. Mergify Test Insights: kept (merging) vs deleted (results-service). Deleted once reads are live.
+| Item                                | Amount                                                                                             |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Agent account                       | one more GitHub Team seat ($4 a month at today's list price)                                       |
+| Cloudflare                          | Workers Paid $5 a month (results); R2 for the nx cache, a few GB at $0.015 per GB-month, no egress |
+| T4 lane                             | about 4 x 45 min = 3 machine.dev T4 hours a day, plus GPU bisects the local card cannot reproduce  |
+| LLM regression                      | about $0.94 a run, only when AI code changed; the store warns at $50 a month (ceiling about $60)   |
+| GitHub-hosted Linux, macOS, Windows | free on this public repository; limited by concurrency (60 Linux, 5 macOS jobs), not money         |
+| Git LFS bandwidth                   | up to 880 MB per full run on a cache miss; recorded per run (section 7)                            |
+
+The T4 rate is the owner's machine.dev bill; this repository does not record it.
 
 ## 12. Rollout and deletion
 
-Detail: [migration.md](channels-pipeline/migration.md).
+Detail: [migration.md](channels-pipeline/migration.md). Each step: starts after; done when.
 
-0. Flush: no new landings; verify the tip; `cut origin/golden-verified`; Finish; ship; #3318 releases. Starts after: now. Done when: golden is an ancestor of master; #3318 closed; each `latest` equals its newest tag.
-1. Owner setup (section 13). Starts after: parallel. Done when: each item's check passes.
-2. Results store write-only; durations recorded. Starts after: parallel. Done when: every job has a record for 3 days; none slowed over 5 s.
-3. Pull requests into master: light check, `pr-open.sh`, cache, worktrees and Dependabot on master, CLAUDE.md "Shipping a change", skills rewritten. Starts after: flush shipped. Done when: of 20 pull requests: median under 20 min, 18 untouched, master green after each.
-4. Full run with bisect and revert, publishing nothing. Starts after: 3. Done when: 8 slots green, or red with a culprit whose revert made the next green.
-5. Nightly site and npm `next`. Starts after: 4, environments, trusted-publisher binding. Done when: one automatic and one approved promotion served and tagged.
-6. `promote.yml`; graphty.app to graphty-site; canary.graphty.app. Starts after: 5. Done when: site check passes on all three; every dataset path answers 200.
-7. Agent account, CODEOWNERS, bypass removed, store reads live. Starts after: 1, 3. Done when: an owned-path pull request waits, an unowned one auto-merges, `--admin` is refused.
-8. Deletion. Starts after: 3 to 7, 7 days without undo, #3318 closed. Done when: lint, knip and a full run green; no reference outside `design/`.
-9. Stories as tests, per project. Starts after: 4. Done when: two clean parity runs, then its old capture job goes.
+0. **Flush:** no new landings; verify the tip; `cut origin/golden-verified`; Finish; ship; #3318 releases. After: now. Done: golden is an ancestor of master; #3318 closed; each `latest` equals its newest tag.
+1. **Owner setup** (section 13). After: parallel. Done: each item's check passes.
+2. **Results store write-only;** durations recorded. After: parallel. Done: every job has a record for 3 days; none slowed over 5 s.
+3. **Freeze production and switch identity**, one owner-reviewed pull request and the owner's settings: `deploy-pages.yml` stops deploying graphty.app, release.yml publishes nothing (shadow), CODEOWNERS, environments, the tag ruleset, the agent account in `.claude/settings.json`, admin bypass removed, PR Integrity required. After: 0, 1. Done: graphty.app's build stamp is the commit #3318 released; on a scratch ruleset first, then the real one: an owned-path pull request waits, an unowned one auto-merges, `--admin` is refused, a mechanical revert, an accept-only and a Dependabot pull request each pass PR Integrity, and a `!` title fails it.
+4. **Selection readiness:** the remaining packages join `fileLevel` or get slices; the story parity spike. After: parallel. Done: every package's light-check shards are under 8 min or budgeted; the spike's outcome recorded.
+5. **Pull requests into master:** light check, `pr-open.sh`, cache, Dependabot, store reads live, CLAUDE.md "Shipping a change", skills rewritten. The old `visual` job runs report-only, outside All Checks Pass, until step 9. After: 3, 4. Done: of 20 pull requests: All Checks Pass median under 20 min, 18 untouched, master green after each.
+6. **Full run** with bisect and revert, publishing nothing. After: 5. Done: 8 slots green, or red with a culprit whose revert made the next green.
+7. **Nightly and npm `next`:** the publish job declares `environment: release` first, then the owner binds the trusted publishers. After: 6. Done: one automatic and one approved promotion served and tagged.
+8. **Production:** `promote.yml`; graphty.app to graphty-site; canary.graphty.app. After: 7. Done: site check passes on all three; every dataset path answers 200; a dry run waited for the owner.
+9. **Stories as tests**, per project. After: 6. Done: two clean parity runs, then its old capture job goes.
+10. **Deletion.** After: 5 to 8, 7 days without undo, #3318 closed. Done: lint, knip and a full run green; no reference outside `design/`.
 
-**Deleted** (step 8 unless noted): `tools/land.mjs` (golden, golden-cut, `cut`, `cut-fix`, `ship`,
-`sync`, landing checks) and its live copy; `tools/verify.mjs` (rules to `bisect-core.mjs`);
-`branch-sync.mjs`; `push-queue.sh`, `queued-push-guard.mjs`, `prepush.sh`,
-`prepush-source-checks.sh`, `prepush-tests.mjs`, the gate parts of `prepush-inputs.mjs` (the shard key
-moves to `tools/results/inputs.mjs`), `shard-verdict.mjs`, `gate-snapshot.sh`, `push-base.mjs`,
-`wait-log.mjs`, `ship-risks.mjs` (about 11,000 lines); `golden-verify.yml`, `visual-seed.yml`,
-release.yml's restart-on-any-push and skip-while-held; in ci.yml the Mergify handling, draft jobs,
-the `golden-cut` exception, the `verify` input, the old "Reuse" step, and (step 9) the `visual` job,
-the gate step and `tools/visual-capture-plan.mjs`; `tools/visual-preview.sh`; the test ledger,
-`test-quarantine.json` and the quarantine's local state, `TEST_LEDGER_*`, the Mergify Test Insights
-upload; branches `golden`, `golden-cut`, `golden-verified`, `golden-candidate`,
-`golden-cut-candidate`, `golden-bisect-1`, `golden-bisect-2`, tag `golden-good`; worktrees
-`gate-live`, `land-live`, `golden-local`, `land-check-*`, `golden-bisect-*`, the githerd worktrees and
-server (source stays); `live-tools.json` entries `gate` and `land`; `tmp/golden/`,
+**Deleted** (step 10 unless noted): `tools/land.mjs` and its live copy; `tools/verify.mjs` (rules to
+`bisect-core.mjs`); `branch-sync.mjs`; `push-queue.sh`, `queued-push-guard.mjs`, `prepush.sh`,
+`prepush-source-checks.sh` (after each of its checks is in ci.yml), `prepush-tests.mjs`, the gate parts
+of `prepush-inputs.mjs` (the shard key moves to `tools/results/inputs.mjs`), `shard-verdict.mjs`,
+`gate-snapshot.sh`, `push-base.mjs`, `wait-log.mjs`, `ship-risks.mjs` (about 11,000 lines);
+`golden-verify.yml`, `visual-seed.yml`, release.yml's `workflow_run` trigger and skip-while-held; in
+ci.yml the Mergify handling, draft jobs, the `golden-cut` exception, the `verify` input, the old
+"Reuse" step, and (step 9) the `visual` job, the gate step and `tools/visual-capture-plan.mjs`;
+`tools/visual-preview.sh`; the test ledger, `test-quarantine.json` and its local state, `TEST_LEDGER_*`,
+the Mergify Test Insights upload; branches `golden`, `golden-cut`, `golden-verified`,
+`golden-candidate`, `golden-cut-candidate`, `golden-bisect-1`, `golden-bisect-2`, tag `golden-good`;
+worktrees `gate-live`, `land-live`, `golden-local`, `land-check-*`, `golden-bisect-*`, the githerd
+worktrees and server (source stays); `live-tools.json` entries `gate` and `land`; `tmp/golden/`,
 `tmp/push-gate-logs/`, `tmp/prepush-passes/`, `tmp/test-ledger/`, `tmp/test-quarantine/`; branches
 `ci/3267-site-flip`, `ci/3267-beta-site` and pull request #1942 as superseded; CLAUDE.md's landing,
-verification and gate sections and their tool rows, and golden references in package CLAUDE.md files.
+verification and gate sections, and golden references in package CLAUDE.md files.
 
 **Kept:** `worktree-new.sh` (from master), `branch-push.sh`, `branch-note.mjs`, `no-copy.sh`, the
-selector with its rules and mutation check, `test-changed.mjs`, `ci-test-matrix.mjs`,
-`run-tests.sh`, `test-slots.mjs`, `with-browser.sh`, `low-priority.sh`, `sonar-gate.mjs`,
-`sonar-baseline.mjs`, `pr-status-broker.mjs`, `worktree-cleanup.mjs`, `master-guard.yml`,
-`pr-title.yml`, `pr-issue-link.yml`, the release tools and holds, `release-watch.yml`,
-`gpu-rerun-on-runner-loss.yml`, the scheduler, visual-review's page, Finish, passkeys and gate.
+selector with its rules and mutation check, `test-changed.mjs`, `ci-test-matrix.mjs`, `run-tests.sh`,
+`test-slots.mjs`, `with-browser.sh`, `low-priority.sh`, `sonar-gate.mjs`, `sonar-baseline.mjs`,
+`pr-status-broker.mjs`, `worktree-cleanup.mjs`, `master-guard.yml`, `pr-title.yml`,
+`pr-issue-link.yml`, the release tools and holds, `release-watch.yml`, `gpu-rerun-on-runner-loss.yml`,
+the scheduler, visual-review's page, Finish, passkeys and gate.
 
 **Instructions** (owner-reviewed): root CLAUDE.md's landing sections become "Shipping a change" (at
-most 600 words) in step 3. The pipeline-round skill, rewritten in step 3, works in this order: red
-master build and its reverts; red full run (bisect, revert, fix forward); flaky tests; budget alarms;
-held release or failed publish; owner items (screenshots, promotion), once each; red or conflicted
-agent pull requests (merge master, never rebase); finished worktrees. It never mixes a test, budget,
-quarantine or workflow change with a product fix, and never re-runs hoping for green. issue-round and
-design-studio end with `pr-open.sh`. Memory entries about golden, freezes and the push queue are
-marked superseded.
+most 600 words, including that the owner's own pipeline edits go through an agent pull request) in
+step 5. The pipeline-round skill, rewritten in step 5, works in this order: red master build and its
+reverts; red full run (GPU bisects on the local card when recorded, reverts, fix forward); flaky
+tests; budget alarms; held release or failed publish; owner items once each, and one daily list of
+pull requests waiting for his review; red or conflicted agent pull requests (merge master, never
+rebase); finished worktrees. It never starts a bisect the store already dispatched, never mixes a
+test, budget, quarantine or workflow change with a product fix, and never re-runs hoping for green.
+issue-round and design-studio end with `pr-open.sh`. Memory entries about golden, freezes and the
+push queue are marked superseded.
 
 ## 13. What the owner does
 
 In order; each ends with how to tell it worked.
 
-1. **Flush:** Finish the cut's screenshots; the ship merges; #3318 releases (its T4 nx-graph failure
+1. **Decide what `@experimental` promises** (a published contract). The recommendation: tagged API
+   may change or disappear in a minor release, as the docs will say. Until you decide, experiments
+   ship no public types. _Check:_ your answer on #3418.
+2. **Flush:** Finish the cut's screenshots; the ship merges; #3318 releases (its T4 nx-graph failure
    and advisories #3393 are fixed on golden first). _Check:_ #3318 closed.
-2. **Agent account** on the Team plan (a third seat), 2FA, Write on graphty-monorepo; `GH_CONFIG_DIR=
-~/.config/gh-agent gh auth login` as it here; add the SSH push and signing keys the session
-   generates. _Check:_ `GH_CONFIG_DIR=~/.config/gh-agent gh api user --jq .login`.
-3. **Your own credentials** (makes the split enforced): `gh auth logout` here, GPG key behind an
-   uncached passphrase, approvals and settings in the browser. _Check:_ plain `gh auth status` shows
-   no login.
-4. **Cloudflare** (the scheduler's account): Workers Paid ($5 a month) and R2; an API token with
-   Workers Scripts, D1 and R2 edit as `CLOUDFLARE_API_TOKEN` with `CLOUDFLARE_ACCOUNT_ID`; a second
-   private key of the `graphty-release-scheduler` App on the `graphty-results` Worker;
+3. **Agent account and your own credentials.** Create the Team account (2FA, Write on
+   graphty-monorepo); `GH_CONFIG_DIR=~/.config/gh-agent gh auth login` as it here; add the SSH push and
+   signing keys the session generates. Then `gh auth logout` for yourself here, put your GPG key behind
+   an uncached passphrase, and do approvals and settings in the browser. _Check:_
+   `GH_CONFIG_DIR=~/.config/gh-agent gh api user --jq .login`; plain `gh auth status` shows no login.
+4. **Cloudflare** (the scheduler's account): Workers Paid and R2; an API token with Workers Scripts, D1
+   and R2 edit as `CLOUDFLARE_API_TOKEN` with `CLOUDFLARE_ACCOUNT_ID`; on the `graphty-release-scheduler`
+   App add **Contents: read**, and put its second private key on the `graphty-results` Worker;
    `GRAPHTY_RESULTS_TOKEN` in `.env` and its hash on the Worker. _Check:_ `/v1/health` answers.
-5. **Domain verification** of `graphty.app` for graphty-org (TXT
-   `_github-pages-challenge-graphty-org.graphty.app`). _Check:_ "Verified".
-6. **DNS:** CNAME `canary` and `nightly` to `graphty-org.github.io`. _Check:_ `dig +short
-canary.graphty.app`.
-7. **Site repositories:** create public graphty-org/graphty-nightly; on it and graphty-site add the
-   deploy keys the session generates and set Pages to GitHub Actions. _Check:_ the first nightly
-   deploy appears.
-8. **Environments:** `release`, `nightly`, `full-run`, `nx-cache-write` (master only) and `production`
-   (master only, you as reviewer, prevent self-review); the session lists the secrets for each.
-   _Check:_ a `promote.yml` dry run waits for you.
-9. **npm trusted-publishing transition**, when the session says the first nightly publish is ready
-   (not earlier): set environment `release` on each of the 13 trusted publishers (workflow
-   `release.yml` unchanged); create a granular token with write on `@graphty` as
-   `NPM_DIST_TAG_TOKEN` in `production`, renewed before expiry. _Check:_ the first `next` publish and a
-   no-op `dist-tag add` succeed.
+5. **Environments:** `release`, `nightly`, `full-run`, `master-build`, `nx-cache-write` (master only)
+   and `production` (master only, you as required reviewer, "prevent self-review" off); the session
+   lists the secrets for each. _Check:_ a `promote.yml` dry run waits for you.
+6. **Ruleset and settings** (step 3): review the CODEOWNERS pull request; on ruleset 23973898 remove
+   the admin bypass, keep the deploy key, require code-owner review, leave last-push approval off, set
+   the four checks; add the tag ruleset; switch off squash; Actions permissions read-only and no Actions
+   approvals. _Check:_ step 3's tests.
+7. **Domain verification** of `graphty.app` for graphty-org (TXT
+   `_github-pages-challenge-graphty-org.graphty.app`) and **DNS:** CNAME `canary` and `nightly` to
+   `graphty-org.github.io`. _Check:_ "Verified"; `dig +short canary.graphty.app`.
+8. **Site repositories:** create public graphty-org/graphty-nightly; on it and graphty-site add the
+   deploy keys the session generates and set Pages to GitHub Actions. _Check:_ the first nightly deploy.
+9. **npm**, when the session says the publish job declares `environment: release` (not earlier): set
+   environment `release` on each trusted publisher (workflow `release.yml` unchanged). Create a
+   granular token with write on `@graphty` and "bypass 2FA", leave each package's publishing access
+   at allowing tokens, store it as `NPM_DIST_TAG_TOKEN` in `production`, and its expiry date as the
+   repository variable `NPM_DIST_TAG_TOKEN_EXPIRES`; the round reminds you 14 days before. _Check:_ the
+   first `next` publish and a no-op `dist-tag add` succeed.
 10. **Domain swap** in one sitting when told: `graphty.app` from graphty-monorepo's Pages to
     graphty-site; `canary.graphty.app` on graphty-monorepo, `nightly.graphty.app` on graphty-nightly;
     enforce HTTPS once certificates exist. _Check:_ the site check passes.
-11. **Ruleset and settings:** review the CODEOWNERS pull request; on ruleset 23973898 remove the admin
-    bypass, keep the deploy key, require code-owner review, set the four checks; switch off squash;
-    Actions permissions read-only and no Actions approvals. _Check:_ step 7's tests.
-12. **Review owner-owned pull requests** during the rollout, including the one moving the gate step
-    from ci.yml to the promotion.
-13. **Approve changed screenshots** for nightly candidates and **promote** whenever you judge nightly
+11. **Review owner-owned pull requests** from the round's daily list, including the one moving the
+    gate step from ci.yml to the promotion.
+12. **Approve changed screenshots** for nightly candidates and **promote** whenever you judge nightly
     good.
 
-Decided here unless the owner overrules it (a published contract): an API tagged `@experimental`
-may change or disappear in a minor release of graphty-element, as the docs will say.
+ACTION NEEDED: decide what @experimental promises (recommended: may change in a minor release) on #3418
+
+## Review notes
+
+- The last problem of the review list arrived cut off ("stories-as-tests.md 3 table ('unstable ...
+  Fails'), 4 (unstable"). It is read as: an `unstable` story fails every pull request whatever its
+  cause. Section 5 now applies the flaky rule of section 4 to `unstable`, so an image made unstable by
+  the pull request fails it as `[NEW-FLAKY]` and one already unstable on master is quarantined.
+- Two reviewers disagreed on the bypass removal: one wanted it before the switch, one after the
+  flush. Step 3 satisfies both: it starts after the flush ships and before any per-branch pull request.
+- "Runners are free on this public repository" in two problems is kept: graphty-monorepo is public,
+  so the bisect matrix and the On shards cost concurrency, not money (section 11).

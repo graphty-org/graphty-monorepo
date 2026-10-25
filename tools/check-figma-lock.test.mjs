@@ -120,6 +120,34 @@ describe("check-figma-lock", () => {
         assert.deepEqual(r.check(), []);
     });
 
+    it("does not judge an old unapproved edit that a merge of the base's approved commit replaced", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        r.git("checkout", "-q", "base");
+        r.write(TOKENS, "v3\n");
+        r.commit("fix: Figma accent\n\nFigma-Approved: owner");
+        const base = r.git("rev-parse", "HEAD").trim();
+        r.git("checkout", "-q", "work");
+        try {
+            r.git("merge", "-q", "base");
+        } catch {
+            r.write(TOKENS, "v3\n"); // the conflict, resolved to the base's approved content
+            r.git("commit", "-qm", "merge base");
+        }
+        assert.deepEqual(unapprovedChanges({ cwd: r.dir, base, approvedBase: "0000000", env }), []);
+    });
+
+    it("still judges a locked file the push deletes", () => {
+        const r = repo();
+        r.git("rm", "-q", TOKENS);
+        r.commit("chore: drop tokens");
+        assert.deepEqual(
+            r.check().map((b) => b.files),
+            [[TOKENS]],
+        );
+    });
+
     it("still judges every commit of a locked file the push does change", () => {
         const r = repo();
         r.write(TOKENS, "v2\n");

@@ -7,8 +7,9 @@
 //
 //   node tools/check-figma-lock.mjs   (pnpm run check:figma-lock; tools/prepush-source-checks.sh, ci.yml's Checks job)
 //
-// Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own, so an approval
-// survives a landing's merge commit and an unapproved commit cannot hide behind an approved one. A merge
+// Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own for each locked file
+// the push changes, so an approval survives a landing's merge commit and an unapproved commit cannot hide
+// behind an approved one. A merge
 // is judged on what it changes beyond its parents, so a conflict resolution that edits a locked file needs
 // the trailer too; a locked file the merge leaves exactly as one parent has it, or exactly as git's own
 // conflict-free merge of the parents makes it, brings nothing new and is not judged (those changes are
@@ -71,6 +72,13 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
     } catch {
         // not in this repository: judge every commit of the push
     }
+    // A locked file the push leaves exactly as the base has it is not judged: the push changes nothing in it.
+    const changed = new Set(
+        git(["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", base, "HEAD"])
+            .split("\n")
+            .filter(isLocked),
+    );
+    if (changed.size === 0) return [];
     const log = git([
         "-c",
         "core.quotePath=false",
@@ -101,12 +109,6 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
                 parents: parents.split(" ").filter(Boolean),
             };
         });
-    // A locked file the push leaves exactly as the base has it is not judged: the push changes nothing in it.
-    const changed = new Set(
-        git(["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", base, "HEAD", "--", ...LOCKED])
-            .split("\n")
-            .filter(Boolean),
-    );
     for (const c of commits) {
         c.files = c.files.filter((f) => changed.has(f));
         if (c.parents.length > 1 && c.files.length && !c.approved) c.files = newInMerge(git, c, c.files);

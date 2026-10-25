@@ -429,6 +429,8 @@ interface BuildOptions {
      * cannot be laid out is inactive instead.
      */
     readonly explicitScope?: boolean;
+    /** A simulation starts from the seed, not from the element's arrangement: see `restart`. */
+    readonly fromSeed?: boolean;
 }
 
 /**
@@ -1372,6 +1374,7 @@ export class LayoutManager implements Manager {
                         this.reportLayoutFailure(type, error, "stepped");
                     },
                     dataManager: this.dataManager,
+                    fromSeed: how.fromSeed,
                 };
                 engine = new SimulationLayoutEngine(init);
             }
@@ -2110,7 +2113,9 @@ export class LayoutManager implements Manager {
      * pre-steps are owed, because the first frame spends them over everything there is by then.
      * Not while a new layout waits its turn, which is built over the whole graph anyway, nor while
      * another graph write waits, whose own pass starts the layout over once for the whole run.
-     * A static or simulation layout reloads over the whole graph at every freeze already.
+     * A static layout reloads over the whole graph at every freeze already. A simulation reloads
+     * too, but from the arrangement the frames before had stepped it to, so a seeded one starts
+     * over from its seed like any other (issue #3379).
      * @returns True when the layout starts over.
      */
     private restartsForNewData(): boolean {
@@ -2122,7 +2127,6 @@ export class LayoutManager implements Manager {
             !this.graphWritesWaiting() &&
             engine !== undefined &&
             !(engine instanceof StaticLayoutEngine) &&
-            !(engine instanceof SimulationLayoutEngine) &&
             typeof (this.driverOptions as { seed?: unknown }).seed === "number"
         );
     }
@@ -2147,6 +2151,7 @@ export class LayoutManager implements Manager {
             restoring: false,
             live: () => this.#generation === generation,
             explicitScope: false,
+            fromSeed: true,
         });
         this.#applying = rebuild.catch(() => undefined);
         try {
@@ -2352,10 +2357,16 @@ export class LayoutManager implements Manager {
         this.runPreStepsOnceThereIsSomethingToStep();
         this.syncFollowers();
 
-        if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
-            this.layoutEngine.step();
+        const engine = this.layoutEngine;
+        if (engine && this.running && !engine.isSettled) {
+            engine.step();
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.
-            this.layoutEngine.publishPositions();
+            engine.publishPositions();
+        } else if (engine instanceof SimulationLayoutEngine && this.running) {
+            // An accelerated batch lands after the frame that submitted it published, so the batch
+            // that settled the simulation is published here, on the frame that finds it settled and
+            // stops the layout (issue #3379).
+            engine.publishPositions();
         }
     }
 
@@ -2486,6 +2497,10 @@ export class LayoutManager implements Manager {
         // Mark layout as running again (it may have been settled with no nodes)
         this.running = true;
 
+        if (this.restartsForNewData()) {
+            return this.restart();
+        }
+
         // A SIMULATION LAYOUT IS TOLD BY THE FREEZE, NOT BY THIS LIST. It runs over the snapshot,
         // so what it needs is for the snapshot to exist: `getSnapshot()` is lazy and is the only
         // place the store freezes, and the freeze emits `snapshot-replaced` synchronously, so the
@@ -2501,10 +2516,6 @@ export class LayoutManager implements Manager {
             });
 
             return Promise.resolve();
-        }
-
-        if (this.restartsForNewData()) {
-            return this.restart();
         }
 
         // `updatePositions` is declared on the base class and the element's ten blind steps are

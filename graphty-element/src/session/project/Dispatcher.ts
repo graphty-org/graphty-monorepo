@@ -1850,6 +1850,9 @@ export class Dispatcher {
 
         job.slotContext = context;
         // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
+        // Keeping it would hang a batch whose queued member is behind it on the queue while the
+        // batch holds the key. The queue is then idle with the command still owed, so a settle
+        // wait also waits for `waitersSettled`.
         return this.admit(job) === "waiting"
             ? Promise.resolve()
             : job.promise.then(
@@ -2409,6 +2412,21 @@ export class Dispatcher {
      */
     get graphWritesWaiting(): boolean {
         return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Settles once no queued command is waiting off the queue for a key: each such command gave
+     * its queue slot up, so an idle queue does not mean it has run.
+     * @returns Whether there was one to wait for; what it ran may have queued more work.
+     */
+    async waitersSettled(): Promise<boolean> {
+        let waited = false;
+        while (this.waiters.size > 0) {
+            waited = true;
+            await Promise.allSettled([...this.waiters].map((job) => job.promise));
+        }
+
+        return waited;
     }
 
     /**

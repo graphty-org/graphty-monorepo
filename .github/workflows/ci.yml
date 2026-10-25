@@ -6,7 +6,8 @@ on:
     pull_request:
         # No "labeled": no job reads labels, and Mergify adds
         # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
-        # A draft runs no tests (see the build job), so marking it ready ("ready_for_review") starts its run.
+        # A draft runs like any other pull request (agents open them ready, with tools/pr-open.sh);
+        # "ready_for_review" stays so a draft someone opened by hand starts a run when it is marked ready.
         types: [opened, synchronize, reopened, ready_for_review]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
@@ -39,11 +40,8 @@ on:
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # A push to master never cancels (each master commit is deployed from its own run). The release train's
 # call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
-# A plain draft's run (the build job's skip test) has its own group, so it can never cancel or replace
-# a ready run of the same pull request: `opened` (draft) and `ready_for_review` fire a second apart.
-# A Mergify merge-queue draft is a real run and stays in the ready group.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
@@ -57,9 +55,8 @@ concurrency:
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
-# - a pull request: the affected suite, the screenshots and the visual gate. A draft runs no tests, and
-#   its two summary checks fail ("draft: CI not run"): agents iterate on drafts behind the local
-#   pre-push gate and mark them ready when done.
+# - a pull request into master (tools/pr-open.sh opens it ready, with auto-merge on): the affected
+#   build, lint, checks and test shards, and the screenshots, which are reported and never block.
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
 #   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
@@ -81,50 +78,20 @@ env:
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
-    # Whether a run that GitHub started as a draft's is still one. `gh pr create --draft` followed at once
-    # by `gh pr ready` delivers `opened` (draft: true) and `ready_for_review` a second apart, and GitHub
-    # can create the draft's run AFTER the ready run. Mergify and the ruleset read the newest run of the
-    # workflow on the head commit, so that draft run's failing "draft: CI not run" summary checks hid the
-    # ready run's green ones for good (#2991, #3068), and no job can rewrite another run's check (the
-    # Checks API answers 403). So a run started as a draft reads the pull request now: when it is ready
-    # and its head is still this commit, the run is a real run and reports a real verdict. It cannot be
-    # cancelled by a later push (it is in the draft concurrency group), which costs one stale run in that
-    # rare case. A failed read reports "not ready" (the run stays a draft run), so this never lets a
-    # draft through. continue-on-error: the job decides nothing itself, the build job reads its output.
-    # The job runs on every run and only its step is conditional: a SKIPPED job skips every job after it in
-    # the needs chain, even one whose own `if` passes, so skipping this job on a ready pull request skipped
-    # everything after the build (#3134's first run).
-    draft:
-        name: Draft state
-        continue-on-error: true
-        runs-on: ubuntu-24.04
-        outputs:
-            ready: ${{ steps.read.outputs.ready }}
-        steps:
-            - name: Read whether the pull request is still a draft
-              id: read
-              if: github.event_name == 'pull_request' && github.event.pull_request.draft
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  PR: ${{ github.event.pull_request.number }}
-                  SHA: ${{ github.event.pull_request.head.sha }}
-              run: |
-                  ready=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '(.draft | not) and .head.sha == $ENV.SHA') || ready=false
-                  echo "ready=$ready" | tee -a "$GITHUB_OUTPUT"
-
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
     # formatting, the API report and the other checks) run beside the tests in jobs of their own, which
     # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
-    # Skipping it on a draft skips every job that needs it; the two summary jobs still run, and fail, on a
-    # draft. A run started as a draft's whose pull request is ready by now runs (the draft job above).
     packages:
         name: Build
-        needs: draft
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || needs.draft.outputs.ready == 'true' || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')) }}
         runs-on: ubuntu-24.04
+        # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
+        permissions:
+            contents: read
+            actions: read
+            checks: write
         # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
@@ -135,6 +102,9 @@ jobs:
             test-count: ${{ steps.plan.outputs.test-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            reuse-run: ${{ steps.reuse.outputs.reuse-run }}
+            reuse-url: ${{ steps.reuse.outputs.reuse-url }}
+            artifacts-run: ${{ steps.reuse.outputs.artifacts-run }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -235,6 +205,52 @@ jobs:
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
+            # A commit that changes only screenshot records (the owner's Finish on the review page commits
+            # the accepted baselines and the signed approval to the branch) needs no new test run. When
+            # the newest earlier commit of this branch whose run passed every job but the screenshots
+            # tested the same tree once visual-baselines/ and visual-review-approvals/ are taken out
+            # (tools/ci-reuse-plan.mjs; the merge commit's tree, so a moved base is a full run too),
+            # reuse-run names that run: Lint, Checks, Docs, the test shards, Links and Cost Estimate
+            # Accuracy are skipped, and "All Checks Pass" reports them as reused with a link to it. The
+            # screenshots are captured again and the gate judges the new approvals as on every run.
+            # artifacts-run names the run whose package and Storybook builds are downloaded instead of
+            # built, when they have not expired. Every run records the tree it tested (marker) for the
+            # next one. A failure here is a full run.
+            - name: Reuse an earlier run's results when only screenshot records changed
+              id: reuse
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  HEAD_REF: ${{ github.head_ref }}
+              run: node tools/ci-reuse-plan.mjs | tee -a "$GITHUB_OUTPUT"
+
+            - name: Record the tree this run tests
+              if: steps.reuse.outputs.marker != ''
+              continue-on-error: true
+              env:
+                  TREE: ${{ steps.reuse.outputs.tested-tree }}
+              run: mkdir -p "$RUNNER_TEMP/ci-tested" && echo "$TREE" > "$RUNNER_TEMP/ci-tested/tree.txt"
+
+            - name: Upload the record of the tested tree
+              if: steps.reuse.outputs.marker != ''
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ steps.reuse.outputs.marker }}
+                  path: ${{ runner.temp }}/ci-tested/
+                  retention-days: 30
+
+            - name: Download the package builds of the run whose results are reused
+              if: steps.reuse.outputs.artifacts-run != ''
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+                  run-id: ${{ steps.reuse.outputs.artifacts-run }}
+                  github-token: ${{ github.token }}
+
             # No security audit here: a new advisory is published against code a pull request did not
             # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
             # train in release.yml audits before it publishes, and
@@ -244,7 +260,7 @@ jobs:
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
-              if: steps.plan.outputs.full == 'false'
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Every test shard downloads every package's dist, so every package must be built even when the
@@ -257,22 +273,19 @@ jobs:
             # project is what master already does, and the Nx cache makes it a no-op for whatever the
             # affected build above produced.
             - name: Build the rest (PR), so every shard finds its artifact
-              if: steps.plan.outputs.full == 'false'
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}
 
             # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
             # every project (the lint job lints them).
-            # graphty build needs Sentry env vars for error tracking. The auth token, which switches on the
-            # Sentry plugin's source map upload, is set only on a push to master, the one build
-            # deploy-pages.yml publishes: with it graphty's build took 17m36s instead of 53s, and the
-            # release train's and golden verification's Build jobs took 20 minutes instead of the pull
-            # request's 6 (run 40051811635). Without it the plugin is off (graphty/vite.config.ts).
+            # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
+            # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
+            # name by the step after this one, not during the build.
             #
             # The dispatch clause stands on its own rather than sitting inside the master test, because each
             # trigger has to reach exactly one build: a pull request builds in the steps above, a push to master
@@ -290,7 +303,31 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref && secrets.SENTRY_AUTH_TOKEN || '' }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+
+            # graphty's source maps to Sentry, only on a push to master, the one build deploy-pages.yml
+            # publishes. This used to be the @sentry/vite-plugin inside graphty's build, which injected
+            # debug ids and regenerated the source map of every chunk in renderChunk: with the app split
+            # into 24 chunks the build took 13m33s instead of 53s, and the Build job 16 to 24 minutes.
+            # sentry-cli does the same after the build: debug ids into dist's JavaScript and its maps (in
+            # place, so the deployed files carry them), then the upload under the release the build
+            # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
+            # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            - name: Upload graphty's source maps to Sentry (master push)
+              if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+              working-directory: graphty
+              env:
+                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: |
+                  pnpm exec sentry-cli sourcemaps inject dist
+                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
+                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
+                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
+                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
+                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -405,6 +442,11 @@ jobs:
         name: Storybooks
         needs: packages
         runs-on: ubuntu-24.04
+        # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
+        permissions:
+            contents: read
+            actions: read
+            checks: write
         outputs:
             full: ${{ needs.packages.outputs.full }}
             light: ${{ needs.packages.outputs.light }}
@@ -420,47 +462,58 @@ jobs:
                   fetch-depth: 0
 
             - uses: pnpm/action-setup@v4
+              if: needs.packages.outputs.artifacts-run == ''
 
             - name: Setup Node.js
+              if: needs.packages.outputs.artifacts-run == ''
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
+              if: needs.packages.outputs.artifacts-run == ''
               uses: actions/download-artifact@v4
               with:
                   name: build-packages
                   path: .
 
             - name: Build Storybook (graphty-element)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run graphty-element:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (graphty)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run graphty:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (compact-mantine)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run compact-mantine:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (algorithms)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run algorithms:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (layout)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run layout:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (cytoscape-extensions)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
 
             # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
             # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
             # build-storybook pulls them (a no-op once the cache restored them).
             - name: Restore the style fidelity reference pictures
+              if: needs.packages.outputs.artifacts-run == ''
               uses: actions/cache@v4
               with:
                   path: .git/lfs/objects
@@ -468,7 +521,28 @@ jobs:
                   restore-keys: lfs-fidelity-references-
 
             - name: Build Storybook (graph-io-fidelity)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
+
+            # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
+            # Storybooks, built from the same tree, instead of building them again; the visual job
+            # downloads them from this run as always.
+            - name: Download the Storybooks of the run whose results are reused
+              if: needs.packages.outputs.artifacts-run != ''
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: build-storybook-*
+                  path: ${{ runner.temp }}/storybooks
+                  run-id: ${{ needs.packages.outputs.artifacts-run }}
+                  github-token: ${{ github.token }}
+
+            - name: Put the reused Storybooks where this job's uploads read them
+              if: needs.packages.outputs.artifacts-run != ''
+              run: |
+                  while read -r name dir; do
+                      mkdir -p "$(dirname "$dir")"
+                      mv "$RUNNER_TEMP/storybooks/$name" "$dir"
+                  done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
 
             - name: Upload Storybook build (graphty-element)
               uses: actions/upload-artifact@v4
@@ -533,6 +607,7 @@ jobs:
     lint:
         name: Lint
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -602,6 +677,7 @@ jobs:
     checks:
         name: Checks
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -721,6 +797,7 @@ jobs:
     docs:
         name: Docs
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -802,7 +879,7 @@ jobs:
     test:
         name: Test (${{ matrix.shard }})
         needs: packages
-        if: needs.packages.outputs.test-count != '0'
+        if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
@@ -1052,7 +1129,7 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.build.outputs.light != 'true'
+        if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -1226,7 +1303,7 @@ jobs:
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: packages
-        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -1475,10 +1552,8 @@ jobs:
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
     # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
-    # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
-    # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
-    # the head SHA after "gh pr ready" until the new run reports, so a skip here could let a pull
-    # request merge with no CI at all.
+    # not pass silently. When Build did not run at all this job still runs, and FAILS: GitHub counts a
+    # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
@@ -1492,22 +1567,32 @@ jobs:
                   FULL: ${{ needs.packages.outputs.full }}
                   ADVISORY: ${{ needs.packages.outputs.advisory-checks }}
                   LIGHT: ${{ needs.packages.outputs.light }}
+                  REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
+                  REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
-                      echo "::error::draft: CI not run. Mark the pull request ready (gh pr ready) to run it."
+                      echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
                       exit 1
                   fi
                   ok='["success"]'
                   [[ "$FULL" == "false" || "$LIGHT" == "true" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+                  # A run that reuses an earlier run's results (the packages job's Reuse step: the tree it
+                  # tests equals that run's apart from the screenshot records) skips the jobs that run
+                  # passed; skipped then passes for them, and Build and Storybooks must still succeed.
+                  strict='["packages","build","lint","checks","docs"]'
+                  if [[ -n "$REUSE_RUN" ]]; then
+                      strict='["packages","build"]'
+                      echo "::notice title=Results reused::Lint, Checks, Docs, Test, Links and Cost Estimate Accuracy are reused from $REUSE_URL, which tested the same tree apart from the screenshot records"
+                  fi
                   # The visual job never decides here, whatever result job-level continue-on-error makes
                   # it report: on a pull request the gate step below judges its results.json, and on
                   # master a capture crash must not hold release, deploy or coverage.
                   # A job in its warning period (tools/ci-advisory-checks.json, see the build job) only warns.
                   adv="${ADVISORY:-[]}"
                   jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
-                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" \
-                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key | IN("packages", "build", "lint", "checks", "docs")) and $r != "success")) | .key' \
+                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
+                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
@@ -1515,7 +1600,11 @@ jobs:
                   fi
                   echo "All checks passed!"
 
-            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
+            # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
+            # rollout): the owner's approval of screenshots moves to the nightly gate, production stays frozen
+            # until promotion exists, and releases publish nothing in shadow mode. The gate below runs exactly
+            # as before; its step is continue-on-error and the step after it reports its verdict. What it judges:
+            # a project
             # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
             # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
             # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
@@ -1552,7 +1641,9 @@ jobs:
                   path: ${{ runner.temp }}/visual
 
             - name: Check visual changes were accepted
+              id: visual-gate
               if: github.event_name == 'pull_request'
+              continue-on-error: true
               env:
                   PR: ${{ github.event.pull_request.number }}
               run: |
@@ -1569,6 +1660,20 @@ jobs:
                       pr=(--pr "$PR")
                   fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
+
+            # The gate's verdict as a report: a warning on the pull request and a line in the run's summary.
+            - name: Report the visual gate (does not block)
+              if: github.event_name == 'pull_request'
+              env:
+                  OUTCOME: ${{ steps.visual-gate.outcome }}
+              run: |
+                  if [[ "$OUTCOME" == "success" ]]; then
+                      echo "Visual gate: every screenshot matches its approved baseline." | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      msg="Visual gate: $OUTCOME (screenshots differ from their approved baselines, or the capture is missing). Reported only: it does not block this pull request; the owner reviews screenshots at the nightly gate. See the 'Check visual changes were accepted' step."
+                      echo "::warning title=Visual gate (report only)::$msg"
+                      echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+                  fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
@@ -1592,8 +1697,8 @@ jobs:
                   done
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded (never on
-    # a draft), and on a merge-queue run (MERGE_QUEUE above) only when the run was the full suite: a
+    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
+    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
     # pass on a pull request's own affected run can never stand in for the queue's run.
     queue-checks:
         name: Queue Checks Pass

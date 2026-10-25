@@ -192,10 +192,13 @@ jobs:
             # `node` would serialise the main suite too.
             # node-gpu-alone is the rest of the main suite: the files that hold the GPU for seconds per submission,
             # run after the node project and one at a time, so no short GPU test waits behind them (issue #1884).
-            - name: Bisect point -- only the failing files, under each project that holds them
+            - name: Bisect point -- only the failing files, under each project that holds them and its no-subgroups twin
               if: ${{ inputs.files }}
               env: { FILES: "${{ inputs.files }}" }
-              run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --project=node-limits --passWithNoTests ${FILES//webgpu-graph-algorithms\//}
+              run: |
+                  set -- ${FILES//webgpu-graph-algorithms\//}
+                  node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --project=node-limits --passWithNoTests "$@"
+                  GRAPHTY_GPU_NO_SUBGROUPS=1 node scripts/run-node-shard.js --project=node --project=node-gpu-alone --project=node-device-errors --passWithNoTests "$@"
             - if: ${{ !inputs.files }}
               run: node scripts/run-node-shard.js --project=node --project=node-gpu-alone
             # The files that break a device on purpose: a worker they kill takes eleven files with it instead of

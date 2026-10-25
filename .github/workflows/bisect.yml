@@ -121,10 +121,11 @@ jobs:
                   BISECT_ROOT: ${{ github.workspace }}
                   VITE_LLM_REGRESSION_PROVIDER: ${{ inputs.lane == 'llm' && 'google' || '' }}
                   VITE_GOOGLE_API_KEY: ${{ inputs.lane == 'llm' && secrets.GOOGLE_API_KEY || '' }}
+                  SHA: ${{ matrix.sha }}
               run: |
                   mkdir -p "$RUNNER_TEMP/result"
                   node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
-                      --sha "${{ matrix.sha }}" --out "$RUNNER_TEMP/result/${{ matrix.sha }}.json"
+                      --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
             - uses: actions/upload-artifact@v4
               with: { name: "bisect-result-${{ matrix.sha }}", path: "${{ runner.temp }}/result/", retention-days: 14 }
 
@@ -145,6 +146,7 @@ jobs:
         uses: ./.github/workflows/hosts.yml
         with:
             ref: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            files: ${{ needs.plan.outputs.files }}
             bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
     macos:
         needs: plan
@@ -153,6 +155,7 @@ jobs:
         uses: ./.github/workflows/work-protection-macos.yml
         with:
             candidate: ${{ fromJSON(needs.plan.outputs.points)[0] }}
+            files: ${{ needs.plan.outputs.files }}
             bisect_point: ${{ inputs.bad }}-${{ fromJSON(needs.plan.outputs.points)[0] }}
 
     judge:
@@ -188,9 +191,13 @@ jobs:
               if: ${{ needs.plan.outputs.done != 'true' && steps.judge.outputs.done == 'false' }}
               env:
                   GH_TOKEN: ${{ github.token }}
+                  LANE: ${{ inputs.lane }}
+                  GOOD: ${{ inputs.good }}
+                  BAD: ${{ inputs.bad }}
+                  RUN_ID: ${{ inputs.run_id }}
               run: |
-                  gh workflow run bisect.yml --ref "$GITHUB_REF_NAME" -f lane="${{ inputs.lane }}" -f good="${{ inputs.good }}" \
-                      -f bad="${{ inputs.bad }}" -f run_id="${{ inputs.run_id }}" -f state="$(cat next.json)"
+                  gh workflow run bisect.yml --ref "$GITHUB_REF_NAME" -f lane="$LANE" -f good="$GOOD" -f bad="$BAD" \
+                      -f run_id="$RUN_ID" -f state="$(cat next.json)"
             - name: Keep the answer
               if: ${{ needs.plan.outputs.done == 'true' || steps.judge.outputs.done == 'true' }}
               run: cp "$([ -f next.json ] && echo next.json || echo state/state.json)" answer.json

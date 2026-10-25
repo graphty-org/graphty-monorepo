@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { judge, LANES, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
+import { judge, laneFiles, LANES, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -137,6 +137,41 @@ describe("the lane rules", () => {
         assert.match(s.answer.noLanding, /no answer after 12 rounds/);
     });
 
+    it("confirms again when the confirming job was lost before it reported", () => {
+        const s = start({ lane: "ci", good: "g", bad: "m8", targets: [TEST] }, fakeGit(8));
+        const again = judge(s, []);
+        assert.equal(again.answer, undefined);
+        assert.deepEqual(again.next, { points: ["m8"], runs: 5, confirm: true });
+    });
+
+    it("names no merge for a ci red that names no test or shard, and runs an LLM red's whole suite", () => {
+        const ci = start({ lane: "ci", good: "g", bad: "m4", targets: [] }, fakeGit(4));
+        assert.match(ci.answer.noLanding, /names no failing test or shard/);
+        const llm = start(
+            { lane: "llm", good: "g", bad: "m4", targets: [] },
+            fakeGit(4, () => true),
+        );
+        assert.equal(llm.targets[0].shard, "llm-regression");
+        assert.equal(llm.next.confirm, true);
+    });
+
+    it("filters a lane point to its files only when the lane's filter reaches every one", () => {
+        const gpu = (files) => ({ lane: "gpu", targets: files.map((file) => ({ file })) });
+        const own = "webgpu-graph-algorithms/test/a.test.ts";
+        assert.equal(laneFiles(gpu([own])), own);
+        assert.equal(laneFiles(gpu([own, "graphty-element/test/browser/webgpu-layout.test.ts"])), "", "the whole lane");
+        assert.equal(laneFiles(gpu([null])), "", "a red with no named test runs the whole lane");
+        assert.equal(
+            laneFiles(gpu(["webgpu-graph-algorithms/test/browser/smoke.test.ts"])),
+            "",
+            "the filter runs node projects",
+        );
+        assert.equal(
+            laneFiles({ lane: "macos", targets: [{ file: "graphty-element/test/lifecycle/safari.test.ts" }] }),
+            "graphty-element/test/lifecycle/safari.test.ts",
+        );
+    });
+
     it("takes a lane's red as its confirming run and tests one point a round", () => {
         const s = start({ lane: "hosts", good: "g", bad: "m8", targets: [] }, fakeGit(8));
         assert.equal(s.next.points.length, 1);
@@ -188,6 +223,12 @@ describe("bisect.yml", () => {
             );
             assert.match(yml, new RegExp(`uses: ./.github/workflows/${f.replace(".", "\\.")}\\n`), f);
         }
-        assert.match(read("gpu.yml"), /files:\n {16}description:/);
+        for (const f of ["gpu.yml", "hosts.yml", "work-protection-macos.yml"])
+            assert.match(read(f), /files:\n {16}description:/, f);
+        assert.equal(
+            (yml.match(/files: \$\{\{ needs\.plan\.outputs\.files \}\}/g) ?? []).length,
+            3,
+            "every lane call passes it",
+        );
     });
 });

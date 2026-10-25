@@ -39,11 +39,39 @@ export const T4_POINT_MINUTES = 80;
  */
 export const LANES = {
     ci: { width: 8, confirm: CONFIRM_RUNS, runs: CONFIRM_RUNS, rateParent: 20, intermittent: true },
-    llm: { width: 8, confirm: 2, runs: 1, rateParent: 1, intermittent: false, paths: AI_PATHS },
-    gpu: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false },
-    hosts: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false },
-    macos: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false },
+    llm: {
+        width: 8,
+        confirm: 2,
+        runs: 1,
+        rateParent: 1,
+        intermittent: false,
+        paths: AI_PATHS,
+        shard: "llm-regression",
+    },
+    gpu: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
+    hosts: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
+    macos: {
+        width: 1,
+        confirm: 0,
+        runs: 1,
+        rateParent: 1,
+        intermittent: false,
+        dir: "graphty-element/test/lifecycle/",
+    },
 };
+
+/**
+ * The `files` input of a lane workflow's point: the targets' files when the lane's filter reaches every one of them
+ * (all under its `dir`, none a browser test), else empty, which runs the whole lane -- a filter that matched none would pass every point.
+ * @param s the state
+ * @returns repo-relative paths, space separated
+ */
+export function laneFiles(s) {
+    const dir = LANES[s.lane].dir;
+    const files = [...new Set((s.followed ?? s.targets).map((t) => t.file))];
+    const reached = (f) => f?.startsWith(dir) && !f.includes("/test/browser/"); // the filter runs node projects only
+    return dir && files.every(reached) ? files.join(" ") : "";
+}
 
 /**
  * The git facts a first round needs, from a checkout.
@@ -71,7 +99,9 @@ export function start(a, git) {
     let candidates = git.firstParents(a.good, a.bad);
     if (lane.paths) candidates = candidates.filter((c) => c === a.bad || git.touches(c, lane.paths));
     const parents = Object.fromEntries(candidates.map((c) => [c, git.parent(c)]));
-    const targets = targetsOf({ tests: a.targets ?? [] });
+    const targets = targetsOf({ tests: a.targets ?? [] }).map((t) =>
+        t.shard ? t : { ...t, shard: lane.shard ?? null },
+    );
     const s = { ...a, targets, failedBefore: a.failedBefore ?? [], candidates, parents, results: {}, t4Minutes: 0 };
     if (a.lane === "gpu" && !a.afterLocalCard)
         return finish(s, {
@@ -79,6 +109,8 @@ export function start(a, git) {
             culprit: null,
             noLanding: "gpu: local -- bisect it on the local NVIDIA card first",
         });
+    if (lane.confirm && targets.some((t) => !t.shard))
+        return finish(s, { culprit: null, noLanding: `the ${a.lane} lane's red names no failing test or shard` });
     if (lane.confirm) return { ...s, next: { points: [a.bad], runs: lane.confirm, confirm: true } };
     s.followed = targets;
     s.results[a.bad] = { runs: 1, failed: Object.fromEntries(targets.map((t) => [t.id, 1])) };
@@ -166,6 +198,7 @@ export function judge(s, results) {
     for (const r of results) addResult(s, r);
     s.round = (s.round ?? 1) + 1;
     if (s.round > MAX_ROUNDS) return finish(s, { culprit: null, noLanding: `no answer after ${MAX_ROUNDS} rounds` });
+    if (confirm && !s.results[s.bad]) return s; // the confirming job was lost before it reported: confirm again
     return confirm ? afterConfirm(s) : decide(s);
 }
 
@@ -228,7 +261,7 @@ function output(s, out) {
         `points=${JSON.stringify(s.next?.points ?? [])}`,
         `runs=${s.next?.runs ?? 0}`,
     ];
-    lines.push(`files=${[...new Set((s.followed ?? s.targets).map((t) => t.file).filter(Boolean))].join(" ")}`);
+    lines.push(`files=${laneFiles(s)}`);
     if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary(s)}\n`);
     console.log(summary(s));

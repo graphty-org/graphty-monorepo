@@ -14,7 +14,7 @@ issue.
 | `POST /v1/failures`    | CI, local             | stores one failure (`{ invocation, file, name, message }`) or a batch (`{ invocation, failures: [...] }`)                                  |
 | `POST /v1/durations`   | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`                                         |
 | `POST /v1/verdicts`    | master's release.yml  | stores the full run's verdict on its candidate (`{ sha, state, lane, issue }`; state `green-clean`, `green-images`, `red` or `owner-item`) |
-| `POST /v1/sites`       | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run           |
+| `POST /v1/sites`       | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run                                            |
 
 A repeated post of the same record id stores nothing the second time (`"stored": false`).
 `POST /v1/durations` answers `trend` too: per posted key, within the run's kind, the median of its

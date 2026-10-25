@@ -1284,7 +1284,7 @@ describe("ci.yml", () => {
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
         assert.match(
             job(ci, "test"),
-            /if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''\n/,
+            /if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''(?: && needs.packages.outputs.tools-only != 'true')?\n/,
         );
         assert.match(
             job(ci, "cost-accuracy"),
@@ -1293,7 +1293,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
+                /\n {8}if: needs.(?:build|packages).outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -5251,5 +5251,96 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         assert.equal(verdict("").status, 1, "skipped Lint, Checks and Docs fail a run that reused nothing");
         assert.equal(verdict("5", { build: "skipped" }).status, 1, "Storybooks must still succeed");
         assert.equal(verdict("5", { lint: "failure" }).status, 1);
+    });
+});
+
+// TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+describe("the temporary tools-only fast path (#3443)", () => {
+    const ci = workflow("ci.yml");
+
+    it("decides tools-only once in the Build job and skips the capture through the Storybooks job's light", () => {
+        assert.match(job(ci, "packages"), /tools-only: \$\{\{ steps.tools-only.outputs.tools-only \}\}/);
+        assert.match(
+            job(ci, "build"),
+            /light: \$\{\{ needs.packages.outputs.light == 'true' \|\| needs.packages.outputs.tools-only == 'true' \}\}/,
+        );
+        // the visual job is the owner's and unchanged: it reads only the Storybooks job's light
+        assert.match(job(ci, "visual"), /\n {8}if: needs.build.outputs.light != 'true'\n/);
+        // Links keeps running: it reads the Build job's own light, not the Storybooks job's
+        assert.match(job(ci, "links"), /\n {8}if: needs.packages.outputs.light != 'true'/);
+    });
+
+    it("gates the test shards and Cost Estimate Accuracy on it, and no other job directly", () => {
+        assert.match(job(ci, "test"), /\n {8}if: .*&& needs.packages.outputs.tools-only != 'true'\n/);
+        assert.match(job(ci, "cost-accuracy"), /\n {8}if: .*&& needs.packages.outputs.tools-only != 'true'\n/);
+        for (const name of ["packages", "build", "lint", "checks", "docs", "links", "visual"]) {
+            assert.doesNotMatch(job(ci, name), /\n {8}if: .*tools-only/, `${name} still runs`);
+        }
+    });
+
+    it("is true only for a pull request whose files are all under tools/, .github/ or design/, or *.md", () => {
+        const step = /id: tools-only\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, "packages"))[1];
+        const decide = (files, event = "pull_request") => {
+            const dir = mkdtempSync(join(TMP, "tools-only-"));
+            spawnSync("git", ["init", "-q"], { cwd: dir });
+            spawnSync("git", ["commit", "-q", "--allow-empty", "-m", "base"], { cwd: dir });
+            for (const f of files) {
+                mkdirSync(join(dir, f, ".."), { recursive: true });
+                writeFileSync(join(dir, f), "x\n");
+            }
+            spawnSync("git", ["add", "-A"], { cwd: dir });
+            spawnSync("git", ["commit", "-q", "-m", "head"], { cwd: dir });
+            const out = join(dir, "out");
+            const r = spawnSync("bash", ["-e", "-c", step], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, EVENT: event, MERGE_QUEUE: "false", GITHUB_OUTPUT: out },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            return readFileSync(out, "utf8").trim();
+        };
+        assert.equal(
+            decide(["tools/a.mjs", ".github/workflows/ci.yml", "design/x.md", "graphty/README.md"]),
+            "tools-only=true",
+        );
+        assert.equal(decide(["tools/a.mjs", "graphty/src/a.ts"]), "tools-only=false");
+        assert.equal(decide(["tools/a.mjs"], "push"), "tools-only=false", "only a pull request");
+    });
+
+    it("lets All Checks Pass accept the skipped jobs while Lint, Checks and Docs stay strict", () => {
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "all-checks"),
+        )[1];
+        const verdict = (over = {}) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "true",
+                    ADVISORY: "[]",
+                    LIGHT: "false",
+                    REUSE_RUN: "",
+                    TOOLS_ONLY: "true",
+                    NEEDS: JSON.stringify(
+                        Object.fromEntries(
+                            ["packages", "build", "lint", "checks", "docs", "test", "links", "cost-accuracy"].map(
+                                (n) => [
+                                    n,
+                                    {
+                                        result:
+                                            over[n] ?? (["test", "cost-accuracy"].includes(n) ? "skipped" : "success"),
+                                    },
+                                ],
+                            ),
+                        ),
+                    ),
+                },
+            });
+        const ok = verdict();
+        assert.equal(ok.status, 0, ok.stdout);
+        assert.match(ok.stdout, /::notice title=Tools-only fast path::/);
+        assert.equal(verdict({ lint: "skipped" }).status, 1, "Lint must still succeed");
+        assert.equal(verdict({ test: "failure" }).status, 1);
     });
 });

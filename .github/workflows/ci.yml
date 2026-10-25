@@ -102,6 +102,8 @@ jobs:
             test-count: ${{ steps.plan.outputs.test-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+            tools-only: ${{ steps.tools-only.outputs.tools-only }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run }}
@@ -204,6 +206,22 @@ jobs:
                   node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+
+            # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+            # A pull request whose changed files (HEAD^1..HEAD of the merge ref, the fetch-depth 0 checkout above)
+            # are all under tools/, .github/ or design/, or are *.md files, skips the test shards, the screenshot
+            # capture and Cost Estimate Accuracy; Build, Storybooks, Lint, Checks, Docs and Links still run.
+            - name: Decide the tools-only fast path
+              id: tools-only
+              env:
+                  EVENT: ${{ github.event_name }}
+              run: |
+                  v=false
+                  if [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
+                      files=$(git diff --name-only HEAD^1 HEAD)
+                      if [[ -n "$files" ]] && ! grep -qvE '^(tools|\.github|design)/|\.md$' <<<"$files"; then v=true; fi
+                  fi
+                  echo "tools-only=$v" | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
             # the accepted baselines and the signed approval to the branch) needs no new test run. When
@@ -449,7 +467,10 @@ jobs:
             checks: write
         outputs:
             full: ${{ needs.packages.outputs.full }}
-            light: ${{ needs.packages.outputs.light }}
+            # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+            # The visual job (the owner's, left unchanged) reads only this output, so a tools-only pull request
+            # reports light here to skip the screenshot capture; Links reads the Build job's own light instead.
+            light: ${{ needs.packages.outputs.light == 'true' || needs.packages.outputs.tools-only == 'true' }}
             affected: ${{ needs.packages.outputs.affected }}
             test-matrix: ${{ needs.packages.outputs.test-matrix }}
             test-count: ${{ needs.packages.outputs.test-count }}
@@ -879,7 +900,8 @@ jobs:
     test:
         name: Test (${{ matrix.shard }})
         needs: packages
-        if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''
+        # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+        if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.tools-only != 'true'
         runs-on: ubuntu-24.04
         strategy:
             fail-fast: false
@@ -1129,7 +1151,8 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
+        # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+        if: needs.packages.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -1303,7 +1326,8 @@ jobs:
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: packages
-        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
+        # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == '' && needs.packages.outputs.tools-only != 'true'
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4
@@ -1569,6 +1593,8 @@ jobs:
                   LIGHT: ${{ needs.packages.outputs.light }}
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
+                  # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+                  TOOLS_ONLY: ${{ needs.packages.outputs.tools-only }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
@@ -1576,6 +1602,12 @@ jobs:
                   fi
                   ok='["success"]'
                   [[ "$FULL" == "false" || "$LIGHT" == "true" ]] && ok='["success","skipped"]'
+                  # TEMPORARY (#3443): tools-only fast path until the light check (#3513) is on master; delete then.
+                  # Test and Cost Estimate Accuracy are skipped on a tools-only pull request; Lint, Checks and Docs stay strict.
+                  if [[ "$TOOLS_ONLY" == "true" ]]; then
+                      ok='["success","skipped"]'
+                      echo "::notice title=Tools-only fast path::test shards, screenshots and Cost Estimate Accuracy skipped (#3443)"
+                  fi
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
                   # A run that reuses an earlier run's results (the packages job's Reuse step: the tree it
                   # tests equals that run's apart from the screenshot records) skips the jobs that run

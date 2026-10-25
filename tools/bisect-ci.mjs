@@ -101,7 +101,8 @@ export function offMaster(s, onMaster) {
     return [s.good, s.bad, ...(s.next?.points ?? [])].filter((sha) => sha && !onMaster.has(sha));
 }
 
-const quote = (f) => `'${f.replaceAll("'", String.raw`'\''`)}'`;
+const QUOTED_QUOTE = String.raw`'\''`;
+const quote = (f) => "'" + f.replaceAll("'", QUOTED_QUOTE) + "'";
 const SAFE_PATH = /^[\w@+-][\w@./+-]*$/;
 
 /**

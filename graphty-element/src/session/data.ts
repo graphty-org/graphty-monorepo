@@ -740,37 +740,33 @@ export class SessionData implements SessionDataApi {
         const read = resolved instanceof Promise ? await resolved : resolved;
         // Waited for only when a load asked for earlier is still reading, so one with nothing
         // ahead of it dispatches before this call returns, as it did before the line existed.
-        const ahead = turn.wait();
-        if (ahead !== undefined) {
-            await ahead;
-        }
-        const step = importCommand(read, options);
-        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
-        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
-        const { knownFields } = this.readConfig();
-        const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
-        // A new graph from a graph file names its nodes by the file's label column, as a draft's
-        // load of it does, unless a label path is configured already. A node without one is still
-        // named by its id. A merge keeps how the graph it joins names its nodes.
-        const names =
-            fromFile &&
-            step.mode !== "merge" &&
-            knownFields.nodeLabelPath === null &&
-            step.source.type !== undefined &&
-            step.source.type !== "csv";
-        const before: BatchCommand["steps"] = [
-            ...(resets
-                ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
-                : []),
-            ...(names
-                ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
-                : []),
-        ];
-        // The batch is the import in the history, so it carries the import's fact: a page load's
-        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
-        await turn.issue(() =>
-            send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] }),
-        );
+        await turn.take(() => {
+            const step = importCommand(read, options);
+            // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+            // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+            const { knownFields } = this.readConfig();
+            const resets = step.mode !== "merge" && knownFields.edgeWeightMeaning !== null;
+            // A new graph from a graph file names its nodes by the file's label column, as a draft's
+            // load of it does, unless a label path is configured already. A node without one is still
+            // named by its id. A merge keeps how the graph it joins names its nodes.
+            const names =
+                fromFile &&
+                step.mode !== "merge" &&
+                knownFields.nodeLabelPath === null &&
+                step.source.type !== undefined &&
+                step.source.type !== "csv";
+            const before: BatchCommand["steps"] = [
+                ...(resets
+                    ? [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } } as const]
+                    : []),
+                ...(names
+                    ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
+                    : []),
+            ];
+            // The batch is the import in the history, so it carries the import's fact: a page load's
+            // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+            return send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
+        });
     }
 
     /**
@@ -933,15 +929,13 @@ export class SessionData implements SessionDataApi {
      */
     private hostInTurn(turn: LoadTurn, hold = false): SourceHost {
         const host = this.sourceHost();
-        const send = (command: SessionCommand): Promise<unknown> =>
-            hold ? host.dispatch(command) : turn.issue(() => host.dispatch(command));
         return {
             ...host,
             waitTurn: () => turn.wait(),
-            dispatch: (command) => {
-                const ahead = turn.wait();
-                return ahead === undefined ? send(command) : ahead.then(() => send(command));
-            },
+            dispatch: (command) =>
+                hold
+                    ? (turn.wait()?.then(() => host.dispatch(command)) ?? host.dispatch(command))
+                    : turn.take(() => host.dispatch(command)),
         };
     }
 
@@ -1068,12 +1062,7 @@ export class SessionData implements SessionDataApi {
                     const send = this.writes.importer();
                     const turn = this.loadLine.join();
                     try {
-                        await run((command) => {
-                            const ahead = turn.wait();
-                            return ahead === undefined
-                                ? turn.issue(() => send(command))
-                                : ahead.then(() => turn.issue(() => send(command)));
-                        });
+                        await run((command) => turn.take(() => send(command)));
                     } finally {
                         turn.leave();
                     }

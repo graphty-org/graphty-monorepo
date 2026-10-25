@@ -2391,11 +2391,7 @@ export class Graph implements GraphContext {
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
-            const ahead = turn.wait();
-            if (ahead !== undefined) {
-                await ahead;
-            }
-            await turn.issue(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
         } finally {
             this.leaveLine(load);
         }

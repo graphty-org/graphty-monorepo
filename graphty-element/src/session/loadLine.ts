@@ -23,6 +23,12 @@ export interface LoadTurn {
      * @returns What it returned.
      */
     issue<T>(send: () => Promise<T>): Promise<T>;
+    /**
+     * Wait for the turn, then {@link issue}: at once, before this call returns, when none is ahead.
+     * @param send - The dispatch.
+     * @returns What it returned.
+     */
+    take<T>(send: () => Promise<T>): Promise<T>;
     /** Give up the place without dispatching (the load failed). Safe to call more than once. */
     leave(): void;
 }
@@ -131,21 +137,24 @@ export class LoadLine {
                 release();
             }
         };
+        const wait = (): Promise<void> | undefined => {
+            if (signal?.aborted === true) {
+                // Aborted before its turn came: it never dispatches, wherever it stands in line.
+                return abortable(Promise.resolve(), signal, leave);
+            }
+            return ahead === undefined || signal === undefined ? ahead : abortable(ahead, signal, leave);
+        };
+        const issue = <T>(send: () => Promise<T>): Promise<T> => {
+            try {
+                return send();
+            } finally {
+                leave();
+            }
+        };
         return {
-            wait: () => {
-                if (signal?.aborted === true) {
-                    // Aborted before its turn came: it never dispatches, wherever it stands in line.
-                    return abortable(Promise.resolve(), signal, leave);
-                }
-                return ahead === undefined || signal === undefined ? ahead : abortable(ahead, signal, leave);
-            },
-            issue: (send) => {
-                try {
-                    return send();
-                } finally {
-                    leave();
-                }
-            },
+            wait,
+            issue,
+            take: (send) => wait()?.then(() => issue(send)) ?? issue(send),
             leave,
         };
     }
@@ -157,8 +166,6 @@ export class LoadLine {
      * @returns What it returned.
      */
     run<T>(send: () => Promise<T>): Promise<T> {
-        const turn = this.join();
-        const ahead = turn.wait();
-        return ahead === undefined ? turn.issue(send) : ahead.then(() => turn.issue(send));
+        return this.join().take(send);
     }
 }

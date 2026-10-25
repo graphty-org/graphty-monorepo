@@ -1038,6 +1038,7 @@ export const READ_ONLY: readonly string[] = [
     "UpdateManager.getRenderFrameCount",
     "UpdateManager.isZoomToFitEnabled",
     "UpdateManager.meshesShownOrHidden",
+    "UpdateManager.onceFrameIsStable",
     "UpdateManager.stopAutoZoomToFit",
     "UpdateManager.viewMoved",
     "UpdateManager.whyFrameIsNotStable",

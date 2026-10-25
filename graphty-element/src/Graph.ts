@@ -1275,6 +1275,10 @@ export class Graph implements GraphContext {
         // after the graph and layout hooks it awaits, so until the pass ends the framing a
         // settling layout ends with, and the finished picture, wait for it (issue #3378).
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
+        // A queued operation, or a queued command waiting beside the queue for a key, is going to
+        // change the picture, so the frame is not final until it has run (issue #3528).
+        this.updateManager.operationsPending = () =>
+            this.operationQueue.hasWork || dispatcherOf(this.session).hasWaiters;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -5239,13 +5243,13 @@ export class Graph implements GraphContext {
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
         const firstFrame = this.scene.getRenderId();
-        let listenerId: symbol | undefined;
+        let stopWaiting: (() => void) | undefined;
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         try {
             await Promise.race([
-                this.untilFrameIsStable((id) => {
-                    listenerId = id;
+                this.untilFrameIsStable((stop) => {
+                    stopWaiting = stop;
                 }),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
@@ -5265,36 +5269,37 @@ export class Graph implements GraphContext {
                 clearTimeout(timer);
             }
 
-            if (listenerId !== undefined) {
-                this.eventManager.removeListener(listenerId);
-            }
+            stopWaiting?.();
         }
     }
 
     /**
      * The unbounded half of {@link Graph.waitForStableFrame}.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
+     * @param track - Told how to stop waiting, so the caller can stop if it gives up.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      */
-    private async untilFrameIsStable(track: (id: symbol) => void): Promise<void> {
-        // The queue first: a layout change or a data load that has not run yet is going to move
-        // the picture, so a frame that is final right now is final about the wrong graph. Suggested
-        // styles before the queue, because they queue their reordering only once they are due.
-        // Loads not queued yet (the element's, held behind the autosave restore) before both.
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
-        await this.untilQueueDrained();
+    private async untilFrameIsStable(track: (stop: () => void) => void): Promise<void> {
+        // Until one round finds nothing owed: an operation queued while a round waited -- after its
+        // queue drain, or while the label counts were announced -- is waited for by the next one
+        // (issue #3528).
+        do {
+            // The queue first: a layout change or a data load that has not run yet is going to move
+            // the picture, so a frame that is final right now is final about the wrong graph.
+            // Suggested styles before the queue, because they queue their reordering only once
+            // they are due. Loads not queued yet (the element's, held behind the autosave restore)
+            // before both.
+            await loadsAhead.get(this)?.();
+            await this.#suggestionsStacked;
+            await this.untilQueueDrained();
+            await this.untilFrameStableNow(track);
 
-        if (!this.updateManager.frameIsStable) {
-            await this.untilFrameStableEvent(track);
-        }
-
-        // The picture is final, but the label counts it drew are announced a few frames later
-        // (`graphty-label-change`); a page that shows them is not final until they are.
-        const declutter: unknown = this.scene.metadata?.labelDeclutter;
-        if (declutter instanceof LabelDeclutter) {
-            await declutter.whenPublished();
-        }
+            // The picture is final, but the label counts it drew are announced a few frames later
+            // (`graphty-label-change`); a page that shows them is not final until they are.
+            const declutter: unknown = this.scene.metadata?.labelDeclutter;
+            if (declutter instanceof LabelDeclutter) {
+                await declutter.whenPublished();
+            }
+        } while (!this.updateManager.frameIsStable);
     }
 
     /**
@@ -5309,25 +5314,14 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Wait for the `graph-frame-stable` event.
-     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
-     * @returns Promise that resolves on the event, or at once when the frame became stable first.
+     * Wait until the frame is stable, asked after every pass rather than on the edge the
+     * `graph-frame-stable` event marks; see `UpdateManager.onceFrameIsStable`.
+     * @param track - Told how to stop waiting, so the caller can stop if it gives up.
+     * @returns Promise that resolves once the frame is stable, at once when it already is.
      */
-    private async untilFrameStableEvent(track: (id: symbol) => void): Promise<void> {
+    private async untilFrameStableNow(track: (stop: () => void) => void): Promise<void> {
         await new Promise<void>((resolve) => {
-            const id = this.eventManager.addListener("graph-frame-stable", () => {
-                this.eventManager.removeListener(id);
-                resolve();
-            });
-
-            track(id);
-
-            // A frame can be drawn between the check above and the listener being attached, and
-            // an event nobody was listening for is not coming back.
-            if (this.updateManager.frameIsStable) {
-                this.eventManager.removeListener(id);
-                resolve();
-            }
+            track(this.updateManager.onceFrameIsStable(resolve));
         });
     }
 

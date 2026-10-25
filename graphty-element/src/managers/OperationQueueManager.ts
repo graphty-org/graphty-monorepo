@@ -886,6 +886,15 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Whether an operation is queued, about to be, or running: what
+     * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     * @returns True until the queue is idle.
+     */
+    get hasWork(): boolean {
+        return this.currentBatch.size > 0 || this.queue.size > 0 || this.queue.pending > 0;
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */

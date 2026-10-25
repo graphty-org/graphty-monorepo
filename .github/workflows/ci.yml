@@ -244,7 +244,7 @@ jobs:
 
             - name: Download the package builds of the run whose results are reused
               if: steps.reuse.outputs.artifacts-run != ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -480,7 +480,7 @@ jobs:
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -529,7 +529,7 @@ jobs:
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
               if: needs.packages.outputs.artifacts-run != ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: build-storybook-*
                   path: ${{ runner.temp }}/storybooks
@@ -630,7 +630,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -700,7 +700,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -820,7 +820,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -911,14 +911,14 @@ jobs:
             - name: Download all package builds
               id: download-packages
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Download all package builds (retry)
               if: steps.download-packages.outcome == 'failure'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1142,67 +1142,67 @@ jobs:
                   node-version: 22.x
 
             - name: Download graphty build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graphty
                   path: graphty/dist/
 
             - name: Download unified docs
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
 
             - name: Download Storybook build (graphty-element)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
 
             - name: Download Storybook build (graphty)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
 
             - name: Download Storybook build (compact-mantine)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
 
             - name: Download Storybook build (algorithms)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
 
             - name: Download Storybook build (layout)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
 
             - name: Download Storybook build (cytoscape-extensions)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
             - name: Download Storybook build (graph-io-fidelity)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
 
             - name: Download algorithms gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
 
             - name: Download layout gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -1257,7 +1257,7 @@ jobs:
             # Every package's dist: the benchmark runs algorithms from source under tsx, and that
             # source imports @graphty/graph-format, which resolves to graph-format's dist.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1324,7 +1324,7 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1498,7 +1498,7 @@ jobs:
 
             - name: Download Storybook build
               if: steps.skip.outputs.skip != 'true'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: ${{ matrix.artifact }}
                   path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
@@ -1635,7 +1635,7 @@ jobs:
             - name: Download visual captures
               if: github.event_name == 'pull_request'
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual
@@ -1767,7 +1767,7 @@ jobs:
 
             - name: Download visual captures
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual

@@ -72,7 +72,7 @@ const LEXEME = new RegExp(
     "g",
 );
 // A file's lines with every comment blanked; a block comment keeps its line breaks.
-const codeLines = (text) => text.replace(LEXEME, (m) => (m[0] === "/" ? m.replaceAll(/[^\n]/g, "") : m)).split("\n");
+const codeLines = (text) => text.replaceAll(LEXEME, (m) => (m[0] === "/" ? m.replaceAll(/[^\n]/g, "") : m)).split("\n");
 const toNumber = (s) => s.split("*").reduce((p, f) => p * Number(f.replaceAll("_", "").trim()), 1);
 
 function values(re, lines) {

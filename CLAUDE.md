@@ -767,8 +767,10 @@ shard. The shards:
 
 A pull request runs only the shards of the packages nx calls affected; the
 shard list and the filter live in `tools/ci-test-matrix.mjs`. A change to a file in nx.json's
-`sharedGlobals` (root configs, `.github/workflows/`) affects every package, so it still runs
-everything.
+`sharedGlobals` (root configs such as `tsconfig.base.json` and `vitest.shared.config.ts`) affects
+every package, so it still runs everything; a workflow change does not, and a `pnpm-lock.yaml` change
+affects only the packages whose resolved dependencies it changed (`projectsAffectedByDependencyUpdates:
+"auto"`).
 
 ## Architecture & Key Patterns
 

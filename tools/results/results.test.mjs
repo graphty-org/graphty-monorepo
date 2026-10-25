@@ -202,6 +202,27 @@ describe("reporter", () => {
             mock.timers.reset();
         }
     });
+    it("sends a story whose two renders disagreed as unstable", () => {
+        const events = [];
+        const r = new ResultsReporter({
+            env: { GRAPHTY_RESULTS_INVOCATION: "b" },
+            cfg: {},
+            root: process.cwd(),
+            send: (_cfg, inv, failures) => events.push({ inv, failures }),
+        });
+        const message = "visual-review: app--default is unstable (two renders drew different pictures): dark";
+        r.onTestCaseResult({
+            module: { moduleId: join(process.cwd(), "graphty/src/App.stories.tsx") },
+            fullName: "Default",
+            result: () => ({ state: "failed", errors: [{ message, stack: "at x" }] }),
+        });
+        assert.deepEqual(events[0].failures[0], {
+            file: "graphty/src/App.stories.tsx",
+            name: "Default",
+            status: "unstable",
+            message: `${message}\nat x`,
+        });
+    });
     it("ends the run when the store never answers", async () => {
         const s = await serve(false);
         const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });

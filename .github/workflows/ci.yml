@@ -1562,8 +1562,11 @@ jobs:
     # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
     # (two full runs whose Stories parity shows zero differences); until then the plain story tests in the
     # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
-    # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
-    # different pictures fail its test) is retried once and reported flaky when the retry passes.
+    # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
+    # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
+    # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
+    # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
+    # promotion.blocked; it stays unset (report only) until the project switches.
     stories:
         name: Stories (${{ matrix.project }})
         needs: packages
@@ -1571,13 +1574,16 @@ jobs:
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record)
+        permissions:
+            contents: read
+            id-token: write
         strategy:
             fail-fast: false
             matrix:
                 include:
                     - project: graphty
                       shard: graphty-storybook
-                      command: cd graphty && pnpm exec vitest run --project=storybook
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1645,13 +1651,13 @@ jobs:
             - name: Run the story tests with their screenshots
               env:
                   SHARD: ${{ matrix.shard }}
-                  COMMAND: ${{ matrix.command }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
                   VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
-              run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
+              run: node tools/results/run-group.mjs "$SHARD"
 
             - name: Combine the capture
               if: ${{ !cancelled() }}
-              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine tools/test-quarantine.json --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
               if: ${{ !cancelled() }}

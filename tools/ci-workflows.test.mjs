@@ -1561,7 +1561,12 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
             assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
         }
         assert.match(job(ci, "stories"), /VISUAL_REVIEW_STORY_OUT: /);
-        assert.match(job(ci, "stories"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        // Through the results store like every test shard, and judged against the committed quarantine list.
+        assert.match(job(ci, "stories"), /node tools\/results\/run-group\.mjs "\$SHARD"/);
+        assert.match(job(ci, "stories"), /id-token: write/);
+        assert.match(job(ci, "stories"), /merge-results .*--quarantine tools\/test-quarantine\.json/);
+        // The blocking switch stays off until the project switches.
+        assert.doesNotMatch(job(ci, "stories"), /VISUAL_REVIEW_BLOCKING/);
         assert.deepEqual(jobs["stories-parity"].needs.sort(), ["stories", "visual"]);
     });
 

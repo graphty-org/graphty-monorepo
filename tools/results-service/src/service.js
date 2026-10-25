@@ -60,6 +60,19 @@ async function signingKey(kid, doFetch) {
     return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
+// A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
+function decodeJwt(token) {
+    try {
+        const [header, payload, signature] = token.split(".");
+        const { alg, kid } = part(header);
+        const claims = part(payload);
+        if (claims === null || typeof claims !== "object") throw new TypeError("claims are not an object");
+        return { alg, kid, claims, signature: bytes(signature), signed: `${header}.${payload}` };
+    } catch {
+        return refuse(401, "the OIDC token is not a well-formed JWT");
+    }
+}
+
 /**
  * Checks an Actions OIDC token's signature, issuer, audience and lifetime.
  * @param token the JWT
@@ -68,15 +81,12 @@ async function signingKey(kid, doFetch) {
  * @returns its claims
  */
 async function verifyOidc(token, doFetch, nowMs) {
-    const [header, payload, signature] = token.split(".");
-    const { alg, kid } = part(header);
+    const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
     const key = await signingKey(kid, doFetch);
-    const signed = new TextEncoder().encode(`${header}.${payload}`);
-    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, bytes(signature), signed))) {
+    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
-    const claims = part(payload);
     const now = nowMs / 1000;
     if (claims.iss !== ISSUER || claims.aud !== AUDIENCE) refuse(401, `OIDC token is not for ${AUDIENCE}`);
     if (typeof claims.exp !== "number" || claims.exp <= now || claims.nbf > now + 60)
@@ -143,6 +153,8 @@ function inserts(db, table, columns, rows) {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
+    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
         const { line, key, signature, status } = failureHashes(f.message, f.file, root);
@@ -234,9 +246,10 @@ async function postInvocation(body, who, db, nowMs) {
 async function postFailures(body, who, db, nowMs) {
     if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
     ownId(body?.invocation, who);
-    const failures = body.failures ?? [body];
-    await db.batch(inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.invocation, failures, body.root, nowMs)));
-    return { stored: failures.length };
+    const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
+    // D1 refuses an empty batch
+    if (rows.length) await db.batch(inserts(db, "failure", FAILURE_COLUMNS, rows));
+    return { stored: rows.length };
 }
 
 async function postDurations(body, who, db) {

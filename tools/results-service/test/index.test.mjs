@@ -215,6 +215,9 @@ describe("POST /v1/invocations", () => {
             oidc({}, { kid: "nope" }),
             undefined,
             "wrong-local",
+            "not.a.jwt",
+            `${b64({ alg: "RS256", kid: "test-kid" })}.${b64(null)}.c2ln`,
+            `${b64({ alg: "RS256", kid: "test-kid" })}.${b64({})}.!!`,
         ]) {
             assert.equal((await call("POST", "/v1/invocations", { token, body: record() })).status, 401);
         }
@@ -290,6 +293,17 @@ describe("POST /v1/failures", () => {
             403,
         );
     });
+
+    it("refuses a failures field that is not a list with 400, and stores nothing for an empty one", async () => {
+        const { call } = service();
+        const body = { invocation: "4010.1.job.g.1", failures: "boom" };
+        assert.equal((await call("POST", "/v1/failures", { token: pr(), body })).status, 400);
+        assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
+            stored: 0,
+        });
+        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
+        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
+    });
 });
 
 describe("POST /v1/durations", () => {
@@ -353,6 +367,7 @@ describe("failureHashes", () => {
                 "/home/u/repo",
             ],
             ["boom 0123456789abcdef in /tmp/x/y\n<div>", "p/c.test.ts", undefined],
+            ["Error: frame\n \u276F p/d.test.ts:3:7\n \u276F node_modules/x.js:1:1", "p/d.test.ts", undefined],
         ];
         for (const [text, file, main] of samples)
             assert.deepEqual(failureHashes(text, file, main), ledgerHashes(text, file, main));

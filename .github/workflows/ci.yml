@@ -414,21 +414,27 @@ jobs:
             # place, so the deployed files carry them), then the upload under the release the build
             # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
             # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
+            # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
+            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # failure is a warning, and the step itself has a timeout and continue-on-error.
             - name: Upload graphty's source maps to Sentry (master push)
               if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
               working-directory: graphty
+              continue-on-error: true
+              timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
                   SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
-                  pnpm exec sentry-cli sourcemaps inject dist
-                  pnpm exec sentry-cli releases new "$SENTRY_RELEASE"
-                  pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty ||
-                      echo "::warning::Sentry could not set the commits of release $SENTRY_RELEASE"
-                  pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist
-                  pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE"
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -1712,6 +1718,184 @@ jobs:
     # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
     # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
     # 4-worker development machine; CI runners are slower and not yet measured.
+    # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
+    # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
+    # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
+    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
+    # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
+    # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
+    # different pictures fail its test) is retried once and reported flaky when the retry passes.
+    story-tests:
+        name: Story tests (${{ matrix.project }})
+        needs: packages
+        if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: graphty
+                      shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+
+            - name: Restore this project's baseline images
+              uses: actions/cache/restore@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              id: download-packages
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Download all package builds (retry)
+              if: steps.download-packages.outcome == 'failure'
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium
+
+            - name: Install Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium
+
+            # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
+            # failed story files writes into the same directory.
+            - name: Run the story tests with their screenshots
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  COMMAND: ${{ matrix.command }}
+                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+              run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
+
+            - name: Combine the capture
+              if: ${{ !cancelled() }}
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+
+            - name: Upload the capture
+              if: ${{ !cancelled() }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/stories/merged/
+                  retention-days: 30
+                  if-no-files-found: ignore
+
+            - name: Write the counts to the job summary
+              if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  f="$RUNNER_TEMP/stories/merged/results.json"
+                  {
+                      echo "### Stories ($PROJECT)"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No capture: the story tests did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
+    # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
+    # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
+    story-tests-parity:
+        name: Story tests parity (${{ matrix.project }})
+        needs: [story-tests, visual]
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 10
+        strategy:
+            fail-fast: false
+            matrix:
+                project: [graphty]
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: visual-review
+
+            - name: Download the old capture
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: captures/old
+
+            - name: Download the story tests' capture
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: captures/new
+
+            - name: Compare
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  set -o pipefail
+                  if [[ ! -f captures/old/results.json || ! -f captures/new/results.json ]]; then
+                      echo "Not compared: one of the two captures is missing (the project was not affected, or a job failed)." | tee "$RUNNER_TEMP/parity.txt"
+                      exit 0
+                  fi
+                  node visual-review/trusted/cli.mjs parity --project "$PROJECT" captures/old captures/new | tee "$RUNNER_TEMP/parity.txt"
+
+            - name: Write the comparison to the job summary
+              if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  {
+                      echo "### Story tests parity ($PROJECT)"
+                      echo '```'
+                      tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     visual:
         name: visual (${{ matrix.project }})
         needs: build

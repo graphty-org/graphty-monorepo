@@ -12,7 +12,9 @@
 // is judged on what it changes beyond its parents, so a conflict resolution that edits a locked file needs
 // the trailer too; a locked file the merge leaves exactly as one parent has it, or exactly as git's own
 // conflict-free merge of the parents makes it, brings nothing new and is not judged (those changes are
-// judged on the commits that made them). An approved commit may also carry `Figma-Approves: <sha>[,
+// judged on the commits that made them). A locked file the push leaves exactly as the base has it is not
+// judged at all, since the push changes nothing in it (a commit's edit that a later commit, such as an
+// owner-approved one already on master, replaced). An approved commit may also carry `Figma-Approves: <sha>[,
 // <sha>...]`, which approves each named commit of the same push (an empty commit the owner adds to approve
 // a commit already made); without its own Figma-Approved line it approves nothing. Commits that are ancestors of APPROVED_BASE -- the design the
 // owner approved, before the lock existed -- are not judged.
@@ -99,7 +101,14 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
                 parents: parents.split(" ").filter(Boolean),
             };
         });
+    // A locked file the push leaves exactly as the base has it is not judged: the push changes nothing in it.
+    const changed = new Set(
+        git(["-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", base, "HEAD", "--", ...LOCKED])
+            .split("\n")
+            .filter(Boolean),
+    );
     for (const c of commits) {
+        c.files = c.files.filter((f) => changed.has(f));
         if (c.parents.length > 1 && c.files.length && !c.approved) c.files = newInMerge(git, c, c.files);
     }
     const named = commits.flatMap((c) => c.named);

@@ -111,6 +111,27 @@ describe("check-figma-lock", () => {
         );
     });
 
+    it("does not judge a locked file the push leaves exactly as the base has it", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        r.write(TOKENS, "v1\n");
+        r.commit("fix: put the accent back");
+        assert.deepEqual(r.check(), []);
+    });
+
+    it("still judges every commit of a locked file the push does change", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        r.write(TOKENS, "v3\n");
+        r.commit("fix: tweak");
+        assert.deepEqual(
+            r.check().map((b) => b.subject),
+            ["fix: tweak", "fix: accent"],
+        );
+    });
+
     it("approves an earlier commit of the push named by Figma-Approves on an approved commit", () => {
         const r = repo();
         r.write(TOKENS, "v2\n");

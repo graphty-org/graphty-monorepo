@@ -1,6 +1,5 @@
 /* The legend card, top left of the canvas (tier1-design.md section 2.4). At most 40% of the
-   canvas's height, scrolling beyond: a long key on a short canvas would otherwise reserve so much
-   room that the drawing is framed into what is left (.ws-legend-room below reserves this size). */
+   canvas's height, scrolling beyond. It floats over the drawing and never changes its framing. */
 .ws-legend-card {
     position: absolute;
     top: 12px;
@@ -9,17 +8,6 @@
     width: min(240px, calc(100% - 24px));
     max-height: min(calc(100% - 96px), 40%);
     overflow: auto;
-}
-
-/* The room the card can grow to, reserved as the view inset whether or not the card shows. */
-.ws-legend-room {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    width: min(240px, calc(100% - 24px));
-    height: min(calc(100% - 96px), 40%);
-    visibility: hidden;
-    pointer-events: none;
 }
 
 /* A key that scrolls takes focus: its ring, as every other focusable box draws it. */

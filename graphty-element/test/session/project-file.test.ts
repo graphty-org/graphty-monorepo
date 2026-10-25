@@ -565,6 +565,51 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("a document opened with history start is where the history starts, not a step", async () => {
+        const harness = await busySession();
+        const { session } = harness;
+        assert.isTrue(session.canUndo, "steps from before the open");
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [{ name: "Big", selector: { match: "everything" }, set: { "node.size": 3 } }],
+        };
+        const report = await session.project.open(JSON.stringify(style), { history: "start" });
+
+        assert.deepStrictEqual(report.restored, ["styles"]);
+        assert.lengthOf(session.history.steps, 0);
+        assert.isFalse(session.project.dirty);
+        session.dispose();
+    });
+
+    it("work the reader starts while a project opens stays a step of its own", async () => {
+        const source = await busySession();
+        const saved = await source.session.project.save();
+        source.session.dispose();
+        const { harness } = withDegree();
+        const { session } = harness;
+
+        // The reader's edit is dispatched the moment the open is pending work.
+        let styled: PromiseLike<unknown> | undefined;
+        const off = session.on("history:changed", () => {
+            if (session.history.pending.some((each) => each.label === "Open project")) {
+                off();
+                styled = session.styles.add({
+                    name: "during",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#ff0000" },
+                });
+            }
+        });
+        await session.project.open(saved.text, { discard: true });
+        await styled;
+
+        assert.lengthOf(session.history.steps, 1, "the reader's edit is theirs to undo");
+        assert.isTrue(session.project.dirty, "and it is an unsaved change");
+        session.dispose();
+    });
+
     it("adds a bare notes document beside what the session holds (#913)", async () => {
         const source = await busySession();
         const notes = source.session.notes.toDocument();

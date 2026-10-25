@@ -1,7 +1,7 @@
 import { Box, Button, Group, Modal, type ModalProps, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ModalFooter } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

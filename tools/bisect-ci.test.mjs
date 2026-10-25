@@ -17,6 +17,7 @@ import {
     offMaster,
     realGit,
     runArgs,
+    runPoint,
     setupFailed,
     start,
     T4_CAP_MINUTES,
@@ -273,6 +274,8 @@ describe("what a dispatch may name", () => {
             assert.equal(unsafeTargets({ targets: [{ shard: "s", file }] }).length, 1, file);
         }
         assert.equal(unsafeTargets({ targets: [{ shard: "s;x", file: "a.test.ts" }] }).length, 1);
+        assert.equal(unsafeTargets({ targets: [{ shard: "s", file: "--reporter=x" }] }).length, 1, "an option");
+        assert.equal(unsafeTargets({ followed: [{ shard: "s", file: "x;y" }] }).length, 1, "a later round's list");
     });
 
     it("quotes each LLM file on the command line", async () => {
@@ -285,5 +288,34 @@ describe("setupFailed", () => {
     it("fails every followed target on every run the round asked for", () => {
         const s = { targets: [{ id: "a" }, { id: "b" }], followed: [{ id: "a" }], next: { runs: 5 } };
         assert.deepEqual(setupFailed(s, "p"), { sha: "p", runs: 5, failed: { a: 5 } });
+    });
+});
+
+describe("runPoint", () => {
+    it("passes a target whose file does not exist at the point, and runs the rest", async () => {
+        const s = {
+            next: { confirm: false },
+            followed: [
+                { id: "a", shard: "graphty-element-default", file: "graphty-element/test/old.test.ts" },
+                { id: "b", shard: "graphty-element-default", file: "graphty-element/test/added-later.test.ts" },
+            ],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push(args.join(" ")), { status: 1 });
+        const r = await runPoint(s, "p", 1, spawn, (f) => f.endsWith("old.test.ts"));
+        assert.deepEqual(r.failed, { a: 1 });
+        assert.equal(calls.length, 1);
+        assert.doesNotMatch(calls[0], /added-later/);
+    });
+});
+
+describe("the macOS lane's files", () => {
+    it("names only the files its jobs run, else the whole lane", () => {
+        const lane = (file) => laneFiles({ lane: "macos", targets: [{ file }] });
+        assert.equal(
+            lane("graphty-element/test/lifecycle/safari.test.ts"),
+            "graphty-element/test/lifecycle/safari.test.ts",
+        );
+        assert.equal(lane("graphty-element/test/lifecycle/other.test.ts"), "", "no job names it: run every job");
     });
 });

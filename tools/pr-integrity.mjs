@@ -65,7 +65,19 @@ const tryGit = (cwd, args) => {
  * @returns the id, or null when the branch changes nothing
  */
 export function patchId(cwd, mergeBase, head) {
-    const diff = git(cwd, ["diff", "-U0", "--no-color", "--no-ext-diff", mergeBase, head]);
+    // the same options as tools/pr-review.sh: --binary, so a changed PNG or .wasm moves the id; the algorithm and
+    // renames pinned, so a local diff setting never gives another id than CI's
+    const diff = git(cwd, [
+        "diff",
+        "-U0",
+        "--binary",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-renames",
+        "--diff-algorithm=myers",
+        mergeBase,
+        head,
+    ]);
     return diff ? git(cwd, ["patch-id", "--stable"], diff).split(" ")[0] || null : null;
 }
 

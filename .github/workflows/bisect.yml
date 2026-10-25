@@ -124,6 +124,7 @@ jobs:
             - name: Install Mesa lavapipe (the webgpu-graph-algorithms shards)
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
             - name: Build every package
+              id: build
               # ponytail: builds here; reuse the merge's master build (ci.yml `reuse_build_run`) once full-run-calls lands
               run: pnpm exec nx run-many -t build
             - name: Run the failing files
@@ -136,9 +137,11 @@ jobs:
                   mkdir -p "$RUNNER_TEMP/result"
                   node "$RUNNER_TEMP/bisect-tools/tools/bisect-ci.mjs" run --state "$RUNNER_TEMP/state/state.json" \
                       --sha "$SHA" --out "$RUNNER_TEMP/result/$SHA.json"
-            # a point whose install or build failed ran no test: it is a bad point, not a lost one to test again
+            # a point whose build failed ran no test: it is a bad point, not a lost one to test again. Only the build
+            # step's own failure: an install, apt or download that failed (the network) leaves the point lost, so
+            # it runs again rather than being blamed
             - name: Record a point that could not build
-              if: ${{ failure() }}
+              if: ${{ failure() && steps.build.outcome == 'failure' }}
               env:
                   SHA: ${{ matrix.sha }}
               run: |

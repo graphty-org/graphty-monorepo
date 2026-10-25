@@ -237,6 +237,9 @@ export async function getFailures(q, who, db) {
         const t = { shard: r.invocation.split(".")[3], file: r.file, name: r.name };
         seen.set(`${t.shard}: ${t.file} > ${t.name}`, t);
     }
+    // ponytail: the first 100 failing tests, the most a bisect follows (full-run.mjs MAX_TARGETS); each costs one
+    // query below, and a Worker call has a query limit
+    for (const key of [...seen.keys()].slice(100)) seen.delete(key);
     const built = q.get("good")
         ? (await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(q.get("good")).first())?.built_at
         : undefined;

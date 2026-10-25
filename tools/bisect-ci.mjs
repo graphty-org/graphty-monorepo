@@ -14,7 +14,7 @@
 // under test when it is not this file's (a point runs master's copy of this tool against the point's own tree).
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -58,6 +58,13 @@ export const LANES = {
         rateParent: 1,
         intermittent: false,
         dir: "graphty-element/test/lifecycle/",
+        // the only files work-protection-macos.yml's job conditions name; any other runs the whole lane
+        only: [
+            "graphty-element/test/lifecycle/engines.test.ts",
+            "graphty-element/test/lifecycle/autosave-engines.bench.test.ts",
+            "graphty-element/test/lifecycle/safari.test.ts",
+            "graphty-element/test/lifecycle/ios-simulator.test.ts",
+        ],
     },
 };
 
@@ -68,9 +75,10 @@ export const LANES = {
  * @returns repo-relative paths, space separated
  */
 export function laneFiles(s) {
-    const dir = LANES[s.lane].dir;
+    const { dir, only } = LANES[s.lane];
     const files = [...new Set((s.followed ?? s.targets).map((t) => t.file))];
-    const reached = (f) => f?.startsWith(dir) && !f.includes("/test/browser/"); // the filter runs node projects only
+    // the filter runs node projects only; a lane whose jobs name their files reaches only those
+    const reached = (f) => f?.startsWith(dir) && !f.includes("/test/browser/") && (!only || only.includes(f));
     return dir && files.every(reached) ? files.join(" ") : "";
 }
 
@@ -103,7 +111,7 @@ export function offMaster(s, onMaster) {
 
 const QUOTED_QUOTE = String.raw`'\''`;
 const quote = (f) => "'" + f.replaceAll("'", QUOTED_QUOTE) + "'";
-const SAFE_PATH = /^[\w@+-][\w@./+-]*$/;
+const SAFE_PATH = /^[\w@][\w@./+-]*$/; // never a leading "-": a vitest option is not a path
 
 /**
  * The targets whose shard or file is not a plain name or path: a file reaches a shell command with the
@@ -112,7 +120,7 @@ const SAFE_PATH = /^[\w@+-][\w@./+-]*$/;
  * @returns the unsafe targets, as JSON
  */
 export function unsafeTargets(s) {
-    return (s.targets ?? [])
+    return [...(s.targets ?? []), ...(s.followed ?? [])]
         .filter(
             (t) => !/^[\w-]*$/.test(t.shard ?? "") || (t.file && (!SAFE_PATH.test(t.file) || t.file.includes(".."))),
         )
@@ -120,9 +128,9 @@ export function unsafeTargets(s) {
 }
 
 /**
- * A point whose checkout, install or build failed ran no test: every followed target counts as failed on every
- * run the round asked for, so a merge that breaks the build is a bad point, not a lost one tested again.
- * ponytail: an install that failed for the network also reads as bad; the confirming parent run catches it.
+ * A point whose build failed ran no test: every followed target counts as failed on every run the round asked
+ * for, so a merge that breaks the build is a bad point, not a lost one tested again. bisect.yml records it only
+ * when its build step itself failed; a failed install or download leaves the point lost, to run again.
  * @param s the state
  * @param sha the point
  * @returns the point's result
@@ -270,10 +278,20 @@ export async function runArgs(shard, files) {
     return command ? ["--command", shard, command] : [shard];
 }
 
-// Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
-// ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
-async function runPoint(s, sha, runs, spawn = spawnSync) {
-    const targets = s.next.confirm ? s.targets : s.followed;
+/**
+ * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
+ * A target whose file does not exist at the point (a later merge adds it) passes there: vitest would fail on
+ * "no test files", and every point before the merge would read as bad.
+ * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
+ * @param s the state
+ * @param sha the point
+ * @param runs how many runs
+ * @param [spawn] spawnSync, or a stand-in
+ * @param [exists] whether a repo-relative file exists at the point
+ * @returns the point's result
+ */
+export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => existsSync(join(ROOT, f))) {
+    const targets = (s.next.confirm ? s.targets : s.followed).filter((t) => !t.file || exists(t.file));
     const byShard = Map.groupBy(targets, (t) => t.shard ?? "");
     const r = { sha, runs, failed: {} };
     for (let i = 0; i < runs; i++)

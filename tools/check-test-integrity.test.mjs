@@ -232,6 +232,21 @@ describe("check-test-integrity: vitest configs", () => {
     });
 });
 
+describe("check-test-integrity: odd paths and lines", () => {
+    it("judges a file whose path git quotes", () => {
+        const name = 'src/we"ird.test.mjs';
+        has(
+            repo({ [name]: TWO }).change({ [name]: TWO.split("\n").slice(0, 2).join("\n") + "\n" }),
+            `tests -1 net: ${name}`,
+        );
+    });
+
+    it("counts a removed line that starts with -- as content, not a header", () => {
+        const before = `${TWO}-- a line of text\n`;
+        assert.deepEqual(repo({ "src/a.test.mjs": before }).change({ "src/a.test.mjs": TWO }), []);
+    });
+});
+
 describe("check-test-integrity: the tool test list", () => {
     const LIST = "tools/tool-tests.txt";
     const files = { [LIST]: "tools/a.test.mjs\ntools/b.test.mjs\n", "tools/a.test.mjs": "x", "tools/b.test.mjs": "y" };

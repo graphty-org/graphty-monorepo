@@ -1,6 +1,6 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fireEvent, userEvent, waitFor, within } from "@storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 
 import { ToggleIconButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

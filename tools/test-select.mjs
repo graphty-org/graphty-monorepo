@@ -1355,7 +1355,9 @@ function storiesGlobal(project, dir, changed, rules, lockMoved) {
     if (lockMoved) {
         return `${LOCK} moves a package every picture depends on`;
     }
-    const own = rules.projectGlobal.map((p) => new RegExp(p.replaceAll("{dir}", dir.replaceAll(".", "\\.")), "u"));
+    const own = rules.projectGlobal.map(
+        (p) => new RegExp(p.replaceAll("{dir}", dir.replaceAll(".", String.raw`\.`)), "u"),
+    );
     const theme = rules.theme.projects.includes(project) ? [new RegExp(rules.theme.pattern, "u")] : [];
     const hit = changed.find((f) => [...rules.global, ...own, ...theme].some((re) => re.test(f)));
     return hit ? `${hit} changes every story of the project` : null;
@@ -2055,7 +2057,7 @@ export function graphCacheKey(root, dirs) {
         .split("\n")
         .filter((f) => !f.includes("/") && /\.([cm]?[jt]s|json|ya?ml)$/u.test(f));
     const paths = [...[...dirs].sort(), ...rootFiles.sort(), "tools/test-select.mjs", "tools/test-select-rules.json"];
-    const trees = paths.map((p) => `${p}=${git(["rev-parse", `HEAD:${p}`])}`);
+    const trees = paths.map((p) => `${p}=${git(["rev-parse", "HEAD:" + p])}`);
     return createHash("sha256")
         .update([GRAPH_VERSION, ...trees].join("\0"))
         .digest("hex");

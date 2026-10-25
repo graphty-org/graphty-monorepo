@@ -1,7 +1,7 @@
 import { Box, Code, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.

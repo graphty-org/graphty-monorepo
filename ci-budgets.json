@@ -11,6 +11,10 @@
         "run:hosts.yml": { "minutes": 60 },
         "job:ci.yml:Build": { "minutes": 6, "why": "4.2 min median before #3415's regression" },
         "step:ci.yml:Build:Plan": { "minutes": 2 },
+        "job:ci.yml:Selector import graphs": {
+            "minutes": 10,
+            "why": "master only: a cold walk of every package's Vite import graph, off the critical path"
+        },
         "job:release.yml:version-dry-run": { "minutes": 5 },
         "job:release.yml:version": { "minutes": 5 },
         "job:release.yml:publish": { "minutes": 8 },

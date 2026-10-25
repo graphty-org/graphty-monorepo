@@ -110,18 +110,21 @@ jobs:
         # this file, so a write token it could see would let a branch plant build output master trusts.
         environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
+        # id-token: write is the results store's credential for the bins step's one read (tools/results/plan-read.mjs).
         permissions:
             contents: read
             actions: read
             checks: write
+            id-token: write
         # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
             full: ${{ steps.plan.outputs.full }}
             light: ${{ steps.plan.outputs.light }}
             affected: ${{ steps.plan.outputs.affected }}
-            test-matrix: ${{ steps.plan.outputs.test-matrix }}
-            test-count: ${{ steps.plan.outputs.test-count }}
+            # the light check's bins when the bins step planned them, else the Plan step's whole shards
+            test-matrix: ${{ steps.bins.outputs.test-matrix || steps.plan.outputs.test-matrix }}
+            test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
@@ -171,6 +174,25 @@ jobs:
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
+
+            # The selector's Vite import graphs (tools/test-select.mjs, one file per package keyed by its tree),
+            # restored read-only for the light check's plan: only master's builds save them (the select-graphs
+            # job), and the prefix match restores master's newest set, so only the packages this pull request
+            # changed are walked again. A miss walks every package (slower, never wrong).
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              continue-on-error: true
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the selector's import graphs
+              if: steps.graphs-key.outputs.key != ''
+              continue-on-error: true
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  restore-keys: test-select-graphs-
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
@@ -341,6 +363,49 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+
+            # The light check's test bins (merging.md 4.1), a pull request's own run only: the run's one read of the
+            # results store (the file durations the bins are packed by), then the selector's plan, whose bins
+            # replace the shards they cover and leave out a shard it selects nothing for. After the builds, because
+            # the selector's Vite import graphs resolve the other packages through their dist folders (before a
+            # build every graph fails to transform and every package runs whole). Fails open: a store that does
+            # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
+            # affected shard whole.
+            - name: Plan the light check's test bins
+              id: bins
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  HEAD_SHA: ${{ github.sha }}
+                  AFFECTED: ${{ steps.plan.outputs.affected }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+              run: |
+                  plan="$RUNNER_TEMP/results-plan"
+                  git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
+                  node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
+                      --base "$(git rev-parse "origin/$BASE_REF")" --files "$RUNNER_TEMP/changed.txt" || true
+                  if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
+                      --durations "$plan/durations.json" > "$plan/light-plan.json"; then
+                      echo "::warning::the test selector failed; every affected shard runs whole"
+                      exit 0
+                  fi
+                  jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
+                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
+                      | grep -E '^test-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+
+            # The run's one read of the results store and the light plan it fed, for every later job (quarantine
+            # and the master excuse read it from store-reads-live on). Absent when the run made no plan.
+            - name: Upload the results plan
+              if: steps.bins.outcome == 'success'
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan/
+                  retention-days: 7
+                  if-no-files-found: ignore
 
             # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
             # every project (the lint job lints them).
@@ -952,6 +1017,70 @@ jobs:
               with:
                   job: docs
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
+
+    # Saves the selector's Vite import graphs (tools/test-select.mjs) for the pull requests' light-check plan,
+    # which only restores them (budgets-and-trust.md 1.8: only master writes the entry a pull request trusts).
+    # Master's push build only: one walk of every package, walked cold whenever the key moved, so the entry
+    # holds only current graphs. Gates nothing; a failure here only makes the next pull request's plan walk more packages.
+    select-graphs:
+        name: Selector import graphs
+        needs: packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            # Exact key only, no prefix restore: the saved set then holds only the current graphs, never the
+            # superseded ones of earlier commits, so the entry does not grow.
+            - name: Look up the import graphs
+              id: graphs
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  lookup-only: true
+
+            # The graphs resolve the other packages through their dist folders.
+            - name: Download all package builds
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            # Any selection walks every package's graph first (selectChange()), so this one call builds the set.
+            - name: Walk the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              run: node tools/test-select.mjs --base HEAD^1 --head HEAD --json > /dev/null
+
+            - name: Save the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
 
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
@@ -1664,6 +1793,7 @@ jobs:
                   LIGHT: ${{ needs.packages.outputs.light }}
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
+                  TEST_COUNT: ${{ needs.packages.outputs.test-count }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
@@ -1686,6 +1816,13 @@ jobs:
                   bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
                       'to_entries[] | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
+                  # The plan's Test jobs (whole shards, groups and light-check bins) are one matrix: when the plan
+                  # made any, the matrix must have run and passed, so a skipped or missing Test job is never a pass.
+                  test_result=$(jq -r '.test.result' <<<"$NEEDS")
+                  if [[ -z "$REUSE_RUN" && "${TEST_COUNT:-0}" != "0" && "$test_result" != "success" ]] && ! jq -e --arg k test 'index($k)' <<<"$adv" >/dev/null; then
+                      echo "::error::the plan made $TEST_COUNT Test jobs, but Test reports $test_result"
+                      bad="$bad test"
+                  fi
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
                       exit 1

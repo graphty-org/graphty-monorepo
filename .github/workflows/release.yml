@@ -120,7 +120,23 @@ jobs:
     timings:
         name: Timings
         needs:
-            [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run, coverage, verdict, held, version, approve, land, publish]
+            [
+                pick,
+                ci,
+                t4,
+                hosts,
+                autosave_macos,
+                audit,
+                llm,
+                version_dry_run,
+                coverage,
+                verdict,
+                held,
+                version,
+                approve,
+                land,
+                publish,
+            ]
         if: ${{ always() }}
         runs-on: ubuntu-24.04
         timeout-minutes: 10

@@ -142,32 +142,47 @@ export function parentFails(sha, parent, r) {
 
 // ---------------------------------------------------------------- replay
 
+// A check that reads its runs from a recording: `queues` is sha -> [[failed ids] per run], consumed in order.
+const recordedCheck = (queues) => (sha, targets, full) => {
+    const r = { runs: 0, failed: {} };
+    while (r.runs < CONFIRM_RUNS) {
+        const run = queues[sha]?.shift();
+        if (!run) throw new Error(`the recording has no run ${r.runs + 1} of ${short(sha)}`);
+        for (const id of run) if (targets.some((t) => t.id === id)) r.failed[id] = (r.failed[id] ?? 0) + 1;
+        r.runs++;
+        if (!full && decided(r, targets)) break;
+    }
+    return r;
+};
+
+// The bisect over a recording's candidates: `{ culprit }` or `{ noLanding }`.
+function replayBisect(rec, check, followed) {
+    const b = { candidates: rec.candidates, points: {} };
+    for (;;) {
+        const step = bisectStep(b, rec.width);
+        if (step.noLanding) return { culprit: null, noLanding: step.noLanding };
+        if (step.blame) {
+            const parent = rec.parents[step.blame];
+            const why = parent === rec.from ? null : parentFails(step.blame, parent, check(parent, followed, true));
+            return why ? { culprit: null, noLanding: why } : { culprit: step.blame };
+        }
+        for (const i of step.points) {
+            const bad = badTargets(check(b.candidates[i], followed, false), followed).length > 0;
+            b.points[b.candidates[i]] = bad ? "bad" : "good";
+        }
+    }
+}
+
 /**
  * Replays a recorded verification: every check reads its runs from the recording, one counted run each, in the
  * order they ran, and stops as the real check does (once decided, unless it must run them all).
- * @param rec `{ from, target, ci (a CI failure: the confirming run runs all CONFIRM_RUNS), width, candidates, parents: { sha: first parent }, tests, failedBefore: [ids],
- *   runs: { sha: [[failed ids] per run] } }`
+ * @param rec `{ from, target, ci (a CI failure: the confirming run runs all CONFIRM_RUNS), width, candidates,
+ *   parents: { sha: first parent }, tests, failedBefore: [ids], runs: { sha: [[failed ids] per run] } }`
  * @returns `{ answer: { status, culprit, noLanding?, flaky }, left: { sha: runs not read } }`
  */
 export function replay(rec) {
     const queues = Object.fromEntries(Object.entries(rec.runs).map(([sha, list]) => [sha, [...list]]));
-    const check = (sha, targets, full) => {
-        const r = { runs: 0, failed: {} };
-        while (r.runs < CONFIRM_RUNS) {
-            const run = queues[sha]?.shift();
-            if (!run) throw new Error(`the recording has no run ${r.runs + 1} of ${short(sha)}`);
-            for (const id of run) if (targets.some((t) => t.id === id)) r.failed[id] = (r.failed[id] ?? 0) + 1;
-            r.runs++;
-            if (!full && decided(r, targets)) break;
-        }
-        return r;
-    };
-    const left = () =>
-        Object.fromEntries(
-            Object.entries(queues)
-                .filter(([, q]) => q.length)
-                .map(([s, q]) => [s, q.length]),
-        );
+    const check = recordedCheck(queues);
     const targets = targetsOf({ tests: rec.tests });
     const newOf = (tests) => tests.filter((t) => !rec.failedBefore.includes(t.id));
     const c = classify(targets, check(rec.target, targets, Boolean(rec.ci)), newOf);
@@ -175,28 +190,11 @@ export function replay(rec) {
     const followed = targets
         .filter((t) => c.consistent.includes(t.id) || c.regressed.includes(t.id))
         .map((t) => (c.regressed.includes(t.id) ? { ...t, rate: true } : t));
-    if (!followed.length) {
-        const status = flaky.length === targets.length ? "flaky" : "failed";
-        return { answer: { status, culprit: null, flaky }, left: left() };
-    }
-    const b = { candidates: rec.candidates, points: {} };
-    for (;;) {
-        const step = bisectStep(b, rec.width);
-        if (step.noLanding)
-            return { answer: { status: "failed", culprit: null, noLanding: step.noLanding, flaky }, left: left() };
-        if (step.blame) {
-            const parent = rec.parents[step.blame];
-            const why = parent === rec.from ? null : parentFails(step.blame, parent, check(parent, followed, true));
-            const answer = why
-                ? { status: "failed", culprit: null, noLanding: why, flaky }
-                : { status: "failed", culprit: step.blame, flaky };
-            return { answer, left: left() };
-        }
-        for (const i of step.points)
-            b.points[b.candidates[i]] = badTargets(check(b.candidates[i], followed, false), followed).length
-                ? "bad"
-                : "good";
-    }
+    const answer = followed.length
+        ? { status: "failed", ...replayBisect(rec, check, followed), flaky }
+        : { status: flaky.length === targets.length ? "flaky" : "failed", culprit: null, flaky };
+    const left = Object.entries(queues).filter(([, q]) => q.length);
+    return { answer, left: Object.fromEntries(left.map(([sha, q]) => [sha, q.length])) };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

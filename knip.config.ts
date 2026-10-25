@@ -260,8 +260,6 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
-                // Loaded by vitest.config.ts only when STORY_SPIKE_OUT is set (issue #3389).
-                ".storybook/story-spike.setup.ts",
             ],
             project: [
                 "*.ts!",
@@ -318,6 +316,8 @@ const config: KnipConfig = {
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
                 "scripts/**/*.ts",
+                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3471).
+                ".storybook/visual.setup.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
         },
@@ -330,9 +330,7 @@ const config: KnipConfig = {
 
         // visual-review tool (plain .mjs, no build)
         "visual-review": {
-            // The story screenshot spike (issue #3389) is loaded by other packages' Vitest configs
-            // and setup files, which knip does not follow across workspaces.
-            entry: ["test/**/*.test.mjs", "capture/story-spike*.mjs"],
+            entry: ["test/**/*.test.mjs"],
             project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
         },
 

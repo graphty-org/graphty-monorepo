@@ -9,7 +9,7 @@ import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
 import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
-import { storySpike } from "../visual-review/capture/story-spike.mjs";
+import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
 import { sampleDataPlugin } from "./vite.sample-data";
@@ -80,22 +80,15 @@ const testStandIns = (): Plugin => {
 };
 
 /**
- * SPIKE (issue #3389), off unless STORY_SPIKE_OUT is set: the storybook project shoots every story
- * at the end of its test into that directory, for `visual-review parity` against the built
- * Storybook's capture. STORY_SPIKE_BUILD=production runs it with production semantics, and
- * STORY_SPIKE_MODE (light or dark) is the capture mode every story renders in.
+ * Screenshots taken inside the story tests (@graphty/visual-review/vitest), off unless
+ * VISUAL_REVIEW_STORY_OUT names the directory this run's partial capture goes to: the storybook
+ * project then runs with production semantics, shoots every story and mode at the end of its test
+ * and compares it with its baseline, as `visual-review capture` does with the built Storybook.
+ * `visual-review merge-results` turns the partials into the capture the review page and the gate read.
  */
-const SPIKE_MODE = process.env.STORY_SPIKE_MODE ?? "light";
-const STORY_SPIKE = process.env.STORY_SPIKE_OUT
-    ? storySpike({
-          root: path.join(dirname, ".."),
-          project: "graphty",
-          out: path.resolve(process.env.STORY_SPIKE_OUT),
-          mode: process.env.STORY_SPIKE_BUILD || "test",
-          fontconfig: path.join(dirname, "../visual-fonts/fonts.conf"),
-      })
+const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
+    ? visualStoryTest({ project: "graphty", out: path.resolve(process.env.VISUAL_REVIEW_STORY_OUT) })
     : null;
-const STORY_SPIKE_PRODUCTION = process.env.STORY_SPIKE_BUILD === "production";
 
 /**
  * A fresh headless Chromium config per project: vitest writes each instance's name into the
@@ -138,7 +131,7 @@ export default defineConfig({
         // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
         // projects keep their own maxWorkers or fileParallelism.
         maxWorkers: workerShare(),
-        reporters: ["default", ...ciReporters()],
+        reporters: ["default", ...ciReporters(), ...(VISUAL ? [VISUAL.reporter] : [])],
         globals: true,
         exclude: BASE_EXCLUDE,
         // The tests that mount the real graphty-element get a project of their own, run after
@@ -187,13 +180,7 @@ export default defineConfig({
                 // only inside the visual capture. Its own shard (tools/ci-test-matrix.mjs).
                 extends: true,
                 plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
-                ...(STORY_SPIKE && {
-                    define: {
-                        __STORY_SPIKE_MODE__: JSON.stringify(SPIKE_MODE),
-                        ...(STORY_SPIKE_PRODUCTION && { "process.env.NODE_ENV": JSON.stringify("production") }),
-                    },
-                }),
-                ...(STORY_SPIKE_PRODUCTION && { mode: "production" }),
+                ...(VISUAL && PRODUCTION),
                 // Pre-bundled up front, with the rest of the app's dependencies. Storybook's renderer
                 // imports react-dom/client only when the first story mounts, so on a cold cache (CI)
                 // Vite found it mid-run, re-bundled and reloaded the page, and the re-bundle deleted
@@ -205,18 +192,15 @@ export default defineConfig({
                     // The size the visual capture draws every story at (visual-review captures a
                     // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
                     // the plays are written against the layout the reader and the capture see.
-                    browser: STORY_SPIKE
+                    browser: VISUAL
                         ? {
                               ...chromium(),
-                              provider: playwright(STORY_SPIKE.providerOptions),
-                              viewport: STORY_SPIKE.viewport,
-                              commands: { chooseNextFile, ...STORY_SPIKE.commands },
+                              provider: playwright(VISUAL.providerOptions),
+                              viewport: VISUAL.viewport,
+                              commands: { chooseNextFile, ...VISUAL.commands },
                           }
                         : { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [
-                        ...(STORY_SPIKE ? [".storybook/story-spike.setup.ts"] : []),
-                        ".storybook/vitest.setup.ts",
-                    ],
+                    setupFiles: [...(VISUAL ? [".storybook/visual.setup.ts"] : []), ".storybook/vitest.setup.ts"],
                     // As graphty-element's storybook project: a story that loads the real element
                     // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
                     // its other browser shards beside it, which crossed the 15-second default.

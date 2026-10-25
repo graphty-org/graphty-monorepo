@@ -9,7 +9,7 @@
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
+import { getCandidate, getFailures, getPlan, getReleaseState, trendFor } from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -299,7 +299,35 @@ async function postDurations(body, who, db, nowMs) {
     return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
 }
 
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+
+// The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
+async function postVerdict(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml records a verdict");
+    }
+    need(body, { sha: "string", state: "string" });
+    if (!VERDICTS.has(body.state)) refuse(400, `state must be one of ${[...VERDICTS].join(", ")}`);
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const { meta } = await db
+        .prepare(
+            "INSERT OR IGNORE INTO verdict (run_id, attempt, sha, state, lane, issue, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+            Number(who.claims.run_id),
+            Number(who.claims.run_attempt),
+            body.sha,
+            body.state,
+            body.lane ?? null,
+            body.issue ?? null,
+            nowMs,
+        )
+        .run();
+    return { stored: meta.changes === 1 };
+}
+
 const ROUTES = {
+    "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
@@ -307,6 +335,7 @@ const ROUTES = {
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/failures": getFailures,
 };
 
 /**

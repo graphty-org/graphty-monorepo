@@ -3102,12 +3102,12 @@ describe("release.yml", () => {
         assert.doesNotMatch(on, /^\s+push:/m);
     });
 
-    it("lands and publishes only in an owner-approved legacy run; a shadow run, the default, only tests", () => {
+    it("lands and publishes only in an owner-approved legacy run; a full run, the default, only tests", () => {
         assert.match(
             release,
-            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: shadow\n\s+type: choice\n\s+options:\n\s+- shadow\n\s+- legacy\n/,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: full\n\s+type: choice\n\s+options:\n\s+- full\n\s+- restart\n\s+- shadow\n\s+- legacy\n/,
         );
-        assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode == 'legacy' && 'legacy' \|\| 'shadow' \}\}\n/m);
+        assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode \|\| 'full' \}\}\n/m);
         // the owner's approval in production stands before the land job, and refuses a production that asks nobody
         assert.match(approve, /\n {8}environment: production\n/);
         assert.match(approve, /\n {8}permissions:\n {12}actions: read\n {8}steps:/);
@@ -3121,7 +3121,9 @@ describe("release.yml", () => {
         // pick and held read Pushover only for a legacy run's announcements
         assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
         assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 6);
+        // the full run's verdict announces a red run or an owner item
+        assert.match(job(release, "verdict"), /\n {8}environment: release # Pushover\n/);
+        assert.equal(release.match(/\n {8}environment: /g).length, 7);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -3129,6 +3131,43 @@ describe("release.yml", () => {
                 assert.match(body, /\n {8}environment: /, `${name} reads a secret, so it declares its environment`);
             }
         }
+    });
+
+    it("a full run picks its candidate from the results store and ends in one verdict", () => {
+        const verdict = job(release, "verdict");
+        // the store's pick replaces the 29-minute nx check, which only shadow and legacy runs still make
+        assert.match(
+            pick,
+            /id: candidate\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && \(env.MODE == 'full' \|\| env.MODE == 'restart'\) \}\}/,
+        );
+        assert.match(pick, /node tools\/full-run.mjs pick\n/);
+        assert.match(pick, /RESULTS_URL: \$\{\{ vars.RESULTS_URL \}\}/);
+        assert.match(pick, /id-token: write/);
+        assert.match(
+            pick,
+            /id: releasable\n\s+if: \$\{\{ steps.pending.outputs.pending == 'false' && env.MODE != 'full' && env.MODE != 'restart' \}\}/,
+        );
+        // the verdict judges every lane, whatever it ended with, only in a full run
+        assert.match(verdict, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm\]/);
+        assert.match(
+            verdict,
+            /if: \$\{\{ always\(\) && \(inputs.mode == 'full' \|\| inputs.mode == 'restart'\) && needs.pick.outputs.release == 'true' \}\}/,
+        );
+        for (const lane of ["ci", "llm", "t4", "hosts", "autosave_macos", "audit"]) {
+            assert.match(verdict, new RegExp(`"${lane}": "\\$\\{\\{ needs.${lane}.result \\}\\}"`), lane);
+        }
+        assert.match(verdict, /run: node tools\/full-run.mjs verdict\n/);
+        assert.match(verdict, /pattern: visual-\*/);
+        // it dispatches the bisect, files the red issue and writes to the store; nothing else
+        assert.deepEqual(verdict.match(/\w+(-\w+)?: write/g), ["actions: write", "issues: write", "id-token: write"]);
+        assert.match(
+            verdict,
+            /if: \$\{\{ steps.verdict.outputs.state == 'red' \|\| steps.verdict.outputs.state == 'owner-item' \}\}/,
+        );
+        assert.match(verdict, /node tools\/release-status.mjs "\$STATE" --sha "\$SHA"/);
+        // a full run versions, lands and publishes nothing, and never opens a "Release held" issue
+        for (const j of [version, held]) assert.match(j, /inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'/);
+        assert.match(job(release, "timings"), /needs:\s+\[[^\]]*\bverdict\b/);
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
@@ -3152,8 +3191,12 @@ describe("release.yml", () => {
         assert.match(pick, /ref: \$\{\{ github.sha \}\}/);
         assert.match(pick, /echo "sha=\$\{CANDIDATE\}"/);
         assert.doesNotMatch(pick, /ref: master/);
-        // no master CI run is read: master runs no tests, the train tests the candidate itself
-        assert.doesNotMatch(pick, /ci\.yml|hosts\.yml|ci_run_id/);
+        // master runs no tests, the train tests the candidate itself; it reads master's push run of ci.yml only for
+        // the builds it reuses
+        assert.doesNotMatch(pick, /hosts\.yml|ci_run_id/);
+        assert.deepEqual(pick.replace(/^\s*#.*$/gm, "").match(/ci\.yml[^\n]*/g), [
+            'ci.yml --commit "$sha" --event push --status success --limit 1 \\',
+        ]);
         assert.doesNotMatch(release, /run-id: \$\{\{ needs.pick/);
     });
 
@@ -3162,12 +3205,18 @@ describe("release.yml", () => {
         assert.match(pick, /startswith\("release\/train-"\)/);
         assert.match(pick, /gh pr close "\$number" --delete-branch --comment/);
         // an open "Release held" issue stops the schedule; a restart and an ad hoc dispatch run anyway
-        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$TRIGGER" = schedule \]; then\n\s+skip /);
+        assert.match(
+            pick,
+            /if \[ -n "\$held" \] && \[ "\$TRIGGER" = schedule \] && \[ "\$\{MODE:-\}" != full \] && \[ "\$\{MODE:-\}" != restart \]; then\n\s+skip /,
+        );
         // a version commit on master without its tags is an error that holds the release, not a silent skip
         assert.match(pick, /::error::the last version commit \$\{last\} has no tag \$\{project\}@\$\{version\}/);
         // nothing releasable: the same versioning the train runs, made locally, makes no commit
         assert.match(pick, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
-        assert.match(pick, /release: \$\{\{ steps.releasable.outputs.release \|\| 'false' \}\}/);
+        assert.match(
+            pick,
+            /release: \$\{\{ steps.candidate.outputs.run \|\| steps.releasable.outputs.release \|\| 'false' \}\}/,
+        );
         for (const j of [ci, t4, hosts, audit]) {
             assert.match(j, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
         }
@@ -3186,7 +3235,7 @@ describe("release.yml", () => {
     it("tests the candidate with the full suite, the T4 and the audit before it versions anything", () => {
         assert.match(
             ci,
-            /uses: \.\/\.github\/workflows\/ci\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+secrets: inherit/,
+            /uses: \.\/\.github\/workflows\/ci\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+reuse_build_run: \$\{\{ needs.pick.outputs.build_run \}\}\n\s+secrets: inherit/,
         );
         assert.match(
             t4,
@@ -3208,7 +3257,7 @@ describe("release.yml", () => {
         assert.match(version, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm\]/);
         assert.match(
             version,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
+            /if: \$\{\{ \(inputs.mode == 'shadow' \|\| inputs.mode == 'legacy'\) && needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.autosave_macos.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(version, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -3330,9 +3379,10 @@ describe("release.yml", () => {
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
         // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
         // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
-        const runs = (results, release = "true", pushed = "") =>
+        const runs = (results, release = "true", pushed = "", mode = "legacy") =>
             new Function(
                 "needs",
+                "inputs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
@@ -3346,6 +3396,7 @@ describe("release.yml", () => {
                         ],
                     ),
                 ),
+                { mode },
             );
         // every result a job can end with, including the ones GitHub does not document
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
@@ -3455,6 +3506,14 @@ describe("release.yml", () => {
             for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
                 assert.equal(runs({ approve: result, land: "skipped" }), false, `approve ${result}`);
             }
+        });
+
+        it("never runs in a full run, which ends in its verdict instead", () => {
+            for (const mode of ["full", "restart"]) {
+                assert.equal(runs({ ci: "failure", version: "skipped", land: "skipped" }, "true", "", mode), false);
+                assert.equal(runs({ pick: "failure" }, "", "", mode), false);
+            }
+            assert.equal(runs({ ci: "failure", version: "skipped", land: "skipped" }, "true", "", "shadow"), true);
         });
 
         it("still opens the held issue when versioning or landing fails before the push", () => {
@@ -3734,6 +3793,13 @@ describe("release.yml", () => {
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
         });
 
+        it("never skips a full run's slot for a held issue: it publishes nothing", () => {
+            for (const mode of ["full", "restart"]) {
+                const run = pending("schedule", "1234", false, "", [], "keeps", { mode });
+                assert.equal(run, "pending=false\nsha=abc123\n");
+            }
+        });
+
         it("skips a scheduled shadow run on a commit a shadow run already passed, never a dispatch", () => {
             const shadow = (trigger, shadowPassed) =>
                 pending(trigger, "", false, "", [], "keeps", { mode: "shadow", shadowPassed });
@@ -3958,10 +4024,11 @@ describe("release.yml", () => {
             watch,
             /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.display_title != 'Release \(shadow\)' \}\}/,
         );
-        // a shadow run is named so, and never announced: it publishes nothing
+        // a shadow run is named so, and never announced: it publishes nothing. A full run is announced like a legacy
+        // one: its verdict comments on a red run, and the backstop covers one that ended before its verdict.
         assert.match(
             release,
-            /^run-name: \$\{\{ inputs.mode == 'legacy' && 'Release \(legacy\)' \|\| 'Release \(shadow\)' \}\}\n/m,
+            /^run-name: \$\{\{ inputs.mode == 'legacy' && 'Release \(legacy\)' \|\| inputs.mode == 'shadow' && 'Release \(shadow\)' \|\| format\('Release \(\{0\}\)', inputs.mode \|\| 'full'\) \}\}\n/m,
         );
         assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");

@@ -15,6 +15,21 @@ issue.
 | `POST /v1/durations`   | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`        |
 
 A repeated post of the same record id stores nothing the second time (`"stored": false`).
+`POST /v1/durations` answers `trend` too: per posted key, within the run's kind, the median of its
+last 5 runs (`recent`), of the 10 before (`earlier`), and `alarm` when `recent` is over the budget the
+body sends (`budgets: { "<key>": seconds }`) or over 1.3 times `earlier` and 60 s slower, with the
+commit `range` where it crossed. The posting `timings` job files or closes the issue.
+
+Reads take any credential and answer from stored records only, computed when they are read:
+
+| Call                                               | What it answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/plan?sha=&base=&variants=&inputs=&files=` | `quarantine` (entries not left, not expired, with under 20 passing master runs since their last failure, never `webgpu-graph-algorithms*`), `failingOnBase` (failures master's own runs of the asked variants saw on `base` or on the same variant and inputs, outside `files`, each with its `variant`), and per variant `passedWithInputs`, `order` (files failed in the last 7 days, newest first) and `fileMs` (median of the last 9 runs). `variants` and `inputs` are comma lists, pairwise |
+| `GET /v1/candidate`                                | the newest commit with a recorded site, and its latest verdict when it is already judged                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /v1/release-state`                            | `nightly` (sha, when it moved), the open `red` verdict, the `approved` candidates newer than nightly (each a resume that is due), the `offered` (oldest waiting) candidate, `canary`, `ageNightlyMs` and what is `blocking` canary                                                                                                                                                                                                                                                                |
+
+The `site`, `verdict` and `channel_move` tables these read (`migrations/0002_release_state.sql`) are
+written by deploy-pages.yml and release.yml once those post them.
 
 ## Credentials and kinds
 

@@ -207,6 +207,7 @@ jobs:
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
+                  full=()
                   if [[ "$EVENT" == "push" && -z "$CALLED_REF" ]]; then
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
@@ -217,13 +218,15 @@ jobs:
                   else
                       echo "full=true" >> "$GITHUB_OUTPUT"
                       affected="$all"
+                      # the full run also plans the full-run-only shards (the features-on twins)
+                      full=(--full)
                   fi
                   only=()
                   if [[ -n "$SHARDS" ]]; then
                       echo "light=true" >> "$GITHUB_OUTPUT"
                       only=(--only "$SHARDS")
                   fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
+                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" "${full[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 

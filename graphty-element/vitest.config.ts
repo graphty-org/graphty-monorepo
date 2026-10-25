@@ -32,6 +32,7 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
@@ -283,7 +284,7 @@ const define = {
     ),
 };
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
         globalSetup: ["../tools/test-slots.mjs"],
@@ -940,3 +941,16 @@ export default defineConfig({
         slowTestThreshold: 60000,
     },
 });
+
+// Each listed project again as "<name>-features-on", with every experiment switched on, once
+// graphty-element declares one (tools/features-on.mjs); until then the list is exactly the one above.
+config.test = {
+    ...config.test,
+    projects: withFeaturesOn(
+        config.test?.projects ?? [],
+        ["default", "mesh", "browser", "interactions", "xr", "storybook"],
+        "./test/setup-features-on.ts",
+    ),
+};
+
+export default config;

@@ -570,8 +570,8 @@ mode for now (see "Release versioning"). In short:
   dispatch releases.
 
 **Live today:** every pull request into master runs the affected suite with the screenshots and the visual
-gate; `Cost Estimate Accuracy` runs on a pull request that changes graphty-element's cost estimator, its catalog,
-session or algorithm code, or algorithms, and gates it; Docs runs only on a docs input; the short
+gate; `Cost Estimate Accuracy` runs on a pull request only when what the estimates read, time or run with changed
+(ci.yml's "Plan the optional jobs" step lists the paths), and gates it; Docs runs only on a docs input; the short
 test shards run as two grouped jobs. ci.yml still holds the handling for the retired Mergify merge-queue runs
 (`Queue Checks Pass`), which no longer happen. A push to master runs no tests: ci.yml builds every package,
 Storybook and docs site and skips every test, link, cost and screenshot job; every green master build keeps its

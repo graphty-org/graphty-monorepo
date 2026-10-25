@@ -67,7 +67,7 @@ export function statusComment(outcome, f, notify = "") {
             text = `**Owner item**${rerun}: the full run on ${sha} failed for a reason no code change fixes: ${f.what || "see the run"}.`;
             break;
         case "nightly":
-            text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? ` and npm \`next\` holds ${list(f.tags)}` : " (no package changed, so npm `next` did not move)"}.`;
+            text = `**Nightly promoted**${rerun}: ${sha} is on nightly.graphty.app${list(f.tags) ? " and npm `next` holds " + list(f.tags) : " (no package changed, so npm `next` did not move)"}.`;
             break;
         case "nightly-failed":
             text = `**Nightly site deploy failed**${rerun} on ${sha}: npm \`next\` and nightly.graphty.app now differ. Details: ${ref(f.issue)}. Re-running the failed jobs of the run retries the deploy.`;

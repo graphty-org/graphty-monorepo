@@ -66,8 +66,14 @@ export function promotion({ state, publishHold, gate }) {
  */
 export function versionsAt(show) {
     const workspace = show("pnpm-workspace.yaml") ?? "";
-    const block = /^packages:\n((?:\s+-\s+.*\n?)+)/m.exec(workspace)?.[1] ?? "";
-    const dirs = [...block.matchAll(/-\s+["']?([^"'\s]+)["']?/g)].map((m) => m[1]);
+    // the `packages:` list: the "- dir" lines after it, up to the first line that is not one
+    const lines = workspace.split("\n");
+    const dirs = [];
+    for (const line of lines.slice(lines.indexOf("packages:") + 1)) {
+        const item = line.trim();
+        if (!item.startsWith("- ")) break;
+        dirs.push(item.slice(2).trim().replaceAll(/["']/g, ""));
+    }
     const out = {};
     for (const dir of dirs) {
         const text = show(`${dir}/package.json`);
@@ -179,8 +185,10 @@ export function stall({ state, publishHold, now }) {
     if (age <= 24 * HOUR) return null;
     const since = new Date(now - age).toISOString().slice(0, 10);
     const canary = state.canary?.sha?.slice(0, 7) ?? "canary";
+    const redIssue = state.red?.issue ? " (#" + state.red.issue + ")" : "";
+    const redLane = state.red?.lane ? " on its " + state.red.lane + " lane" : "";
     const blocks = {
-        red: `the full run is red${state.red?.issue ? ` (#${state.red.issue})` : ""}${state.red?.lane ? ` on its ${state.red.lane} lane` : ""}: fix it forward or revert the culprit`,
+        red: `the full run is red${redIssue}${redLane}: fix it forward or revert the culprit`,
         "owner-item": "an owner item: a lane failed for a reason no code change fixes (see the Release status issue)",
         "waiting-for-screenshots": `waiting for the owner's screenshot review of ${state.offered?.sha?.slice(0, 7) ?? "the offered candidate"}`,
         "resume-due": "an approved candidate waits for its resume run (release.yml mode promote-nightly)",
@@ -257,7 +265,7 @@ async function stallMain(env) {
     const res = await call(config(env), "GET", "/v1/release-state");
     if (!res.ok) {
         console.log(`::warning::age:nightly not checked: the results store did not answer (${res.why})`);
-        return 0;
+        return;
     }
     let publishHold = "";
     try {
@@ -279,7 +287,7 @@ async function stallMain(env) {
                 "--comment",
                 `Nightly moved (or caught up with canary): ${env.RUN_URL ?? ""}`,
             );
-        return 0;
+        return;
     }
     console.log(`::warning::age:nightly over 24 h: ${alarm.title}`);
     if (!open) {
@@ -302,162 +310,155 @@ async function stallMain(env) {
                 file,
             ),
         );
-        return 0;
+        return;
     }
     const crossed = alarm.urgent && !(open.body ?? "").includes("ACTION NEEDED");
     gh("issue", "edit", String(open.number), "-R", repo, "--body-file", bodyFile(alarm.body));
     // a comment notifies; an edit does not. Once on crossing 48 hours, never on every run.
     if (crossed) gh("issue", "comment", String(open.number), "-R", repo, "--body-file", bodyFile(alarm.body));
-    return 0;
+}
+
+// One look at the site's deploy: graphty-nightly's runs for the deployed.json commit, and the site's stamp.
+async function lookAtDeploy(env) {
+    let runs = [];
+    try {
+        runs = JSON.parse(
+            gh(
+                "api",
+                `repos/${env.SITE_REPO}/actions/runs?head_sha=${env.PUSHED}&event=push`,
+                "--jq",
+                ".workflow_runs",
+            ),
+        );
+    } catch {
+        // a read the site repository refuses leaves the build stamp to decide
+    }
+    let stamp = null;
+    try {
+        const res = await fetch(`${env.SITE_URL}/?nightly-wait=${Date.now()}`, { signal: AbortSignal.timeout(10_000) });
+        if (res.ok) stamp = stampOf(await res.text());
+    } catch {
+        // not served yet
+    }
+    return { ...deployState({ runs, stamp, sha: env.SHA }), stamp };
 }
 
 async function waitMain(env) {
     need(env, ["SITE_REPO", "PUSHED", "SITE_URL", "SHA"]);
     for (;;) {
-        let runs = [];
-        try {
-            runs = JSON.parse(
-                gh(
-                    "api",
-                    `repos/${env.SITE_REPO}/actions/runs?head_sha=${env.PUSHED}&event=push`,
-                    "--jq",
-                    ".workflow_runs",
-                ),
-            );
-        } catch {
-            // a read the site repository refuses leaves the build stamp to decide
-        }
-        let stamp = null;
-        try {
-            const res = await fetch(`${env.SITE_URL}/?nightly-wait=${Date.now()}`, {
-                signal: AbortSignal.timeout(10_000),
-            });
-            if (res.ok) stamp = stampOf(await res.text());
-        } catch {
-            // not served yet
-        }
-        const s = deployState({ runs, stamp, sha: env.SHA });
+        const s = await lookAtDeploy(env);
         if (s.done) {
-            (s.ok ? console.log : (m) => console.log(`::error::${m}`))(s.why);
+            console.log(s.ok ? s.why : `::error::${s.why}`);
             return s.ok ? 0 : 1;
         }
-        console.log(`waiting for ${env.SITE_REPO}'s deploy of ${env.PUSHED.slice(0, 7)} (stamp: ${stamp ?? "none"})`);
+        console.log(`waiting for ${env.SITE_REPO}'s deploy of ${env.PUSHED.slice(0, 7)} (stamp: ${s.stamp ?? "none"})`);
         await new Promise((r) => setTimeout(r, 20_000));
     }
 }
 
-async function main(command, env = process.env) {
-    switch (command) {
-        case "decide": {
-            let hold = "";
-            if (env.STATE === "green-clean") {
-                try {
-                    hold = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
-                } catch (error) {
-                    // an unknown hold is not "no hold": a promotion that cannot check waits for the next run
-                    hold = `(unknown: ${error.message.split("\n")[0]})`;
-                }
-            }
-            const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE });
-            if (!p.promote && env.STATE === "green-clean") console.log(`::notice::${p.why}`);
-            if (env.GITHUB_STEP_SUMMARY)
-                appendFileSync(env.GITHUB_STEP_SUMMARY, `Nightly promotion: ${p.promote ? "yes" : "no"} -- ${p.why}\n`);
-            output({ promote: String(p.promote), why: p.why });
-            return 0;
+function decideMain(env) {
+    let hold = "";
+    if (env.STATE === "green-clean") {
+        try {
+            hold = execFileSync("tools/release-held.sh", ["find", PUBLISH_HOLD], { encoding: "utf8" }).trim();
+        } catch (error) {
+            // an unknown hold is not "no hold": a promotion that cannot check waits for the next run
+            hold = "(unknown: " + error.message.split("\n")[0] + ")";
         }
-        case "channel-json": {
-            need(env, ["SHA", "RUN_ID", "SITE_SHA256", "CONFIG_REF"]);
-            const at = env.COMMIT || env.SHA;
-            const blob = execFileSync("git", ["rev-parse", `${env.CONFIG_REF}:graphty/sites/nightly.json`], {
-                encoding: "utf8",
-            }).trim();
-            const record = channelRecord({
-                sha: env.SHA,
-                commit: env.COMMIT,
-                versions: versionsAt(show(at)),
-                run: env.RUN_ID,
-                configBlob: blob,
-                autosaveFormat: autosaveFormatOf(show(at)("graphty-element/src/autosave/Autosaver.ts")),
-                siteSha256: env.SITE_SHA256,
-                now: Date.now(),
-            });
-            console.log(JSON.stringify(record, null, 2));
-            return 0;
-        }
-        case "deployed-json":
-            need(env, ["SHA", "SITE_SHA256", "CONFIG_REF"]);
-            console.log(
-                JSON.stringify(
-                    deployedRecord({
-                        sha: env.SHA,
-                        siteSha256: env.SITE_SHA256,
-                        configRef: env.CONFIG_REF,
-                        now: Date.now(),
-                    }),
-                    null,
-                    4,
-                ),
-            );
-            return 0;
-        case "wait":
-            return waitMain(env);
-        case "record": {
-            const body = {
-                channel: "nightly",
-                sha: env.SHA,
-                versionCommit: env.COMMIT || undefined,
-                siteSha256: env.SITE_SHA256,
-                channelSha256: env.CHANNEL_SHA256,
-            };
-            const res = await call(config(env), "POST", "/v1/channel-moves", body);
-            console.log(
-                res.ok
-                    ? `recorded nightly at ${env.SHA}`
-                    : `::warning::the results store did not record the nightly promotion (${res.why}); age:nightly counts from the previous one`,
-            );
-            return 0;
-        }
-        case "stall":
-            return stallMain(env);
-        case "failed": {
-            need(env, ["SHA", "GITHUB_REPOSITORY"]);
-            const repo = env.GITHUB_REPOSITORY;
-            const text = [
-                `The nightly site job failed on ${env.SHA}: ${env.RUN_URL ?? ""}`,
-                "",
-                "npm `next` may already hold this candidate's versions while nightly.graphty.app still serves the previous nightly. Read the failed step; once fixed, re-run the run's failed jobs (`gh run rerun <run id> --failed`), which re-runs only the site job. A missing NIGHTLY_SITE_DEPLOY_KEY (environment `nightly`) or a graphty-nightly without .github/workflows/deploy.yml is an owner item.",
-            ].join("\n");
-            const open = openIssue(FAILED_TITLE, repo);
-            if (open) {
-                gh("issue", "comment", String(open.number), "-R", repo, "--body-file", bodyFile(text));
-                console.log(open.number);
-            } else {
-                const url = gh(
-                    "issue",
-                    "create",
-                    "-R",
-                    repo,
-                    "--title",
-                    `${FAILED_TITLE} on ${env.SHA.slice(0, 7)}`,
-                    "--label",
-                    "bug",
-                    "--label",
-                    "priority:critical",
-                    "--label",
-                    "effort:medium",
-                    "--body-file",
-                    bodyFile(text),
-                );
-                console.log(url.split("/").pop());
-            }
-            return 0;
-        }
-        default:
-            console.error(
-                "usage: node tools/channel/nightly.mjs decide | channel-json | deployed-json | wait | record | stall | failed (see the head of the file)",
-            );
-            return 2;
     }
+    const p = promotion({ state: env.STATE, publishHold: hold, gate: env.GATE });
+    if (!p.promote && env.STATE === "green-clean") console.log(`::notice::${p.why}`);
+    if (env.GITHUB_STEP_SUMMARY) {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, `Nightly promotion: ${p.promote ? "yes" : "no"} -- ${p.why}\n`);
+    }
+    output({ promote: String(p.promote), why: p.why });
+}
+
+function channelJsonMain(env) {
+    need(env, ["SHA", "RUN_ID", "SITE_SHA256", "CONFIG_REF"]);
+    const at = show(env.COMMIT || env.SHA);
+    const blob = execFileSync("git", ["rev-parse", `${env.CONFIG_REF}:graphty/sites/nightly.json`], {
+        encoding: "utf8",
+    }).trim();
+    const record = channelRecord({
+        sha: env.SHA,
+        commit: env.COMMIT,
+        versions: versionsAt(at),
+        run: env.RUN_ID,
+        configBlob: blob,
+        autosaveFormat: autosaveFormatOf(at("graphty-element/src/autosave/Autosaver.ts")),
+        siteSha256: env.SITE_SHA256,
+        now: Date.now(),
+    });
+    console.log(JSON.stringify(record, null, 2));
+}
+
+function deployedJsonMain(env) {
+    need(env, ["SHA", "SITE_SHA256", "CONFIG_REF"]);
+    const record = deployedRecord({
+        sha: env.SHA,
+        siteSha256: env.SITE_SHA256,
+        configRef: env.CONFIG_REF,
+        now: Date.now(),
+    });
+    console.log(JSON.stringify(record, null, 4));
+}
+
+async function recordMain(env) {
+    const body = {
+        channel: "nightly",
+        sha: env.SHA,
+        versionCommit: env.COMMIT || undefined,
+        siteSha256: env.SITE_SHA256,
+        channelSha256: env.CHANNEL_SHA256,
+    };
+    const res = await call(config(env), "POST", "/v1/channel-moves", body);
+    console.log(
+        res.ok
+            ? `recorded nightly at ${env.SHA}`
+            : `::warning::the results store did not record the nightly promotion (${res.why}); age:nightly counts from the previous one`,
+    );
+}
+
+function failedMain(env) {
+    need(env, ["SHA", "GITHUB_REPOSITORY"]);
+    const repo = env.GITHUB_REPOSITORY;
+    const text = [
+        `The nightly site job failed on ${env.SHA}: ${env.RUN_URL ?? ""}`,
+        "",
+        "npm `next` may already hold this candidate's versions while nightly.graphty.app still serves the previous nightly. Read the failed step; once fixed, re-run the run's failed jobs (`gh run rerun <run id> --failed`), which re-runs only the site job. A missing NIGHTLY_SITE_DEPLOY_KEY (environment `nightly`) or a graphty-nightly without .github/workflows/deploy.yml is an owner item.",
+    ].join("\n");
+    const open = openIssue(FAILED_TITLE, repo);
+    if (open) {
+        gh("issue", "comment", String(open.number), "-R", repo, "--body-file", bodyFile(text));
+        console.log(open.number);
+        return;
+    }
+    const title = `${FAILED_TITLE} on ${env.SHA.slice(0, 7)}`;
+    const labels = ["--label", "bug", "--label", "priority:critical", "--label", "effort:medium"];
+    const url = gh("issue", "create", "-R", repo, "--title", title, ...labels, "--body-file", bodyFile(text));
+    console.log(url.split("/").pop());
+}
+
+const COMMANDS = {
+    decide: decideMain,
+    "channel-json": channelJsonMain,
+    "deployed-json": deployedJsonMain,
+    wait: waitMain,
+    record: recordMain,
+    stall: stallMain,
+    failed: failedMain,
+};
+
+async function main(command, env = process.env) {
+    const run = COMMANDS[command];
+    if (!run) {
+        console.error(
+            `usage: node tools/channel/nightly.mjs ${Object.keys(COMMANDS).join(" | ")} (see the head of the file)`,
+        );
+        return 2;
+    }
+    return (await run(env)) ?? 0;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

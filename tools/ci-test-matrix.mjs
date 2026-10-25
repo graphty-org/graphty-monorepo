@@ -377,17 +377,18 @@ export function groupEntry(name, members) {
 }
 
 /**
- * A shard's command as CI's test job runs it: through the quarantine wrapper (tools/test-quarantine.mjs), as
- * the pre-push gate runs it, so a flaky or quarantined test fails neither (the checkout's
- * tools/test-quarantine.json; the failed test files are run once more). On unless GRAPHTY_TEST_QUARANTINE=0,
- * which CI does not set: then the wrapper only runs the command.
+ * A shard's command as CI's test job runs it: through tools/results/run-group.mjs, which runs it through the
+ * quarantine wrapper (tools/test-quarantine.mjs runShard()) as the pre-push gate does, so a flaky or quarantined
+ * test fails neither (the checkout's tools/test-quarantine.json; the failed test files are run once more), and
+ * then writes one record per try to the results store when RESULTS_URL is set. On unless
+ * GRAPHTY_TEST_QUARANTINE=0, which CI does not set: then the wrapper only runs the command.
  * @param shard a SHARDS entry
  * @returns a shell command
  */
 export function ciCommand(shard) {
     const escapedQuote = String.raw`'\''`;
     const quoted = `'${shard["test-command"].replaceAll("'", escapedQuote)}'`;
-    return `node tools/test-quarantine.mjs run ${shard.shard} ${quoted}`;
+    return `node tools/results/run-group.mjs ${shard.shard} ${quoted}`;
 }
 
 /**

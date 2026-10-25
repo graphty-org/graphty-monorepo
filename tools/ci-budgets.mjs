@@ -18,7 +18,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-import { parse as parseYaml } from "yaml";
+import { call, config } from "./results/client.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const COMMENT_MARKER = "<!-- ci-budgets -->";
@@ -143,7 +143,9 @@ export function lintWorkflow(file, workflow, doc) {
     return { errors, warnings };
 }
 
-function lint(root = ROOT) {
+async function lint(root = ROOT) {
+    // yaml only here: the timings job runs `report` from a checkout with no node_modules
+    const { parse: parseYaml } = await import("yaml");
     const file = JSON.parse(readFileSync(join(root, "ci-budgets.json"), "utf8"));
     const errors = fileProblems(file);
     const warnings = [];
@@ -162,6 +164,9 @@ function lint(root = ROOT) {
 // ---------- report ----------
 
 const secondsBetween = (a, b) => (Date.parse(b) - Date.parse(a)) / 1000;
+const RUN_JOB = "(run)";
+const QUEUE_STEP = "(queue)";
+const TASK_JOB = "(nx)";
 
 /**
  * Rows for a run from GitHub's jobs listing. A skipped job records nothing; queue rows are a job's
@@ -176,19 +181,22 @@ export function rowsFromJobs(run, jobs, kind) {
     const done = jobs.filter((j) => j.completed_at && j.started_at && j.conclusion !== "skipped");
     const rows = [];
     for (const j of done) {
-        const base = { outcome: j.conclusion, runner: j.labels?.[0] ?? null };
+        const base = { outcome: j.conclusion, runner: j.labels?.[0] ?? null, job: j.name };
         rows.push(
             {
                 ...base,
                 key: `job:${wf}:${j.name}`,
                 level: "job",
                 seconds: secondsBetween(j.started_at, j.completed_at),
+                startedAt: j.started_at,
             },
             {
                 ...base,
                 key: `queue:${wf}:${j.name}`,
                 level: "queue",
                 seconds: secondsBetween(j.created_at ?? j.started_at, j.started_at),
+                step: QUEUE_STEP,
+                startedAt: j.created_at ?? j.started_at,
             },
         );
         for (const s of (j.steps ?? []).filter((s) => s.started_at && s.completed_at && s.conclusion !== "skipped")) {
@@ -198,6 +206,8 @@ export function rowsFromJobs(run, jobs, kind) {
                 key: `step:${wf}:${j.name}:${s.name}`,
                 level: "step",
                 seconds: secondsBetween(s.started_at, s.completed_at),
+                step: s.name,
+                startedAt: s.started_at,
             });
         }
     }
@@ -213,6 +223,8 @@ export function rowsFromJobs(run, jobs, kind) {
             seconds: secondsBetween(run.created_at, last),
             outcome: failed ? "failure" : "success",
             runner: null,
+            job: RUN_JOB,
+            startedAt: run.created_at,
         });
     }
     return rows;
@@ -227,7 +239,37 @@ export function taskRows(trace) {
     const events = Array.isArray(trace) ? trace : (trace?.traceEvents ?? []);
     return events
         .filter((e) => e.ph === "X" && typeof e.name === "string" && e.name.includes(":") && e.dur > 0)
-        .map((e) => ({ key: `task:${e.name}`, level: "task", seconds: e.dur / 1e6, outcome: "success", runner: null }));
+        .map((e) => ({
+            key: `task:${e.name}`,
+            level: "task",
+            seconds: e.dur / 1e6,
+            outcome: "success",
+            runner: null,
+            job: TASK_JOB,
+            task: e.name,
+        }));
+}
+
+/**
+ * A run's rows as the results store's duration rows (tools/results-service, POST /v1/durations): the run row
+ * is job `(run)`, a queue row is its job's step `(queue)`, an nx task row is job `(nx)` with its task.
+ * @param run the run (`id`, `run_attempt`, `path`, `head_sha`)
+ * @param rows rowsFromJobs() and taskRows() rows
+ * @returns the store's rows
+ */
+export function storeRows(run, rows) {
+    return rows.map((r) => ({
+        runId: run.id,
+        attempt: run.run_attempt ?? 1,
+        workflow: basename(run.path ?? "ci.yml"),
+        job: r.job,
+        step: r.step ?? "",
+        task: r.task ?? "",
+        sha: run.head_sha,
+        startedAt: r.startedAt ? Date.parse(r.startedAt) : null,
+        ms: Math.round(r.seconds * 1000),
+        conclusion: r.outcome,
+    }));
 }
 
 const budgetKey = (file, key) => budgetFor(file, key) ?? budgetFor(file, key.replace(/^run:([^:]+):.*$/, "run:$1"));
@@ -445,26 +487,13 @@ async function storeMedians(keys) {
     return res.ok ? res.json() : {};
 }
 
-async function sendRows(run, kind, rows) {
-    const url = process.env.RESULTS_URL;
-    if (!url) return console.log("RESULTS_URL is unset: rows not sent");
-    const token = process.env.RESULTS_TOKEN;
-    const body = {
-        run_id: run.id,
-        attempt: run.run_attempt ?? 1,
-        workflow: basename(run.path),
-        run_kind: kind,
-        sha: run.head_sha,
-        pr: run.pull_requests?.[0]?.number ?? null,
-        rows,
-    };
-    const res = await fetch(`${url}/durations`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) throw new Error(`POST /durations: ${res.status}`);
+// The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write).
+async function sendRows(run, rows) {
+    const cfg = config();
+    if (!cfg) return console.log("RESULTS_URL is unset or no credential: rows not sent");
+    const r = await call(cfg, "POST", "/v1/durations", { rows: storeRows(run, rows) }, 10_000);
+    if (!r.ok) throw new Error(`POST /v1/durations: ${r.why}`);
+    console.log(`sent ${r.data?.stored ?? 0} duration rows (kind ${r.data?.kind})`);
 }
 
 const KIND_OF_EVENT = { pull_request: "pr", push: "master", workflow_dispatch: "dispatch" };
@@ -495,7 +524,7 @@ async function report(v) {
     const body = prComment(evals);
     const pr = v.pr ?? run.pull_requests?.[0]?.number;
     if (body && pr) await failOpen("the pull request comment", () => upsertComment(gh, pr, body));
-    await failOpen("sending the rows", () => sendRows(run, kind, rows));
+    await failOpen("sending the rows", () => sendRows(run, rows));
     return 0;
 }
 
@@ -525,7 +554,7 @@ async function main(argv) {
         },
     });
     const cmd = positionals[0];
-    if (cmd === "lint") return lint();
+    if (cmd === "lint") return await lint();
     // report and trend warn, never fail a run
     if (cmd === "report" && v.run) return (await failOpen("report", () => report(v))) ?? 0;
     if (cmd === "trend" && v.history) return (await failOpen("trend", () => trendCommand(v))) ?? 0;

@@ -67,8 +67,8 @@ function addedLayers(session: GraphSession): string[] {
     ];
 }
 
-/** What the app starts every project it opens with (tier 3): the three starting rows, and nothing else. */
-const STARTING_ROWS = ["Everything", "Selected", "Hovered"];
+/** What the app starts every project it opens with: the four starting rows, and nothing else. */
+const STARTING_ROWS = ["Everything", "Selected", "Pinned", "Hovered"];
 
 afterEach(() => {
     forgetUsageAnswer();

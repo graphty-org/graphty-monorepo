@@ -283,12 +283,14 @@ const DISAGREE = `SELECT DISTINCT a.variant, f.file, f.name, f.signature, a.id A
 
 /**
  * Quarantines the tests a just-stored master-evidence record proves flaky (6.1, 6.5): each enters once, for 14
- * days, with no issue yet. The answer names them so the job that posted files the issue (6.6) and posts its number
- * back (POST /v1/issues); `had` is the signature's earlier issue, to comment on instead.
+ * days, with no issue yet; a later proof names it again until its issue is posted back. The answer names them so
+ * the job that posted files the issue (6.6) and posts its number back (POST /v1/issues); `had` is the signature's
+ * earlier issue, to comment on instead.
  * @param db the D1 database
  * @param id the stored invocation
  * @param now milliseconds
- * @returns the newly quarantined tests: family, file, name, signature, proof (the two invocations), had
+ * @returns the tests quarantined and still without an issue: family, file, name, signature, proof (the two
+ *   invocations), had
  */
 export async function concludeFlaky(db, id, now) {
     const found = await all(db, DISAGREE, id, id);
@@ -298,18 +300,28 @@ export async function concludeFlaky(db, id, now) {
         if (NEVER_QUARANTINED.test(family) || out.some((o) => o.file === t.file && o.name === t.name)) continue;
         const active = await db
             .prepare(
-                "SELECT 1 FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
+                "SELECT issue FROM quarantine WHERE family = ? AND file = ? AND name = ? AND left_at IS NULL AND expires > ?",
             )
             .bind(family, t.file, t.name, now)
             .first();
-        if (active) continue;
+        // an active entry whose issue was never posted back (GitHub refused it) is named again, so it gets one
+        if (active?.issue != null) continue;
         const proof = `${t.failedIn} failed it, ${t.passedIn} passed it`;
-        await db
-            .prepare(
-                "INSERT OR IGNORE INTO quarantine (family, file, name, reason, proof, since, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            )
-            .bind(family, t.file, t.name, "failed and passed on the same commit and inputs", proof, now, now + 14 * DAY)
-            .run();
+        if (!active)
+            await db
+                .prepare(
+                    "INSERT OR IGNORE INTO quarantine (family, file, name, reason, proof, since, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                )
+                .bind(
+                    family,
+                    t.file,
+                    t.name,
+                    "failed and passed on the same commit and inputs",
+                    proof,
+                    now,
+                    now + 14 * DAY,
+                )
+                .run();
         const had = await db.prepare("SELECT number FROM tracked_issue WHERE signature = ?").bind(t.signature).first();
         out.push({ family, file: t.file, name: t.name, signature: t.signature, proof, had: had?.number ?? null });
     }

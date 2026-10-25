@@ -520,9 +520,12 @@ describe("flaky tests from master's records", () => {
             [["graphty-element-browser", X, "camera > zooms", null]],
         );
         assert.match(second.body.flaky[0].proof, /4010\.1\.base\.r1\.1 failed it, 4010\.1\.base\.r2\.1 passed it/);
-        // a third repeat that fails again proves nothing new: the test is already quarantined
+        // a third repeat, before any issue was posted back, names the test again without a second entry
         const third = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r3.1") });
-        assert.deepEqual(third.body.flaky, []);
+        assert.deepEqual(
+            third.body.flaky.map((t) => t.name),
+            ["camera > zooms"],
+        );
         assert.equal(rows("SELECT * FROM quarantine").length, 1);
 
         const { signature } = second.body.flaky[0];
@@ -538,6 +541,10 @@ describe("flaky tests from master's records", () => {
         assert.equal((await call("POST", "/v1/issues", { token, body: back })).status, 200);
         assert.deepEqual(rows("SELECT issue FROM quarantine"), [{ issue: 77 }]);
         assert.deepEqual(rows("SELECT number, kind FROM tracked_issue"), [{ number: 77, kind: "flaky" }]);
+        // with its issue filed, another failing repeat proves nothing new
+        const fourth = await call("POST", "/v1/invocations", { token, body: failing("4010.1.base.r4.1") });
+        assert.deepEqual(fourth.body.flaky, []);
+        assert.equal(rows("SELECT * FROM quarantine").length, 1);
         const res = await plan(call, { variants: BROWSER, inputs: "k1" });
         assert.deepEqual(
             res.body.quarantine.map((q) => [q.name, q.issue]),

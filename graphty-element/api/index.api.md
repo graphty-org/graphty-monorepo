@@ -6330,6 +6330,7 @@ export class UpdateManager implements Manager {
     constructor(eventManager: EventManager, statsManager: StatsManager, layoutManager: LayoutManager, dataManager: DataManager, camera: CameraManager, graphContext: GraphContext, config?: UpdateManagerConfig);
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
+    deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
     drawArrivedPaint(frameMs?: number): void;

@@ -70,6 +70,28 @@ returns to the baseline, not to an empty element.
 - The first load after that, and everything after it, is a step.
 
 `session.history.clear()` makes the current state the new baseline.
+It also cancels whatever is still pending. To keep that work -- a run a reader started while a
+graph was loading -- pass `{ pending: "keep" }`: each pending item that has changed nothing yet
+finishes and records its step over the new baseline. Work that has already changed something, such
+as a transaction halfway through, is cancelled either way, because undoing its step would go back
+past the baseline.
+
+```typescript
+await session.data.import({ type: "csv", config: { url: "/flights.csv" } });
+session.history.clear({ pending: "keep" });
+```
+
+To open a graph as a new project, pass `history: "start"` to any load: `session.data.import`,
+`generate`, `loadDataset`, `loadSample`, a load draft's `load`, or `session.project.open` for a
+document that is not a project (a project file always starts the history). The loaded graph
+becomes the baseline: Undo and `history.restoreTo` never cancel the load while it is pending,
+and never undo it after. Steps recorded before the call are dropped once the load is in. Work
+done while it loads is kept, and each piece is its own step.
+
+```ts
+await session.data.import({ config: { url: "graph.graphml" } }, { history: "start" });
+session.canUndo; // false
+```
 
 ## Steps
 

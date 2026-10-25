@@ -12,6 +12,7 @@ import { userEvent } from "vitest/browser";
 
 import { DataTable, PanelField, Tree, VariablePill } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
+import { TOOLTIP_WAIT } from "../waits";
 
 const SHAPES = ["Box", "Sphere", "Cylinder", "Cone", "Capsule", "Torus", "Knot", "Tetrahedron"].map((name, i) => ({
     value: `shape-${String(i)}`,
@@ -53,56 +54,31 @@ function announced(): string {
     return id === null ? "" : (document.getElementById(id)?.textContent ?? "");
 }
 
-/**
- * A computed color's channels.
- * @param color - an rgb() or rgba() string
- * @returns red, green, blue (0-255) and alpha (0-1)
- */
-function channels(color: string): [number, number, number, number] {
-    const [r, g, b, a = 1] = (color.match(/[\d.]+/g) ?? []).map(Number);
-    return [r, g, b, a];
-}
-
-/**
- * WCAG contrast between a translucent ink and the opaque ground it is drawn on.
- * @param ink - the ink's computed color
- * @param ground - the ground's computed color
- * @returns the contrast ratio
- */
-function contrast(ink: string, ground: string): number {
-    const [r, g, b, a] = channels(ink);
-    const base = channels(ground);
-    const over = [r, g, b].map((c, i) => c * a + base[i] * (1 - a));
-    const luminance = (rgb: number[]): number => {
-        const [lr, lg, lb] = rgb.map((c) => {
-            const s = c / 255;
-            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-        });
-        return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
-    };
-    const [hi, lo] = [luminance(over), luminance(base)].sort((x, y) => y - x);
-    return (hi + 0.05) / (lo + 0.05);
-}
-
-/**
- * The first opaque background at or above an element (the page's white when none is).
- * @param element - where to start
- * @returns the computed background color
- */
-function groundOf(element: Element): string {
-    for (let at: Element | null = element; at !== null; at = at.parentElement) {
-        const color = getComputedStyle(at).backgroundColor;
-        if (channels(color)[3] === 1) {
-            return color;
-        }
-    }
-    return "rgb(255, 255, 255)";
-}
-
 afterEach(resetHarness);
 
-describe("a list closes when focus leaves it", () => {
-    it("Tab from an open list closes it, and focus is on the next control", async () => {
+describe("Tab while a list is open", () => {
+    it("does nothing, as in Figma: the list stays open, focus stays, Escape closes it", async () => {
+        await renderThemed(
+            <div>
+                {shapeField}
+                <Button>Next</Button>
+            </div>,
+        );
+        const field = screen.getByRole("combobox", { name: /^Shape/ });
+        await userEvent.click(field);
+        await screen.findByRole("listbox");
+        await userEvent.tab();
+        await userEvent.tab({ shift: true });
+        expect(document.activeElement).toBe(field);
+        expect(screen.getByRole("listbox")).toBeVisible();
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            expect(screen.queryByRole("listbox")).toBeNull();
+        });
+        expect(document.activeElement).toBe(field);
+    });
+
+    it("focus moved away by a script still closes the list", async () => {
         await renderThemed(
             <div>
                 {shapeField}
@@ -111,23 +87,7 @@ describe("a list closes when focus leaves it", () => {
         );
         await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
         await screen.findByRole("listbox");
-        await userEvent.tab();
-        expect(document.activeElement).toBe(screen.getByRole("button", { name: "Next" }));
-        await waitFor(() => {
-            expect(screen.queryByRole("listbox")).toBeNull();
-        });
-    });
-
-    it("Shift+Tab from an open list closes it too", async () => {
-        await renderThemed(
-            <div>
-                <Button>Before</Button>
-                {shapeField}
-            </div>,
-        );
-        await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
-        await screen.findByRole("listbox");
-        await userEvent.tab({ shift: true });
+        screen.getByRole("button", { name: "Next" }).focus();
         await waitFor(() => {
             expect(screen.queryByRole("listbox")).toBeNull();
         });
@@ -150,14 +110,16 @@ describe("one active option", () => {
             expect(announced()).toBe("Sphere");
         });
         expect(filled()).toEqual(["Sphere"]);
+        // Tab is held while the list is open (Figma), so Escape closes it before leaving.
+        await userEvent.keyboard("{Escape}");
         await userEvent.tab();
         await userEvent.tab({ shift: true });
         await userEvent.keyboard("{ArrowDown}");
         await screen.findByRole("listbox");
         await waitFor(() => {
-            expect(announced()).toBe("Box");
+            expect(announced()).not.toBe("");
         });
-        expect(filled()).toEqual(["Box"]);
+        expect(filled()).toEqual([announced()]);
     });
 });
 
@@ -224,7 +186,7 @@ describe("table rows", () => {
         const arrow = within(header).getByTestId("data-table-sort-glyph");
         expect(menu.querySelector("svg")?.innerHTML).not.toBe(arrow.querySelector("svg")?.innerHTML);
         await userEvent.hover(menu);
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Options for hours");
+        expect(await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).toHaveTextContent("Options for hours");
     });
 });
 
@@ -238,7 +200,7 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("checkbox", { name: "Style nodes" }), { force: true });
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Stays on");
+        expect(await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).toHaveTextContent("Stays on");
     });
 
     it("an aria-disabled icon button shows its reason", async () => {
@@ -250,12 +212,13 @@ describe("a disabled control says why on hover", () => {
             </Tooltip>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Undo" }));
-        expect(await screen.findByRole("tooltip", {}, { timeout: 3000 })).toHaveTextContent("Nothing to undo");
+        expect(await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).toHaveTextContent("Nothing to undo");
     });
 });
 
 describe("a folder's caret", () => {
-    it.each(["light", "dark"] as const)("is drawn at rest, at 3:1 against its row (%s)", async (scheme) => {
+    // Figma: hidden at rest, drawn while the pointer is over the tree.
+    it.each(["light", "dark"] as const)("is hidden at rest and drawn under the pointer (%s)", async (scheme) => {
         await renderThemed(
             <Tree
                 items={[
@@ -265,10 +228,14 @@ describe("a folder's caret", () => {
             />,
             { scheme },
         );
-        const caret = within(screen.getByRole("treeitem", { name: "Louvain" })).getByTestId("tree-caret");
-        expect(getComputedStyle(caret).visibility).toBe("visible");
+        const folder = screen.getByRole("treeitem", { name: "Louvain" });
+        const caret = within(folder).getByTestId("tree-caret");
         expect(caret.querySelector("svg")).not.toBeNull();
-        expect(contrast(getComputedStyle(caret).color, groundOf(caret))).toBeGreaterThanOrEqual(3);
+        expect(getComputedStyle(caret).visibility).toBe("hidden");
+        await userEvent.hover(folder);
+        await waitFor(() => {
+            expect(getComputedStyle(caret).visibility).toBe("visible");
+        });
     });
 });
 

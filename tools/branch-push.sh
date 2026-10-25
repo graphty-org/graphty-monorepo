@@ -7,9 +7,10 @@
 # The push skips the pre-push gate (--no-verify): it is a copy of work in progress, not a landing, and
 # nothing runs CI on a branch push. The gate runs when the branch lands (tools/land.mjs).
 #
-# Never for golden, golden-cut or master, a detached HEAD, or a commit in the middle of a rebase. What
-# happens goes to tmp/branch-push.log in the main checkout; a failed push (no network, a branch that
-# moved on GitHub) is only logged, and the next commit tries again.
+# Never for golden, golden-cut, golden-verified (which the main checkout follows) or master, a detached
+# HEAD, or a commit in the middle of a rebase. What happens goes to tmp/branch-push.log in the main
+# checkout; a failed push (no network, a branch that moved on GitHub) is only logged, and the next commit
+# tries again.
 #
 # The branch on GitHub can hold commits this one lacks: the nightly branch sync (tools/branch-sync.mjs)
 # pushes its merges of golden there. So before the push, while the commit is fresh and nothing else runs
@@ -18,7 +19,7 @@
 # progress; a merge that conflicts is aborted at once, leaving the worktree as it was, and logged. The
 # merge runs without hooks (its message is git's own; the Commitizen hook would want a terminal).
 branch=$(git symbolic-ref -q --short HEAD) || exit 0
-case "$branch" in master | golden | golden-cut) exit 0 ;; esac
+case "$branch" in master | golden | golden-cut | golden-verified) exit 0 ;; esac
 for d in rebase-merge rebase-apply; do
     [ -d "$(git rev-parse --git-path "$d")" ] && exit 0
 done

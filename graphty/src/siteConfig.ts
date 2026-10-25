@@ -44,11 +44,13 @@ function parse(value: unknown): (Omit<SiteConfig, "features"> & { features: stri
     const { site, features = [], datasets, sentryEnvironment } = value as Record<string, unknown>;
     const isList = Array.isArray(features) && features.every((id) => typeof id === "string");
     const optionalText = (text: unknown): boolean => text === undefined || typeof text === "string";
-    if (!SITES.has(site) || !isList || !optionalText(datasets) || !optionalText(sentryEnvironment)) {
+    // A file may leave out `site` (the tests' `{ "features": ["all"] }`), but may not name another.
+    const isSite = site === undefined || SITES.has(site);
+    if (!isSite || !isList || !optionalText(datasets) || !optionalText(sentryEnvironment)) {
         return null;
     }
     return {
-        site: site as SiteName,
+        site: site === undefined ? "unknown" : (site as SiteName),
         features,
         ...(datasets === undefined ? {} : { datasets: datasets as string }),
         ...(sentryEnvironment === undefined ? {} : { sentryEnvironment: sentryEnvironment as string }),

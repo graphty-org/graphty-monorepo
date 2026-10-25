@@ -82,4 +82,13 @@ describe("site.json", () => {
         const element = await mountElement();
         assert.deepEqual(element.features, []);
     });
+
+    it("keeps the experiments of a site.json that names no site, and names no site", async () => {
+        const config = await loadSiteConfig(siteFile({ features: ["timeline"] }));
+        assert.deepEqual(config, { site: "unknown", features: ["timeline"] });
+
+        const element = await mountElement();
+        assert.deepEqual(element.features, ["timeline"]);
+        assert.isNull(screen.queryByLabelText(/^Site: /));
+    });
 });

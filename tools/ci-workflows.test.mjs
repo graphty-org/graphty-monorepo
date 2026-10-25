@@ -1541,6 +1541,10 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.match(job(ci, "stories"), /VISUAL_REVIEW_STORY_OUT: /);
         assert.match(job(ci, "stories"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
         assert.deepEqual(jobs["stories-parity"].needs.sort(), ["stories", "visual"]);
+        // One matrix leg per switched project, each skipped when the run does not test its storybook shard.
+        assert.match(job(ci, "stories"), /- project: graphty-element\n\s+shard: graphty-element-storybook-1\n/);
+        assert.match(job(ci, "stories-parity"), /project: \[graphty, graphty-element\]/);
+        assert.match(job(ci, "stories"), /format\('"\{0\}"', matrix\.shard\)/);
     });
 
     it("is not seen by the workflows that react to master's CI", () => {

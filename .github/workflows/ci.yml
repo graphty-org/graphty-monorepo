@@ -1380,7 +1380,7 @@ jobs:
     stories:
         name: Stories (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1391,13 +1391,27 @@ jobs:
                     - project: graphty
                       shard: graphty-storybook
                       command: cd graphty && pnpm exec vitest run --project=storybook
+                    # One job for the whole project: without coverage its story tests do not slow down as
+                    # they run, which is why the coverage shards split it in five.
+                    - project: graphty-element
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook
         steps:
+            # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
+            # every step below but the summary is.
+            - name: Skip a project this run does not test
+              id: skip
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              run: echo "skip=true" >> "$GITHUB_OUTPUT"
+
             - uses: actions/checkout@v4
+              if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - name: Restore this project's baseline images
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache/restore@v4
               with:
                   path: .git/lfs/objects
@@ -1405,22 +1419,27 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: steps.skip.outputs.skip != 'true'
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             - uses: pnpm/action-setup@v4
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             - name: Download all package builds
+              if: steps.skip.outputs.skip != 'true'
               id: download-packages
               continue-on-error: true
               uses: actions/download-artifact@v4
@@ -1429,13 +1448,14 @@ jobs:
                   path: .
 
             - name: Download all package builds (retry)
-              if: steps.download-packages.outcome == 'failure'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.download-packages.outcome == 'failure') }}
               uses: actions/download-artifact@v4
               with:
                   name: build-packages
                   path: .
 
             - name: Cache Playwright browsers
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache@v4
               id: playwright-cache
               with:
@@ -1443,19 +1463,22 @@ jobs:
                   key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Install Playwright system packages
+              if: steps.skip.outputs.skip != 'true'
               uses: ./.github/actions/playwright-system-deps
               with:
                   browsers: chromium
 
             - name: Install Playwright browsers
-              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.playwright-cache.outputs.cache-hit != 'true') }}
               run: pnpm exec playwright install chromium
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
             - name: Run the story tests with their screenshots
+              if: steps.skip.outputs.skip != 'true'
               env:
                   SHARD: ${{ matrix.shard }}
                   COMMAND: ${{ matrix.command }}
@@ -1463,11 +1486,11 @@ jobs:
               run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
 
             - name: Combine the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               uses: actions/upload-artifact@v4
               with:
                   name: stories-${{ matrix.project }}-${{ github.run_attempt }}
@@ -1504,7 +1527,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty]
+                project: [graphty, graphty-element]
         steps:
             - uses: actions/checkout@v4
               with:

@@ -1,0 +1,55 @@
+# Paths that can loosen a check or take authority wait for the owner's review
+# (design/ci/channels-pipeline.md, section 6.2). Everything else merges on green.
+#
+# Owned closure: tools/check-owned-closure.mjs fails when an owned script or workflow reaches an
+# unowned file through its imports or the paths it runs; such a file is added below, in its own
+# pull request. Test files are deliberately not owned (the integrity check covers them).
+
+/.github/workflows/ @apowers313
+/.github/CODEOWNERS @apowers313
+/.claude/ @apowers313
+/CLAUDE.md @apowers313
+/ci-budgets.json @apowers313
+/release-hold.json @apowers313
+/release-approvals.json @apowers313
+/nx.json @apowers313
+/vitest.shared.config.ts @apowers313
+/vitest.ci-junit.mjs @apowers313
+**/.storybook/vitest.setup.* @apowers313
+/visual-review/trusted/ @apowers313
+/visual-review/capture/ @apowers313
+/visual-review/passkeys.json @apowers313
+/visual-review.config.json @apowers313
+/graphty/sites/nightly.json @apowers313
+/graphty/sites/production.json @apowers313
+
+# tools/: the results, cache, scheduler and channel directories
+/tools/results/ @apowers313
+/tools/results-service/ @apowers313
+/tools/nx-cache-worker/ @apowers313
+/tools/release-scheduler/ @apowers313
+/tools/channel/ @apowers313
+
+# tools/: bisect, the release tools, the test matrix, the selector and its rules
+/tools/bisect-core.mjs @apowers313
+/tools/release-diff.mjs @apowers313
+/tools/release-dry-run.mjs @apowers313
+/tools/release-held.sh @apowers313
+/tools/release-hold.mjs @apowers313
+/tools/release-status.mjs @apowers313
+/tools/release-version.sh @apowers313
+/tools/publish-hold.mjs @apowers313
+/tools/changelog-renderer.cjs @apowers313
+/tools/ci-test-matrix.mjs @apowers313
+/tools/run-tests.sh @apowers313
+/tools/test-select.mjs @apowers313
+/tools/test-select-rules.json @apowers313
+
+# tools/: the integrity, features, budgets, pull request and quick-check scripts
+/tools/check-test-integrity.mjs @apowers313
+/tools/check-owned-closure.mjs @apowers313
+/tools/check-features.mjs @apowers313
+/tools/ci-budgets.mjs @apowers313
+/tools/pr-open.sh @apowers313
+/tools/pr-review.sh @apowers313
+/tools/check-quick.sh @apowers313

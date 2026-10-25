@@ -75,11 +75,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 18 jobs", () => {
+    it("runs every shard exactly once on a full run, in 25 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 18);
+        assert.equal(include.length, 25);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -112,12 +112,22 @@ describe("the test matrix", () => {
         const browser = plan(PACKAGES).find((e) => e.shard === "small-browser");
         assert.doesNotMatch(browser.coverage, /webgpu-graph-algorithms-browser|graphty-storybook/);
         assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
-        // the three graphty parts keep their reports apart
-        assert.match(browser.coverage, /graphty-1=graphty\/.coverage-parts\/graphty-1\/lcov.info/);
-        assert.match(browser.coverage, /graphty-2=graphty\/.coverage-parts\/graphty-2\/lcov.info/);
-        assert.match(browser.coverage, /graphty-3=graphty\/.coverage-parts\/graphty-3\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
+    });
+
+    // A shard with a job of its own uploads its report through the group's steps, under the same
+    // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
+    it("uploads coverage for every shard with a job of its own that writes it", () => {
+        const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
+        // the five graphty parts keep their reports apart
+        for (const n of [1, 2, 3, 4, 5]) {
+            assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
+        }
+        assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
+        assert.equal(own["graphty-storybook"], undefined);
+        assert.equal(own["graphty-element-default"], undefined);
+        assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -898,7 +908,7 @@ describe("ci.yml", () => {
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);

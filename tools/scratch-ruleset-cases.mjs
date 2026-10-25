@@ -94,14 +94,14 @@ export const CASES = [
         title: "feat(tools)!: scratch ruleset trial, breaking title",
         files: (s, _r, id) => ({ [note(id, s)]: text("breaking title") }),
         reviewed: true,
-        expect: { kind: "integrity", want: "FAILURE" },
+        expect: { kind: "integrity", want: "FAILURE", rule: "Breaking change:", only: true },
     },
     {
         id: "unsigned-png-fails",
         what: "a baseline PNG with no signed approval fails PR Integrity",
         title: "test(visual-review): scratch ruleset trial, unsigned png",
         files: (s) => ({ [`visual-baselines/graphty/scratch-ruleset-trial-${s}.png`]: PNG }),
-        expect: { kind: "integrity", want: "FAILURE" },
+        expect: { kind: "integrity", want: "FAILURE", rule: "Baselines signed:" },
     },
     {
         id: "master-merge-keeps-review",
@@ -120,28 +120,40 @@ export const CASES = [
         files: (s, _r, id) => ({ [note(id, s)]: text("fix push") }),
         reviewed: true,
         after: "fix",
-        expect: { kind: "integrity", want: "FAILURE" },
+        expect: { kind: "integrity", want: "FAILURE", rule: "Fresh review:" },
     },
 ];
 
 /**
  * The newest run of a check on a commit, from a statusCheckRollup's contexts.
- * @param contexts CheckRun nodes ({ name, status, conclusion, startedAt }) or StatusContext ones
+ * @param contexts CheckRun nodes ({ name, status, conclusion, startedAt, annotations }) or StatusContext ones
  * @param name the check's name
- * @returns "PENDING", the conclusion ("SUCCESS", "FAILURE", ...) or null when it never ran
+ * @returns `{ result, notes }` (result "PENDING" or the conclusion, notes its annotation messages), or null
  */
-export function latestCheck(contexts, name) {
+export function latestRun(contexts, name) {
     const runs = contexts
         .map((c) =>
             c.__typename === "StatusContext"
                 ? { name: c.context, at: c.createdAt, result: c.state === "PENDING" ? "PENDING" : c.state }
                 : { name: c.name, at: c.startedAt, result: c.status === "COMPLETED" ? c.conclusion : "PENDING" },
         )
+        .map((r, i) => ({ ...r, notes: (contexts[i].annotations?.nodes ?? []).map((a) => a.message) }))
         .filter((r) => r.name === name)
-        // A run that never started (no time) sorts oldest, so it never hides a finished one.
-        .sort((a, b) => String(a.at ?? "").localeCompare(String(b.at ?? "")));
-    return runs.length ? runs.at(-1).result : null;
+        // A run not yet started (no time) is a queued re-run, so it sorts newest (as tools/pr-status-broker.mjs).
+        .sort((a, b) => String(a.at ?? "9999").localeCompare(String(b.at ?? "9999")));
+    return runs.at(-1) ?? null;
 }
+
+/**
+ * The newest run's result of a check on a commit.
+ * @param contexts as latestRun
+ * @param name the check's name
+ * @returns "PENDING", the conclusion ("SUCCESS", "FAILURE", ...) or null when it never ran
+ */
+export const latestCheck = (contexts, name) => latestRun(contexts, name)?.result ?? null;
+
+// Dependabot's commit author email; GitHub maps it to the dependabot[bot] account.
+const DEPENDABOT_EMAIL = "49699333+dependabot[bot]@users.noreply.github.com";
 
 /**
  * One pull request's state, as the judge reads it.
@@ -157,8 +169,16 @@ export function observe(node) {
         merged: node.merged,
         reviewDecision: node.reviewDecision,
         checks: Object.fromEntries([...names].map((n) => [n, latestCheck(contexts, n)])),
-        // Only on the Dependabot search: every commit is Dependabot's own (PR Integrity's onlyDependabot).
-        dependabotOnly: node.owned?.nodes?.every((c) => /dependabot\[bot\]/u.test(c.commit?.author?.email ?? "")),
+        // The annotation messages of the newest PR Integrity run: one per problem, "<Rule>: ...".
+        integrityNotes: latestRun(contexts, INTEGRITY)?.notes ?? [],
+        // Only on the Dependabot search: every commit is Dependabot's own, as PR Integrity's onlyDependabot
+        // reads it: Dependabot's author, signed by web-flow (GitHub's committer) with a valid signature.
+        dependabotOnly: node.owned?.nodes?.every(
+            ({ commit: c }) =>
+                c?.author?.email === DEPENDABOT_EMAIL &&
+                c.signature?.signer?.login === "web-flow" &&
+                c.signature.isValid === true,
+        ),
     };
 }
 
@@ -175,10 +195,15 @@ const JUDGES = {
             { refused: "refused: ", skip: "skipped: ", merged: "merged with --admin", error: "" }[o.kind] +
             (o.output ?? ""),
     }),
+    // A FAILURE case passes only when its own rule fired (e.rule, the annotation's prefix), and with e.only
+    // when no other rule did.
     integrity: (e, o) => {
         const got = o.checks[INTEGRITY];
         if (!got || got === "PENDING") return { verdict: "pending", actual: `PR Integrity ${got ?? "not run"}` };
-        return { verdict: got === e.want ? "pass" : "fail", actual: `PR Integrity ${got}` };
+        const rules = [...new Set((o.integrityNotes ?? []).map((n) => n.split(":")[0] + ":"))];
+        const actual = `PR Integrity ${got}` + (rules.length ? ` (${rules.join(" ")})` : "");
+        const ruleOk = !e.rule || (rules.includes(e.rule) && (!e.only || rules.length === 1));
+        return { verdict: got === e.want && ruleOk ? "pass" : "fail", actual };
     },
     merges: (_e, o) => {
         if (o.merged) return { verdict: "pass", actual: "merged" };
@@ -369,9 +394,11 @@ function planAfter(ctx, p, files, git) {
 
 const POLL = `query($q: String!) { repository(owner: "graphty-org", name: "graphty-monorepo") { %PRS% }
   dependabot: search(query: $q, type: ISSUE, first: 10) { nodes { ... on PullRequest { %FIELDS%
-  owned: commits(first: 100) { nodes { commit { author { email } } } } } } } }`;
+  owned: commits(first: 100) { nodes { commit { author { email } signature { isValid signer { login } } } } }
+  } } } }`;
 const FIELDS = `number state merged reviewDecision commits(last: 1) { nodes { commit { statusCheckRollup {
-  contexts(first: 100) { nodes { __typename ... on CheckRun { name status conclusion startedAt }
+  contexts(first: 100) { nodes { __typename ... on CheckRun { name status conclusion startedAt
+    annotations(first: 20) { nodes { message } } }
   ... on StatusContext { context state createdAt } } } } } } }`;
 
 /**
@@ -645,8 +672,21 @@ function finish(results, post) {
         const body = `Scratch ruleset trial (#3435), run by tools/scratch-ruleset-cases.mjs against '${RULESET}' on ${BASE}:\n\n\`\`\`\n${out}\n\`\`\`\n`;
         gh(["issue", "comment", String(LOG_ISSUE), "--repo", REPO, "--body-file", "-"], body);
     }
-    return rows.every((r) => r.verdict === "pass" || r.verdict === "skip") ? 0 : 1;
+    const ok = allMatched(rows);
+    if (!ok && rows.some((r) => r.id === "admin-refused" && r.verdict === "skip")) {
+        console.log("admin-refused was not shown: it needs a run by an account with admin rights on the repository");
+    }
+    return ok ? 0 : 1;
 }
+
+/**
+ * Whether a run showed every case. Only the Dependabot case may skip (no open Dependabot pull request to
+ * observe); a skipped admin case was not shown, so the run is not all matched.
+ * @param rows finish()'s rows
+ * @returns boolean
+ */
+export const allMatched = (rows) =>
+    rows.every((r) => r.verdict === "pass" || (r.verdict === "skip" && r.id === "dependabot-passes"));
 
 /**
  * The command line.

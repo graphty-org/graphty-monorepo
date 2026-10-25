@@ -7,6 +7,7 @@ import {
     CASES,
     REQUIRED,
     RateLimit,
+    allMatched,
     cleanup,
     judge,
     latestCheck,
@@ -63,12 +64,12 @@ test("latestCheck takes the newest run of a name, pending while it runs", () => 
     assert.equal(latestCheck(contexts, "Lint PR Title"), "PENDING");
     assert.equal(latestCheck(contexts, "legacy"), "ERROR");
     assert.equal(latestCheck(contexts, "All Checks Pass"), null);
-    // A run with no start time sorts oldest, never newest.
+    // A run with no start time is a queued re-run: it hides the finished one before it.
     const stale = [
         run("PR Integrity", "QUEUED", null, null),
-        run("PR Integrity", "COMPLETED", "SUCCESS", "2026-10-25T10:05:00Z"),
+        run("PR Integrity", "COMPLETED", "FAILURE", "2026-10-25T10:05:00Z"),
     ];
-    assert.equal(latestCheck(stale, "PR Integrity"), "SUCCESS");
+    assert.equal(latestCheck(stale, "PR Integrity"), "PENDING");
 });
 
 test("observe reads a poll node", () => {
@@ -126,6 +127,52 @@ test("judge: integrity and admin", () => {
     assert.equal(judge({ kind: "admin" }, { kind: "skip", output: "no admin" }).verdict, "skip");
     assert.equal(judge({ kind: "admin" }, { kind: "merged", output: "" }).verdict, "fail");
     assert.equal(judge({ kind: "admin" }, { kind: "error", output: "HTTP 502" }).actual, "HTTP 502");
+});
+
+test("judge: a FAILURE case passes only on its own rule", () => {
+    const failed = (...notes) => ({ ...green({ "PR Integrity": "FAILURE" }), integrityNotes: notes });
+    const breaking = CASES.find((c) => c.id === "breaking-fails").expect;
+    const png = CASES.find((c) => c.id === "unsigned-png-fails").expect;
+    assert.equal(judge(breaking, failed("Breaking change: the title ...")).verdict, "pass");
+    assert.equal(judge(breaking, failed("Fresh review: no review ...")).verdict, "fail");
+    assert.equal(judge(breaking, failed("Breaking change: x", "Fresh review: y")).verdict, "fail");
+    assert.equal(judge(png, failed("Baselines signed: a.png", "Fresh review: y")).verdict, "pass");
+    assert.equal(judge(png, failed("Proof: none")).actual, "PR Integrity FAILURE (Proof:)");
+    assert.equal(judge(png, failed()).verdict, "fail");
+    // The notes are the newest PR Integrity run's annotations.
+    const o = observe({
+        number: 1,
+        commits: {
+            nodes: [
+                {
+                    commit: {
+                        statusCheckRollup: {
+                            contexts: {
+                                nodes: [
+                                    {
+                                        ...run("PR Integrity", "COMPLETED", "FAILURE", "t1"),
+                                        annotations: { nodes: [{ message: "Breaking change: x" }] },
+                                    },
+                                ],
+                            },
+                        },
+                    },
+                },
+            ],
+        },
+    });
+    assert.deepEqual(o.integrityNotes, ["Breaking change: x"]);
+});
+
+test("allMatched lets only the Dependabot case skip", () => {
+    const rows = (admin) => [
+        { id: "owned-waits", verdict: "pass" },
+        { id: "dependabot-passes", verdict: "skip" },
+        { id: "admin-refused", verdict: admin },
+    ];
+    assert.equal(allMatched(rows("pass")), true);
+    assert.equal(allMatched(rows("skip")), false);
+    assert.equal(allMatched(rows("fail")), false);
 });
 
 test("table is plain ASCII with one row per case", () => {
@@ -262,10 +309,21 @@ test("pickDependabot takes only a pull request of Dependabot's own commits", () 
                 },
             ],
         },
-        owned: { nodes: emails.map((email) => ({ commit: { author: { email } } })) },
+        owned: {
+            nodes: emails.map((email) => ({
+                commit: { author: { email }, signature: { isValid, signer: { login: committer } } },
+            })),
+        },
     });
+    let committer = "web-flow";
+    let isValid = true;
     const bot = "49699333+dependabot[bot]@users.noreply.github.com";
     const list = [node(10, [bot, "owner@example.com"]), node(9, [bot]), node(11, [bot], "PENDING")].map(observe);
     assert.equal(pickDependabot(list).number, 9);
     assert.equal(pickDependabot([node(12, [bot, "a@b.c"])].map(observe)), null);
+    committer = "graphty-agent";
+    assert.equal(pickDependabot([node(13, [bot])].map(observe)), null);
+    committer = "web-flow";
+    isValid = false;
+    assert.equal(pickDependabot([node(14, [bot])].map(observe)), null);
 });

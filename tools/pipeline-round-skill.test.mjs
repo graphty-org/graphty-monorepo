@@ -92,3 +92,81 @@ describe("CLAUDE.md", () => {
         assert.doesNotMatch(claude, /node tools\/land\.mjs land <branch>/, "no instruction to land on golden");
     });
 });
+
+// The channels pipeline (design/ci/channels-pipeline.md section 12) rewrites the skill to work in this
+// order, and deletes the golden landing tools. `channelsProblems` lists what keeps a skill from that
+// shape. Until the rewrite (#3446) lands, the real skill's check is a todo: it runs and reports what is
+// missing without failing the run; the rewrite removes the `todo` option, and the golden-era tests above
+// go with it.
+const ROUND_ORDER = [
+    ["red master build and its reverts", /red master/i],
+    ["red full run", /full run/i],
+    ["flaky tests and base checks", /flaky|base check/i],
+    ["budget alarms", /budget/i],
+    ["held release or failed publish", /held release|failed publish/i],
+    ["owner items", /owner/i],
+    ["red or conflicted agent pull requests", /pull request/i],
+    ["finished worktrees", /finished worktree/i],
+];
+
+const DELETED_COMMANDS =
+    /\b(?:land|verify|branch-sync|queued-push-guard|prepush-tests|prepush-inputs|shard-verdict|push-base|wait-log|ship-risks|test-ledger|test-quarantine)\.mjs\b|\b(?:push-queue|prepush|prepush-source-checks|gate-snapshot|visual-preview)\.sh\b|live\.sh (?:gate|land)\b/g;
+
+function channelsProblems(text) {
+    const headings = text.split("\n").flatMap((line) => line.match(/^#{2,4}\s+(.*)/)?.slice(1) ?? []);
+    const problems = [];
+    let at = 0;
+    for (const [name, pattern] of ROUND_ORDER) {
+        const found = headings.findIndex((heading, i) => i >= at && pattern.test(heading));
+        if (found === -1) {
+            problems.push(`no section for "${name}" after the previous one`);
+        } else {
+            at = found + 1;
+        }
+    }
+    for (const command of new Set(text.match(DELETED_COMMANDS) ?? [])) {
+        problems.push(`names deleted command ${command}`);
+    }
+    return problems;
+}
+
+describe("pipeline-round skill in the channels order", () => {
+    const ordered = ROUND_ORDER.map(([name], i) => `### ${i + 1}. ${name}\n\nBody.\n`).join("\n");
+
+    it("accepts a skill with every section in order", () => {
+        assert.deepEqual(channelsProblems(`# Round\n\n${ordered}`), []);
+    });
+
+    it("rejects a section out of order", () => {
+        const swapped = ordered
+            .replace("red full run", "x")
+            .replace("budget alarms", "budget alarms\n\n### red full run");
+        assert.deepEqual(channelsProblems(swapped), [
+            'no section for "flaky tests and base checks" after the previous one',
+            'no section for "budget alarms" after the previous one',
+        ]);
+    });
+
+    it("rejects a deleted command, once per command", () => {
+        const text = `${ordered}\nRun \`node tools/land.mjs land x\`, then land.mjs status and tools/push-queue.sh.\n`;
+        assert.deepEqual(channelsProblems(text), [
+            "names deleted command land.mjs",
+            "names deleted command push-queue.sh",
+        ]);
+    });
+
+    it("keeps the local tools that stay", () => {
+        assert.deepEqual(
+            channelsProblems(`${ordered}\ntools/live.sh visual-review b, worktree-cleanup.mjs, branch-note.mjs\n`),
+            [],
+        );
+    });
+
+    it(
+        "the skill follows the channels order and names no deleted command",
+        { todo: "until #3446 rewrites the skill" },
+        () => {
+            assert.deepEqual(channelsProblems(skill), []);
+        },
+    );
+});

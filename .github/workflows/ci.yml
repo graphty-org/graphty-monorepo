@@ -393,12 +393,12 @@ jobs:
                   jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
                       "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
                   # What the pull request rules read with the store's answer (tools/results/run-group.mjs prJudge):
-                  # the base, the test files the change selected and the families it runs whole (every file of
-                  # those counts as touched). An unavailable plan or an everything plan stays as it is: no excuse.
-                  jq -s --arg base "$(git rev-parse "origin/$BASE_REF")" \
+                  # the base, and the test files the change touched: the ones it changed and the ones whose imports
+                  # reach a changed file (not the ones a rule runs). An unavailable or everything plan stays as it
+                  # is: every test counts as touched, and an outage leaves the committed quarantine list in force.
+                  jq -s --arg base "$(git rev-parse "origin/$BASE_REF")" --rawfile changed "$RUNNER_TEMP/changed.txt" \
                       'if .[0].unavailable or .[1].everything then .[0] else .[0] + {base: $base,
-                          affected: ([.[1].bins[].files[]] | unique),
-                          wholeFamilies: ([.[1].whole[] | sub("-[0-9]+$"; "")] | unique)} end' \
+                          affected: ((.[1].touched // []) + ($changed | split("\n") | map(select(. != ""))) | unique)} end' \
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
                       && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
@@ -1114,6 +1114,8 @@ jobs:
             contents: read
             checks: write
             id-token: write
+            # a full or bisect run files the issue of a test it proves flaky (tools/results/run-group.mjs)
+            issues: write
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
@@ -1272,6 +1274,9 @@ jobs:
               env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
                   RESULTS_PLAN: ${{ runner.temp }}/results-plan/results-plan.json
+                  # a full or bisect run that proves a test flaky files its issue (tools/results/run-group.mjs);
+                  # a pull request's run never does, so it gets no token
+                  GH_TOKEN: ${{ github.event_name != 'pull_request' && github.token || '' }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 

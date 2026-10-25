@@ -630,11 +630,28 @@ describe("flaky tests from master's records", () => {
         assert.deepEqual((await call("POST", "/v1/invocations", { token, body: other })).body.flaky, []);
         const skipped = { ...passing("4010.1.full.3"), files: [[X, 41, 0, 1, 3000]] };
         assert.deepEqual((await call("POST", "/v1/invocations", { token, body: skipped })).body.flaky, []);
+        // a file that did not load (no test passed) is not a pass of the test
+        const unloaded = { ...passing("4010.1.full.4"), files: [[X, 0, 1, 0, 30]], failures: [] };
+        assert.deepEqual((await call("POST", "/v1/invocations", { token, body: unloaded })).body.flaky, []);
         const gpu = { variant: "webgpu-graph-algorithms-node|flags=off|whole" };
         await call("POST", "/v1/invocations", { token, body: { ...failing("4010.1.gpu.1"), ...gpu } });
         const gpuPass = { ...passing("4010.1.gpu.2"), ...gpu };
         assert.deepEqual((await call("POST", "/v1/invocations", { token, body: gpuPass })).body.flaky, []);
         assert.equal(rows("SELECT * FROM quarantine").length, 0);
+    });
+
+    it("keeps the record's failure text over the live reporter's, so its key matches every other record's", async () => {
+        const { call, rows } = service();
+        const token = master("ci.yml");
+        const live = {
+            file: X,
+            name: "camera > zooms",
+            message: "expected 2 to be 3\nAssertionError: expected 2 to be 3",
+        };
+        await call("POST", "/v1/failures", { token, body: { invocation: "4010.1.full.1", failures: [live] } });
+        await call("POST", "/v1/invocations", { token, body: failing("4010.1.full.1") });
+        const want = failureHashes("AssertionError: expected 2 to be 3", X);
+        assert.deepEqual(rows("SELECT key, signature FROM failure"), [{ key: want.key, signature: want.signature }]);
     });
 
     it("names a signature's earlier issue so the job comments on it instead of filing another", async () => {

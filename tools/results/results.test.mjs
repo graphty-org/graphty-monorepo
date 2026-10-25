@@ -20,7 +20,17 @@ import { failureHashes } from "../test-ledger.mjs";
 import { baseCheck, fromLedger, importLedger, ledgerFiles } from "./cli.mjs";
 import { decide } from "../test-quarantine.mjs";
 import { durationsOf, planRead, variantsOf } from "./plan-read.mjs";
-import { baseId, fileIssues, junitOf, postRecords, prJudge, recordsOf, runGroup, storeList } from "./run-group.mjs";
+import {
+    baseId,
+    fileIssues,
+    junitOf,
+    postRecords,
+    prJudge,
+    recordsOf,
+    refreshPlan,
+    runGroup,
+    storeList,
+} from "./run-group.mjs";
 
 isolateGit();
 const TMP = mkdtempSync(join(tmpdir(), "results-"));
@@ -32,7 +42,7 @@ after(() => {
 
 /**
  * A local server that records every request.
- * @param [answer] false makes it read requests and never answer them
+ * @param [answer] false makes it read requests and never answer them; a function answers GET /v1/plan
  * @returns `{ url, seen }`
  */
 function serve(answer = true) {
@@ -46,7 +56,9 @@ function serve(answer = true) {
             if (req.url.startsWith("/token")) {
                 const payload = Buffer.from(JSON.stringify({ exp: Date.now() / 1000 + 600 })).toString("base64url");
                 res.end(JSON.stringify({ value: `h.${payload}.s` }));
-            } else res.end(req.url.startsWith("/v1/plan") ? JSON.stringify({ order: ["a"] }) : "{}");
+            } else if (req.url.startsWith("/v1/plan"))
+                res.end(JSON.stringify(typeof answer === "function" ? answer(req) : { order: ["a"] }));
+            else res.end("{}");
         });
     });
     servers.push(server);
@@ -414,9 +426,9 @@ describe("the pull request rules", () => {
             /gh workflow run base-check\.yml --ref master -f base=b1 -f file=a\.test\.ts -f variant='graphty-element-browser\|flags=off\|selected' -f repeat=5/,
         );
         assert.equal(judge(plan, report(fail("flips")), report()).pass, true);
-        // a family the change runs whole counts every one of its files as touched
-        const whole = { ...plan, wholeFamilies: [FAMILY] };
-        assert.deepEqual(tags(judge(whole, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
+        // a plan with no `affected` (the everything plan) counts every test as touched
+        const everything = { quarantine: [], failingOnBase: [] };
+        assert.deepEqual(tags(judge(everything, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
     });
 
     it("excuses a failure only when master failed it the same way on the base, and says [KNOWN?] otherwise", () => {
@@ -441,15 +453,31 @@ describe("the pull request rules", () => {
         assert.equal(judge(elsewhere, report(fail("known")), report(fail("known"))).pass, false);
     });
 
-    it("lets the store's quarantine through and, with no plan, excuses nothing and counts every test as touched", () => {
+    it("lets the store's quarantine through", () => {
         const plan = { quarantine: [{ family: FAMILY, file: "a.test.ts", name: "q", issue: 9 }], failingOnBase: [] };
         const d = judge(plan, report(fail("q")), report(fail("q")));
         assert.deepEqual(
             [d.pass, d.lines[0].text],
             [true, "[QUARANTINED] graphty-element-browser-3: a.test.ts > q failed again; issue #9"],
         );
-        assert.deepEqual(tags(judge(null, report(fail("flips")), report())), ["fail [NEW-FLAKY]"]);
-        assert.deepEqual(tags(judge(null, report(fail("q")), report(fail("q")))), ["fail [FAIL]"]);
+    });
+
+    it("reads the quarantine and master evidence again on a re-run attempt, and keeps the plan when the store fails", async () => {
+        const plan = { base: "b1", affected: ["x.test.ts"], quarantine: [], failingOnBase: [] };
+        const s = await serve(() => ({
+            quarantine: [{ family: FAMILY, file: "a.test.ts", name: "q" }],
+            failingOnBase: [{ name: "k" }],
+        }));
+        const cfg = config({ RESULTS_URL: s.url, GRAPHTY_RESULTS_TOKEN: "t" });
+        const fresh = await refreshPlan(plan, { cfg, sha: "h1", family: FAMILY, variant: o.variant });
+        assert.deepEqual(fresh.affected, ["x.test.ts"]);
+        assert.equal(fresh.quarantine[0].name, "q");
+        assert.equal(fresh.failingOnBase[0].name, "k");
+        const q = new URL(s.seen.find((r) => r.url.startsWith("/v1/plan")).url, s.url).searchParams;
+        assert.equal(q.get("base"), "b1");
+        assert.equal(q.get("variants"), `${FAMILY}|flags=off|whole,${FAMILY}|flags=off|selected`);
+        const down = config({ RESULTS_URL: "http://127.0.0.1:9", GRAPHTY_RESULTS_TOKEN: "t" });
+        assert.equal(await refreshPlan(plan, { cfg: down, sha: "h1", family: FAMILY, variant: o.variant }), plan);
     });
 
     it("leaves a run that did not end in test failures alone", () => {
@@ -515,6 +543,17 @@ describe("fileIssues", () => {
             file: "a.test.ts",
             name: "flips",
         });
+    });
+
+    it("files one issue for a test both tries' answers name", async () => {
+        const { gh, calls } = ghFake();
+        const answers = [
+            { ok: true, data: { kind: "full", flaky: [flaky] } },
+            { ok: true, data: { kind: "full", flaky: [flaky] } },
+        ];
+        const out = await fileIssues(null, [rec("failed", []), rec("failed", [])], answers, [], gh);
+        assert.equal(out.length, 1);
+        assert.equal(calls.filter((c) => c[1] === "create").length, 1);
     });
 
     it("comments on the signature's earlier issue, found by the store or by its marker", async () => {

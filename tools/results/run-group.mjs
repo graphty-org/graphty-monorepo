@@ -11,11 +11,11 @@
 // within 5 s is written to test-results/results-spool/<id>.json.
 //
 // On a pull request with RESULTS_PLAN set (the light check's `results-plan` artifact: GET /v1/plan's answer plus
-// `base`, `affected` (the test files whose file or import closure the pull request changed) and `wholeFamilies`
-// (the families it runs whole, every file of them touched)), the store's
+// `base` and `affected` (the test files whose file or import closure the pull request changed)), the store's
 // quarantine replaces tools/test-quarantine.json and the pull request rules apply (results-service.md 6.1, 6.3):
-// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. An unreadable plan applies no quarantine and excuses
-// nothing. Elsewhere the committed list stands. When the store answers that a record proved a test flaky, this
+// `[NEW-FLAKY]`, `[FLAKY-UNRELATED]`, `[KNOWN]`, `[KNOWN?]`. A re-run attempt reads the quarantine and the master
+// evidence again, so a base check made after the first attempt counts. An unreadable or unavailable plan (a store
+// outage) changes nothing: the committed list stands, as it does elsewhere. When the store answers that a record proved a test flaky, this
 // files its priority:critical issue (or comments on the signature's earlier one) and posts the number back; a
 // `base` run (base-check.yml) files one `Failing on master` issue per signature that failed every time.
 //
@@ -33,7 +33,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { shardKeys } from "../prepush-inputs.mjs";
 import { failureHashes, familyOf, headFacts, newRunId, parseJunit } from "../test-ledger.mjs";
 import { emptyState, fileIssue, PASSES_TO_LEAVE, quarantined, runShard } from "../test-quarantine.mjs";
-import { call, config, postInvocation } from "./client.mjs";
+import { call, config, postInvocation, readPlan } from "./client.mjs";
 import { envString, inputsKey } from "./inputs.mjs";
 
 /**
@@ -58,7 +58,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
  * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else fails as
  * `[KNOWN?]`. Each untouched case names the base-check.yml dispatch the pipeline round makes.
- * @param plan the plan file (null: no quarantine, no excuse, every test touched)
+ * @param plan the plan file (no `affected`: every test touched)
  * @param o the group
  * @param o.shard the shard
  * @param o.family its family
@@ -68,8 +68,7 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
  */
 export function prJudge(plan, { shard, family, variant, base }) {
     const affected = plan?.affected ? new Set(plan.affected) : null;
-    const whole = (plan?.wholeFamilies ?? []).includes(family);
-    const touched = (f) => !affected || whole || affected.has(f.file);
+    const touched = (f) => !affected || affected.has(f.file);
     const onBase = (plan?.failingOnBase ?? []).filter((b) => b.variant.split("|")[0] === family);
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
     const list = storeList(plan);
@@ -126,8 +125,27 @@ function readPlanFile(file) {
     try {
         return JSON.parse(readFileSync(file, "utf8"));
     } catch {
-        console.log(`run-group: no plan in ${file}: no quarantine applied and nothing excused`);
+        console.log(`run-group: no plan in ${file}: the committed quarantine list stands`);
         return null;
+    }
+}
+
+/**
+ * A re-run attempt's plan: the store's quarantine and master evidence read again (a base check dispatched after the
+ * first attempt stored its evidence since), the rest as the first attempt planned. Fails open to the plan as it is.
+ * @param plan the plan file
+ * @param o `cfg` (config()), `sha`, `family`, `variant`
+ * @returns the plan
+ */
+export async function refreshPlan(plan, { cfg, sha, family, variant }) {
+    if (!cfg || !plan?.base) return plan;
+    const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
+    try {
+        const fresh = await readPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
+        if (!fresh) return plan;
+        return { ...plan, quarantine: fresh.quarantine ?? [], failingOnBase: fresh.failingOnBase ?? [] };
+    } catch {
+        return plan;
     }
 }
 
@@ -201,7 +219,9 @@ function fileFailingOnMaster(gh, f, sha) {
 export async function fileIssues(cfg, recs, answers, failing, gh, now = Date.now()) {
     const out = [];
     const day = (ms) => new Date(ms).toISOString().slice(0, 10);
-    for (const t of answers.flatMap((a) => (a.ok ? (a.data?.flaky ?? []) : []))) {
+    // both tries' answers can name one test: one issue for it
+    const named = new Map(answers.flatMap((a) => (a.ok ? (a.data?.flaky ?? []) : [])).map((t) => [idOf(t), t]));
+    for (const t of named.values()) {
         const seen = recs.flatMap((r) => r.failures).find((f) => f.file === t.file && f.name === t.name);
         const entry = {
             ...t,
@@ -385,13 +405,16 @@ export async function runGroup(
     const family = familyOf(shardName);
     const variant = env.RESULTS_VARIANT || `${family}|flags=${flags}|${selected ? "selected" : "whole"}`;
     const head = headFacts(root, env);
-    // no file: the run made no light plan (the full path), so the committed list stands
-    const plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : undefined;
+    // no file (the full path), an unreadable one or a store outage: the committed list stands
+    let plan = env.RESULTS_PLAN && existsSync(env.RESULTS_PLAN) ? readPlanFile(env.RESULTS_PLAN) : null;
+    if (plan?.unavailable) plan = null;
+    if (plan && Number(env.GITHUB_RUN_ATTEMPT ?? 1) > 1)
+        plan = await refreshPlan(plan, { cfg: config(env, root), sha: head.commit, family, variant });
     const rules =
-        env.GITHUB_EVENT_NAME === "pull_request" && plan !== undefined
+        env.GITHUB_EVENT_NAME === "pull_request" && plan
             ? {
                   list: storeList(plan),
-                  judge: prJudge(plan, { shard: shardName, family, variant, base: plan?.base ?? head.base }),
+                  judge: prJudge(plan, { shard: shardName, family, variant, base: plan.base ?? head.base }),
               }
             : {};
     if (env.GRAPHTY_RESULTS === "0" || !env.RESULTS_URL)

@@ -156,13 +156,13 @@ function need(body, fields) {
 }
 
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
-function inserts(db, table, columns, rows) {
+function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
     for (let i = 0; i < rows.length; i += per) {
         const chunk = rows.slice(i, i + per);
-        const sql = `INSERT OR IGNORE INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
+        const sql = `${verb} INTO ${table} (${columns.join(",")}) VALUES ${chunk.map(() => one).join(",")}`;
         out.push(db.prepare(sql).bind(...chunk.flat().map((v) => v ?? null)));
     }
     return out;
@@ -254,11 +254,30 @@ async function postInvocation(body, who, db, nowMs) {
             ["invocation", "file", "passed", "failed", "skipped", "ms"],
             files.map((f) => [body.id, ...f]),
         ),
-        ...inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.id, body.failures ?? [], body.root, nowMs)),
+        // the record's text (its JUnit report) replaces what the live reporter sent for the same test, so every
+        // key and signature a pull request, a base check or an issue compares comes from the same text
+        ...inserts(
+            db,
+            "failure",
+            FAILURE_COLUMNS,
+            failureRows(body.id, body.failures ?? [], body.root, nowMs),
+            "INSERT OR REPLACE",
+        ),
     ]);
     const stored = first.meta.changes === 1;
     const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
-    return { stored, kind: who.kind, flaky: judged ? await concludeFlaky(db, body.id, nowMs) : [] };
+    return { stored, kind: who.kind, flaky: judged ? await concludeFlakySafely(db, body.id, nowMs) : [] };
+}
+
+// The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
+// make the client spool and re-post a record the store already has, whose re-post is never judged).
+async function concludeFlakySafely(db, id, nowMs) {
+    try {
+        return await concludeFlaky(db, id, nowMs);
+    } catch (e) {
+        console.log(`concludeFlaky ${id}: ${e.message}`);
+        return [];
+    }
 }
 
 // The issue a master job filed for a signature (6.6): tracked once, and set on the open quarantine it names.

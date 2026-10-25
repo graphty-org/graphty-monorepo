@@ -1272,13 +1272,18 @@ const familyOf = (shard) => shard.replace(/-\d+$/u, "");
  * @param shards SHARDS entries
  * @param selection selectShards() for them
  * @param [durations] `{ "<family>": { "<file>": ms } }`, the recorded per-file durations
- * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard] }`; a
+ * @returns `{ bins: [{ name, family, shard, covers, files, ms, command }], whole: [shard], none: [shard], touched }`;
+ *   `touched` is every test file the import graphs selected, also in a shard that runs whole (the pull request rules
+ *   read it: a test outside it was not changed by the pull request, nor anything it imports); a
  *   bin's `shard` is the SHARDS entry its command comes from, `covers` every shard its run stands in for
  *   (planRuns() merges slices that select the same files), `name` is `<family>-<n>`
  */
 export function lightPlan(root, shards, selection, durations = {}) {
     const out = { bins: [], whole: [], none: [] };
-    const families = Map.groupBy(planRuns(root, shards, selection), (r) => familyOf(r.shard.shard));
+    const runsPlanned = planRuns(root, shards, selection);
+    const touched = new Set(runsPlanned.flatMap((r) => [...r.files, ...(r.measured?.files ?? [])].map((f) => f.file)));
+    out.touched = [...touched].sort();
+    const families = Map.groupBy(runsPlanned, (r) => familyOf(r.shard.shard));
     for (const [family, runs] of families) {
         if (runs.some((r) => r.mode === "all")) {
             out.whole.push(...runs.flatMap((r) => r.covers));

@@ -1500,7 +1500,8 @@ describe("the light check's plan (design/ci/channels-pipeline/merging.md section
     it("runs a family whole when one of its shards runs whole", () => {
         const shards = ["graphty-1", "graphty-2"].map(byName);
         const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), sel("graphty-2", "all")]);
-        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [] });
+        // the files the import graphs selected stay touched for the pull request rules, though the family runs whole
+        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [], touched: [...many(2)].sort() });
     });
 
     it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {

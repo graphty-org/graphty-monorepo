@@ -52,6 +52,17 @@ jobs:
                   ref: ${{ inputs.base }}
                   fetch-depth: 2
 
+            # kind `base` is master evidence: refuse a commit that is not on master (a pull request's head by mistake)
+            - name: Refuse a base that is not on master
+              env:
+                  BASE: ${{ inputs.base }}
+              run: |
+                  status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$BASE...master" --jq .status)"
+                  if [[ "$status" != ahead && "$status" != identical ]]; then
+                      echo "::error::$BASE is not on master (compare: $status)"
+                      exit 1
+                  fi
+
             - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js

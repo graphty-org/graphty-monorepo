@@ -9,7 +9,7 @@ import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { SHARDS } from "./ci-test-matrix.mjs";
+import { plan as matrixPlan, SHARDS } from "./ci-test-matrix.mjs";
 import {
     advisoryMisses,
     buildInput,
@@ -17,6 +17,9 @@ import {
     estimate,
     failingFiles,
     globToRe,
+    graphCacheKey,
+    lightPlan,
+    lockMoves,
     literalPaths,
     loadRules,
     measuredOf,
@@ -30,6 +33,7 @@ import {
     selectInGraph,
     selectPackages,
     selectShards,
+    selectStories,
     selectedCommand,
     shardRuns,
     sourceOf,
@@ -1416,5 +1420,226 @@ describe("light-check-replay", () => {
             owner: "pipeline",
             why: "light-check replay of 2 advisory records (2026-10-22 to 2026-10-23): p50 10 min, p90 12.5 min; table on #3418",
         });
+    });
+});
+
+describe("the light check's plan (design/ci/channels-pipeline/merging.md section 4.1)", () => {
+    const MIN = 60_000;
+    const byName = (name) => SHARDS.find((s) => s.shard === name);
+    const sel = (shard, mode, files = []) => ({ shard, mode, files: files.map((file) => ({ file })), reasons: [] });
+    const many = (n) => Array.from({ length: n }, (_, i) => `graphty/src/t${i}.test.tsx`);
+
+    it("packs a one-package change into bins of at most 8 minutes, one vitest run of its files each", () => {
+        const app = many(10);
+        const shards = ["graphty-1", "graphty-2", "layout", "githerd"].map(byName);
+        const selection = [
+            sel("graphty-1", "files", app),
+            sel("graphty-2", "files", app),
+            sel("layout", "none"),
+            sel("githerd", "all"),
+        ];
+        const durations = { graphty: Object.fromEntries(app.map((f) => [f, 3 * MIN])) };
+        const out = lightPlan(ROOT, shards, selection, durations);
+        assert.deepEqual(out.whole, ["githerd"]);
+        assert.deepEqual(out.none, ["layout"]);
+        assert.deepEqual(
+            out.bins.map((b) => b.name),
+            ["graphty-1", "graphty-2", "graphty-3", "graphty-4", "graphty-5"],
+        );
+        assert.ok(
+            out.bins.every((b) => b.ms <= 8 * MIN),
+            "every bin is under 8 minutes",
+        );
+        assert.deepEqual(out.bins.flatMap((b) => b.files).sort(), [...app].sort(), "every file runs once");
+        for (const b of out.bins) {
+            assert.equal(b.shard, "graphty-1");
+            assert.doesNotMatch(b.command, /--coverage|--shard/u);
+            assert.ok(b.files.every((f) => b.command.includes(`'${f.slice("graphty/".length)}'`)));
+        }
+    });
+
+    it("runs a family whole when one of its shards runs whole", () => {
+        const shards = ["graphty-1", "graphty-2"].map(byName);
+        const out = lightPlan(ROOT, shards, [sel("graphty-1", "files", many(2)), sel("graphty-2", "all")]);
+        assert.deepEqual(out, { bins: [], whole: ["graphty-1", "graphty-2"], none: [] });
+    });
+
+    it("gives each bin a matrix entry with its files, in place of its shard, and leaves out the empty shards", () => {
+        const light = {
+            bins: [
+                {
+                    name: "graph-io-1",
+                    shard: "graph-io",
+                    files: ["graph-io/test/a.test.ts"],
+                    command: "cd graph-io && pnpm exec vitest run 'test/a.test.ts'",
+                },
+            ],
+            whole: ["graph-format"],
+            none: ["layout"],
+        };
+        const include = matrixPlan(["graph-io", "graph-format", "layout"], undefined, light);
+        assert.equal(
+            include.find((e) => e.shard === "graph-io"),
+            undefined,
+            "the binned shard does not run whole",
+        );
+        const bin = include.find((e) => e.shard === "graph-io-1");
+        assert.deepEqual(bin.files, ["graph-io/test/a.test.ts"]);
+        assert.equal(bin.coverage, undefined, "a bin uploads no coverage");
+        assert.equal(bin["needs-browser"], false);
+        assert.match(bin["test-command"], /^node tools\/test-quarantine\.mjs run graph-io-1 'cd graph-io && /u);
+        const group = include.find((e) => e.shard === "small-node");
+        assert.match(group["test-command"], /graph-format/u, "a whole shard runs as today");
+        assert.doesNotMatch(group["test-command"], /==> layout/u, "a shard with nothing selected is left out");
+        assert.throws(
+            () => matrixPlan(["graph-io"], undefined, { bins: [{ name: "x-1", shard: "nope" }] }),
+            /names no shard/u,
+        );
+    });
+});
+
+describe("the story selector (design/ci/channels-pipeline/stories-as-tests.md section 5)", () => {
+    const stories = loadRules(ROOT).stories;
+    const projects = JSON.parse(readFileSync(join(ROOT, "visual-review.config.json"), "utf8")).projects;
+    const byName = (name) => SHARDS.find((s) => s.shard === name);
+    const shards = [
+        "graphty-storybook",
+        "graphty-1",
+        "layout",
+        "graph-io",
+        "graphty-element-storybook-1",
+        "graphty-element-storybook-2",
+    ].map(byName);
+    const pick = (selection, changed = [], extra = {}) =>
+        Object.fromEntries(
+            selectStories({
+                projects,
+                changed,
+                everything: null,
+                shards,
+                selection,
+                rules: stories,
+                lockMoved: false,
+                ...extra,
+            }).map((p) => [p.project, p]),
+        );
+    const sel = (shard, mode, files = []) => ({
+        shard,
+        mode,
+        files: files.map((file) => ({ file })),
+        reasons: [`${shard} ${mode}`],
+    });
+    const none = shards.map((s) => sel(s.shard, "none"));
+
+    it("runs the story files whose import closure reaches the change, from the storybook shards", () => {
+        const story = "graphty-element/stories/Basic.stories.ts";
+        const selection = [
+            ...none.filter((s) => !s.shard.startsWith("graphty-element-storybook")),
+            sel("graphty-element-storybook-1", "files", [story]),
+            sel("graphty-element-storybook-2", "files", [story]),
+        ];
+        const out = pick(selection, ["graphty-element/src/a.ts"]);
+        assert.equal(out["graphty-element"].mode, "files");
+        assert.deepEqual(out["graphty-element"].files, [story]);
+        assert.equal(out.graphty.mode, "none");
+        assert.equal(out.layout.mode, "none");
+    });
+
+    it("runs every story of a project with no story graph when a package that draws it is selected", () => {
+        const selection = none.map((s) => (s.shard === "graphty-element-storybook-1" ? sel(s.shard, "all") : s));
+        const out = pick(selection);
+        assert.equal(out["graph-io-fidelity"].mode, "all", "graph-io-fidelity draws with graphty-element");
+        assert.equal(out.layout.mode, "none");
+        assert.equal(
+            pick(none.map((s) => (s.shard === "layout" ? sel("layout", "files", ["layout/test/a.test.ts"]) : s))).layout
+                .mode,
+            "all",
+        );
+    });
+
+    it("runs every story on a global input, the project's own Storybook setup, the theme or a lockfile move", () => {
+        assert.ok(Object.values(pick(none, ["visual-fonts/fonts.conf"])).every((p) => p.mode === "all"));
+        const own = pick(none, ["graphty/.storybook/preview.tsx"]);
+        assert.equal(own.graphty.mode, "all");
+        assert.equal(own["graphty-element"].mode, "none");
+        assert.equal(pick(none, ["graph-io/fidelity-stories/.storybook/main.ts"])["graph-io-fidelity"].mode, "all");
+        const theme = pick(none, ["compact-mantine/src/theme/tokens.ts"]);
+        assert.equal(theme.graphty.mode, "all");
+        assert.equal(theme.layout.mode, "none");
+        assert.ok(Object.values(pick(none, ["pnpm-lock.yaml"], { lockMoved: true })).every((p) => p.mode === "all"));
+        assert.ok(Object.values(pick(none, [], { everything: "nx.json" })).every((p) => p.mode === "all"));
+    });
+
+    it("runs a story whose baseline changed", () => {
+        const out = pick(none, [
+            "visual-baselines/layout/layout-circular--default.png",
+            "visual-baselines/layout/x.json",
+        ]);
+        assert.deepEqual(out.layout.baselines, ["layout-circular--default"]);
+        assert.equal(out.layout.mode, "none");
+    });
+
+    it("counts a lockfile change as moving every picture only when it moves Playwright, Storybook, Vitest or a font", () => {
+        const lock = (pkgs) =>
+            `lockfileVersion: '9.0'\n\npackages:\n\n${pkgs.map((p) => `  ${p}:\n    resolution: {integrity: x}\n`).join("\n")}`;
+        const re = stories.lockfile;
+        assert.equal(
+            lockMoves(lock(["lodash@4.17.20", "vitest@3.2.3"]), lock(["lodash@4.17.21", "vitest@3.2.3"]), re),
+            false,
+        );
+        assert.equal(lockMoves(lock(["vitest@3.2.3"]), lock(["vitest@3.2.4"]), re), true);
+        assert.equal(lockMoves(lock(["a@1.0.0"]), lock(["a@1.0.0", "'@playwright/test@1.56.0'"]), re), true);
+        assert.equal(lockMoves(null, lock([]), re), true, "an unreadable lockfile counts as moved");
+    });
+});
+
+describe("the import graphs' cache key", () => {
+    it("follows the packages, root configs and lockfile, not the commit", () => {
+        const repo = mkdtempSync(join(ROOT, "tmp", "graph-key-"));
+        try {
+            const git = (...a) =>
+                execFileSync("git", a, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+            git("init", "-q");
+            for (const [f, t] of [
+                ["pkg/a.ts", "1"],
+                ["pnpm-lock.yaml", "a"],
+                ["docs/x.md", "x"],
+                ["README.md", "r"],
+                ["tools/test-select.mjs", ""],
+                ["tools/test-select-rules.json", "{}"],
+            ]) {
+                mkdirSync(dirname(join(repo, f)), { recursive: true });
+                writeFileSync(join(repo, f), t);
+            }
+            const commit = () =>
+                git(
+                    "-c",
+                    "user.name=t",
+                    "-c",
+                    "user.email=t@t",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-qam",
+                    "c",
+                    "--no-verify",
+                );
+            git("add", ".");
+            commit();
+            const k1 = graphCacheKey(repo, ["pkg"]);
+            writeFileSync(join(repo, "docs/x.md"), "y");
+            writeFileSync(join(repo, "README.md"), "s");
+            commit();
+            assert.equal(graphCacheKey(repo, ["pkg"]), k1, "docs and a new commit keep the key");
+            writeFileSync(join(repo, "pnpm-lock.yaml"), "b");
+            commit();
+            const k2 = graphCacheKey(repo, ["pkg"]);
+            assert.notEqual(k2, k1, "the lockfile is a graph input");
+            writeFileSync(join(repo, "pkg/a.ts"), "2");
+            commit();
+            assert.notEqual(graphCacheKey(repo, ["pkg"]), k2, "a package's tree is a graph input");
+        } finally {
+            rmSync(repo, { recursive: true, force: true });
+        }
     });
 });

@@ -108,7 +108,7 @@ export function differingImages(dir, expected = []) {
     // an artifact is visual-<project>-<attempt>/...: a re-run's newest attempt replaces the earlier ones
     const newest = new Map();
     for (const f of readdirSync(dir, { recursive: true }).map(String)) {
-        const m = /^visual-(.+)-(\d+)[/\\].*results\.json$/.exec(f);
+        const m = /^visual-(.+)-(\d+)[/\\](?:.*[/\\])?results\.json$/.exec(f);
         if (m && Number(m[2]) >= (newest.get(m[1])?.attempt ?? 0)) newest.set(m[1], { attempt: Number(m[2]), f });
     }
     const files = [...newest.values()].map((v) => v.f);
@@ -172,7 +172,12 @@ export function bisectPlan({ red, sha, good, run, failures }) {
             bad: sha,
             run_id: String(run),
             targets: JSON.stringify(tests),
-            failed_before: JSON.stringify(lane === "ci" ? (failures?.failedBefore ?? []) : []),
+            // only the capped targets' ids: the rest are not bisected, and the input has the same limit
+            failed_before: JSON.stringify(
+                (failures?.failedBefore ?? []).filter((id) =>
+                    tests.some((t) => id === `${t.shard}: ${t.file} > ${t.name}`),
+                ),
+            ),
         },
     };
 }
@@ -309,6 +314,7 @@ async function verdictMain(env) {
     const images = differingImages(env.CAPTURES, projects);
     const { state, red } = verdictOf(lanes, images, env.LLM_OWNER_ITEM, env.VERSION_HELD);
     let issue = null;
+    let bisect = "";
     let what = state;
     if (state === "owner-item") {
         what =
@@ -318,7 +324,7 @@ async function verdictMain(env) {
     }
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
-        const bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
+        bisect = tryBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
         issue = fileRed(redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect }));
         what = red.map((l) => LANES[l].name).join(", ");
     } else if (state !== "owner-item") {
@@ -326,7 +332,7 @@ async function verdictMain(env) {
     }
     // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });
-    output({ state, issue: issue ? String(issue) : "", what });
+    output({ state, issue: issue ? String(issue) : "", what, bisect });
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

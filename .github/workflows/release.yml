@@ -625,9 +625,10 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   WHAT: ${{ steps.verdict.outputs.what }}
                   ISSUE: ${{ steps.verdict.outputs.issue }}
+                  BISECT: ${{ steps.verdict.outputs.bisect }}
               run: |
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
-                      --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+                      --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
     # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed

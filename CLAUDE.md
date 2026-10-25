@@ -639,8 +639,8 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
 whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
 in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
-lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
-push starts or restarts a release (the `workflow_run` trigger is gone). Only the owner releases, with
+lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
+trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.

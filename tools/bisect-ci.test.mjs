@@ -199,6 +199,18 @@ describe("the lane rules", () => {
         assert.equal(rounds, 3);
         assert.match(s.answer.noLanding, /T4 cap/);
     });
+
+    it("counts the paid minutes of a lost T4 point toward the cap", () => {
+        let s = start({ lane: "gpu", good: "g", bad: "m40", targets: [], afterLocalCard: true }, fakeGit(40));
+        let rounds = 0;
+        while (!s.answer && rounds < 20) {
+            s = judge(s, [{ sha: s.next.points[0], status: "cancelled", minutes: 70 }]);
+            rounds++;
+        }
+        assert.ok(s.answer, "lost spot runners still end the bisect at the cap");
+        assert.ok(rounds <= 4, `${rounds} rounds`);
+        assert.match(s.answer.noLanding, /T4 cap/);
+    });
 });
 
 describe("bisect.yml", () => {

@@ -132,6 +132,8 @@ export function start(a, git) {
 
 // Adds a point's runs to what the state already holds for that commit (a parent can be run again, for more runs).
 function addResult(s, r) {
+    // a lost or cancelled T4 point is paid for too, so the cap counts it before the result is set aside
+    if (s.lane === "gpu") s.t4Minutes += r.minutes ?? T4_POINT_MINUTES;
     if ("status" in r && !["success", "failure"].includes(r.status)) return; // cancelled or lost: no run, test it again
     const ids = (s.followed ?? s.targets).map((t) => t.id);
     const got =
@@ -142,7 +144,6 @@ function addResult(s, r) {
     for (const [id, n] of Object.entries(got.failed)) old.failed[id] = (old.failed[id] ?? 0) + n;
     old.runs += got.runs;
     s.results[r.sha] = old;
-    if (s.lane === "gpu") s.t4Minutes += r.minutes ?? T4_POINT_MINUTES;
 }
 
 const finish = (s, answer) => {

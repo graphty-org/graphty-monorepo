@@ -138,6 +138,12 @@ describe("differingImages", () => {
         );
         assert.equal(differingImages(dir), 1);
         assert.equal(differingImages(join(dir, "missing")), null);
+        // another file ending in results.json is not the capture's
+        writeFileSync(
+            join(dir, "visual-layout-2", "flaky-results.json"),
+            JSON.stringify({ items: [{ status: "new" }] }),
+        );
+        assert.equal(differingImages(dir), 1);
         // a project whose capture wrote no results.json is not clean
         assert.equal(differingImages(dir, ["layout", "graphty"]), 1);
         assert.equal(differingImages(dir, ["layout", "graphty", "compact-mantine"]), null);
@@ -192,5 +198,8 @@ describe("bisectPlan's targets", () => {
         const plan = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore: [] } });
         assert.equal(JSON.parse(plan.inputs.targets).length, 100);
         assert.ok(plan.inputs.targets.length < 65_535);
+        const failedBefore = tests.map((t) => `${t.shard}: ${t.file} > ${t.name}`);
+        const both = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore } });
+        assert.equal(JSON.parse(both.inputs.failed_before).length, 100, "only the capped targets' ids");
     });
 });

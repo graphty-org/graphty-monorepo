@@ -52,7 +52,7 @@ export const buildInput = (pkgPath) => !TEST_SIDE.test(pkgPath) && !TEST_FILE.te
 /**
  * The rules file, with nx.json's sharedGlobals added to "everything".
  * @param root the checkout
- * @returns `{ everything, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser }`
+ * @returns `{ everything, smoke, noTests, wholePackage, alsoRun, opaque, readAtRunTime, fileLevel, fileLevelBrowser }`
  */
 export function loadRules(root) {
     const raw = JSON.parse(readFileSync(RULES, "utf8"));
@@ -66,6 +66,7 @@ export function loadRules(root) {
     }
     return {
         everything: [...raw.everything.patterns.map(toRe), ...shared],
+        smoke: { patterns: (raw.smoke?.patterns ?? []).map(toRe), shards: raw.smoke?.shards ?? [] },
         noTests: raw.noTests.patterns.map(toRe),
         wholePackage: raw.wholePackage.patterns.map(toRe),
         alsoRun: raw.alsoRun.entries.map((e) => ({ re: toRe(e.pattern), packages: e.packages, why: e.why })),
@@ -98,6 +99,107 @@ export function globToRe(glob) {
             .join("")}$`,
         "u",
     );
+}
+
+const LOCK = "pnpm-lock.yaml";
+// top-level lockfile sections that change only along with an importer's block (a catalog bump rewrites the
+// versions in the importers that use it); any other section (settings, overrides, patchedDependencies)
+// changes what every package installs
+const FOLLOWS_IMPORTERS = new Set(["importers", "catalogs", "packages", "snapshots"]);
+
+/**
+ * A pnpm lockfile's top-level sections and each section's entries (an importer, a package, a snapshot), as
+ * text.
+ * @param text the lockfile
+ * @returns `{ top: Map(section -> text), entries: Map(section -> Map(entry key -> text)) }`
+ */
+export function lockSections(text) {
+    const top = new Map();
+    const entries = new Map();
+    let section = null;
+    let entry = null;
+    for (const line of text.split("\n")) {
+        const head = /^(\S[^:]*):/u.exec(line);
+        if (head) {
+            section = head[1];
+            entry = null;
+            entries.set(section, new Map());
+        }
+        const sub = section !== null && /^ {2}(\S.*):$/u.exec(line);
+        if (sub) {
+            entry = sub[1].replaceAll(/(?:^['"])|(?:['"]$)/gu, "");
+        }
+        top.set(section, `${top.get(section) ?? ""}${line}\n`);
+        if (entry !== null) {
+            const m = entries.get(section);
+            m.set(entry, `${m.get(entry) ?? ""}${line}\n`);
+        }
+    }
+    return { top, entries };
+}
+
+/**
+ * The importers (package directories, "." for the root) whose resolved dependencies differ between two
+ * lockfiles, as nx's projectsAffectedByDependencyUpdates "auto" reads them. null when the change cannot be
+ * put on importers: a lockfile is missing, a section every package installs from changed, the resolved
+ * packages changed while no importer did, or a package or snapshot both lockfiles hold was rewritten (a
+ * re-resolved transitive dependency, which reaches importers whose own block did not change).
+ * @param before the lockfile text at the base, or null
+ * @param after the lockfile text at the head, or null
+ * @returns importer paths, or null
+ */
+export function changedImporters(before, after) {
+    if (before === null || after === null) {
+        return null;
+    }
+    const a = lockSections(before);
+    const b = lockSections(after);
+    const differ = (x, y) => [...new Set([...x.keys(), ...y.keys()])].filter((k) => x.get(k) !== y.get(k));
+    const of = (s, sec) => s.entries.get(sec) ?? new Map();
+    const importers = differ(of(a, "importers"), of(b, "importers"));
+    const sections = differ(a.top, b.top);
+    const rewritten = ["packages", "snapshots"].some((sec) =>
+        differ(of(a, sec), of(b, sec)).some((k) => of(a, sec).has(k) && of(b, sec).has(k)),
+    );
+    if (sections.some((k) => !FOLLOWS_IMPORTERS.has(k)) || importers.length === 0 || rewritten) {
+        return sections.length === 0 ? [] : null;
+    }
+    return importers;
+}
+
+/**
+ * changedImporters() for the lockfile at the merge base of base and head and at head.
+ * @param root the checkout
+ * @param base a commit-ish
+ * @param head a commit-ish, or null for the working tree
+ * @returns importer paths, or null
+ */
+export function lockfileImporters(root, base, head) {
+    const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
+    const show = (rev) => {
+        try {
+            return rev ? git(["show", `${rev}:${LOCK}`]) : readFileSync(join(root, LOCK), "utf8");
+        } catch {
+            return null;
+        }
+    };
+    return changedImporters(show(git(["merge-base", base, head ?? "HEAD"]).trim()), show(head));
+}
+
+/**
+ * The changed paths with a changed lockfile put on the packages whose dependencies it changed: each
+ * importer stands as a change to its package.json (the root importer's is the root package.json, which runs
+ * everything). The lockfile stays when which importers changed is unknown.
+ * @param changed repo-relative changed paths
+ * @param importers changedImporters(), or null/undefined when unknown
+ * @returns changed paths
+ */
+export function withLockfile(changed, importers) {
+    if (!changed.includes(LOCK) || !Array.isArray(importers)) {
+        return changed;
+    }
+    const manifests = importers.map((dir) => (dir === "." ? "package.json" : `${dir}/package.json`));
+    return [...new Set([...changed.filter((f) => f !== LOCK), ...manifests])];
 }
 
 /**
@@ -248,10 +350,13 @@ function specsReaching(file, graph, allSpecs, rev, add) {
  * @param input.deleted Set of changed paths that no longer exist, optional
  * @param input.deferDownstream leave out the tests of packages reached only as dependents or readers of a
  *   changed package (a landing check defers them to verification, design/ci/fast-pipeline.md), optional
- * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs })}`
+ * @param input.lockfile the lockfile importers whose dependencies changed (changedImporters()); without it a
+ *   changed lockfile runs everything, optional
+ * @returns `{ everything: reason|null, packages: Map(dir -> { mode: "all"|"files"|"none", reasons, specs }),
+ *   unexplainedRoot, smoke: Map(shard -> reason) }`; smoke names the shards a workflow change runs whole
  */
 export function selectPackages({
-    changed,
+    changed: changed0,
     packages,
     deps,
     refs,
@@ -260,7 +365,9 @@ export function selectPackages({
     rootImporters,
     deleted,
     deferDownstream,
+    lockfile,
 }) {
+    const changed = withLockfile(changed0, lockfile);
     const dirs = [...packages.values()];
     const pkgOf = (f) => dirs.find((d) => f.startsWith(`${d}/`));
     const out = new Map(dirs.map((d) => [d, { mode: "none", reasons: [], specs: new Map() }]));
@@ -280,8 +387,12 @@ export function selectPackages({
     };
     const everything = (f) => {
         dirs.forEach((d) => whole(d, `${f} changes how every shard runs`));
-        return { everything: f, packages: out, unexplainedRoot: [] };
+        return { everything: f, packages: out, unexplainedRoot: [], smoke: new Map() };
     };
+    // a lockfile change withLockfile() could not put on importers
+    if (changed.includes(LOCK)) {
+        return everything(LOCK);
+    }
     const trigger = [...root.keys()].find((f) => rules.everything.some((re) => re.test(f)));
     if (trigger) {
         return everything(root.get(trigger) === trigger ? trigger : `${root.get(trigger)} (through ${trigger})`);
@@ -303,7 +414,11 @@ export function selectPackages({
     for (const dir of dirs) {
         filesInPackage(dir, changed, graphs.get(dir), rules, out.get(dir), whole, deleted);
     }
-    return { everything: null, packages: out, unexplainedRoot };
+    const smokeBy = changed.find((f) => rules.smoke?.patterns.some((re) => re.test(f)));
+    const smoke = new Map(
+        smokeBy ? rules.smoke.shards.map((sh) => [sh, `${smokeBy} changes how CI runs shards (smoke shard)`]) : [],
+    );
+    return { everything: null, packages: out, unexplainedRoot, smoke };
 }
 
 /**
@@ -362,8 +477,8 @@ function rootFiles(files, { rules, dirs, graphs, out, whole }) {
 }
 
 /**
- * Whether a package's tests read a root file: those that import it are selected, and a package whose tests
- * name it runs whole.
+ * Whether a package's tests read a root file: those that import it are selected, test files that name it
+ * are selected, and a package whose other test-side files or configs name it runs whole.
  * @param f a root file
  * @param dir the package
  * @param ctx `{ graphs, out, whole }` as rootFiles has them
@@ -379,11 +494,17 @@ function readBy(f, dir, { graphs, out, whole }) {
         gs.forEach((g) => selectInGraph(g, [f]).specs.forEach((why, spec) => addSpec(out.get(dir), spec, why)));
         return true;
     }
-    if (namedBy(f, dir, known ? gs : null)) {
-        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
-        return true;
+    const by = namedBy(f, dir, known ? gs : null);
+    if (by.size === 0) {
+        return false;
     }
-    return false;
+    const specs = new Set(known ? gs.flatMap((g) => Object.values(g.projects).flatMap((p) => p.specs)) : []);
+    if ([...by].every((x) => specs.has(x))) {
+        by.forEach((spec) => addSpec(out.get(dir), spec, `it names ${f}, which it may read at run time`));
+    } else {
+        whole(dir, `${f} is named by a test of ${dir}, which may read it at run time`);
+    }
+    return true;
 }
 
 const addSpec = (result, spec, why) => result.mode !== "all" && !result.specs.has(spec) && result.specs.set(spec, why);
@@ -400,7 +521,7 @@ const namesByGraphs = new WeakMap();
  * @param file a root file
  * @param dir the package
  * @param graphs its graphs, or null
- * @returns boolean
+ * @returns Set of the files that name it (empty when none does)
  */
 function namedBy(file, dir, graphs) {
     // keyed by the graphs themselves (a package without them by its directory): each selection has its own
@@ -410,18 +531,25 @@ function namedBy(file, dir, graphs) {
         cache.set(key, namesIn(dir, graphs));
     }
     const { paths, bases } = cache.get(key);
-    if (file.startsWith("tools/") && bases.has(file.slice(file.lastIndexOf("/") + 1))) {
-        return true;
+    const by = new Set();
+    if (file.startsWith("tools/")) {
+        bases.get(file.slice(file.lastIndexOf("/") + 1))?.forEach((f) => by.add(f));
     }
     const parts = file.split("/");
-    return parts.some((_, i) => (i === parts.length - 1 || i > 0) && paths.has(parts.slice(0, i + 1).join("/")));
+    parts.forEach((_, i) => {
+        if (i === parts.length - 1 || i > 0) {
+            paths.get(parts.slice(0, i + 1).join("/"))?.forEach((f) => by.add(f));
+        }
+    });
+    return by;
 }
 
 /**
- * The paths and file names the string literals of a package's test-side files name.
+ * The paths and file names the string literals of a package's test-side files name, each with the files
+ * that name it.
  * @param dir the package
  * @param graphs its graphs, or null for every file of the package
- * @returns `{ paths: Set, bases: Set }`
+ * @returns `{ paths: Map(path -> Set of files), bases: Map(file name -> Set of files) }`
  */
 function namesIn(dir, graphs) {
     const candidates = graphs
@@ -434,14 +562,15 @@ function namesIn(dir, graphs) {
         : execFileSync("git", ["ls-files", "--", dir], { cwd: grepRoot, encoding: "utf8", maxBuffer: 1 << 28 })
               .split("\n")
               .filter(Boolean);
-    const paths = new Set();
-    const bases = new Set();
+    const paths = new Map();
+    const bases = new Map();
+    const add = (m, k, f) => m.set(k, (m.get(k) ?? new Set()).add(f));
     for (const f of candidates) {
         for (const literal of safeRead(join(grepRoot, f)).matchAll(/["'`]([^"'`\n]+)["'`]/gu)) {
             for (const [token] of literal[1].matchAll(/[\w@.+-]+(?:\/[\w@.+-]+)*/gu)) {
                 const path = token.replace(/^(?:\.{1,2}\/)+/u, "");
-                paths.add(path);
-                bases.add(path.slice(path.lastIndexOf("/") + 1));
+                add(paths, path, f);
+                add(bases, path.slice(path.lastIndexOf("/") + 1), f);
             }
         }
     }
@@ -849,11 +978,22 @@ export function wholePackageRule(rel, rules) {
  * @param graphs Map(dir -> [graph...])
  * @param allowed Set of package directories where file-level selection is allowed; omitted, every one is
  * @param browserAllowed Set of package directories whose browser projects may be selected file by file too
+ * @param smoke selectPackages().smoke: shards that run whole whatever their package's selection
  * @returns `[{ shard, package, mode, files, total, reasons, measured? }]`; total is the shard's test file
  *   count when known; measured `{ mode, files }` is the file-level answer where it was not allowed
  */
-export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set()) {
+export function selectShards(shards, packages, graphs, allowed, browserAllowed = new Set(), smoke = new Map()) {
     return shards.map((shard) => {
+        if (smoke.has(shard.shard) && packages.get(shard.package)?.mode !== "all") {
+            return {
+                shard: shard.shard,
+                package: shard.package,
+                total: null,
+                mode: "all",
+                files: [],
+                reasons: [smoke.get(shard.shard)],
+            };
+        }
         const p = packages.get(shard.package) ?? { mode: "all", reasons: ["unknown package"], specs: new Map() };
         const runs = shardRuns(shard);
         const gs = graphs.get(shard.package) ?? [];
@@ -2016,9 +2156,11 @@ function graphChild(root, dir, config) {
  * @param shards SHARDS entries
  * @param graphs optional prebuilt graphs (Map(dir -> [graph...])); built for the changed packages otherwise
  * @param deferDownstream selectPackages' option of that name
+ * @param lockRefs `{ base, head }` (head null for the working tree) to read a changed lockfile between; without
+ *   it a changed lockfile runs everything
  * @returns `{ everything, packages, shards }`
  */
-export async function selectChange(root, changed, shards, graphs, deferDownstream = false) {
+export async function selectChange(root, changed, shards, graphs, deferDownstream = false, lockRefs = null) {
     const graph = projectGraph(root);
     if (!graph) {
         throw new Error("nx's project graph could not be read");
@@ -2038,8 +2180,12 @@ export async function selectChange(root, changed, shards, graphs, deferDownstrea
         rootImporters: rootImportGraph(root, [...packages.values()]),
         deleted: new Set(changed.filter((f) => !existsSync(join(root, f)))),
         deferDownstream,
+        lockfile: lockRefs && changed.includes(LOCK) ? lockfileImporters(root, lockRefs.base, lockRefs.head) : null,
     });
-    return { ...sel, shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser) };
+    return {
+        ...sel,
+        shards: selectShards(shards, sel.packages, all, rules.fileLevel, rules.fileLevelBrowser, sel.smoke),
+    };
 }
 
 const LOCAL_IMPORT = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*)["'](\.{1,2}\/[^"']+)["']/gu;
@@ -2114,8 +2260,13 @@ async function main(argv) {
         return;
     }
     const { SHARDS } = await import(pathToFileURL(join(root, "tools/ci-test-matrix.mjs")).href);
-    const changed = changedFiles(root, arg("--base") ?? "origin/golden", arg("--head") ?? "HEAD");
-    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"));
+    const base = arg("--base") ?? "origin/golden";
+    const head = arg("--head") ?? "HEAD";
+    const changed = changedFiles(root, base, head);
+    const selection = await selectChange(root, changed, SHARDS, undefined, argv.includes("--defer-downstream"), {
+        base,
+        head,
+    });
     if (argv.includes("--json")) {
         console.log(
             JSON.stringify({

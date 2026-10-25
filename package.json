@@ -24,6 +24,7 @@
         "check:committed-images": "node tools/check-committed-images.mjs",
         "check:quick": "tools/low-priority.sh tools/check-quick.sh",
         "check:figma-lock": "node tools/check-figma-lock.mjs",
+        "check:features": "node tools/check-features.mjs",
         "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check && node tools/release-approvals.test.mjs && node tools/release-approvals.mjs check",
         "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs && node tools/sonar/sonar-baseline.test.mjs && node tools/push-base.test.mjs",
         "test:ci-workflows": "node tools/run-ci-workflow-tests.mjs",

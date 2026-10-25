@@ -57,7 +57,7 @@ Words used below:
   `tools/results-service/**` or `tools/release-scheduler/**`, and on dispatch: `node --test` on the
   Worker's tests, `npx wrangler@4 d1 migrations apply graphty-results --remote`, `npx wrangler@4 deploy`
   for both Workers. Secrets `CLOUDFLARE_API_TOKEN` (Workers Scripts edit and D1 edit only) and
-  `CLOUDFLARE_ACCOUNT_ID`. Neither Worker depends on anyone's laptop any more.
+  `CLOUDFLARE_ACCOUNT_ID`.
 - **Ownership:** both directories are CODEOWNERS paths owned by the owner, like every pipeline path.
   Agents propose; the owner's review merges. The pipeline round operates the service (reads `status`,
   works its issues) and never changes its rules in the same pull request as a product fix.
@@ -208,7 +208,6 @@ What a pull request can do: its CI runs its own copy of the client, so it can po
 own merge commit. It cannot write `full`, `bisect` or `local`, touch another commit, or remove a
 quarantine. The worst is a fabricated pass-and-fail pair that quarantines a test, and that is never
 silent: a `priority:critical` issue names both invocations, and every let-through failure is printed.
-Changes to `tools/results/**` need the owner's review.
 
 ## 6. The rules
 
@@ -342,7 +341,7 @@ The time-limit alarms (another section of this design) read the `duration` table
   `POST /v1/durations`. The Sentry plugin regression would have shown as one task growing.
 - **Test files:** `file_run.ms`.
 
-Durations never judge a test's result.
+Durations never judge a test result.
 
 ## 11. In CI and locally
 

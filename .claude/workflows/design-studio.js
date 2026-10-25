@@ -19,7 +19,7 @@ export const meta = {
         },
         {
             title: "Report",
-            detail: "summary report, then the branch is made ready to land on master through golden-local",
+            detail: "summary report, then the branch is made ready to merge into master through its own pull request",
         },
     ],
 };
@@ -51,11 +51,11 @@ const SERVER = A.serverName || `design-studio-tier${TIER}`;
 const BUILDS = A.buildsDir || ROOT + "/.study-builds";
 // Pilot, dry-run, readiness and tool-check walks write their screenshots and step files here, in the
 // main checkout's tmp/ (git ignores it); only their report.md stays in the studio's files. On
-// 2026-10-21 golden held 83,000 walk screenshots (9.9 GB in Git LFS) committed with the reports.
+// 2026-10-21 the repository held 83,000 walk screenshots (9.9 GB in Git LFS) committed with the reports.
 const WALKS = A.walksDir || `${ROOT}/tmp/design-studio/tier${TIER}`;
 const READING = (A.reading || [`${SD}/report.md`]).join(", ");
 const LAND = A.land !== false;
-// Land every fix pass on master (golden-local): tier 3's 526 fix commits stayed on the studio branch,
+// Land every fix pass on master (its own pull request): tier 3's 526 fix commits stayed on the studio branch,
 // so no CI, SonarQube or screenshot review ever saw them and no consumer got them.
 const LAND_EACH_PASS = A.landEachPass !== false;
 // The tier's binding decisions: every triage reads and cites it. Tier 3 flip-flopped three behaviors
@@ -281,15 +281,15 @@ async function slot(fn) {
 
 let build = null;
 
-// withGolden: merge origin/golden first (a tier's first build and every round's build), so the study
+// withMaster: merge origin/master first (a tier's first build and every round's build), so the study
 // never runs on a stale app. A dry-run pass's build skips it: its re-pilot walks only what its fixes touched.
-async function freezeBuild(tag, phaseName, withGolden) {
-    const golden = withGolden
-        ? ` THEN, so the study never runs on a stale app: git -C ${ST} fetch origin; git -C ${ST} merge origin/golden (a merge, never a rebase), resolving conflicts keeping both sides (the studio's own files under ${SD} keep this branch's side), pnpm install --frozen-lockfile if the lockfile changed, and commit the merge.`
+async function freezeBuild(tag, phaseName, withMaster) {
+    const fresh = withMaster
+        ? ` THEN, so the study never runs on a stale app: git -C ${ST} fetch origin; git -C ${ST} merge origin/master (a merge, never a rebase), resolving conflicts keeping both sides (the studio's own files under ${SD} keep this branch's side), pnpm install --frozen-lockfile if the lockfile changed, and commit the merge.`
         : "";
     return slot(() =>
         agent(
-            `${RULES}\nFreeze a study build "${tag}". FIRST, a build no commit reproduces is invalid (tier 3 pass 2's fixes were committed only after pass 3 piloted them): if git -C ${ST} status shows any uncommitted source change outside tmp/, it is a finished fix pass's work -- commit it (stage only those files) before building, and freeze HEAD.${golden} In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
+            `${RULES}\nFreeze a study build "${tag}". FIRST, a build no commit reproduces is invalid (tier 3 pass 2's fixes were committed only after pass 3 piloted them): if git -C ${ST} status shows any uncommitted source change outside tmp/, it is a finished fix pass's work -- commit it (stage only those files) before building, and freeze HEAD.${fresh} In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
             { label: `freeze build ${tag}`, phase: phaseName, schema: BUILD },
         ),
     );
@@ -496,13 +496,13 @@ async function implement(units, tag, phaseName) {
     return out;
 }
 
-// Land a finished fix pass on master through golden-local. Agents may not push, so the workflow
-// prepares the branch, logs "ready to land", and waits until the launching session's land.mjs run
-// has put the commit on origin/golden.
+// Land a finished fix pass on master through its own pull request. Agents may not push, so the
+// workflow prepares the branch, logs "ready to land", and waits until the pull request the launching
+// session opened with tools/pr-open.sh has merged, putting the commit on origin/master.
 async function landPass(label, phaseName, always) {
     if (!LAND_EACH_PASS && !always) return;
     const r = await agent(
-        `${RULES}\nPrepare ${BRANCH} to land after ${label}. In ${ST}: (1) commit any finished work still uncommitted outside tmp/ (stage only those files); (2) git fetch origin; git merge origin/master (merge, never rebase); resolve conflicts keeping both sides; pnpm install --frozen-lockfile if the lockfile changed; (3) build, regenerate the graphty-element API reports (npm run api:report in graphty-element) and commit them if they changed, lint graphty-element, compact-mantine and graphty, and fix what this branch breaks; commit. Never push and never run tools/land.mjs. Return the head sha, ok (the tree is clean outside tmp/ and lint passes), and breaking: every commit since origin/master marked breaking (a "!" or a BREAKING CHANGE footer) and every breaking change in the API report diff.`,
+        `${RULES}\nPrepare ${BRANCH} to land after ${label}. In ${ST}: (1) commit any finished work still uncommitted outside tmp/ (stage only those files); (2) git fetch origin; git merge origin/master (merge, never rebase); resolve conflicts keeping both sides; pnpm install --frozen-lockfile if the lockfile changed; (3) build, regenerate the graphty-element API reports (npm run api:report in graphty-element) and commit them if they changed, lint graphty-element, compact-mantine and graphty, and fix what this branch breaks; commit. Never push and never open a pull request. Return the head sha, ok (the tree is clean outside tmp/ and lint passes), and breaking: every commit since origin/master marked breaking (a "!" or a BREAKING CHANGE footer) and every breaking change in the API report diff.`,
         {
             label: `${label}: prepare to land`,
             phase: phaseName,
@@ -521,18 +521,18 @@ async function landPass(label, phaseName, always) {
         log(`${label}: could not prepare ${BRANCH} to land (${r?.sha || "no head"}); the studio goes on unlanded`);
         return;
     }
-    // A breaking commit lands only with the owner's go (CLAUDE.md, "Landing changes (golden-local)").
+    // A breaking commit lands only with the owner's go (CLAUDE.md).
     const owner = (r.breaking || []).length
         ? ` It holds BREAKING changes, which land only with the owner's go: ${r.breaking.join("; ")}.`
         : "";
     log(
-        `ready to land: ${BRANCH} at ${r.sha} (${label}). Run node ${ROOT}/tools/land.mjs land ${BRANCH} in the background; the studio waits until origin/golden holds that commit.${owner}`,
+        `ready to land: ${BRANCH} at ${r.sha} (${label}). Open its pull request with tools/pr-open.sh --proof <file> in its worktree; the studio waits until origin/master holds that commit.${owner}`,
     );
     await agent(
-        `Wait, changing nothing, until commit ${r.sha} is on origin/golden. Start this as ONE background command (run_in_background; never a foreground wait) and end your turn until its exit notice: until git -C ${ST} fetch -q origin golden && git -C ${ST} merge-base --is-ancestor ${r.sha} origin/golden; do sleep 300; done. Then return "landed ${r.sha}".`,
+        `Wait, changing nothing, until commit ${r.sha} is on origin/master. Start this as ONE background command (run_in_background; never a foreground wait) and end your turn until its exit notice: until git -C ${ST} fetch -q origin master && git -C ${ST} merge-base --is-ancestor ${r.sha} origin/master; do sleep 300; done. Then return "landed ${r.sha}".`,
         { label: `${label}: wait for landing`, phase: phaseName, effort: "low" },
     );
-    log(`${label}: ${BRANCH} at ${r.sha} landed on golden`);
+    log(`${label}: ${BRANCH} at ${r.sha} merged into master`);
 }
 
 // One dry-run triage against the session-ready bar: only what crashes, blocks a task or spoils its
@@ -949,7 +949,7 @@ const report = await agent(
     { label: `${NAME} report`, phase: "Report", effort: "high" },
 );
 await commitDocs(`docs(workspace): the ${NAME} report and studio notes`, "commit report", "Report");
-// The studio lands like every other change (golden-local, CLAUDE.md "Landing changes"): the
-// workflow prepares the branch and waits; the launching session runs land.mjs.
+// The studio lands like every other change, through its own pull request: the workflow prepares
+// the branch and waits; the launching session opens the pull request with tools/pr-open.sh.
 if (LAND) await landPass(`the ${NAME} report`, "Report", true);
 return { rounds, report };

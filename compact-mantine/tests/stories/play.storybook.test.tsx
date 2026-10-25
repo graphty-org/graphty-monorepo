@@ -7,10 +7,9 @@ import { AXE_EXCEPTIONS, axeFindings, OFF_BY_DESIGN } from "../a11y/axe";
 
 /**
  * Every story renders without throwing and its play function passes: the test
- * `@storybook/addon-vitest`'s storybookTest plugin generates per story (compose, run). That plugin
- * needs Storybook 9 and this package is on Storybook 8, so the same two calls are made here over
- * every story file Storybook indexes (.storybook/main.ts). A story tagged `!test` is skipped, as
- * the plugin skips it.
+ * `@storybook/addon-vitest`'s storybookTest plugin generates per story (compose, run). Until this
+ * package's stories switch to that plugin, the same two calls are made here over every story file
+ * Storybook indexes (.storybook/main.ts). A story tagged `!test` is skipped, as the plugin skips it.
  *
  * Each story then gets one axe-core pass (../a11y/axe.ts) at Storybook's default globals, the
  * render the Accessibility panel checks: the same rules as tests/a11y/stories-axe.browser.test.tsx,

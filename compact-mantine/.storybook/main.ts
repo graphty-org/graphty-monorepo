@@ -7,12 +7,12 @@ const config: StorybookConfig = {
     // `*.stories.*` are indexed, which is why those pages had never appeared in
     // the sidebar.
     stories: ["../stories/**/*.mdx", "../stories/**/*.stories.@(js|jsx|ts|tsx)"],
-    // addon-docs is registered on its own so its MDX compiler gets remark-gfm: without it the
-    // Markdown tables in the .mdx pages render as raw pipe text. addon-a11y runs axe-core
-    // against every story and reports violations in the Accessibility panel, which is what
-    // catches a missing name, a bad role or a contrast failure before it is published.
+    // Controls, actions, toolbars and the other former essentials are part of Storybook 9's core.
+    // addon-docs gets remark-gfm for its MDX compiler: without it the Markdown tables in the .mdx
+    // pages render as raw pipe text. addon-a11y runs axe-core against every story and reports
+    // violations in the Accessibility panel, which is what catches a missing name, a bad role or a
+    // contrast failure before it is published.
     addons: [
-        { name: "@storybook/addon-essentials", options: { docs: false } },
         {
             name: "@storybook/addon-docs",
             options: { mdxPluginOptions: { mdxCompileOptions: { remarkPlugins: [remarkGfm] } } },
@@ -31,8 +31,8 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config, { configType }) {
-        const fs = await import("fs");
-        const path = await import("path");
+        const fs = await import("node:fs");
+        const path = await import("node:path");
         const { mergeConfig, loadEnv } = await import("vite");
 
         // Load env file from monorepo root (one level up from this package)
@@ -63,6 +63,14 @@ const config: StorybookConfig = {
         if (configType === "PRODUCTION") {
             // Your production configuration goes here.
         }
+
+        // Storybook 9 builds with every plugin of vite.config.ts, and the library-only ones fail or
+        // write into dist/: the declaration rollup finds no dist/index.d.ts, and the font license
+        // copy belongs to the published package.
+        const libraryOnly = new Set(["vite:dts", "copy-font-license"]);
+        config.plugins = (config.plugins ?? [])
+            .flat()
+            .filter((plugin) => !(plugin && "name" in plugin && libraryOnly.has(plugin.name)));
 
         const merged = mergeConfig(config, {
             server,

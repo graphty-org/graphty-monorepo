@@ -44,6 +44,8 @@ permissions:
     contents: read
     actions: read
     checks: write
+    id-token: write # ci.yml's test and timings jobs (the results store)
+    pull-requests: write # ci.yml's timings job
 
 jobs:
     verify:

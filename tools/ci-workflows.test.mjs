@@ -3078,8 +3078,30 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
+    it("runs the paid LLM tests once a UTC day, after a green CI lane, or on a person's dispatch", () => {
+        const due = llm.indexOf("run: node tools/llm-due.mjs");
+        assert.ok(due > 0 && due < llm.indexOf("uses: pnpm/action-setup@v4"), "decides before installing anything");
+        assert.match(llm, /id: due\n/);
+        assert.match(llm, /actions: read/);
+        // every step after the decision is skipped when the lane is not due, so the job passes without paying
+        const after = llm
+            .slice(due)
+            .split(/\n\s+- (?:name|uses): /)
+            .slice(1);
+        assert.equal(after.length, 5);
+        for (const step of after) assert.match(step, /\n\s+if: steps.due.outputs.due == 'true'(\n|$)/);
+        assert.match(
+            readFileSync(new URL("./llm-due.mjs", import.meta.url), "utf8"),
+            /export const STEP = "LLM regression tests";/,
+        );
+        assert.match(llm, /- name: LLM regression tests\n/, "the step llm-due.mjs counts");
+    });
+
     it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
-        assert.match(llm, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(
+            llm,
+            /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' \}\}/,
+        );
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
         assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: google\n/);

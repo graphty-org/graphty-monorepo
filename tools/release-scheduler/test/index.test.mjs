@@ -231,6 +231,18 @@ describe("scheduled", () => {
         ]);
     });
 
+    it("dispatches only inputs release.yml declares (GitHub answers 422 to any other)", async () => {
+        const { readFile } = await import("node:fs/promises");
+        const release = await readFile(new URL("../../../.github/workflows/release.yml", import.meta.url), "utf8");
+        const inputs = /workflow_dispatch:\n\s+inputs:\n([\s\S]*?)\n {4}\S/.exec(release)[1];
+        const declared = [...inputs.matchAll(/^ {12}([\w-]+):$/gm)].map((m) => m[1]);
+        const { fetch, calls } = github();
+        await run(env, { fetch, slot });
+        for (const name of Object.keys(JSON.parse(calls[1].body).inputs)) {
+            assert.ok(declared.includes(name), `release.yml has no workflow_dispatch input "${name}"`);
+        }
+    });
+
     it("keeps the key check's cron in wrangler.toml", async () => {
         const { readFile } = await import("node:fs/promises");
         const toml = await readFile(new URL("../wrangler.toml", import.meta.url), "utf8");

@@ -10,7 +10,7 @@ import { storyWaitOptions, untilPasses } from "../../helpers/settled";
 
 /**
  * A value you can type or pick from a list of presets: a filled 24px field with a chevron that
- * opens a dark list over the field, the current value sitting exactly on top of it. Figma uses it
+ * opens a list over the field, the current value sitting exactly on top of it. Figma uses it
  * for font size, auto-layout width and height ("Hug"), gap and export scale.
  *
  * ## When to use it
@@ -61,7 +61,7 @@ import { storyWaitOptions, untilPasses } from "../../helpers/settled";
  * |---|---|
  * | Field | 24px tall, filled, radius 5px, 88px wide by default (`width`) |
  * | Chevron slot | 24px; 25px with `divided` (a 1px divider in the panel color) |
- * | List | dark in both schemes, 24px rows, opens over the field with the current value on it |
+ * | List | follows the page scheme, 24px rows, opens over the field with the current value on it |
  */
 const meta: Meta<typeof ComboInput> = {
     title: "Components/Inputs/ComboInput",

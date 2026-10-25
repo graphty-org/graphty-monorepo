@@ -10,12 +10,24 @@ import type { BrowserCommand } from "vitest/node";
 import { workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
+import { sampleDataPlugin } from "./vite.sample-data";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
 const BASE_EXCLUDE = ["**/node_modules/**", "**/dist/**", "**/.worktrees/**"];
+
+/**
+ * This run's --shard (`2/3` -> `2-3`), or null when it runs every file. The gate runs the
+ * graphty-1, -2 and -3 parts side by side, and with `optimizeDeps.force` below each one rebundles
+ * the dependencies when its browser project starts. In one shared cache directory that swapped
+ * the dependency chunks out from under a part already running: its page's next dynamic import of
+ * one (Babylon's dumpTools, behind a screenshot) answered 404, the browser kept that failure for
+ * the module, and the test waiting on the picture timed out. So each part bundles into its own.
+ */
+const shardArg = /--shard[= ](\d+)\/(\d+)/.exec(process.argv.join(" "));
+const SHARD_KEY = shardArg ? `${shardArg[1]}-${shardArg[2]}` : null;
 /**
  * Answers the next file picker the page opens with one file, as the reader choosing it. Headless
  * Chromium cancels a file picker nobody answers, so a test calls this before the click that opens
@@ -45,10 +57,12 @@ const chromium = () => ({
 });
 
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), sampleDataPlugin()],
     // The same aliases as the dev server, so tests run graphty-element from source rather
     // than a prebundled copy of its dist that Vite's dependency cache never refreshes.
     resolve: { alias: aliases },
+    // Vitest puts each project's bundle under <cacheDir>/vitest/<project hash>.
+    cacheDir: SHARD_KEY ? `node_modules/.vite/shard-${SHARD_KEY}` : "node_modules/.vite",
     optimizeDeps: {
         include: ["@mantine/hooks"],
         // Re-scan and re-bundle the dependencies at the start of every run. Vite keeps a cached
@@ -160,6 +174,8 @@ export default defineConfig({
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
+            // Each part of the graphty shard writes its own (tools/ci-test-matrix.mjs).
+            reportsDirectory: process.env.COVERAGE_DIR ?? "coverage",
             include: ["src/**/*.ts", "src/**/*.tsx"],
             exclude: [
                 "node_modules/",

@@ -36,6 +36,22 @@ Every generator returns a `SampleGraph`:
 | `ids`         | `string[]?`     | external node ids, when the nodes have names         |
 | `nodeColumns` | record?         | per-node columns, including the ground truth         |
 
+### Any generator by name
+
+`GENERATOR_CATALOG` lists every generator as plain data: its name, a default plain name, one
+sentence, its main parameters with defaults that build a readable graph of a few hundred nodes
+at most, and a `thumbnail`: a picture of that default graph, named like a dataset's (below) and
+published beside the datasets' files. `generateGraph(name, params)` runs one; a parameter left out
+takes its default.
+
+```ts
+import { GENERATOR_CATALOG } from "@graphty/graph-samples";
+import { generateGraph } from "@graphty/graph-samples/generators";
+
+GENERATOR_CATALOG.map((g) => g.plainName); // ["AK flow network", "Balanced tree", "Barabasi-Albert", ...]
+const smallWorld = generateGraph("watts-strogatz", { n: 200, seed: 3 });
+```
+
 ### Same seed, same graph, everywhere
 
 A random generator takes an optional `seed` (an integer from 0 to 2^53 - 1; default 0, never the
@@ -133,6 +149,18 @@ const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }
 the files), a `fetch` implementation and an abort signal. A failed download rejects with
 `fetching <url> failed: HTTP <status>`.
 
+Each dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
+names a 480 x 300 WebP with a transparent background, published beside its file. A large dataset's
+picture is drawn from a sample of it (a neighborhood of a hub, or for the road network a map of one
+area), since the whole graph is too big to lay out in so small a picture:
+
+```ts
+import { DATASETS, DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
+
+const karate = DATASETS.find((meta) => meta.name === "karate");
+const picture = karate?.thumbnail === undefined ? undefined : new URL(karate.thumbnail, DEFAULT_DATASET_BASE_URL);
+```
+
 Each small dataset also has a subpath of its own, with its metadata and a loader that is the same
 call:
 
@@ -195,7 +223,11 @@ file's URL.
 The small datasets are converted into the repository (`data/<name>.ts`, by
 `npm run datasets:convert`), and graph-samples' build packs them into `dist/data/v1/<name>.gsnp.gz`
 (`scripts/pack-datasets.mjs`; `npm run datasets:pack` also rewrites their sizes and checksums in
-`src/datasets/packed.ts`). Neither `data/` nor `dist/data/` is published to npm.
+`src/datasets/packed.ts`). Its pictures are drawn by graphty-element with
+`node tools/render-sample-thumbnails.mjs` (from the monorepo root, after a build) into `thumbnails/`,
+committed, and copied beside each file by the same step, with the large datasets' and the
+generators' pictures (`generator-<name>.webp`). Neither `data/` nor `dist/data/` is
+published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,
 checks it against the SHA-256 recorded in the script, and writes `public-data/v1/<name>.gsnp.gz`
@@ -217,6 +249,10 @@ const { nodes, edges } = toElementData(await football());
 element.nodeData = nodes; // { id, label, conference }
 element.edgeData = edges; // { source, target }
 ```
+
+graphty-element also loads them itself: `session.data.loadDataset("football")` and
+`session.data.generate("barabasi-albert", { n: 500 })`, with `session.catalog.datasets()` and
+`session.catalog.generators()` listing what it can load.
 
 ## Licenses
 

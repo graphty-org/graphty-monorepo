@@ -51,7 +51,7 @@ const TYPE = ["color", "fontSize", "lineHeight", "fontWeight", "letterSpacing"];
 const INK = {
     light: {
         text: "#000000e5",
-        secondary: "#00000080",
+        secondary: "#0000008c",
         iconSecondary: "#00000080",
         border: "#e6e6e6",
         bg: "#ffffff",

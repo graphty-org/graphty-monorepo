@@ -1,4 +1,4 @@
-import { INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -8,7 +8,7 @@ import type {
 import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
-import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
+import { LAYOUT_DESCRIPTORS, layoutAlias, layoutDescriptor } from "../catalog/layouts";
 import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
@@ -476,7 +476,44 @@ function engineForLayout(type: string): string {
         return type;
     }
 
-    return layoutDescriptor(type)?.engine ?? type;
+    return layoutAlias(type)?.engine ?? layoutDescriptor(type)?.engine ?? type;
+}
+
+/**
+ * The options a layout is built with: the caller's, plus the dimension options its engine declares
+ * for the graph's 2D/3D mode (`getOptionsForDimension`, for a third party's engine too).
+ *
+ * In 3D the caller's own keys win, so a 3D view may be laid out in 2D. In 2D the dimension options
+ * win, because a 2D view draws only a 2D layout: a 3D one would be flattened onto the plane, its
+ * nodes overlapping. The caller's values they replaced come back as `overridden`, to be reported.
+ * @param callerOpts - The caller's options, validated.
+ * @param dimensionOpts - The engine's dimension options, or null when it declares none.
+ * @param dimension - The graph's 2D/3D mode.
+ * @returns The merged options, and the caller's values a 2D view replaced, if any.
+ */
+export function withDimensionOptions(
+    callerOpts: Readonly<Record<string, unknown>>,
+    dimensionOpts: object | null,
+    dimension: 2 | 3,
+): {
+    options: Record<string, unknown>;
+    overridden?: { requested: Record<string, unknown>; used: Record<string, unknown> };
+} {
+    const options: Record<string, unknown> = { ...callerOpts };
+    const requested: Record<string, unknown> = {};
+    const used: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(dimensionOpts ?? {})) {
+        const asked = options[key];
+        if (asked === undefined) {
+            options[key] = value;
+        } else if (dimension === 2 && asked !== value) {
+            options[key] = value;
+            requested[key] = asked;
+            used[key] = value;
+        }
+    }
+
+    return Object.keys(used).length === 0 ? { options } : { options, overridden: { requested, used } };
 }
 
 /**
@@ -503,6 +540,13 @@ interface LayoutScopeSource {
      * @returns True when it is detached.
      */
     detached(scope: Scope): boolean;
+    /**
+     * The node values at a `data.<key>` or `results.<run>.<field>` path, by row of a snapshot.
+     * @param graph - The snapshot whose rows the values are laid out over.
+     * @param path - The path.
+     * @returns The values, or null when nothing carries the path.
+     */
+    nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
 }
 
 /**
@@ -643,12 +687,22 @@ export class LayoutManager implements Manager {
     replacing: () => boolean = () => false;
 
     /**
-     * Whether another command that writes the graph is dispatched and not finished. While one is,
+     * Whether another command that writes the graph is dispatched and not started. While one is,
      * data arriving does not start a seeded layout over: the last write of the run does, once, so
      * `addEdge` in a loop rebuilds the layout once rather than once per add.
      * @returns True while one is.
      */
     graphWritesWaiting: () => boolean = () => false;
+
+    /**
+     * Draw the style paint that has arrived but that no frame has drawn yet, now. A layout that
+     * spaces nodes by their drawn size calls it before reading the sizes: a node's mesh takes its
+     * painted size only when the paint is drawn, so a layout started between a load's style pass
+     * and the next frame read every node at the unstyled default size, and whether a frame fell
+     * in between decided the drawing (a Graphviz twopi file drew its unconnected node on one side
+     * or the other from load to load).
+     */
+    drawArrivedPaint: (() => void) | null = null;
 
     /** Where a scope is canonicalised and resolved, once `Graph` has a session to hand in. */
     private scopeSource: LayoutScopeSource | null = null;
@@ -673,6 +727,9 @@ export class LayoutManager implements Manager {
 
     /** Each following group's box, from the last {@link placeGroups}. */
     private readonly groupBoxes = new Map<NodeIdType, GroupBox>();
+
+    /** The margin each group in {@link groupBoxes} was padded by, which a group around it keeps too. */
+    private readonly groupPads = new Map<NodeIdType, number>();
 
     /**
      * Strict state: something asked to step the layout while the lane was restoring, which only a
@@ -1163,21 +1220,118 @@ export class LayoutManager implements Manager {
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
         const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
-        const layoutOpts: Record<string, unknown> = { ...callerOpts };
-
-        // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them.
+        // The layout's dimension options follow the graph's 2D/3D mode; in 3D the caller may
+        // choose otherwise, in 2D never: see `withDimensionOptions`.
         const { dimension } = how;
-        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(driver, dimension);
+        const { options: layoutOpts, overridden } = withDimensionOptions(
+            callerOpts,
+            LayoutEngine.getOptionsForDimensionByType(driver, dimension),
+            dimension,
+        );
 
-        if (dimensionOpts) {
-            // Merge dimension options, but don't override user-provided options
-            for (const [key, value] of Object.entries(dimensionOpts)) {
-                if (!(key in layoutOpts)) {
-                    layoutOpts[key] = value;
-                }
-            }
+        const engine = await this.buildEngine(type, driver, driverClass, layoutOpts, how);
+
+        this.warnIgnoredOptions(type, engineClass, callerOpts);
+        if (overridden !== undefined) {
+            this.warnLayout(type, { code: "W_DIMENSION_OVERRIDDEN", params: overridden });
         }
 
+        // Kept so that a failure during set-up leaves the element exactly as it found it: the
+        // engine that was working is still the one working, and it is still configured the way the
+        // consumer configured it.
+        const previousEngine = this.layoutEngine;
+        const previousDimension = this.engineDimension;
+        const previousMembers = this.members;
+        const previousDriver = this.runningDriver;
+        const previousDriverOptions = this.driverOptions;
+
+        // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
+        // again from these, and the element re-derives the dimension options itself.
+        this.driverOptions = callerOpts;
+
+        try {
+            // Add all existing nodes and edges to the new engine
+            const nodeArray = [...this.dataManager.nodes.values()];
+            const edgeArray = [...this.dataManager.edges.values()];
+            layoutEngineInternals.addNodes(engine, nodeArray);
+            layoutEngineInternals.addEdges(engine, edgeArray);
+
+            this.engine = engine;
+            this.engineDimension = dimension;
+
+            // BEFORE `init()`, which freezes a snapshot and therefore re-enters
+            // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
+            // had changed and start this rebuild over again.
+            this.runningDriver = driver;
+            await engine.init();
+            if (!how.live()) {
+                throw cancelledBuild();
+            }
+
+            this.addLateArrivals(engine, nodeArray, edgeArray);
+
+            // AFTER init(), and before any step runs. See `replayPins`.
+            this.replayPins(engine, nodeArray);
+            this.members = members;
+            this.membersOwed = members !== null && nodeArray.length === 0;
+            if (members !== null) {
+                this.applyHold(engine, members, nodeArray);
+            }
+
+            // Update DataManager with new layout engine
+            this.dataManager.setLayoutEngine(engine);
+
+            await this.startArrangement(engine, type, nodeArray, edgeArray.length, how);
+
+            // Dispose previous engine after successful init
+            previousEngine?.dispose();
+
+            // Emit layout changed event
+            this.eventManager.emit("layout-changed", {
+                layoutType: type,
+                options: layoutOpts,
+            } satisfies Omit<LayoutChangedEvent, "type">);
+        } catch (error) {
+            // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
+            // again, and it never became the running layout, so no later switch will reach it --
+            // this is its only moment. The element's own nineteen hold nothing and do nothing
+            // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
+            // constructor would otherwise leak one per failed attempt.
+            engine.dispose();
+
+            // Restore previous layout engine if initialization failed
+            this.engine = previousEngine;
+            this.engineDimension = previousDimension;
+            this.members = previousMembers;
+            this.runningDriver = previousDriver;
+            this.driverOptions = previousDriverOptions;
+            this.dataManager.setLayoutEngine(previousEngine);
+
+            // Cancelled or overtaken is not a failure: nothing is reported.
+            if (!how.live()) {
+                throw cancelledBuild();
+            }
+
+            throw this.reportLayoutFailure(type, error, "initialised");
+        }
+    }
+
+    /**
+     * Build the engine that draws a layout, and connect a snapshot engine's reports.
+     * @param type - The layout the consumer asked for, which every report names.
+     * @param driver - The engine that draws it.
+     * @param driverClass - That engine's class.
+     * @param layoutOpts - The options the engine is built with.
+     * @param how - Whether the build is still wanted.
+     * @returns The engine, not yet initialised.
+     */
+    private async buildEngine(
+        type: string,
+        driver: string,
+        driverClass: LayoutEngineStatics,
+        layoutOpts: Record<string, unknown>,
+        how: BuildOptions,
+    ): Promise<LayoutEngine> {
         // A layout the element drives through `@graphty/layout`'s simulation seam declares which
         // simulation it is, and is the one kind of engine `LayoutEngine.get` cannot build: it
         // needs the graph's acceleration controller, which a registered class is never handed.
@@ -1230,29 +1384,7 @@ export class LayoutManager implements Manager {
         }
 
         if (engine instanceof SnapshotLayoutEngine) {
-            const built = engine;
-            snapshotLayoutInternals.connect(built, {
-                progress: (progress) => {
-                    this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
-                },
-                warn: (warning) => {
-                    this.warnLayout(type, warning);
-                },
-                fail: (error) => {
-                    if (this.layoutEngine === built) {
-                        this.running = false;
-                    }
-
-                    this.reportLayoutFailure(type, error, "stepped");
-                },
-                arrived: () => {
-                    // The answer is published by the next frame's step, which runs only while the
-                    // layout does.
-                    if (this.layoutEngine === built && !this.restoring()) {
-                        this.running = true;
-                    }
-                },
-            });
+            this.connectSnapshotEngine(type, engine);
         }
 
         if (!engine) {
@@ -1262,137 +1394,120 @@ export class LayoutManager implements Manager {
             throw unknownLayout(type);
         }
 
-        this.warnIgnoredOptions(type, engineClass, callerOpts);
+        return engine;
+    }
 
-        // Kept so that a failure during set-up leaves the element exactly as it found it: the
-        // engine that was working is still the one working, and it is still configured the way the
-        // consumer configured it.
-        const previousEngine = this.layoutEngine;
-        const previousDimension = this.engineDimension;
-        const previousMembers = this.members;
-        const previousDriver = this.runningDriver;
-        const previousDriverOptions = this.driverOptions;
-
-        // THE CONSUMER'S OPTIONS, not the merged ones: a driver rebuild builds the layout
-        // again from these, and the element re-derives the dimension options itself.
-        this.driverOptions = callerOpts;
-
-        try {
-            // Add all existing nodes and edges to the new engine
-            const nodeArray = [...this.dataManager.nodes.values()];
-            const edgeArray = [...this.dataManager.edges.values()];
-            layoutEngineInternals.addNodes(engine, nodeArray);
-            layoutEngineInternals.addEdges(engine, edgeArray);
-
-            this.engine = engine;
-            this.engineDimension = dimension;
-
-            // BEFORE `init()`, which freezes a snapshot and therefore re-enters
-            // `onSnapshotReplaced` -- where an unrecorded driver would look like a decision that
-            // had changed and start this rebuild over again.
-            this.runningDriver = driver;
-            await engine.init();
-            if (!how.live()) {
-                throw cancelledBuild();
-            }
-
-            // WHAT ARRIVED WHILE `init()` WAS AWAITED went to the previous engine, which the
-            // DataManager still holds until the swap below. A load that replaces the dataset
-            // clears (which rebuilds the layout) and adds its records in the same turn, so without
-            // this the new engine would start empty and lay out nothing.
-            const known = new Set(nodeArray);
-            const knownEdges = new Set(edgeArray);
-            layoutEngineInternals.addNodes(
-                engine,
-                [...this.dataManager.nodes.values()].filter((n) => !known.has(n)),
-            );
-            layoutEngineInternals.addEdges(
-                engine,
-                [...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)),
-            );
-
-            // AFTER init(), and before any step runs. See `replayPins`.
-            this.replayPins(engine, nodeArray);
-            this.members = members;
-            this.membersOwed = members !== null && nodeArray.length === 0;
-            if (members !== null) {
-                this.applyHold(engine, members, nodeArray);
-            }
-
-            // Update DataManager with new layout engine
-            this.dataManager.setLayoutEngine(engine);
-
-            if (how.restoring) {
-                // A restore: the `arrangement` hook writes the coordinates into the array and
-                // hands them to this engine next, so it publishes nothing and stays at rest.
-                this.preStepsOwed = false;
-                this.ownArrangement = false;
-                this.running = false;
-            } else {
-                this.ownArrangement = true;
-                // Run layout pre-steps -- unless there is nothing to step yet, in which case they
-                // are owed to the first frame that has something. See `preStepsOwed`.
-                if (nodeArray.length === 0) {
-                    this.preStepsOwed = true;
-                } else if (!(await this.spendPreSteps(engine, how.live))) {
-                    throw cancelledBuild();
+    /**
+     * Route a single-pass engine's progress, warnings, failure and arrival to the element.
+     * @param type - The layout the consumer asked for, which every report names.
+     * @param built - The engine.
+     */
+    private connectSnapshotEngine(type: string, built: SnapshotLayoutEngine): void {
+        snapshotLayoutInternals.connect(built, {
+            progress: (progress) => {
+                this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
+            },
+            warn: (warning) => {
+                this.warnLayout(type, warning);
+            },
+            fail: (error) => {
+                if (this.layoutEngine === built) {
+                    this.running = false;
                 }
 
-                // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach
-                // `session.positions` -- the array a drag writes, a re-freeze preserves and an
-                // accelerator reads -- only through this call, and an engine that never made it
-                // rendered perfectly while leaving every node unplaced.
-                engine.publishPositions();
-                this.putOnPlane(engine);
+                this.reportLayoutFailure(type, error, "stepped");
+            },
+            column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
+            drawPaint: () => {
+                this.drawArrivedPaint?.();
+            },
+            arrived: () => {
+                // The answer is published by the next frame's step, which runs only while the
+                // layout does.
+                if (this.layoutEngine === built && !this.restoring()) {
+                    this.running = true;
+                }
+            },
+        });
+    }
 
-                // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
-                // frame loop stops a settled layout, and when one of its frames landed while the
-                // pre-steps were awaited -- and a graph loaded before any layout was built reads
-                // as settled -- this was a false-to-true that `running` takes for a reader
-                // pressing play. The reheat sent Fruchterman-Reingold back to 70% of its budget
-                // and ran fifteen more iterations, so the same seed drew two different graphs.
-                this.setRunning(true, false);
+    /**
+     * Give a freshly initialised engine the nodes and edges that arrived while it initialised.
+     * @param engine - The new engine.
+     * @param nodeArray - The nodes it was given before `init()`.
+     * @param edgeArray - The edges it was given before `init()`.
+     */
+    private addLateArrivals(engine: LayoutEngine, nodeArray: readonly Node[], edgeArray: readonly Edge[]): void {
+        // WHAT ARRIVED WHILE `init()` WAS AWAITED went to the previous engine, which the
+        // DataManager still holds until the swap below. A load that replaces the dataset
+        // clears (which rebuilds the layout) and adds its records in the same turn, so without
+        // this the new engine would start empty and lay out nothing.
+        const known = new Set(nodeArray);
+        const knownEdges = new Set(edgeArray);
+        layoutEngineInternals.addNodes(
+            engine,
+            [...this.dataManager.nodes.values()].filter((n) => !known.has(n)),
+        );
+        layoutEngineInternals.addEdges(
+            engine,
+            [...this.dataManager.edges.values()].filter((e) => !knownEdges.has(e)),
+        );
+    }
 
-                this.logger.debug("Layout initialized", {
-                    type,
-                    nodeCount: nodeArray.length,
-                    edgeCount: edgeArray.length,
-                });
-
-                // Request zoom to fit when layout changes
-                this.eventManager.emitLayoutInitialized(type, true);
-            }
-
-            // Dispose previous engine after successful init
-            previousEngine?.dispose();
-
-            // Emit layout changed event
-            this.eventManager.emit("layout-changed", {
-                layoutType: type,
-                options: layoutOpts,
-            } satisfies Omit<LayoutChangedEvent, "type">);
-        } catch (error) {
-            // THE ENGINE THAT FAILED IS TOLD TO LET GO. It is discarded here and never used
-            // again, and it never became the running layout, so no later switch will reach it --
-            // this is its only moment. The element's own nineteen hold nothing and do nothing
-            // with the call; a plugin that opened a worker, a socket or a GPU buffer in its
-            // constructor would otherwise leak one per failed attempt.
-            engine.dispose();
-
-            // Restore previous layout engine if initialization failed
-            this.engine = previousEngine;
-            this.engineDimension = previousDimension;
-            this.members = previousMembers;
-            this.runningDriver = previousDriver;
-            this.driverOptions = previousDriverOptions;
-            this.dataManager.setLayoutEngine(previousEngine);
-
-            // Cancelled or overtaken is not a failure: nothing is reported.
-            if (!how.live()) {
+    /**
+     * Start a freshly built engine, or leave it at rest for a restore.
+     * @param engine - The new engine.
+     * @param type - The layout the consumer asked for.
+     * @param nodeArray - Every node the engine holds.
+     * @param edgeCount - How many edges it holds.
+     * @param how - Whether this is a restore, and whether the build is still wanted.
+     */
+    private async startArrangement(
+        engine: LayoutEngine,
+        type: string,
+        nodeArray: readonly Node[],
+        edgeCount: number,
+        how: BuildOptions,
+    ): Promise<void> {
+        if (how.restoring) {
+            // A restore: the `arrangement` hook writes the coordinates into the array and
+            // hands them to this engine next, so it publishes nothing and stays at rest.
+            this.preStepsOwed = false;
+            this.ownArrangement = false;
+            this.running = false;
+        } else {
+            this.ownArrangement = true;
+            // Run layout pre-steps -- unless there is nothing to step yet, in which case they
+            // are owed to the first frame that has something. See `preStepsOwed`.
+            if (nodeArray.length === 0) {
+                this.preStepsOwed = true;
+            } else if (!(await this.spendPreSteps(engine, how.live))) {
                 throw cancelledBuild();
             }
 
-            throw this.reportLayoutFailure(type, error, "initialised");
+            // PUBLISHING IS THE ELEMENT'S JOB. An engine's coordinates reach
+            // `session.positions` -- the array a drag writes, a re-freeze preserves and an
+            // accelerator reads -- only through this call, and an engine that never made it
+            // rendered perfectly while leaving every node unplaced.
+            engine.publishPositions();
+            this.putOnPlane(engine);
+
+            // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
+            // frame loop stops a settled layout, and when one of its frames landed while the
+            // pre-steps were awaited -- and a graph loaded before any layout was built reads
+            // as settled -- this was a false-to-true that `running` takes for a reader
+            // pressing play. The reheat sent Fruchterman-Reingold back to 70% of its budget
+            // and ran fifteen more iterations, so the same seed drew two different graphs.
+            this.setRunning(true, false);
+
+            this.logger.debug("Layout initialized", {
+                type,
+                nodeCount: nodeArray.length,
+                edgeCount,
+            });
+
+            // Request zoom to fit when layout changes
+            this.eventManager.emitLayoutInitialized(type, true);
         }
     }
 
@@ -2113,6 +2228,7 @@ export class LayoutManager implements Manager {
         const engine = this.layoutEngine;
         const groups = this.followingGroups();
         this.groupBoxes.clear();
+        this.groupPads.clear();
         if (engine === undefined || groups.length === 0) {
             return;
         }
@@ -2141,7 +2257,9 @@ export class LayoutManager implements Manager {
 
     /**
      * One group's box: its members' extents (an inner group's own box), padded by its largest
-     * member's radius. Remembered in {@link groupBoxes}.
+     * member's radius, or an inner group's margin when that is larger, so a group around another
+     * is drawn around it rather than over it, as a nested Graphviz cluster is. Remembered in
+     * {@link groupBoxes}.
      * @param group - The group.
      * @param byId - Every following group, by id.
      * @param seen - The groups on the way here, so a cycle ends.
@@ -2171,7 +2289,7 @@ export class LayoutManager implements Manager {
                 max[axis] = Math.max(max[axis], c[axis] + h[axis]);
             }
 
-            pad = inner === undefined ? Math.max(pad, extent.half.x) : pad;
+            pad = Math.max(pad, inner === undefined ? extent.half.x : (this.groupPads.get(inner.group) ?? 0));
         }
 
         if (!Number.isFinite(min[0])) {
@@ -2184,6 +2302,7 @@ export class LayoutManager implements Manager {
             half: { x: half(0), y: half(1), z: half(2) },
         };
         this.groupBoxes.set(group.group, box);
+        this.groupPads.set(group.group, pad);
         return box;
     }
 

@@ -84,8 +84,13 @@ describe("Overlay Component Extensions", () => {
     });
 
     describe("classNames", () => {
-        it("Menu builds on the foundation's dark menu surface and rows", () => {
-            expect(overlayComponentExtensions.Menu?.classNames).toBe(compactMenuClassNames);
+        it("Menu builds on the foundation's menu surface and rows; variant inverse adds cm-menu-inverse", () => {
+            const classNames = overlayComponentExtensions.Menu?.classNames as (t: never, p: object) => unknown;
+            expect(classNames({} as never, {})).toBe(compactMenuClassNames);
+            expect(classNames({} as never, { variant: "inverse" })).toEqual({
+                ...compactMenuClassNames,
+                dropdown: "cm-menu-surface cm-menu cm-menu-inverse",
+            });
             expect(compactMenuClassNames.dropdown).toContain("cm-menu-surface");
             expect(compactMenuClassNames.item).toContain("cm-menu-row");
         });
@@ -103,7 +108,8 @@ describe("Overlay Component Extensions", () => {
             }
             expect(overlayComponentExtensions.Modal?.defaultProps).toMatchObject({
                 centered: true,
-                withOverlay: false,
+                withOverlay: true,
+                overlayProps: { backgroundOpacity: 0 },
             });
             expect(overlayComponentExtensions.ScrollArea?.defaultProps).toMatchObject({
                 type: "hover",

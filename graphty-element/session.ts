@@ -77,18 +77,24 @@ export type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     Endpoint,
+    FindAtLeastRow,
+    FindContainsRow,
     FindEnd,
     FindHit,
     FindHitBase,
     FindKind,
+    FindMatchValue,
+    FindNamedRow,
     FindOptions,
     FindResult,
     FindValueRow,
     GraphSession,
+    GraphSettingKey,
     GraphStatistics,
     HistoryCause,
     HistoryCode,
@@ -96,8 +102,11 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
+    LoadedWeight,
     LoadMapping,
     LoadMappingRead,
     Neighbor,
@@ -121,6 +130,7 @@ export type {
     ResultColumnDescriptor,
     ResultSort,
     RowUpdate,
+    RunPlacement,
     SessionAttributes,
     SessionCatalogApi,
     SessionConfig,
@@ -134,11 +144,14 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SettingEffect,
+    SettingEffectCode,
     StyleProblem,
     TableMapping,
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    ValueCounts,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -169,6 +182,8 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
@@ -231,6 +246,8 @@ export type {
     RunDistinction,
     RunExecutionContext,
     RunExecutor,
+    RunGroup,
+    RunLayers,
     RunOptions,
     RunOutcome,
     RunPainting,
@@ -245,9 +262,11 @@ export type {
     RunStatus,
     RunStyle,
     StaleNote,
+    StaleReason,
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./src/session/runs";
 export {
     isRunId,
@@ -358,6 +377,8 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // The project file: the whole session saved to one file and opened again, as `session.project`
 // ---------------------------------------------------------------------------------------------
 
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export { browserProjects } from "./src/session";
 export type {
     ProjectApi,
     ProjectOpenOptions,
@@ -370,12 +391,16 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// Autosaved work read and deleted without an element (a start screen that offers it first).
+export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
+export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    RuleCheck,
     SelectionApi,
     SelectionAttributeStatistics,
     SelectionCause,
@@ -385,6 +410,7 @@ export type {
     SelectionStatistics,
     SelectionTarget,
     SelectionTextMode,
+    UnknownRulePath,
 } from "./src/session/selection";
 export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
@@ -392,8 +418,11 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
+export type { TextMatchMode } from "./src/catalog/types";
 export type {
+    AttributeLeafNodes,
     FilterResult,
+    FilterStep,
     RuleTree,
     TimeStep,
     TimeWindow,
@@ -414,6 +443,7 @@ export type {
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
 export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from "./src/session/cost";
@@ -428,9 +458,11 @@ export type {
     AttributeRole,
     AttributeUse,
     Binding,
+    BindingNumberFormat,
     BindingOverflow,
     BindingStop,
     Channel,
+    CombineMode,
     EdgeId,
     EdgeMember,
     EdgeReading,
@@ -439,11 +471,13 @@ export type {
     FieldBand,
     FieldDescriptor,
     FieldInterpretation,
+    GroupMatchCode,
     ItemKey,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
+    LayerUnmatchedGroup,
     Measurement,
     MeasurementDeclaration,
     MeasurementSource,
@@ -452,9 +486,13 @@ export type {
     PathKind,
     Query,
     QueryValidation,
+    ReadableChannelKind,
+    ReadableValue,
+    ReadableValueKind,
     ResultId,
     ResultItem,
     ResultShape,
+    RuleTestKind,
     RunId,
     Scope,
     ScopeId,
@@ -467,7 +505,10 @@ export type {
     SetId,
     SetOperand,
     StaticStyle,
+    StructureValue,
     StyleDocument,
+    StyleDocumentRow,
+    TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
@@ -476,10 +517,15 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    AgreementOptions,
+    BindingPreview,
+    BindingPreviewBin,
     ChannelAgreement,
+    ChannelCovers,
     ChannelExplanation,
     ChannelRefusalCode,
     ChannelShare,
+    ColorWrite,
     ColumnEncodingSpec,
     ElementLayerSpec,
     EncodingOptions,
@@ -494,8 +540,12 @@ export type {
     HighlightSpec,
     HighlightSuggestion,
     Layer,
+    LayerGroup,
+    LayerPatch,
     LayerPosition,
     LayerProblem,
+    LayerReach,
+    LeftOutCode,
     LegendBlock,
     LegendFact,
     LegendFactCode,
@@ -503,25 +553,54 @@ export type {
     LegendSwatch,
     MarkSpec,
     MarkSuggestion,
+    PreviewDefaultedPart,
+    PreviewSpan,
     RepaintReason,
     RepaintReport,
+    RowEncoding,
+    RowParts,
+    RowSpec,
+    RowStyle,
+    RowTarget,
+    RowWrite,
+    RuleSelector,
     SessionStylesApi,
     StyleAdjustmentCode,
     StyleAgreement,
     StyleChange,
+    StyleColor,
     StyleContribution,
     StyleCounts,
     StyleExplanation,
+    StyleRow,
+    StyleRowId,
+    StyleRowPin,
+    StyleRowPlace,
     StylesApi,
+    StyleSequence,
     StyleSuggestion,
+    StyleUpdateOptions,
     TemplateOptions,
     TemplatePosition,
     TemplateReport,
+    TopFactCode,
     UnboundLayer,
     UnboundLayerCode,
+    UndrawnCode,
+    UpdateManyResult,
     ValidationResult,
+    ValueCategory,
+    ValueEntryWrite,
+    ValueGroup,
 } from "./src/session/styles";
-export { quotePath } from "./src/session/styles";
+export {
+    OVERFLOW_PATTERNS,
+    OVERFLOW_SHAPES,
+    quotePath,
+    renamePaths,
+    rulePath,
+    selectorRule,
+} from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature
@@ -540,6 +619,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";
@@ -587,3 +667,9 @@ export type FilterDirection = SelectionDirection;
  * operation. Removed in the major version that ships the project file.
  */
 export type SetOp = SelectionOp;
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export * from "./src/session/sources/public";

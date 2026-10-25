@@ -171,9 +171,9 @@ function wantedGraphics(trees: JsonColumn[], domain: "node" | "edge", field: str
 
 /**
  * The mapped values of one `<data>` tree of a yFiles key: a ShapeNode's for a node, a
- * PolyLineEdge's for an edge. A GenericNode, ImageNode, SVGNode or ProxyAutoBoundsNode (a group,
- * read through the realizer `Realizers@active` names) gives its geometry only: position, width and
- * height. Nothing for any other graphics (BezierEdge, ...).
+ * PolyLineEdge's for an edge. A GenericNode, ImageNode, SVGNode, UMLClassNode, UMLNoteNode, TableNode
+ * or ProxyAutoBoundsNode (a group, read through the realizer `Realizers@active` names), and yFiles 3's
+ * NodeGeometry `RectD`, give their geometry only: position, width and height. Nothing for any other graphics (BezierEdge, ...).
  * @param domain - node or edge
  * @param tree - the `<data>` content as tree.ts builds it
  * @param unmapped - receives the fields whose text is present but not a number (not mapped)
@@ -184,7 +184,20 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped:
     const out: [string, unknown][] = [];
     if (domain === "node") {
         const shape = child(tree, "ShapeNode");
-        if (shape === undefined) {
+        const rect = child(tree, "RectD");
+        if (rect !== undefined) {
+            // yFiles 3's NodeGeometry: the same top-left corner and size as yEd's Geometry, capitalized
+            geometryValues(
+                {
+                    "@_x": attr(rect, "X"),
+                    "@_y": attr(rect, "Y"),
+                    "@_width": attr(rect, "Width"),
+                    "@_height": attr(rect, "Height"),
+                },
+                out,
+                unmapped,
+            );
+        } else if (shape === undefined) {
             geometryValues(child(geometryNode(tree), "Geometry"), out, unmapped);
         } else {
             shapeNodeValues(shape, out, unmapped);
@@ -237,10 +250,10 @@ function geometryValues(geometry: unknown, out: [string, unknown][], unmapped: s
 }
 
 /** The node graphics besides ShapeNode whose Geometry is read. */
-const GEOMETRY_NODES = ["GenericNode", "ImageNode", "SVGNode"] as const;
+const GEOMETRY_NODES = ["GenericNode", "ImageNode", "SVGNode", "UMLClassNode", "UMLNoteNode", "TableNode"] as const;
 
 /**
- * The element holding a non-ShapeNode node's Geometry: a GenericNode, ImageNode or SVGNode, or
+ * The element holding a non-ShapeNode node's Geometry: one of GEOMETRY_NODES, or
  * the active realizer of a ProxyAutoBoundsNode (`Realizers@active`, default 0).
  * @param tree - the `<data>` content
  * @returns the element, or undefined

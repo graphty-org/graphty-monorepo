@@ -1,0 +1,13 @@
+tmp/
+
+# Pilot, dry-run and readiness walks (rounds/r1, rounds/r1d2, rounds/<round>/pilot ...) keep only
+# their .md reports in git. Their screenshots and step files go under the main checkout's
+# tmp/design-studio/ (see tool/README.md): on 2026-10-21 golden held 83,000 walk screenshots,
+# 9.9 GB in Git LFS. Files already tracked are not affected.
+**/rounds/r[0-9]*/**
+**/rounds/*/pilot/**
+**/rounds/pilot/**
+!**/rounds/r[0-9]*/**/
+!**/rounds/*/pilot/**/
+!**/rounds/pilot/**/
+!**/rounds/**/*.md

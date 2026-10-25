@@ -51,7 +51,8 @@ export interface DotEscapeNames {
 /**
  * The text a DOT label draws, in Graphviz's two passes: first `\N`, `\G`, `\E`, `\T` and `\H` are replaced by the
  * names and every other backslash pair is kept; then `\n`, `\l` and `\r` end a line (a final one adds no empty line)
- * and any other escaped character stands for itself. So a node name holding `\n` breaks the line.
+ * and any other escaped character stands for itself. So a node name holding `\n` breaks the line. Between the
+ * two, HTML entities (`&amp;`, `&#946;`) are decoded, as Graphviz's `htmlEntityUTF8` does for a plain label.
  * @param text - the label as the file gives it
  * @param names - the names to substitute
  * @param site - where it was read, for the budget
@@ -62,6 +63,20 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
     if (site !== undefined) {
         spendAt(site, text.length);
     }
+    const out = replaceEscapes(decodeEntities(substituteNames(text, names)), (e) =>
+        e === "n" || e === "l" || e === "r" ? "\n" : e,
+    );
+    return out.endsWith("\n") ? out.slice(0, -1) : out;
+}
+
+/**
+ * Graphviz's first pass over a label: `\N`, `\G`, `\E`, `\T` and `\H` replaced by the names, every other
+ * backslash pair kept.
+ * @param text - the label as the file gives it
+ * @param names - the names to substitute
+ * @returns the text
+ */
+function substituteNames(text: string, names: DotEscapeNames): string {
     const subs: Readonly<Record<string, string | undefined>> = {
         N: names.node,
         G: names.graph,
@@ -69,9 +84,34 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
         T: names.tail,
         H: names.head,
     };
-    const first = replaceEscapes(text, (e) => (Object.hasOwn(subs, e) ? subs[e] : undefined) ?? `\\${e}`);
-    const out = replaceEscapes(first, (e) => (e === "n" || e === "l" || e === "r" ? "\n" : e));
-    return out.endsWith("\n") ? out.slice(0, -1) : out;
+    return replaceEscapes(text, (e) => (Object.hasOwn(subs, e) ? subs[e] : undefined) ?? `\\${e}`);
+}
+
+/**
+ * How a DOT label's lines line up: each line ended by `\l` is drawn against the left, by `\r` against the right, and
+ * any other line centered (Graphviz's second pass, after `\N` and the other names are substituted). graphty lines
+ * up a label's lines one way, so the way most of its lines take wins, the first line's on a tie.
+ * @param text - the label as the file gives it
+ * @param names - the names to substitute
+ * @returns `left` or `right`, or null for a centered label
+ * @category Styles
+ */
+export function dotLabelAlign(text: string, names: DotEscapeNames): "left" | "right" | null {
+    // each line's end, in order: "n" centered, "l" left, "r" right; text after the last end is a centered line
+    const parts = replaceEscapes(substituteNames(text, names), (e) =>
+        e === "n" || e === "l" || e === "r" ? `\u0000${e}\u0000` : "x",
+    ).split("\u0000");
+    const ends = parts.filter((_, i) => i % 2 === 1);
+    if (parts.at(-1) !== "") {
+        ends.push("n");
+    }
+    const count = (end: string): number => ends.filter((e) => e === end).length;
+    const best = ["l", "r", "n"].filter((end) => count(end) === Math.max(count("l"), count("r"), count("n")));
+    const winner = best.length > 1 ? (ends.find((e) => best.includes(e)) ?? "n") : best[0];
+    if (winner === "l") {
+        return "left";
+    }
+    return winner === "r" ? "right" : null;
 }
 
 /**
@@ -126,7 +166,8 @@ function entity(body: string): string | undefined {
 
 /**
  * The text an HTML-like label shows: tags dropped, `<br/>` as a line break, entities decoded, outer blanks trimmed.
- * Notes `W_STYLE_HTML_LABEL` at the site, since the markup is lost.
+ * A table's rows are lines and the cells of a row are parted by a space, as Graphviz lays them out; text in a table
+ * outside its cells is not drawn. Notes `W_STYLE_HTML_LABEL` at the site, since the markup is lost.
  * @param html - the label, with or without its outer `<` and `>`
  * @param site - where it was read
  * @returns the label's text
@@ -135,8 +176,33 @@ function entity(body: string): string | undefined {
 export function htmlLabelText(html: string, site: CanonSite): string {
     spendAt(site, html.length);
     noteAt(site, STYLE_ISSUE.HTML_LABEL, html);
+    return htmlLabelSpans(html)
+        .map((s) => s.text)
+        .join("")
+        .trim();
+}
+
+/** A piece of an HTML-like label's text with the font tags open around it, outermost first. */
+export interface HtmlLabelSpan {
+    /** The text, entities decoded. */
+    readonly text: string;
+    /** The open font tags (`<B>`, `<FONT COLOR="red">`, ...) as written, outermost first. */
+    readonly tags: readonly string[];
+}
+
+/** The tags that change the font of the text inside them. */
+const FONT_TAGS = /^<(\/?)(b|i|u|o|s|sub|sup|font)\b/i;
+
+/**
+ * The pieces of text an HTML-like label shows, untrimmed, each with the font tags around it (the text
+ * {@link htmlLabelText} joins and trims).
+ * @param html - the label, with or without its outer `<` and `>`
+ * @returns the pieces in order
+ * @category Styles
+ */
+export function htmlLabelSpans(html: string): HtmlLabelSpan[] {
     const body = html.startsWith("<") && html.endsWith(">") ? html.slice(1, -1) : html;
-    let out = "";
+    const s: SpanState = { spans: [], tags: [], out: "", open: [] };
     let i = 0;
     while (i < body.length) {
         const c = body[i];
@@ -145,20 +211,125 @@ export function htmlLabelText(html: string, site: CanonSite): string {
             if (close < 0) {
                 break;
             }
-            if (/^<br\b/i.test(body.slice(i, i + 4))) {
-                out += "\n";
-            }
+            readTag(s, body, i, close);
             i = close + 1;
-        } else if (c === "&") {
-            const [text, next] = entityAt(body, i);
-            out += text;
-            i = next;
         } else {
-            out += c;
-            i++;
+            const [text, next]: [string, number] = c === "&" ? entityAt(body, i) : [c, i + 1];
+            emitSpan(s, s.open.at(-1) === "table" ? "" : text);
+            i = next;
         }
     }
-    return out.trim();
+    return s.spans;
+}
+
+/** What {@link htmlLabelSpans} has read so far. */
+interface SpanState {
+    /** the pieces so far */
+    spans: HtmlLabelSpan[];
+    /** the font tags open now; a new array whenever they change, so a piece's tags are compared by identity */
+    tags: string[];
+    /** the text so far */
+    out: string;
+    /** the open tables and cells, innermost last: text is drawn outside every table or inside a cell */
+    open: ("table" | "td")[];
+}
+
+/**
+ * Adds text to the last piece when its tags are the ones open, else as a new piece.
+ * @param s - the reading so far, changed in place
+ * @param text - the text
+ */
+function emitSpan(s: SpanState, text: string): void {
+    s.out += text;
+    const last = s.spans.at(-1);
+    if (last?.tags === s.tags) {
+        s.spans[s.spans.length - 1] = { text: last.text + text, tags: s.tags };
+    } else if (text !== "") {
+        s.spans.push({ text, tags: s.tags });
+    }
+}
+
+/**
+ * Whether the line being read has text on it.
+ * @param s - the reading so far
+ * @returns whether it has
+ */
+function lineHasText(s: SpanState): boolean {
+    return s.out.slice(s.out.lastIndexOf("\n") + 1).trim() !== "";
+}
+
+/**
+ * One tag of an HTML-like label: a line break, a table, row or cell, or a font tag.
+ * @param s - the reading so far, changed in place
+ * @param body - the label
+ * @param i - the offset of the tag's `<`
+ * @param close - the offset of its `>`
+ */
+function readTag(s: SpanState, body: string, i: number, close: number): void {
+    const tag = /^<(\/?)(br|table|tr|td)\b/i.exec(body.slice(i, i + 7));
+    if (tag !== null) {
+        layoutTag(s, tag[2].toLowerCase(), tag[1] === "/");
+        return;
+    }
+    const font = FONT_TAGS.exec(body.slice(i, i + 6));
+    if (font !== null && font[1] === "/") {
+        s.tags = withoutLastTag(s.tags, font[2]);
+    } else if (font !== null && body[close - 1] !== "/") {
+        s.tags = [...s.tags, body.slice(i, close + 1)];
+    }
+}
+
+/**
+ * A line break, table, row or cell tag: a break and a row with text before it start a line, a cell with text before
+ * it on its line a space.
+ * @param s - the reading so far, changed in place
+ * @param name - `br`, `table`, `tr` or `td`, in lower case
+ * @param closing - whether it is a closing tag
+ */
+function layoutTag(s: SpanState, name: string, closing: boolean): void {
+    if (name === "br" || name === "tr") {
+        if (name === "br" || (!closing && lineHasText(s))) {
+            emitSpan(s, "\n");
+        }
+    } else if (closing) {
+        s.open.pop();
+    } else {
+        if (name === "td" && lineHasText(s)) {
+            emitSpan(s, " ");
+        }
+        s.open.push(name === "td" ? "td" : "table");
+    }
+}
+
+/**
+ * The open font tags without the innermost one a closing tag closes.
+ * @param tags - the open tags
+ * @param name - the closing tag's name
+ * @returns the tags left open (the same array when none matched)
+ */
+function withoutLastTag(tags: string[], name: string): string[] {
+    const lower = name.toLowerCase();
+    let at = tags.length - 1;
+    while (at >= 0 && /^<(\w+)/.exec(tags[at])?.[1].toLowerCase() !== lower) {
+        at--;
+    }
+    return at < 0 ? tags : [...tags.slice(0, at), ...tags.slice(at + 1)];
+}
+
+/**
+ * Every entity of a text decoded; an `&` that starts none is itself.
+ * @param text - the text
+ * @returns the decoded text
+ */
+function decodeEntities(text: string): string {
+    let out = "";
+    let i = 0;
+    for (let amp = text.indexOf("&"); amp >= 0; amp = text.indexOf("&", i)) {
+        const [decoded, next] = entityAt(text, amp);
+        out += text.slice(i, amp) + decoded;
+        i = next;
+    }
+    return out + text.slice(i);
 }
 
 /**

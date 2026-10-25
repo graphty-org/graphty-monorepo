@@ -296,3 +296,74 @@ export const Opacity: Story = {
         },
     },
 };
+
+/**
+ * The highlight: the selection's halo, in each node's own shape, drawn on the nodes a layer
+ * picks. The box and the left sphere set `node.halo` alone and are drawn in the selection's
+ * look; the right sphere sets its own colour, scale and opacity. The middle node has none.
+ */
+export const Halo: Story = {
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const scene = await drawn(canvasElement, "Styles/Node Halo");
+
+        await assertGraphLoaded(scene, { nodes: 4, edges: 0 });
+
+        const halos = scene.graph.scene.meshes.filter(
+            (mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled(),
+        );
+
+        await holds(halos.length === 3, "Styles/Node Halo: three of the four nodes are highlighted");
+        await holds(
+            halos.some((mesh) => mesh.name.toLowerCase().includes("#00bcd4")),
+            "Styles/Node Halo: one highlight is drawn in the layer's own colour",
+        );
+        await assertDistinctPicture(scene, "Styles/Node");
+    },
+    args: {
+        dataSource: undefined,
+        dataSourceConfig: undefined,
+        nodeData: [
+            { id: "box", position: { x: -6, y: 0, z: 0 } },
+            { id: "plain", position: { x: -2, y: 0, z: 0 } },
+            { id: "gold", position: { x: 2, y: 0, z: 0 } },
+            { id: "teal", position: { x: 6, y: 0, z: 0 } },
+        ],
+        edgeData: [],
+        layout: "fixed",
+        layoutConfig: {},
+        setup: storySetup({
+            node: { "node.shape": "sphere", "node.size": 2 },
+            layers: [
+                {
+                    name: "a box",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["box"] },
+                    set: { "node.shape": "box" },
+                },
+                {
+                    name: "highlighted in the selection's look",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["box", "gold"] },
+                    set: { "node.halo": true },
+                },
+                {
+                    name: "highlighted in a look of its own",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["teal"] },
+                    set: {
+                        "node.haloColor": "#00BCD4",
+                        "node.haloScale": 1.8,
+                        "node.haloOpacity": 0.6,
+                    },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: [],
+        },
+    },
+};

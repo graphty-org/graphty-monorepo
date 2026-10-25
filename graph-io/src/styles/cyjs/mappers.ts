@@ -15,20 +15,34 @@
  *   property to its Cytoscape.js default, whatever the rules beneath say.
  */
 
+import { canonColor } from "../canon/color.js";
 import { CSS_COLORS } from "../canon/color-tables.js";
 import { canonEnum } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import type { StyleTarget, StyleValue } from "../types.js";
+import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
 export type CyjsValueType =
-    "color" | "zeroOne" | "size" | "nodeSize" | "positive" | "text" | "fontFamily" | "fontWeight" | "enum";
+    | "color"
+    | "zeroOne"
+    | "size"
+    | "signedSize"
+    | "nodeSize"
+    | "positive"
+    | "text"
+    | "fontFamily"
+    | "fontWeight"
+    | "enum";
 
 /** One property graph-io carries: the neutral property it sets (or a part it combines) and how it is parsed. */
 export interface CyjsPropertySpec {
-    /** The neutral property, or `_valign`, `_halign`, `_visibility`, `_display` for the parts combined afterward. */
+    /**
+     * The neutral property, or `_valign`, `_halign`, `_visibility`, `_display`, `_sourceArrowFill`, `_targetArrowFill`
+     * for the parts combined afterward.
+     */
     readonly property: string;
     /** The value type. */
     readonly type: CyjsValueType;
@@ -106,7 +120,8 @@ const FONT_WEIGHTS: readonly (string | number)[] = [
     800,
     900,
 ];
-const CURVES = [
+/** Cytoscape.js's curve styles. */
+export const CYJS_CURVE_STYLES = [
     "bezier",
     "unbundled-bezier",
     "haystack",
@@ -138,19 +153,318 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["visibility", { property: "_visibility", type: "enum", enums: ["hidden", "visible"] }],
     ["display", { property: "_display", type: "enum", enums: ["element", "none"] }],
     ["opacity", { property: "opacity", type: "zeroOne" }],
+    ["text-transform", { property: "_transform", type: "enum", enums: ["none", "uppercase", "lowercase"] }],
+    ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
+    ["text-overflow-wrap", { property: "_overflowWrap", type: "enum", enums: ["whitespace", "anywhere"] }],
+    // how the lines line up; `auto` follows the horizontal alignment (`combineLabelText`)
+    ["text-justification", { property: "_justification", type: "enum", enums: ["auto", "left", "center", "right"] }],
+    // a width only `text-wrap: wrap` wraps at, so it is combined with the wrap afterward (`combineParts`)
+    ["text-max-width", { property: "_maxWidth", type: "size" }],
+    // the outline and the background box draw only with a width and an opacity (`combineLabelDress`)
+    ["text-outline-color", { property: "_outlineColor", type: "color" }],
+    ["text-outline-width", { property: "_outlineWidth", type: "size" }],
+    ["text-outline-opacity", { property: "_outlineOpacity", type: "zeroOne" }],
+    ["text-background-color", { property: "_backgroundColor", type: "color" }],
+    ["text-background-opacity", { property: "_backgroundOpacity", type: "zeroOne" }],
+    ["text-background-padding", { property: "_backgroundPadding", type: "size" }],
+    [
+        "text-background-shape",
+        {
+            property: "_backgroundShape",
+            type: "enum",
+            enums: ["rectangle", "round-rectangle", "roundrectangle", "circle"],
+        },
+    ],
+    ["text-rotation", { property: "_rotation", type: "text" }],
+    // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
+    ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],
+    // the label moved right and down by this many pixels from where its alignment puts it, a node's and an edge's
+    ["text-margin-x", { property: "labelOffsetX", type: "signedSize" }],
+    ["text-margin-y", { property: "labelOffsetY", type: "signedSize" }],
+    // the line round the label's box draws only with a width and an opacity above 0 (`combineLabelDress`)
+    ["text-border-color", { property: "_textBorderColor", type: "color" }],
+    ["text-border-width", { property: "_textBorderWidth", type: "size" }],
+    ["text-border-opacity", { property: "_textBorderOpacity", type: "zeroOne" }],
+    [
+        "text-border-style",
+        { property: "_textBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] },
+    ],
 ];
+
+/** Cytoscape.js's `background-gradient-direction` values. */
+const GRADIENT_DIRECTIONS = [
+    "to-bottom",
+    "to-top",
+    "to-left",
+    "to-right",
+    "to-bottom-right",
+    "to-bottom-left",
+    "to-top-right",
+    "to-top-left",
+    "to-right-bottom",
+    "to-left-bottom",
+    "to-right-top",
+    "to-left-top",
+];
+
+/**
+ * The pixels of one `em`: Cytoscape.js reads it as its container's font size (`getEmSizeInPixels`, cytoscape.js
+ * 3.34.3 dist/cytoscape.cjs.js line 16896), 16 in a page that leaves the font size at the browser's default.
+ */
+const EM_PX = 16;
+
+/**
+ * Cytoscape.js's `shape-polygon-points` (`x y` pairs, y down, commas or spaces between) as neutral `shapePoints`.
+ * @param text - the points
+ * @returns `x,y` pairs with y up, or null when they are not pairs of numbers
+ */
+function cyjsPointsToNeutral(text: string): string | null {
+    const n = text
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    if (n.length < 6 || n.length % 2 !== 0 || !n.every((v) => Number.isFinite(v))) {
+        return null;
+    }
+    const pairs: string[] = [];
+    for (let i = 0; i < n.length; i += 2) {
+        pairs.push(`${String(round6(n[i]))},${String(round6(-n[i + 1]))}`);
+    }
+    return pairs.join(" ");
+}
+
+/**
+ * Neutral `shapePoints` as Cytoscape.js's `shape-polygon-points`.
+ * @param points - `x,y` pairs with y up
+ * @returns `x y` pairs with y down, or null when they are not pairs of numbers
+ */
+export function neutralPointsToCyjs(points: string): string | null {
+    const n = points
+        .trim()
+        .split(/[\s,]+/)
+        .map(Number);
+    if (n.length < 6 || n.length % 2 !== 0 || !n.every((v) => Number.isFinite(v))) {
+        return null;
+    }
+    const pairs: string[] = [];
+    for (let i = 0; i < n.length; i += 2) {
+        pairs.push(`${String(round6(n[i]))} ${String(round6(-n[i + 1]))}`);
+    }
+    return pairs.join(" ");
+}
+
+/**
+ * A coordinate to six decimals, with no negative zero.
+ * @param v - the coordinate
+ * @returns it rounded
+ */
+const round6 = (v: number): number => Math.round(v * 1e6) / 1e6 + 0;
+
+/**
+ * Cytoscape.js's corners of a heptagon fitted to its box (`generateUnitNgonPointsFitToSquare(7, 0)`): a regular
+ * heptagon with a corner up, stretched until it fills the box both ways.
+ * @returns the corners as `x,y` fractions of the half width and half height, y up
+ */
+function fittedHeptagon(): string {
+    const corners = Array.from({ length: 7 }, (_, i): [number, number] => {
+        const angle = Math.PI / 2 + (2 * Math.PI * i) / 7;
+        return [Math.cos(angle), Math.sin(angle)];
+    });
+    const [x0, x1] = [Math.min(...corners.map(([x]) => x)), Math.max(...corners.map(([x]) => x))];
+    const [y0, y1] = [Math.min(...corners.map(([, y]) => y)), Math.max(...corners.map(([, y]) => y))];
+    return corners
+        .map(([x, y]) => `${round6((2 * (x - x0)) / (x1 - x0) - 1)},${round6((2 * (y - y0)) / (y1 - y0) - 1)}`)
+        .join(" ");
+}
+
+/**
+ * The Cytoscape.js node shapes no neutral shape names, with the corners Cytoscape.js draws each at (cytoscape.js
+ * 3.34.3 dist/cytoscape.cjs.js lines 27976-28008); the round ones are `other:round-polygon` over the same corners.
+ */
+const CYJS_POLYGON_SHAPES: ReadonlyMap<string, string> = new Map([
+    ["heptagon", fittedHeptagon()],
+    ["round-heptagon", fittedHeptagon()],
+    ["tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
+    ["round-tag", "-1,-1 0.25,-1 1,0 0.25,1 -1,1"],
+]);
+
+/**
+ * Cytoscape.js's polygons drawn with rounded corners (`corner-radius`, by default a tenth of the shorter side),
+ * kept as their own `other:` shapes rather than read as their sharp twins.
+ */
+const CYJS_ROUND_SHAPES: ReadonlySet<string> = new Set([
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
+]);
+
+/**
+ * Draws every Cytoscape.js shape no neutral shape names (`other:heptagon`, `other:tag`) as the polygon Cytoscape.js
+ * builds for it: `polygon` with its corners in `shapePoints`.
+ * @param values - node values (per element, or a rule's constants), changed in place
+ */
+export function cyjsPolygonShapes(values: Record<string, unknown>): void {
+    const { shape } = values;
+    const pointsOf = (v: unknown): string | undefined =>
+        typeof v === "string" && v.startsWith("other:") ? CYJS_POLYGON_SHAPES.get(v.slice("other:".length)) : undefined;
+    if (Array.isArray(shape)) {
+        const col = shape as (StyleValue | null)[];
+        if (!col.some((v) => pointsOf(v) !== undefined)) {
+            return;
+        }
+        const points = Array.isArray(values.shapePoints)
+            ? [...(values.shapePoints as (StyleValue | null)[])]
+            : new Array<StyleValue | null>(col.length).fill(null);
+        values.shape = col.map((v, i) => {
+            const p = pointsOf(v);
+            if (p === undefined) {
+                return v;
+            }
+            points[i] = p;
+            return polygonOf(v);
+        });
+        values.shapePoints = points;
+        return;
+    }
+    const p = pointsOf(shape);
+    if (p !== undefined) {
+        values.shape = polygonOf(shape);
+        values.shapePoints = p;
+    }
+}
+
+/**
+ * The polygon a Cytoscape.js polygon shape is drawn as: `other:round-polygon` for its round ones.
+ * @param shape - the shape, `other:<Cytoscape.js name>`
+ * @returns the neutral shape
+ */
+function polygonOf(shape: unknown): string {
+    return typeof shape === "string" && shape.startsWith("other:round-") ? "other:round-polygon" : "polygon";
+}
+
+/** How Cytoscape.js's `line-fill` paints a line, as the neutral gradient kind. */
+const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
+    ["solid", "none"],
+    ["linear-gradient", "linear"],
+    ["radial-gradient", "radial"],
+]);
+
+/**
+ * A text split at its runs of whitespace that are not inside parentheses: `rgb(0, 0, 0) red` is two words. A run is
+ * inside when the next parenthesis after it closes one (as `/\s+(?![^(]*\))/` splits, in one pass).
+ * @param text - the text
+ * @returns the words
+ */
+function wordsOutsideParens(text: string): string[] {
+    // whether the next parenthesis at or after each offset is a `)`
+    const closes = new Array<boolean>(text.length + 1).fill(false);
+    for (let i = text.length - 1; i >= 0; i--) {
+        closes[i] = text[i] === ")" || (text[i] !== "(" && closes[i + 1]);
+    }
+    const words: string[] = [];
+    let start = 0;
+    let i = 0;
+    while (i < text.length) {
+        if (!/\s/.test(text[i])) {
+            i++;
+            continue;
+        }
+        let end = i + 1;
+        while (end < text.length && /\s/.test(text[end])) {
+            end++;
+        }
+        if (!closes[end]) {
+            words.push(text.slice(start, i));
+            start = end;
+        }
+        i = end;
+    }
+    words.push(text.slice(start));
+    return words;
+}
+
+/**
+ * Cytoscape.js's `line-gradient-stop-colors` (colors separated by spaces) as `#rrggbb` colors separated by spaces.
+ * @param text - the value
+ * @param site - where it was read
+ * @returns the colors, or undefined when one does not parse (noted)
+ */
+function gradientColors(text: string, site: CanonSite): string | undefined {
+    const hexes: string[] = [];
+    for (const token of wordsOutsideParens(text.trim())) {
+        const c = token === "" ? null : canonColor(token, "css", site);
+        if (c === null) {
+            return undefined;
+        }
+        hexes.push(c.color);
+    }
+    return hexes.join(" ");
+}
+
+/**
+ * Cytoscape.js's gradient stop colors (colors separated by spaces) as `#rrggbb` colors.
+ * @param text - the value
+ * @param site - where it was read
+ * @returns the colors, none when one does not parse (noted)
+ */
+export function gradientStopColors(text: string, site: CanonSite): string[] {
+    return gradientColors(text, site)?.split(" ") ?? [];
+}
+
+/**
+ * Cytoscape.js's `line-gradient-stop-positions` (percentages or fractions separated by spaces) as fractions.
+ * @param text - the value
+ * @returns the fractions separated by spaces, or undefined when one is not a number
+ */
+export function gradientStops(text: string): string | undefined {
+    const stops = text
+        .trim()
+        .split(/\s+/)
+        .map((t) => (t.endsWith("%") ? Number.parseFloat(t) / 100 : Number.parseFloat(t)));
+    return stops.every((n) => Number.isFinite(n)) ? stops.map((n) => num6(n)).join(" ") : undefined;
+}
+
+/** The lengths Cytoscape.js draws at half their value: a bundle's control point step, an outline's offset. */
+const HALVED: ReadonlySet<string> = new Set(["fanSpacing", "outerBorderOffset"]);
 
 /** The node properties graph-io carries, by Cytoscape.js name. */
 export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new Map<string, CyjsPropertySpec>([
     ["background-color", { property: "fill", type: "color" }],
     ["background-opacity", { property: "fillOpacity", type: "zeroOne" }],
     ["border-color", { property: "borderColor", type: "color" }],
+    // the rings are drawn at their own opacity times the node's (`combineNodeOpacity`)
+    ["border-opacity", { property: "_ringOpacity", type: "zeroOne" }],
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    // the dashes a dashed border is drawn with and their ends, which decide how it looks (`combineDashes`)
+    ["border-dash-pattern", { property: "_dashPattern", type: "text" }],
+    ["border-cap", { property: "_dashCap", type: "enum", enums: ["butt", "round", "square"] }],
+    // where the border sits against the node's outline: across it, inside it or outside it
+    ["border-position", { property: "borderPosition", type: "enum", enums: ["center", "inside", "outside"] }],
+    ["outline-color", { property: "outerBorderColor", type: "color" }],
+    ["outline-opacity", { property: "_outlineRingOpacity", type: "zeroOne" }],
+    ["outline-width", { property: "outerBorderWidth", type: "size" }],
+    ["outline-style", { property: "outerBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    ["outline-offset", { property: "outerBorderOffset", type: "size" }],
+    ["underlay-color", { property: "underlayColor", type: "color" }],
+    ["underlay-opacity", { property: "underlayOpacity", type: "zeroOne" }],
+    ["underlay-padding", { property: "underlayPadding", type: "size" }],
+    ["underlay-shape", { property: "underlayShape", type: "enum", enums: NODE_SHAPES }],
+    ["underlay-corner-radius", { property: "underlayCornerRadius", type: "size" }],
+    ["overlay-color", { property: "overlayColor", type: "color" }],
+    ["overlay-opacity", { property: "overlayOpacity", type: "zeroOne" }],
+    ["overlay-padding", { property: "overlayPadding", type: "size" }],
+    ["overlay-shape", { property: "overlayShape", type: "enum", enums: NODE_SHAPES }],
+    ["overlay-corner-radius", { property: "overlayCornerRadius", type: "size" }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
+    ["shape-polygon-points", { property: "shapePoints", type: "text" }],
     ["corner-radius", { property: "cornerRadius", type: "size" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["height", { property: "height", type: "nodeSize" }],
+    // a node is drawn this much larger on every side (`nodeSizes`)
+    ["padding", { property: "_padding", type: "text" }],
     [
         "text-valign",
         { property: "_valign", type: "enum", enums: ["top", "top-inside", "center", "bottom", "bottom-inside"] },
@@ -159,6 +473,16 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
         "text-halign",
         { property: "_halign", type: "enum", enums: ["left", "left-inside", "center", "right", "right-inside"] },
     ],
+    // the fill's gradient, combined afterward into `fill`, `fillGradient`, `fillGradientAngle` and the other
+    // `fillGradient*` properties
+    [
+        "background-fill",
+        { property: "_backgroundFill", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] },
+    ],
+    ["background-gradient-stop-colors", { property: "_backgroundStops", type: "text" }],
+    ["background-gradient-stop-positions", { property: "_backgroundPositions", type: "text" }],
+    ["background-gradient-direction", { property: "_backgroundDirection", type: "enum", enums: GRADIENT_DIRECTIONS }],
+    ...CYJS_FACE_PROPERTIES,
     ...LABEL,
 ]);
 
@@ -167,14 +491,67 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-color", { property: "color", type: "color" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["line-style", { property: "lineStyle", type: "enum", enums: ["solid", "dotted", "dashed"] }],
+    // the dashes a dashed line is drawn with and their ends, which decide how it looks (`combineDashes`)
+    ["line-dash-pattern", { property: "_dashPattern", type: "text" }],
+    ["line-cap", { property: "_dashCap", type: "enum", enums: ["butt", "round", "square"] }],
+    // the line's own opacity, combined afterward into `opacity`, which the line is drawn at
+    ["line-opacity", { property: "_lineOpacity", type: "zeroOne" }],
+    ["line-outline-width", { property: "outlineWidth", type: "size" }],
+    ["line-fill", { property: "gradientKind", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] }],
+    ["line-gradient-stop-colors", { property: "gradientColors", type: "text" }],
+    ["line-gradient-stop-positions", { property: "gradientStops", type: "text" }],
+    ["line-outline-color", { property: "outlineColor", type: "color" }],
+    ["underlay-color", { property: "underlayColor", type: "color" }],
+    ["underlay-opacity", { property: "underlayOpacity", type: "zeroOne" }],
+    ["underlay-padding", { property: "underlayPadding", type: "size" }],
+    ["overlay-color", { property: "overlayColor", type: "color" }],
+    ["overlay-opacity", { property: "overlayOpacity", type: "zeroOne" }],
+    ["overlay-padding", { property: "overlayPadding", type: "size" }],
     ["target-arrow-shape", { property: "targetArrow", type: "enum", enums: ARROWS }],
     ["source-arrow-shape", { property: "sourceArrow", type: "enum", enums: ARROWS }],
     ["target-arrow-color", { property: "targetArrowColor", type: "color" }],
     ["source-arrow-color", { property: "sourceArrowColor", type: "color" }],
-    ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
+    ["mid-target-arrow-shape", { property: "midTargetArrow", type: "enum", enums: ARROWS }],
+    ["mid-source-arrow-shape", { property: "midSourceArrow", type: "enum", enums: ARROWS }],
+    ["mid-target-arrow-color", { property: "midTargetArrowColor", type: "color" }],
+    ["mid-source-arrow-color", { property: "midSourceArrowColor", type: "color" }],
+    // filled or hollow: combined with the shape afterward (`combineParts`), a hollow triangle being `triangle-open`
+    ["target-arrow-fill", { property: "_targetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["source-arrow-fill", { property: "_sourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["mid-target-arrow-fill", { property: "_midTargetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["mid-source-arrow-fill", { property: "_midSourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
+    ["curve-style", { property: "curved", type: "enum", enums: CYJS_CURVE_STYLES }],
+    // a route's settings, read by the routes (`edgeRoutes`) as Cytoscape.js spells them
+    ["segment-distances", { property: "_segmentDistances", type: "text" }],
+    ["segment-weights", { property: "_segmentWeights", type: "text" }],
+    ["control-point-distances", { property: "_controlPointDistances", type: "text" }],
+    ["control-point-weights", { property: "_controlPointWeights", type: "text" }],
+    ["taxi-direction", { property: "_taxiDirection", type: "text" }],
+    ["taxi-turn", { property: "_taxiTurn", type: "text" }],
+    ["taxi-turn-min-distance", { property: "_taxiTurnMinDistance", type: "size" }],
+    ["edge-distances", { property: "_edgeDistances", type: "text" }],
+    ["loop-direction", { property: "_loopDirection", type: "text" }],
+    ["loop-sweep", { property: "_loopSweep", type: "text" }],
+    ["segment-radii", { property: "_segmentRadii", type: "text" }],
+    ["taxi-radius", { property: "_taxiRadius", type: "text" }],
+    ["radius-type", { property: "_radiusType", type: "text" }],
+    // where the ends meet the nodes, read with the routes (`edgePorts`)
+    ["source-endpoint", { property: "_sourceEndpoint", type: "text" }],
+    ["target-endpoint", { property: "_targetEndpoint", type: "text" }],
+    // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
+    ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
     ["source-label", { property: "sourceLabel", type: "text" }],
     ["target-label", { property: "targetLabel", type: "text" }],
+    ["source-text-offset", { property: "sourceLabelOffset", type: "size" }],
+    ["target-text-offset", { property: "targetLabelOffset", type: "size" }],
+    ["source-text-margin-x", { property: "sourceLabelOffsetX", type: "signedSize" }],
+    ["source-text-margin-y", { property: "sourceLabelOffsetY", type: "signedSize" }],
+    ["target-text-margin-x", { property: "targetLabelOffsetX", type: "signedSize" }],
+    ["target-text-margin-y", { property: "targetLabelOffsetY", type: "signedSize" }],
+    // an angle, or autorotate along the line, which the routes work out (`autorotateLabels`)
+    ["source-text-rotation", { property: "_sourceRotation", type: "text" }],
+    ["target-text-rotation", { property: "_targetRotation", type: "text" }],
     ...LABEL,
 ]);
 
@@ -188,14 +565,40 @@ export function cyjsProperties(target: StyleTarget): ReadonlyMap<string, CyjsPro
 }
 
 /**
+ * Cytoscape.js 3.34.3's property aliases (`styfn.aliases`): each name is read as the property it points to.
+ */
+const CYJS_ALIASES: ReadonlyMap<string, string> = new Map([
+    ["content", "label"],
+    ["control-point-distance", "control-point-distances"],
+    ["control-point-weight", "control-point-weights"],
+    ["segment-distance", "segment-distances"],
+    ["segment-weight", "segment-weights"],
+    ["segment-radius", "segment-radii"],
+    ["edge-text-rotation", "text-rotation"],
+    ["padding-left", "padding"],
+    ["padding-right", "padding"],
+    ["padding-top", "padding"],
+    ["padding-bottom", "padding"],
+]);
+
+/**
+ * A dash-form property name with Cytoscape.js's aliases resolved (`content` is `label`, `segment-distance` is
+ * `segment-distances`, `padding-left` is `padding`).
+ * @param dashed - the name in dash form
+ * @returns the property it sets
+ */
+export function cyjsAliasOf(dashed: string): string {
+    return CYJS_ALIASES.get(dashed) ?? dashed;
+}
+
+/**
  * A property name in Cytoscape.js's dash form, aliases resolved (`backgroundColor` and `content` are read as
  * `background-color` and `label`).
  * @param name - the name as written
  * @returns the dash-form name
  */
 export function cyjsPropertyName(name: string): string {
-    const dashed = name.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-    return dashed === "content" ? "label" : dashed;
+    return cyjsAliasOf(name.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`));
 }
 
 /** A parsed value, ready to draw. */
@@ -510,6 +913,7 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Flat
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
         case "size":
+        case "signedSize":
         case "nodeSize":
             return parseSizeValue(spec, value, raw);
         case "text":
@@ -571,7 +975,9 @@ function parseSizeValue(spec: CyjsPropertySpec, value: unknown, raw: unknown): C
     if (Number.isNaN(x)) {
         return spec.type === "nodeSize" && raw === "label" ? { kind: "word", value: "label", str: "label" } : null;
     }
-    return x < 0 ? null : { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
+    return x < 0 && spec.type !== "signedSize"
+        ? null
+        : { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
 }
 
 /**
@@ -685,7 +1091,11 @@ function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode
         return null;
     }
     const numeric =
-        spec.type === "zeroOne" || spec.type === "positive" || spec.type === "size" || spec.type === "nodeSize";
+        spec.type === "zeroOne" ||
+        spec.type === "positive" ||
+        spec.type === "size" ||
+        spec.type === "signedSize" ||
+        spec.type === "nodeSize";
     if (spec.type !== "color" && !numeric) {
         return null;
     }
@@ -790,6 +1200,23 @@ export function applyCyjsMapper(
 }
 
 /**
+ * A flat color as `#rrggbb`; a channel outside 0..255 is noted and undefined is returned.
+ * @param v - the color
+ * @param site - where it was read
+ * @returns the color, or undefined
+ */
+function colorNeutral(v: Extract<CyjsFlat, { kind: "color" }>, site: CanonSite): StyleValue | undefined {
+    if (v.rgb.some((c) => !Number.isFinite(c) || c < 0 || c > 255)) {
+        site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
+            sample: v.str,
+            element: site.element,
+        });
+        return undefined;
+    }
+    return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
  * The neutral value a flat value is drawn as, for one property. A value Cytoscape.js draws from the page (an `em`
  * size, a node sized to its label) cannot be evaluated: it is noted and undefined is returned.
  * @param spec - the property
@@ -799,25 +1226,12 @@ export function applyCyjsMapper(
  */
 export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite): StyleValue | undefined {
     switch (v.kind) {
-        case "color": {
-            if (v.rgb.some((c) => !Number.isFinite(c) || c < 0 || c > 255)) {
-                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
-                    sample: v.str,
-                    element: site.element,
-                });
-                return undefined;
-            }
-            return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
-        }
+        case "color":
+            return colorNeutral(v, site);
         case "number":
-            if (v.units === "em") {
-                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
-                    sample: v.str,
-                    element: site.element,
-                });
-                return undefined;
-            }
-            return num6(v.value);
+            // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out. It grows the
+            // outline's path by its offset across, so the outline starts half the offset out (drawOutline).
+            return num6((HALVED.has(spec.property) ? v.value / 2 : v.value) * (v.units === "em" ? EM_PX : 1));
         default:
             break;
     }
@@ -825,25 +1239,58 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
     switch (spec.property) {
         case "width":
         case "height":
-            site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, { sample: v.str, element: site.element });
+            // a node sized to its label is drawn so by the node sizes (`nodeSizes`); an edge has no such width
+            if (site.target === "edge") {
+                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
+                    sample: v.str,
+                    element: site.element,
+                });
+            }
             return undefined;
         case "label":
         case "sourceLabel":
         case "targetLabel":
         case "labelFont":
             return String(word);
+        case "gradientKind":
+            return GRADIENT_KINDS.get(String(word)) ?? undefined;
+        case "gradientColors":
+            return gradientColors(String(word), site);
+        case "gradientStops":
+            return gradientStops(String(word));
         case "labelItalic":
             return word === "italic" || word === "oblique";
         case "curved":
             return !STRAIGHT.has(String(word));
-        case "shape":
+        case "shapePoints":
+            return cyjsPointsToNeutral(String(word)) ?? undefined;
+        case "underlayShape":
+        case "overlayShape":
             return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
+        case "shape": {
+            const polygon = String(word).toLowerCase();
+            if (polygon === "polygon") {
+                return "polygon";
+            }
+            // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
+            return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
+                ? `other:${polygon}`
+                : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
+        }
         case "borderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
+        case "outerBorderStyle":
+            // cytoscape.js 3.34.3 drawOutline strokes a double outline whole and then erases a line a third of the
+            // BORDER's width down its middle, a hairline under a border of 1: the ring it shows is solid
+            return word === "double"
+                ? "solid"
+                : (canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined);
         case "lineStyle":
             return canonEnum("lineStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "sourceArrow":
         case "targetArrow":
+        case "midSourceArrow":
+        case "midTargetArrow":
             return canonEnum("arrow", String(word), "cytoscape-js", site) ?? undefined;
         case "labelWeight":
             return canonEnum("weight", String(word), "cytoscape-js", site) ?? undefined;
@@ -876,4 +1323,27 @@ export function cyjsRendered(
         return null;
     }
     return cyjsNeutral(spec, v, site);
+}
+
+/**
+ * The line class a dash array looks like against the line's width: solid where its gaps are a tenth of it or less,
+ * dotted where no dash is longer than one and a half widths, dash-dot where a dash is twice another, else dashed.
+ * @param dash - the dashes and gaps, in pixels
+ * @param width - the line's width
+ * @param cap - the dashes' ends
+ * @returns the neutral line style
+ */
+export function cyjsDashLook(dash: readonly number[], width: number, cap: string): string {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
+    const grow = cap === "butt" ? 0 : width;
+    const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
+    const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
+    if (sum(off) <= 0.1 * (sum(on) + sum(off))) {
+        return "solid";
+    }
+    if (on.every((d) => d <= Math.max(1, width) * 1.5)) {
+        return "dotted";
+    }
+    return Math.max(...on) >= 2 * Math.min(...on) ? "dash-dot" : "dashed";
 }

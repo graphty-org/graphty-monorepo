@@ -76,6 +76,8 @@ const MIN_ENCRYPTION_KEY_LENGTH = 10;
 /** Item names inside the encrypted store */
 const KEYS_ITEM = "keys";
 const DEFAULT_PROVIDER_ITEM = "default-provider";
+/** Other namespaces of the credential store (the network-source credentials), in the same store. */
+const EXTRAS_ITEM = "extras";
 
 /**
  * Manages API keys for LLM providers.
@@ -93,6 +95,7 @@ const DEFAULT_PROVIDER_ITEM = "default-provider";
  */
 export class ApiKeyManager {
     private readonly keys = new Map<ProviderType, string>();
+    private readonly extras = new Map<string, unknown>();
     private defaultProvider: ProviderType | null = null;
     private persistenceConfig: Required<PersistenceConfig> | null = null;
     private encryptStorage: EncryptStorage | null = null;
@@ -189,6 +192,9 @@ export class ApiKeyManager {
         // A store this key cannot read is left alone rather than overwritten with nothing
         if (this.loadPersistedKeys() !== "unreadable") {
             this.persistKeys();
+            if (this.extras.size > 0) {
+                this.persistExtras();
+            }
         }
 
         return true;
@@ -204,6 +210,7 @@ export class ApiKeyManager {
         if (clearStorage && this.encryptStorage) {
             this.encryptStorage.removeItem(KEYS_ITEM);
             this.encryptStorage.removeItem(DEFAULT_PROVIDER_ITEM);
+            this.encryptStorage.removeItem(EXTRAS_ITEM);
         }
 
         this.rememberSessionKey(null);
@@ -268,6 +275,33 @@ export class ApiKeyManager {
         if (this.encryptStorage) {
             this.persistKeys();
         }
+    }
+
+    /**
+     * Read a named item another namespace of the credential store keeps beside the keys, under the
+     * same persistence and encryption (`CredentialStore` keeps the network-source credentials
+     * here). In memory when persistence is off.
+     * @param name - The item's name
+     * @returns The value, or undefined
+     */
+    getStoredItem(name: string): unknown {
+        return this.extras.get(name);
+    }
+
+    /**
+     * Write, or with undefined remove, a named item kept beside the keys; see {@link getStoredItem}.
+     * It is persisted at once when persistence is on, and goes with the keys when it is turned off.
+     * @param name - The item's name
+     * @param value - Plain JSON data, or undefined to remove it
+     */
+    setStoredItem(name: string, value: unknown): void {
+        if (value === undefined) {
+            this.extras.delete(name);
+        } else {
+            this.extras.set(name, value);
+        }
+
+        this.persistExtras();
     }
 
     /**
@@ -409,6 +443,18 @@ export class ApiKeyManager {
     }
 
     /**
+     * Persist the other namespaces' items. Written only by the manager that holds them, so a second
+     * manager on the same storage, which holds none, never overwrites them with nothing.
+     */
+    private persistExtras(): void {
+        if (!this.encryptStorage) {
+            return;
+        }
+
+        this.encryptStorage.setItem(EXTRAS_ITEM, Object.fromEntries(this.extras));
+    }
+
+    /**
      * Load persisted keys and the default provider into memory. Keys in memory win over stored ones.
      * @returns "absent" when nothing is stored, "unreadable" when the stored keys cannot be
      * decrypted with this encryption key, "loaded" otherwise
@@ -436,6 +482,12 @@ export class ApiKeyManager {
         }
 
         this.defaultProvider ??= readDefaultProvider(this.encryptStorage);
+        for (const [name, value] of Object.entries(readExtras(this.encryptStorage))) {
+            if (!this.extras.has(name)) {
+                this.extras.set(name, value);
+            }
+        }
+
         return "loaded";
     }
 }
@@ -470,5 +522,19 @@ function readDefaultProvider(store: EncryptStorage): ProviderType | null {
         return typeof value === "string" ? (value as ProviderType) : null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * Read and decrypt the other namespaces' items.
+ * @param store - The encrypted store
+ * @returns The items by name; empty when absent or unreadable
+ */
+function readExtras(store: EncryptStorage): Record<string, unknown> {
+    try {
+        const value: unknown = store.getItem(EXTRAS_ITEM);
+        return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+    } catch {
+        return {};
     }
 }

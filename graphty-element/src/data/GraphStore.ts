@@ -83,6 +83,14 @@ export interface GraphStoreOptions {
 /** The node column an importer seeds file coordinates into; deleted from every snapshot by the attach. */
 const SEED_COLUMN = "graphty.importPosition";
 
+/** Where the data placed one node: its id and coordinates, times `positionScale`. */
+export interface SeedEntry {
+    readonly id: NodeId;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+}
+
 /**
  * The node column every frozen snapshot carries the reader's pins in.
  *
@@ -713,11 +721,11 @@ export class GraphStore {
     }
 
     /**
-     * Mark the graph mutated. DataManager calls this from EVERY mutating path, including a merge of
-     * an existing id and an attribute write, because `builder.mutationCount` counts neither
-     * (graph-format/src/types/builder.ts: "Increments on every topology or weight mutation; column
-     * writes and freeze() do not count") and the 14.4 sketch's key is unsound against the element's
-     * own mutation surface. See PLAN DECISION 1 of Task M6-T3 (DEP-M6-A).
+     * Mark the graph mutated. DataManager calls this from every mutating path, including a merge of
+     * an existing id and an attribute write, and the snapshot cache is keyed on the revision it bumps.
+     * This is a leftover workaround: graph-format's `builder.mutationCount` once ignored column
+     * writes, and now counts every change that makes the next freeze() differ. Keying the cache on
+     * `builder.mutationCount` and deleting this method and its call sites is tracked in issue #572.
      * @throws Error when the store has been disposed
      */
     touch(): void {
@@ -814,8 +822,8 @@ export class GraphStore {
             // before that freeze (a removal, or a second load opened straight after) belongs to
             // no load and must not move this one's ordinals or merge into it.
             this.completeIdentity();
-            // Column writes do not move the builder, so without this a snapshot frozen during the
-            // load would keep being served without the load's identity values.
+            // The cache is keyed on the store's own revision (see touch()), so without this a
+            // snapshot frozen during the load would keep being served without its identity values.
             this.touch();
         }
     }
@@ -2156,6 +2164,15 @@ export class GraphStore {
     }
 
     /**
+     * Whether the graph is directed, read from the builder without settling or freezing it, so
+     * it is cheap enough to ask once per edge drawn.
+     * @returns the builder's direction
+     */
+    get directed(): boolean {
+        return this.current.directed;
+    }
+
+    /**
      * How the direction of this store's graph was settled. Reading it first follows a
      * `data.directed` changed since the graph was last read, as {@link GraphStore.builder} does,
      * so a boolean set a moment ago already reads as `configuration`.
@@ -2189,8 +2206,43 @@ export class GraphStore {
         return this.seeded;
     }
 
+    /**
+     * For data that placed SOME nodes and not others: the ids of the nodes it arrived without a
+     * coordinate for, and where it put each of the others (times `positionScale`, as seeded),
+     * whatever a layout has done to them since. Read off the last freeze, like
+     * {@link GraphStore.seededNodeCount}.
+     * @returns both, or null when the data placed every node or none
+     */
+    partialSeeds(): { readonly unseeded: NodeId[]; readonly placed: SeedEntry[] } | null {
+        const snapshot = this.getSnapshot();
+        const { partial } = this;
+        if (partial?.rows.length !== snapshot.nodeCount) {
+            return null;
+        }
+
+        const unseeded: NodeId[] = [];
+        const placed: SeedEntry[] = [];
+        const { rows, coords } = partial;
+        for (let i = 0; i < snapshot.nodeCount; i++) {
+            const id = snapshot.ids.idOf(i);
+            if (rows[i] === 1) {
+                const base = POSITION_COMPONENTS * i;
+                placed.push({ id, x: coords[base], y: coords[base + 1], z: coords[base + 2] });
+            } else {
+                unseeded.push(id);
+            }
+        }
+
+        return { unseeded, placed };
+    }
+
     /** How many rows the importer's own column carried, as of the last freeze. */
     private seeded = 0;
+    /**
+     * Kept only when the last freeze's data placed some rows and not others: 1 per row it placed,
+     * and its coordinates times `positionScale`.
+     */
+    private partial: { readonly rows: Uint8Array; readonly coords: Float32Array } | null = null;
     /**
      * How the direction was settled. Written by the constructor for an explicit configuration and
      * by {@link GraphStore.recordDirectionFromFile} for a declaration that was taken.
@@ -2214,11 +2266,13 @@ export class GraphStore {
         const { data } = seed;
         const scale = this.options.positionScale();
         let seeded = 0;
+        const rows = new Uint8Array(snapshot.nodeCount);
         for (let i = 0; i < snapshot.nodeCount; i++) {
             // Counted for EVERY seeded row, including one already placed and skipped below: the
             // question this answers is what the data carried, not what still needed seeding.
             if (seed.isSet(i)) {
                 seeded++;
+                rows[i] = 1;
             }
 
             // The narrowed column's own isSet(i), which costs no lookup; `snapshot.nodes.isSet(name,
@@ -2258,6 +2312,14 @@ export class GraphStore {
         }
 
         this.seeded = seeded;
+        this.partial = null;
+        if (seeded > 0 && seeded < snapshot.nodeCount) {
+            const coords = new Float32Array(data.length);
+            for (let k = 0; k < coords.length; k++) {
+                coords[k] = data[k] * scale;
+            }
+            this.partial = { rows, coords };
+        }
     }
 }
 

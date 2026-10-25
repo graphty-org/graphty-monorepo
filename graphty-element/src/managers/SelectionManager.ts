@@ -96,6 +96,35 @@ export class SelectionManager implements Manager {
     }
 
     /**
+     * Say which node the pointer is over, or null, so a `{ match: "state", state: "hovered" }` or
+     * `{ match: "hover" }` style layer paints it.
+     * @param id - The node, or null.
+     */
+    hover(id: NodeIdType | null): void {
+        this.selection?.hover(id);
+    }
+
+    /**
+     * Whether the session says this node is the one under the pointer.
+     * @param id - The node.
+     * @returns True when it is.
+     */
+    isHovered(id: NodeIdType): boolean {
+        return this.selection?.hovered === id;
+    }
+
+    /**
+     * The pointer left a node: nothing is hovered, unless the pointer is already over another
+     * (each node hears the pointer on its own, so the next node's arrival can come first).
+     * @param id - The node the pointer left.
+     */
+    leave(id: NodeIdType): void {
+        if (this.selection?.hovered === id) {
+            this.selection.hover(null);
+        }
+    }
+
+    /**
      * Get the currently selected node.
      * @returns The first selected node, or null if nothing is selected.
      */
@@ -179,7 +208,10 @@ export class SelectionManager implements Manager {
      * @param node - The node to select.
      */
     select(node: Node): void {
-        if (this.selectedNodes.size === 1 && this.isSelected(node)) {
+        // Already the whole selection: nothing to do. Counted from the session when there is one,
+        // since edges, and nodes selected through the session API, are not in this manager's map.
+        const size = this.selection ? this.selection.size : this.selectedNodes.size;
+        if (size === 1 && this.isSelected(node)) {
             return;
         }
 
@@ -188,6 +220,16 @@ export class SelectionManager implements Manager {
         this.write([node], "user");
 
         this.eventManager.emitSelectionChanged(previousNode, node);
+    }
+
+    /**
+     * Add a node to the selection, keeping what was selected: what a Shift-click on a node does.
+     * @param node - The node to add.
+     */
+    add(node: Node): void {
+        this.selectedNodes.set(node.id, node);
+        node.setSelected(true);
+        this.selection?.applyNow({ nodes: [node.id] }, "add", "user");
     }
 
     /**

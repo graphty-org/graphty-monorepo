@@ -49,6 +49,10 @@ const css = `
     outline-offset: -1px;
 }
 .cm-button:where([data-block]) { display: flex; }
+/* A full-width button's content spans it, so Mantine's justify prop (--button-justify) can place it,
+   and never grows past its width: a label too long for it ends in an ellipsis. */
+.cm-button:where([data-block]) > .cm-button-inner { flex: 1; min-width: 0; }
+.cm-button:where([data-block]) .cm-button-label { display: block; height: auto; min-width: 0; text-overflow: ellipsis; }
 .cm-button:where([data-with-left-section], [data-with-right-section]) { padding: 0; }
 .cm-button-inner { transition: opacity var(--cm-duration-md) var(--cm-ease-loading); }
 /* The label carries the inset, so the button reports padding 0 (C7). */
@@ -169,7 +173,25 @@ const css = `
     cursor: auto;
 }
 .cm-action-icon[aria-pressed="true"]${DISABLED} { background: var(--cm-bg-selected); }
+/* A button disabled by aria-disabled stays in the tab order, so it shows where focus is like any
+   other (WCAG 2.4.7): the disabled outline above must not hide the focus ring. */
+.cm-action-icon${DISABLED}${FOCUS} { outline: 1px solid var(--cm-border-selected); outline-offset: 1px; }
 .cm-action-icon[data-loading] { cursor: progress; }
+/* A finger needs more than the 24px sm box: under a coarse pointer an invisible ::after grows its
+   hit target to 32 x 32 without moving anything (::before is the edged variants' focus ring).
+   32 keeps neighbors 4px apart from stealing each other's taps; an icon with room around it sets
+   --cm-ai-touch-target (44px is the touch guideline) for a bigger one. */
+@media (pointer: coarse) {
+    .cm-action-icon[data-size="sm"]::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: var(--cm-ai-touch-target, 32px);
+        height: var(--cm-ai-touch-target, 32px);
+        transform: translate(-50%, -50%);
+    }
+}
 .cm-action-icon[data-loading] .cm-action-icon-icon { opacity: 0; transform: none; }
 .cm-action-icon-loader {
     inset: 0;
@@ -229,6 +251,10 @@ ${JOINED}${FOCUS} {
 }
 
 /* ---------- ToggleIconButton (4.4): an ActionIcon with aria-pressed; the "on" rules above ---------- */
+/* The glyph swaps on the press (pointerdown), so the node under the pointer is gone by the
+   mousedown and the browser finds nothing to focus: focus fell to the page. The pointer hits the
+   button, which stays, rather than the glyph. */
+.cm-toggle-icon svg { pointer-events: none; }
 .cm-toggle-icon[data-swap][aria-pressed="true"]:not(:disabled, [data-disabled]) {
     background-color: var(--ai-bg);
     color: var(--ai-color);

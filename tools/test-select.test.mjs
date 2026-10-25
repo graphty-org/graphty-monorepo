@@ -1251,6 +1251,18 @@ describe("light-check-replay", () => {
             reasons: ["depends on graphty-element, whose build changed"],
         });
         assert.equal(keyOf({ selection: [dependent] }, [], fileLevel), "run:ci.yml:pr-wide");
+        const byFile = sel("graphty-1", "graphty", "files", []);
+        byFile.files = [
+            { file: "graphty/src/App.test.tsx", why: "imports graphty-element/src/a.ts, from graphty-element's build" },
+        ];
+        assert.equal(
+            keyOf({ selection: [byFile] }, [], fileLevel),
+            "run:ci.yml:pr-wide",
+            "a dependent selected file by file",
+        );
+        const own = sel("graphty-element-1", "graphty-element", "files", []);
+        own.files = [{ file: "graphty-element/test/a.test.ts", why: "imports graphty-element/src/a.ts" }];
+        assert.equal(keyOf({ selection: [own] }, [], fileLevel), "run:ci.yml:pr", "graphty-element's own tests alone");
         const longest = [
             { package: "graphty", ms: 9 },
             { package: "layout", ms: 3 },

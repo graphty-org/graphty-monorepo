@@ -8,7 +8,8 @@
  * most 8 minutes; the bins run in parallel, so the change's test time is its longest bin, and its run time
  * that plus the setup before the tests (checkout and install, the plan, Build). Each record gets the budget
  * key its pull request would have:
- *   run:ci.yml:pr-wide     a global input changed, or graphty-element's build did (its dependents run whole)
+ *   run:ci.yml:pr-wide     a global input changed, or graphty-element's source did (another package's shard is
+ *                          selected because of it, whole or file by file)
  *   run:ci.yml:pr-<pkg>    a package not yet on test-select-rules.json "fileLevel" runs whole shards
  *                          (the one with the longest bin)
  *   run:ci.yml:pr          everything else
@@ -16,11 +17,14 @@
  *
  * Per-file durations: the test ledger (tools/test-ledger.mjs), the median of each file's last 5 runs per
  * family, or --durations <file.json> (`{ "<family>": { "<file>": ms } }`, for the results store's export).
+ * The ledger's ms is the sum of a file's test case times, without its import, setup and environment time
+ * (graphty-element's browser files: 13 min in the ledger against about 62 min in CI), so its table is a look
+ * only: --write needs --durations.
  *
  * Usage:
  *   node tools/light-check-replay.mjs [--advisory <file>, default the main checkout's] [--durations <file.json>] [--write]
- *       prints the table (Markdown); --write sets each key's minutes (its p90, rounded up) and why in
- *       ci-budgets.json
+ *       prints the table (Markdown); --write (with --durations) sets each key's minutes (its p90, rounded up)
+ *       and why in ci-budgets.json
  */
 
 import { execFileSync } from "node:child_process";
@@ -79,8 +83,12 @@ function filesToRun(fam, fileMs) {
  * @returns the key
  */
 export function keyOf(record, longest, fileLevel) {
-    const reasons = (record.selection ?? []).flatMap((s) => s.reasons ?? []);
-    if (record.everything || reasons.some((r) => r.startsWith("depends on graphty-element,"))) return WIDE;
+    // the selector names graphty-element in a dependent's reasons ("depends on graphty-element, whose build
+    // changed", "graphty/vite.config.ts reads graphty-element/src/...") or files ("..., from graphty-element's build")
+    const viaElement = (s) =>
+        s.package !== "graphty-element" &&
+        [...(s.reasons ?? []), ...(s.files ?? []).map((f) => f.why ?? "")].some((w) => w.includes("graphty-element"));
+    if (record.everything || (record.selection ?? []).some(viaElement)) return WIDE;
     const whole = longest.find((f) => !fileLevel.has(f.package));
     return whole ? `run:ci.yml:pr-${whole.package}` : "run:ci.yml:pr";
 }
@@ -233,6 +241,10 @@ function main(argv) {
     const table = summarize(records.map((r) => replayRecord(r, durations, fileLevel)));
     console.log(markdown(table));
     if (!argv.includes("--write")) return;
+    if (!durationsFile) {
+        console.error("--write needs --durations: the ledger's file times leave out import and setup time");
+        process.exit(1);
+    }
     const file = join(ROOT, "ci-budgets.json");
     if (!existsSync(file)) {
         console.error("ci-budgets.json does not exist yet (it comes with durations-timings, #3428)");

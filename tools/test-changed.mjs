@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
+import { config, readPlan } from "./results/client.mjs";
 import { projectGraph } from "./prepush-inputs.mjs";
 import { budget, explain, rankFiles } from "./test-history.mjs";
 import { planRuns, selectChange, selectedCommand } from "./test-select.mjs";
@@ -159,7 +160,12 @@ async function main(argv) {
         selection = selection.map((s) => (s.mode === "none" ? s : { ...s, mode: "all", reasons: ["--all"] }));
     }
     const at = argv.indexOf("--budget");
-    const ranked = rankPlan(planRuns(ROOT, shards, selection), changed, at === -1 ? undefined : Number(argv[at + 1]));
+    const runs = planRuns(ROOT, shards, selection);
+    const files = runs.filter((p) => p.mode === "files").flatMap((p) => p.files.map((f) => f.file));
+    const cfg = files.length > 0 ? config() : null;
+    const storePlan = cfg ? await readPlan(cfg, { files }) : null;
+    const ranker = (f, c) => rankFiles(f, c, process.env, ROOT, storePlan);
+    const ranked = rankPlan(runs, changed, at === -1 ? undefined : Number(argv[at + 1]), ranker);
     const plan = ranked.plan;
     console.log([...describePlan(plan), ...ranked.lines].join("\n"));
     const todo = plan.filter((p) => p.mode !== "none");

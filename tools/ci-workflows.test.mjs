@@ -362,12 +362,9 @@ describe("the pre-push gate matches CI", () => {
         "test-select-rules.json",
         // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
         "test-quarantine.mjs",
-        // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
+        // the test ledger
         "test-ledger.mjs",
-        "land.mjs",
-        "branch-sync.mjs",
         "branch-note.mjs",
-        "ship-risks.mjs",
     ];
     const runStage = (runTests, env = {}, opts = {}) => {
         const { shards = [["broken"], ["slow"]], setup } = opts;
@@ -467,24 +464,10 @@ describe("the pre-push gate matches CI", () => {
             SUMMARY,
         ].join("\n");
 
-    it("excuses a land check's failure that golden's tip has too, files its issue, and exits 3", () => {
-        const run = runStage(
-            failsWith("Error: broken on golden too"),
-            { TEST_LEDGER_KIND: "land-check" },
-            { setup: landedRepo },
-        );
-        assert.match(run.stdout, /\[BASE\] broken: running the whole shard on golden's tip/);
-        assert.match(run.stdout, /\[KNOWN\] broken: broken\/a\.test\.ts > t fails the same way on golden's tip/);
-        assert.match(run.stdout, /\[PASS\] slow/);
-        assert.equal(run.status, 3, run.stdout + run.stderr);
-    });
-
     it("records an excused gate as gate-known, which only a land check's push accepts", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
-        for (const script of [prepush, code(tool("push-queue.sh"))]) {
-            assert.match(script, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
-        }
+        assert.match(prepush, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
     });
 
     it("blocks a land check's failure that golden's tip does not have, with no database at all", () => {

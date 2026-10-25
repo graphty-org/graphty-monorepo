@@ -525,8 +525,17 @@ export function rerunOnBase(shard, base, files, main) {
         const dir = join(main, ".worktrees", `${basename(ROOT)}-base`);
         const orig = SHARDS.find((s) => s.shard === shard.shard) ?? shard;
         try {
-            const { prepareScratch } = await import("./land.mjs");
-            prepareScratch({ env: process.env, main }, dir, base);
+            // A detached scratch worktree at golden's tip, installed (was land.mjs prepareScratch, deleted, #3477).
+            const git = (cwd, args) => execFileSync("git", args, { cwd, stdio: "pipe" });
+            if (existsSync(dir)) {
+                git(dir, ["reset", "-q", "--hard", base]);
+                git(dir, ["clean", "-fdq"]);
+            } else {
+                git(main, ["worktree", "add", "-q", "--detach", dir, base]);
+            }
+            if (existsSync(join(dir, "pnpm-lock.yaml"))) {
+                execFileSync("pnpm", ["install", "--frozen-lockfile"], { cwd: dir, stdio: "pipe" });
+            }
         } catch (e) {
             console.log(`  [BASE] ${shard.shard}: no worktree at golden's tip (${e.message.split("\n")[0]})`);
             return null;

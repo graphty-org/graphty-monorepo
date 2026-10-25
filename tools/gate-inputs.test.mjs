@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
-import { acquireLock } from "./land.mjs";
 import { gateKey, inputKey } from "./prepush-inputs.mjs";
 import { acquire } from "./test-slots.mjs";
 import { logWait } from "./wait-log.mjs";
@@ -27,7 +26,6 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const TOOLS = fileURLToPath(new URL(".", import.meta.url));
-const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
 // The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
@@ -287,89 +285,6 @@ describe("pass records (prepush-inputs.mjs passed / record)", () => {
     });
 });
 
-describe("push-queue with a gate that already passed", () => {
-    // A checkout with stand-in source checks that log their run, and an origin to push to.
-    function pushRepo() {
-        const r = repo();
-        writeFileSync(join(r.dir, "tools/prepush-source-checks.sh"), `echo ran >> "${r.dir}/../source-ran-${made}"\n`);
-        r.git("add", ".");
-        r.git("commit", "-q", "-m", "checks");
-        const origin = join(TMP, `origin-${made}.git`);
-        spawnSync("git", ["init", "-q", "--bare", origin]);
-        r.git("remote", "add", "origin", origin);
-        const q = join(TMP, `queue-${made}`);
-        const env = Object.fromEntries(Object.entries(OUR_ENV).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
-        Object.assign(env, {
-            PUSH_QUEUE_DIR: join(q, "tickets"),
-            PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),
-            PUSH_QUEUE_GATE: join(q, "no-gate-live"),
-            PUSH_QUEUE_POLL: "0.1",
-            PUSH_QUEUE_SLOTS: "1",
-            PUSH_BASE_REF: "origin/master",
-        });
-        delete env.PREPUSH_RERUN_ALL;
-        const ran = join(TMP, `source-ran-${made}`);
-        return { ...r, env, ran, tickets: env.PUSH_QUEUE_DIR };
-    }
-    // A live process holding the only gate slot for as long as the test needs it.
-    function holdSlot(tickets) {
-        mkdirSync(tickets, { recursive: true });
-        const holder = spawn("sleep", ["600"], { stdio: "ignore" });
-        writeFileSync(join(tickets, `0-1-${holder.pid}`), "another push\n");
-        return holder;
-    }
-
-    it("pushes at once, with no source checks and no gate slot, when the whole gate passed on these inputs", () => {
-        const r = pushRepo();
-        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
-        const holder = holdSlot(r.tickets);
-        try {
-            const p = spawnSync("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
-                cwd: r.dir,
-                encoding: "utf8",
-                env: r.env,
-            });
-            assert.equal(p.status, 0, p.stdout + p.stderr);
-            assert.match(p.stdout, /every check of the gate already passed on these inputs \(main at [0-9a-f]{12}/);
-            assert.equal(existsSync(r.ran), false, "the source-only checks did not run");
-        } finally {
-            holder.kill();
-        }
-    });
-
-    it("runs the source checks and waits for a slot, logging the wait, when anything differs", () => {
-        const r = pushRepo();
-        assert.equal(r.inputs("record", "gate", r.inputs("key").stdout.trim()).status, 0);
-        writeFileSync(join(r.dir, "a.ts"), "a change since the pass\n");
-        const holder = holdSlot(r.tickets);
-        const log = join(TMP, `waits-${made}.jsonl`);
-        // The push runs its source checks, then waits behind the holder; once it says so, the holder ends.
-        const push = spawn("bash", [QUEUE, "git", "push", "-q", "origin", "HEAD:feat/x"], {
-            cwd: r.dir,
-            env: { ...r.env, PIPELINE_WAIT_LOG: log },
-            stdio: ["ignore", "ignore", "pipe"],
-        });
-        let err = "";
-        const done = new Promise((resolve) => push.on("exit", resolve));
-        const waiting = new Promise((resolve) =>
-            push.stderr.on("data", (d) => {
-                err += d;
-                if (err.includes("push-queue: waiting for one of 1 gate slots")) resolve();
-            }),
-        );
-        return (async () => {
-            await waiting;
-            holder.kill();
-            assert.equal(await done, 0, err);
-            assert.equal(readFileSync(r.ran, "utf8"), "ran\n", "the source-only checks ran");
-            const [line] = readFileSync(log, "utf8").trim().split("\n").map(JSON.parse);
-            assert.equal(line.kind, "gate-slot");
-            assert.match(line.heldBy[0], new RegExp(`^pid ${holder.pid}: another push`));
-            assert.match(line.waiter, /git push -q origin HEAD:feat\/x/);
-        })();
-    });
-});
-
 describe("prepush.sh with a gate that already passed", () => {
     // A checkout whose gate is the real prepush.sh and source checks, with every outside step stubbed:
     // pnpm answers "no package affected", and the offline link check and the SonarQube step write a
@@ -530,30 +445,6 @@ describe("the wait log", () => {
             holder.kill();
             waiter.kill();
         }
-    });
-
-    it("records every taking of the landing lock, its holder while waiting, and how long it was held", async () => {
-        const lock = join(TMP, "golden/lock");
-        const lines = [];
-        const opts = { pollMs: 5, waitLog: (l) => lines.push(l), onQueue: () => {} };
-        const first = await acquireLock(lock, { command: "land", branch: "a" }, { ...opts, onWait: () => {} });
-        let told;
-        const waiting = new Promise((resolve) => (told = resolve));
-        const second = acquireLock(lock, { command: "land", branch: "b" }, { ...opts, onWait: told });
-        await waiting;
-        first();
-        (await second)();
-        assert.deepEqual(
-            lines.map((l) => [l.kind, l.waiter]),
-            [
-                ["land-lock", "land a"],
-                ["land-lock-held", "land a"],
-                ["land-lock", "land b"],
-                ["land-lock-held", "land b"],
-            ],
-        );
-        assert.deepEqual(lines[0].heldBy, []);
-        assert.match(lines[2].heldBy[0], new RegExp(`^pid ${process.pid} \\(land a, since `));
     });
 
     it("records a wait for a browser slot with the commands that held the slots", () => {

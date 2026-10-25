@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+// candidates.mjs -- master's full runs for the review page's candidate mode (`visual-review serve
+// --candidate next`, the `candidates` command in visual-review.config.json): prints JSON
+// `[{ commit, runId, verdict, promoted, at }]`, read from the results store's GET /v1/candidate (every
+// commit's latest verdict of the last 30 days) and GET /v1/release-state (nightly's commit).
+// Design: design/ci/channels-pipeline/channels.md section 7, stories-as-tests.md section 7.
+// Needs RESULTS_URL and a read token (GRAPHTY_RESULTS_TOKEN, or the one in .env); fails loudly otherwise.
+import { fileURLToPath } from "node:url";
+
+import { call, config } from "../results/client.mjs";
+
+/**
+ * The full-run records the review page picks its candidate from.
+ * @param get reads one store route and returns its JSON, throwing when it cannot
+ * @returns `[{ commit, runId, verdict, promoted, at }]`, `at` the verdict's time in milliseconds
+ */
+export async function listCandidates(get) {
+    const [{ recent }, { nightly }] = await Promise.all([get("/v1/candidate"), get("/v1/release-state")]);
+    // ponytail: ordered by verdict time, not site build time; a run judged out of order would be offered out of order
+    return recent.map((v) => ({
+        commit: v.sha,
+        runId: v.runId,
+        verdict: v.state,
+        promoted: v.state === "approved" || v.sha === nightly?.sha,
+        at: v.at,
+    }));
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    const cfg = config();
+    if (!cfg) {
+        console.error("candidates: the results store is not configured (RESULTS_URL and GRAPHTY_RESULTS_TOKEN)");
+        process.exit(1);
+    }
+    const get = async (path) => {
+        const r = await call(cfg, "GET", path);
+        if (!r.ok) throw new Error(`GET ${path}: ${r.why}`);
+        return r.data;
+    };
+    try {
+        console.log(JSON.stringify(await listCandidates(get)));
+    } catch (e) {
+        console.error(`candidates: ${e.message}`);
+        process.exit(1);
+    }
+}

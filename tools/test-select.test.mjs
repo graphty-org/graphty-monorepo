@@ -1606,6 +1606,7 @@ describe("the import graphs' cache key", () => {
             const git = (...a) =>
                 execFileSync("git", a, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
             git("init", "-q");
+            git("config", "commit.gpgsign", "false");
             for (const [f, t] of [
                 ["pkg/a.ts", "1"],
                 ["pnpm-lock.yaml", "a"],
@@ -1617,19 +1618,7 @@ describe("the import graphs' cache key", () => {
                 mkdirSync(dirname(join(repo, f)), { recursive: true });
                 writeFileSync(join(repo, f), t);
             }
-            const commit = () =>
-                git(
-                    "-c",
-                    "user.name=t",
-                    "-c",
-                    "user.email=t@t",
-                    "-c",
-                    "commit.gpgsign=false",
-                    "commit",
-                    "-qam",
-                    "c",
-                    "--no-verify",
-                );
+            const commit = () => git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "c", "--no-verify");
             git("add", ".");
             commit();
             const k1 = graphCacheKey(repo, ["pkg"]);

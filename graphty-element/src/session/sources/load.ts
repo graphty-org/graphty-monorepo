@@ -222,6 +222,7 @@ function dispatchRows(
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
+        ...(options.history === "start" ? { startsHistory: true } : {}),
     };
     return host.dispatch(command);
 }

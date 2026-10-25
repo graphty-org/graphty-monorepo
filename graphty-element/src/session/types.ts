@@ -1730,6 +1730,14 @@ export interface ImportOptions {
      * coordinates, in the same step; `"keep"` (the default) leaves the layout as it is.
      */
     readonly layout?: "recommended" | "keep";
+    /**
+     * `"step"` (the default) records the load as one undoable step. `"start"` makes the loaded
+     * graph where the history starts, as opening a new project does: the load is never undone or
+     * cancelled by `undo()` (while it is pending `canUndo` is false unless later work is), the
+     * steps recorded before it was called are dropped once it is in, and work dispatched while it
+     * was pending is kept as its own steps.
+     */
+    readonly history?: "step" | "start";
 }
 
 /** A node record to add: its id is read through `data.knownFields.nodeIdPath`. */

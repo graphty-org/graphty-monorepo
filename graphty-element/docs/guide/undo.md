@@ -81,6 +81,18 @@ await session.data.import({ type: "csv", config: { url: "/flights.csv" } });
 session.history.clear({ pending: "keep" });
 ```
 
+To open a graph as a new project, pass `history: "start"` to any load: `session.data.import`,
+`generate`, `loadDataset`, `loadSample`, a load draft's `load`, or `session.project.open` for a
+document that is not a project (a project file always starts the history). The loaded graph
+becomes the baseline: Undo and `history.restoreTo` never cancel the load while it is pending,
+and never undo it after. Steps recorded before the call are dropped once the load is in. Work
+done while it loads is kept, and each piece is its own step.
+
+```ts
+await session.data.import({ config: { url: "graph.graphml" } }, { history: "start" });
+session.canUndo; // false
+```
+
 ## Steps
 
 One call is one step, and a node drag is one step, and so is one message to the AI assistant.

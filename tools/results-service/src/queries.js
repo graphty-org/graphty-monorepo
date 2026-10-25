@@ -71,16 +71,21 @@ async function activeQuarantine(db, families, now) {
     return out;
 }
 
-// Failures master's own runs saw on exactly `base`, or with the same variant and inputs key (6.3).
+// Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
+// inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
+    if (!pairs.length) return [];
+    const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
     const rows = await all(
         db,
-        `SELECT DISTINCT f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT DISTINCT i.variant, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
-         WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed' AND (i.sha = ?${same})`,
+         WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
+           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})`,
         base ?? "",
+        ...variants,
         ...pairs.flat(),
     );
     return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's

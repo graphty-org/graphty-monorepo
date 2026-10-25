@@ -466,6 +466,8 @@ describe("GET /v1/plan", () => {
         s.fail("sameInputs", { name: "same inputs", signature: "s2" });
         s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed" });
         s.fail("elsewhere", { name: "other inputs" });
+        s.inv("otherVariant", { sha: "base1", variant: "graphty-element-browser|flags=on|whole", outcome: "failed" });
+        s.fail("otherVariant", { name: "flags on only" });
         s.inv("changedFile", { sha: "base1", outcome: "failed" });
         s.fail("changedFile", { file: "a/changed.test.ts", name: "changed" });
         s.fail("diedBeforeItsRecord", { name: "infra" });

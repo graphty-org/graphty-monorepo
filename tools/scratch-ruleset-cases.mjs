@@ -137,7 +137,12 @@ export function latestRun(contexts, name) {
                 ? { name: c.context, at: c.createdAt, result: c.state === "PENDING" ? "PENDING" : c.state }
                 : { name: c.name, at: c.startedAt, result: c.status === "COMPLETED" ? c.conclusion : "PENDING" },
         )
-        .map((r, i) => ({ ...r, notes: (contexts[i].annotations?.nodes ?? []).map((a) => a.message) }))
+        // Only the check's own annotations (title = its name, as `::error title=PR Integrity::` writes them), never
+        // GitHub's "Process completed with exit code 1."
+        .map((r, i) => ({
+            ...r,
+            notes: (contexts[i].annotations?.nodes ?? []).filter((a) => a.title === r.name).map((a) => a.message),
+        }))
         .filter((r) => r.name === name)
         // A run not yet started (no time) is a queued re-run, so it sorts newest (as tools/pr-status-broker.mjs).
         .sort((a, b) => String(a.at ?? "9999").localeCompare(String(b.at ?? "9999")));
@@ -398,7 +403,7 @@ const POLL = `query($q: String!) { repository(owner: "graphty-org", name: "graph
   } } } }`;
 const FIELDS = `number state merged reviewDecision commits(last: 1) { nodes { commit { statusCheckRollup {
   contexts(first: 100) { nodes { __typename ... on CheckRun { name status conclusion startedAt
-    annotations(first: 20) { nodes { message } } }
+    annotations(first: 20) { nodes { title message } } }
   ... on StatusContext { context state createdAt } } } } } } }`;
 
 /**

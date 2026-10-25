@@ -151,7 +151,12 @@ test("judge: a FAILURE case passes only on its own rule", () => {
                                 nodes: [
                                     {
                                         ...run("PR Integrity", "COMPLETED", "FAILURE", "t1"),
-                                        annotations: { nodes: [{ message: "Breaking change: x" }] },
+                                        annotations: {
+                                            nodes: [
+                                                { title: "PR Integrity", message: "Breaking change: x" },
+                                                { title: "", message: "Process completed with exit code 1." },
+                                            ],
+                                        },
                                     },
                                 ],
                             },

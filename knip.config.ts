@@ -317,7 +317,7 @@ const config: KnipConfig = {
                 "eslint-rules/**/*.test.ts",
                 "scripts/**/*.ts",
                 // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3471).
-                ".storybook/visual.setup.ts",
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
         },

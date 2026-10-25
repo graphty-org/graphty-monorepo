@@ -200,11 +200,20 @@ export default defineConfig({
                               commands: { chooseNextFile, ...VISUAL.commands },
                           }
                         : { ...chromium(), viewport: { width: 1200, height: 900 } },
-                    setupFiles: [...(VISUAL ? [".storybook/visual.setup.ts"] : []), ".storybook/vitest.setup.ts"],
+                    setupFiles: [
+                        ...(VISUAL ? [".storybook/vitest.setup.visual.ts"] : []),
+                        ".storybook/vitest.setup.ts",
+                    ],
                     // As graphty-element's storybook project: a story that loads the real element
                     // takes under a second alone, and 7 to 15 seconds while the pre-push gate runs
                     // its other browser shards beside it, which crossed the 15-second default.
                     testTimeout: 30000,
+                    // With screenshots on, a story's afterEach renders it again for each further mode
+                    // (light, then dark) and once more when a shot differs from its baseline, and a
+                    // story taller than the viewport is shot at up to 16,000 device px: about 3 s a
+                    // shot and 5 s a render here, so 4 renders and shots outgrow the 30 s that fits a
+                    // play. It bounds that work; it is no wait.
+                    ...(VISUAL && { hookTimeout: 90000 }),
                     // One story file at a time, as graphty-element's storybook project: in parallel
                     // every file mounts a real element at once, and on a machine already busy with
                     // other test runs the stories' own waits ran out.

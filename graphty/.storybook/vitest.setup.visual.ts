@@ -4,9 +4,9 @@
  * Storybook does.
  */
 
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach } from "vitest";
 import { commands } from "vitest/browser";
 
 import { installVisualStoryTest } from "../../visual-review/capture/story-test-setup.mjs";
 
-installVisualStoryTest({ afterEach, beforeEach, vi, commands });
+installVisualStoryTest({ afterEach, beforeEach, commands });

@@ -1530,6 +1530,19 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         assert.equal(sha(gate), "b1238945ae324566eeec195bc66008621eae2884a1c1ded07589a4860af817eb");
     });
 
+    it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
+        // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
+        const jobs = parseJobs(ci);
+        for (const name of ["stories", "stories-parity"]) {
+            assert.ok(jobs[name], `${name} exists`);
+            assert.equal(jobs[name].coe, "true", `${name} is report-only`);
+            assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
+        }
+        assert.match(job(ci, "stories"), /VISUAL_REVIEW_STORY_OUT: /);
+        assert.match(job(ci, "stories"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        assert.deepEqual(jobs["stories-parity"].needs.sort(), ["stories", "visual"]);
+    });
+
     it("is not seen by the workflows that react to master's CI", () => {
         for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
             const on = workflow(name);
@@ -5160,7 +5173,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const reused = Object.keys(jobs).filter((name) =>
             /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
         );
-        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "test"]);
+        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "stories", "test"]);
         for (const name of ["packages", "build", "visual", "all-checks"]) {
             assert.ok(!reused.includes(name), `${name} runs on every run`);
         }

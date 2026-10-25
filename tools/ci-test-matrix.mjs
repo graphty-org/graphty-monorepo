@@ -9,11 +9,15 @@
  * queued each other. A push to master and a manual dispatch pass the full project list as the
  * affected list, so they still run every shard.
  *
- * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>]
+ * Usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>]
  *   both are the JSON arrays `nx show projects --json` prints (with or without --affected).
  *   --only keeps just the named shards (a JSON array of shard names, never empty; a group's member
  *   runs in its group's job); it refuses a name that is not a shard. ci.yml passes its `shards`
  *   input here, so a CI bisect point runs only the shards that failed.
+ *   --plan <file> is the light check's plan (`node tools/test-select.mjs --plan`): each of its bins becomes a
+ *   matrix entry of its own, named `<family>-<n>`, with a `files` field and the command that runs only those
+ *   files without coverage, replacing the shard it came from; a shard the plan selects nothing for is left
+ *   out; a shard it runs whole stays as it is.
  * Prints three GITHUB_OUTPUT lines:
  *   affected=<JSON array of package directory names>   (other jobs test membership in it)
  *   test-matrix=<JSON {"include": [...shards and shard groups]}>
@@ -36,9 +40,11 @@
  *   "never"                 never run it locally
  */
 
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+
+import { STORYBOOKS } from "./ci-reuse-plan.mjs";
 
 // nx names most projects by their directory; remote-logger is the one it names by package
 // ("@graphty/remote-logger"). Shards use the directory name, so strip the scope.
@@ -391,11 +397,15 @@ export function ciCommand(shard) {
  * The test job's matrix: every shard of an affected package, short ones folded into their group.
  * @param affected package directory names
  * @param [only] shard names: when given, every other shard is left out
+ * @param [light] tools/test-select.mjs --plan output: its bins replace their shards, its `none` shards are left out
  * @returns the matrix's include list
  */
-export function plan(affected, only) {
+export function plan(affected, only, light) {
     const grouped = new Set(Object.values(GROUPS).flat());
-    const wanted = (s) => affected.includes(s.package) && (only === undefined || only.includes(s.shard));
+    // a light plan's binned and empty shards run as bins, or not at all
+    const replaced = new Set([...(light?.none ?? []), ...(light?.bins ?? []).flatMap((b) => b.covers ?? [b.shard])]);
+    const wanted = (s) =>
+        affected.includes(s.package) && (only === undefined || only.includes(s.shard)) && !replaced.has(s.shard);
     // A shard of its own uploads its coverage the way a group does, unless ci.yml has a step of its own
     // for it (graphty-element, webgpu-graph-algorithms) or it writes none.
     const include = SHARDS.filter((s) => !grouped.has(s.shard) && wanted(s)).map((s) => {
@@ -410,7 +420,47 @@ export function plan(affected, only) {
             include.push(groupEntry(name, members));
         }
     }
-    return include;
+    return [...include, ...(light?.bins ?? []).map(binEntry)];
+}
+
+/**
+ * The matrix entry of one light-check bin: its shard's fields, with its own name, its files and the command
+ * that runs only them (tools/test-select.mjs lightPlan()), without coverage.
+ * @param bin a lightPlan() bin
+ * @returns a matrix entry with a `files` field
+ */
+export function binEntry(bin) {
+    const shard = SHARDS.find((s) => s.shard === bin.shard);
+    if (!shard || !bin.command) {
+        throw new Error(`light plan bin ${bin.name} names no shard or has no command`);
+    }
+    const e = { ...shard, shard: bin.name, files: bin.files, "test-command": bin.command };
+    delete e["coverage-file"];
+    return { ...e, "test-command": ciCommand(e) };
+}
+
+/**
+ * The `Stories (<project>-<bin>)` jobs' matrix (merging.md section 4.1): one entry per story bin of the light
+ * plan, with the Storybook artifact the build job uploads for its project.
+ * @param [light] tools/test-select.mjs --plan output
+ * @returns the matrix's include list, empty without a plan or with no story selected
+ */
+export function storiesPlan(light) {
+    const artifactOf = Object.fromEntries(Object.entries(STORYBOOKS).map(([name, dir]) => [dir, name]));
+    return (light?.storyBins ?? []).map((bin) => {
+        const artifact = artifactOf[bin.storybook];
+        if (!artifact) {
+            throw new Error(`story bin ${bin.name} names a Storybook no build job uploads: ${bin.storybook}`);
+        }
+        return {
+            name: bin.name,
+            project: bin.project,
+            artifact,
+            storybook: bin.storybook,
+            files: bin.files,
+            ids: bin.ids,
+        };
+    });
 }
 
 /**
@@ -433,11 +483,14 @@ export function parseOnly(arg) {
 }
 
 function main() {
-    const { values, positionals } = parseArgs({ options: { only: { type: "string" } }, allowPositionals: true });
+    const { values, positionals } = parseArgs({
+        options: { only: { type: "string" }, plan: { type: "string" } },
+        allowPositionals: true,
+    });
     const [allArg, affectedArg] = positionals;
     if (allArg === undefined || affectedArg === undefined) {
         console.error(
-            "usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>]",
+            "usage: node tools/ci-test-matrix.mjs <all-projects-json> <affected-projects-json> [--only <shards-json>] [--plan <file>]",
         );
         process.exit(2);
     }
@@ -465,10 +518,14 @@ function main() {
         process.exit(1);
     }
 
-    const include = plan(affected, only);
+    const light = values.plan === undefined ? undefined : JSON.parse(readFileSync(values.plan, "utf8"));
+    const include = plan(affected, only, light);
     console.log(`affected=${JSON.stringify(affected)}`);
     console.log(`test-matrix=${JSON.stringify({ include })}`);
     console.log(`test-count=${include.length}`);
+    const stories = storiesPlan(light);
+    console.log(`stories-matrix=${JSON.stringify({ include: stories })}`);
+    console.log(`stories-count=${stories.length}`);
 }
 
 // Run only as the entry point, not when imported.

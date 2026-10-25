@@ -1,6 +1,6 @@
 import { Stack } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { InlineRename } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";

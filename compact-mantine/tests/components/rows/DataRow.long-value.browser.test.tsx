@@ -9,6 +9,7 @@ import { userEvent } from "vitest/browser";
 
 import { DataRow } from "../../../src/components/rows";
 import { renderThemed, resetHarness } from "../../harness/measure";
+import { TOOLTIP_WAIT } from "../../waits";
 
 afterEach(resetHarness);
 
@@ -73,7 +74,7 @@ describe("a stat with a long value", () => {
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(VALUE);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(VALUE);
     });
 
     it("shows the whole value when the pointer comes straight from outside the row, inside a tooltip group", async () => {
@@ -89,7 +90,7 @@ describe("a stat with a long value", () => {
         );
         await userEvent.hover(screen.getByTestId("outside"));
         await userEvent.hover(screen.getByTestId("data-row-value"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(VALUE);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(VALUE);
     });
 
     it("keeps a short name whole beside a reading that does not fit with it", async () => {

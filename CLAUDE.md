@@ -365,7 +365,7 @@ The `tools/` directory contains build scripts:
 | `test-changed.mjs` | `pnpm run test:changed [--dry-run] [--all] [--base <ref>] [--budget <s>]`: runs only the tests the change in this worktree can affect (since the merge base with origin/master, staged, unstaged and untracked files included), as `test-select.mjs` decides with the gate's rules: per shard nothing, one `vitest run` of the selected files (the shard's config and projects, no coverage, no slice; `run-tests.sh --command`) or the whole shard. Prints each selected file and why, and each shard it runs whole and why. Builds what the runs need first. Design: `design/ci/minimal-tests.md` |
 | `check-quick.sh` | `pnpm run check:quick [--base <ref>]` (default origin/master): an answer before CI in minutes, run in the background. Prettier on the changed files, `nx affected -t build lint typecheck`, `test-changed.mjs`'s selected tests (with `GIT_CONFIG_GLOBAL=/dev/null`), SonarQube on the changed lines and, when webgpu-graph-algorithms is affected, its node tests on the local NVIDIA card (`GRAPHTY_GPU_REQUIRE=nvidia`, the libEGL tree); the old gate's `PREPUSH_*`, `TEST_SLOT_GATE`, `TEST_LEDGER_*` and `GRAPHTY_TEST_QUARANTINE` are unset first. Every step runs; a habit, not a gate (design/ci/channels-pipeline/merging.md, section 6) |
 | `test-history.mjs` | Ranks the files `test:changed` selected by the test ledger's history (a bisect's miss files, edits, golden-side failures in 7 days) and prints why; `--budget <s>` keeps the top ones that fit. No gate runs it, it never adds or drops a test on its own, and an unavailable ledger ranks by import selection only. `replay` measures adds and drops offline. Design: `design/ci/history-selection.md` |
-| `test-select-mutate.mjs` | `<package> [--count N] [--seed S]`: checks the selector by breaking one source file at a time in its own scratch worktree (`.worktrees/select-mutate`) and running the package's plain vitest shards whole; every failing test file must have been selected (one that also fails unbroken is flaky). A package joins `fileLevel` in `test-select-rules.json` only after a clean run |
+| `test-select-mutate.mjs` | `<package> [--count N] [--seed S] [--name <n>]`: checks the selector by breaking one source file at a time in its own scratch worktree (`.worktrees/select-mutate-<n>`, or `.worktrees/select-mutate` without `--name`; its report in the main checkout's `tmp/select-mutate/<n>/report.txt`, so runs with different names can run at once) and running the package's plain vitest shards whole; every failing test file must have been selected (one that also fails unbroken is flaky). A package joins `fileLevel` in `test-select-rules.json` only after a clean run |
 | `test-select-replay.mjs` | Replays past gate runs (`tmp/push-log.jsonl`, `tmp/push-gate-logs/`) and CI failures (`--ci`, written by `--collect-ci` from one GraphQL query), preferring the gate's advisory records, through the selector and counts the failures it would have missed and the shard time it would have saved; results and the miss list in `design/ci/test-selection-replay.md` |
 | `claude-no-foreground-wait.mjs` | Claude Code PreToolUse hook (`.claude/settings.json`) that refuses a foreground Bash wait -- a `while`/`until` loop that sleeps, sleeps of 30 s or more in all, `watch`, `gh run watch`, `gh pr checks --watch`, `tail -f`, `inotifywait`, and a `timeout` of 30 s or more around `tail`, `grep`, a loop or `bash -c` -- because a turn that waits over about 5 minutes drops the prompt cache; the same command with `run_in_background` is allowed |
 | `commit-changes.sh` | Lands the working tree as a sequence of conventional commits. `--dry-run` first: it stages nothing |
@@ -529,7 +529,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graphty:**
 - `browser` - Browser-based tests (Playwright)
 - `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
-- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`), and the job `Story tests parity (graphty)` compares that capture with the old `visual (graphty)` one
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
@@ -616,7 +616,7 @@ reason); run by `tools/check-links.sh`:
   `deploy-pages.yml` publishes with. It also checks every link inside that built site (VitePress
   sidebars and nav) and that every Storybook deep link (`?path=/story/<id>`) names a story that
   exists (`tools/check-storybook-links.mjs`).
-- **Pre-push** (`tools/prepush.sh`): the offline half, `tools/check-links.sh --offline`, under a second.
+- **`tools/prepush.sh`** (by hand, `pnpm run prepush:fast`; no push runs it now): the offline half, `tools/check-links.sh --offline`, under a second.
   It also builds the docs site as CI's Docs job does (`docs:content`, the API pages, `vitepress build
   docs`; about 3 minutes) when the push affects a package with a `docs:api:<package>` script or changes
   `docs/`, a package's `docs/` that `tools/copy-docs-content.js` copies in, or that script, so a dead
@@ -639,8 +639,8 @@ guide is `layout/docs/`, copied there by `tools/copy-docs-content.js`). graphty-
 one files or updates the "Full run red: <lane> on <sha>" issue and dispatches `bisect.yml`. A green master build
 whose merge references that issue (`Refs #N`) starts `mode: restart` (`tools/release-due.mjs`); name the red issue
 in the fix or the revert, and a green verdict closes it. `-f mode=shadow` is the step-3 test-and-version run, which
-lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No master
-push starts or restarts a release (the `workflow_run` trigger is gone). Only the owner releases, with
+lands and publishes nothing, opens no "Release held" issue (it comments once on #3418 when red) and announces nothing. No `workflow_run`
+trigger is left: only ci.yml's `release-due` job, on a merge that references the red issue, starts a restart. Only the owner releases, with
 `gh workflow run release.yml --ref master -f mode=legacy`: the same lanes, then he approves the `Owner approval
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
@@ -1300,8 +1300,8 @@ Before shipping a change, ask where it takes effect, because that decides how it
 - **In shared code another branch needs** -- open its pull request, but do not wait for it: merge the
   fix branch (or master, once it has merged) into the blocked branch right away.
 
-The pre-push gate (`.husky/pre-push`, `tools/prepush.sh`) still runs on a plain `git push`, but nothing
-pushes that way any more: `tools/pr-open.sh` and `.husky/post-commit` both skip it, and CI is the gate.
+The pre-push gate (`tools/prepush.sh`) no longer runs on any push: `.husky/pre-push` keeps only the Git LFS
+upload, the secret scan and the committed-images limit, and CI is the gate. `pnpm run prepush:fast` runs it by hand.
 
 ## Parallel agents
 

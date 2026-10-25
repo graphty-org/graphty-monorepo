@@ -419,8 +419,9 @@ const ROUTES = {
 // The route key and its one path parameter: `/v1/durations/tests/<name>` names a history.
 function routeOf(method, pathname) {
     if (!pathname.startsWith(TESTS_PATH)) return [`${method} ${pathname}`, undefined];
-    const name = decodeURIComponent(pathname.slice(TESTS_PATH.length));
-    if (!/^[\w.-]{1,128}$/.test(name)) refuse(400, "a history name is 1 to 128 letters, digits, '.', '_' or '-'");
+    const raw = pathname.slice(TESTS_PATH.length);
+    const name = /^[\w.-]{1,128}$/.test(raw) ? raw : "";
+    if (!name) refuse(400, "a history name is 1 to 128 letters, digits, '.', '_' or '-'");
     return [`${method} ${TESTS_PATH}:name`, name];
 }
 

@@ -12,6 +12,7 @@ import { isolateGit } from "./isolated-git-env.mjs";
 import {
     AGENT,
     DEPENDABOT,
+    onlyDependabot,
     hasProof,
     isBreaking,
     masterBaselineCheck,
@@ -99,6 +100,25 @@ describe("pure rules", () => {
     });
 });
 
+describe("patchId", () => {
+    it("is pr-review.sh's id for a non-UTF-8 file too, so its marker matches", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        r.commit("test: a Latin-1 fixture", { "test/latin1.csv": Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]) });
+        const mb = r.git("merge-base", "master", "HEAD");
+        const shell = execFileSync(
+            "bash",
+            [
+                "-c",
+                `git diff -U0 --binary --no-color --no-ext-diff --no-renames --diff-algorithm=myers ${mb} HEAD | git patch-id --stable | cut -d' ' -f1`,
+            ],
+            { cwd: r.dir, encoding: "utf8" },
+        ).trim();
+        assert.ok(shell);
+        assert.equal(patchId(r.dir, mb, "HEAD"), shell);
+    });
+});
+
 describe("prIntegrity", () => {
     it("an agent pull request needs a Proof and a fresh review of its own diff", () => {
         const r = repo();
@@ -166,6 +186,28 @@ describe("prIntegrity", () => {
         const { kind, problems } = prIntegrity(r.dir, pr(r, { author: DEPENDABOT, body: "" }));
         assert.ok(kind.dependabot);
         assert.deepEqual(problems, []);
+    });
+
+    it("treats a Dependabot pull request with a commit someone else pushed as the agent's", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        r.commit("chore(deps): bump", { "package.json": "{}\n" });
+        const { kind, problems } = prIntegrity(r.dir, pr(r, { author: DEPENDABOT, body: "", byDependabot: false }));
+        assert.ok(!kind.dependabot);
+        assert.ok(kind.agent);
+        assert.match(problems.join("\n"), /Proof/);
+    });
+
+    it("counts only commits Dependabot made through GitHub as Dependabot's", () => {
+        const own = {
+            author: { login: DEPENDABOT },
+            committer: { login: "web-flow" },
+            commit: { verification: { verified: true } },
+        };
+        assert.equal(onlyDependabot([own, own]), true);
+        assert.equal(onlyDependabot([own, { ...own, author: { login: "graphty-agent" } }]), false);
+        assert.equal(onlyDependabot([{ ...own, committer: { login: "graphty-agent" } }]), false);
+        assert.equal(onlyDependabot([{ ...own, commit: { verification: { verified: false } } }]), false);
     });
 
     it("exempts a mechanical revert of a first-parent merge of master, and only that", () => {
@@ -258,7 +300,10 @@ describe("the workflows", () => {
     it("Dependabot auto-merge never checks out the pull request and leaves Actions updates alone", () => {
         const wf = read("dependabot-automerge.yml");
         assert.doesNotMatch(wf, /actions\/checkout/);
-        assert.match(wf, /if: github\.event\.pull_request\.user\.login == 'dependabot\[bot\]'/);
+        assert.match(
+            wf,
+            /if: github\.event\.pull_request\.user\.login == 'dependabot\[bot\]' && github\.actor == 'dependabot\[bot\]'/,
+        );
         assert.match(wf, /environment: dependabot-automerge/);
         assert.match(
             wf,

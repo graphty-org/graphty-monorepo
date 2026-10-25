@@ -17,7 +17,8 @@
 // durations in ms). The reporter reads it, judges, adds this run's durations and writes it back. ci.yml's
 // test job keeps one file per shard in the Actions cache. Without it, only the SLOW_MS line applies.
 // With the results store configured (tools/results/client.mjs: RESULTS_URL and a credential), the same JSON
-// is read from and written to `/v1/durations/tests/<history file name>` first; the file stays the fallback
+// is read from and written to `/v1/durations/tests/<history file name>` first (only master's own runs may
+// write it; a pull request's write is refused and changes nothing); the file stays the fallback
 // and is still written, so a store that does not answer within 5 s costs nothing but the wait.
 //
 // On when VITEST_BUDGET_CHECK=1: ci.yml's test job sets it, and a local run can set it. Every package's

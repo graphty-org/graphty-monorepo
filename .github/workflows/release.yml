@@ -17,9 +17,10 @@ run-name: ${{ inputs.mode == 'legacy' && 'Release (legacy)' || inputs.mode == 's
 #
 # And the two of rollout step 3 (design/ci/channels-pipeline/migration.md section 3; issue #3424):
 #
-# - shadow (the default, and every scheduled run): the lanes below run on the candidate and the version job
-#   versions it, but nothing lands and nothing publishes (the approve, land and publish jobs are skipped). A red
-#   shadow run opens no "Release held" issue: it comments once on #3418 instead. Nothing announces it.
+# - shadow, only when dispatched with `-f mode=shadow` (it was the default before full): the lanes below run on
+#   the candidate and the version job versions it, but nothing lands and nothing publishes (the approve, land and
+#   publish jobs are skipped). A red shadow run opens no "Release held" issue: it comments once on #3418 instead.
+#   Nothing announces it.
 # - legacy, dispatched only on the owner's word (`gh workflow run release.yml --ref master -f mode=legacy`):
 #   the same lanes, then the approve job waits in environment `production` for the owner, then land and publish
 #   (npm `latest`) run in environment `release`, as described below. graphty.app follows the version merge
@@ -325,7 +326,10 @@ jobs:
         if: ${{ needs.pick.outputs.release == 'true' }}
         permissions:
             contents: read
-            actions: read
+            # its release-due job (master pushes only) dispatches release.yml and reads the red issues; a
+            # called workflow cannot ask for more than its caller grants, even for a job it skips
+            actions: write
+            issues: read
             # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
             # a called workflow cannot ask for more than its caller grants.
             checks: write
@@ -419,7 +423,7 @@ jobs:
     #
     # Once a UTC day (owner decision on #3418, about $29 a month against the ~$60 ceiling): it starts when the
     # CI lane is green, and runs the paid tests only when no release.yml run passed them yet that day, or when a
-    # person dispatched this run (tools/llm-due.mjs, which also warns as spend:llm at $60 in a month). Not due,
+    # person dispatched this run (not a restart; tools/llm-due.mjs, which also warns as spend:llm at $60 in a month). Not due,
     # the job passes with its test step skipped. Undo: drop the due step's condition.
     llm:
         name: LLM regression
@@ -530,7 +534,16 @@ jobs:
                   git config user.name "github-actions[bot]"
                   git config user.email "github-actions[bot]@users.noreply.github.com"
                   commit=$(tools/release-version.sh "$PACKAGES")
-                  [ -n "$commit" ] || { echo "::error::nx versioned nothing on ${SHA}, although the pick job did"; exit 1; }
+                  if [ -z "$commit" ]; then
+                      # full and restart runs skip the pick job's releasability check: a commit with nothing to
+                      # release (only ci, docs or chore since the last tags) passes this lane
+                      if [ "${MODE:-}" = full ] || [ "${MODE:-}" = restart ]; then
+                          echo "::notice::nothing releasable changed on ${SHA}"
+                          exit 0
+                      fi
+                      echo "::error::nx versioned nothing on ${SHA}, although the pick job did"
+                      exit 1
+                  fi
                   node tools/release-approvals.mjs dry-run "$SHA" "$commit"
 
     # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
@@ -582,7 +595,7 @@ jobs:
 
             - name: Download the screenshot captures
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual

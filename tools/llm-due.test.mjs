@@ -53,7 +53,15 @@ describe("isDue", () => {
     });
 
     it("is always due on a person's dispatch", () => {
-        assert.equal(isDue({ trigger: "workflow_dispatch", passes: ["2026-10-25T00:40:00Z"], day }), true);
+        for (const mode of ["full", "shadow", "legacy", undefined]) {
+            assert.equal(isDue({ trigger: "workflow_dispatch", mode, passes: ["2026-10-25T00:40:00Z"], day }), true);
+        }
+    });
+
+    it("is not due on a restart release-due.mjs dispatched, once the tests passed that day", () => {
+        const passes = ["2026-10-25T00:40:00Z"];
+        assert.equal(isDue({ trigger: "workflow_dispatch", mode: "restart", passes, day }), false);
+        assert.equal(isDue({ trigger: "workflow_dispatch", mode: "restart", passes: [], day }), true);
     });
 
     it("two days of six-hour slots run exactly one LLM pass a day", () => {

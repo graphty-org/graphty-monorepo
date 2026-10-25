@@ -32,6 +32,9 @@ const config: KnipConfig = {
                 // The results Worker (deployed by wrangler) and its tests
                 "tools/results-service/src/worker.js",
                 "tools/results-service/test/*.test.mjs",
+                // The nx cache Worker (deployed by wrangler) and its tests
+                "tools/nx-cache-worker/src/worker.js",
+                "tools/nx-cache-worker/test/*.test.mjs",
             ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [

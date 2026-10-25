@@ -1506,9 +1506,8 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
     });
 });
 
-describe("verification of golden in CI (golden-verify.yml)", () => {
+describe("verification runs of ci.yml", () => {
     const ci = workflow("ci.yml");
-    const verify = workflow("golden-verify.yml");
 
     // The plan step's script, run as GitHub runs it (bash -eo pipefail), with nx answered by a stub.
     const planStep = (env) => {
@@ -1605,39 +1604,18 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         );
     });
 
-    it("runs on a push to exactly the four scratch branches, and on dispatch with a ref and shards", () => {
-        assert.match(
-            verify,
-            /\non:\n {4}push:\n {8}branches: \[golden-candidate, golden-cut-candidate, golden-bisect-1, golden-bisect-2\]\n {4}workflow_dispatch:\n/,
+    // A called run checks out inputs.ref in the caller's cache scope. A caller that took the ref from a dispatch
+    // input could run any commit's code in master's scope and plant a cache master later restores (CodeQL
+    // actions/cache-poisoning; golden-verify.yml did, and is gone). The release train passes the commit it was
+    // dispatched on (pick's CANDIDATE is github.sha).
+    it("is called only by the release train, with the commit it was dispatched on", () => {
+        const callers = readdirSync(new URL("../.github/workflows/", import.meta.url)).filter((f) =>
+            /uses: \.\/\.github\/workflows\/ci\.yml/.test(workflow(f)),
         );
-        assert.match(verify, /\n {12}ref:\n(?: {16}.*\n)*? {16}required: true\n/);
-        assert.match(verify, /\n {12}shards:\n(?: {16}.*\n)*? {16}required: false\n/);
-        const triggers = verify.slice(verify.indexOf("\non:\n"), verify.indexOf("\nconcurrency:\n"));
-        assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
-    });
-
-    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
-        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-    });
-
-    it("never cancels a run, one group per commit, pushed or dispatched", () => {
-        assert.match(
-            verify,
-            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
-        );
-    });
-
-    it("has one named job that calls ci.yml as a verification run, so no check is a bare All Checks Pass", () => {
-        const jobs = verify.slice(verify.indexOf("\njobs:\n")).match(/\n {4}[\w-]+:\n/g);
-        assert.deepEqual(jobs, ["\n    verify:\n"]);
-        const body = job(verify, "verify");
-        // The caller job's name prefixes every check of the called run: "Verify / All Checks Pass".
-        assert.match(body, /\n {8}name: Verify\n/);
-        assert.match(body, /\n {8}uses: \.\/\.github\/workflows\/ci\.yml\n/);
-        assert.match(body, /\n {12}ref: \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-        assert.match(body, /\n {12}verify: true\n/);
-        assert.match(body, /\n {8}secrets: inherit\n/);
-        assert.match(verify, /\npermissions:\n {4}contents: read\n {4}actions: read\n {4}checks: write\n/);
+        assert.deepEqual(callers, ["release.yml"]);
+        const release = workflow("release.yml");
+        assert.match(release, /\n {18}CANDIDATE: \$\{\{ github\.sha \}\}\n/);
+        assert.match(job(release, "ci"), /\n {12}ref: \$\{\{ needs\.pick\.outputs\.sha \}\}\n/);
     });
 
     it("leaves the visual job and the visual gate step exactly as master has them", () => {
@@ -2061,6 +2039,63 @@ jobs:
             encoding: "utf8",
         });
         assert.equal(r.stdout.trim(), '["links","build/Lint"]');
+    });
+
+    it("turns the nx remote cache on only when the Worker accepts the token", async () => {
+        // nx fails the whole build on a 401 from the cache, so a wrong or unregistered token must turn it off.
+        const run = /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "packages"),
+        )[1];
+        const { handle } = await import("./nx-cache-worker/src/cache.js");
+        const env = {
+            READ_TOKEN_HASHES: createHash("sha256").update("good").digest("hex"),
+            CACHE: { get: async () => null },
+        };
+        const { createServer } = await import("node:http");
+        const server = createServer(async (req, res) => {
+            const r = await handle(new Request(`http://x${req.url}`, { headers: req.headers }), env);
+            res.writeHead(r.status).end();
+        }).listen(0, "127.0.0.1");
+        await new Promise((resolve) => server.once("listening", resolve));
+        const dir = mkdtempSync(join(tmpdir(), "nx-probe-"));
+        const probe = (url, token) =>
+            new Promise((resolve) => {
+                writeFileSync(join(dir, "env"), "");
+                const child = spawn("bash", ["-e", "-c", run], {
+                    env: {
+                        ...process.env,
+                        NX_CACHE_URL: url,
+                        NX_CACHE_TOKEN: token,
+                        WRITES: "false",
+                        GITHUB_ENV: join(dir, "env"),
+                        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+                    },
+                    stdio: "ignore",
+                });
+                child.on("close", (code) => resolve({ code, env: readFileSync(join(dir, "env"), "utf8") }));
+            });
+        try {
+            const url = `http://127.0.0.1:${server.address().port}`;
+            const on = await probe(url, "good");
+            assert.equal(on.code, 0);
+            assert.match(
+                on.env,
+                /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=.+\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/,
+            );
+            for (const [u, token] of [
+                [url, "wrong"],
+                [url, ""],
+                ["", "good"],
+                ["http://127.0.0.1:1", "good"],
+            ]) {
+                const off = await probe(u, token);
+                assert.equal(off.code, 0, `${u} ${token}: the build goes on without the cache`);
+                assert.equal(off.env, "", `${u} ${token}: the cache stays off`);
+            }
+        } finally {
+            server.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it("only warns about a failed job in its warning period", () => {
@@ -2786,9 +2821,10 @@ describe("the webgpu-graph-algorithms node suite on every lane", () => {
 });
 
 describe("hosts.yml", () => {
-    it("runs nightly, and a pull request's Windows leg on the short scope", () => {
+    it("runs no nightly, and a pull request's Windows leg on the short scope", () => {
         const hosts = workflow("hosts.yml");
-        assert.match(hosts, /schedule: \[\{ cron: /);
+        // the full run every 6 hours calls it on master's candidate; a cron would test master twice
+        assert.doesNotMatch(hosts.slice(0, hosts.indexOf("\njobs:")), /^ {4}schedule:/m);
         // a push to master runs no tests: the release train runs Hosts on its candidate instead
         assert.doesNotMatch(hosts.slice(0, hosts.indexOf("\njobs:")), /^ {4}push:/m);
         assert.match(hosts, /NARROW: .*github.event_name == 'pull_request'/);
@@ -2798,20 +2834,17 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and only reports a red hardware lane", () => {
+    it("freezes on a red master CI, lifts on a green one, and leaves the hardware lanes to the release train", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
         assert.equal(decide(run("CI", "cancelled")), "none");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
-        // Hosts runs on master only as the nightly: a push to master runs no Hosts
-        assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
-        assert.equal(decide(run("Hosts", "failure")), "none");
-        assert.equal(decide(run("Hosts", "success")), "none");
-        assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
-        // the T4 runs only in the release train, which files its own issue
+        // Hosts and the T4 run only in the release train, which files its own issue
+        assert.equal(decide(run("Hosts", "failure", "schedule")), "none");
+        assert.equal(decide(run("Hosts", "failure", "workflow_dispatch")), "none");
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Deploy to GitHub Pages"\]/);
     });
 
     it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
@@ -4448,6 +4481,53 @@ describe("release.yml", () => {
         it("does not deploy a release that is live already", () => {
             assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
         });
+
+        // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told
+        const record = ({ url = "https://results.test/", store = 0 } = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), "deploy-record-"));
+            writeFileSync(
+                join(dir, "curl"),
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*/v1/sites*) exit ${store};;\n*) echo '{"value":"jwt"}';;\nesac\n`,
+                { mode: 0o755 },
+            );
+            const step = /- name: Record the site in the results store\n[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
+                job(deploy, "build"),
+            );
+            const r = spawnSync("bash", ["-eo", "pipefail", "-c", step[1].replace(/^ {18}/gm, "")], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    RESULTS_URL: url,
+                    SHA: "a".repeat(40),
+                    ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.test/?x=1",
+                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req",
+                    PATH: `${dir}:${process.env.PATH}`,
+                },
+            });
+            const calls = existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "";
+            rmSync(dir, { recursive: true, force: true });
+            return { status: r.status, out: r.stdout, calls };
+        };
+
+        it("records each kept site in the results store with the run's OIDC token, failing open", () => {
+            assert.match(deploy, /^ {4}id-token: write/m);
+            const ok = record();
+            assert.equal(ok.status, 0);
+            assert.match(ok.calls, /audience=graphty-results/);
+            assert.match(ok.calls, /-X POST https:\/\/results.test\/v1\/sites -H Authorization: Bearer jwt /);
+            assert.match(ok.calls, new RegExp(`-d \\{"sha":"${"a".repeat(40)}"\\}`));
+            const down = record({ store: 22 });
+            assert.equal(down.status, 0, "a store that does not answer never fails the deploy");
+            assert.match(down.out, /::warning::the results store did not record site-a{40}/);
+            const unset = record({ url: "" });
+            assert.equal(unset.status, 0);
+            assert.equal(unset.calls, "", "no store configured: no call");
+            // after the site is uploaded, so a recorded site always exists as an artifact
+            const build = job(deploy, "build");
+            assert.ok(
+                build.indexOf("name: Upload the site") < build.indexOf("name: Record the site in the results store"),
+            );
+        });
     });
 });
 
@@ -4655,7 +4735,6 @@ describe("the commit and push hooks", () => {
             prepush.indexOf("if remote_moved; then") > prepush.indexOf('record "gate${KNOWN_FAILURES:+-known}"'),
             "after the pass is recorded",
         );
-        assert.match(repoFile(".husky/pre-push"), /export PUSH_REMOTE_SHA PUSH_REMOTE_REF PUSH_REMOTE\n/);
         const dir = mkdtempSync(join(tmpdir(), "prepush-remote-"));
         try {
             const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
@@ -5125,12 +5204,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         }
     });
 
-    it("the hook and tools/prepush.sh run the gate's scripts from their own copy", () => {
+    it("the hook runs only the LFS upload, the secret scan and the image limit, from its own copy", () => {
         const code = (text) => text.replace(/^\s*#.*$/gm, "");
         const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
-        assert.match(hook, /PREPUSH_ROOT="\$PWD" "\$GATE_DIR\/tools\/prepush.sh"/);
-        assert.doesNotMatch(hook, /\.\/tools\/|pnpm run prepush/);
+        const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
+        assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
         const prepush = code(repoFile("tools/prepush.sh"));
         for (const s of [
             "queued-push-guard.mjs",
@@ -5494,5 +5574,71 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         assert.equal(verdict("").status, 1, "skipped Lint, Checks and Docs fail a run that reused nothing");
         assert.equal(verdict("5", { build: "skipped" }).status, 1, "Storybooks must still succeed");
         assert.equal(verdict("5", { lint: "failure" }).status, 1);
+    });
+});
+
+describe("a workflow call grants what the called workflow's jobs ask for", () => {
+    // GitHub refuses a call at startup when a called job asks for more than the caller grants, even a job
+    // whose `if` would skip it.
+    const LEVEL = { none: 0, read: 1, write: 2 };
+    const dir = ".github/workflows";
+    const load = (f) => parseYaml(readFileSync(join(dir, f), "utf8"));
+    const asked = (wf) => [wf.permissions, ...Object.values(wf.jobs ?? {}).map((j) => j.permissions)];
+    it("for every local reusable workflow call", () => {
+        const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+        let calls = 0;
+        for (const f of files) {
+            const wf = load(f);
+            for (const [name, job] of Object.entries(wf.jobs ?? {})) {
+                const m = /^\.\/\.github\/workflows\/(.+)$/.exec(job.uses ?? "");
+                const granted = job.permissions ?? wf.permissions;
+                if (!m || typeof granted !== "object") continue;
+                calls++;
+                for (const want of asked(load(m[1]))) {
+                    if (!want || typeof want !== "object") continue;
+                    for (const [scope, level] of Object.entries(want)) {
+                        assert.ok(
+                            (LEVEL[granted[scope]] ?? 0) >= LEVEL[level],
+                            `${f} job ${name} calls ${m[1]}, which asks ${scope}: ${level}; it grants ${granted[scope] ?? "none"}`,
+                        );
+                    }
+                }
+            }
+        }
+        assert.ok(calls > 0);
+    });
+});
+
+describe("release.yml's version dry run with nothing releasable", () => {
+    const steps = parseYaml(readFileSync(".github/workflows/release.yml", "utf8")).jobs.version_dry_run.steps;
+    const script = steps.find((s) => s.id === "approvals").run;
+    const runWith = (mode) => {
+        const dir = mkdtempSync(join(tmpdir(), "version-dry-run-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            writeFileSync(join(dir, "tools/release-version.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+            spawnSync("git", ["init", "-q"], { cwd: dir });
+            return spawnSync("bash", ["-c", script], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, MODE: mode, SHA: "abc", PACKAGES: "" },
+            });
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    it("passes the lane in full and restart mode", () => {
+        for (const mode of ["full", "restart"]) {
+            const r = runWith(mode);
+            assert.equal(r.status, 0, `${mode}: ${r.stdout}${r.stderr}`);
+            assert.match(r.stdout, /nothing releasable changed on abc/);
+        }
+    });
+    it("fails in shadow and legacy mode, where the pick job checked releasability", () => {
+        for (const mode of ["shadow", "legacy"]) {
+            const r = runWith(mode);
+            assert.equal(r.status, 1, mode);
+            assert.match(r.stdout, /nx versioned nothing on abc/);
+        }
     });
 });

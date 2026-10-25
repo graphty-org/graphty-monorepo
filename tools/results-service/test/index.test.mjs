@@ -176,7 +176,7 @@ describe("POST /v1/invocations", () => {
         const other = oidc({
             event_name: "workflow_dispatch",
             ref: "refs/heads/master",
-            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            job_workflow_ref: `${REPO}/.github/workflows/links-weekly.yml@refs/heads/master`,
         });
         for (const token of [branch, copy, other]) {
             const res = await call("POST", "/v1/invocations", { token, body: record() });
@@ -521,6 +521,51 @@ describe("GET /v1/plan", () => {
     });
 });
 
+describe("POST /v1/sites", () => {
+    const SHA = "a".repeat(40);
+    const deployPages = (claims = {}) =>
+        oidc({
+            event_name: "workflow_run",
+            ref: "refs/heads/master",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/master`,
+            ...claims,
+        });
+
+    it("records master's deploy-pages.yml site once, and the candidate pick lists it", async () => {
+        const { call, rows } = service();
+        assert.deepEqual(await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } }), {
+            status: 200,
+            body: { stored: true, sha: SHA },
+        });
+        const again = await call("POST", "/v1/sites", { token: deployPages(), body: { sha: SHA } });
+        assert.deepEqual(again.body, { stored: false, sha: SHA });
+        assert.deepEqual(rows("SELECT sha, built_at, run_id FROM site"), [{ sha: SHA, built_at: NOW, run_id: 4010 }]);
+        assert.deepEqual((await call("GET", "/v1/candidate", { token: LOCAL_TOKEN })).body.candidate, {
+            sha: SHA,
+            builtAt: NOW,
+        });
+    });
+
+    it("refuses every other writer, a short sha, and test records from deploy-pages.yml", async () => {
+        const { call, rows } = service();
+        const branch = deployPages({
+            ref: "refs/heads/x",
+            job_workflow_ref: `${REPO}/.github/workflows/deploy-pages.yml@refs/heads/x`,
+        });
+        const siteRepo = oidc({ repository: "graphty-org/graphty-site", repository_id: "1429353022" });
+        for (const token of [branch, master("ci.yml"), pr(), siteRepo, LOCAL_TOKEN]) {
+            assert.equal((await call("POST", "/v1/sites", { token, body: { sha: SHA } })).status, 403);
+        }
+        assert.equal((await call("POST", "/v1/sites", { token: deployPages(), body: { sha: "abc" } })).status, 400);
+        const id = "4010.1.site.0.1";
+        assert.equal(
+            (await call("POST", "/v1/invocations", { token: deployPages(), body: record({ id }) })).status,
+            403,
+        );
+        assert.deepEqual(rows("SELECT * FROM site"), []);
+    });
+});
+
 describe("GET /v1/candidate", () => {
     it("picks master's newest commit with a site and says whether it is judged", async () => {
         const { call, env } = service();
@@ -676,6 +721,47 @@ describe("POST /v1/durations trend", () => {
         env.DB.sqlite.prepare("DELETE FROM duration WHERE run_id = 4010").run();
         const [t] = (await post({ "job:ci.yml:Build": 600 })).body.trend;
         assert.deepEqual([t.alarm, t.earlier], [false, null]);
+    });
+});
+
+describe("GET /v1/durations/medians", () => {
+    it("answers master's median seconds per key over the last n runs of a kind, cancelled runs left out", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        for (let i = 0; i < 12; i++) s.duration(i, (i < 2 ? 900 : 100 + i) * 1000, NOW - DAY + i);
+        s.duration(50, 30_000, NOW - DAY, "pr");
+        s.duration(51, 60_000, NOW - DAY, "full", "Lint");
+        env.DB.sqlite.prepare("UPDATE duration SET conclusion = 'cancelled' WHERE run_id = 11").run();
+        const { status, body } = await call("GET", "/v1/durations/medians?workflows=ci.yml&kind=full&n=4", {
+            token: pr(),
+        });
+        assert.equal(status, 200);
+        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
+        assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);
+    });
+});
+
+describe("/v1/durations/tests/<name>", () => {
+    const path = "/v1/durations/tests/graphty-element-browser-1";
+    it("keeps a shard's history written by master's runs and answers it to any credential", async () => {
+        const { call } = service();
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, {});
+        const history = { "browser\u0000a.test.ts\u0000zooms": [120, 130] };
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: history })).status, 200);
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, history);
+        const next = { "browser\u0000a.test.ts\u0000zooms": [130, 140] };
+        await call("PUT", path, { token: master("release.yml"), body: next });
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, next);
+    });
+    it("refuses a pull request's or a local write, a bad name and a body that is not an object", async () => {
+        const { call } = service();
+        assert.equal((await call("PUT", path, { token: pr(), body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: LOCAL_TOKEN, body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: [1] })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/tests/a%2Fb", { token: pr() })).status, 400);
+        assert.equal((await call("DELETE", path, { token: master("ci.yml") })).status, 404);
     });
 });
 

@@ -192,6 +192,24 @@ export async function runGroup(shardName, command = undefined, { root = process.
     const startedAt = Date.now();
     const code = await runShard(shardName, cmd, { root, env: childEnv, state: emptyState() });
     const endedAt = Date.now();
+    try {
+        await record(shardName, shard, { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt });
+    } catch (e) {
+        // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
+        console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
+    }
+    return code;
+}
+
+/**
+ * Builds a finished group's records and posts them (spooling what the store does not take).
+ * @param shardName the shard
+ * @param shard its SHARDS entry, or undefined
+ * @param o runGroup()'s facts: `command`, `cmd`, `root`, `env`, `id`, `runId`, `code`, `resultFile`, `startedAt`,
+ *   `endedAt`
+ */
+async function record(shardName, shard, o) {
+    const { command, cmd, root, env, id, runId, code, resultFile, startedAt, endedAt } = o;
     const flags = env.GRAPHTY_FLAGS === "on" ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
@@ -204,7 +222,6 @@ export async function runGroup(shardName, command = undefined, { root = process.
         dir: join(root, "test-results"),
     });
     await postRecords(config(env, root), recs, join(root, "test-results/results-spool"));
-    return code;
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

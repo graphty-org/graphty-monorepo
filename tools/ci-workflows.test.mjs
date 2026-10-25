@@ -1689,9 +1689,8 @@ const gitShow = (path) => {
 
 describe("dependabot.yml", () => {
     const text = readFileSync(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
-    it("opens every version update against golden, never master", () => {
-        const ecosystems = text.match(/- package-ecosystem: /g).length;
-        assert.equal(text.match(/\n {6}target-branch: golden\n/g)?.length, ecosystems);
+    it("opens every version update against master, the default branch (golden is retired, #3418)", () => {
+        assert.doesNotMatch(text, /target-branch:/);
     });
     it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
         const npm = text.slice(

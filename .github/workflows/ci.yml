@@ -1552,10 +1552,8 @@ jobs:
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
     # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
-    # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
-    # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
-    # the head SHA after "gh pr ready" until the new run reports, so a skip here could let a pull
-    # request merge with no CI at all.
+    # not pass silently. A draft runs like any other pull request: a draft skip came back as a failing
+    # check that could land after, and hide, the ready run's green one (#2991, #3068).
     all-checks:
         name: All Checks Pass
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]

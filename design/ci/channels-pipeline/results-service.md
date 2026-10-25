@@ -186,8 +186,7 @@ promises in `onTestRunEnd`. The record later completes the row. Two things depen
 - `order`: files of the variant that failed in evidence runs in the last 7 days, newest first (7.2).
 - `fileMs`: each file's median milliseconds over its last 9 evidence runs, for slicing shards.
 
-Also `GET /v1/test?file=&name=` (one test's history, for `cli.mjs why`), `GET /v1/status`, and
-`GET /v1/health` (the only call with no credential).
+Also `GET /v1/test?file=&name=` (for `cli.mjs why`), `/v1/status`, and `/v1/health` (no credential).
 
 ### 5.4 Credentials
 
@@ -321,12 +320,9 @@ or a base re-run (6.3) excuses one, and both print it.
 Measured from the local ledger, 2026-10-08 to 2026-10-25: 14,203 invocations, 80,250 file rows, 612
 failures, 3,124 test files, a 20 MB database (about 250 bytes a row with indexes). Projected:
 
-| Rows written a day                                       | Count         |
-| -------------------------------------------------------- | ------------- |
-| Full runs: 4 x about 2,800 files x 2 flag configurations | about 22,000  |
-| Pull requests: about 30 x about 800 selected files       | about 24,000  |
-| Retries, failures, invocations, durations                | about 10,000  |
-| Total with index writes (about 2 per row)                | about 110,000 |
+Rows written a day: full runs (4 x about 2,800 files x 2 flag configurations) about 22,000; pull
+requests (about 30 x about 800 selected files) about 24,000; retries, failures, invocations and
+durations about 10,000; about 110,000 with index writes (about 2 per row).
 
 Storage about 14 MB a day. Invocations and file rows are kept 120 days, failures 365 days (a daily cron
 deletes in 5,000-row transactions), so the database stays under 2 GB. About 2,000 requests a day.

@@ -13,6 +13,7 @@ import {
     COMMENT_MARKER,
     evaluate,
     fileProblems,
+    fmt,
     hangMinutes,
     lintWorkflow,
     prComment,
@@ -189,6 +190,10 @@ describe("report", () => {
         assert.equal(build.over, true);
         assert.equal(build.slow, true);
         assert.equal(evals.find((e) => e.key === "run:ci.yml:pr").over, false);
+    });
+
+    it("formats durations, rounding before splitting minutes", () => {
+        assert.deepEqual([fmt(null), fmt(45.2), fmt(119.7), fmt(813)], ["-", "45s", "2m00s", "13m33s"]);
     });
 
     it("is not slow when the difference is under 60 s", () => {

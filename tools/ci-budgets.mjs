@@ -40,7 +40,7 @@ export function budgetFor(file, key) {
 }
 
 function globMatch(pattern, key) {
-    const re = pattern.split("*").map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const re = pattern.split("*").map((p) => p.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
     return new RegExp(`^${re.join(".*")}$`).test(key);
 }
 
@@ -78,7 +78,7 @@ export function fileProblems(file) {
 export function jobsOf(doc) {
     return Object.entries(doc?.jobs ?? {}).map(([id, j]) => ({
         id,
-        name: String(j.name ?? id).replace(/\$\{\{[^}]*\}\}/g, "*"),
+        name: String(j.name ?? id).replaceAll(/\$\{\{[^}]*\}\}/g, "*"),
         timeout: j["timeout-minutes"],
         uses: j.uses,
         env: j.env ?? {},
@@ -175,18 +175,20 @@ export function rowsFromJobs(run, jobs, kind) {
     const rows = [];
     for (const j of done) {
         const base = { outcome: j.conclusion, runner: j.labels?.[0] ?? null };
-        rows.push({
-            ...base,
-            key: `job:${wf}:${j.name}`,
-            level: "job",
-            seconds: secondsBetween(j.started_at, j.completed_at),
-        });
-        rows.push({
-            ...base,
-            key: `queue:${wf}:${j.name}`,
-            level: "queue",
-            seconds: secondsBetween(j.created_at ?? j.started_at, j.started_at),
-        });
+        rows.push(
+            {
+                ...base,
+                key: `job:${wf}:${j.name}`,
+                level: "job",
+                seconds: secondsBetween(j.started_at, j.completed_at),
+            },
+            {
+                ...base,
+                key: `queue:${wf}:${j.name}`,
+                level: "queue",
+                seconds: secondsBetween(j.created_at ?? j.started_at, j.started_at),
+            },
+        );
         for (const s of (j.steps ?? []).filter((s) => s.started_at && s.completed_at && s.conclusion !== "skipped")) {
             rows.push({
                 ...base,
@@ -252,12 +254,17 @@ export function evaluate(rows, file, medians = {}) {
     });
 }
 
-export const fmt = (s) =>
-    s == null
-        ? "-"
-        : s >= 60
-          ? `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, "0")}s`
-          : `${Math.round(s)}s`;
+/**
+ * A duration as `13m33s` or `45s`.
+ * @param s seconds, or null
+ * @returns the text, `-` for null
+ */
+export function fmt(s) {
+    if (s == null) return "-";
+    const r = Math.round(s);
+    if (r < 60) return `${r}s`;
+    return `${Math.floor(r / 60)}m${String(r % 60).padStart(2, "0")}s`;
+}
 
 /**
  * The step summary's table.
@@ -267,7 +274,8 @@ export const fmt = (s) =>
 export function summaryTable(evals) {
     const lines = ["| Key | Measured | Budget | Master median | Change |", "| --- | --- | --- | --- | --- |"];
     for (const e of evals.filter((x) => x.level !== "step" || x.over)) {
-        const change = e.median ? `${e.seconds >= e.median ? "+" : "-"}${fmt(Math.abs(e.seconds - e.median))}` : "-";
+        const sign = e.seconds >= e.median ? "+" : "-";
+        const change = e.median ? `${sign}${fmt(Math.abs(e.seconds - e.median))}` : "-";
         lines.push(
             `| ${e.over ? "**" + e.key + "**" : e.key} | ${fmt(e.seconds)} | ${fmt(e.budget)} | ${fmt(e.median)} | ${change} |`,
         );

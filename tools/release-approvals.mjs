@@ -59,7 +59,9 @@ export function released(body) {
 }
 
 /**
- * Whether releasing `version` after `previous` needs the owner's go.
+ * Whether releasing `version` after `previous` needs the owner's go. A "major" is a breaking bump: the major
+ * number rises, or, below 1.0.0, the minor number does (nx.json sets adjustSemverBumpsForZeroMajorVersion, so
+ * a breaking change to 0.3.48 releases 0.4.0, which a `^0.3.48` range does not accept).
  * @param version - the version the commit gives the project
  * @param previous - the version of its last tag, or null when it has none
  * @returns "first", "major" or null
@@ -68,8 +70,9 @@ export function kindOf(version, previous) {
     if (previous === null) {
         return "first";
     }
-    const major = (v) => Number.parseInt(v.split(".")[0], 10);
-    return major(version) > major(previous) ? "major" : null;
+    const [major, minor] = version.split(".").map((n) => Number.parseInt(n, 10));
+    const [lastMajor, lastMinor] = previous.split(".").map((n) => Number.parseInt(n, 10));
+    return major > lastMajor || (lastMajor === 0 && minor > lastMinor) ? "major" : null;
 }
 
 /**

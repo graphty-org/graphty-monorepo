@@ -648,7 +648,7 @@ push starts or restarts a release (the `workflow_run` trigger is gone). Only the
 (production)` job in GitHub, then land and publish run in environment `release` as described below. The
 rest of this section describes a legacy run; the restart on a master push it mentions no longer exists.
 Every run also has a `Version dry run` lane (`tools/release-approvals.mjs`): it versions the candidate and
-fails when a project would publish a major or its first version without an entry in the code-owned
+fails when a project would publish a major (below 1.0.0, a minor: nx's breaking bump there) or its first version without an entry in the code-owned
 `release-approvals.json` (`project`, `kind` major or first, `merge`, `approval` URL, `since`), naming each such
 project in its `held` output. A legacy run then lands nothing; `pnpm run check:release-hold` validates the file.
 

@@ -57,7 +57,14 @@ describe("kindOf", () => {
         assert.equal(kindOf("4.0.0", "3.30.0"), "major");
         assert.equal(kindOf("1.0.0", "0.9.3"), "major");
         assert.equal(kindOf("3.31.0", "3.30.0"), null);
-        assert.equal(kindOf("0.4.0", "0.3.48"), null);
+        assert.equal(kindOf("0.3.49", "0.3.48"), null);
+        assert.equal(kindOf("0.0.29", "0.0.28"), null);
+        assert.equal(kindOf("3.30.1", "3.30.0"), null);
+    });
+
+    it("names a breaking bump below 1.0.0, which nx releases as a minor", () => {
+        assert.equal(kindOf("0.4.0", "0.3.48"), "major");
+        assert.equal(kindOf("0.1.0", "0.0.28"), "major");
     });
 });
 

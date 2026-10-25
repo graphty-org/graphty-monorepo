@@ -62,15 +62,19 @@ async function applied(element: Graphty): Promise<void> {
  * @param element - The element.
  * @param state - The state.
  * @param source - The source it must be drawing, when it matters.
+ * @param credit - A credit it must be giving, when it matters: a credit follows what is drawn.
  */
-function basemapIs(element: Graphty, state: string, source?: string): Promise<void> {
-    const is = (s: { state: string; source: string }): boolean =>
-        s.state === state && (source === undefined || s.source === source);
+function basemapIs(element: Graphty, state: string, source?: string, credit?: string): Promise<void> {
+    type Status = { state: string; source: string; attribution: readonly string[] };
+    const is = (s: Status): boolean =>
+        s.state === state &&
+        (source === undefined || s.source === source) &&
+        (credit === undefined || s.attribution.includes(credit));
     if (is(element.basemapStatus)) {
         return Promise.resolve();
     }
     return new Promise((resolve) => {
-        const on = (event: CustomEvent<{ state: string; source: string }>): void => {
+        const on = (event: CustomEvent<Status>): void => {
             if (is(event.detail)) {
                 element.removeEventListener("basemap-status", on);
                 resolve();
@@ -941,10 +945,11 @@ describe("the location map's history and map", () => {
         await element.session.layout.set("location-map", {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
         });
-        await vi.waitFor(async () => {
-            await applied(element);
-            assert.strictEqual(element.basemapStatus.state, "fallback");
-        });
+        // The state turns to fallback once a tile has failed; the credit follows once the bundled
+        // world under it is drawn, which can be a frame or more later.
+        await basemapIs(element, "fallback", undefined, "Natural Earth");
+        await applied(element);
+        assert.strictEqual(element.basemapStatus.state, "fallback");
         assert.deepInclude(states.at(-1)?.error, { code: "E_BASEMAP_UNREACHABLE" });
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
         const strip =

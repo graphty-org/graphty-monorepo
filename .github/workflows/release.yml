@@ -559,14 +559,16 @@ jobs:
     # A full run's one ending (channels design, sections 5 and 6): every lane's result and the screenshot captures
     # make one state, written to the results store (tools/full-run.mjs verdict). Red files or updates the "Full run
     # red" issue, dispatches bisect.yml once (with GITHUB_TOKEN's actions: write), and is announced; green closes
-    # that issue. always(), so a cancelled or abandoned lane is judged too: anything but success is red.
+    # that issue, but only from a green commit whose history holds the red one. !cancelled(), so an abandoned or
+    # timed-out lane is judged too (anything but success is red), while a run someone cancelled records nothing:
+    # a red record would make the next slot skip that commit.
     # ponytail: one bisect dispatch here, after every lane; a ci-lane dispatch the moment ci.yml ends red would
     # start it about 45 minutes earlier.
     verdict:
         name: Verdict
         needs: [pick, ci, t4, hosts, autosave_macos, audit, llm, version_dry_run]
         # a pick that failed is judged too (red, its own lane), so a broken slot files the red issue
-        if: ${{ always() && (inputs.mode == 'full' || inputs.mode == 'restart') && (needs.pick.outputs.release == 'true' || (needs.pick.result != 'success' && needs.pick.result != 'skipped')) }}
+        if: ${{ !cancelled() && (inputs.mode == 'full' || inputs.mode == 'restart') && (needs.pick.outputs.release == 'true' || (needs.pick.result != 'success' && needs.pick.result != 'skipped')) }}
         runs-on: ubuntu-24.04
         timeout-minutes: 15
         environment: release # Pushover
@@ -582,9 +584,12 @@ jobs:
             RUN_ID: ${{ github.run_id }}
             RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         steps:
+            # the history without file contents: a green verdict closes the red issue only from a later commit
             - uses: actions/checkout@v4
               with:
                   sparse-checkout: tools
+                  fetch-depth: 0
+                  filter: blob:none
 
             - uses: actions/setup-node@v4
               with:
@@ -620,9 +625,10 @@ jobs:
                   STATE: ${{ steps.verdict.outputs.state }}
                   WHAT: ${{ steps.verdict.outputs.what }}
                   ISSUE: ${{ steps.verdict.outputs.issue }}
+                  BISECT: ${{ steps.verdict.outputs.bisect }}
               run: |
                   node tools/release-status.mjs "$STATE" --sha "$SHA" --what "$WHAT" --issue "$ISSUE" \
-                      --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
+                      --bisect "$BISECT" --attempt "$GITHUB_RUN_ATTEMPT" --run "$RUN_URL"
 
     # Anything red before the release lands holds the whole release: nothing is pushed to master and nothing is
     # published. This job opens (or retitles and comments on) the open train hold, a "Release held: <what> failed

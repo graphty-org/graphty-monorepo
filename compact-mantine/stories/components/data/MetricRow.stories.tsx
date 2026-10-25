@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React, { useState } from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { LabelsProvider, MetricRow, PANEL_GRID, PANEL_INK } from "../../../src";
 import { BOTH_SCHEMES } from "../../helpers/schemes";

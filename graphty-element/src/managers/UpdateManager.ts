@@ -1111,6 +1111,12 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
+     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     */
+    picturesLoading: (() => boolean) | null = null;
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -1150,6 +1156,10 @@ export class UpdateManager implements Manager {
 
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
+        }
+
+        if (this.picturesLoading?.() === true) {
+            return "an annotation's picture is still loading";
         }
 
         if (!this.drawnFrameIsFinished) {
@@ -1203,6 +1213,10 @@ export class UpdateManager implements Manager {
 
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
+            return false;
+        }
+
+        if (this.picturesLoading?.() === true) {
             return false;
         }
 
@@ -1295,6 +1309,14 @@ export class UpdateManager implements Manager {
      */
     private noteFrameDrawn(): void {
         if (!this.stateIsFinished || this.drawnFrameIsFinished) {
+            return;
+        }
+
+        // `stateIsFinished` is the last pass's answer, and work can arrive between that pass and
+        // this frame: a load that brings nodes and starts the layout, then a resize that calls
+        // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
+        if (!this.pictureIsFinished()) {
+            this.stateIsFinished = false;
             return;
         }
 

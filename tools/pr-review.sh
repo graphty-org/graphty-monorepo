@@ -46,7 +46,8 @@ branch=$(git symbolic-ref -q --short HEAD) || die "HEAD is detached; check out t
 [[ "$issue" =~ ^[0-9]+$ ]] || die "$branch names no issue (pass --issue N)"
 
 mb=$(git merge-base "$base" HEAD) || die "no merge base with $base"
-id=$(git diff -U0 --no-color --no-ext-diff "$mb" HEAD | git patch-id --stable | cut -d' ' -f1)
+# the same options as patchId in tools/pr-integrity.mjs (--binary: a changed binary file moves the id)
+id=$(git diff -U0 --binary --no-color --no-ext-diff --no-renames --diff-algorithm=myers "$mb" HEAD | git patch-id --stable | cut -d' ' -f1)
 [ -n "$id" ] || die "$branch changes nothing against $base"
 marker="<!-- fresh-review $id -->"
 

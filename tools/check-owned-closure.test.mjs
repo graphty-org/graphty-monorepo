@@ -115,6 +115,21 @@ describe("unownedClosure, root paths", () => {
     });
 });
 
+describe("unownedClosure, working-directory", () => {
+    it("resolves a workflow's paths from its working-directory, in flow and block style", () => {
+        const { root } = repo("working-dir", {
+            ".github/workflows/w.yml":
+                "jobs:\n  a:\n    defaults: { run: { working-directory: pkg, shell: bash } }\n" +
+                "    steps:\n      - run: node scripts/shard.js\n" +
+                "      - working-directory: './other//'\n        run: bash scripts/b.sh\n",
+            "pkg/scripts/shard.js": "",
+            "other/scripts/b.sh": "",
+        });
+        const unowned = unownedClosure(root, parseCodeowners("/.github/workflows/ @o\n"));
+        assert.deepEqual([...unowned.keys()].sort(), ["other/scripts/b.sh", "pkg/scripts/shard.js"]);
+    });
+});
+
 describe("withoutComments", () => {
     it("keeps a JS string that holds a glob or a URL, and removes real comments", () => {
         const text =

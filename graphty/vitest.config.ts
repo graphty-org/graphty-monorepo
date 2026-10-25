@@ -62,12 +62,12 @@ const testStandIns = (): Plugin => {
     return {
         name: "graphty-test-stand-ins",
         enforce: "pre",
+        // Only the module itself: a test reading a source file's text (`?raw`) gets it unchanged.
         transform(code, id) {
-            const file = id.split("?")[0];
-            if (file === elementLoader) {
+            if (id === elementLoader) {
                 return { code: "export const loadGraphtyElement = () => Promise.resolve();", map: { mappings: "" } };
             }
-            if (file === workspace) {
+            if (id === workspace) {
                 // On the first line, so every original line keeps its number (and its coverage).
                 const preload =
                     'import { loadFrame as __loadFrame } from "./frameLoader"; await __loadFrame().catch(() => undefined); ';

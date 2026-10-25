@@ -2389,36 +2389,38 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
               run: node tools/release-due.mjs
 
-    # Actions cache hygiene (#3431): the newest key of a family (a key without its trailing hash or run
-    # id) supersedes every older one on the same ref, which nothing restores any more, so this deletes
-    # those and reports each family's size against ci-budgets.json (tools/cache-hygiene.mjs). Master
-    # pushes only; a failure must not turn master red.
+    # Actions cache hygiene (#3431): deletes every cache of a closed pull request's ref, and on any other
+    # ref each key of a family (a key without its trailing hash, run id and versions) that is not the
+    # family's most recently read key there and that nothing has read for a day; then reports each
+    # family's size per ref against ci-budgets.json (tools/cache-hygiene.mjs). Green master pushes only;
+    # a failure must not turn master red.
     cache-hygiene:
         name: Cache hygiene
         needs: all-checks
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ needs.all-checks.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 10
-        # actions: write to list and delete caches; contents: read for the checkout.
+        # actions: write to list and delete caches; pull-requests: read for the open ones; contents: read
+        # for the checkout.
         permissions:
             contents: read
             actions: write
+            pull-requests: read
         steps:
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ inputs.ref }}
+                  ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
+                  # cone mode also checks out the root files, ci-budgets.json among them
                   sparse-checkout: tools
 
-            - name: Delete superseded cache keys
+            - name: Delete superseded and closed pull requests' cache keys
               env:
                   GH_TOKEN: ${{ github.token }}
               run: |
                   gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
-                  node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/delete.txt"
-                  while read -r id; do
-                      gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/caches/$id" --silent || echo "::warning::cache $id: delete failed"
-                  done < "$RUNNER_TEMP/delete.txt"
+                  gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
+                  node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different

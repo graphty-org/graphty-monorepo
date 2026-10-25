@@ -1,112 +1,150 @@
 #!/usr/bin/env node
-// Actions cache hygiene (#3431), run by ci.yml's "Cache hygiene" job on every master build.
-// A key's family is the key without its trailing content hash or run id: `lfs-graphty-<sha256>` is family
-// `lfs-graphty`, `test-durations-graph-io-<run id>-<attempt>` is `test-durations-graph-io`. Within one
-// ref, the newest key of a family supersedes every older one, which nothing restores any more (an exact
-// key always misses, and a restore-keys prefix takes the newest), so those are deleted: one LFS key per
-// project, one import-graph key, one pnpm store per OS. A dotted version (playwright-Linux-1.57.0) stays
-// in the family, so two caches of one path keyed differently never delete each other.
+// Actions cache hygiene (#3431), run by ci.yml's "Cache hygiene" job on every green master build.
+// A key's family is the key without its trailing content hash or run id and without dotted versions:
+// `lfs-graphty-<sha256>` is `lfs-graphty`, `test-durations-graph-io-<run id>-<attempt>` is
+// `test-durations-graph-io`, `playwright-Linux-1.57.0` is `playwright-Linux`. Two kinds of cache are
+// deleted:
+//   - every cache of a closed or merged pull request's ref: nothing but that ref can restore it;
+//   - on any other ref, a key of a family that is not the family's most recently READ key there and
+//     that nothing has read for KEEP_HOURS. A key's last read, not its creation, says it is live: a
+//     pull request with no cache of its own exact-hits its base branch's older key (setup-node's pnpm
+//     cache has no restore-keys), and after a revert the older key is the one in use again.
+// So a ref keeps one key per family plus whatever was read in the last KEEP_HOURS hours: one LFS key per
+// project, one test-select-graphs (import graph) key, one pnpm store per OS, once the old ones go cold.
 //
-//   node tools/cache-hygiene.mjs <caches.ndjson> <delete-ids.txt>
-//       reads the repository's caches (the API's actions_caches entries, one JSON object per line),
-//       writes the ids to delete, and prints each family's size against ci-budgets.json (`cache:<family>`
-//       and `bytes:actions-cache`), a warning annotation per family or total over its budget.
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+//   node tools/cache-hygiene.mjs <caches.ndjson> <open-prs.txt> [--apply]
+//       reads the repository's caches (the API's actions_caches entries, one JSON object per line) and the
+//       open pull request numbers (one per line); with --apply deletes the caches above (gh api, needs
+//       GH_TOKEN and GITHUB_REPOSITORY), else only lists them. Then prints each family's size against
+//       ci-budgets.json (`cache:<family>` per ref, `bytes:actions-cache` in all), counting a cache whose
+//       delete failed as still there, with a warning annotation per budget exceeded.
+import { spawnSync } from "node:child_process";
+import { appendFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { budgetFor } from "./ci-budgets.mjs";
+import { budgetFor, loadBudgets } from "./ci-budgets.mjs";
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const GB = 1e9;
+export const KEEP_HOURS = 24;
 
 /**
  * A cache key's family.
  * @param key an Actions cache key
- * @returns the key without its trailing hashes (16 or more hex digits) and run id with attempt
+ * @returns the key without its trailing hashes (16 or more hex digits), run id with attempt, and versions
  */
 export function family(key) {
-    return key.replace(/(?:-(?:[0-9a-f]{16,}|\d{6,}-\d+))+$/i, "");
+    return key.replace(/(?:-(?:[0-9a-f]{16,}|\d{6,}-\d+))+$/i, "").replaceAll(/-\d+(?:\.\d+)+(?=-|$)/g, "");
 }
 
 const slot = (c) => `${c.ref}\u0000${family(c.key)}`;
+const readAt = (c) => Date.parse(c.last_accessed_at ?? c.created_at);
+const prOf = (ref) => /^refs\/pull\/(\d+)\//.exec(ref)?.[1];
 
 /**
- * The caches a newer cache of the same family on the same ref supersedes.
- * @param caches `{ id, key, ref, created_at }[]`
- * @returns the superseded caches
+ * The caches to delete, each with its reason.
+ * @param caches `{ id, key, ref, last_accessed_at, created_at }[]`
+ * @param openPrs the open pull request numbers
+ * @param now the time to judge "read recently" by, in ms
+ * @returns `{ cache, why }[]`
  */
-export function superseded(caches) {
-    const newest = new Map();
+export function toDelete(caches, openPrs, now = Date.now()) {
+    const open = new Set([...openPrs].map(String));
+    const keeper = new Map();
     for (const c of caches) {
-        const n = newest.get(slot(c));
-        if (!n || Date.parse(c.created_at) > Date.parse(n.created_at)) newest.set(slot(c), c);
+        const k = keeper.get(slot(c));
+        if (!k || readAt(c) > readAt(k)) keeper.set(slot(c), c);
     }
-    return caches.filter((c) => newest.get(slot(c)) !== c);
+    const out = [];
+    for (const c of caches) {
+        const pr = prOf(c.ref);
+        if (pr && !open.has(pr)) out.push({ cache: c, why: `pull request #${pr} is closed` });
+        else if (keeper.get(slot(c)) !== c && now - readAt(c) > KEEP_HOURS * 3600e3)
+            out.push({ cache: c, why: `superseded by ${keeper.get(slot(c)).key}, unread for ${KEEP_HOURS} h` });
+    }
+    return out;
 }
 
 /**
- * Each family's size against its budget, over every ref.
+ * Each family's size against its budget, which is per ref, and the total against `bytes:actions-cache`.
  * @param caches the caches that remain
  * @param file the parsed ci-budgets.json
- * @returns `{ family, keys, bytes, gb, over }[]` largest first, and the total `{ bytes, gb, over }`
+ * @returns `{ rows: { family, keys, refs, bytes, perRef, gb, over }[] }` largest first, and `total`
  */
 export function sizes(caches, file) {
     const by = new Map();
     for (const c of caches) {
         const f = family(c.key);
-        const row = by.get(f) ?? { family: f, keys: 0, bytes: 0 };
+        const row = by.get(f) ?? { family: f, keys: 0, bytes: 0, byRef: new Map() };
         row.keys += 1;
         row.bytes += c.size_in_bytes ?? 0;
+        row.byRef.set(c.ref, (row.byRef.get(c.ref) ?? 0) + (c.size_in_bytes ?? 0));
         by.set(f, row);
     }
     const rows = [...by.values()]
-        .map((r) => {
+        .map(({ byRef, ...r }) => {
+            const perRef = Math.max(...byRef.values());
             const gb = budgetFor(file, `cache:${r.family}`)?.gb;
-            return { ...r, gb, over: gb !== undefined && r.bytes > gb * GB };
+            return { ...r, refs: byRef.size, perRef, gb, over: gb !== undefined && perRef > gb * GB };
         })
         .sort((a, b) => b.bytes - a.bytes);
     const bytes = rows.reduce((s, r) => s + r.bytes, 0);
-    const gb = file.budgets?.["bytes:actions-cache"]?.gb;
+    const gb = budgetFor(file, "bytes:actions-cache")?.gb;
     return { rows, total: { bytes, gb, over: gb !== undefined && bytes > gb * GB } };
 }
 
 const fmt = (bytes) => `${(bytes / GB).toFixed(2)} GB`;
+const lines = (path) =>
+    readFileSync(path, "utf8")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean);
 
-function main([input, out]) {
-    if (!input || !out) {
-        console.error("usage: cache-hygiene.mjs <caches.ndjson> <delete-ids.txt>");
+function deleteCache(id) {
+    const r = spawnSync("gh", ["api", "-X", "DELETE", `repos/${process.env.GITHUB_REPOSITORY}/actions/caches/${id}`]);
+    return r.status === 0;
+}
+
+function main(argv) {
+    const apply = argv.includes("--apply");
+    const [input, prs] = argv.filter((a) => a !== "--apply");
+    if (!input || !prs) {
+        console.error("usage: cache-hygiene.mjs <caches.ndjson> <open-prs.txt> [--apply]");
         return 2;
     }
-    const caches = readFileSync(input, "utf8")
-        .split("\n")
-        .filter((l) => l.trim())
-        .map((l) => JSON.parse(l));
-    const gone = superseded(caches);
-    writeFileSync(out, gone.map((c) => `${c.id}\n`).join(""));
-    const ids = new Set(gone.map((c) => c.id));
-    const file = JSON.parse(readFileSync(join(ROOT, "ci-budgets.json"), "utf8"));
+    const caches = lines(input).map((l) => JSON.parse(l));
+    const gone = toDelete(caches, lines(prs));
+    const failed = new Set();
+    for (const { cache, why } of gone) {
+        const ok = !apply || deleteCache(cache.id);
+        if (!ok) failed.add(cache.id);
+        console.log(`${apply ? (ok ? "deleted" : "FAILED") : "would delete"} ${cache.ref} ${cache.key}: ${why}`);
+    }
+    for (const id of failed) console.log(`::warning::cache ${id}: delete failed`);
+    const removed = new Set(apply ? gone.map((g) => g.cache.id).filter((id) => !failed.has(id)) : []);
     const { rows, total } = sizes(
-        caches.filter((c) => !ids.has(c.id)),
-        file,
+        caches.filter((c) => !removed.has(c.id)),
+        loadBudgets(),
     );
-    // ponytail: no write-rate alarm; each run deletes what it supersedes, so the listing cannot count
-    // writes. Record a key's creation in the results store when a writesPerWeek line needs judging.
-    const lines = [
-        `### Actions caches: ${caches.length} keys, ${gone.length} superseded and deleted`,
+    const out = [
+        apply
+            ? `### Actions caches: ${caches.length} keys, ${removed.size} deleted, ${failed.size} failed to delete`
+            : `### Actions caches: ${caches.length} keys, ${gone.length} to delete (dry run, nothing deleted)`,
         "",
         `${fmt(total.bytes)} left (budget ${total.gb ?? "none"} GB, bytes:actions-cache)`,
         "",
-        "| family | keys | size | budget |",
-        "| --- | --- | --- | --- |",
+        "| family | keys | refs | size | largest on one ref | budget per ref |",
+        "| --- | --- | --- | --- | --- | --- |",
         ...rows.map(
-            (r) => `| ${r.family} | ${r.keys} | ${fmt(r.bytes)} | ${r.gb ?? "none"} GB${r.over ? " OVER" : ""} |`,
+            (r) =>
+                `| ${r.family} | ${r.keys} | ${r.refs} | ${fmt(r.bytes)} | ${fmt(r.perRef)} | ${r.gb ?? "none"} GB${r.over ? " OVER" : ""} |`,
         ),
     ];
-    console.log(lines.join("\n"));
-    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+    console.log(out.join("\n"));
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${out.join("\n")}\n`);
     for (const r of rows.filter((x) => x.over))
-        console.log(`::warning::cache family ${r.family} holds ${fmt(r.bytes)}, over its ${r.gb} GB budget`);
+        console.log(
+            `::warning::cache family ${r.family} holds ${fmt(r.perRef)} on one ref, over its ${r.gb} GB budget`,
+        );
     if (total.over) console.log(`::warning::Actions caches hold ${fmt(total.bytes)}, over the ${total.gb} GB budget`);
     return 0;
 }

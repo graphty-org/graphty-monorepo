@@ -30,20 +30,21 @@
         "bytes:lfs": { "gib": 150, "per": "month", "why": "Team allowance 250 GiB, a hard block" },
         "bytes:actions-cache": { "gb": 8, "why": "10 GB limit; LRU eviction above it" },
         "job:ci.yml:Cache hygiene": { "minutes": 3, "why": "one list call and a delete per superseded key" },
-        "cache:codeql-*": {
-            "gb": 1.5,
-            "writesPerWeek": 100,
-            "why": "CodeQL overlay base database, 1.3 GB for javascript, one per master push"
-        },
+        "cache:codeql-*": { "gb": 1.5, "why": "per ref: CodeQL overlay base database, 1.3 GB for javascript" },
         "cache:lfs-*": {
-            "gb": 2,
-            "writesPerWeek": 30,
-            "why": "one project's LFS baselines (graphty 0.5 GB), a key per pull request that changes them"
+            "gb": 0.6,
+            "why": "per ref: one project's LFS baselines (graph-io-fidelity 0.54 GB, graphty 0.5 GB)"
         },
-        "cache:node-cache-*": { "gb": 1.5, "writesPerWeek": 30, "why": "pnpm store, 0.32 GB, a key per lockfile" },
-        "cache:playwright-*": { "gb": 1.5, "writesPerWeek": 30, "why": "browsers 0.26 GB, debs 0.12 GB" },
-        "cache:import-graph*": { "gb": 0.2, "writesPerWeek": 50, "why": "one import-graph key" },
-        "cache:test-durations-*": { "gb": 0.01, "writesPerWeek": 500, "why": "a key per shard per run, KB each" },
-        "cache:*": { "gb": 0.5, "writesPerWeek": 30, "why": "any other family" }
+        "cache:node-cache-*": {
+            "gb": 0.7,
+            "why": "per ref: pnpm store 0.32 GB, two while an older lockfile is still read"
+        },
+        "cache:playwright-*": {
+            "gb": 0.6,
+            "why": "per ref: browsers 0.26 GB, two while an older version is still read"
+        },
+        "cache:test-select-graphs": { "gb": 0.05, "why": "per ref: the selector's import graphs, about 10 MB" },
+        "cache:test-durations-*": { "gb": 0.01, "why": "per ref: a key per shard per run, KB each" },
+        "cache:*": { "gb": 0.5, "why": "per ref: any other family" }
     }
 }

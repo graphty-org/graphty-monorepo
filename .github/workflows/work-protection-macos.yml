@@ -22,10 +22,14 @@ on:
                 description: "the commit to test: the release candidate, already on master"
                 type: string
                 required: true
+            bisect_point:
+                description: "set by bisect.yml: <red sha>-<point sha>, this run's own concurrency group (the whole lane is the point's one run)"
+                type: string
+                default: ""
     workflow_dispatch:
 permissions: { contents: read }
 concurrency:
-    group: work-protection-macos-${{ inputs.candidate && format('release-{0}', inputs.candidate) || github.ref }}
+    group: ${{ inputs.bisect_point && format('bisect-{0}', inputs.bisect_point) || format('work-protection-macos-{0}', inputs.candidate && format('release-{0}', inputs.candidate) || github.ref) }}
     cancel-in-progress: false
 
 jobs:

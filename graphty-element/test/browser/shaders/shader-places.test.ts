@@ -120,7 +120,9 @@ async function mounted(nodes: readonly { id: string; x: number; y: number }[]): 
         set: { "node.color": "#2050ff" },
     });
     await operationQueueOf(element.graph).waitForCompletion();
-    await drawnFrames(element.graph.getScene(), 2);
+    // The camera frames the nodes after the style pass, so read where nodes are drawn only once
+    // the picture is final.
+    await element.waitForStableFrame();
     return element;
 }
 

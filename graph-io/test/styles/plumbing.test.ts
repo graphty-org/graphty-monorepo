@@ -237,7 +237,7 @@ describe("W_STYLES_NOT_IMPORTED", () => {
 });
 
 describe("the generic reader of style roles", () => {
-    it("reads a GEXF file's viz colors, sizes, shapes and thickness", async () => {
+    it("reads a GEXF file's viz colors and sizes, and draws its shapes and thickness as Gephi does", async () => {
         const gexf = `<?xml version="1.0"?>
 <gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
 <graph defaultedgetype="directed"><nodes>
@@ -254,11 +254,12 @@ describe("the generic reader of style roles", () => {
             ...resolveStyles(styles, "node", p, result.snapshot),
         ];
         expect(node("fill")).toEqual(["#ff0000", "#0000ff"]);
-        expect(node("fillOpacity")).toEqual([0.5, null]);
-        expect(node("width")).toEqual([3, 3]);
-        expect(node("shape")).toEqual(["rectangle", "ellipse"]);
-        expect(resolveStyles(styles, "edge", "width", result.snapshot)).toEqual([2]);
-        expect(resolveStyles(styles, "edge", "lineStyle", result.snapshot)).toEqual(["dashed"]);
+        // Gephi draws opaque discs and solid edges as thick as their weight
+        expect(node("fillOpacity")).toEqual([null, null]);
+        expect(node("width")).toEqual([6, 6]); // viz:size is a radius
+        expect(node("shape")).toEqual(["ellipse", "ellipse"]);
+        expect(resolveStyles(styles, "edge", "width", result.snapshot)).toEqual([1]);
+        expect(resolveStyles(styles, "edge", "lineStyle", result.snapshot)).toEqual([null]);
         expect(styles.styles.units.length).toBe("relative");
     });
 

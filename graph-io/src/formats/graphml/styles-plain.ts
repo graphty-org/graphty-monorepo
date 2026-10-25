@@ -11,10 +11,9 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonNumber } from "../../styles/canon/number.js";
 import { canonText } from "../../styles/canon/text.js";
-import { blockStyles, parseStyleBlock, STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
 import { StyleNotes } from "../../styles/notes.js";
-import { styleFingerprint } from "../../styles/plan/features.js";
-import { plainCell, resolveStyles } from "../../styles/plan/resolve.js";
+import { plainCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, StyleReadContext, StyleTarget, StyleValue } from "../../styles/types.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
@@ -131,17 +130,7 @@ function exactFromGraphtyBlock(snapshot: GraphSnapshot, yed: YedRead): void {
     if (typeof text !== "string") {
         return;
     }
-    const parsed = parseStyleBlock(text, styleFingerprint(snapshot));
-    const ex = parsed.ok ? blockStyles(parsed.block, snapshot, "graphml") : null;
-    if (ex === null) {
-        return;
-    }
-    exactFromBlock(
-        yed,
-        (target, property) => resolveStyles(ex, target, property as never, snapshot),
-        { node: snapshot.nodeCount, edge: snapshot.edgeCount },
-        new StyleNotes(),
-    );
+    exactFromBlock(snapshot, text, yed);
 }
 
 /**
@@ -185,7 +174,9 @@ export function graphmlStyles(snapshot: GraphSnapshot, context: StyleReadContext
     }
     if (hasRgb(snapshot.nodes)) {
         const gephi = readGephi(snapshot, notes, context);
-        const rules = gephiRules(snapshot, gephi.node, gephi.edge, context.budget);
+        // Gephi draws every edge in its end nodes' mixed color (EdgeColor MIXED), whatever its own
+        delete gephi.edge.color;
+        const rules = gephiRules(snapshot, { fill: gephi.node.fill, width: gephi.node.width }, {}, context.budget);
         const used = (table: GraphSnapshot["nodes"]): string[] => GEPHI_COLUMNS.filter((c) => table.has(c));
         return {
             canonical: true,

@@ -49,7 +49,7 @@ describe("status ink contrast", () => {
         await rememberRecent({ id: "gone", name: "Gone", nodes: 3, at: 1, handle });
         render(<Workspace />);
 
-        await userEvent.click(await screen.findByRole("button", { name: /^Gone/ }));
+        await userEvent.click(await screen.findByRole("gridcell", { name: /^Gone/ }));
         const line = await screen.findByText("This file can no longer be read. Locate...");
         const failures = await contrastFailures(line);
 
@@ -64,10 +64,11 @@ describe("status ink contrast", () => {
         await rememberRecent({ id: "gone", name: "Gone", nodes: 3, at: 1, handle });
         renderIn("light", <Workspace />);
 
-        const row = await screen.findByRole("button", { name: /^Gone/ });
-        await userEvent.click(row);
+        const cell = await screen.findByRole("gridcell", { name: /^Gone/ });
+        const row = cell.querySelector<HTMLElement>(".cm-page-button") ?? cell;
+        await userEvent.click(cell);
         const line = await screen.findByText("This file can no longer be read. Locate...");
-        await userEvent.hover(row);
+        await userEvent.hover(cell);
         await waitFor(() => {
             assert.notEqual(getComputedStyle(row).backgroundColor, "rgba(0, 0, 0, 0)");
         });

@@ -1,7 +1,7 @@
 import { Box, Button, Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { ContextMenu as ContextMenuComponent, MenuCheckItem, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -62,7 +62,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * ## Keyboard and accessibility
  *
  * - ContextMenu opens on right-click and, from the keyboard, on Shift+F10 or the ContextMenu key
- *   at the focused element. The first enabled row is focused, so Enter acts on it at once.
+ *   at the focused element. Opened from the keyboard, the first enabled row is focused, so
+ *   Enter acts on it at once; opened by the pointer, no row is highlighted until a key or the
+ *   pointer moves to one.
  * - Arrow Up and Down move the highlight (looping), Home and End jump, ArrowRight opens a
  *   submenu at once, typing a letter jumps to the next row starting with it, and Escape closes
  *   the whole stack and returns focus to where it was. Tab is ignored inside a menu.
@@ -74,7 +76,7 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * | Part | Value |
  * |---|---|
  * | Surface | `#ffffff` light, `#1e1e1e` dark (inverse: `#1e1e1e` in both), radius 13px, elevation 400, padding 8px 0, min width 152px |
- * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0768cf` light, `#0a6dc2` dark (inverse: `#0c8ce9`), white text |
+ * | Row | 24px tall; highlight an inner pill inset 8px each side, radius 5px, `#0d99ff` light, `#0c8ce9` dark (Figma; the AA option darkens them to `#0768cf` / `#0a6dc2`), white text |
  * | Text | 11/16 weight 450; starts 16px from the edge (32px with a check column) |
  * | Check column | 16 x 16; icon slot 24 x 24 |
  * | Divider | 1px with 8px above and below |
@@ -129,7 +131,8 @@ function ContextArea({
 
 /**
  * The context menu: right-click the area (or focus it and press Shift+F10) and the menu opens at
- * the pointer, 3px right and 5px up, with the first enabled row highlighted.
+ * the pointer, 3px right and 5px up, with no row highlighted (from the keyboard, the first
+ * enabled row is).
  */
 export const ContextMenu: Story = {
     args: {
@@ -345,7 +348,10 @@ export const FromAButtonInteractions: Story = {
         await userEvent.click(trigger);
         const body = within(canvasElement.ownerDocument.body);
         await waitFor(() => expect(body.getByRole("menu")).toBeVisible(), storyWaitOptions(1000));
-        // Opening focuses the first row (the theme drops Mantine's focus placeholder).
+        // Opened by a click, the menu itself has focus and no row is highlighted (Figma); ArrowDown
+        // reaches the first row.
+        await waitFor(() => expect(body.getByRole("menu")).toHaveFocus(), storyWaitOptions(1000));
+        await userEvent.keyboard("{ArrowDown}");
         await waitFor(
             () => expect(body.getByRole("menuitem", { name: /^Actions/ })).toHaveFocus(),
             storyWaitOptions(1000),

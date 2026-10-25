@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { useNumberFormatter, useNumberParser } from "../../i18n";
-import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
+import { shieldDragSelection } from "../chrome/dragSelectionShield";
+import { revertOnEscape } from "./escape";
 
 /** The opacity range, in percent. */
 const MIN = 0;
@@ -21,7 +22,7 @@ interface OpacityInputProps {
     onCommit: (value: number, event?: React.SyntheticEvent) => void;
     /** Accessible name of the text box. */
     ariaLabel: string;
-    /** Draw the value as the default (italic, secondary) rather than as the reader's own. */
+    /** The value is the default rather than the reader's own (said in its state; drawn as any value, as Figma does). */
     isDefault?: boolean;
     disabled?: boolean;
     /** id of a hidden description (a disabled reason). */
@@ -101,9 +102,13 @@ export function OpacityInput({
             return;
         }
         if (event.key === "Escape") {
-            leaveWithoutCommit(event, () => {
-                setDraft(format.format(value));
-            });
+            revertOnEscape(
+                event,
+                () => {
+                    setDraft(format.format(value));
+                },
+                draft !== format.format(value),
+            );
             return;
         }
         if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -135,6 +140,7 @@ export function OpacityInput({
             event.currentTarget.setPointerCapture(event.pointerId);
         }
         scrub.current = { startX: event.clientX, start: value, last: value };
+        shieldDragSelection();
         setDragCursor("ew-resize");
     };
 
@@ -182,9 +188,7 @@ export function OpacityInput({
                     onFocus?.(event);
                 }}
                 onBlur={(event) => {
-                    if (!isLeavingWithoutCommit(event)) {
-                        commitDraft(event);
-                    }
+                    commitDraft(event);
                     onBlur?.(event);
                 }}
                 onKeyDown={handleKeyDown}

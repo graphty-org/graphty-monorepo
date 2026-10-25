@@ -1,12 +1,16 @@
 /**
  * A collapsed section's summary, measured in a real browser: it sits after the name on the
- * header's line, and in a narrow header it gives way to an ellipsis before the name does.
+ * header's line, and in a narrow header it gives way to an ellipsis before the name does. A
+ * title the header cuts short shows whole in the shared tooltip.
  */
 import { MantineProvider } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { compactTheme, ControlSection, PANEL_GRID } from "../../src";
+import { renderThemed, resetHarness } from "../harness/measure";
+import { TOOLTIP_WAIT } from "../waits";
 
 describe("ControlSection summary layout", () => {
     it("draws the summary after the name and cuts the summary before the name", () => {
@@ -34,5 +38,73 @@ describe("ControlSection summary layout", () => {
         expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
         expect(summary.scrollWidth).toBeGreaterThan(summary.clientWidth);
         expect(getComputedStyle(summary).textOverflow).toBe("ellipsis");
+    });
+});
+
+afterEach(resetHarness);
+
+describe("ControlSection title cut short", () => {
+    const LONG = "Medici and 11 connections within 2 hops of the selected node";
+
+    it("shows the whole title in the shared tooltip while the header cuts it", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label={LONG} technicalName="Neighborhood">
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        const name = screen.getByTestId("control-section-name");
+        expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+        expect(name).not.toHaveAttribute("title");
+        // The group is still named by the title's own, whole text.
+        expect(name.textContent).toBe(`${LONG} (Neighborhood)`);
+        expect(screen.getByTestId("control-section")).toHaveAttribute("aria-labelledby", name.id);
+        await userEvent.hover(name);
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe(`${LONG} (Neighborhood)`);
+    });
+
+    it("shows no tooltip for a title drawn whole", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label="Size">
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        await userEvent.hover(screen.getByTestId("control-section-name"));
+        await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
+    });
+
+    it("wraps a wrapLabel title onto a second line, whole, with no tooltip", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label={LONG} collapsible={false} wrapLabel>
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        const name = screen.getByTestId("control-section-name");
+        expect(name.scrollWidth).toBe(name.clientWidth);
+        // Two 16px lines, inside a header grown past its 40px.
+        expect(name.scrollHeight).toBeGreaterThan(32);
+        expect(screen.getByTestId("control-section-header").getBoundingClientRect().height).toBeGreaterThan(
+            PANEL_GRID.SECTION_HEADER,
+        );
+        await userEvent.hover(name);
+        await expect(screen.findByRole("tooltip", {}, { timeout: 2000 })).rejects.toThrow();
+    });
+
+    it("draws a short wrapLabel title at the one-line header height", async () => {
+        await renderThemed(
+            <div style={{ width: PANEL_GRID.WIDTH }}>
+                <ControlSection label="Size" wrapLabel>
+                    <div>Rows</div>
+                </ControlSection>
+            </div>,
+        );
+        expect(screen.getByTestId("control-section-header").getBoundingClientRect().height).toBe(
+            PANEL_GRID.SECTION_HEADER,
+        );
     });
 });

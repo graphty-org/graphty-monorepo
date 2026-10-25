@@ -12,6 +12,8 @@ import { Ray, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
+import type { RenderManager } from "../../src/managers/RenderManager";
+import type { UpdateManager } from "../../src/managers/UpdateManager";
 
 const DOT = `digraph {
   a -> b;
@@ -141,6 +143,53 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(graph.getDataManager().nodes.size, 6, "every node the file declares is in the graph");
     });
 
+    it("puts a Cytoscape.js compound the file saved a position for on its members' box", async () => {
+        // cy.json() saves a position for a compound node too; Cytoscape.js draws the compound around its children
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" }, position: { x: 500, y: 500 } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 0 } },
+                    { data: { id: "free" }, position: { x: 300, y: 300 } },
+                ],
+                edges: [{ data: { id: "e1", source: "m1", target: "m2" } }],
+            },
+        });
+        await graph.addDataFromSource("json", { data: saved });
+        await operationQueueOf(graph).waitForCompletion();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const box = layout.groupBox("group");
+        assert.isDefined(box, "the compound follows its members");
+        const m1 = at("m1");
+        const m2 = at("m2");
+        assert.closeTo(box?.center.x ?? Number.NaN, (m1.x + m2.x) / 2, 1e-4, "centred between its members");
+        assert.closeTo(at("group").x, (m1.x + m2.x) / 2, 1e-4, "drawn there, not at its saved position");
+        assert.isUndefined(layout.groupBox("free"), "an ordinary node keeps its saved position");
+    });
+
+    it("draws a group around a group it holds alone, its margin wide on every side, not over it", async () => {
+        const nested = JSON.stringify({
+            elements: [
+                { data: { id: "outer" } },
+                { data: { id: "inner", parent: "outer" } },
+                { data: { id: "m1", parent: "inner" } },
+                { data: { id: "m2", parent: "inner" } },
+                { data: { id: "e1", source: "m1", target: "m2" } },
+            ],
+        });
+        await follows("json", nested, { inner: ["m1", "m2"], outer: ["m1", "m2"] });
+        const layout = graph.getLayoutManager();
+        const inner = layout.groupBox("inner");
+        const outer = layout.groupBox("outer");
+        assert.isDefined(inner);
+        assert.isDefined(outer);
+        const margin = (outer?.half.x ?? 0) - (inner?.half.x ?? 0);
+        assert.isAbove(margin, 0, "the outer group reaches past the inner one");
+        assert.closeTo((outer?.half.y ?? 0) - (inner?.half.y ?? 0), margin, 1e-9, "by the same margin on every side");
+    });
+
     it("draws a group as a thin, faint region behind its members, which hides none of them", async () => {
         await follows("dot", DOT, { clusterC: ["m1", "m2"] });
         const { nodes } = graph.getDataManager();
@@ -174,6 +223,149 @@ describe("a group with no stored position follows its members", () => {
         }
 
         assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
+    });
+
+    it("draws a group the same size in 2D wherever the orthographic camera sits along the view axis", async () => {
+        // An orthographic view has no perspective: a group grown for the camera's distance was drawn larger while the
+        // camera was near (before the view was framed) than after, so its size depended on which frame drew it last
+        // (issue #3107)
+        await graph.setViewMode("2d");
+        await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        const group = graph.getDataManager().nodes.get("clusterC");
+        assert.isDefined(group);
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const width = (z: number): number => {
+            camera.position.z = z;
+            group.update();
+            return group.drawnHalfExtents.x;
+        };
+        const near = width(-10);
+        const far = width(-1000);
+        assert.isAbove(near, 0);
+        assert.closeTo(near, far, 1e-9, "the drawn width does not follow the camera's distance");
+    });
+
+    it("ends an uncapped edge to a group at the group's outline, not under it at its middle", async () => {
+        // Cytoscape.js ends an edge to a compound node on the compound's box; the region is drawn behind the
+        // edge, so a line from its middle would show across it
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 40 } },
+                    { data: { id: "free" }, position: { x: 300, y: 20 } },
+                ],
+                edges: [{ data: { id: "e", source: "group", target: "free" } }],
+            },
+            style: [{ selector: "edge", style: { "target-arrow-shape": "none", "curve-style": "straight" } }],
+        });
+        await graph.addDataFromSource("json", { data: saved });
+        await operationQueueOf(graph).waitForCompletion();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const { nodes, edges } = graph.getDataManager();
+        for (const node of nodes.values()) {
+            node.update();
+        }
+        const group = nodes.get("group");
+        assert.isDefined(group);
+        assert.isTrue(group.isDrawnAsGroup, "the compound is drawn as a region");
+        const edge = [...edges.values()][0];
+        assert.isDefined(edge);
+        edge.invalidatePositionCache();
+        edge.update();
+        const line = edge.drawnLine;
+        assert.isNotNull(line);
+        const from = at("group");
+        const to = at("free");
+        const between = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+        // the shorter half of the region across the view: the line leaves it no nearer its middle than that
+        const half = Math.min(group.drawnHalfExtents.x, group.drawnHalfExtents.y);
+        assert.isAbove(half, 0);
+        // the line runs from the region's right side to the free node: a group's half width shorter
+        assert.isBelow(
+            line?.length ?? Number.POSITIVE_INFINITY,
+            between - 0.9 * half,
+            "the line starts at the outline",
+        );
+        assert.isAbove(line?.length ?? 0, between - 1.6 * half, "and not far inside the gap");
+    });
+
+    // A repaint reaches the meshes after the frame that last placed the groups when the layout has
+    // stopped and nothing is framing: the frames that apply it place no group. A member it grew left
+    // its group's box short of it, and a group it rebuilt was drawn unstretched -- the cytoscape.js
+    // groups specimen drew a third of its groups without their padding, depending on which frame
+    // the paint landed on (issue #3478).
+    it("draws a group over its members' new box when a repaint lands after the layout has stopped", async () => {
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 0 } },
+                ],
+                edges: [],
+            },
+            style: [{ selector: ":parent", style: { "border-width": 2, "border-color": "#505050" } }],
+        });
+        await graph.getSession().data.import({ type: "json", config: { data: saved } }, { styles: "file" });
+        await operationQueueOf(graph).waitForCompletion();
+        // Every frame below is drawn by hand, so the live loop cannot draw one in between.
+        const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
+        try {
+            await graph.setLayout("fixed");
+            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const layout = graph.getLayoutManager();
+            layout.running = false;
+            updates.stepFrames(5);
+            const group = graph.getDataManager().nodes.get("group");
+            assert.isDefined(group);
+            assert.isTrue(group.isDrawnAsGroup);
+
+            await graph.getSession().styles.add({
+                name: "Bigger",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 30 },
+            });
+            await graph.getSession().styles.settled();
+            const painter = graph.getStylePainter();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            assert.isFalse(painter.hasPending, "the repaint was drawn");
+            const drawn = group.drawnHalfExtents.x;
+
+            // Where the group belongs, placed and drawn now from the members as they are drawn.
+            layout.placeGroups();
+            group.update();
+            assert.closeTo(drawn, group.drawnHalfExtents.x, 1e-6, "the group was drawn over its members' box");
+
+            // A later repaint prunes the mesh cache: the group's outline must keep its material.
+            await graph.getSession().styles.add({
+                name: "Red members",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#ff0000" },
+            });
+            await graph.getSession().styles.settled();
+            for (let frame = 0; frame < 10 && painter.hasPending; frame++) {
+                updates.update(16);
+            }
+            const outline = group.mesh.getChildMeshes(true).find((m) => m.name === "node-border" && m.isEnabled());
+            assert.isDefined(
+                outline,
+                `the group is drawn with an outline: ${group.mesh
+                    .getChildMeshes(true)
+                    .map((m) => m.name)
+                    .join(", ")}`,
+            );
+            assert.isOk(outline.material, "the outline is drawn with its material, not stripped by the cache");
+        } finally {
+            release();
+        }
     });
 
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {

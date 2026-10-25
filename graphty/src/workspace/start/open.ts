@@ -1,7 +1,7 @@
 /**
- * How the start screen opens a project: a sample by URL, or a file the reader chose or dropped.
- * Either way the data goes through graphty-element's ordinary import, so the import report and
- * Undo work as for any file, and nothing is run on it.
+ * How the start screen opens a project: a sample, a dataset, a generated graph or a web address
+ * through graphty-element's ordinary import, or a file the reader chose or dropped through its `project.open`, the one intake verb
+ * Recent projects also uses. Nothing is run on what opens.
  */
 
 import {
@@ -13,14 +13,17 @@ import {
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
+import { openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
- * element has come up.
+ * element has come up. Each load starts the project's history (`history: "start"`): opening is
+ * not a change to undo, and Undo pressed while it loads never cancels it.
  * @param workspace - the workspace store.
  * @param name - the project's name.
  * @param load - what to load into the new element.
@@ -43,20 +46,31 @@ function openProject(workspace: WorkspaceStore, name: string, load: (session: Gr
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
     openProject(workspace, sample.name, async (session) => {
-        await session.data.import({ config: { url: sample.url }, name: sample.name }, { styles: fileStylesChoice() });
+        await session.data.import(
+            { config: { url: sample.url }, name: sample.name },
+            { styles: fileStylesChoice(), history: "start" },
+        );
         noticeFileStyles(workspace, session);
     });
 }
 
 /**
- * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
- * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
- * Storybook (its staticDirs), which never reads the network.
+ * This machine's copy, on the dev server and in the tests (vite.sample-data.ts) and in a built
+ * Storybook (its staticDirs), which never read the network.
  */
-const DATASET_BASE =
+const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+
+/**
+ * Where the datasets are read from: this machine's copy where there is one, else the site's own
+ * (its site.json's `datasets`), else graph-samples' default.
+ * @returns the address, or undefined for graph-samples' default.
+ */
+function datasetBase(): string | undefined {
+    return LOCAL_DATASETS ?? siteConfig().datasets;
+}
 
 /**
  * The address of the picture graph-samples publishes of a dataset or a generator, beside the
@@ -68,7 +82,7 @@ const DATASET_BASE =
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
     return entry.thumbnail === undefined
         ? undefined
-        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+        : new URL(entry.thumbnail, datasetBase() ?? DEFAULT_DATASET_BASE_URL).href;
 }
 
 /**
@@ -78,8 +92,12 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+    const baseUrl = datasetBase();
     openProject(workspace, dataset.title, (session) =>
-        session.data.loadDataset(dataset.name, DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE }),
+        session.data.loadDataset(dataset.name, {
+            history: "start",
+            ...(baseUrl === undefined ? {} : { baseUrl }),
+        }),
     );
 }
 
@@ -94,7 +112,9 @@ export function openGenerated(
     generator: GeneratorDescriptor,
     params: GeneratorParams,
 ): void {
-    openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
+    openProject(workspace, generator.plainName, (session) =>
+        session.data.generate(generator.name, params, { history: "start" }),
+    );
 }
 
 /**
@@ -106,42 +126,14 @@ export function openGenerated(
 export function openUrl(workspace: WorkspaceStore, url: string): void {
     const file = new URL(url).pathname.split("/").pop() ?? "";
     const name = decodeURIComponent(file).replace(/\.[^.]*$/, "") || new URL(url).hostname;
-    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }));
-}
-
-/**
- * Opens a file: from the start screen as a new project named after the file; inside a project it
- * is added to that project (tier1-design.md section 2.1, the File list's intake).
- * @param ctx - the command context.
- * @param ctx.workspace - the workspace store.
- * @param ctx.session - the open project's session, or null.
- * @param file - the file.
- */
-export function openFile({ workspace, session }: CommandContext, file: File): void {
-    const source = { config: { file }, name: file.name };
-    if (workspace.get().project !== null && session !== null) {
-        session.data.import(source, { mode: "merge", styles: fileStylesChoice() }).then(
-            () => {
-                noticeFileStyles(workspace, session);
-            },
-            (error: unknown) => {
-                const reason = error instanceof Error ? error.message : String(error);
-                workspace.set({ notice: { message: `${file.name} could not be added. ${reason}` } });
-            },
-        );
-        return;
-    }
-    openProject(workspace, file.name.replace(/\.[^.]*$/, "") || file.name, async (next) => {
-        await next.data.import(source, { styles: fileStylesChoice() });
-        noticeFileStyles(workspace, next);
-    });
+    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }, { history: "start" }));
 }
 
 /**
  * Asks the browser for one file.
  * @returns the file, or undefined when the reader cancels.
  */
-function pickFile(): Promise<File | undefined> {
+export function pickFile(): Promise<File | undefined> {
     return new Promise((resolve) => {
         const input = document.createElement("input");
         input.type = "file";
@@ -156,12 +148,13 @@ function pickFile(): Promise<File | undefined> {
 }
 
 /**
- * Open project or file...: the browser's file picker, then the file opens.
+ * Open project or file...: the browser's file picker, then the file opens through
+ * graphty-element's `project.open` (see `openProjectFile`).
  * @param ctx - the command context.
  */
 export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
     const file = await pickFile();
     if (file !== undefined) {
-        openFile(ctx, file);
+        await openProjectFile(ctx, file);
     }
 }

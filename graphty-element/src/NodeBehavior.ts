@@ -19,6 +19,7 @@ import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
+import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
@@ -27,7 +28,7 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * The mesh a click at a canvas point lands on, as the reader sees the picture.
  *
  * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
- * on top (rendering group 1, `onTop`) covers every node, even one nearer the camera, so the nearest
+ * on top (`ON_TOP_RENDERING_GROUP`, `onTop`) covers every node, even one nearer the camera, so the nearest
  * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
  * on top that is hit wins; otherwise the nearest hit does.
  * @param scene - The scene to pick in.
@@ -36,12 +37,124 @@ import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/p
  * @returns The mesh, or null when the point lands on nothing.
  */
 export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
+    const ray = scene.createPickingRay(x, y, null, null);
+    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
     const onTop = scene.pick(
         x,
         y,
-        (mesh) => mesh.renderingGroupId > 0 && mesh.isPickable && mesh.isVisible && mesh.isEnabled(),
+        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
     );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y).pickedMesh;
+    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
+}
+
+/**
+ * A pick predicate that admits a mesh only when `admit` does AND the world-space ray can reach
+ * its world bounding sphere.
+ *
+ * Babylon's pick builds a ray in each admitted mesh's own space -- a world x view x projection
+ * multiply, an invert and two unprojects -- before it tests the mesh, and every node is a mesh of
+ * its own, so a pick with no such filter cost one unproject per node (issue #3244). Testing the one
+ * world ray against the sphere Babylon keeps in world space costs a few multiplies, and Babylon's
+ * own test is against that same sphere in the mesh's space, so a mesh this rejects is one Babylon
+ * would have rejected: the line test below drops Babylon's "behind the ray's origin" check and pads
+ * the radius, so it only ever admits more. What is picked is unchanged.
+ *
+ * ponytail: Babylon's pick still walks every mesh in `scene.meshes` and calls this for each, about
+ * 15-20 ms a pick at 100,000 nodes; a GPU id buffer or a spatial index over node positions is the
+ * upgrade if that matters.
+ * @param scene - The scene being picked.
+ * @param ray - The pick's ray in world space.
+ * @param admit - Which meshes may be picked at all.
+ * @returns The predicate.
+ */
+export function alongRay(
+    scene: Scene,
+    ray: Ray,
+    admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
+): (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean {
+    // With several active cameras Babylon recomputes a camera-dependent mesh's world matrix for the
+    // pointer's camera, so the sphere read here could be the other camera's: filter nothing then.
+    const cameraDependent =
+        (scene.activeCameras?.length ?? 0) > 1 && scene.cameraToUseForPointers !== scene.activeCamera;
+    const { origin, direction } = ray;
+    const usable = !cameraDependent && direction.lengthSquared() > 0;
+    return (mesh, thinInstanceIndex = -1) => {
+        if (thinInstanceIndex >= 0) {
+            return admit(mesh, thinInstanceIndex);
+        }
+
+        if (!admit(mesh, thinInstanceIndex)) {
+            return false;
+        }
+
+        if (!usable || mesh.hasThinInstances) {
+            return true;
+        }
+
+        mesh.computeWorldMatrix();
+        const { centerWorld, radiusWorld } = mesh.getBoundingInfo().boundingSphere;
+        const dx = centerWorld.x - origin.x;
+        const dy = centerWorld.y - origin.y;
+        const dz = centerWorld.z - origin.z;
+        const along = dx * direction.x + dy * direction.y + dz * direction.z;
+        // Babylon widens the test by a line mesh's own threshold; no other mesh has one.
+        const threshold =
+            "intersectionThreshold" in mesh && typeof mesh.intersectionThreshold === "number"
+                ? mesh.intersectionThreshold
+                : 0;
+        const radius = radiusWorld * (1 + 1e-5) + threshold;
+        return dx * dx + dy * dy + dz * dz - along * along <= radius * radius;
+    };
+}
+
+/** Babylon's own pointer picks, each made with the predicate the scene holds under this name. */
+const POINTER_PICK_PREDICATES = ["pointerMovePredicate", "pointerDownPredicate", "pointerUpPredicate"] as const;
+
+/** A pick predicate as Babylon calls it: the mesh, and a thin instance's index or -1. */
+type PickPredicate = (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean;
+
+/**
+ * Put {@link alongRay} in front of the predicates Babylon picks with on a pointer move, press and
+ * release.
+ *
+ * Babylon picks the scene itself on every pointer move -- for the cursor and the action manager's
+ * triggers, which every node mesh carries -- with `scene.pointerMovePredicate`, so a move cost one
+ * unproject per node there too, besides the element's own picks. Babylon sets its default
+ * predicates on the first event, and a consumer may set its own at any time, so each property is
+ * replaced on this scene by one that wraps whatever is stored in it. A pick tests
+ * `scene.meshes[0]` first, so the wrapper builds the pick's world ray there, from the pointer and
+ * camera Babylon's own pointer picks use.
+ * @param scene - The scene.
+ */
+function filterPointerPicks(scene: Scene): void {
+    for (const key of POINTER_PICK_PREDICATES) {
+        const wrap = (base: PickPredicate | null | undefined): PickPredicate | null | undefined => {
+            if (!base) {
+                return base;
+            }
+
+            const ray = Ray.Zero();
+            let test = base;
+            return (mesh, thinInstanceIndex = -1) => {
+                if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
+                    const pointer = scene.unTranslatedPointer;
+                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
+                    test = alongRay(scene, ray, base);
+                }
+
+                return test(mesh, thinInstanceIndex);
+            };
+        };
+        let held = wrap(scene[key]);
+        Object.defineProperty(scene, key, {
+            configurable: true,
+            enumerable: true,
+            get: () => held,
+            set: (base: PickPredicate | null | undefined) => {
+                held = wrap(base);
+            },
+        });
+    }
 }
 
 /**
@@ -216,6 +329,7 @@ export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
         });
+        filterPointerPicks(scene);
         nodePointerRosters.set(scene, created);
         roster = created;
     }
@@ -516,6 +630,9 @@ export class NodeDragHandler {
 
         // Update mesh position (triggers edge updates automatically)
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -609,6 +726,9 @@ export class NodeDragHandler {
 
         // Update mesh position
         this.node.setMeshPosition(newPosition.x, newPosition.y, newPosition.z);
+        // Bring the selection halo along now: the update loop visits nodes only while a layout runs,
+        // so over a settled layout the halo stayed where the drag began until the drop.
+        this.node.update();
         this.dragState.moved = true;
         if (this.gesture !== null) {
             this.gesture.moved = true;
@@ -858,14 +978,39 @@ export class NodeDragHandler {
                     data: this.node.data,
                 });
             }
+
+            // The scene hears the pointer only while it is over the canvas, so leaving the
+            // canvas -- for a panel, a menu, another window -- is heard here or never.
+            this.pointerArea()?.addEventListener("pointerleave", this.endHover);
         } else if (!isOverThisNode && this.isHovered) {
-            // Reset hover state when leaving
-            this.isHovered = false;
-            this.roster.hovered.delete(this);
-            this.node.hideTooltip();
-            this.getContext().getSelectionManager?.()?.leave(this.node.id);
+            this.endHover();
         }
     }
+
+    /**
+     * The element the scene takes pointer events from.
+     * @returns The canvas, or null when the engine has none (a headless engine).
+     */
+    private pointerArea(): HTMLElement | null {
+        const engine = this.scene.getEngine();
+        return engine.getInputElement() ?? engine.getRenderingCanvas();
+    }
+
+    /**
+     * The pointer left this node, or the canvas: the tooltip goes and the node is no longer
+     * hovered, so the next arrival on it starts a hover again.
+     */
+    private readonly endHover = (): void => {
+        this.pointerArea()?.removeEventListener("pointerleave", this.endHover);
+        this.roster.hovered.delete(this);
+        if (!this.isHovered) {
+            return;
+        }
+
+        this.isHovered = false;
+        this.node.hideTooltip();
+        this.getContext().getSelectionManager?.()?.leave(this.node.id);
+    };
 
     /**
      * Whether the pointer placed the node, which is what `pinOnDrag` pins for.
@@ -898,13 +1043,19 @@ export class NodeDragHandler {
      * out) and emit node-click event.
      */
     private handleClick(): void {
-        // Get the selection manager from the graph context
         const context = this.getContext();
+        // Shift adds the node to the selection, as Shift on an edge does (Graph.ts); a plain click
+        // replaces it. XR's select() has no pointer event, so it always replaces.
         const selectionManager = context.getSelectionManager?.();
-        if (selectionManager && this.clickState?.pointerEvent?.shiftKey === true) {
-            selectionManager.toggle(this.node);
-        } else if (selectionManager) {
-            selectionManager.select(this.node);
+        // A right-click is a request for a menu about the selection, so on a node already in it
+        // the selection stays whole; on any other node it selects that node, as a click does.
+        const secondary = this.clickState?.pointerEvent?.button === 2;
+        if (selectionManager && !(secondary && selectionManager.isSelected(this.node))) {
+            if (this.clickState?.pointerEvent?.shiftKey === true && !secondary) {
+                selectionManager.toggle(this.node);
+            } else {
+                selectionManager.select(this.node);
+            }
         }
 
         // A click does NOT pin. `pinOnDrag` means what it says: a node is fixed because the user
@@ -998,7 +1149,9 @@ export class NodeDragHandler {
         }
 
         this.roster.engaged.delete(this);
-        this.roster.hovered.delete(this);
+
+        // A node removed under the pointer is no longer hovered.
+        this.endHover();
     }
 }
 
@@ -1019,9 +1172,11 @@ export class NodeBehavior {
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
-        // Create unified drag handler (replaces SixDofDragBehavior)
-        const dragHandler = new NodeDragHandler(node);
-        node.dragHandler = dragHandler;
+        // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
+        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
+        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
+        // telling the selection, so a Hovered layer kept painting a node the pointer had left.
+        node.dragHandler ??= new NodeDragHandler(node);
 
         this.addClickBehavior(node);
     }

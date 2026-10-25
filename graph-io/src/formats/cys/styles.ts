@@ -13,15 +13,26 @@ import { STYLE_ISSUE } from "../../styles/codes.js";
 import {
     type CytoscapeMapping,
     type CytoscapeStyle,
+    dropMismatchedKeys,
     emptyCytoscapeStyle,
+    sharedColumnFallback,
     typedKey,
+    weightColumnFallback,
 } from "../../styles/cytoscape/mappings.js";
-import { cytoscapeBackground, type CytoscapeElements, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
+import { type CytoscapeElements, edgeEnds, resolveCytoscape } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { dataCell } from "../../styles/plan/resolve.js";
 import type { ImporterStyles, ReaderOutput, StyleReadContext, StyleTarget } from "../../styles/types.js";
-import { exactFromBlock, graphicsBypasses, hiddenToVisible, nonEmpty, readXgmmlStyles } from "../xgmml/styles.js";
+import {
+    exactFromBlock,
+    graphicsBypasses,
+    graphStyleOf,
+    hiddenToVisible,
+    hideWhatCytoscapeHides,
+    nonEmpty,
+    readXgmmlStyles,
+} from "../xgmml/styles.js";
 import { HIDDEN_COLUMN } from "./constants.js";
 import type { XmlNode } from "./session.js";
 
@@ -40,6 +51,8 @@ export interface SessionStyleSource {
     readonly visualStyle: string | null;
     /** The network the import read: its index among the session's networks, and its name. */
     readonly network: { readonly index: number; readonly name: string | null };
+    /** The edge attribute the import read as the weight (its `weightFrom`), or null. */
+    readonly weightFrom?: string | null;
 }
 
 /**
@@ -58,9 +71,11 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     for (const target of ["node", "edge"] as const) {
         context.signal?.throwIfAborted();
-        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget });
+        if (target === "edge") {
+            weightColumnFallback(style.edge, kept?.weightFrom ?? null, snapshot.edges);
+        }
+        out[target] = sessionTargetStyles(snapshot, target, style, { notes, budget: context.budget }, out.node.values);
     }
-    const background = cytoscapeBackground(style, notes);
     return {
         canonical: true,
         dialect: "cytoscape",
@@ -68,7 +83,8 @@ export function readSessionStyles(snapshot: GraphSnapshot, context: StyleReadCon
         units: "px",
         node: out.node,
         edge: out.edge,
-        graph: background === null ? {} : { background },
+        // the view's own background (a bypass) over the style's
+        graph: graphStyleOf(snapshot, notes, style),
         notes: notes.list(),
     };
 }
@@ -98,6 +114,7 @@ function sessionStyle(kept: SessionStyleSource | undefined, notes: StyleNotes): 
  * @param work - where problems are noted, and the work budget
  * @param work.notes - where problems are noted
  * @param work.budget - the work budget
+ * @param nodes - the nodes' values, when reading the edges
  * @returns the reader output for the target
  */
 function sessionTargetStyles(
@@ -105,10 +122,13 @@ function sessionTargetStyles(
     target: StyleTarget,
     style: CytoscapeStyle,
     work: { readonly notes: StyleNotes; readonly budget: StyleReadContext["budget"] },
+    nodes: ReaderOutput["values"],
 ): ReaderOutput {
     const { notes } = work;
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+    sharedColumnFallback(style[target], (column) => table.has(column));
+    dropMismatchedKeys(style[target], (column) => table.get(column)?.meta.origin?.type ?? null, notes, target);
     for (const m of style[target].mappings.values()) {
         if (!table.has(m.column)) {
             notes.add(STYLE_ISSUE.MAPPING_COLUMN_MISSING, target, m.column, { sample: m.kind });
@@ -118,9 +138,11 @@ function sessionTargetStyles(
         count: n,
         value: (column, i) => (table.has(column) ? dataCell(table, column, i) : null),
         bypasses: graphicsBypasses(table, target, n, notes),
+        ...(target === "edge" ? { ends: edgeEnds(snapshot, nodes) } : {}),
     };
     const values = resolveCytoscape(target, style, elements, work);
     hiddenToVisible(table, HIDDEN_COLUMN, n, values);
+    hideWhatCytoscapeHides(snapshot, target, nodes, values);
     // a session graphty wrote: a value its style writes as the nearest Cytoscape value is the block's
     exactFromBlock(snapshot, target, values);
     const { rules, columns } = cytoscapeRules(target, style, elements, work);

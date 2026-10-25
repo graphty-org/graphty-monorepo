@@ -47,6 +47,9 @@
 
 export type { RegisterOptions } from "./src/catalog/pluginRegistry";
 
+// The experiments every element and session on the page switches on unless it names its own.
+export { setDefaultFeatures } from "./src/features/resolve";
+
 // ---------------------------------------------------------------------------------------------
 // Options: one mechanism for all six points
 // ---------------------------------------------------------------------------------------------
@@ -110,7 +113,7 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
-export type { FormatDescriptor, FormatId } from "./src/catalog/types";
+export type { FormatDescriptor, FormatExportVariant, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
 export type {
@@ -185,6 +188,7 @@ export type {
     DrawingMode,
     GraphBounds,
     Vec3,
+    ViewInsets,
 } from "./src/camera/types";
 export {
     clearRegisteredCamerasForTesting,
@@ -229,7 +233,7 @@ export type { RegisteredLayout } from "./src/catalog/layoutRegistry";
 export { clearRegisteredLayoutsForTesting, registeredLayoutDescriptors } from "./src/catalog/layoutRegistry";
 export type { AuthoredLayoutDescriptor, LayoutDescriptor, LayoutId } from "./src/catalog/types";
 export { KNOWN_LAYOUT_IDS } from "./src/catalog/types";
-export type { Edge } from "./src/Edge";
+export type { Edge, EdgeCapEnd } from "./src/Edge";
 export type {
     EdgePosition,
     LayoutEngineStatics,
@@ -310,7 +314,7 @@ export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
 export type { CaveatCode, PartialCode } from "./src/session/runs/caveatFacts";
-export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning, WeightSkip } from "./src/session/runs/types";
 
 /*
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format

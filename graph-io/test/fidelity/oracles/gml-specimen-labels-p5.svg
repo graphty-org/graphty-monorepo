@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g />
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="110" y="426" width="20" height="20" fill="#FFFFFF" stroke-width="1.000000px" stroke="#000000" />
+		<text x="120" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="76.5" y="469.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="120" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">(nothing set)</text>
+	</g>
+	<g>
+		<ellipse cx="280" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="280" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Abc</text>
+	</g>
+	<g>
+		<rect x="249" y="469.5" width="62" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="280" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label=Abc</text>
+	</g>
+	<g>
+		<ellipse cx="440" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="440" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">a much longer label than its node</text>
+	</g>
+	<g>
+		<rect x="406" y="469.5" width="68" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="440" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label=long</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="412" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Abc</text>
+	</g>
+	<g>
+		<rect x="550.5" y="469.5" width="99" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label x=0 y=-24</text>
+	</g>
+	<g>
+		<ellipse cx="760" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="790" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Abc</text>
+	</g>
+	<g>
+		<rect x="713.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="760" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label x=30 y=0</text>
+	</g>
+	<g>
+		<ellipse cx="920" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="920" y="460" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Abc</text>
+	</g>
+	<g>
+		<rect x="873.5" y="469.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="920" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label x=0 y=24</text>
+	</g>
+	<g>
+		<ellipse cx="1080" cy="436" rx="18" ry="18" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1050" y="436" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Abc</text>
+	</g>
+	<g>
+		<rect x="1030.5" y="469.5" width="99" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1080" y="476" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label x=-30 y=0</text>
+	</g>
+</svg>

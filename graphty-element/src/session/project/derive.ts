@@ -34,6 +34,7 @@ const HOOK_ORDER: readonly DerivedSlice[] = [
     "arrangement",
     "config",
     "attributes",
+    "valueLabels",
     "runs",
     // After runs, which a set may read; before styles and visibility, which read sets.
     "sets",
@@ -63,7 +64,7 @@ interface Pass {
 }
 
 /** The keyed slices: the maps and the set a pass copies key by key. */
-type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes";
+type KeyedSlice = "pins" | "config" | "runs" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 /** A copy of every keyed slice, owned by the lane and written by nothing else. */
 type Copies = { [S in KeyedSlice]: Map<unknown, unknown> | Set<unknown> };
@@ -82,6 +83,7 @@ function copyAll(state: ProjectState): Copies {
         views: new Map(state.views),
         notes: new Map(state.notes),
         attributes: new Map(state.attributes),
+        valueLabels: new Map(state.valueLabels),
     };
 }
 
@@ -331,6 +333,15 @@ export class DerivationLane {
      */
     settled(): Promise<void> {
         return (this.next ?? this.current)?.promise ?? Promise.resolve();
+    }
+
+    /**
+     * Whether a pass is running or waiting to run: {@link DerivationLane.settled} asked without
+     * waiting, for a renderer that has to decide inside a frame.
+     * @returns True until the picture has caught up with every change made so far.
+     */
+    get deriving(): boolean {
+        return this.current !== null || this.next !== null;
     }
 
     /**

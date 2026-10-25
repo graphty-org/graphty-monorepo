@@ -13,7 +13,16 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
+import {
+    type EdgeId,
+    type FieldDescriptor,
+    type NodeId,
+    PROJECT_FILE,
+    type ResultShape,
+    type RunId,
+    type SetDefinitionInput,
+} from "../catalog/types";
+import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { projectBoundary } from "./project/boundary";
@@ -33,10 +42,12 @@ import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
+    LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
     TransactionScope,
 } from "./types";
+import { valueLabelOf } from "./valueLabels";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -157,6 +168,12 @@ export interface ProjectOpenOptions {
     readonly discard?: boolean;
     /** The file's name, for the project's name when the file holds none. A `File`'s own name is used otherwise. */
     readonly fileName?: string;
+    /**
+     * For a document that is not a project: `"step"` (the default) adds its contents as one
+     * undoable step; `"start"` makes the session after it where the history starts, as
+     * `ImportOptions.history` does for a load. A project always starts the history.
+     */
+    readonly history?: "step" | "start";
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -422,7 +439,66 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         selectionStyle,
         layoutBehavior,
     });
-    return JSON.parse(text) as ProjectConfigPatch;
+    const config = JSON.parse(text) as Record<string, unknown>;
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && JSON.stringify(parent[leaf]) === JSON.stringify(fallback)) {
+            Reflect.deleteProperty(parent, leaf);
+        }
+    }
+
+    return config;
+}
+
+/**
+ * The settings added after the first project files, with their defaults. Each is written only when
+ * it is not its default, so a project that does not use it saves as before and an older
+ * graphty-element, which refuses every setting of a file when one is unknown to it, still opens it
+ * (test/lifecycle/production-compat.test.ts opens the candidate's file with production's build).
+ * One left out reads back as its default.
+ * A new setting goes here.
+ */
+const ADDED_SETTINGS: readonly (readonly [group: readonly string[], leaf: string, fallback: unknown])[] = [
+    [["data", "knownFields"], "edgeWeightMeaning", null],
+    [["selectionStyle"], "edgeColor", DEFAULT_SELECTION_STYLE.edgeColor],
+    [["selectionStyle"], "edgeScale", DEFAULT_SELECTION_STYLE.edgeScale],
+    [["selectionStyle"], "edgeOpacity", DEFAULT_SELECTION_STYLE.edgeOpacity],
+];
+
+/**
+ * The object holding a setting.
+ * @param config - The settings.
+ * @param group - The path to the object holding the setting.
+ * @returns The object, or undefined when one on the way is missing.
+ */
+function parentOf(config: Record<string, unknown>, group: readonly string[]): Record<string, unknown> | undefined {
+    let at = config;
+    for (const key of group) {
+        if (!isObject(at[key])) {
+            return undefined;
+        }
+        at = at[key];
+    }
+
+    return at;
+}
+
+/**
+ * A file's settings with every added setting it leaves out set to its default, where the file
+ * holds the setting's group (a file without `selectionStyle` leaves the session's as it was).
+ * @param saved - The settings as the file holds them.
+ * @returns A copy with the defaults filled in.
+ */
+function withAddedDefaults(saved: unknown): Record<string, unknown> {
+    const config = isObject(saved) ? structuredClone(saved) : {};
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && !(leaf in parent)) {
+            parent[leaf] = fallback;
+        }
+    }
+
+    return config;
 }
 
 /**
@@ -501,6 +577,7 @@ export function dataMember(session: GraphSession): Record<string, unknown> {
     const edges = session.data.edges();
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
+    const sources = session.data.sources();
     return {
         kind: "graphty-data",
         version: VERSION,
@@ -514,6 +591,7 @@ export function dataMember(session: GraphSession): Record<string, unknown> {
             links: edges.map(({ id: _id, ...edge }) => edge),
         },
         ...(source === null ? {} : { source }),
+        ...(sources.length === 0 ? {} : { sources }),
     };
 }
 
@@ -553,9 +631,24 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         version: VERSION,
         config: configOf(session),
         layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
-        visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
+        visibility: {
+            filter: visibility.filter,
+            window: visibility.window,
+            showContext: visibility.showContext,
+            // Written only when there are steps, so a project without them saves as before.
+            ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+        },
         sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
         views: [...session.views].map(([name, camera]) => ({ name, camera })),
+        // Written only when a value is named, so a project without names saves as before.
+        ...(dispatcher.state.valueLabels.size === 0
+            ? {}
+            : {
+                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
+                      ...valueLabelOf(key),
+                      label,
+                  })),
+              }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
@@ -609,7 +702,7 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
     }
 
     const { result } = entry;
-    const { op: _op, as: _as, applySuggestedStyles: _style, ...command } = entry.command;
+    const { op: _op, as: _as, applySuggestedStyles: _style, restoreLayer: _restore, ...command } = entry.command;
     const nodeColumn: NodeId[] = [];
     const nodeValues: Readonly<Record<string, unknown>>[] = [];
     for (const node of ids.nodes) {
@@ -902,6 +995,20 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
 }
 
 /**
+ * What kind of graphty document a text is, as `open` would read it.
+ * @param text - The file's text.
+ * @returns `"project"` for a saved project, `"document"` for another graphty document, or null
+ *     when the text is not a graphty document (a data file, or nothing `open` reads).
+ */
+export function documentKind(text: string): "project" | "document" | null {
+    try {
+        return readDocument(text).members.has("graphty-session") ? "project" : "document";
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Parse a file and sort its members.
  * @param text - The file's text.
  * @returns The document.
@@ -1050,10 +1157,9 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         tx.notes.remove(note.id);
     }
 
-    for (const layer of tx.styles.list()) {
-        if (!layer.locked) {
-            await tx.styles.remove(layer.id);
-        }
+    // Every row of the style tree, folders with their layers; the element's own layers stay.
+    for (const row of tx.styles.tree()) {
+        await tx.styles.deleteRow(row.id);
     }
 
     for (const set of tx.sets.list()) {
@@ -1076,6 +1182,10 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setWindow(null);
     }
 
+    if (tx.visibility.steps.length > 0) {
+        await tx.visibility.setSteps([]);
+    }
+
     await tx.data.clear();
 }
 
@@ -1084,9 +1194,15 @@ async function clearInto(tx: TransactionScope): Promise<void> {
  * @param tx - The transaction.
  * @param graph - The graph.
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
+ * @param sources - The member's `sources`: every load the graph held, when the file says.
  * @returns The edge ids this session gave the file's edges, by position.
  */
-async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown): Promise<(EdgeId | undefined)[]> {
+async function importInto(
+    tx: TransactionScope,
+    graph: NodeLink,
+    source: unknown,
+    sources: unknown,
+): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
@@ -1100,13 +1216,53 @@ async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown
         },
     });
     if (isObject(source)) {
-        await tx.execute({ op: "data.setSource", source });
+        // A list with an entry not shaped like a load is left out whole, as an older file has none.
+        const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
+        await tx.execute({ op: "data.setSource", source, ...(loads === undefined ? {} : { sources: loads }) });
     }
 
     return tx.data
         .edges()
         .slice(before)
         .map((edge) => edge.id);
+}
+
+/**
+ * Whether a saved value is shaped like one entry of `data.sources()`.
+ * @param value - The saved value.
+ * @returns True when it is.
+ */
+function isLoadedSource(value: unknown): value is LoadedSource {
+    if (!isObject(value) || !Array.isArray(value.tables) || !isObject(value.added)) {
+        return false;
+    }
+
+    const { leftOut, tableRows } = value;
+    return (
+        (tableRows === undefined ||
+            (Array.isArray(tableRows) && tableRows.every((rows) => rows === "nodes" || rows === "edges"))) &&
+        typeof value.added.nodes === "number" &&
+        typeof value.added.edges === "number" &&
+        (leftOut === undefined ||
+            (isObject(leftOut) &&
+                typeof leftOut.rows === "number" &&
+                typeof leftOut.values === "number" &&
+                (leftOut.endColumns === undefined ||
+                    (isObject(leftOut.endColumns) &&
+                        typeof leftOut.endColumns.source === "string" &&
+                        typeof leftOut.endColumns.target === "string")) &&
+                (leftOut.edges === undefined ||
+                    (Array.isArray(leftOut.edges) &&
+                        leftOut.edges.every(
+                            (edge) =>
+                                isObject(edge) &&
+                                isObject(edge.values) &&
+                                (edge.line === undefined || typeof edge.line === "number") &&
+                                (edge.missingEnds === undefined ||
+                                    (Array.isArray(edge.missingEnds) &&
+                                        edge.missingEnds.every((end) => end === "source" || end === "target"))),
+                        )))))
+    );
 }
 
 /** What one open is doing. */
@@ -1193,14 +1349,14 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
-    const source = doc.members.get("graphty-data")?.[0]?.source;
+    const { source, sources } = doc.members.get("graphty-data")?.[0] ?? {};
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
-    const edgeIds = await importInto(tx, graph, source);
+    await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
+    const edgeIds = await importInto(tx, graph, source, sources);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
     await readDeclarations(opening, state.declarations);
@@ -1291,31 +1447,27 @@ async function readProject(
 
                 // A file written before caveats carried facts has none to read back.
                 const caveats: Caveats = { facts: [], ...run.caveats };
-
-                canned.set(run.id, {
-                    result: createRunResult({
-                        runId: run.id,
-                        shape: run.shape,
-                        fields: run.fields,
-                        measured: run.measured,
-                        graph: run.graph,
-                        nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) =>
-                            nodeIds.has(node) ? node : undefined,
-                        ),
-                        // Edges are keyed by position in the data; data that differs leaves them out.
-                        edges: sameData
-                            ? rowsOf(
-                                  edgeIds.map((_, at) => at),
-                                  run.edges.columns,
-                                  (at) => edgeIds[at],
-                              )
-                            : [],
-                        caveats,
-                        durationMs: run.durationMs,
-                    }),
-                    caveats,
+                const result = createRunResult({
+                    runId: run.id,
+                    shape: run.shape,
                     fields: run.fields,
+                    measured: run.measured,
+                    graph: run.graph,
+                    nodes: rowsOf(run.nodes.ids, run.nodes.columns, (node) => (nodeIds.has(node) ? node : undefined)),
+                    // Edges are keyed by position in the data; data that differs leaves them out.
+                    edges: sameData
+                        ? rowsOf(
+                              edgeIds.map((_, at) => at),
+                              run.edges.columns,
+                              (at) => edgeIds[at],
+                          )
+                        : [],
+                    caveats,
+                    durationMs: run.durationMs,
                 });
+                // The summary too, as a fresh execution hands it over: the run's record (its count,
+                // its groups) is read from it.
+                canned.set(run.id, { result, summary: result.summary(), caveats, fields: run.fields });
                 const { algorithm, params, scope, seed, sample, exact } = remap(run);
                 try {
                     await tx.runs.start(algorithm, params, {
@@ -1357,11 +1509,24 @@ async function readProject(
                 await tx.visibility.setWindow(visibility.window as never);
             }
 
+            if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
+                await tx.visibility.setSteps(
+                    // A malformed step is passed on as it is, for setSteps to refuse with its reason.
+                    (visibility.steps as ({ rule?: unknown } | null)[]).map((step) =>
+                        typeof step === "object" && step !== null ? { ...step, rule: remap(step.rule) } : step,
+                    ) as never,
+                );
+            }
+
             tx.visibility.showContext = visibility.showContext === true;
         });
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
+
+    for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
+        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
+    }
 
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
@@ -1513,23 +1678,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-/**
- * How a project file is named and typed: what `element.downloadProject()` gives the file, and
- * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
- * @example
- * ```typescript
- * const handle = await showSaveFilePicker({
- *     suggestedName: projectFileName(session.project.name),
- *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
- * });
- * ```
- */
-export const PROJECT_FILE = Object.freeze({
-    /** The file name's ending, with its leading dot. */
-    extension: ".graphty.json",
-    /** The file's media type. */
-    mediaType: "application/vnd.graphty+json",
-} as const);
+export { PROJECT_FILE } from "../catalog/types";
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
@@ -1721,7 +1870,13 @@ export function projectOf(
 
         const graph = nodeLinkOf(data);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-        const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        // A project opens with a fresh history: its opened state is the baseline, and the steps
+        // before it go when it is in. Undo pressed while it opens never cancels it, and work the
+        // reader starts meanwhile stays theirs to undo.
+        const opening: TransactionOptions = {
+            fact: { code: "project.open", params: { name: name ?? null } },
+            starts: true,
+        };
         projectBoundary(session, "open");
         await session.transaction(
             "Open project",
@@ -1737,10 +1892,9 @@ export function projectOf(
                 params: { kind: SOURCE_RECORD_MEMBER },
             });
         }
-        // A project opens with a fresh history: its opened state is the baseline.
-        session.history.clear();
         fresh = false;
-        adopt(pointNow());
+        // Saved at the baseline: anything the reader did while it opened is a change.
+        adopt({ ...pointNow(), step: null });
     };
 
     /**
@@ -1749,11 +1903,13 @@ export function projectOf(
      * @param doc - the read document
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param starts - whether it starts the history (`ProjectOpenOptions.history`)
      */
     const openDocument = async (
         doc: ReadDocument,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
         const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
@@ -1763,7 +1919,7 @@ export function projectOf(
             async (tx) => {
                 const opening = { tx, problems, restored };
                 if (graph !== undefined) {
-                    await importInto(tx, graph, data?.source);
+                    await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");
                 }
 
@@ -1780,7 +1936,7 @@ export function projectOf(
 
                 await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
             },
-            OPEN_DOCUMENT,
+            starts ? { ...OPEN_DOCUMENT, starts } : OPEN_DOCUMENT,
         );
     };
 
@@ -1846,7 +2002,7 @@ export function projectOf(
             if (isProject) {
                 await openProject(doc, fileName, options.discard === true, problems, restored);
             } else {
-                await openDocument(doc, problems, restored);
+                await openDocument(doc, problems, restored, options.history === "start");
             }
 
             return Object.freeze({

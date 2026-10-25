@@ -1,10 +1,12 @@
 import {
     Color3,
     Color4,
+    DirectionalLight,
     Engine,
     EngineStore,
     HemisphericLight,
     Logger,
+    Material,
     NullEngine,
     PhotoDome,
     Quaternion,
@@ -15,15 +17,18 @@ import {
     WebGPUEngine,
 } from "@babylonjs/core";
 
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
-import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_BACKGROUND_COLOR, type GraphBackgroundConfig } from "../config/GraphStyle";
+import { DEFAULT_LIGHTING, type Lighting } from "../config/Lighting";
 import { GraphtyLogger } from "../logging";
 import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { batchUploadFrames } from "../meshes/FrameRoster";
+import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -252,9 +257,6 @@ function openWebGL(canvas: HTMLCanvasElement): { engine: Engine; scene: Scene } 
  */
 const GRAPH_ROOT_NAME = "graph-root";
 
-/** What the scene is cleared to when nothing names a colour. Whitesmoke. */
-const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
-
 /** How often a disposed graph checks whether the GPU has finished its last frames. */
 const RELEASE_POLL_MS = 16;
 
@@ -321,6 +323,25 @@ const READER_INPUT_EVENTS = [
 ] as const;
 
 /**
+ * The lights of each {@link Lighting}: the hemispheric fill's intensity and ground color (its sky
+ * is white, toward +x+y), and the key light's intensity and direction in camera space.
+ *
+ * - studio: fill 0.45 and key 0.55 from above-right of the camera, plus the node rim (NodeLighting).
+ *   Measured: no pixel clipped to white, brightest 1.13x the style lightness, median 0.88x, sphere
+ *   lightness spread 0.282.
+ * - headlight: fill 0.4 with a lighter ground, and a 0.45 light from just beside the camera.
+ *   Brightest 0.99x the style lightness, median 0.88x, spread 0.226.
+ * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
+ * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
+ */
+const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+    studio: { fill: 0.45, ground: 0.35, key: 0.55, keyDirection: new Vector3(0.6, -0.6, 1) },
+    headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
+    matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+    flat: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },
+};
+
+/**
  * Manages Babylon.js scene, engine, and render loop
  */
 export class RenderManager implements Manager {
@@ -335,13 +356,16 @@ export class RenderManager implements Manager {
     private frameHolds = 0;
     /** A fence after the last frame drawn, until the GPU has finished it; see {@link gpuBehind}. */
     private lastFrameFence: WebGLSync | null = null;
+    /** Whether {@link drawNow} drew past the fence still unsignalled; see {@link drawNow}. */
+    private drawnAhead = false;
     /** The time of the ticks skipped since the last frame drawn, for the GPU to catch up. */
     private skippedMs = 0;
     /**
      * What the loop's ticks have done since it started, outside a hold: drew a frame, rested on
      * the picture already shown, or waited for the GPU. A count of the loop's chances to draw, for
      * whoever must tell "it drew nothing" from "it had no chance to" -- a test of drawing on
-     * demand, on a machine whose frame rate it does not control.
+     * demand, on a machine whose frame rate it does not control. A frame drawn at once for a
+     * resize (`drawNow`) counts as drawn.
      */
     readonly ticks = { drawn: 0, rested: 0, gpuBehind: 0 };
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
@@ -368,6 +392,12 @@ export class RenderManager implements Manager {
         observers: [] as readonly unknown[],
         contents: [] as unknown[],
     };
+    /** The hemispheric fill light; see {@link applyLighting}. */
+    private readonly hemi: HemisphericLight;
+    /** The key (or head) light, a directional light that turns with the camera. */
+    private readonly key: DirectionalLight;
+    /** The key light's direction in camera space (x right, y up, z forward). */
+    private readonly keyInCameraSpace = new Vector3(0, 0, 1);
     /** Whether the last frame drawn left the camera, size or background other than the one before. */
     private lastFrameMoved = true;
     private readonly owe = (): void => {
@@ -383,6 +413,7 @@ export class RenderManager implements Manager {
      */
     private readonly dropFence = (event: Event): void => {
         this.lastFrameFence = null;
+        this.drawnAhead = false;
         this.drawOwed = true;
         if (event.type === "webglcontextrestored") {
             batchUploadFrames.contextRestored(this.scene);
@@ -398,6 +429,8 @@ export class RenderManager implements Manager {
     private effectsPending = false;
     /** Scratch for {@link RenderManager.sameContents}. */
     private readonly contentsNow: unknown[] = [];
+    /** What the scene held as the frame being drawn began; see {@link readyToDrawChange}. */
+    private readonly contentsAtDraw: unknown[] = [];
     private readonly oweForEvent = (event: { readonly type: string }): void => {
         if (!EVENTS_THAT_DRAW_NOTHING.has(event.type)) {
             this.drawOwed = true;
@@ -410,22 +443,24 @@ export class RenderManager implements Manager {
     /**
      * Stands in for Babylon's own pointer handling, which calls preventDefault and then
      * `canvas.focus()` on every pointer down and up. That focus call scrolls the host page to the
-     * canvas. This one does the same thing without scrolling.
+     * canvas; this one focuses without scrolling. It does not cancel the event: a canceled
+     * pointerdown suppresses the browser's mousedown and mouseup, so a host page's popover or menu
+     * that closes on a mouse press outside it never saw a press on the drawing. The canvas's
+     * `user-select: none` keeps a drag from selecting page text instead.
      *
      * NO FOCUS RING FOR A POINTER. Focus given by script is shown with a ring whenever the browser
      * thinks the reader is on the keyboard -- after a key press, or on a page nothing had focused
      * yet -- so turning the graph with the mouse outlined the whole canvas in blue. Focus that came
-     * from a pointer hides the outline until the canvas loses focus; focus that comes any other way
-     * (Tab, a key, the page's script) keeps the browser's own `:focus-visible` ring.
-     * @param evt - The pointer down or up event on the canvas
+     * from a pointer hides the outline until the canvas loses focus or a key is pressed in it (the
+     * reader is on the keyboard then); focus that comes any other way (Tab, a key, the page's
+     * script) keeps the browser's own `:focus-visible` ring.
      */
-    private readonly focusOnPointer = (evt: PointerEvent): void => {
-        evt.preventDefault();
+    private readonly focusOnPointer = (): void => {
         this.canvas.style.outline = "none";
         this.canvas.focus({ preventScroll: true });
     };
 
-    /** The canvas lost focus: the next focus, from whatever source, shows the browser's ring. */
+    /** The canvas lost focus, or took a key: from now on it shows the browser's ring. */
     private readonly restoreFocusRing = (): void => {
         this.canvas.style.outline = "";
     };
@@ -459,12 +494,16 @@ export class RenderManager implements Manager {
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
         this.canvas.addEventListener("pointerup", this.focusOnPointer);
         this.canvas.addEventListener("blur", this.restoreFocusRing);
+        this.canvas.addEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.addEventListener(type, this.owe, { passive: true });
         }
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.add(this.oweForEvent);
+        // Assigning the canvas's size clears its drawing, even when a resize ends at the size the
+        // last frame was drawn at, so every resize owes a frame.
+        this.engine.onResizeObservable.add(this.owe);
 
         // Create graph-root transform node for XR gestures
         // All graph nodes will be parented to this, allowing gestures to transform the entire graph
@@ -494,9 +533,22 @@ export class RenderManager implements Manager {
         // Setup cameras
         this.setupCameras();
 
-        // Setup lighting with ground color for fill from below
-        const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
-        light.groundColor = new Color3(0.35, 0.35, 0.35);
+        // Two lights at most, neither with any specular, so nothing a light adds is ever white: a
+        // hemispheric fill from above, and a key that keeps its place relative to the camera.
+        this.hemi = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
+        this.hemi.specular = Color3.Black();
+        this.key = new DirectionalLight("key-light", new Vector3(0, 0, 1), this.scene);
+        this.key.specular = Color3.Black();
+        this.scene.onBeforeRenderObservable.add(() => {
+            const camera = this.scene.activeCamera;
+            if (camera) {
+                this.key.direction = Vector3.TransformNormal(
+                    this.keyInCameraSpace,
+                    camera.getWorldMatrix(),
+                ).normalize();
+            }
+        });
+        this.applyLighting(DEFAULT_LIGHTING);
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;
@@ -538,12 +590,14 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
+        this.canvas.removeEventListener("keydown", this.restoreFocusRing);
         for (const type of READER_INPUT_EVENTS) {
             this.canvas.removeEventListener(type, this.owe);
         }
         this.canvas.removeEventListener("webglcontextlost", this.dropFence);
         this.canvas.removeEventListener("webglcontextrestored", this.dropFence);
         this.eventManager.onGraphEvent.removeCallback(this.oweForEvent);
+        this.engine.onResizeObservable.removeCallback(this.owe);
 
         // Dispose camera system
         this.camera.dispose();
@@ -609,25 +663,78 @@ export class RenderManager implements Manager {
                     return;
                 }
 
-                // Cleared BEFORE the frame, so anything the frame itself announces asks for the
-                // next one.
-                this.drawOwed = false;
-                this.scene.render();
-                this.ticks.drawn++;
-                this.fenceFrame();
-                this.noteDrawnFrom();
+                this.drawFrame();
             } catch (error) {
-                const err = error instanceof Error ? error : new Error(String(error));
-                this.eventManager.emitGraphError(null, err, "other", {
-                    component: "RenderManager",
-                    phase: "render-loop",
-                });
-
-                // Don't stop render loop on error, but log it
-                console.error("Error in render loop:", error);
-                reportCaught(error);
+                this.reportFrameError(error);
             }
         });
+    }
+
+    /** Draws one frame, for the loop's tick and for {@link drawNow}. */
+    private drawFrame(): void {
+        // Cleared BEFORE the frame, so anything the frame itself announces asks for the next one.
+        this.drawOwed = false;
+        const drawnReady = this.readyToDrawChange();
+        this.scene.render();
+        this.ticks.drawn++;
+        this.fenceFrame();
+        this.noteDrawnFrom(drawnReady);
+    }
+
+    /**
+     * Reports what a frame threw, without stopping the loop.
+     * @param error - What it threw.
+     */
+    private reportFrameError(error: unknown): void {
+        const err = error instanceof Error ? error : new Error(String(error));
+        this.eventManager.emitGraphError(null, err, "other", {
+            component: "RenderManager",
+            phase: "render-loop",
+        });
+
+        // Don't stop render loop on error, but log it
+        console.error("Error in render loop:", error);
+        reportCaught(error);
+    }
+
+    /**
+     * Draws a frame now, outside the loop, unless the loop is not running or frames are held.
+     *
+     * For the frame a resize is painted in. Assigning the canvas's size clears its drawing, and a
+     * resize found by a ResizeObserver lands after the step's animation frames have run, so
+     * without this the page paints that step with an empty canvas -- and a full-page screenshot,
+     * which resizes the page, captures it (#3373). Drawn while the GPU is still behind, since
+     * waiting for it left the canvas blank, but only once until it catches up: a continuous resize
+     * (a window edge dragged) then queues at most one frame past {@link gpuBehind}'s pacing.
+     *
+     * Wrapped in the engine's frame, as Babylon's own loop wraps every tick: WebGPU submits what a
+     * frame encoded only when the frame ends, and the frame observers fire as for any other frame.
+     * @internal
+     */
+    drawNow(): void {
+        if (!this.renderLoopActive || this.frameHolds > 0 || this.drawHeld?.() === true) {
+            return;
+        }
+
+        if (this.gpuBehind()) {
+            if (this.drawnAhead) {
+                return;
+            }
+
+            this.drawnAhead = true;
+        }
+
+        this.engine.beginFrame();
+        // The time since the last frame, which no update was handed; the loop's next update is.
+        this.skippedMs += this.engine.getDeltaTime();
+        try {
+            this.drawFrame();
+        } catch (error) {
+            this.drawOwed = true;
+            this.reportFrameError(error);
+        } finally {
+            this.engine.endFrame();
+        }
     }
 
     /**
@@ -654,6 +761,7 @@ export class RenderManager implements Manager {
 
         gl.deleteSync(this.lastFrameFence);
         this.lastFrameFence = null;
+        this.drawnAhead = false;
         return false;
     }
 
@@ -665,6 +773,12 @@ export class RenderManager implements Manager {
         const gl = this.engine instanceof Engine ? (this.engine._gl as WebGL2RenderingContext | undefined) : undefined;
         if (typeof gl?.fenceSync !== "function") {
             return;
+        }
+
+        // A frame drawn by drawNow while the GPU was behind replaces a fence still unsignalled; the
+        // newer one signals after it, so the older is no longer needed.
+        if (this.lastFrameFence !== null) {
+            gl.deleteSync(this.lastFrameFence);
         }
 
         this.lastFrameFence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
@@ -855,10 +969,35 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Asked just before a frame is drawn: whether the scene holds something added or removed since
+     * the last frame drawn (or still unconfirmed from before it), and every part of it is ready, so
+     * this frame draws the change whole.
+     *
+     * Such a frame needs no second one to show the change. The check used to wait for the next
+     * tick instead, which then drew the same picture again only to find the scene ready: on a
+     * software GPU a frame of OpenFlights (3,214 nodes, 36,906 edges) costs the page's main thread
+     * 5 to 6 seconds with two cores free, so one opening paid that once more for nothing (#3317).
+     * @returns True when this frame draws a change to the scene's contents whole.
+     */
+    private readyToDrawChange(): boolean {
+        if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
+            return false;
+        }
+
+        this.readSceneContents(this.contentsAtDraw);
+        const changed =
+            this.sceneChanged || !this.contentsAtDraw.every((value, i) => value === this.drawnFrom.contents[i]);
+        // The walk visits every mesh, so it is asked only when the contents changed.
+        return changed && this.scene.isReady();
+    }
+
+    /**
      * Records what the frame just drawn left behind, for {@link RenderManager.sameAsDrawn}, and
      * whether it differed from what the frame before left.
+     * @param drawnReady - Whether the frame began with a change to the scene's contents all ready
+     *     to draw; see {@link readyToDrawChange}.
      */
-    private noteDrawnFrom(): void {
+    private noteDrawnFrom(drawnReady = false): void {
         if (this.pictureIsFinal === null || !this.drawsOnDemand()) {
             // Switched on later, the first frame then is compared with nothing and draws again.
             this.lastFrameMoved = true;
@@ -885,6 +1024,11 @@ export class RenderManager implements Manager {
         // Something added while frames were being drawn may not have been ready to draw in them.
         if (!this.sameContents()) {
             this.sceneChanged = true;
+        }
+
+        // Drawn whole, and nothing added while it was drawn: the change is on the canvas.
+        if (drawnReady && this.contentsNow.every((value, i) => value === this.contentsAtDraw[i])) {
+            this.sceneChanged = false;
         }
 
         this.readSceneContents(from.contents);
@@ -982,6 +1126,55 @@ export class RenderManager implements Manager {
     }
 
     /**
+     * Light the scene's 3D nodes one of the {@link Lighting} ways. Takes effect on the next frame,
+     * for the nodes on screen and every node built afterwards.
+     *
+     * The numbers are the ones measured in `stories/experiments/NodeLighting.stories.ts` (25
+     * shapes x 4 colors x 12 rotations). Node materials are frozen, and a frozen material keeps the
+     * shader it compiled -- which lights it counts, whether it has a rim -- so every frozen material
+     * is thawed, recompiled on the next frame and frozen again after it.
+     * @param lighting - The lighting.
+     */
+    applyLighting(lighting: Lighting): void {
+        const { hemi, key, scene } = this;
+        const light = LIGHTS[lighting];
+        hemi.intensity = light.fill;
+        hemi.groundColor = new Color3(light.ground, light.ground, light.ground);
+        key.setEnabled(light.key > 0);
+        key.intensity = light.key;
+        this.keyInCameraSpace.copyFrom(light.keyDirection);
+
+        scene.metadata = { ...(scene.metadata as Record<string, unknown> | null), lighting };
+
+        const thawed: Material[] = [];
+        for (const material of scene.materials) {
+            if (material.isFrozen) {
+                material.unfreeze();
+                thawed.push(material);
+            }
+
+            if (isNodeMaterial(material)) {
+                lightNodeMaterial(material, lighting);
+                for (const mesh of material.getBindedMeshes()) {
+                    outlineNodeMesh(mesh, lighting);
+                }
+            }
+
+            material.markAsDirty(Material.AllDirtyFlag);
+        }
+
+        if (thawed.length > 0) {
+            scene.onAfterRenderObservable.addOnce(() => {
+                for (const material of thawed) {
+                    material.freeze();
+                }
+            });
+        }
+
+        this.requestFrame();
+    }
+
+    /**
      * Update the background color
      * @param color - Hex color string (e.g., "#FFFFFF")
      */
@@ -1048,7 +1241,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });
@@ -1068,7 +1261,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });

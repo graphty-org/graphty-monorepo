@@ -10,6 +10,7 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
+import { TOOLTIP_WAIT } from "../../waits";
 
 interface Node {
     id: string;
@@ -105,12 +106,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(button).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("20 values, 0 to 19");
+        }, TOOLTIP_WAIT);
         expect(button).toHaveAccessibleDescription("20 values, 0 to 19");
     });
 
@@ -149,12 +147,9 @@ describe("DataTable header features", () => {
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}{ArrowRight}");
         expect(header).toHaveFocus();
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("3 groups");
+        }, TOOLTIP_WAIT);
     });
 
     it("opens the header menu from its caret, and from the keyboard on the header", async () => {
@@ -183,6 +178,16 @@ describe("DataTable header features", () => {
         await waitFor(() => {
             expect(button).toHaveFocus();
         });
+    });
+
+    it("opens the header menu on a right-click and never sorts on one", async () => {
+        renderTable();
+        const header = screen.getAllByTestId("data-table-header")[1];
+        const button = within(header).getByTestId("data-table-sort-button");
+        await userEvent.click(button, { button: "right" });
+        expect(await screen.findByRole("menuitem", { name: "Hide column" })).toBeInTheDocument();
+        expect(header).toHaveAttribute("aria-sort", "none");
+        expect(within(header).queryByTestId("data-table-sort-glyph")).toBeNull();
     });
 
     it("leaves the caret out of the tab order", () => {

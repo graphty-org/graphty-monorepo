@@ -20,16 +20,22 @@
  *
  * Passkeys: once any key is known (passkeys.json on the fetched default branch, or one this server
  * registered whose pull request is not merged yet, `<tmp>/state/passkeys-pending.json`), a Finish
- * that signs needs the owner's approval. A pending key approves only while the default branch holds
- * none: once it does, only its keys count, as in the gate, so a key registered later (by anyone who
- * can reach this page) approves nothing until its pull request merges. A Finish signs the baselines
- * tree it leaves only when it rejects nothing and, on a pull request, leaves nothing undecided and
- * every project loaded (signingProblem); any other Finish commits its accepts and signs nothing.
- * POST /api/finish-prepare commits the accepts (not pushed) and returns the hash of the statement
- * about that commit's baselines tree as the WebAuthn challenge (accept.mjs prepareApproval); POST
- * /api/finish takes the approval, checks it, and pushes that commit with the signed statement on
- * it. The server decides whether approval is required, so leaving it out never skips it. The rpId
- * is the host name of the page's own origin.
+ * that commits decisions needs one passkey approval from the owner, which also makes its accepts
+ * count as "approved before" later (filters.mjs approvalIndex). A pending key approves only while the
+ * default branch holds none: once it does, only its keys count, as in the gate, so a key
+ * registered later (by anyone who can reach this page) approves nothing until its pull request
+ * merges. A Finish also signs the baselines tree it leaves only when it rejects nothing and, on a
+ * pull request, leaves nothing undecided and every project loaded (signingProblem). POST
+ * /api/finish-prepare commits the accepts (not pushed, accept.mjs prepareApproval) and returns the
+ * WebAuthn challenge: when the tree is signed, the hash of the statement about that commit's
+ * baselines tree, which holds the review record, so the one approval covers the decisions too
+ * (accept.mjs treeSignedRecords); otherwise the hash of the record, and the same route with that
+ * approval signs the record into the commit (signRecord). POST /api/finish takes the tree's
+ * approval when there is one, checks it, and pushes the commit with the signed statement on it, or
+ * the commit alone. A Finish with nothing new to decide signs the record of an earlier Finish that was
+ * pushed unsigned, when the branch tip is that Finish's accept commit (`resign`). The server
+ * decides whether approval is required, so leaving it out never skips it. The rpId is the host
+ * name of the page's own origin.
  *
  * Against the base: a pull request's capture is compared with its own branch's baselines, which an
  * earlier Finish or a branch merged in may already have changed. Each project is also compared
@@ -77,6 +83,7 @@ import {
     readFileSync,
     renameSync,
     rmSync,
+    statSync,
     writeFileSync,
 } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -95,8 +102,13 @@ import {
     finish,
     isPreviewOf,
     newerOnMaster,
+    onlyFinishCommits,
     prepareApproval,
     proposeKey,
+    signRecord,
+    treeSignedRecords,
+    treeStatement,
+    unsignedRecordAt,
     updateFromMaster,
 } from "./accept.mjs";
 import { PASSKEYS_FILE, parsePasskeys, recordHash, verifyApproval, verifyRegistration } from "./approval.mjs";
@@ -114,7 +126,7 @@ import {
 } from "./github.mjs";
 import { CONFIG_FILE } from "./config.mjs";
 import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./filters.mjs";
-import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
+import { coupledGroups, inboxOf, PREVIEW_CAPTURING, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
 import { SPOT_KINDS, scaled } from "./thumbs.mjs";
 import { USAGE_FILE } from "./usage.mjs";
@@ -572,6 +584,9 @@ async function loadResults(dir, name) {
  *     (`<previews>/<pr>/<project>/results.json`): a complete preview of a pull request's current
  *     head stands in for each project CI has not captured yet, marked "CI pending", and is decided
  *     and finished like a CI capture. CI's capture replaces it project by project as it lands.
+ *     A capture staged as `<previews>/.pending-<commit>/` for a pull request, of a commit that holds
+ *     its head but is not pushed yet (the pre-push gate's own, `visual-preview.sh --head`), is
+ *     offered as "pending push": decided, never finished, until GitHub lists that commit as the head.
  * @param {number} [options.patience] how long, in milliseconds, a page load waits for a run's
  *     captures before listing the target as downloading; Infinity waits for them
  * @param {number[]} [options.retryDelays] milliseconds before each retry of a Finish's network call
@@ -625,6 +640,8 @@ export function createApp({
     const recordBlobs = new Map();
     /** The default branch's commit that added each review record blob. */
     const addedIn = new Map();
+    /** The record blobs each signed tree statement covers (accept.mjs treeSignedRecords). */
+    const statementRecords = new Map();
     /** The stories proven to be capture noise, by `<project>/<file>` (filters.mjs knownNoise). */
     let noise = new Map();
     const evidenceFile = join(stateDir, "noise-evidence.json");
@@ -680,10 +697,13 @@ export function createApp({
     /** Registration challenges (base64url) and when each expires. */
     const challenges = new Map();
     /**
-     * The accept commit and statement each target's Finish was prepared with, waiting for its
-     * approval.
-     * @type {Map<string, { challenge: string, statement: object, commit: string, branch: string,
-     *     record: string | null, work: object, digest: string, expires: number }>}
+     * The accept commit each target's Finish was prepared with, and what it waits for: the
+     * record's approval (`stage` "record"), the tree statement's ("tree"), or nothing more
+     * ("signed").
+     * @type {Map<string, { stage: "record" | "tree" | "signed", challenge: string, commit: string,
+     *     branch: string, record: string, recordBody: object, pushed: boolean, tree: boolean,
+     *     resign: boolean, statement?: object, now: string, work: object, digest: string,
+     *     expires: number }>}
      */
     const approvals = new Map();
     // Fails closed: only a missing file means no pending key; any other failure throws.
@@ -727,6 +747,8 @@ export function createApp({
     }
     /** The passkey state the targets screen shows, read when the target list refreshes. */
     let passkeyState = { main: [], pending: [], problem: null };
+    // Whether a passkey is known (passkeyState): without one there is nothing to sign with.
+    const keysKnown = () => passkeyState.main.length + passkeyState.pending.length > 0;
     const readPasskeys = async () => {
         if (results) {
             return;
@@ -899,8 +921,9 @@ export function createApp({
 
     /**
      * Reads the review records on the default branch and on every listed pull request's branch,
-     * each blob once, into the index of approved images. Records verify as the gate verifies them;
-     * with the keys unreadable, nothing counts as approved before.
+     * each blob once, into the index of approved images. Records verify as the gate verifies them,
+     * by their own approval or by a signed statement of a baselines tree that holds them; with the
+     * keys unreadable, nothing counts as approved before.
      * @param {object[]} list the targets
      */
     async function readApprovals(list) {
@@ -908,11 +931,15 @@ export function createApp({
             approved = new Map();
             return;
         }
+        const keys = passkeyState.main.length > 0 ? passkeyState.main : null;
         const records = [];
         for (const { sha, main } of await approvalRefs(list)) {
-            records.push(...(await reviewRecordsAt(sha, main)));
+            const signed = keys ? await treeSignedRecords(repo, sha, config, keys, statementRecords) : new Set();
+            for (const r of await reviewRecordsAt(sha, main)) {
+                records.push({ ...r, treeSigned: signed.has(r.blob) });
+            }
         }
-        approved = approvalIndex(records, passkeyState.main.length > 0 ? passkeyState.main : null);
+        approved = approvalIndex(records, keys);
     }
 
     const gitIn = (args) => exec("git", args, { cwd: repo });
@@ -948,7 +975,8 @@ export function createApp({
      * commit that added it, which the gate finds on the base of every pull request branched later.
      * @param {string} sha the commit
      * @param {boolean} main whether it is the default branch's tip
-     * @returns {Promise<{ ref: string, commit: string, path: string, record: any, main: boolean }[]>} them
+     * @returns {Promise<{ ref: string, commit: string, path: string, blob: string, record: any,
+     *     main: boolean }[]>} them
      */
     async function reviewRecordsAt(sha, main) {
         const out = [];
@@ -966,7 +994,7 @@ export function createApp({
                 addedIn.set(blob, await gitIn(["log", "-1", "--format=%H", "--diff-filter=A", sha, "--", path]));
             }
             const commit = (main && addedIn.get(blob)) || sha;
-            out.push({ ref: sha, commit, path, record: recordBlobs.get(blob), main });
+            out.push({ ref: sha, commit, path, blob, record: recordBlobs.get(blob), main });
         }
         return out;
     }
@@ -1216,78 +1244,187 @@ export function createApp({
     /**
      * Puts a pull request's local preview in place of every project CI has not captured (nor is
      * downloading): only a complete preview of the head GitHub lists now, or of an older head the
-     * branch has since added only accept commits to (a Finish that left images undecided), so one
-     * of an older push, or one still capturing, is never offered. A draft (whose CI never
-     * captures) with a preview of an older push says a new preview is needed instead.
+     * branch has since added only a Finish's own commits to (onlyFinishCommits: they change no
+     * capture), so one of an older push, or one still capturing, is never offered. A draft (whose CI
+     * never captures) with a preview of an older push says a new preview is needed instead. While
+     * a preview of this head is still capturing (its status.json), or it finished without a project
+     * it lists, that project shows as not loaded, never as having nothing to decide; `previewStamp`
+     * is when status.json last changed, so a change re-reads the list (previewsChanged).
      * @param {object} t the target, changed in place; `head` is the pull request's head
-     * @returns {Promise<object>} the target; `headMoved` is the head when a preview is of an older one
+     * @returns {Promise<object>} the target
      */
     async function withPreviews(t) {
         if (!previews || t.pr === null) {
             return t;
         }
+        t.previewStamp = previewStamp(t.pr);
+        t.pendingPush = null;
+        const pending = await pendingPreview(t);
         for (const [i, p] of t.projects.entries()) {
-            const dir = join(previews, String(t.pr), p.project);
-            if (p.results || p.downloading || !existsSync(join(dir, "results.json"))) {
-                continue;
-            }
-            const local = await project(p.project, dir, null, true);
-            const r = local.results;
-            if (!r?.complete || !isPreviewOf(r, t.pr)) {
-                continue;
-            }
-            const current = r.headSha === t.head;
-            if (current || (await onlyAccepts(r.headSha, t.head, t.pr))) {
-                t.projects[i] = { ...local, preview: true, ciProblem: p.problem, logUrl: p.logUrl ?? null };
-                if (!current) {
-                    t.headMoved = t.head;
-                }
-            } else if (t.draft) {
-                t.projects[i] = { ...p, problem: newPreviewNeeded(t) };
-            }
+            t.projects[i] = (pending && (await withPending(t, p, pending))) ?? (await withPreview(t, p));
         }
+        await markPreviewStatus(t);
         return t;
     }
+
+    /**
+     * The newest capture of a commit not pushed yet that holds the pull request's head: the pre-push
+     * gate's own capture (tools/visual-preview.sh --head, staged as `.pending-<commit>`), made for this
+     * pull request while the gate checks the commit it is about to push. It is offered as "pending push":
+     * decided like any preview of the pull request (its decisions are saved by story file and image
+     * hash, so a later capture with the same picture keeps them), but never finished, since Finish signs
+     * only a capture of the head GitHub lists. A capture that failed is never offered.
+     * @param {object} t the target
+     * @returns {Promise<{ dir: string, head: string, at?: string } | null>} the capture
+     */
+    async function pendingPreview(t) {
+        const sha = (x) => /^[0-9a-f]{40}$/.test(x ?? "");
+        if (!sha(t.head)) {
+            return null;
+        }
+        let best = null;
+        for (const name of pendingNames()) {
+            const dir = join(previews, name);
+            const status = readStatusIn(dir);
+            if (status?.pr !== t.pr || !sha(status.head) || status.head === t.head || status.state === "failed") {
+                continue;
+            }
+            if (best && String(best.at) >= String(status.updatedAt)) {
+                continue;
+            }
+            if (!(await haveCommit(t.head))) {
+                await branchesFetched;
+            }
+            const holds = await gitIn(["merge-base", "--is-ancestor", t.head, status.head]).then(
+                () => true,
+                () => false,
+            );
+            if (holds) {
+                best = { dir, head: status.head, at: status.updatedAt };
+            }
+        }
+        return best;
+    }
+
+    // One project of a target with the pending capture in place when CI has not captured it and the
+    // capture has it complete; null otherwise (the project as withPreview leaves it).
+    async function withPending(t, p, pending) {
+        const dir = join(pending.dir, p.project);
+        if (p.results || p.downloading || !existsSync(join(dir, "results.json"))) {
+            return null;
+        }
+        const local = await project(p.project, dir, null, true);
+        const r = local.results;
+        if (!r?.complete || !isPreviewOf(r, t.pr) || r.headSha !== pending.head) {
+            return null;
+        }
+        t.pendingPush = pending.head;
+        return { ...local, preview: true, pending: true, ciProblem: p.problem, logUrl: p.logUrl ?? null };
+    }
+
+    // One project of a target with its local preview in place when CI has not captured it and the
+    // preview is of this head; as it was otherwise (or saying a draft needs a new preview).
+    async function withPreview(t, p) {
+        const dir = join(previews, String(t.pr), p.project);
+        if (p.results || p.downloading || !existsSync(join(dir, "results.json"))) {
+            return p;
+        }
+        const local = await project(p.project, dir, null, true);
+        const r = local.results;
+        if (!r?.complete || !isPreviewOf(r, t.pr)) {
+            return p;
+        }
+        // A head pushed since the last fetch (a Finish's commits): wait for this refresh's fetch.
+        if (r.headSha !== t.head && !(await haveCommit(t.head))) {
+            await branchesFetched;
+        }
+        if (await onlyFinishCommits(repo, r.headSha, t.head, config)) {
+            return { ...local, preview: true, ciProblem: p.problem, logUrl: p.logUrl ?? null };
+        }
+        return t.draft ? { ...p, problem: newPreviewNeeded(t) } : p;
+    }
+
+    // Marks each project a preview of this head is still capturing, or finished without loading,
+    // as not loaded (from the preview's status.json).
+    async function markPreviewStatus(t) {
+        const status = readPreviewStatus(t.pr);
+        if (!status?.head || !(await onlyFinishCommits(repo, status.head, t.head, config))) {
+            return;
+        }
+        for (const [i, p] of t.projects.entries()) {
+            const listed = (status.projects ?? []).includes(p.project);
+            if (p.results || p.downloading || p.problem === NOT_AFFECTED) {
+                continue;
+            }
+            if (status.state === "running") {
+                t.projects[i] = { ...p, problem: PREVIEW_CAPTURING };
+            } else if (listed) {
+                t.projects[i] = { ...p, problem: `local preview not loaded (${status.state}): reload the page` };
+            }
+        }
+    }
+
+    const previewStatusFile = (pr) => join(previews, String(pr), "status.json");
+    const readStatusIn = (dir) => {
+        try {
+            return JSON.parse(readFileSync(join(dir, "status.json"), "utf8"));
+        } catch {
+            return null;
+        }
+    };
+    const readPreviewStatus = (pr) => readStatusIn(join(previews, String(pr)));
+    // The captures the pre-push gate staged under the commit it checks (pendingPreview).
+    const pendingNames = () => {
+        try {
+            return readdirSync(previews).filter((n) => n.startsWith(".pending-"));
+        } catch {
+            return [];
+        }
+    };
+    const mtimeOf = (file) => {
+        try {
+            return statSync(file).mtimeMs;
+        } catch {
+            return null;
+        }
+    };
+    // When a pull request's preview status.json, or any staged capture's, last changed: a staged
+    // capture may be a pending push of this pull request.
+    const previewStamp = (pr) =>
+        [
+            mtimeOf(previewStatusFile(pr)),
+            ...pendingNames().map((n) => `${n}:${mtimeOf(join(previews, n, "status.json"))}`),
+        ].join(",");
+    // Whether a listed pull request's local preview changed since the list read it, each change
+    // counted once: a refresh that cannot reach GitHub keeps the old list, and must not start another.
+    const previewSeen = new Map();
+    const previewsChanged = () => {
+        let changed = false;
+        for (const t of previews ? targets.values() : []) {
+            const now = previewStamp(t.pr);
+            if ("previewStamp" in t && now !== t.previewStamp && now !== previewSeen.get(t.pr)) {
+                previewSeen.set(t.pr, now);
+                changed = true;
+            }
+        }
+        return changed;
+    };
 
     // Why a target has no Finish now, as a response; null when it has one.
     const finishRefused = (t) => {
         if (t.local) {
             return [403, { error: "a local preview has no Finish" }];
         }
-        return t.headMoved ? [409, { error: movedHead(t) }] : null;
+        if (t.pendingPush) {
+            return [409, { error: pendingPushText(t) }];
+        }
+        return null;
     };
-    const movedHead = (t) =>
-        `the head moved to ${t.headMoved.slice(0, 10)} after a Finish; this preview is of ${t.headSha.slice(0, 10)}: ` +
-        `${newPreviewNeeded(t)} to Finish. Decisions taken here carry over to it`;
+    const pendingPushText = (t) =>
+        `pending push: these screenshots are of ${t.pendingPush.slice(0, 10)}, which the gate is still checking; ` +
+        `Finish opens once it is the head of #${t.pr}`;
     const newPreviewNeeded = (t) =>
         `a new preview is needed for this head (${t.head.slice(0, 10)}): run tools/visual-preview.sh ${t.pr}`;
-
-    /**
-     * Whether `tip` is `head` plus nothing but accept commits a Finish pushed for this pull request
-     * (the subject and single parent finishedBefore in accept.mjs recognizes). Unknown commits (a
-     * branch not fetched yet) count as no.
-     * @param {string} head the previewed head
-     * @param {string} tip the pull request's head now
-     * @param {number} pr the pull request
-     * @returns {Promise<boolean>} whether it is
-     */
-    async function onlyAccepts(head, tip, pr) {
-        const subject = `${config.commitPrefix}: accept visual baselines for #${pr}`;
-        const log = await exec("git", ["log", "--format=%P%x09%s", `${head}..${tip}`], { cwd: repo }).catch(() => "");
-        const ancestor = await exec("git", ["merge-base", "--is-ancestor", head, tip], { cwd: repo }).then(
-            () => true,
-            () => false,
-        );
-        const commits = log.split("\n").filter(Boolean);
-        return (
-            ancestor &&
-            commits.length > 0 &&
-            commits.every((line) => {
-                const [parents, ...rest] = line.split("\t");
-                return !parents.includes(" ") && rest.join("\t") === subject;
-            })
-        );
-    }
 
     // Why a project's capture is missing, from its download and its CI job; null when it is there.
     function problemOf(name, got, run, jobs) {
@@ -1330,6 +1467,8 @@ export function createApp({
 
     // Concurrent callers (the startup refresh, the page's first request) share one refresh.
     let refreshing = null;
+    /** The running refresh's fetch of the pull requests' branches (load). */
+    let branchesFetched = Promise.resolve();
     let refreshedAt = 0;
     let loadedOnce = false;
     /** Why the last refresh failed as a whole (no list at all), for the page; null once one works. */
@@ -1432,6 +1571,7 @@ export function createApp({
                     });
                 }
             })();
+            branchesFetched = fetched;
             // Every pull request at once: one after another took about 40 s for 18 of them.
             let found = 0;
             step("finding CI runs", 0, prs.length);
@@ -1656,6 +1796,8 @@ export function createApp({
                     () => false,
                 )));
         const tip = stale ? mine : fetched;
+        // An earlier Finish's record a Finish with nothing new to decide can sign.
+        t.unsignedRecord = await unsignedRecordAt(repo, tip, t.pr, config);
         if (tip === undefined) {
             return null;
         }
@@ -1759,10 +1901,9 @@ export function createApp({
             runUrl: t.runUrl,
             commit: t.commit,
             headSha: t.headSha,
-            // The pull request's head when the preview shown is of an older one it only added
-            // accept commits to: decide here, Finish on a preview of the new head.
-            headMoved: t.headMoved ?? null,
             mergeMasterFirst: t.mergeMasterFirst,
+            // The commit a pending push's capture is of (withPending): decisions yes, Finish not yet.
+            pendingPush: t.pendingPush ?? null,
             downloading: t.downloading === true,
             // While downloading: how many artifacts and bytes have landed of how many, and since when
             // (server time). `bytes` is null until GitHub has listed the artifacts.
@@ -1772,6 +1913,13 @@ export function createApp({
             defaultBranch,
             // Decisions the next Finish would publish (a reject an earlier Finish posted is not).
             unpublished: [...decided.values()].filter((d) => !d.posted).length,
+            // Nothing new to decide, and the next Finish signs the record an earlier one pushed
+            // unsigned (resignOf).
+            resign:
+                keysKnown() &&
+                Boolean(t.unsignedRecord) &&
+                [...decided.values()].every((d) => d.posted) &&
+                [...decided.values()].some((d) => d.posted),
             warnings,
             signer,
             startCommand,
@@ -1822,11 +1970,15 @@ export function createApp({
                     undecided: reviewable - mine.length,
                     // Accepts and exclusions an earlier Finish pushed, waiting for a new CI run.
                     finished: mine.filter(([, d]) => d.posted && d.decision !== "reject").length,
+                    // Rejects an earlier Finish posted, waiting for a fix (or for the owner to change them).
+                    rejected: mine.filter(([, d]) => d.posted && d.decision === "reject").length,
                     notOpened: mine.filter(([, d]) => d.bulk).length,
                     acceptable: acceptable(t, p.project),
                     local: p.results?.local ?? null,
                     // A local preview of the head, decided like CI's capture until CI's replaces it.
                     preview: p.preview === true,
+                    // A capture of a commit the gate is still checking, not yet the head (pendingPreview).
+                    pending: p.pending === true,
                     // The default branch's baseline files this capture was not compared with.
                     newer: p.newer ?? [],
                 };
@@ -1956,13 +2108,14 @@ export function createApp({
      * The decisions a Finish of `t` would apply now: every one but the rejects an earlier Finish
      * already posted, in a fixed order, and a digest of them that changes when any of them does.
      * @param {object} t the target
+     * @param {boolean} [resign] the decisions an earlier Finish published instead, to sign its record
      * @returns {{ list: { project: string, file: string, decision: string, reason: string | null,
      *     approvedBefore?: object }[],
      *     digest: string }} the decisions and their digest
      */
-    const finishList = (t) => {
+    const finishList = (t, resign = false) => {
         const list = [...decisionsOf(t)]
-            .filter(([, v]) => !v.posted)
+            .filter(([, v]) => Boolean(v.posted) === resign)
             .sort(([a], [b]) => (a < b ? -1 : 1))
             .map(([k, v]) => {
                 const at = k.indexOf("/");
@@ -1981,7 +2134,7 @@ export function createApp({
     // What Finish's sheet states before it runs: what it commits and posts, and the status it sets.
     // The passkey's challenge comes from POST /api/finish-prepare.
     const finishPreview = (t) => {
-        const { list, digest } = finishList(t);
+        const { list, digest } = finishList(t, resignOf(t));
         const s = summary(t);
         const count = (d) => list.filter((x) => x.decision === d).length;
         const unloaded = t.projects.filter((p) => !p.results && p.problem !== NOT_AFFECTED).map((p) => p.project);
@@ -2024,22 +2177,103 @@ export function createApp({
      * shown as rejected, never posted again), their digest, the captures, and what is left
      * undecided or unloaded.
      * @param {object} t the target
+     * @param {boolean} [resign] see finishList
      * @returns {{ list: object[], digest: string, captures: object, undecided: number,
      *     unloaded: string[] }} the work
      */
-    const finishWork = (t) => ({
-        ...finishList(t),
+    const finishWork = (t, resign = false) => ({
+        ...finishList(t, resign),
         captures: capturesOf(t),
         undecided: summary(t).projects.reduce((n, p) => n + p.undecided, 0),
         unloaded: t.projects.filter((p) => !p.results && p.problem !== NOT_AFFECTED).map((p) => p.project),
     });
 
     /**
-     * The owner's approval POST /api/finish carries, checked against what finish-prepare built.
+     * Whether a Finish of this target has nothing new to decide and signs the record of an earlier
+     * Finish instead: the branch tip is that Finish's accept commit, its record unsigned, and the
+     * decisions it published are still saved here (prepareApproval checks the record holds exactly
+     * them).
      * @param {object} t the target
-     * @param {{ digest: string }} work as finishWork returns now
+     * @returns {boolean} whether it does
+     */
+    const resignOf = (t) =>
+        keysKnown() &&
+        Boolean(t.unsignedRecord) &&
+        finishList(t).list.length === 0 &&
+        finishList(t, true).list.length > 0;
+
+    // Whether a Finish of this work commits anything (a Finish of rejects alone only comments).
+    const commitsOf = (work) => work.list.some((d) => d.decision !== "reject");
+
+    /**
+     * finish-prepare's answer when this Finish needs no passkey (no key is known, it commits
+     * nothing, or it cannot sign the tree and no key is for this host), or when it needs one and
+     * none is registered for this host.
+     * @param {object} t the target
+     * @param {{ list: object[] }} work as finishWork returns
+     * @param {object} keys the keys
+     * @param {object[]} keys.trusted every trusted key
+     * @param {object[]} keys.here the trusted keys for this host
+     * @param {string | null} keys.unsigned why the tree cannot be signed, if it cannot
+     * @returns {Array<unknown> | null} the answer, or null when finish-prepare goes on to sign
+     */
+    const prepareWithoutKey = (t, work, { trusted, here, unsigned }) => {
+        if (trusted.length === 0 || !commitsOf(work) || (unsigned && here.length === 0)) {
+            approvals.delete(t.id);
+            return [200, { required: false, ...(trusted.length > 0 && unsigned && { unsigned }) }];
+        }
+        if (here.length > 0) {
+            return null;
+        }
+        const hosts = [...new Set(trusted.map((k) => k.rpId))].join(", ");
+        return [
+            409,
+            {
+                error: `no passkey is registered for ${rpId}: serve this page from the host your passkey is for (${hosts}), or register one here`,
+            },
+        ];
+    };
+
+    /**
+     * Makes a Finish's accept commit in the accept worktree, holding the Finish lock meanwhile so
+     * nothing else uses that worktree.
+     * @param {object} t the target
+     * @param {{ captures: object, list: object[] }} work as finishWork returns
+     * @param {Date} now the Finish's time
+     * @returns {Promise<{ prepared?: object, refused?: Array<unknown> }>} what prepareApproval
+     *     returned, or the answer refusing it
+     */
+    async function prepareLocked(t, work, now) {
+        finishing = true;
+        try {
+            const prepared = await prepareApproval({
+                repo,
+                target: { pr: t.pr, branch: t.branch },
+                projects: work.captures,
+                decisions: work.list,
+                now,
+                config,
+                retryDelays,
+            });
+            return { prepared };
+        } catch (err) {
+            if (err instanceof AcceptError) {
+                return { refused: [409, { error: err.message }] };
+            }
+            throw err;
+        } finally {
+            finishing = false;
+        }
+    }
+
+    /**
+     * The owner's approval POST /api/finish carries, checked against what finish-prepare built and
+     * signed: the tree statement's approval when the Finish signs the tree, else the commit holding
+     * the signed record.
+     * @param {object} t the target
+     * @param {{ digest: string, list: object[] }} work as finishWork returns now
      * @param {{ challenge?: string, approval?: object }} body the request
-     * @param {boolean} sign whether this Finish signs (signingProblem)
+     * @param {boolean} sign whether this Finish signs the tree (signingProblem)
      * @returns {Promise<{ refused?: Array<unknown>, approval?: object | null, work?: object }>} the
      *     answer refusing it, or finish's `approval` (null when none is needed) and the prepared
      *     work it signs
@@ -2049,28 +2283,30 @@ export function createApp({
             return { refused: [409, { error: "the approval is stale (the decisions changed): press Finish again" }] };
         }
         const { main, trusted } = await knownKeys();
-        if (trusted.length === 0 || !sign) {
+        const here = trusted.some((k) => k.rpId === rpId);
+        if (trusted.length === 0 || (!sign && (!here || !commitsOf(work)))) {
             return { approval: null };
+        }
+        const p = approvals.get(t.id);
+        const fresh = p !== undefined && p.expires >= Date.now() && p.digest === work.digest;
+        const pendingKeys = main.length > 0 ? [] : trusted;
+        if (!sign) {
+            if (!fresh || p.stage !== "signed") {
+                return {
+                    refused: [400, { error: "this Finish needs your passkey approval (Face ID): press Finish again" }],
+                };
+            }
+            approvals.delete(t.id);
+            const { commit, branch, record, resign } = p;
+            return { approval: { commit, branch, record, resign, pendingKeys, origin, now: p.now }, work: p.work };
         }
         if (!body.approval) {
             return {
                 refused: [400, { error: "this Finish needs your passkey approval (Face ID): press Finish again" }],
             };
         }
-        const stale = {
-            refused: [
-                409,
-                {
-                    error: "the approval is stale (made on another tab, expired, or the decisions changed): press Finish again",
-                },
-            ],
-        };
-        const p = approvals.get(t.id);
-        if (p === undefined) {
-            return stale;
-        }
-        if (p.challenge !== body.challenge || p.expires < Date.now() || p.digest !== work.digest) {
-            return stale;
+        if (!fresh || p.stage !== "tree" || p.challenge !== body.challenge) {
+            return STALE;
         }
         const statement = { ...p.statement, approval: body.approval };
         const why = verifyApproval(statement, trusted, { origin });
@@ -2079,8 +2315,64 @@ export function createApp({
         }
         approvals.delete(t.id);
         const { commit, branch, record } = p;
-        const pendingKeys = main.length > 0 ? [] : trusted;
-        return { approval: { statement, commit, branch, record, pendingKeys, origin }, work: p.work };
+        return { approval: { statement, commit, branch, record, pendingKeys, origin, now: p.now }, work: p.work };
+    }
+
+    const STALE = {
+        refused: [
+            409,
+            {
+                error: "the approval is stale (made on another tab, expired, or the decisions changed): press Finish again",
+            },
+        ],
+    };
+
+    /**
+     * POST /api/finish-prepare's second call, for a Finish that does not sign the tree: the owner's
+     * approval of the prepared record, written into the accept commit (not pushed).
+     * @param {object} t the target
+     * @param {{ digest: string }} work as finishWork returns now
+     * @param {{ challenge?: string, approval: object }} body the request
+     * @returns {Promise<Array<unknown>>} the answer
+     */
+    async function signPrepared(t, work, body) {
+        const p = approvals.get(t.id);
+        if (p?.stage !== "record" || p.challenge !== body.challenge || p.expires < Date.now()) {
+            return STALE.refused;
+        }
+        if (p.digest !== work.digest) {
+            return [409, { error: CHANGED_SINCE }];
+        }
+        const { trusted } = await knownKeys();
+        const signed = { ...p.recordBody, approval: body.approval };
+        const why = verifyApproval(signed, trusted, { origin });
+        if (why) {
+            return [403, { error: `the approval was refused: ${why}` }];
+        }
+        let out;
+        finishing = true;
+        try {
+            out = await signRecord({
+                repo,
+                target: { pr: t.pr },
+                prepared: p,
+                approval: body.approval,
+                keys: trusted,
+                origin,
+                config,
+            });
+        } catch (err) {
+            if (err instanceof AcceptError) {
+                return [409, { error: err.message }];
+            }
+            throw err;
+        } finally {
+            finishing = false;
+        }
+        p.commit = out.commit;
+        p.expires = Date.now() + APPROVAL_MS;
+        p.stage = "signed";
+        return [200, { required: false, signed: true }];
     }
 
     /**
@@ -2304,7 +2596,9 @@ export function createApp({
             await restored;
             const cachedOnly = query?.get("cached") === "1" || query?.get("refresh") === "1";
             if (cachedOnly) {
-                if (query.get("refresh") === "1" || (!loadedOnce && failure === null)) {
+                // A local preview that moved on (a project's capture written, or the preview done)
+                // is read again at once, so a project is never left showing a capture it lacked.
+                if (query.get("refresh") === "1" || previewsChanged() || (!loadedOnce && failure === null)) {
                     refresh().catch((err) => console.error(`visual-review: refresh failed: ${err.message}`));
                 }
             } else {
@@ -2493,9 +2787,14 @@ export function createApp({
             }
             // Nothing silently reverses a decision: changing one takes an explicit Undo first. The
             // same decision again is allowed (opening an item Accept all decided re-sends it).
-            // An accept taken because the image was approved before is replaced by any decision.
+            // An accept taken because the image was approved before is replaced by any decision, and
+            // a reject an earlier Finish posted by an accept or exclusion (that Finish's record keeps
+            // the reject; the next Finish commits the new decision).
             const before = decisionsOf(t).get(key);
-            if (before && !before.approvedBefore && (before.decision !== body.decision || before.reason !== reason)) {
+            const replaceable =
+                before?.approvedBefore ||
+                (before?.posted && before.decision === "reject" && body.decision !== "reject");
+            if (before && !replaceable && (before.decision !== body.decision || before.reason !== reason)) {
                 const done = { accept: "accepted", reject: "rejected", exclude: "excluded" }[before.decision];
                 return [409, { error: `${body.file} is already ${done}: Undo it first to change it` }];
             }
@@ -2739,6 +3038,7 @@ export function createApp({
             if (!t) {
                 return gone(String(body.id));
             }
+            const resign = resignOf(t);
             const refused = finishRefused(t);
             if (refused) {
                 return refused;
@@ -2746,52 +3046,44 @@ export function createApp({
             if (finishing) {
                 return [409, { error: "a Finish is already running" }];
             }
-            const { trusted: keys } = await knownKeys();
-            const work = finishWork(t);
-            const unsigned = signingProblem(t, work);
-            if (keys.length === 0 || unsigned) {
-                approvals.delete(t.id);
-                return [200, { required: false, ...(keys.length > 0 && { unsigned }) }];
+            const work = finishWork(t, resign);
+            if (body.approval !== undefined) {
+                return signPrepared(t, work, body);
             }
-            const here = keys.filter((k) => k.rpId === rpId);
-            if (here.length === 0) {
-                const hosts = [...new Set(keys.map((k) => k.rpId))].join(", ");
+            const { trusted } = await knownKeys();
+            const unsigned = signingProblem(t, work);
+            const here = trusted.filter((k) => k.rpId === rpId);
+            const keyless = prepareWithoutKey(t, work, { trusted, here, unsigned });
+            if (keyless) {
+                return keyless;
+            }
+            const now = new Date();
+            // The accept commit is made now, in the accept worktree: nothing else may use it meanwhile.
+            const { prepared, refused: notPrepared } = await prepareLocked(t, work, now);
+            if (notPrepared) {
+                return notPrepared;
+            }
+            if (resign && !prepared.pushed) {
                 return [
                     409,
-                    {
-                        error: `no passkey is registered for ${rpId}: serve this page from the host your passkey is for (${hosts}), or register one here`,
-                    },
+                    { error: "the earlier Finish's record is not on the branch tip any more: reload the page" },
                 ];
             }
-            let prepared;
-            // The accept commit is made now, in the accept worktree: nothing else may use it meanwhile.
-            finishing = true;
-            try {
-                prepared = await prepareApproval({
-                    repo,
-                    target: { pr: t.pr, branch: t.branch },
-                    projects: work.captures,
-                    decisions: work.list,
-                    now: new Date(),
-                    config,
-                    retryDelays,
-                });
-            } catch (err) {
-                if (err instanceof AcceptError) {
-                    return [409, { error: err.message }];
-                }
-                throw err;
-            } finally {
-                finishing = false;
-            }
-            const { statement, commit, branch, record } = prepared;
-            const challenge = recordHash(statement).toString("base64url");
+            // Signing an earlier Finish's record signs nothing else: the tree is a Finish's of its own.
+            const tree = !unsigned && !resign;
+            // The tree holds the record, so signing the tree signs the decisions too: one approval.
+            const statement = tree
+                ? await treeStatement({ repo, commit: prepared.commit, config, pr: t.pr, now })
+                : undefined;
+            const challenge = recordHash(statement ?? prepared.recordBody).toString("base64url");
             approvals.set(t.id, {
+                ...prepared,
+                stage: tree ? "tree" : "record",
                 challenge,
                 statement,
-                commit,
-                branch,
-                record,
+                tree,
+                resign,
+                now: now.toISOString(),
                 work,
                 digest: work.digest,
                 expires: Date.now() + APPROVAL_MS,
@@ -2800,10 +3092,15 @@ export function createApp({
                 200,
                 {
                     required: true,
+                    signs: tree ? "tree" : "record",
+                    tree,
+                    resign,
+                    ...(tree && { statement }),
+                    ...(unsigned && { unsigned }),
                     challenge,
                     rpId,
                     allowCredentials: here.map((k) => k.id),
-                    statement,
+                    record: prepared.recordBody,
                     accepts: prepared.accepts,
                     excludes: prepared.excludes,
                     rejects: prepared.rejects,
@@ -2815,6 +3112,7 @@ export function createApp({
             if (!t) {
                 return gone(String(body.id));
             }
+            const resign = resignOf(t);
             const refused = finishRefused(t);
             if (refused) {
                 return refused;
@@ -2822,13 +3120,13 @@ export function createApp({
             if (finishing) {
                 return [409, { error: "a Finish is already running" }];
             }
-            let work = finishWork(t);
+            let work = finishWork(t, resign);
             // The page's sheet stated what Finish would do; a decision changed since (in another
             // tab, say) would make that statement wrong.
             if (body.digest !== undefined && body.digest !== work.digest) {
                 return [409, { error: CHANGED_SINCE }];
             }
-            const sign = signingProblem(t, work) === null;
+            const sign = !resign && signingProblem(t, work) === null;
             const checked = await approvalOf(t, work, body, sign);
             if (checked.refused) {
                 return checked.refused;
@@ -2864,7 +3162,7 @@ export function createApp({
                 config,
                 retryDelays,
                 sign,
-                ...(approval && { approval, now: new Date(approval.statement.approvedAt) }),
+                ...(approval && { approval, now: new Date(approval.now) }),
             });
             return [202, { job }];
         },
@@ -2979,10 +3277,12 @@ export function createApp({
                 pushes++;
             }
             t.published = await earlierAccepts(repo, commit, t.pr, config.baselines);
+            t.unsignedRecord = await unsignedRecordAt(repo, commit, t.pr, config);
             // A refresh that ended while this Finish ran listed a new object for the target.
             const shown = targets.get(t.id);
             if (shown && shown !== t) {
                 shown.published = t.published;
+                shown.unsignedRecord = t.unsignedRecord;
             }
         };
         try {

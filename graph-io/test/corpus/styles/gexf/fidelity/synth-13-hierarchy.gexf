@@ -1,0 +1,564 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://gexf.net/1.3 http://gexf.net/1.3/gexf.xsd" version="1.3">
+  <meta lastmodifieddate="2026-10-16"><creator>graphty file-styles-corpus gen_gexf.py</creator><description>GEXF 1.3 coverage: hierarchy, hex colors, mutual edges, images</description></meta>
+  <graph mode="static" defaultedgetype="undirected">
+    <nodes>
+      <node id="g0" label="Group 0">
+        <viz:color hex="#1b9e77" a="0.3"/>
+        <viz:position x="-250.00" y="180.00" z="0.0"/>
+        <viz:size value="40"/>
+        <viz:shape value="square"/>
+        <nodes>
+          <node id="g0c0" label="image 0.0">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-140.00" y="180.00" z="0.0"/>
+            <viz:size value="6"/>
+            <viz:shape value="image" uri="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMCAxMCc+PGNpcmNsZSBjeD0nNScgY3k9JzUnIHI9JzUnIGZpbGw9JyNmZjk5MDAnLz48L3N2Zz4="/>
+          </node>
+          <node id="g0c1" label="square 0.1">
+            <viz:color hex="#d95f02"/>
+            <viz:position x="-154.74" y="235.00" z="0.0"/>
+            <viz:size value="7"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g0c2" label="triangle 0.2">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-195.00" y="275.26" z="0.0"/>
+            <viz:size value="8"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g0c3" label="diamond 0.3">
+            <viz:color hex="#1b9e77"/>
+            <viz:position x="-250.00" y="290.00" z="0.0"/>
+            <viz:size value="9"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g0c4" label="disc 0.4">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-305.00" y="275.26" z="0.0"/>
+            <viz:size value="10"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g0c5" label="square 0.5">
+            <viz:color hex="#d95f02"/>
+            <viz:position x="-345.26" y="235.00" z="0.0"/>
+            <viz:size value="11"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g0c6" label="image 0.6">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-360.00" y="180.00" z="0.0"/>
+            <viz:size value="12"/>
+            <viz:shape value="image" uri="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxMCAxMCc+PGNpcmNsZSBjeD0nNScgY3k9JzUnIHI9JzUnIGZpbGw9JyNmZjk5MDAnLz48L3N2Zz4="/>
+          </node>
+          <node id="g0c7" label="diamond 0.7">
+            <viz:color hex="#e7298a"/>
+            <viz:position x="-345.26" y="125.00" z="0.0"/>
+            <viz:size value="13"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g0c8" label="disc 0.8">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-305.00" y="84.74" z="0.0"/>
+            <viz:size value="14"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g0c9" label="square 0.9">
+            <viz:color hex="#1b9e77"/>
+            <viz:position x="-250.00" y="70.00" z="0.0"/>
+            <viz:size value="15"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g0c10" label="triangle 0.10">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-195.00" y="84.74" z="0.0"/>
+            <viz:size value="16"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g0c11" label="diamond 0.11">
+            <viz:position x="-154.74" y="125.00" z="0.0"/>
+            <viz:size value="17"/>
+            <viz:shape value="diamond"/>
+          </node>
+        </nodes>
+      </node>
+      <node id="g1" label="Group 1">
+        <viz:color hex="#d95f02" a="0.3"/>
+        <viz:position x="250.00" y="180.00" z="0.0"/>
+        <viz:size value="40"/>
+        <viz:shape value="square"/>
+        <nodes>
+          <node id="g1c0" label="disc 1.0">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="360.00" y="180.00" z="0.0"/>
+            <viz:size value="6"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g1c1" label="square 1.1">
+            <viz:color hex="#7570b3"/>
+            <viz:position x="345.26" y="235.00" z="0.0"/>
+            <viz:size value="7"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g1c2" label="triangle 1.2">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="305.00" y="275.26" z="0.0"/>
+            <viz:size value="8"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g1c3" label="diamond 1.3">
+            <viz:color hex="#d95f02"/>
+            <viz:position x="250.00" y="290.00" z="0.0"/>
+            <viz:size value="9"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g1c4" label="disc 1.4">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="195.00" y="275.26" z="0.0"/>
+            <viz:size value="10"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g1c5" label="square 1.5">
+            <viz:color hex="#7570b3"/>
+            <viz:position x="154.74" y="235.00" z="0.0"/>
+            <viz:size value="11"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g1c6" label="triangle 1.6">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="140.00" y="180.00" z="0.0"/>
+            <viz:size value="12"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g1c7" label="diamond 1.7">
+            <viz:color hex="#1b9e77"/>
+            <viz:position x="154.74" y="125.00" z="0.0"/>
+            <viz:size value="13"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g1c8" label="disc 1.8">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="195.00" y="84.74" z="0.0"/>
+            <viz:size value="14"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g1c9" label="square 1.9">
+            <viz:color hex="#d95f02"/>
+            <viz:position x="250.00" y="70.00" z="0.0"/>
+            <viz:size value="15"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g1c10" label="triangle 1.10">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="305.00" y="84.74" z="0.0"/>
+            <viz:size value="16"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g1c11" label="diamond 1.11">
+            <viz:position x="345.26" y="125.00" z="0.0"/>
+            <viz:size value="17"/>
+            <viz:shape value="diamond"/>
+          </node>
+        </nodes>
+      </node>
+      <node id="g2" label="Group 2">
+        <viz:color hex="#7570b3" a="0.3"/>
+        <viz:position x="-250.00" y="-180.00" z="0.0"/>
+        <viz:size value="40"/>
+        <viz:shape value="square"/>
+        <nodes>
+          <node id="g2c0" label="disc 2.0">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-140.00" y="-180.00" z="0.0"/>
+            <viz:size value="6"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g2c1" label="square 2.1">
+            <viz:color hex="#e7298a"/>
+            <viz:position x="-154.74" y="-125.00" z="0.0"/>
+            <viz:size value="7"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g2c2" label="triangle 2.2">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-195.00" y="-84.74" z="0.0"/>
+            <viz:size value="8"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g2c3" label="diamond 2.3">
+            <viz:color hex="#7570b3"/>
+            <viz:position x="-250.00" y="-70.00" z="0.0"/>
+            <viz:size value="9"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g2c4" label="disc 2.4">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-305.00" y="-84.74" z="0.0"/>
+            <viz:size value="10"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g2c5" label="square 2.5">
+            <viz:color hex="#e7298a"/>
+            <viz:position x="-345.26" y="-125.00" z="0.0"/>
+            <viz:size value="11"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g2c6" label="triangle 2.6">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-360.00" y="-180.00" z="0.0"/>
+            <viz:size value="12"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g2c7" label="diamond 2.7">
+            <viz:color hex="#d95f02"/>
+            <viz:position x="-345.26" y="-235.00" z="0.0"/>
+            <viz:size value="13"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g2c8" label="disc 2.8">
+            <viz:color hex="#7570b3" a="0.6"/>
+            <viz:position x="-305.00" y="-275.26" z="0.0"/>
+            <viz:size value="14"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g2c9" label="square 2.9">
+            <viz:color hex="#7570b3"/>
+            <viz:position x="-250.00" y="-290.00" z="0.0"/>
+            <viz:size value="15"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g2c10" label="triangle 2.10">
+            <viz:color hex="#1b9e77" a="0.6"/>
+            <viz:position x="-195.00" y="-275.26" z="0.0"/>
+            <viz:size value="16"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g2c11" label="diamond 2.11">
+            <viz:position x="-154.74" y="-235.00" z="0.0"/>
+            <viz:size value="17"/>
+            <viz:shape value="diamond"/>
+          </node>
+        </nodes>
+      </node>
+      <node id="g3" label="Group 3">
+        <viz:color hex="#e7298a" a="0.3"/>
+        <viz:position x="250.00" y="-180.00" z="0.0"/>
+        <viz:size value="40"/>
+        <viz:shape value="square"/>
+        <nodes>
+          <node id="g3c0" label="disc 3.0">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="360.00" y="-180.00" z="0.0"/>
+            <viz:size value="6"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g3c1" label="square 3.1">
+            <viz:color hex="#1b9e77"/>
+            <viz:position x="345.26" y="-125.00" z="0.0"/>
+            <viz:size value="7"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g3c2" label="triangle 3.2">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="305.00" y="-84.74" z="0.0"/>
+            <viz:size value="8"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g3c3" label="diamond 3.3">
+            <viz:color hex="#e7298a"/>
+            <viz:position x="250.00" y="-70.00" z="0.0"/>
+            <viz:size value="9"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g3c4" label="disc 3.4">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="195.00" y="-84.74" z="0.0"/>
+            <viz:size value="10"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g3c5" label="square 3.5">
+            <viz:color hex="#1b9e77"/>
+            <viz:position x="154.74" y="-125.00" z="0.0"/>
+            <viz:size value="11"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g3c6" label="triangle 3.6">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="140.00" y="-180.00" z="0.0"/>
+            <viz:size value="12"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g3c7" label="diamond 3.7">
+            <viz:color hex="#7570b3"/>
+            <viz:position x="154.74" y="-235.00" z="0.0"/>
+            <viz:size value="13"/>
+            <viz:shape value="diamond"/>
+          </node>
+          <node id="g3c8" label="disc 3.8">
+            <viz:color hex="#e7298a" a="0.6"/>
+            <viz:position x="195.00" y="-275.26" z="0.0"/>
+            <viz:size value="14"/>
+            <viz:shape value="disc"/>
+          </node>
+          <node id="g3c9" label="square 3.9">
+            <viz:color hex="#e7298a"/>
+            <viz:position x="250.00" y="-290.00" z="0.0"/>
+            <viz:size value="15"/>
+            <viz:shape value="square"/>
+          </node>
+          <node id="g3c10" label="triangle 3.10">
+            <viz:color hex="#d95f02" a="0.6"/>
+            <viz:position x="305.00" y="-275.26" z="0.0"/>
+            <viz:size value="16"/>
+            <viz:shape value="triangle"/>
+          </node>
+          <node id="g3c11" label="diamond 3.11">
+            <viz:position x="345.26" y="-235.00" z="0.0"/>
+            <viz:size value="17"/>
+            <viz:shape value="diamond"/>
+          </node>
+        </nodes>
+      </node>
+      <node id="p0" label="pid child 0" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="-105.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p1" label="pid child 1" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="-75.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p2" label="pid child 2" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="-45.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p3" label="pid child 3" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="-15.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p4" label="pid child 4" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="15.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p5" label="pid child 5" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="45.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p6" label="pid child 6" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="75.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="p7" label="pid child 7" pid="g3">
+        <viz:color hex="#666666"/>
+        <viz:position x="105.00" y="0.00" z="0.0"/>
+        <viz:size value="8"/>
+        <viz:shape value="disc"/>
+      </node>
+    </nodes>
+    <edges>
+      <edge id="x0" source="g0c0" target="g0c1" label="L0" weight="1">
+      </edge>
+      <edge id="x1" source="g0c1" target="g0c2" type="directed" weight="2">
+        <viz:color hex="#d95f02" a="0.5"/>
+        <viz:thickness value="2"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x2" source="g0c2" target="g0c3" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x3" source="g0c3" target="g0c4" weight="4">
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x4" source="g0c4" target="g0c5" weight="1">
+        <viz:color hex="#1b9e77"/>
+      </edge>
+      <edge id="x5" source="g0c5" target="g0c6" type="directed" label="L5" weight="2">
+        <viz:color hex="#d95f02"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="x6" source="g0c6" target="g0c7" type="mutual" weight="3">
+      </edge>
+      <edge id="x7" source="g0c7" target="g0c8" weight="4">
+        <viz:color hex="#e7298a" a="0.5"/>
+      </edge>
+      <edge id="x8" source="g0c8" target="g0c9" weight="1">
+        <viz:color hex="#1b9e77"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x9" source="g0c9" target="g0c10" type="directed" weight="2">
+        <viz:thickness value="4"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x10" source="g0c10" target="g0c11" type="mutual" label="L10" weight="3">
+        <viz:color hex="#7570b3"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x11" source="g0c11" target="g1c0" weight="4">
+        <viz:color hex="#e7298a"/>
+      </edge>
+      <edge id="x12" source="g1c0" target="g1c1" weight="1">
+      </edge>
+      <edge id="x13" source="g1c1" target="g1c2" type="directed" weight="2">
+        <viz:color hex="#d95f02" a="0.5"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="x14" source="g1c2" target="g1c3" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+      </edge>
+      <edge id="x15" source="g1c3" target="g1c4" label="L15" weight="4">
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x16" source="g1c4" target="g1c5" weight="1">
+        <viz:color hex="#1b9e77"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x17" source="g1c5" target="g1c6" type="directed" weight="2">
+        <viz:color hex="#d95f02"/>
+        <viz:thickness value="6"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x18" source="g1c6" target="g1c7" type="mutual" weight="3">
+      </edge>
+      <edge id="x19" source="g1c7" target="g1c8" weight="4">
+        <viz:color hex="#e7298a" a="0.5"/>
+      </edge>
+      <edge id="x20" source="g1c8" target="g1c9" label="L20" weight="1">
+        <viz:color hex="#1b9e77"/>
+      </edge>
+      <edge id="x21" source="g1c9" target="g1c10" type="directed" weight="2">
+        <viz:thickness value="4"/>
+      </edge>
+      <edge id="x22" source="g1c10" target="g1c11" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x23" source="g1c11" target="g2c0" weight="4">
+        <viz:color hex="#e7298a"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x24" source="g2c0" target="g2c1" weight="1">
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x25" source="g2c1" target="g2c2" type="directed" label="L25" weight="2">
+        <viz:color hex="#d95f02" a="0.5"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="x26" source="g2c2" target="g2c3" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+      </edge>
+      <edge id="x27" source="g2c3" target="g2c4" weight="4">
+      </edge>
+      <edge id="x28" source="g2c4" target="g2c5" weight="1">
+        <viz:color hex="#1b9e77"/>
+      </edge>
+      <edge id="x29" source="g2c5" target="g2c6" type="directed" weight="2">
+        <viz:color hex="#d95f02"/>
+        <viz:thickness value="6"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x30" source="g2c6" target="g2c7" type="mutual" label="L30" weight="3">
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x31" source="g2c7" target="g2c8" weight="4">
+        <viz:color hex="#e7298a" a="0.5"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x32" source="g2c8" target="g2c9" weight="1">
+        <viz:color hex="#1b9e77"/>
+      </edge>
+      <edge id="x33" source="g2c9" target="g2c10" type="directed" weight="2">
+        <viz:thickness value="4"/>
+      </edge>
+      <edge id="x34" source="g2c10" target="g2c11" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+      </edge>
+      <edge id="x35" source="g2c11" target="g3c0" label="L35" weight="4">
+        <viz:color hex="#e7298a"/>
+      </edge>
+      <edge id="x36" source="g3c0" target="g3c1" weight="1">
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x37" source="g3c1" target="g3c2" type="directed" weight="2">
+        <viz:color hex="#d95f02" a="0.5"/>
+        <viz:thickness value="2"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x38" source="g3c2" target="g3c3" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x39" source="g3c3" target="g3c4" weight="4">
+      </edge>
+      <edge id="x40" source="g3c4" target="g3c5" label="L40" weight="1">
+        <viz:color hex="#1b9e77"/>
+      </edge>
+      <edge id="x41" source="g3c5" target="g3c6" type="directed" weight="2">
+        <viz:color hex="#d95f02"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="x42" source="g3c6" target="g3c7" type="mutual" weight="3">
+      </edge>
+      <edge id="x43" source="g3c7" target="g3c8" weight="4">
+        <viz:color hex="#e7298a" a="0.5"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x44" source="g3c8" target="g3c9" weight="1">
+        <viz:color hex="#1b9e77"/>
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x45" source="g3c9" target="g3c10" type="directed" label="L45" weight="2">
+        <viz:thickness value="4"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x46" source="g3c10" target="g3c11" type="mutual" weight="3">
+        <viz:color hex="#7570b3"/>
+      </edge>
+      <edge id="x47" source="g3c11" target="p0" weight="4">
+        <viz:color hex="#e7298a"/>
+      </edge>
+      <edge id="x48" source="p0" target="p1" weight="1">
+      </edge>
+      <edge id="x49" source="p1" target="p2" type="directed" weight="2">
+        <viz:color hex="#d95f02" a="0.5"/>
+        <viz:thickness value="2"/>
+      </edge>
+      <edge id="x50" source="p2" target="p3" type="mutual" label="L50" weight="3">
+        <viz:color hex="#7570b3"/>
+        <viz:shape value="dotted"/>
+      </edge>
+      <edge id="x51" source="p3" target="p4" weight="4">
+        <viz:shape value="dashed"/>
+      </edge>
+      <edge id="x52" source="p4" target="p5" weight="1">
+        <viz:color hex="#1b9e77"/>
+        <viz:shape value="double"/>
+      </edge>
+      <edge id="x53" source="p5" target="p6" type="directed" weight="2">
+        <viz:color hex="#d95f02"/>
+        <viz:thickness value="6"/>
+      </edge>
+      <edge id="x54" source="p6" target="p7" type="mutual" weight="3">
+      </edge>
+      <edge id="x55" source="p7" target="g0c0" label="L55" weight="4">
+        <viz:color hex="#e7298a" a="0.5"/>
+      </edge>
+      <edge id="x56" source="g1c0" target="g1c6" kind="friend" label="friend"/>
+      <edge id="x57" source="g1c0" target="g1c6" kind="work" label="work"/>
+      <edge id="x58" source="g1c0" target="g1c6" kind="family" label="family"/>
+    </edges>
+  </graph>
+</gexf>

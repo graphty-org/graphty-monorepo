@@ -5,6 +5,7 @@ import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
  * surface in the dark scheme matches the panels around it.
  *
  * - 0: text (#fff)
+ * - 2: Mantine's dimmed text (#8c8c8c); the AA option points dimmed text at its secondary ink
  * - 5: hover (#444)
  * - 6: default field (#383838)
  * - 7: body / panel (#2c2c2c)
@@ -62,7 +63,7 @@ export const compactGraphtyColors: MantineColorsTuple = [
 
 /**
  * Color configuration for the compact theme: every Mantine color, the neutral `dark` ramp, the
- * `brand` accent and the `graphty` accent.
+ * the `brand` accent and the `graphty` accent.
  */
 export const compactColors = {
     ...DEFAULT_THEME.colors,

@@ -22,12 +22,14 @@ import {
     Vector3,
     WebGPUEngine,
     WebXRDefaultExperience,
+    WebXRState,
 } from "@babylonjs/core";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
+import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import { GraphtyLogger, type Logger } from "./logging";
 
@@ -48,10 +50,50 @@ const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
  * reads as a change on a graph of any size.
  */
 const ZOOM_STEP_FACTOR = 1.25;
+
+/** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
+const EDGE_PICK_TOLERANCE_PX = 6;
+
+/**
+ * The world points an edge's line is drawn through: its curve's points, or its two ends.
+ * @param edge - The edge.
+ * @returns The points, in order along the line.
+ */
+function edgeWorldPoints(edge: Edge): Vector3[] {
+    const curve = edge.drawnCurve;
+    if (curve !== null && !(edge.mesh instanceof PatternedLineMesh)) {
+        // A curve's points are in its batch's space, which an XR gesture moves with graph-root.
+        const world = edge.mesh.getWorldMatrix();
+        return curve.map((point) => Vector3.TransformCoordinates(point, world));
+    }
+
+    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+}
+
+/**
+ * The distance from a point to a segment, in the segment's pixels.
+ * @param x - The point's x.
+ * @param y - The point's y.
+ * @param a - One end.
+ * @param a.x - Its x.
+ * @param a.y - Its y.
+ * @param b - The other end.
+ * @param b.x - Its x.
+ * @param b.y - Its y.
+ * @returns The distance.
+ */
+function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length2 = dx * dx + dy * dy;
+    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
+    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+}
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
+import { fullInsets } from "./camera/insets.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
-import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
+import type { CameraState, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -59,7 +101,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, EdgeId, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -78,6 +120,7 @@ import {
 } from "./config";
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { RenderSettingsOpts } from "./config/GraphBehavior";
+import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
@@ -117,7 +160,14 @@ import {
 } from "./managers";
 import { dataManagerInternals, disposeReleased } from "./managers/DataManager";
 import { animatesEveryFrame } from "./managers/everyFrameAnimations";
-import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
+import {
+    type EdgeLabelCounts,
+    LabelDeclutter,
+    NO_EDGE_LABELS,
+    NO_NODE_LABELS,
+    type NodeLabel,
+    type NodeLabelCounts,
+} from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -131,9 +181,18 @@ import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { MeshCache } from "./meshes/MeshCache";
+import { NodeEffects } from "./meshes/NodeEffects";
+import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node, releaseNodeMesh } from "./Node";
-import { nodeActionManagerOf, nodePointerRosterOf, pickAsDrawn, pickNodeId, pointerEventTime } from "./NodeBehavior";
+import {
+    alongRay,
+    nodeActionManagerOf,
+    nodePointerRosterOf,
+    pickAsDrawn,
+    pickNodeId,
+    pointerEventTime,
+} from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -152,6 +211,7 @@ import {
     sessionRunsOf,
     setsNotifierOfSession,
 } from "./session/GraphSession";
+import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
     cancelReasonOf,
@@ -176,7 +236,9 @@ import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./sess
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
+import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
+import { XrAvailability } from "./xr/XrAvailability";
 import { type XRSessionEndCause, XRSessionManager } from "./xr/XRSessionManager";
 
 /**
@@ -192,11 +254,35 @@ interface RunnableAlgorithm {
     readonly params: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Whether a graph whose `rendering.onDemand` was never set draws on demand. Off, as documented,
+ * unless the test-only global `globalThis.__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true` is set: the
+ * test setups set it so a still graph in a headless (software-rendered) browser stops drawing every
+ * frame. A test that needs continuous frames sets `renderOnDemand = false` explicitly.
+ * @returns True when an unset `onDemand` means on.
+ */
+function onDemandWhenUnset(): boolean {
+    return (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: unknown }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ === true;
+}
+
 /** The configuration document at its defaults: what the frozen view is merged over. */
 const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTemplate: true, majorVersion: "1" }));
 
 /** The project settings of a graph whose session is still being built: every one at its default. */
 const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.parse({}));
+
+/**
+ * The immersive mode a WebXR session mode names.
+ * @param mode - The WebXR session mode, or null.
+ * @returns `"vr"`, `"ar"` or null.
+ */
+function immersiveOf(mode: "immersive-vr" | "immersive-ar" | null): "vr" | "ar" | null {
+    if (mode === null) {
+        return null;
+    }
+
+    return mode === "immersive-vr" ? "vr" : "ar";
+}
 
 /**
  * Whether a rejection is a cancellation: work withdrawn or replaced, which is not a failure.
@@ -328,6 +414,14 @@ const BATCH_VERBS: Readonly<Record<string, string>> = {
     applySuggestedStyles: "tx.run with applySuggestedStyles: true",
 };
 
+/** A load's id and its places: in the data manager's generations and in the session's load line. */
+interface Reservation {
+    readonly loadId: number;
+    readonly generation: number;
+    readonly replace: boolean;
+    readonly turn: LoadTurn;
+}
+
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
@@ -375,6 +469,33 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     }
 
     return queue;
+}
+
+/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
+const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+
+/**
+ * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
+ * not reached the queue yet: the element's page loads, held while autosave decides its restore.
+ * No entry point exports it.
+ * @param graph - The graph.
+ * @param pending - Settles once those loads are queued.
+ */
+export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
+    loadsAhead.set(graph, pending);
+}
+
+/** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
+const requestedFeatures = new WeakMap<Graph, () => readonly string[] | undefined>();
+
+/**
+ * Make the graph's session read its experiments from the element's `features`, when the session
+ * first settles them. No entry point exports it.
+ * @param graph - The graph.
+ * @param read - The ids the element asked for; `undefined` takes the page default.
+ */
+export function featuresFrom(graph: Graph, read: () => readonly string[] | undefined): void {
+    requestedFeatures.set(graph, read);
 }
 
 /**
@@ -449,13 +570,40 @@ export class Graph implements GraphContext {
     #initialCameraStateOwed = false;
 
     /**
-     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
-     * the element last asked to frame the graph for a load or a new layout. The first-settlement
-     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     * Whether the camera was placed -- by the reader's own zoom, turn or pan, or explicitly
+     * (`setCameraState` and every route through it) -- since the element last asked to frame the
+     * graph for a load or a new layout. The element's own framing is skipped while it is set, so
+     * it never moves a camera somebody has just placed.
      */
     #cameraPlaced = false;
+
+    /**
+     * The reader moved the camera: the element's own framing stops until the next load or layout,
+     * as it does for `setCameraState`. Left running, a re-frame still owed -- a layout that had not
+     * settled, the first settlement -- snapped the camera back from where the reader had zoomed.
+     * A consumer's own `zoomToFit()` still lands.
+     */
+    readonly #readerMovedCamera = (): void => {
+        if (this.#cameraPlaced) {
+            return;
+        }
+
+        this.#cameraPlaced = true;
+        this.#initialCameraStateOwed = false;
+        this.updateManager.stopAutoZoomToFit();
+    };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
+    /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
+    #zoomToPointer = false;
+    /** How the 3D nodes are lit; see {@link setLighting}. */
+    #lighting: Lighting = DEFAULT_LIGHTING;
+    /** The node thumbnails drawn so far, by what they draw. */
+    readonly #thumbnails = new Map<string, Promise<string>>();
+    /** The last thumbnail drawing in line. */
+    #thumbnailQueue: Promise<unknown> = Promise.resolve();
+    /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
+    #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     /**
@@ -488,6 +636,8 @@ export class Graph implements GraphContext {
     private wasSettled = false; // Track previous settlement state
     /** How many loads `addDataFromSource` has started; the last one's id. */
     private loadCount = 0;
+    /** This graph's loads still holding a place in the session's load line. */
+    private readonly turns = new Set<LoadTurn>();
     private readonly resizeHandler = (): void => {
         this.engine.resize();
         // If we've already zoomed to fit, re-zoom after resize to ensure content still fits
@@ -495,6 +645,28 @@ export class Graph implements GraphContext {
         //     this.updateManager.enableZoomToFit();
         // }
     };
+
+    /**
+     * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
+     * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
+     * the element's ResizeObserver.
+     * @internal
+     */
+    resize(): void {
+        const width = this.engine.getRenderWidth();
+        const height = this.engine.getRenderHeight();
+        this.engine.resize();
+        // The camera's projection follows the new aspect ratio before the frame is drawn.
+        this.camera.onResize();
+        // Only a canvas whose size changed was cleared; the observer's first delivery, a box
+        // change that keeps the render size, or a window resize the loop already drew are not.
+        // An XR session draws in its own frames, so nothing is drawn outside them.
+        const resized = width !== this.engine.getRenderWidth() || height !== this.engine.getRenderHeight();
+        const xrState: WebXRState | undefined = this.scene.metadata?.xrHelper?.baseExperience?.state;
+        if (resized && (xrState === undefined || xrState === WebXRState.NOT_IN_XR)) {
+            this.renderManager.drawNow();
+        }
+    }
 
     /**
      * The one acceleration controller this graph, its session and its element share.
@@ -563,7 +735,8 @@ export class Graph implements GraphContext {
      * Whether drawing on demand is switched on (`layoutBehavior.rendering.onDemand`).
      * @returns True when the render loop may skip frames.
      */
-    private readonly drawsOnDemand = (): boolean => this.viewSettings.behavior.rendering?.onDemand === true;
+    private readonly drawsOnDemand = (): boolean =>
+        this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
@@ -604,6 +777,10 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
+    private readonly xrAvailability: XrAvailability;
+    /** Stops redrawing the canvas XR buttons on each availability change. */
+    #unwatchXrButtons: (() => void) | null = null;
 
     // GraphContext implementation
     private graphContext: DefaultGraphContext;
@@ -633,7 +810,7 @@ export class Graph implements GraphContext {
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
-        this.stylePainter = new StylePainter();
+        this.stylePainter = new StylePainter(() => this.dataManager.directed);
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
@@ -668,6 +845,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
+        this.camera.onReaderMove = this.#readerMovedCamera;
 
         // Initialize StatsManager
         this.statsManager = new StatsManager(this.eventManager);
@@ -695,10 +873,21 @@ export class Graph implements GraphContext {
         // The records live in the session's `graph` slice, which every write through the graph
         // primitives fills, so the session reads them there; the data manager is bound to the
         // session below so that its writes are those primitives.
+        this.xrAvailability = new XrAvailability({
+            enabled: () => {
+                const xr = this.xrConfig();
+                return { xr: xr.enabled, vr: xr.vr.enabled, ar: xr.ar.enabled };
+            },
+            // WebXR draws through an XRWebGLLayer and has no WebGPU binding in any shipping browser.
+            webgpu: () => this.#rendererStatus?.active === "webgpu",
+            active: () => immersiveOf(this.xrSessionManager?.getActiveMode() ?? null),
+        });
         this.session = createElementSession(
             {
                 acceleration: this.acceleration,
+                xr: this.xrAvailability,
                 store: laneStoreOf(this.dataManager),
+                features: () => requestedFeatures.get(this)?.(),
                 runs: {
                     // The element's own queue, so a run takes its turn among the loads, the layouts
                     // and the style passes rather than interleaving with them.
@@ -894,10 +1083,21 @@ export class Graph implements GraphContext {
                 this.updateManager.meshesAdded();
             }
 
-            if (changed("selectionStyle")) {
+            if (changed("selectionStyle") || changed("startingRows")) {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
                 }
+            }
+
+            // A selected edge's halo is drawn from the selection style: redraw it.
+            if (changed("selectionStyle") || changed("startingRows")) {
+                for (const edge of this.dataManager.edges.values()) {
+                    if (edge.isSelected()) {
+                        edge.updateStyle();
+                    }
+                }
+
+                this.updateManager.forceEdgeWalk();
             }
         });
 
@@ -913,6 +1113,12 @@ export class Graph implements GraphContext {
                         : { preset: command.preset },
                     command.animate === true ? { animate: true } : undefined,
                 ),
+        };
+
+        // What a file whose positions are fitted to the viewer is fitted to (sigma.js labels).
+        dispatcherOf(this.session).services.viewport = () => {
+            const { clientWidth: width, clientHeight: height } = this.canvas;
+            return width > 0 && height > 0 ? { width, height } : null;
         };
 
         // Live sets re-resolve after a freeze a frame at a time, on the render loop's frames
@@ -957,7 +1163,10 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
-        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
+        // Not the write being derived: a replacing import runs until its own placement pass, and
+        // counting it there kept the seeded layout from starting over, so new data was drawn from
+        // where the old graph had got to instead of as opening it draws it.
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesQueued;
 
         // Every change to project state reaches the picture through a pass, so a graph drawn on
         // demand draws the frame after each one: a style, the data, a setting, an undo.
@@ -1001,6 +1210,13 @@ export class Graph implements GraphContext {
                     reportCaught(error);
                 }
             });
+        });
+
+        // A click on a node, also on one already selected, which no selection change reports.
+        this.eventManager.onNodeEvent.add((event) => {
+            if (event.type === "node-click") {
+                this.session.elementClick({ node: event.node.id });
+            }
         });
 
         // The release list (WebGPU design 9.4 item 2). GPU memory is not garbage collected, so an
@@ -1052,6 +1268,13 @@ export class Graph implements GraphContext {
                 autoZoomToFit: true,
             },
         );
+        this.layoutManager.drawArrivedPaint = () => {
+            this.updateManager.drawArrivedPaint();
+        };
+        // A change on its way through the derivation lane is paint on its way: its styles hook runs
+        // after the graph and layout hooks it awaits, so until the pass ends the framing a
+        // settling layout ends with, and the finished picture, wait for it (issue #3378).
+        this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
 
         // Initialize AlgorithmManager
         this.algorithmManager = new AlgorithmManager(this.eventManager, this);
@@ -1115,7 +1338,10 @@ export class Graph implements GraphContext {
         // A layout scope is canonicalised and resolved through the session, and a layout holding
         // nodes for one is a user of the sets it names.
         const resolver = scopeResolverOfSession(this.session);
+        // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
+        const columns = sessionColumns(this.session, [], {}, "layout");
         this.layoutManager.setScopeSource({
+            nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
             detached: (scope) => {
@@ -1247,6 +1473,17 @@ export class Graph implements GraphContext {
         // First, so a repaint queued behind a load or a run -- or one already painting -- stops
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
+
+        // XR listens on the page's navigator.xr, which outlives this graph: a listener left there
+        // when the element leaves the page (which shuts the graph down without disposing it) keeps
+        // the whole graph, its scene and its data alive for the life of the page.
+        this.#unwatchXrButtons?.();
+        this.#unwatchXrButtons = null;
+        this.xrAvailability.dispose();
+        this.xrUIManager?.dispose();
+        this.xrUIManager = null;
+        this.xrSessionManager?.dispose();
+        this.xrSessionManager = null;
 
         // Stop any running camera animations
         try {
@@ -1567,6 +1804,11 @@ export class Graph implements GraphContext {
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
+        const label = this.canvas.getAttribute("aria-label");
+        if (label !== null) {
+            canvas.setAttribute("aria-label", label);
+        }
+
         this.canvas.replaceWith(canvas);
         this.canvas = canvas;
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
@@ -1581,6 +1823,10 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
+        this.camera.onReaderMove = this.#readerMovedCamera;
+        this.camera.setViewInsets(this.#viewInsets);
+        this.camera.setZoomToPointer(this.#zoomToPointer);
+        this.renderManager.applyLighting(this.#lighting);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
@@ -1608,10 +1854,14 @@ export class Graph implements GraphContext {
         const canvas = document.createElement("canvas");
         canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
         canvas.setAttribute("touch-action", "none");
+        // Focusable from the keyboard, but never on its own: no autofocus, so mounting the element
+        // does not pull the page's focus into the drawing.
         canvas.setAttribute("tabindex", "0");
         canvas.style.width = "100%";
         canvas.style.height = "100%";
         canvas.style.touchAction = "none";
+        // A drag on the drawing never starts a text selection on the host page.
+        canvas.style.userSelect = "none";
         return canvas;
     }
 
@@ -1704,8 +1954,8 @@ export class Graph implements GraphContext {
                 this.update(frameMs);
             });
 
-            // Initialize XR (VR/AR) if enabled
-            await this.initializeXR();
+            // XR (VR/AR): on unless `xr.enabled` is false; nothing is allocated until entry.
+            this.initializeXR();
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
@@ -1932,6 +2182,7 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
+        NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
 
@@ -1981,6 +2232,16 @@ export class Graph implements GraphContext {
     get nodeLabelCounts(): NodeLabelCounts {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
+    }
+
+    /**
+     * How many edge texts (labels and end captions) this graph is drawing, and why the rest are
+     * not, as of the last frame that decided it. All zeros before one is drawn.
+     * @returns The counts.
+     */
+    get edgeLabelCounts(): EdgeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.edgeCounts : NO_EDGE_LABELS;
     }
 
     /**
@@ -2106,6 +2367,7 @@ export class Graph implements GraphContext {
                 twoD: layout.dimension === "2d",
                 background: project.background,
                 selection: project.selectionStyle,
+                ...(project.startingRows ? { startingRows: true } : {}),
             },
             data: project.data,
             behavior: GraphBehaviorOpts.parse({
@@ -2149,11 +2411,33 @@ export class Graph implements GraphContext {
      *
      * `loadFromFile` and `loadFromUrl` read before they load, so taking the place when the read
      * finished would let an earlier, slower read overtake a later load. Ids rise in call order.
+     *
+     * The place is also one in the session's load line, which `session.data`'s loads share, so a
+     * load dispatches only once every load asked for before it, through either door, has (issue
+     * #3382). A replacing load supersedes this graph's earlier loads, which will never dispatch,
+     * so it takes their places in the line at once rather than waiting for their reads.
      * @param replace - Whether the load replaces the graph
-     * @returns The reservation to hand to `loadReserved`
+     * @returns The reservation to hand to `loadReserved`, which gives the place up
      */
-    private reserveLoad(replace = false): { loadId: number; generation: number; replace: boolean } {
-        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace };
+    private reserveLoad(replace = false): Reservation {
+        if (replace) {
+            for (const superseded of this.turns) {
+                superseded.leave();
+            }
+            this.turns.clear();
+        }
+        const turn = loadLineOf(dispatcherOf(this.session)).join();
+        this.turns.add(turn);
+        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace, turn };
+    }
+
+    /**
+     * Give up a load's place in line: it dispatched, or it failed before it could.
+     * @param load - The reservation
+     */
+    private leaveLine(load: Reservation): void {
+        load.turn.leave();
+        this.turns.delete(load.turn);
     }
 
     /**
@@ -2164,15 +2448,20 @@ export class Graph implements GraphContext {
      * @param load.loadId - The load's id
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
+     * @param load.turn - Its place in the session's load line
      * @returns The load's id
      */
-    private async loadReserved(
-        type: string,
-        opts: object,
-        load: { loadId: number; generation: number; replace: boolean },
-    ): Promise<{ loadId: number }> {
+    private async loadReserved(type: string, opts: object, load: Reservation): Promise<{ loadId: number }> {
         // Read before the first await: a pair load's extras are set only for the call that made it.
-        await this.dataManager.addDataFromSource(type, opts, { ...load, ...pairImports.get(this) });
+        const { turn, ...place } = load;
+        const extras = pairImports.get(this);
+        try {
+            // Waited for only when an earlier load still reads, so one with nothing ahead of it
+            // dispatches before this call returns, as it did before the line existed.
+            await turn.take(() => this.dataManager.addDataFromSource(type, opts, { ...place, ...extras }));
+        } finally {
+            this.leaveLine(load);
+        }
         return { loadId: load.loadId };
     }
 
@@ -2214,40 +2503,45 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { detectFormat } = await import("./data/format-detection.js");
+        try {
+            const { detectFormat } = await import("./data/format-detection.js");
 
-        // Detect format if not explicitly provided
-        let format = options?.format;
+            // Detect format if not explicitly provided
+            let format = options?.format;
 
-        if (!format) {
-            // Read first 2KB for format detection
-            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
-            this.dataManager.throwIfSuperseded(load.generation, file.name);
-            const detected = detectFormat(file.name, sample);
+            if (!format) {
+                // Read first 2KB for format detection
+                const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
+                this.dataManager.throwIfSuperseded(load.generation, file.name);
+                const detected = detectFormat(file.name, sample);
 
-            if (!detected) {
-                throw undetectedFormat(file.name, 'loadFromFile(file, { format: "graphml" })');
+                if (!detected) {
+                    throw undetectedFormat(file.name, 'loadFromFile(file, { format: "graphml" })');
+                }
+
+                format = detected;
             }
 
-            format = detected;
+            // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+            // declaration), and a binary format such as a zip would not survive a text read.
+            const content = new Uint8Array(await file.arrayBuffer());
+
+            // Load using appropriate DataSource
+            const { replace: _replace, ...sourceOptions } = options ?? {};
+            return await this.loadReserved(
+                format,
+                {
+                    data: content,
+                    filename: file.name,
+                    size: file.size,
+                    ...sourceOptions,
+                },
+                load,
+            );
+        } finally {
+            // A read that failed gives up its place, so the loads behind it are not held back.
+            this.leaveLine(load);
         }
-
-        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
-        // declaration), and a binary format such as a zip would not survive a text read.
-        const content = new Uint8Array(await file.arrayBuffer());
-
-        // Load using appropriate DataSource
-        const { replace: _replace, ...sourceOptions } = options ?? {};
-        return this.loadReserved(
-            format,
-            {
-                data: content,
-                filename: file.name,
-                size: file.size,
-                ...sourceOptions,
-            },
-            load,
-        );
     }
 
     /**
@@ -2303,38 +2597,42 @@ export class Graph implements GraphContext {
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
-        const { format, fetchedContent } = options?.format
-            ? { format: options.format, fetchedContent: undefined }
-            : await this.urlFormat(url, load.generation);
+        try {
+            const { format, fetchedContent } = options?.format
+                ? { format: options.format, fetchedContent: undefined }
+                : await this.urlFormat(url, load.generation);
 
-        // Merge graph config with explicit options (explicit options take precedence)
-        // A key is only carried when there is something to say. `edgeSource: undefined` would
-        // reach the load as a declared-and-empty override and turn the probe off for a file that
-        // named nothing, which is the failure this release exists to remove.
-        const configured = this.styles.config.data.knownFields;
-        const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
-        const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
-        const { graphIndex, graphName, styles, styleOptions } = options ?? {};
-        const mergedOptions = {
-            nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
-            ...presentOnly({
-                edgeSource,
-                edgeTarget,
-                graphIndex,
-                graphName,
-                layout: options?.layout,
-                styles,
-                styleOptions,
-            }),
-        };
+            // Merge graph config with explicit options (explicit options take precedence)
+            // A key is only carried when there is something to say. `edgeSource: undefined` would
+            // reach the load as a declared-and-empty override and turn the probe off for a file that
+            // named nothing, which is the failure this release exists to remove.
+            const configured = this.styles.config.data.knownFields;
+            const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
+            const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+            const { graphIndex, graphName, styles, styleOptions } = options ?? {};
+            const mergedOptions = {
+                nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
+                ...presentOnly({
+                    edgeSource,
+                    edgeTarget,
+                    graphIndex,
+                    graphName,
+                    layout: options?.layout,
+                    styles,
+                    styleOptions,
+                }),
+            };
 
-        // If we already fetched content for detection, pass it as data to avoid double-fetch
-        // Otherwise pass URL and let DataSource handle the fetch
-        if (fetchedContent !== undefined) {
-            return this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+            // If we already fetched content for detection, pass it as data to avoid double-fetch
+            // Otherwise pass URL and let DataSource handle the fetch
+            if (fetchedContent !== undefined) {
+                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+            }
+
+            return await this.loadReserved(format, { url, ...mergedOptions }, load);
+        } finally {
+            this.leaveLine(load);
         }
-
-        return this.loadReserved(format, { url, ...mergedOptions }, load);
     }
 
     /**
@@ -3783,7 +4081,7 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick();
+                    this.handleBackgroundClick(pointerInfo.event);
                 }
             }
         });
@@ -3794,6 +4092,28 @@ export class Graph implements GraphContext {
         nodePointerRosterOf(this.scene);
         nodeActionManagerOf(this.scene);
 
+        // The pointer says a line can be clicked, as Babylon already says it over a node (each
+        // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
+        // instances of an unpickable batch, so Babylon never sees them: on every move it has just
+        // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            const canvas = this.scene.getEngine().getInputElement();
+            const { buttons } = pointerInfo.event as { buttons?: number };
+            if (
+                !canvas ||
+                this.scene.doNotHandleCursors ||
+                (buttons ?? 0) !== 0 ||
+                canvas.style.cursor === this.scene.hoverCursor ||
+                this.scene.metadata?.xrHelper?.baseExperience?.state === 2
+            ) {
+                return;
+            }
+
+            if (this.pickEdgeId(this.scene.pointerX, this.scene.pointerY) !== undefined) {
+                canvas.style.cursor = this.scene.hoverCursor;
+            }
+        }, PointerEventTypes.POINTERMOVE);
+
         // The pointer cursor over a close button, put back when the pointer leaves it. Only the
         // cursor this set is put back, so nothing else's cursor is touched.
         let overClose = false;
@@ -3803,7 +4123,8 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const picked = this.scene.pick(x, y, isCloseLabel).pickedMesh;
+            const ray = this.scene.createPickingRay(x, y, null, null);
+            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {
@@ -3814,10 +4135,16 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * A click on the canvas: on empty canvas it deselects. On a label with a close button it
-     * deselects only on the x, and anywhere else on that label does nothing.
+     * A click on the canvas. A click on a node is the node's own handler's. On a label with a
+     * close button it deselects only on the x, and anywhere else on that label does nothing. On
+     * an edge it selects the edge (Shift adds it); on empty canvas it clears the selection. A
+     * right-click asks for a menu about the selection, so it keeps a selection that holds its
+     * edge, and on empty canvas it clears nothing.
+     * @param event - The pointer event: which button, and whether Shift was held.
+     * @param event.button - The mouse button; 2 is the secondary one.
+     * @param event.shiftKey - Whether Shift was held.
      */
-    private handleBackgroundClick(): void {
+    private handleBackgroundClick(event: { button?: number; shiftKey?: boolean }): void {
         const { pointerX: x, pointerY: y } = this.scene;
         const picked = pickAsDrawn(this.scene, x, y);
         if (picked && isCloseLabel(picked)) {
@@ -3825,9 +4152,42 @@ export class Graph implements GraphContext {
             if (close !== undefined && inRect(close, x, y)) {
                 this.selectionManager.deselect();
             }
-        } else if ((picked?.metadata as { nodeId?: unknown } | null | undefined)?.nodeId === undefined) {
-            this.selectionManager.deselect();
+
+            return;
         }
+
+        if (pickNodeId(this.scene, x, y) !== undefined) {
+            return;
+        }
+
+        const edgeId = this.pickEdgeId(x, y);
+        const secondary = event.button === 2;
+        if (edgeId === undefined) {
+            this.clickEmptyCanvas(x, y, secondary);
+            return;
+        }
+
+        if (!(secondary && this.session.selection.edges.includes(edgeId))) {
+            const add = event.shiftKey === true;
+            this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+        }
+        this.session.elementClick({ edge: edgeId });
+    }
+
+    /**
+     * A click on empty canvas: a primary click clears the selection; either reports the click.
+     * @param x - The pointer's x on the canvas.
+     * @param y - The pointer's y on the canvas.
+     * @param secondary - Whether it was the secondary button.
+     */
+    private clickEmptyCanvas(x: number, y: number, secondary: boolean): void {
+        if (!secondary) {
+            this.selectionManager.deselect();
+            if (this.session.selection.edges.length > 0) {
+                this.session.selection.clear();
+            }
+        }
+        this.session.emptyClick({ x, y, secondary });
     }
 
     /**
@@ -3930,6 +4290,30 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether the camera was placed since the element last framed the graph on its own; see
+     * `cameraPlaced` on the element.
+     * @returns True once the reader zoomed, turned or panned, or the camera state was set.
+     */
+    isCameraPlaced(): boolean {
+        return this.#cameraPlaced;
+    }
+
+    /**
+     * Remember whether the camera counts as placed, for a camera set only for a moment -- a
+     * screenshot's own view -- that must not count as the reader placing it.
+     * @returns Puts back the placement and the first-settlement framing as they were.
+     * @internal
+     */
+    saveCameraPlacement(): () => void {
+        const placed = this.#cameraPlaced;
+        const initialOwed = this.#initialCameraStateOwed;
+        return () => {
+            this.#cameraPlaced = placed;
+            this.#initialCameraStateOwed = initialOwed;
+        };
+    }
+
+    /**
      * Whether the camera frames the graph on its own after a data load or a layout change.
      * @returns True (the default) when it does
      */
@@ -3949,6 +4333,77 @@ export class Graph implements GraphContext {
         if (!on) {
             this.updateManager.stopAutoZoomToFit();
         }
+    }
+
+    /**
+     * Whether the mouse wheel zooms toward the point under the pointer.
+     * @returns True when it does; false (the default) when it zooms toward the view's center
+     */
+    getZoomToPointer(): boolean {
+        return this.#zoomToPointer;
+    }
+
+    /**
+     * Make the mouse wheel zoom toward the point under the pointer, so what is under the pointer
+     * stays under it, or toward the view's center (the default). In 3D the point is taken on the
+     * plane through the point the camera turns about. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to zoom toward the pointer.
+     */
+    setZoomToPointer(on: boolean): void {
+        this.#zoomToPointer = on;
+        this.camera.setZoomToPointer(on);
+    }
+
+    /**
+     * How the 3D nodes are lit; see {@link setLighting}.
+     * @returns The lighting.
+     */
+    getLighting(): Lighting {
+        return this.#lighting;
+    }
+
+    /**
+     * Light the 3D nodes one of the {@link Lighting} ways: "studio" (the default), "headlight",
+     * "matte" or "flat". Takes effect on the next frame, for every node on screen and every node
+     * drawn after. 2D view is always drawn flat. A preference of the view, not saved in a project
+     * file.
+     * @param lighting - The lighting.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` when the value is not a lighting.
+     */
+    setLighting(lighting: Lighting): void {
+        if (!isLighting(lighting)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `lighting must be one of ${LIGHTING_VALUES.join(", ")}, not ${String(lighting)}`,
+                source: "view",
+                details: { name: "lighting", value: lighting },
+            });
+        }
+
+        this.#lighting = lighting;
+        this.renderManager.applyLighting(lighting);
+    }
+
+    /**
+     * The margins of the canvas something else covers; see {@link setViewInsets}.
+     * @returns CSS pixels per side, 0 where nothing is reserved.
+     */
+    getViewInsets(): Required<ViewInsets> {
+        return this.#viewInsets;
+    }
+
+    /**
+     * Reserve margins of the canvas that something laid over it covers -- a key, a toolbar --
+     * so no fit puts a node under them: the automatic framing after a load or a layout,
+     * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
+     * the part left free. Does not move the camera by itself; the element's own framing, when on,
+     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
+     */
+    setViewInsets(insets: ViewInsets | undefined): void {
+        this.#viewInsets = fullInsets(insets);
+        this.camera.setViewInsets(this.#viewInsets);
     }
 
     /**
@@ -4049,18 +4504,8 @@ export class Graph implements GraphContext {
         }
 
         try {
-            if (this.dimension() === "2d") {
-                await dispatcher.transaction(
-                    `Switched to 3D for ${mode.toUpperCase()}`,
-                    async (tx) => {
-                        await tx.dispatch({ op: "view.dimension", dimension: "3d" });
-                        await tx.dispatch({ op: "view.immersive", mode });
-                    },
-                    { fact: { code: "view.immersive", params: { mode } } },
-                );
-            } else {
-                await dispatcher.dispatch({ op: "view.immersive", mode });
-            }
+            // From 2D the op switches to 3D itself, in the same step.
+            await this.session.execute({ op: "view.immersive", mode });
         } catch (error) {
             console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
         }
@@ -4250,11 +4695,11 @@ export class Graph implements GraphContext {
 
     /**
      * Enter or leave an immersive session: `view.immersive`. Exempt from history -- a device
-     * session is not the document -- and refused from 2D, which the caller switches out of in
-     * the same step first.
+     * session is not the document. From 2D, `session.execute` switches to 3D first, in the same
+     * step. A failed entry is also reported as `graph-error` with context `"xr"`.
      * @param mode - VR, AR, or null to leave.
-     * @throws A `GraphtyError` with `E_BAD_COMMAND` from 2D, or `E_UNSUPPORTED` without WebXR;
-     *     whatever the browser rejects the session with otherwise.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR; whatever the browser rejects
+     *     the session with otherwise.
      */
     private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
         if (mode === null) {
@@ -4277,25 +4722,24 @@ export class Graph implements GraphContext {
             return;
         }
 
-        if (this.dimension() === "2d") {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `${mode.toUpperCase()} draws in 3D. Switch to 3D first, in the same step: setViewMode("${mode}") does.`,
-                source: "view",
-                details: { mode },
+        try {
+            if (!this.xrSessionManager) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `${mode.toUpperCase()} needs WebXR, and this graph's XR is switched off (xr.enabled).`,
+                    source: "view",
+                    details: { mode },
+                });
+            }
+
+            await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
+        } catch (error) {
+            this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "xr", {
+                mode,
             });
+            throw error;
         }
 
-        if (!this.xrSessionManager) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `${mode.toUpperCase()} needs WebXR, and this graph has no XR session manager.`,
-                source: "view",
-                details: { mode },
-            });
-        }
-
-        await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
         this.writeViewSettings((settings) => {
             settings.graph.immersive = mode;
         });
@@ -4360,13 +4804,35 @@ export class Graph implements GraphContext {
 
     /**
      * Set XR configuration.
-     * Merges with defaults and updates the graph context.
+     * Merges the partial into the configuration in force, so `{ ui: { enabled: false } }` leaves
+     * the rest as it was. After init the XR session manager and the canvas buttons are rebuilt
+     * from it, ending an immersive session first, and `capabilities:changed` fires.
      * @param config - Partial XR configuration to apply
      */
     setXRConfig(config: PartialXRConfig): void {
-        // Parse through zod schema to apply defaults
-        const fullConfig = xrConfigSchema.parse(config);
+        const current = this.xrConfig();
+        const patch = config ?? {};
+        const fullConfig = xrConfigSchema.parse({
+            ...current,
+            ...patch,
+            ui: { ...current.ui, ...patch.ui },
+            vr: { ...current.vr, ...patch.vr },
+            ar: { ...current.ar, ...patch.ar },
+            input: { ...current.input, ...patch.input },
+            teleportation: { ...current.teleportation, ...patch.teleportation },
+        });
         this.graphContext.updateConfig({ xr: fullConfig });
+        if (this.initialized) {
+            void this.reinitializeXR();
+        }
+    }
+
+    /**
+     * The XR configuration in force.
+     * @returns The configuration.
+     */
+    private xrConfig(): XRConfig {
+        return this.graphContext.getConfig().xr ?? defaultXRConfig;
     }
 
     /**
@@ -4390,11 +4856,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async isVRSupported(): Promise<boolean> {
-        if (!this.xrSessionManager) {
-            return false;
-        }
-
-        return this.xrSessionManager.isVRSupported();
+        await this.xrAvailability.probe();
+        return this.xrAvailability.capability.vr;
     }
 
     /**
@@ -4410,11 +4873,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async isARSupported(): Promise<boolean> {
-        if (!this.xrSessionManager) {
-            return false;
-        }
-
-        return this.xrSessionManager.isARSupported();
+        await this.xrAvailability.probe();
+        return this.xrAvailability.capability.ar;
     }
 
     // Input manager access
@@ -4576,15 +5036,77 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The node under a point on the element, as a click there would see it.
+     * The node or edge under a point on the element, as a click there would see it. A node wins
+     * over an edge drawn beneath it; an edge is found within a few pixels of its line.
      * @param point - The point, in CSS pixels from the element's top-left corner.
      * @param point.x - X coordinate
      * @param point.y - Y coordinate
-     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     * @returns `{ kind: "node", id }`, `{ kind: "edge", id }`, or `null` when nothing is there.
      */
     elementAt(point: { x: number; y: number }): ElementAtResult | null {
         const id = pickNodeId(this.scene, point.x, point.y);
-        return id === undefined ? null : { kind: "node", id };
+        if (id !== undefined) {
+            return { kind: "node", id };
+        }
+
+        const edgeId = this.pickEdgeId(point.x, point.y);
+        return edgeId === undefined ? null : { kind: "edge", id: edgeId };
+    }
+
+    /**
+     * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
+     *
+     * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
+     * batch, and a line a pixel or two wide is too thin to hit with a pointer anyway.
+     * @param x - X in CSS pixels from the canvas's left edge.
+     * @param y - Y in CSS pixels from the canvas's top edge.
+     * @returns The edge's id, or `undefined` when no drawn edge is that close.
+     */
+    private pickEdgeId(x: number, y: number): EdgeId | undefined {
+        const camera = this.scene.activeCamera;
+        // Nothing is drawn before the first frame, and the scene's view matrix is unset until
+        // then: a press that arrives first picks nothing.
+        if (!camera || this.scene.getFrameId() === 0) {
+            return undefined;
+        }
+
+        // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
+        // hardware scaling level the same way.
+        const scaling = this.scene.getEngine().getHardwareScalingLevel();
+        const px = x / scaling;
+        const py = y / scaling;
+        let best = EDGE_PICK_TOLERANCE_PX / scaling;
+        let found: EdgeId | undefined;
+        const view = this.scene.getViewMatrix().m;
+        const inFront = (p: Vector3): boolean =>
+            p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
+
+        // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
+        for (const edge of this.dataManager.edges.values()) {
+            if (edge.isDisposed() || !edge.isRenderVisible()) {
+                continue;
+            }
+
+            const points = edgeWorldPoints(edge);
+            for (let i = 1; i < points.length; i++) {
+                if (!inFront(points[i - 1]) || !inFront(points[i])) {
+                    continue;
+                }
+
+                const distance = distanceToSegment(
+                    px,
+                    py,
+                    this.worldToScreen(points[i - 1]),
+                    this.worldToScreen(points[i]),
+                );
+                if (distance <= best) {
+                    best = distance;
+                    found = edge.id;
+                }
+            }
+        }
+
+        return found;
     }
 
     /**
@@ -4649,10 +5171,10 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
+        await loadsAhead.get(this)?.();
         // Suggested styles first: their reordering moves reach the queue only once they are due.
         await this.#suggestionsStacked;
-        // Wait for operation queue to complete all operations
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
         // Style edits are not queued: they are written at once and repainted on the session's
         // derivation lane, which this waits for, along with anything a finished run painted.
         await this.session.styles.settled();
@@ -4758,8 +5280,10 @@ export class Graph implements GraphContext {
         // The queue first: a layout change or a data load that has not run yet is going to move
         // the picture, so a frame that is final right now is final about the wrong graph. Suggested
         // styles before the queue, because they queue their reordering only once they are due.
+        // Loads not queued yet (the element's, held behind the autosave restore) before both.
+        await loadsAhead.get(this)?.();
         await this.#suggestionsStacked;
-        await this.operationQueue.waitForCompletion();
+        await this.untilQueueDrained();
 
         if (!this.updateManager.frameIsStable) {
             await this.untilFrameStableEvent(track);
@@ -4770,6 +5294,17 @@ export class Graph implements GraphContext {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         if (declutter instanceof LabelDeclutter) {
             await declutter.whenPublished();
+        }
+    }
+
+    /**
+     * Wait until every queued operation has run, including a queued command that gave its slot up
+     * to wait for a key held beside the queue: the queue goes idle while that one is still owed.
+     */
+    private async untilQueueDrained(): Promise<void> {
+        await this.operationQueue.waitForCompletion();
+        while (await dispatcherOf(this.session).waitersSettled()) {
+            await this.operationQueue.waitForCompletion();
         }
     }
 
@@ -4812,6 +5347,41 @@ export class Graph implements GraphContext {
         }
 
         return this.updateManager.whyFrameIsNotStable();
+    }
+
+    /**
+     * One node of a shape and color drawn alone, as the graph draws its nodes, for a key or a
+     * picker. See {@link NodeThumbnailOptions}. Drawn once per shape, color, size, 2D and lighting.
+     * @param options - The shape, color and size.
+     * @returns The picture as a PNG data URL, on a transparent background.
+     */
+    async nodeThumbnail(options: NodeThumbnailOptions): Promise<string> {
+        const key = JSON.stringify([
+            options.shape,
+            options.color,
+            options.size,
+            this.getViewMode() === "2d",
+            this.#lighting,
+        ]);
+        let shot = this.#thumbnails.get(key);
+        if (shot === undefined) {
+            // One at a time: every thumbnail is drawn at the same place, seen by the same mask.
+            const is2D = this.getViewMode() === "2d";
+            shot = this.#thumbnailQueue.then(async () => {
+                // Drawn by a camera of its own from a mesh built now: a frozen list of what is
+                // drawn would leave that mesh out and the picture empty. nodeThumbnail draws in
+                // the same task, while the screenshot holds the frame loop that freezes it again.
+                this.updateManager.thawActiveMeshes();
+                return nodeThumbnail(this.engine, this.scene, is2D, options);
+            });
+            this.#thumbnailQueue = shot.catch(() => undefined);
+            this.#thumbnails.set(key, shot);
+            // A failed picture is not kept: the next call tries again.
+            shot.catch(() => {
+                this.#thumbnails.delete(key);
+            });
+        }
+        return shot;
     }
 
     /**
@@ -5024,12 +5594,7 @@ export class Graph implements GraphContext {
                 }
             }
 
-            const url = URL.createObjectURL(result.blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadBlob(result.blob, filename);
         }
     }
 
@@ -5319,6 +5884,9 @@ export class Graph implements GraphContext {
         if (!camera) {
             return;
         }
+
+        // Nothing a pass tracks moves with the camera, so the last frame would still count as final.
+        this.updateManager.viewMoved();
 
         // Get the active camera controller
         const controller = this.camera.getActiveController();
@@ -6139,17 +6707,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        const { selection, data } = this.session;
-        const nodes = new Set<string | number>(selection.nodes);
-        for (const id of selection.edges) {
-            const edge = data.edge(id);
-            if (edge !== undefined) {
-                nodes.add(edge.source);
-                nodes.add(edge.target);
-            }
-        }
-
-        const bounds = this.boundsToFrame(nodes);
+        const bounds = this.boundsToFrame(this.selectionToFrame());
         if (bounds.measured === 0) {
             return undefined;
         }
@@ -6206,6 +6764,24 @@ export class Graph implements GraphContext {
      * @param nodeIds - The nodes to measure over. Undefined means every node in the graph.
      * @returns The box, marked with how many nodes it was measured over.
      */
+    /**
+     * What the selection covers on screen: the selected nodes and both ends of every selected edge.
+     * @returns The node ids to frame.
+     */
+    private selectionToFrame(): Set<string | number> {
+        const { selection, data } = this.session;
+        const nodes = new Set<string | number>(selection.nodes);
+        for (const id of selection.edges) {
+            const edge = data.edge(id);
+            if (edge !== undefined) {
+                nodes.add(edge.source);
+                nodes.add(edge.target);
+            }
+        }
+
+        return nodes;
+    }
+
     private boundsToFrame(nodeIds?: Iterable<string | number>): GraphBounds {
         const nodes =
             nodeIds === undefined
@@ -6239,11 +6815,16 @@ export class Graph implements GraphContext {
         // nothing there, and a plugin would have no way to tell it was meaningless.
         const fov = mode === "3d" && "fov" in camera && typeof camera.fov === "number" ? camera.fov : undefined;
 
+        // The insets are CSS pixels; a view reads device pixels, as the viewport is.
+        const ratio = this.canvas.clientWidth > 0 ? width / this.canvas.clientWidth : 1;
+        const { top, right, bottom, left } = this.#viewInsets;
+
         return {
             bounds,
             mode,
             aspect: height === 0 ? 1 : width / height,
             viewport: { width, height },
+            insets: { top: top * ratio, right: right * ratio, bottom: bottom * ratio, left: left * ratio },
             ...(fov === undefined ? {} : { fov }),
             current: this.getCameraState(),
             ...(options === undefined ? {} : { options }),
@@ -6298,7 +6879,8 @@ export class Graph implements GraphContext {
      * @param id - The view's name.
      * @param options - The scope to frame, the view's own options, and how to get there.
      *   Animation follows the same rules as `setCameraState`.
-     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
+     *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
@@ -6315,7 +6897,13 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.getSession());
         // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
         // definition may name edges by session id, as at every door that takes a scope.
-        const nodes = scope === undefined ? undefined : resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
+        let nodes: Iterable<string | number> | undefined;
+        if (scope === "selection") {
+            // The selection frames its edges' ends too: a selected edge is on screen as much as a node.
+            nodes = this.selectionToFrame();
+        } else if (scope !== undefined) {
+            nodes = resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
+        }
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),
@@ -6428,7 +7016,9 @@ export class Graph implements GraphContext {
      *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
-     * "neo4j" })`.
+     * "neo4j" })`; a format's `exportVariants` list each such kind of file with the options that
+     * make it. `exportGraph("graphty")` writes the project file without marking the project saved;
+     * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
      * and the element's `notes` and `styles`.
@@ -6917,57 +7507,72 @@ export class Graph implements GraphContext {
     // ===========================================
 
     /**
-     * Initialize XR (VR/AR) system
-     * Creates session manager and UI buttons based on configuration
+     * Initialize XR (VR/AR) when `xr.enabled` is set (it is off by default): the session manager,
+     * and the canvas buttons unless `xr.ui.enabled` is false. Nothing Babylon-side is allocated
+     * until a session is entered, and the browser is asked which modes it supports once, after the
+     * first frame.
      */
-    private async initializeXR(): Promise<void> {
-        const xrConfig = this.graphContext.getConfig().xr;
-        if (!xrConfig?.enabled) {
+    private initializeXR(): void {
+        const xrConfig = this.xrConfig();
+        if (xrConfig.enabled) {
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null` (`xrSessionEnded`).
+            this.xrSessionManager = new XRSessionManager(this.scene, {
+                vr: xrConfig.vr,
+                ar: xrConfig.ar,
+                handTracking: xrConfig.input.handTracking,
+                onSessionEnded: ({ mode, cause }) => {
+                    this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+                },
+            });
+        }
+
+        this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
+            this.drawXRButtons();
+        });
+        this.drawXRButtons();
+        // Off, XR asks the browser nothing: both modes already read "disabled".
+        if (this.xrConfig().enabled) {
+            this.scene.onAfterRenderObservable.addOnce(() => {
+                void this.xrAvailability.probe();
+            });
+        }
+    }
+
+    /**
+     * Draw the canvas XR buttons (`xr.ui.enabled`, with XR on) from the current availability, once
+     * the browser has answered.
+     */
+    private drawXRButtons(): void {
+        this.xrUIManager?.dispose();
+        this.xrUIManager = null;
+        const { enabled, ui } = this.xrConfig();
+        const { reasons, vr, ar } = this.xrAvailability.capability;
+        if (!enabled || !ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
             return;
         }
 
-        // Create XR session manager
-        this.xrSessionManager = new XRSessionManager(this.scene, {
-            vr: xrConfig.vr,
-            ar: xrConfig.ar,
-            handTracking: xrConfig.input.handTracking,
-            onSessionEnded: ({ mode, cause }) => {
-                this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
-            },
-        });
-
-        // Determine which modes are available by actually checking device support. WebXR draws
-        // through an XRWebGLLayer and has no WebGPU binding in any shipping browser, so under
-        // WebGPU both modes are reported unavailable rather than offered and failing on entry.
-        const webgl = this.#rendererStatus?.active !== "webgpu";
-        const vrAvailable = webgl && xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
-        const arAvailable = webgl && xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
-
-        // Create XR UI manager
-        this.xrUIManager = new XRUIManager(this.element as HTMLElement, vrAvailable, arAvailable, xrConfig.ui);
-
-        // Wire up button click handlers
+        this.xrUIManager = new XRUIManager(this.element as HTMLElement, vr, ar, ui);
         this.xrUIManager.onEnterXR = (mode) => {
-            void (async () => {
-                try {
-                    await this.enterXR(mode);
-                } catch (error) {
+            // Failures are reported as `graph-error` (context "xr") by the op itself.
+            this.session
+                .execute({ op: "view.immersive", mode: mode === "immersive-vr" ? "vr" : "ar" })
+                .catch((error: unknown) => {
                     console.error("Failed to enter XR mode:", error);
-
-                    // Show user-friendly alert on error
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    alert(`XR Session Failed:\n${errorMsg}\n\nCheck console for details.`);
-
-                    // Emit error event
-                    this.eventManager.emitGraphError(
-                        this,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "xr",
-                        { mode },
-                    );
-                }
-            })();
+                });
         };
+    }
+
+    /** Rebuild the XR session manager and buttons from a changed configuration. */
+    private async reinitializeXR(): Promise<void> {
+        if (this.viewSettings.graph.immersive !== undefined) {
+            await this.setImmersive(null);
+        }
+
+        this.xrSessionManager?.dispose();
+        this.xrSessionManager = null;
+        this.initializeXR();
+        this.xrAvailability.changed();
     }
 
     /**
@@ -7041,6 +7646,7 @@ export class Graph implements GraphContext {
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+        this.xrAvailability.changed();
     }
 
     /**
@@ -7070,7 +7676,11 @@ export class Graph implements GraphContext {
             this.scene.metadata.xrHelper = null;
         }
 
-        await this.xrSessionManager.exitXR();
+        try {
+            await this.xrSessionManager.exitXR();
+        } finally {
+            this.xrAvailability.changed();
+        }
     }
 
     /**
@@ -7079,7 +7689,11 @@ export class Graph implements GraphContext {
      */
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
-            this.#annotations = new AnnotationMeshes(this.scene);
+            // a picture that arrives after the frame was called final has to be drawn, on demand too
+            this.#annotations = new AnnotationMeshes(this.scene, () => {
+                this.renderManager.requestFrame();
+            });
+            this.updateManager.picturesLoading = () => this.#annotations?.isLoading === true;
         }
 
         this.#annotations.update(value);
@@ -7096,9 +7710,6 @@ export class Graph implements GraphContext {
         // Clean up AI manager if enabled
         this.disableAiControl();
 
-        // Clean up XR resources
-        this.xrUIManager?.dispose();
-        this.xrSessionManager?.dispose();
         this.shutdown();
     }
 }

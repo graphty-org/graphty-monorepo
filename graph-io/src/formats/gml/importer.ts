@@ -12,7 +12,9 @@
  * character references in strings, `Creator` / `Version` top-level metadata, `directed 0|1` and
  * `multigraph 0|1` graph flags, comments, keys and values on one line or split across lines, and
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the
- * remaining graphics keys kept as a json column.
+ * remaining graphics keys kept as a json column, yEd's `gid` (the group a node sits in) read
+ * into the parent column as well as kept as a plain column, and OGDF's `rootcluster` read as group
+ * nodes (`cluster<id>`) holding their vertices through the parent column.
  *
  * Node ids are the `id` keys under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
  * ordinal under `"index"`; `source` / `target` always resolve through the `id` keys. The GML spec
@@ -199,10 +201,14 @@ export const GRAPHICS_CODE = "W_GML_GRAPHICS";
  */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
 /**
- * YEd's group keys (`isGroup`, `gid`); kept as plain node columns, the hierarchy is not read as containment.
+ * A yEd `gid` that names no other node: it stays a plain column value and puts the node in no group. Also an OGDF
+ * cluster `vertex` that names no node (it is in no cluster), and a cluster whose id a node has (it is read as no group).
  * @category Issue and loss codes
  */
 export const GROUPS_CODE = "W_GML_GROUPS";
+
+/** The parent column yEd's `gid` keys and OGDF's clusters are read into. */
+const GROUP_PARENT_COLUMN = "graphty.parent";
 /**
  * A key whose values mix numbers and strings; the column is string, the numbers kept as written.
  * @category Issue and loss codes
@@ -449,6 +455,18 @@ class GmlImport {
     /** The file ids of node blocks that were skipped: an edge naming one is skipped too, never given a new node. */
     private readonly skippedIds = new Set<NodeId>();
 
+    /** Each node's yEd `gid` (its group's file id): the node's index and the value token. */
+    private readonly groupRefs: [node: number, token: number][] = [];
+
+    /** The `[` of OGDF's `rootcluster` record (its cluster tree, after the graph block), or -1. */
+    private rootCluster = -1;
+
+    /** The parent column, once a node is given a parent. */
+    private parentHandle: ColumnHandle | null = null;
+
+    /** How many OGDF clusters were read, which names a cluster without an id. */
+    private clusterCount = 0;
+
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
 
@@ -543,6 +561,9 @@ class GmlImport {
             this.creatorToken = v;
         } else if (key === "Version" && !record && this.versionToken < 0) {
             this.versionToken = v;
+        } else if (key === "rootcluster" && record && this.rootCluster < 0) {
+            // OGDF's cluster tree is structure: its clusters are read as group nodes (pushClusters)
+            this.rootCluster = v;
         } else {
             this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
         }
@@ -744,7 +765,7 @@ class GmlImport {
 
     /**
      * Warn about keys of a node or edge whose meaning GML readers give but this import does not:
-     * a nested graph / node / edge record, and yEd's group hierarchy.
+     * a nested graph / node / edge record.
      * @param domain - the table
      * @param key - the key
      * @param v - the value token
@@ -761,13 +782,6 @@ class GmlImport {
                 `a nested ${key} record inside a ${domain} is kept as the json column "${key}"; it is not read as structure`,
                 { line: t.line[v], element: key },
                 `${NESTED_ELEMENT_CODE}:${domain}:${key}`,
-            );
-        } else if (domain === "node" && (key === "isGroup" || key === "gid")) {
-            this.report.warnOnce(
-                "unsupported",
-                GROUPS_CODE,
-                "yEd group keys (isGroup, gid) are kept as plain node columns; the group hierarchy is not read as containment",
-                { line: t.line[v], element: key },
             );
         }
     }
@@ -829,7 +843,160 @@ class GmlImport {
         }
         this.pushTopLevel();
         this.pushNodes();
+        this.pushGroups();
+        this.pushClusters();
         this.pushEdges();
+    }
+
+    /**
+     * Read yEd's group hierarchy into the parent column: a node's `gid` names the group node it sits in. A `gid` that
+     * names no node (or the node itself) is warned once and left a plain column value.
+     */
+    private pushGroups(): void {
+        const t = this.requireTokens();
+        for (const [node, v] of this.groupRefs) {
+            let parent: number = INVALID_INDEX;
+            try {
+                const fileId = this.coerceFileId(v, this.fileIdOf(v, "gid"));
+                parent = this.sink.indexOf(this.idMap?.get(fileId) ?? fileId);
+            } catch {
+                parent = INVALID_INDEX;
+            }
+            if (parent === INVALID_INDEX || parent === node) {
+                this.report.warnOnce(
+                    "validation-error",
+                    GROUPS_CODE,
+                    `gid ${t.kind[v] === TOKEN_OPEN ? "[...]" : t.textOf(v)} names no other node; it is kept as a plain column value`,
+                    { line: t.line[v], element: "gid" },
+                );
+                continue;
+            }
+            this.setParent(node, parent, "gid");
+        }
+    }
+
+    /**
+     * Put a node in a group: the parent column, declared on first use.
+     * @param node - the node's index
+     * @param parent - the group node's index
+     * @param type - the file key the hierarchy came from (`gid`, `rootcluster`)
+     */
+    private setParent(node: number, parent: number, type: string): void {
+        this.parentHandle ??= this.sink.declareNodeColumn({
+            name: uniqueColumnName(GROUP_PARENT_COLUMN, null, (c) => this.sink.nodeColumn(c) !== INVALID_INDEX),
+            dtype: "u32",
+            role: "parent",
+            refersTo: "node",
+            nullable: true,
+            origin: { format: "gml", id: null, title: null, type, namespace: null },
+        });
+        this.sink.setNodeValue(this.parentHandle, node, parent);
+    }
+
+    /**
+     * Read OGDF's cluster tree (`rootcluster`, GraphIO::writeGML): every cluster below the root becomes a group node
+     * (id `cluster<id>`) holding its `vertex` nodes and its child clusters, with its label, its box as the node's
+     * center and size, and its graphics as a node's (`color` is the outline, `style` the shape, `stipple` kept as
+     * `clusterStipple`, since OGDF draws a cluster's outline solid). The root cluster is
+     * the whole graph and draws nothing of its own. A `vertex` that names no node is warned once.
+     */
+    private pushClusters(): void {
+        if (this.rootCluster < 0) {
+            return;
+        }
+        const t = this.requireTokens();
+        const stack: [open: number, parent: number][] = [[this.rootCluster, INVALID_INDEX]];
+        for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
+            const [open, parent] = frame;
+            for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+                const key = t.textOf(p);
+                const v = p + 1;
+                if (key === "cluster" && t.kind[v] === TOKEN_OPEN) {
+                    const cluster = this.addCluster(v, parent);
+                    if (cluster !== INVALID_INDEX) {
+                        stack.push([v, cluster]);
+                    }
+                } else if (key === "vertex" && parent !== INVALID_INDEX) {
+                    this.addClusterVertex(v, parent);
+                }
+            }
+        }
+    }
+
+    /**
+     * Put a cluster's `vertex` in it.
+     * @param v - the value token, the vertex's id as a string
+     * @param cluster - the cluster's group node
+     */
+    private addClusterVertex(v: number, cluster: number): void {
+        const t = this.requireTokens();
+        const id = t.kind[v] === TOKEN_STRING ? this.coercer.text(t.stringOf(v)) : null;
+        const node = id === null ? INVALID_INDEX : this.sink.indexOf(this.idMap?.get(id) ?? id);
+        if (node === INVALID_INDEX || node === cluster) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster vertex ${describeValue(t, v)} names no node; it is in no cluster`,
+                { line: t.line[v], element: "vertex" },
+            );
+            return;
+        }
+        this.setParent(node, cluster, "rootcluster");
+    }
+
+    /**
+     * Add one OGDF cluster as a group node: its label, and its graphics box (x, y its top-left corner, width and
+     * height) as a node's center, w and h.
+     * @param open - the cluster record's `[`
+     * @param parent - the group node of the cluster it is in, or INVALID_INDEX under the root
+     * @returns the group node's index, or INVALID_INDEX when its id is taken
+     */
+    private addCluster(open: number, parent: number): number {
+        const t = this.requireTokens();
+        const record = parseRecord(t, open);
+        const ordinal = this.clusterCount++;
+        const ownId = typeof record.id === "number" || typeof record.id === "string" ? String(record.id) : null;
+        const fallback = `#${String(ordinal)}`;
+        const id = `cluster${ownId ?? fallback}`;
+        if (this.sink.indexOf(id) !== INVALID_INDEX) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster ${id} has the id of a node; it is read as no group`,
+                { line: t.line[open], element: id },
+            );
+            return INVALID_INDEX;
+        }
+        const index = this.sink.addNode(id);
+        this.report.counts.nodes++;
+        if (parent !== INVALID_INDEX) {
+            this.setParent(index, parent, "rootcluster");
+        }
+        const label = this.nodePlans.get("label");
+        if (typeof record.label === "string" && record.label !== "" && label?.kind === "string" && !label.list) {
+            this.sink.setNodeValue(this.handleOf(label, "node"), index, record.label);
+        }
+        const graphics = this.nodePlans.get("graphics");
+        const g = isRecord(record.graphics) ? record.graphics : null;
+        if (g === null || graphics?.position === undefined || graphics.position === null) {
+            return index;
+        }
+        // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple: it is kept under a name of its own
+        const { x, y, width, height, color, style, stipple, ...rest } = g;
+        if (typeof x === "number" && typeof y === "number" && typeof width === "number" && typeof height === "number") {
+            this.sink.setNodeValue(this.handleOf(graphics.position, "node"), index, [x + width / 2, y + height / 2, 0]);
+            Object.assign(rest, { w: width, h: height });
+        }
+        Object.assign(
+            rest,
+            color === undefined ? {} : { outline: color },
+            style === undefined ? {} : { type: style },
+            stipple === undefined ? {} : { clusterStipple: stipple },
+        );
+        if (graphics.rest !== null) {
+            this.sink.setNodeValue(this.handleOf(graphics.rest, "node"), index, rest);
+        }
+        return index;
     }
 
     /** Turn every schema entry into a column plan. */
@@ -1131,12 +1298,86 @@ class GmlImport {
     }
 
     /**
+     * Find a node block's id, label and original-id values.
+     * @param open - the block's `[`
+     * @param close - the block's `]`
+     * @returns each key's value token, or -1 when the block has none
+     */
+    private nodeKeyTokens(open: number, close: number): { idTok: number; labelTok: number; originalTok: number } {
+        const t = this.requireTokens();
+        let idTok = -1;
+        let labelTok = -1;
+        let originalTok = -1;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id") {
+                idTok = this.structuralToken(idTok, p, "id");
+            } else if (key === "label") {
+                labelTok = labelTok < 0 ? p + 1 : labelTok;
+            } else if (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds) {
+                originalTok = originalTok < 0 ? p + 1 : originalTok;
+            }
+        }
+        return { idTok, labelTok, originalTok };
+    }
+
+    /**
+     * The id a node is added to the sink under: its restored original id, else its label, its
+     * ordinal or its file id, as `nodeIdFrom` says.
+     * @param fileId - the node's file id
+     * @param labelTok - its label's value token, or -1
+     * @param originalTok - its original id's value token, or -1
+     * @param ordinal - its position among the file's nodes
+     * @returns the sink id
+     */
+    private nodeSinkId(fileId: NodeId, labelTok: number, originalTok: number, ordinal: number): NodeId {
+        if (originalTok >= 0) {
+            return this.restoredId(originalTok);
+        }
+        switch (this.options.nodeIdFrom) {
+            case "label":
+                if (labelTok < 0) {
+                    throw new GraphFormatError("E_INVALID_ID", "node has no label", {
+                        reason: "missing label",
+                    });
+                }
+                return this.coerceValueToken(labelTok);
+            case "index":
+                return ordinal;
+            default:
+                return fileId;
+        }
+    }
+
+    /**
+     * Note which sink id a file id resolves to, warning when a file id is declared twice.
+     * @param fileId - the file id
+     * @param sinkId - the sink id it now resolves to
+     * @param line - the node block's line
+     */
+    private mapFileId(fileId: NodeId, sinkId: NodeId, line: number): void {
+        if (this.idMap === null) {
+            return;
+        }
+        const before = this.idMap.get(fileId);
+        if (before !== undefined && before !== sinkId) {
+            this.report.warning(
+                "merged",
+                DUPLICATE_NODE_CODE,
+                `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
+                { line, element: String(fileId) },
+            );
+        }
+        this.idMap.set(fileId, sinkId);
+    }
+
+    /**
      * Push one node block.
      * @param open - the block's `[`
      */
     private importNode(open: number): void {
         const t = this.requireTokens();
-        const { sink, report, options } = this;
+        const { sink, report } = this;
         const close = t.match[open];
         const line = t.line[open];
         const ordinal = this.nodeOrdinal++;
@@ -1145,57 +1386,16 @@ class GmlImport {
         let sinkId: NodeId;
         let fileId: NodeId | undefined;
         try {
-            let idTok = -1;
-            let labelTok = -1;
-            let originalTok = -1;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id") {
-                    idTok = this.structuralToken(idTok, p, "id");
-                } else if (key === "label") {
-                    labelTok = labelTok < 0 ? p + 1 : labelTok;
-                } else if (key === ORIGINAL_ID_KEY && options.restoreMangledIds) {
-                    originalTok = originalTok < 0 ? p + 1 : originalTok;
-                }
-            }
+            const { idTok, labelTok, originalTok } = this.nodeKeyTokens(open, close);
             if (idTok < 0) {
                 throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
             }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
             fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
-            if (originalTok >= 0) {
-                sinkId = this.restoredId(originalTok);
-            } else {
-                switch (options.nodeIdFrom) {
-                    case "label":
-                        if (labelTok < 0) {
-                            throw new GraphFormatError("E_INVALID_ID", "node has no label", {
-                                reason: "missing label",
-                            });
-                        }
-                        sinkId = this.coerceValueToken(labelTok);
-                        break;
-                    case "index":
-                        sinkId = ordinal;
-                        break;
-                    default:
-                        sinkId = fileId;
-                }
-            }
+            sinkId = this.nodeSinkId(fileId, labelTok, originalTok, ordinal);
             index = sink.addNode(sinkId);
-            if (this.idMap !== null) {
-                const before = this.idMap.get(fileId);
-                if (before !== undefined && before !== sinkId) {
-                    report.warning(
-                        "merged",
-                        DUPLICATE_NODE_CODE,
-                        `file id ${JSON.stringify(fileId)} is declared twice (nodes ${JSON.stringify(before)} and ${JSON.stringify(sinkId)}); edges to it resolve to the later`,
-                        { line, element: String(fileId) },
-                    );
-                }
-                this.idMap.set(fileId, sinkId);
-            }
+            this.mapFileId(fileId, sinkId, line);
         } catch (err) {
             this.recordNodeError(err, line);
             report.counts.skippedNodes++;
@@ -1217,31 +1417,46 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
-            const graphics: number[] = [];
-            let graphicsPlan: ColumnPlan | null = null;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "id" || (key === ORIGINAL_ID_KEY && options.restoreMangledIds)) {
-                    continue;
-                }
-                const plan = this.nodePlans.get(key);
-                if (plan !== undefined && plan.position !== null) {
-                    graphicsPlan = plan;
-                    graphics.push(p + 1);
-                } else if (plan !== undefined) {
-                    this.writeNode(plan, index, p + 1);
-                }
-            }
-            if (graphicsPlan !== null) {
-                this.writeGraphics(graphicsPlan, index, graphics, {
-                    line: t.line[graphics[0]],
-                    element: String(sinkId),
-                });
-            }
+            this.writeNodeKeys(open, index, sinkId);
             this.flushLists("node", index);
         } catch (err) {
             this.touched.length = 0;
             report.recordError(err, { line, element: String(sinkId) });
+        }
+    }
+
+    /**
+     * Write one node block's keys into its columns: its graphics record into the position plan, a yEd `gid` noted
+     * for the group hierarchy, and every other planned key as it is.
+     * @param open - the block's `[`
+     * @param index - the node's index
+     * @param sinkId - the node's id, for the report
+     */
+    private writeNodeKeys(open: number, index: number, sinkId: NodeId): void {
+        const t = this.requireTokens();
+        const graphics: number[] = [];
+        let graphicsPlan: ColumnPlan | null = null;
+        for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "id" || (key === ORIGINAL_ID_KEY && this.options.restoreMangledIds)) {
+                continue;
+            }
+            if (key === "gid") {
+                this.groupRefs.push([index, p + 1]);
+            }
+            const plan = this.nodePlans.get(key);
+            if (plan !== undefined && plan.position !== null) {
+                graphicsPlan = plan;
+                graphics.push(p + 1);
+            } else if (plan !== undefined) {
+                this.writeNode(plan, index, p + 1);
+            }
+        }
+        if (graphicsPlan !== null) {
+            this.writeGraphics(graphicsPlan, index, graphics, {
+                line: t.line[graphics[0]],
+                element: String(sinkId),
+            });
         }
     }
 

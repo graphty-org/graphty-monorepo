@@ -11,11 +11,13 @@
  * pixels and lives in `test/browser/node-instance-color.test.ts`.
  */
 
+import cloneDeep from "lodash/cloneDeep.js";
+import defaultsDeep from "lodash/defaultsDeep.js";
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../src/catalog/types";
-import { defaultEdgeStyle, defaultNodeStyle } from "../../src/config";
-import { bootstrapEdgePaint, bootstrapNodePaint, StylePainter } from "../../src/managers/StylePainter";
+import { defaultEdgeStyle, defaultNodeStyle, EdgeStyle, NodeStyle } from "../../src/config";
+import { bootstrapEdgePaint, bootstrapNodePaint, fillDefaults, StylePainter } from "../../src/managers/StylePainter";
 import {
     createStylesApi,
     type ElementLayerSpec,
@@ -90,9 +92,10 @@ interface Harness {
 
 /**
  * Build a stack, an engine and a painter over four nodes and two edges.
+ * @param directed - Whether the graph behind the painter is directed.
  * @returns The harness.
  */
-function harness(): Harness {
+function harness(directed = true): Harness {
     const elements: SelectorSource = {
         nodeValue: (index, path) => NODES[index]?.[path],
         edgeValue: (index, path) => EDGES[index]?.[path],
@@ -108,7 +111,7 @@ function harness(): Harness {
         base: [NODE_BASE],
         repaint: engine.repaint,
     });
-    const painter = new StylePainter();
+    const painter = new StylePainter(() => directed);
     painter.bind(engine);
 
     return {
@@ -274,6 +277,94 @@ describe("StylePainter channels", () => {
         assert.strictEqual(held.painter.meshCount("node"), flat, "a ramp mints no new source meshes");
     });
 
+    it("fills a node with a gradient from its colour into node.gradientColor, drawn from its own mesh", async () => {
+        const held = harness();
+        await held.paintAll();
+        const flat = held.painter.nodePaint(2);
+
+        const spec: LayerSpec = {
+            name: "gradient hosts",
+            target: "node",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            set: { "node.color": "#E8EEF7", "node.gradientColor": "#B7C9E3", "node.gradientDirection": 45 },
+        };
+        await held.styles.add(spec);
+        await held.paintAll();
+
+        const filled = held.painter.nodePaint(0);
+        assert.deepStrictEqual(filled?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 45,
+            colors: ["#E8EEF7", "#B7C9E3"],
+        });
+        // The ramp is the fill: no instance colour is drawn over it.
+        assert.isNull(filled?.color);
+        assert.notStrictEqual(filled?.meshKey, held.painter.nodePaint(2)?.meshKey, "a gradient is its own mesh");
+        assert.deepStrictEqual(held.painter.nodePaint(2), flat, "a node the layer does not select is untouched");
+
+        // The ramp starts at the node's own colour, so two starts are two meshes.
+        await held.styles.add({
+            name: "another start",
+            target: "node",
+            selector: { match: "expression", where: 'data.kind == `"host"`' },
+            encode: { "node.color": { by: "results.degree.value", scale: "linear", palette: "viridis" } },
+        });
+        await held.paintAll();
+        assert.notStrictEqual(held.painter.nodePaint(0)?.meshKey, held.painter.nodePaint(1)?.meshKey);
+    });
+
+    it("fills a node with a radial gradient through every listed colour at its stops", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "radial three",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.gradientKind": "radial",
+                "node.gradientColors": "cyan rgb(255, 0, 255) #ffff00",
+                "node.gradientStops": "0 0.2 1",
+            },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+            stops: [0, 0.2, 1],
+        });
+
+        // stops that are not one per colour are left out, so the colours are evenly spaced
+        await held.styles.add({
+            name: "linear two stops",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientKind": "linear", "node.gradientStops": "0 1" },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 0,
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
+        });
+    });
+
+    it("fills a node flat with its colour when only a gradient direction is painted", async () => {
+        const held = harness();
+        const spec: LayerSpec = {
+            name: "direction only",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientDirection": 90 },
+        };
+        await held.styles.add(spec);
+        await held.paintAll();
+
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 90,
+            colors: ["#6366F1"],
+        });
+    });
+
     it("puts a size change in the mesh key, because a size is geometry", async () => {
         const held = harness();
         const before = (await held.paintAll(), held.painter.nodePaint(0));
@@ -361,6 +452,52 @@ describe("StylePainter channels", () => {
     });
 });
 
+describe("StylePainter arrowheads", () => {
+    it("draws a head on a directed graph's edges and none on an undirected graph's", async () => {
+        const directed = harness(true);
+        const undirected = harness(false);
+        await directed.paintAll();
+        await undirected.paintAll();
+
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "normal");
+        assert.isUndefined(undirected.painter.edgePaint(0)?.style.arrowHead, "a marriage has no direction");
+        assert.notStrictEqual(
+            directed.painter.edgePaint(0)?.meshKey,
+            undirected.painter.edgePaint(0)?.meshKey,
+            "the head is geometry, so it keys the mesh",
+        );
+    });
+
+    it("lets a reader's own head type win in either direction", async () => {
+        const undirected = harness(false);
+        const directed = harness(true);
+        await undirected.styles.add({
+            name: "arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "diamond" },
+        });
+        await directed.styles.add({
+            name: "no arrows",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.arrowHead": "none" },
+        });
+        await undirected.paintAll();
+        await directed.paintAll();
+
+        assert.strictEqual(undirected.painter.edgePaint(0)?.style.arrowHead?.type, "diamond");
+        assert.strictEqual(directed.painter.edgePaint(0)?.style.arrowHead?.type, "none");
+    });
+
+    it("bootstraps an undirected edge deep-equal to its first pass, so the pass rebuilds nothing", async () => {
+        const held = harness(false);
+        await held.paintAll();
+
+        assert.deepStrictEqual(held.painter.edgePaint(0)?.style, bootstrapEdgePaint(false).style);
+    });
+});
+
 describe("StylePainter dirty set", () => {
     it("queues what a pass painted and empties when it is taken", async () => {
         const held = harness();
@@ -370,6 +507,22 @@ describe("StylePainter dirty set", () => {
         assert.deepStrictEqual([...held.painter.takeNodes()].sort(), [0, 1, 2, 3]);
         assert.deepStrictEqual([...held.painter.takeEdges()].sort(), [0, 1]);
         assert.isFalse(held.painter.hasPending);
+    });
+
+    // A frame applies a big repaint in batches, so a take may be bounded and leaves the rest queued.
+    it("hands out a bounded batch and keeps the rest queued", async () => {
+        const held = harness();
+        await held.paintAll();
+
+        const first = held.painter.takeNodes(3);
+        assert.strictEqual(first.length, 3, "one batch of three");
+        assert.isTrue(held.painter.hasPendingNodes, "the fourth node is still queued");
+        const rest = held.painter.takeNodes(3);
+        assert.deepStrictEqual([...first, ...rest].sort(), [0, 1, 2, 3], "every node once, across the batches");
+        assert.isFalse(held.painter.hasPendingNodes);
+        assert.isTrue(held.painter.hasPendingEdges, "the edges were not touched");
+        assert.isFalse(held.painter.isNodePending(0), "a node taken is no longer pending");
+        assert.isTrue(held.painter.hasPending, "while the edges still are");
     });
 
     it("queues ONLY the elements one edit touched", async () => {
@@ -397,5 +550,56 @@ describe("StylePainter dirty set", () => {
 
         assert.deepStrictEqual([...painter.takeNodes()].sort(), [0, 1, 2, 3]);
         assert.deepStrictEqual([...painter.takeEdges()].sort(), [0, 1]);
+    });
+});
+
+/** Every object reachable from a value, so two results can be checked for a shared one. */
+function objectsIn(value: unknown, into = new Set<object>()): Set<object> {
+    if (value !== null && typeof value === "object" && !into.has(value)) {
+        into.add(value);
+        for (const child of Object.values(value)) {
+            objectsIn(child, into);
+        }
+    }
+
+    return into;
+}
+
+describe("fillDefaults", () => {
+    const bases = { node: NodeStyle.parse(defaultNodeStyle), edge: EdgeStyle.parse(defaultEdgeStyle) };
+    const bags: readonly (() => Record<string, unknown>)[] = [
+        () => ({}),
+        () => ({ texture: { color: "#ff0000" }, shape: { type: "box", size: 3 } }),
+        () => ({ line: { color: "#00ff00cc", width: 2 }, arrowHead: { type: "dot" } }),
+        () => ({ label: { enabled: true, text: "a", backgroundGradientColors: ["#000"] } }),
+        () => ({ texture: null, shape: undefined, extra: [1, { a: 2 }] }),
+        () => ({ line: "not an object", arrowTail: [1, 2] }),
+    ];
+
+    for (const [kind, base] of Object.entries(bases)) {
+        it(`fills a ${kind} style exactly as lodash defaultsDeep over a clone of the base did`, () => {
+            for (const bag of bags) {
+                assert.deepEqual(fillDefaults(bag(), base), defaultsDeep(bag(), cloneDeep(base)));
+            }
+        });
+
+        it(`shares no object between the ${kind} base and a filled style, or between two filled styles`, () => {
+            const baseObjects = objectsIn(base);
+            const first = objectsIn(fillDefaults({}, base));
+            const second = objectsIn(fillDefaults({}, base));
+
+            for (const object of first) {
+                assert.isFalse(baseObjects.has(object));
+                assert.isFalse(second.has(object));
+            }
+        });
+    }
+
+    it("never writes through a key that reaches a prototype", () => {
+        const base = JSON.parse('{"__proto__": {"polluted": true}, "kept": 1}') as Record<string, unknown>;
+        const filled = fillDefaults<Record<string, unknown>>({}, base);
+
+        assert.strictEqual(filled.kept, 1);
+        assert.isUndefined(({} as Record<string, unknown>).polluted);
     });
 });

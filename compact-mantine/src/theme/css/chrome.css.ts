@@ -65,6 +65,15 @@ const css = `
     white-space: nowrap;
     transition: color var(--cm-duration-sm) var(--cm-ease-out);
 }
+/* A wrapping label (wrapLabel): one line is the same 32px as above; a longer one takes more lines. */
+.cm-section[data-wrap-label] .cm-section-header { height: auto; min-height: 40px; }
+.cm-section[data-wrap-label] .cm-section-lead { height: auto; min-height: 32px; }
+.cm-section[data-wrap-label] .cm-section-title {
+    line-height: 16px;
+    padding-block: 8px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
 .cm-section-technical { font-weight: 450; color: var(--cm-text-secondary); }
 /* A collapsed section's summary: after the name, in the secondary ink, and the first to give
    way to an ellipsis when the header is narrow. */
@@ -162,6 +171,11 @@ const css = `
 .cm-compound-unit { color: var(--cm-text-secondary); }
 
 /* Chart, ramp and prose rows (spec 9.8). */
+/* A bar painted in a mapping's color can be as dark as the dark panel (a palette's black end): the
+   AA option rings each painted bar in the dark scheme, 3:1 against the panel. */
+.cm-histogram-bar[data-painted] {
+    box-shadow: inset 0 0 0 1px var(--cm-chart-bar-ring);
+}
 .cm-chart-text {
     ${cmFont("body")}
     color: var(--cm-text-secondary);
@@ -221,6 +235,22 @@ const css = `
     left: 50%;
     width: 120px;
     transform: translateX(-50%);
+}
+/* A finger needs a wider strip than the 8px a mouse gets: 24px under a coarse pointer, still
+   drawing nothing, and the focus pill keeps its 4px. */
+@media (pointer: coarse) {
+    .cm-resize-handle[data-edge="end"],
+    .cm-resize-handle[data-edge="start"] { width: 24px; }
+    .cm-resize-handle[data-edge="end"] { inset-inline-end: -12px; }
+    .cm-resize-handle[data-edge="start"] { inset-inline-start: -12px; }
+    .cm-resize-handle[data-edge="top"],
+    .cm-resize-handle[data-edge="bottom"] { height: 24px; }
+    .cm-resize-handle[data-edge="top"] { top: -12px; }
+    .cm-resize-handle[data-edge="bottom"] { bottom: -12px; }
+    .cm-resize-handle[data-edge="end"]:focus-visible::before,
+    .cm-resize-handle[data-edge="start"]:focus-visible::before { left: 10px; right: 10px; }
+    .cm-resize-handle[data-edge="top"]:focus-visible::before,
+    .cm-resize-handle[data-edge="bottom"]:focus-visible::before { top: 10px; bottom: 10px; }
 }
 
 /* States-story hooks (spec 16): a story cannot hold a real :hover or :focus-visible, so a

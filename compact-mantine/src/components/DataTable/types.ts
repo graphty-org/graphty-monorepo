@@ -93,6 +93,12 @@ export interface DataTableColumn<TRow extends object> {
      */
     pinned?: "start";
     /**
+     * Whether this column's cells name their row (`role="rowheader"`): the key column, such as a
+     * node's id, so a screen reader reads each cell with its row as well as its column. Defaults
+     * to `false`.
+     */
+    rowHeader?: boolean;
+    /**
      * A small glyph drawn before the header's name, such as the column's data type. It is
      * decoration: the header is still named by `header` alone.
      */
@@ -250,6 +256,13 @@ export interface DataTableProps<TRow extends object> {
      */
     getRowId?: (row: TRow, index: number) => string;
     /**
+     * A row's accessible name, read once when a screen reader moves onto the row, in place of
+     * every cell's text joined. Supply it when the cells hold controls whose own names repeat
+     * the row's subject ("Group 1 color", "Hide Group 1"), so a row reads each word once.
+     * Left out, the row is read from its cells.
+     */
+    rowLabel?: (row: TRow) => string;
+    /**
      * The table's accessible name, such as "Nodes" or "Search results".
      *
      * Supply this or `labelledBy` whenever the page holds more than one table,
@@ -283,9 +296,9 @@ export interface DataTableProps<TRow extends object> {
      * the thing virtualization exists to avoid.
      */
     height?: number | string;
-    /** How tall each row is drawn, in pixels. Defaults to 32, Figma's list row pitch (`PANEL_GRID.ROW_PITCH`). */
+    /** How tall each row is drawn, in pixels. Defaults to 40, Figma's spreadsheet row (32 is its list row pitch, `PANEL_GRID.ROW_PITCH`). */
     rowHeight?: number;
-    /** How tall the header row is drawn, in pixels. Defaults to 32, like a row. */
+    /** How tall the header row is drawn, in pixels. Defaults to 40, like a row. */
     headerHeight?: number;
     /**
      * How many rows to draw beyond the ones on screen, above and below.
@@ -405,4 +418,31 @@ export interface DataTableProps<TRow extends object> {
      * data at all, and a different one for a search that matched nothing.
      */
     empty?: React.ReactNode;
+    /**
+     * How much room a cell leaves around its contents.
+     *
+     * - `"default"` is Figma's variables table: the first column padded 16 px each side, the
+     *   rest 12 and 8, for a table that has the width of a panel or more.
+     * - `"compact"` pads every cell 4 px each side, for a short list in a popover or a narrow
+     *   panel, where the default padding would leave the columns no room for their contents.
+     */
+    density?: "default" | "compact";
+    /**
+     * How wide a column without a `width` of its own is drawn.
+     *
+     * - `"fixed"` (the default) draws it one property-panel field wide.
+     * - `"content"` draws it as wide as its header and the widest value among the rows the
+     *   table holds, between 48 and 320 pixels, so a short column is never cut while another
+     *   holds room to spare. A column only grows as wider rows arrive, so it does not jump while
+     *   the reader scrolls.
+     */
+    columnSizing?: "fixed" | "content";
+    /**
+     * How a number cell is written, when the application writes the same values elsewhere and
+     * they must read the same in both places (a score in a panel and in the table).
+     *
+     * Left out, numbers are formatted for the active locale with up to three fraction digits.
+     * The search looks in the same text, and a column sized to its content measures it.
+     */
+    formatNumber?: (value: number) => string;
 }

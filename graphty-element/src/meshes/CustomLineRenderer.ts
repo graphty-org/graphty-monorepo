@@ -31,6 +31,8 @@ export interface JoinedLineOptions {
     opacity?: number;
     /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
     worldWidth?: boolean;
+    /** The fewest screen pixels wide the line is drawn at any zoom (`line.minScreenWidth`); default 0. */
+    minScreenWidth?: number;
     /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
     pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
 }
@@ -85,13 +87,36 @@ export class CustomLineRenderer {
      */
     private static readonly resolutionTracked = new PerSceneMaterials((scene, materials) => {
         const engine = scene.getEngine();
-        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`.
+        // In CSS pixels, so a line keeps its width in CSS pixels at any `pixelRatio`, and over
+        // the capture's pixel scale, so a capture drawn larger than the canvas keeps it too.
         const css = engine.getHardwareScalingLevel();
-        const resolution = new Vector2(engine.getRenderWidth() * css, engine.getRenderHeight() * css);
+        const scale = CustomLineRenderer.pixelScales.get(scene) ?? 1;
+        const resolution = new Vector2(
+            (engine.getRenderWidth() * css) / scale,
+            (engine.getRenderHeight() * css) / scale,
+        );
         for (const material of materials) {
             material.setVector2("resolution", resolution);
         }
     });
+
+    /** Output pixels per canvas pixel, for a scene drawn larger than its canvas (a capture). */
+    private static readonly pixelScales = new WeakMap<Scene, number>();
+
+    /**
+     * Draw a scene's lines as wide, relative to the picture, as on its canvas while it is drawn
+     * at another size: a line width is in pixels, so a 4x capture would otherwise draw every line
+     * a quarter as thick.
+     * @param scene - The scene being drawn larger.
+     * @param scale - Output pixels per canvas pixel; 1 puts it back.
+     */
+    static setPixelScale(scene: Scene, scale: number): void {
+        if (scale === 1) {
+            this.pixelScales.delete(scene);
+        } else {
+            this.pixelScales.set(scene, scale);
+        }
+    }
 
     /**
      * Number of line materials receiving per-frame resolution updates.
@@ -358,6 +383,7 @@ void main(void) {
                     "projection",
                     "resolution",
                     "width",
+                    "minWidth",
                     "miterLimit",
                     "color",
                     "opacity",
@@ -371,6 +397,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         material.setFloat("width", options.width);
+        material.setFloat("minWidth", options.minScreenWidth ?? 0);
         material.setFloat("opacity", opacity);
         material.setFloat("miterLimit", EDGE_MITER_LIMIT);
         const { pattern } = options;
@@ -396,7 +423,9 @@ void main(void) {
         this.blendInPlace(mesh);
         mesh.metadata = {
             joinedLine: true,
-            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+            pattern: pattern
+                ? { kind: pattern.kind, elementLength: pattern.elementLength, count: pattern.count }
+                : undefined,
         };
 
         return mesh;

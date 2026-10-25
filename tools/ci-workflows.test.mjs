@@ -1,12 +1,14 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
-// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
+// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, verification of
+// golden in CI (golden-verify.yml calling ci.yml), the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
 // (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh), and the warning period of new
 // required checks (tools/ci-advisory-checks.json).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
     copyFileSync,
     existsSync,
@@ -22,7 +24,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { parse as parseYaml } from "yaml";
+
+import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS, storiesPlan } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
     closeStaleReverts,
@@ -46,7 +50,8 @@ import {
     related,
     testsPassed,
 } from "./prepush-inputs.mjs";
-import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { byFailureRate, failureRates, gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { decide as reuseDecide, excludedPaths, marker, notPassed, STORYBOOKS, treeWithout } from "./ci-reuse-plan.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -59,7 +64,7 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 isolateGit();
 
 const PUSHOVER_SECRETS = ["secrets.PUSHOVER_APP_TOKEN", "secrets.PUSHOVER_USER_KEY"];
-// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL, PREPUSH_SHARD_TIMEOUT,
+// The caller's environment without the gate's own settings (PREPUSH_RERUN_ALL,
 // PREPUSH_ROOT): a push made with one of them runs these tests in its gate with it still set.
 const withoutPrepushSettings = () =>
     Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PREPUSH_")));
@@ -75,11 +80,11 @@ const QUEUE =
     "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
-    it("runs every shard exactly once on a full run, in 18 jobs", () => {
+    it("runs every shard exactly once on a full run, in 25 jobs", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
         assert.deepEqual([...ran].sort(), SHARDS.map((s) => s.shard).sort());
-        assert.equal(include.length, 18);
+        assert.equal(include.length, 25);
     });
 
     // A shard's nx target can depend on builds (cytoscape-extensions:coverage dependsOn ^build), and
@@ -114,6 +119,39 @@ describe("the test matrix", () => {
         assert.match(browser.coverage, /visual-review=visual-review\/coverage\/lcov.info/);
         assert.match(browser.coverage, /^algorithms-browser=algorithms\/coverage\/lcov.info /);
         assert.equal(browser["needs-browser"], true);
+    });
+
+    it("runs every shard, alone or in a group, through the quarantine wrapper with its own command", () => {
+        const include = plan(PACKAGES);
+        const wrapped = (shard) => ciCommand(SHARDS.find((s) => s.shard === shard));
+        for (const e of include) {
+            const members = e.shard in GROUPS ? GROUPS[e.shard] : [e.shard];
+            for (const m of members) assert.ok(e["test-command"].includes(wrapped(m)), m);
+        }
+        // The wrapper gets back exactly the shard's command, quotes and all.
+        const graphty = SHARDS.find((s) => s.shard === "graphty-1");
+        const r = spawnSync(
+            "bash",
+            ["-c", ciCommand(graphty).replace(/^node tools\/results\/run-group\.mjs graphty-1 /, "printf %s ")],
+            {
+                encoding: "utf8",
+            },
+        );
+        assert.equal(r.stdout, graphty["test-command"]);
+    });
+
+    // A shard with a job of its own uploads its report through the group's steps, under the same
+    // coverage-<shard> name; graphty-element and webgpu-graph-algorithms have upload steps of their own.
+    it("uploads coverage for every shard with a job of its own that writes it", () => {
+        const own = Object.fromEntries(plan(PACKAGES).map((e) => [e.shard, e.coverage]));
+        // the five graphty parts keep their reports apart
+        for (const n of [1, 2, 3, 4, 5]) {
+            assert.equal(own[`graphty-${n}`], `graphty-${n}=graphty/.coverage-parts/graphty-${n}/lcov.info`);
+        }
+        assert.equal(own["graph-io"], "graph-io=graph-io/coverage/lcov.info");
+        assert.equal(own["graphty-storybook"], undefined);
+        assert.equal(own["graphty-element-default"], undefined);
+        assert.equal(own["webgpu-graph-algorithms-node"], undefined);
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -177,15 +215,24 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'"/,
+            /bg_step "[^"]+" \\\n\s+"PREPUSH_ROOT='\$ROOT_DIR' node '\$SCRIPT_DIR\/prepush-tests.mjs' '\$PROJECTS' '\$\{BASE:-\}'[;"]/,
         );
+        // The shards start right after the build, before the static checks they run beside.
+        const testsAt = prepush.indexOf('bg_step "Tests');
+        assert.ok(testsAt > prepush.indexOf('run_step "Build"'), "after the build");
+        assert.ok(testsAt < prepush.indexOf('run_step "Knip (dead code detection)"'), "before Knip and Lint");
+        assert.ok(prepush.indexOf("\nbg_wait\n") > prepush.indexOf('run_step "Public API report'), "read after them");
         // No wall-clock limit on the stage: it would count the time shards wait for slots other gates hold
-        // (2026-10-17: a push whose every shard passed failed at 90 minutes). The hang guard is each
-        // shard's own timeout, inside its test slot, so it counts only the time the shard runs.
+        // (2026-10-17: a push whose every shard passed failed at 90 minutes). No limit on a shard either
+        // (the owner's no-arbitrary-timeouts rule): a 30-minute shard clock failed tier 3's graphty shard
+        // under load while its tests still ran. A hung test is ended by vitest's one hang guard.
         assert.doesNotMatch(prepush, /timeout[^\n]*prepush-tests\.mjs/);
+        assert.doesNotMatch(code(tool("prepush-tests.mjs")), /"timeout"|PREPUSH_SHARD_TIMEOUT/);
         assert.match(
             code(tool("prepush-tests.mjs")),
-            /const cmd = \["timeout", "--kill-after=30s", timeout, "bash", "tools\/run-tests.sh", shard.shard\];\n\s+cmd.unshift\(process.execPath, "tools\/test-slots.mjs"\);/,
+            // a run of selected files (PREPUSH_SELECT=1) goes through run-tests.sh --command, in the same environment
+            // and every shard through the quarantine wrapper, as CI's plan() runs it, inside the shard's test slot
+            /const what = shard.selected \? \["--command", shard.shard, shard\["test-command"\]\] : \[shard.shard\];\n(\s+\/\/.*\n)*\s+const shardRun = \["bash", "tools\/run-tests.sh", \.\.\.what\]\.map\(shQuote\)\.join\(" "\);\n\s+const quarantine = \[join\(tools, "test-quarantine.mjs"\), "run", shard.shard, shardRun, "--via-run-tests"\];\n\s+const cmd = \[process.execPath, \.\.\.quarantine\];\n\s+cmd.unshift\(process.execPath, join\(tools, "test-slots.mjs"\)\);/,
         );
         // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
         const nvidia = /\n {4}setsid bash -c "cd webgpu-graph-algorithms && .*\n/;
@@ -279,7 +326,7 @@ describe("the pre-push gate matches CI", () => {
         assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
         // The runner's fonts, which visual-fonts/ is a snapshot of: this machine has no emoji font.
         assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
-        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
+        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", \.\.\.what/);
         for (const s of SHARDS) {
             // A shard that names its own COVERAGE_DIR (webgpu-graph-algorithms' device-error pass) writes
             // where no other shard does.
@@ -291,52 +338,170 @@ describe("the pre-push gate matches CI", () => {
             );
             assert.deepEqual(
                 shardEnv(s),
-                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                {
+                    GRAPHTY_TEST_SHARD: s.shard,
+                    ...(shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {}),
+                },
                 s.shard,
             );
         }
     });
 
-    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
-        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
-        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
-        // running then and is stopped. The stopped shard closing last must still end the stage.
+    // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository. `shards` names
+    // the shards as [shard, package]; `setup(dir, git)` may commit before the run (the repository has no commit).
+    const STAGE_FILES = [
+        "prepush-tests.mjs",
+        // The runner wraps every shard in the machine-wide test slot (it imports the wait log beside it).
+        "test-slots.mjs",
+        "wait-log.mjs",
+        "prepush-inputs.mjs",
+        "push-base.mjs",
+        "shard-verdict.mjs",
+        // and the advisory test selector it starts beside the shards
+        "test-select.mjs",
+        "test-select-rules.json",
+        // the quarantine wrapper every shard runs through, and the ledger it reads JUnit with
+        "test-quarantine.mjs",
+        // the test ledger, and the scratch worktree a land check re-runs a failure on golden's tip in
+        "test-ledger.mjs",
+        "land.mjs",
+        "branch-sync.mjs",
+        "branch-note.mjs",
+        "ship-risks.mjs",
+    ];
+    const runStage = (runTests, env = {}, opts = {}) => {
+        const { shards = [["broken"], ["slow"]], setup } = opts;
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
-            // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
-            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
-            copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
-            copyFileSync(new URL("./shard-verdict.mjs", import.meta.url), join(dir, "tools/shard-verdict.mjs"));
-            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            for (const f of STAGE_FILES) copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            const shard = ([name, pkg = name]) => ({
+                shard: name,
+                package: pkg,
+                "test-command": "true",
+                "needs-browser": false,
+            });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
-                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+                `export const SHARDS = ${JSON.stringify(shards.map(shard))};\n`,
             );
-            writeFileSync(
-                join(dir, "tools/run-tests.sh"),
-                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
-            );
-            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
-            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+            writeFileSync(join(dir, "tools/run-tests.sh"), runTests);
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            assert.equal(git("init", "-q", "-b", "golden").status, 0);
+            setup?.(dir, git);
+            const packages = JSON.stringify([...new Set(shards.map(([n, p = n]) => p))]);
+            return spawnSync(process.execPath, ["tools/prepush-tests.mjs", packages], {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
                 // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
                 env: {
                     ...withoutPrepushSettings(),
+                    // bin/ holds a fake gh when a test needs one
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
                     GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
                     GRAPHTY_TEST_SLOTS: "2",
                     GRAPHTY_TEST_SLOT_HELD: "",
+                    TEST_LEDGER_DIR: join(dir, "tmp/test-ledger"),
+                    ...env,
                 },
             });
-            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
-            assert.match(run.stdout, /Stopped after broken failed/);
-            assert.equal(run.status, 1, run.stdout + run.stderr);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    };
+    const SUMMARY = "echo ' Test Files  1 passed (1)'; echo '      Tests  1 passed (1)'";
+
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still running then
+        // and is stopped. The stopped shard closing last must still end the stage.
+        const run = runStage(
+            'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+        );
+        assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+        assert.match(run.stdout, /Stopped after broken failed/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+    });
+
+    it("runs every shard to the end under PREPUSH_ALL=1 (verification), so one failure cannot hide another", () => {
+        const run = runStage(`if [ "$1" = broken ]; then exit 1; fi\n${SUMMARY}\n`, { PREPUSH_ALL: "1" });
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.match(run.stdout, /Failed: broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
+        // and when the failed shard is its package's warm-up, the rest of the package still runs
+        const same = runStage(
+            `if [ "$1" = a-1 ]; then exit 1; fi\n${SUMMARY}\n`,
+            { PREPUSH_ALL: "1" },
+            {
+                shards: [
+                    ["a-1", "a"],
+                    ["a-2", "a"],
+                ],
+            },
+        );
+        assert.match(same.stdout, /\[PASS\] a-2/);
+        assert.match(same.stdout, /Failed: a-1/);
+        assert.equal(same.status, 1, same.stdout + same.stderr);
+    });
+
+    // A land check whose shard "broken" fails with test a.test.ts > t: HEAD is `land: b`, HEAD^1 golden's tip
+    // (origin/golden), on which the same fake run-tests.sh fails the same test the same way. A fake gh files #7.
+    const landedRepo = (dir, git) => {
+        writeFileSync(join(dir, ".gitignore"), "tmp/\ntest-results/\n.worktrees/\nbin/\n");
+        mkdirSync(join(dir, "bin"));
+        writeFileSync(join(dir, "bin/gh"), "#!/bin/sh\necho https://github.com/o/r/issues/7\n", { mode: 0o755 });
+        git("add", ".");
+        git("commit", "-q", "-m", "golden's tip");
+        git("update-ref", "refs/remotes/origin/golden", "HEAD");
+        git("checkout", "-q", "-b", "b");
+        writeFileSync(join(dir, "other.txt"), "x");
+        git("add", ".");
+        git("commit", "-q", "-m", "a change");
+        git("checkout", "-q", "golden");
+        git("merge", "-q", "--no-ff", "-m", "land: b", "b");
+    };
+    const failsWith = (message) =>
+        [
+            'if [ "$1" = --command ]; then shift; fi',
+            `if [ "$1" = broken ]; then mkdir -p test-results; printf '<testsuites><testcase classname="a.test.ts" name="t"><failure>${message}</failure></testcase></testsuites>' > "test-results/junit-broken-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1; fi`,
+            SUMMARY,
+        ].join("\n");
+
+    it("excuses a land check's failure that golden's tip has too, files its issue, and exits 3", () => {
+        const run = runStage(
+            failsWith("Error: broken on golden too"),
+            { TEST_LEDGER_KIND: "land-check" },
+            { setup: landedRepo },
+        );
+        assert.match(run.stdout, /\[BASE\] broken: running the whole shard on golden's tip/);
+        assert.match(run.stdout, /\[KNOWN\] broken: broken\/a\.test\.ts > t fails the same way on golden's tip/);
+        assert.match(run.stdout, /\[PASS\] slow/);
+        assert.equal(run.status, 3, run.stdout + run.stderr);
+    });
+
+    it("records an excused gate as gate-known, which only a land check's push accepts", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /record "gate\$\{KNOWN_FAILURES:\+-known\}" "\$GATE_KEY"/);
+        for (const script of [prepush, code(tool("push-queue.sh"))]) {
+            assert.match(script, /\[ "\$\{TEST_LEDGER_KIND:-\}" = land-check \] &&\n\s+\w+=\S*\(.*passed gate-known/);
+        }
+    });
+
+    it("blocks a land check's failure that golden's tip does not have, with no database at all", () => {
+        // golden's tip passes: its run-tests.sh is the one committed; the land commit's own fails
+        const run = runStage(
+            SUMMARY,
+            { TEST_LEDGER_KIND: "land-check" },
+            {
+                setup: (dir, git) => {
+                    landedRepo(dir, git);
+                    writeFileSync(join(dir, "tools/run-tests.sh"), failsWith("Error: new"));
+                },
+            },
+        );
+        assert.match(run.stdout, /\[BASE\] broken/);
+        assert.match(run.stdout, /\[FAIL\] broken/);
+        assert.equal(run.status, 1, run.stdout + run.stderr);
     });
 
     it("fails a shard that exits 0 with no vitest run summary in its log", () => {
@@ -344,7 +509,18 @@ describe("the pre-push gate matches CI", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
@@ -370,6 +546,40 @@ describe("the pre-push gate matches CI", () => {
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
+    });
+
+    it("starts the shards with the highest failure rate in the test ledger first, else in the usual order", () => {
+        const shards = localShards(["graph-format", "graphty", "githerd"]);
+        const names = (list) => list.map((s) => s.shard);
+        const rates = new Map([
+            ["graphty-2", 0.16],
+            ["githerd", 0.08],
+            ["graph-format", 0],
+        ]);
+        const ordered = names(byFailureRate(shards, rates));
+        assert.deepEqual(ordered.slice(0, 2), ["graphty-2", "githerd"]);
+        // The rest keep their order (a stable sort), and so does everything without the ledger.
+        const rest = names(shards).filter((n) => !["graphty-2", "githerd"].includes(n));
+        assert.deepEqual(ordered.slice(2), rest);
+        assert.deepEqual(names(byFailureRate(shards, new Map())), names(shards));
+        // The ledger never blocks a push: missing, unopenable or failing, it gives no rates and one line.
+        const lines = [];
+        assert.equal(failureRates(null, (l) => lines.push(l)).size, 0);
+        assert.equal(failureRates({ openLedger: () => ({ why: "no database yet" }) }, (l) => lines.push(l)).size, 0);
+        const broken = {
+            prepare: () => ({
+                all: () => {
+                    throw new Error("database is locked");
+                },
+            }),
+            close: () => {},
+        };
+        assert.equal(failureRates({ openLedger: () => ({ db: broken }) }, (l) => lines.push(l)).size, 0);
+        assert.equal(lines.length, 3);
+        assert.match(lines[1], /no database yet.*usual order/);
+        assert.match(lines[2], /database is locked/);
+        const db = { prepare: () => ({ all: () => [{ shard: "graphty-1", rate: 0.18 }] }), close: () => {} };
+        assert.deepEqual([...failureRates({ openLedger: () => ({ db }) })], [["graphty-1", 0.18]]);
     });
 
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
@@ -408,17 +618,93 @@ describe("the pre-push gate matches CI", () => {
         );
         assert.match(
             prepush,
-            /cleanup\(\) \{\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
+            /cleanup\(\) \{\n {4}bg_kill\n {4}if \[ -n "\$GPU_PGID" \]; then\n {8}kill -- -"\$GPU_PGID"/,
             "the EXIT trap stops it",
         );
         assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
+    });
+
+    // The DOCS_API_PACKAGES line and the docs site functions, cut out of prepush.sh to run alone.
+    const docsSetup = (prepush) => {
+        const fn = (name) => {
+            const at = prepush.indexOf(`\n${name}() {\n`);
+            assert.ok(at > 0, `${name} is in tools/prepush.sh`);
+            return prepush.slice(at, prepush.indexOf("\n}\n", at) + 3);
+        };
+        return prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0] + fn("docs_site_affected") + fn("docs_site_step");
+    };
+
+    it("builds the API reference of each affected package that has one, as CI's Docs job does", () => {
+        const prepush = code(tool("prepush.sh"));
+        const start = prepush.indexOf("for DOCS_PACKAGE in");
+        assert.ok(start > prepush.indexOf('run_step "Build"'), "after the build");
+        const loop = prepush.slice(start, prepush.indexOf("\ndone\n", start) + 6);
+        const run = (list) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\naffected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$2"; }\n${prepush.match(/\nDOCS_API_PACKAGES=.*\n/)[0]}${loop}`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            ).stdout;
+        assert.equal(run("graph-io,graph-format,layout"), "pnpm run docs:api:layout\npnpm run docs:api:graph-io\n");
+        assert.equal(run("graph-format"), "");
+    });
+
+    it("builds the docs site as CI's Docs job does when a package with an API reference or the docs change", () => {
+        // A doc comment that split a code span across two lines left a bare `<value>` tag in a TypeDoc
+        // page; only VitePress's Vue compiler rejects that, and it failed CI's Docs job (2026-10-22).
+        const prepush = code(tool("prepush.sh"));
+        // git is stubbed: it records the pathspec it was asked about and answers "changed" when CHANGED is set.
+        const run = (list, changed) =>
+            spawnSync(
+                "bash",
+                [
+                    "-c",
+                    `PROJECT_LIST=${list}\nBASE=base\nCHANGED=${changed ? 1 : ""}\n` +
+                        `affected() { echo ",$PROJECT_LIST," | grep -q ",$1,"; }\n` +
+                        `run_step() { echo "$1: $2"; }\n` +
+                        `git() { echo "git $*" >&2; [ -z "$CHANGED" ]; }\n${docsSetup(prepush)}docs_site_step`,
+                ],
+                { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+            );
+        const site = "node tools/sanitize-api-docs.js && pnpm exec vitepress build docs\n";
+        // An affected package with an API reference: only the other packages' pages are generated here.
+        assert.equal(
+            run("graphty-element,graph-format", false).stdout,
+            "Docs site (VitePress build): pnpm run docs:content && pnpm run docs:api:algorithms && " +
+                "pnpm run docs:api:layout && pnpm run docs:api:cytoscape-extensions && pnpm run docs:api:graph-io && " +
+                site,
+        );
+        // Only docs changed (no package affected): every package's pages, as CI generates them.
+        const docsOnly = run("", true);
+        assert.match(docsOnly.stdout, /pnpm run docs:api:graphty-element && pnpm run docs:api:algorithms/);
+        assert.ok(docsOnly.stdout.endsWith(site));
+        for (const path of [
+            " docs/ ",
+            " visual-review/docs/ ",
+            " graphty-element/docs/ ",
+            " tools/copy-docs-content.js ",
+        ]) {
+            assert.ok(docsOnly.stderr.includes(path), `the docs check looks at${path}`);
+        }
+        // Neither: no step.
+        assert.equal(run("graph-format", false).stdout, "");
+        assert.equal(run("", false).stdout, "");
+        // After the API docs steps, and on the push that affects no package too.
+        const firstExit = prepush.search(/\n\s*exit "\$FAILED"/);
+        const calls = [...prepush.matchAll(/\n\s*docs_site_step\n/g)].map((m) => m.index);
+        assert.equal(calls.length, 2);
+        assert.ok(calls[0] < firstExit && calls[1] > prepush.indexOf("for DOCS_PACKAGE in"));
     });
 
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(
             prepush,
-            /setsid env VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
+            /setsid env TEST_SLOT_GATE="\$\$" VISUAL_PREVIEW_TIMEOUT="\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" PREPUSH_ROOT="\$ROOT_DIR" "\$SCRIPT_DIR\/visual-preview.sh" --head "\$PUSH_HEAD" /,
         );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
         assert.match(
@@ -456,19 +742,31 @@ describe("the pre-push gate matches CI", () => {
 
     describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
         const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
-        // Stubs for everything outside git: gh finds no pull request; pnpm installs nothing and says
-        // project p is affected; node's capture writes a results.json with the story status asked for;
-        // git passes through, except `lfs` and a forced merge-tree exit code.
+        // Stubs for everything outside git: gh finds no pull request, or with STUB_GH_DIR lists pull
+        // request 7 at STUB_OLD_HEAD for the first STUB_OLD_TIMES asks and at STUB_NEW_HEAD after
+        // (counted in $STUB_GH_DIR/calls); pnpm installs nothing and says project p is affected; node's capture writes a results.json with the story status asked for;
+        // every other node command runs; git passes through, except `lfs` and a forced merge-tree exit code.
         const STUBS = {
-            gh: "#!/bin/sh\nexit 0\n",
+            gh: `#!/bin/bash
+[ -n "$STUB_GH_DIR" ] || exit 0
+n=$(( $(cat "$STUB_GH_DIR/calls" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_GH_DIR/calls"
+head="$STUB_NEW_HEAD"
+case "$*" in
+    *@tsv*) [ "$n" -le "$STUB_OLD_TIMES" ] && head="$STUB_OLD_HEAD"; printf 'open\to/r\to/r\t%s\n' "$head" ;;
+    *) echo "$head" ;;
+esac
+`,
             pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
             node: `#!/bin/bash
 if [ "$2" = capture ]; then
     [ -n "$STUB_HANG" ] && exec sleep 300
+    [ -n "$STUB_CAPTURES" ] && echo x >> "$STUB_CAPTURES"
     while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
     mkdir -p "$out"
     printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
+    exit 0
 fi
+exec ${process.execPath} "$@"
 `,
             git: `#!/bin/bash
 case " $* " in
@@ -486,9 +784,15 @@ esac
 exec ${realGit} "$@"
 `,
         };
-        const sandbox = (fn) => {
+        const sandbox = async (fn) => {
             const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
-            const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+            // Without the caller's browser lane (tools/low-priority.sh sets BROWSER_SLOT_PRIORITY=low): the
+            // lane tests read the lane the script itself chooses.
+            const env = Object.fromEntries(
+                Object.entries(process.env).filter(
+                    ([k]) => !k.startsWith("GIT_") && k !== "BROWSER_SLOT_PRIORITY" && !k.startsWith("VISUAL_PREVIEW_"),
+                ),
+            );
             Object.assign(env, {
                 PATH: `${t}/bin:${process.env.PATH}`,
                 GIT_CONFIG_GLOBAL: "/dev/null",
@@ -513,6 +817,10 @@ exec ${realGit} "$@"
                 mkdirSync(join(main, "visual-review/capture"), { recursive: true });
                 mkdirSync(join(main, "visual-review/trusted"), { recursive: true });
                 copyFileSync(new URL("visual-preview.sh", import.meta.url), join(main, "tools/visual-preview.sh"));
+                copyFileSync(
+                    new URL("visual-capture-plan.mjs", import.meta.url),
+                    join(main, "tools/visual-capture-plan.mjs"),
+                );
                 writeFileSync(join(main, "visual-review.config.json"), '{"projects":{"p":{"build":"true"}}}\n');
                 writeFileSync(join(main, "visual-review/capture/c"), "c\n");
                 writeFileSync(join(main, "visual-review/trusted/t"), "t\n");
@@ -544,14 +852,26 @@ exec ${realGit} "$@"
                     origin,
                     `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
                 );
-                fn({ run, head, origin, main, local: join(main, "tmp/visual-review/local") });
+                // The same, in the background: resolves to its exit code and output once it ends.
+                const start = (extra, ...args) => {
+                    const child = spawn("bash", [join(main, "tools/visual-preview.sh"), ...args], {
+                        cwd: main,
+                        env: { ...env, ...extra },
+                    });
+                    let out = "";
+                    child.stdout.on("data", (b) => (out += b));
+                    child.stderr.on("data", (b) => (out += b));
+                    const done = new Promise((resolve) => child.on("close", (status) => resolve({ status, out })));
+                    return { child, done, output: () => out };
+                };
+                await fn({ run, start, git, head, origin, main, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
         };
 
         it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 // An exported BRANCH (common in CI and agent shells) must not change the mode.
                 const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -567,15 +887,43 @@ exec ${realGit} "$@"
             });
         });
 
-        it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
+        it("captures for the pull request of VISUAL_PREVIEW_BRANCH and leaves it staged on --promote, for land.mjs", () => {
             sandbox(({ run, head, main, local }) => {
+                // The detached check worktree has no branch: land.mjs names the one it pushes to.
+                mkdirSync(join(main, "tmp/pr-status"), { recursive: true });
+                writeFileSync(
+                    join(main, "tmp/pr-status/status.json"),
+                    JSON.stringify({ pullRequests: [{ head: "golden", number: 7 }] }),
+                );
+                const named = { VISUAL_PREVIEW_BRANCH: "golden" };
+                const r = run({ ...named, STUB_STATUS: "changed" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                const staged = join(local, `.pending-${head}`);
+                const status = JSON.parse(readFileSync(join(staged, "status.json"), "utf8"));
+                assert.deepEqual([status.state, status.pr, status.head], ["done", 7, head]);
+                assert.equal(run(named, "--promote", head).status, 0);
+                assert.ok(existsSync(join(staged, "p/results.json")), "still staged: pending push");
+                assert.ok(!existsSync(join(local, "7")), "never the pull request's preview before the push");
+                assert.equal(run(named, "--discard", head).status, 0);
+                assert.ok(!existsSync(staged));
+            });
+        });
+
+        it("does not count the wait for a browser slot against its limit, but times out a stuck capture", () => {
+            return sandbox(({ run, head, main, local }) => {
                 // The browser cap, held by someone else for longer than the whole limit (#1820).
                 mkdirSync(join(main, "tmp"), { recursive: true });
-                writeFileSync(join(main, "tmp/with-browser.sh"), '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
+                const wrapper = join(main, "tmp/with-browser.sh");
+                writeFileSync(wrapper, '#!/bin/sh\nsleep "$STUB_SLOT_WAIT"\nexec "$@"\n', {
                     mode: 0o755,
                 });
                 const waited = run(
-                    { STUB_STATUS: "changed", VISUAL_PREVIEW_TIMEOUT: "10s", STUB_SLOT_WAIT: "11" },
+                    {
+                        STUB_STATUS: "changed",
+                        VISUAL_PREVIEW_TIMEOUT: "10s",
+                        STUB_SLOT_WAIT: "11",
+                        WITH_BROWSER: wrapper,
+                    },
                     "--head",
                     head,
                 );
@@ -583,9 +931,11 @@ exec ${realGit} "$@"
                 assert.match(waited.stdout, /p: waiting for a browser slot \(not counted against 10s\)/);
                 assert.match(waited.stdout, /p: capturing \(\d+s left\)/);
 
-                // A capture that holds its slot and never finishes still fails, once its limit is spent.
+                // A capture that holds its slot and never finishes still fails, once its limit is spent
+                // (the finished capture of the same head is discarded first, or it would be reused).
+                assert.equal(run({}, "--discard", head).status, 0);
                 const stuck = run(
-                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0" },
+                    { STUB_HANG: "1", VISUAL_PREVIEW_TIMEOUT: "2s", STUB_SLOT_WAIT: "0", WITH_BROWSER: wrapper },
                     "--head",
                     head,
                 );
@@ -597,8 +947,184 @@ exec ${realGit} "$@"
             });
         });
 
+        it("gives the cut's capture the high browser lane, and only the cut's", () =>
+            sandbox(({ run, head, main }) => {
+                mkdirSync(join(main, "tmp"), { recursive: true });
+                const wrapper = join(main, "tmp/with-browser.sh");
+                const lanes = join(main, "tmp/lanes");
+                writeFileSync(wrapper, `#!/bin/sh\necho "\${BROWSER_SLOT_PRIORITY:-none}" >> ${lanes}\nexec "$@"\n`, {
+                    mode: 0o755,
+                });
+                const ordinary = run({ STUB_STATUS: "changed", WITH_BROWSER: wrapper }, "--head", head);
+                assert.equal(ordinary.status, 0, ordinary.stdout + ordinary.stderr);
+                // Discarded first, or a finished capture of the same head would be reused.
+                assert.equal(run({}, "--discard", head).status, 0);
+                const cut = run(
+                    { STUB_STATUS: "changed", WITH_BROWSER: wrapper, VISUAL_PREVIEW_PRIORITY: "cut" },
+                    "--head",
+                    head,
+                );
+                assert.equal(cut.status, 0, cut.stdout + cut.stderr);
+                assert.equal(readFileSync(lanes, "utf8"), "none\nhigh\n");
+            }));
+
+        it("--expect waits until GitHub lists the pushed commit as the pull request's head, then captures it", () => {
+            return sandbox(({ run, head, origin, main, local }) => {
+                const git = (...a) => spawnSync(realGit, a, { cwd: main, encoding: "utf8" }).stdout.trim();
+                // GitHub's merge ref of the new head, as it builds it once it has seen the push.
+                const merge = git("commit-tree", `${head}^{tree}`, "-p", "master", "-p", head, "-m", "merge");
+                git("push", "-q", origin, `${merge}:refs/pull/7/merge`);
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const old = git("rev-parse", "master");
+                const r = run(
+                    {
+                        STUB_STATUS: "changed",
+                        STUB_GH_DIR: gh,
+                        STUB_OLD_HEAD: old,
+                        STUB_NEW_HEAD: head,
+                        STUB_OLD_TIMES: "2",
+                        VISUAL_PREVIEW_POLL: "0",
+                    },
+                    "7",
+                    "--expect",
+                    head,
+                );
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                assert.match(r.stdout, new RegExp(`waiting for GitHub to list ${head.slice(0, 10)} as the head of #7`));
+                // Two answers with the old head, one with the new, and the check that it did not move.
+                assert.equal(readFileSync(join(gh, "calls"), "utf8").trim(), "4");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual([status.state, status.head], ["done", head]);
+            });
+        });
+
+        // A live process to hold a queue ticket, and a pid that is certainly dead.
+        const holder = () => spawn("sleep", ["600"]);
+        const deadPid = () => spawnSync("bash", ["-c", "echo $$"], { encoding: "utf8" }).stdout.trim();
+        const ticket = (local, name) => {
+            mkdirSync(join(local, ".queue"), { recursive: true });
+            writeFileSync(join(local, ".queue", name), "someone\n");
+        };
+        const until = async (ok) => {
+            while (!ok()) await new Promise((r) => setImmediate(r));
+        };
+
+        it("waits its turn behind an earlier preview, first come first served, and skips a dead waiter", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const earlier = holder();
+                try {
+                    ticket(local, `1-1-${earlier.pid}`);
+                    ticket(local, `1-2-${deadPid()}`);
+                    const p = start({ STUB_STATUS: "changed", VISUAL_PREVIEW_POLL: "0.05" }, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    assert.ok(!existsSync(join(local, `.pending-${head}/p/results.json`)), "nothing captured yet");
+                    earlier.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                    assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)));
+                    assert.deepEqual(readdirSync(join(local, ".queue")), [], "every ticket is gone, the dead one too");
+                    // One that arrived after this one never holds it up.
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    const later = holder();
+                    try {
+                        ticket(local, `1-99999999999999999999-${later.pid}`);
+                        assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                    } finally {
+                        later.kill();
+                    }
+                } finally {
+                    earlier.kill();
+                }
+            }));
+
+        it("puts the cut's preview ahead of every waiting one, but never ahead of one already working", () =>
+            sandbox(async ({ run, start, head, local }) => {
+                const waiting = holder();
+                const working = holder();
+                try {
+                    ticket(local, `1-1-${waiting.pid}`);
+                    const cut = { STUB_STATUS: "changed", VISUAL_PREVIEW_PRIORITY: "cut", VISUAL_PREVIEW_POLL: "0.05" };
+                    assert.equal(run(cut, "--head", head).status, 0, "ahead of a waiting preview");
+                    assert.equal(run({}, "--discard", head).status, 0);
+                    // A working preview's ticket is rank 0 as of its start.
+                    ticket(local, `0-2-${working.pid}`);
+                    const p = start(cut, "--head", head);
+                    await until(() => /waiting for the previews ahead of it/.test(p.output()));
+                    working.kill();
+                    const r = await p.done;
+                    assert.equal(r.status, 0, r.out);
+                } finally {
+                    waiting.kill();
+                    working.kill();
+                }
+            }));
+
+        it("reuses a finished capture of the same head and trees, and only that", () =>
+            sandbox(({ run, git, head, origin, main, local }) => {
+                const captures = join(main, "captures");
+                const count = () => (existsSync(captures) ? readFileSync(captures, "utf8").split("\n").length - 1 : 0);
+                const env = { STUB_STATUS: "changed", STUB_CAPTURES: captures };
+                assert.equal(run(env, "--head", head).status, 0);
+                assert.equal(run({}, "--promote", head).status, 0);
+                assert.equal(count(), 1);
+                const source = join(local, "branch-feat/p/results.json");
+                const before = readFileSync(source, "utf8");
+
+                // Pull request 7 at the same head: GitHub's merge ref has the same tree on the same base.
+                git("fetch", "-q", "origin", "master");
+                const pr = (tree) => {
+                    const merge = git("commit-tree", tree, "-p", "origin/master", "-p", head, "-m", "merge");
+                    git("push", "-q", "-f", origin, `${merge}:refs/pull/7/merge`);
+                };
+                const gh = join(main, "gh-calls");
+                mkdirSync(gh);
+                const prEnv = { ...env, STUB_GH_DIR: gh, STUB_NEW_HEAD: head, STUB_OLD_TIMES: "0" };
+                pr(`${head}^{tree}`);
+                const reused = run(prEnv, "7");
+                assert.equal(reused.status, 0, reused.stdout + reused.stderr);
+                assert.match(reused.stdout, /reused the capture of branch-feat/);
+                assert.equal(count(), 1, "no capture made");
+                const status = JSON.parse(readFileSync(join(local, "7/status.json"), "utf8"));
+                assert.deepEqual(
+                    [status.state, status.head, status.reusedFrom, status.projects],
+                    ["done", head, "branch-feat", ["p"]],
+                );
+                const results = JSON.parse(readFileSync(join(local, "7/p/results.json"), "utf8"));
+                assert.deepEqual([results.pr, results.headSha], [7, head], "named for its own pull request");
+                assert.ok(results.local.preview, "decidable on the review page");
+                assert.equal(readFileSync(source, "utf8"), before, "the source capture is unchanged");
+                // Run again, it sees its own finished capture and does nothing.
+                const again = run(prEnv, "7");
+                assert.match(again.stdout, /7 at [0-9a-f]{10} is already captured/);
+                assert.equal(count(), 1);
+
+                // Other baselines (any other merge tree): captured again.
+                writeFileSync(join(main, "baseline.png"), "other\n");
+                const blob = git("hash-object", "-w", "baseline.png");
+                const index = join(main, "index.tmp");
+                const tree = spawnSync(
+                    "bash",
+                    [
+                        "-c",
+                        `git read-tree ${head} && git update-index --add --cacheinfo 100644,${blob},visual-baselines/p/s.png && git write-tree`,
+                    ],
+                    { cwd: main, env: { ...process.env, GIT_INDEX_FILE: index }, encoding: "utf8" },
+                ).stdout.trim();
+                pr(tree);
+                const other = run(prEnv, "7");
+                assert.equal(other.status, 0, other.stdout + other.stderr);
+                assert.equal(count(), 2, "captured, not reused");
+                assert.equal(JSON.parse(readFileSync(join(local, "7/status.json"), "utf8")).reusedFrom, null);
+
+                // Another head with the very same tree: captured again.
+                const twin = git("commit-tree", `${head}^{tree}`, "-p", `${head}^`, "-m", "twin");
+                assert.equal(run(env, "--head", twin).status, 0);
+                assert.equal(count(), 3);
+            }));
+
         it("fails on a story that failed to render", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "failed" }, "--head", head);
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
@@ -606,14 +1132,14 @@ exec ${realGit} "$@"
         });
 
         it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
-            sandbox(({ run, head }) => {
+            return sandbox(({ run, head }) => {
                 const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
                 assert.equal(r.status, 0, r.stdout + r.stderr);
             });
         });
 
         it("fails a fetch that keeps failing with git's own message", () => {
-            sandbox(({ run, head, local, origin }) => {
+            return sandbox(({ run, head, local, origin }) => {
                 rmSync(origin, { recursive: true, force: true });
                 const r = run({ STUB_STATUS: "changed" }, "--head", head);
                 assert.equal(r.status, 1);
@@ -629,7 +1155,7 @@ exec ${realGit} "$@"
         });
 
         it("skips a conflicting merge but fails on a merge-tree error", () => {
-            sandbox(({ run, head, local }) => {
+            return sandbox(({ run, head, local }) => {
                 const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
                 assert.equal(conflict.status, 0, conflict.stderr);
                 assert.match(conflict.stdout, /conflicts with origin\/master/);
@@ -658,82 +1184,37 @@ exec ${realGit} "$@"
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
 
-    it("starts a run when a draft is marked ready, and skips drafts except the merge queue's", () => {
+    it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
+        // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
-        assert.ok(
-            job(ci, "packages").includes(
-                "        needs: draft\n" +
-                    "        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || " +
-                    `needs.draft.outputs.ready == 'true' || (${QUEUE})) }}\n`,
-            ),
-        );
+        assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
+        assert.doesNotMatch(job(ci, "packages"), /\n {8}(needs|if):/, "Build has no needs and no condition");
+        assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("never lets a draft run cancel a ready run, and never cancels a push to master (#1108)", () => {
-        // `opened` (draft: true) and `ready_for_review` (draft: false) fire a second apart. Sharing one
-        // group, whichever was queued second cancelled the other, which could leave only the draft's
-        // "draft: CI not run". A plain draft -- exactly the drafts the build job skips -- gets its own
-        // group; the merge queue's drafts are real runs and stay with the ready runs.
+    it("cancels a pull request's older run, never a push to master, and has no golden-cut exemption (#1108, #3418)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
-            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-" +
-                `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
+            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}\n" +
                 "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
+        const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
+        const cancels = (event) => Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event });
+        assert.equal(cancels("pull_request"), true, "a pull request");
+        assert.equal(cancels("push"), false, "a push to master");
     });
 
-    it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {
-        // GitHub can create the `opened` draft run after the `ready_for_review` run, and that newer
-        // draft run's failing summary checks are the ones Mergify reads.
-        const draft = job(ci, "draft");
-        assert.match(draft, /\n {14}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
-        assert.match(draft, /\n {8}continue-on-error: true\n/, "it never decides a verdict itself");
-        const program = /--jq '([^']+)'\) \|\| ready=false/.exec(draft)[1];
-        const ready = (pr) =>
-            spawnSync("jq", [program], {
-                input: JSON.stringify(pr),
-                encoding: "utf8",
-                env: { ...process.env, SHA: "abc" },
-            }).stdout.trim();
-        assert.equal(ready({ draft: false, head: { sha: "abc" } }), "true");
-        assert.equal(ready({ draft: true, head: { sha: "abc" } }), "false", "still a draft");
-        assert.equal(ready({ draft: false, head: { sha: "def" } }), "false", "the pull request moved on");
-    });
-
-    it("never skips a job the build job needs, directly or through another job", () => {
-        // GitHub skips every job after a skipped one in the needs chain, even one whose own `if` passes
-        // (only `always()` and friends escape it), so a skipped ancestor of the build job skips the build's
-        // dependents on every run: a ready pull request ran the build and nothing after it (#3134).
-        const needsOf = (name) => {
-            const m = /\n {8}needs: (\[[^\]]*\]|\S+)\n/.exec(job(ci, name));
-            return m
-                ? m[1]
-                      .replace(/[[\]\s]/g, "")
-                      .split(",")
-                      .filter(Boolean)
-                : [];
-        };
-        const seen = new Set();
-        const walk = (name) => needsOf(name).forEach((n) => seen.has(n) || (seen.add(n), walk(n)));
-        walk("packages");
-        assert.ok(seen.has("draft"), "the build job needs the draft job");
-        for (const name of seen) {
-            assert.doesNotMatch(job(ci, name), /\n {8}if:/, `${name} has no job-level if, so it is never skipped`);
-        }
-    });
-
-    it("fails, never skips, the summary checks on a draft", () => {
-        // A skipped required check counts as passing, and the draft run's check stays on the head SHA
-        // after "gh pr ready" until the new run reports.
+    it("fails, never skips, the summary checks when Build did not run", () => {
+        // A skipped required check counts as passing.
         for (const name of ["all-checks", "queue-checks"]) {
             assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
         }
         assert.match(
             job(ci, "all-checks"),
-            /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*draft: CI not run.*\n\s+exit 1/,
+            /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*Build did not run.*\n\s+exit 1/,
         );
     });
 
@@ -766,6 +1247,15 @@ describe("ci.yml", () => {
         assert.ok(parseJobs(ci)["all-checks"].needs.includes("cost-accuracy"));
     });
 
+    it("reports flaky screenshots after the visual jobs without gating anything on them", () => {
+        const jobs = parseJobs(ci);
+        assert.deepEqual(jobs["visual-flaky"].needs, ["visual"]);
+        assert.equal(jobs["visual-flaky"].coe, "true");
+        assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
+        assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
+        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
+    });
+
     it("runs no security audit on pull requests or merge-queue runs", () => {
         // advisories land against code a pull request did not change; the release train audits instead
         assert.doesNotMatch(ci, /pnpm audit/);
@@ -795,10 +1285,13 @@ describe("ci.yml", () => {
         // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light
         assert.match(
             build,
-            /if \[\[ "\$EVENT" == "push" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
+            /if \[\[ "\$EVENT" == "push" && -z "\$CALLED_REF" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
         );
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
-        assert.match(job(ci, "test"), /if: needs.packages.outputs.test-count != '0'\n/);
+        assert.match(
+            job(ci, "test"),
+            /if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''\n/,
+        );
         assert.match(
             job(ci, "cost-accuracy"),
             /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
@@ -806,7 +1299,7 @@ describe("ci.yml", () => {
         for (const name of ["links", "visual"]) {
             assert.match(
                 job(ci, name),
-                /\n {8}if: needs.build.outputs.light != 'true'\n/,
+                /\n {8}if: needs.build.outputs.light != 'true'(?: && needs.packages.outputs.reuse-run == '')?\n/,
                 `${name} is skipped on master`,
             );
         }
@@ -818,29 +1311,32 @@ describe("ci.yml", () => {
         assert.match(job(ci, "docs"), /name: build-docs\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         for (const name of ["build", "lint", "checks", "docs"]) {
-            assert.match(job(ci, name), /\n {8}needs: packages\n {8}runs-on:/, `${name} runs on master too`);
+            assert.match(
+                job(ci, name),
+                /\n {8}needs: packages\n(?: {8}if: needs.packages.outputs.reuse-run == ''\n)? {8}runs-on:/,
+                `${name} runs on master too`,
+            );
         }
         // the summary checks pass a light run whose skipped jobs were skipped on purpose, and the build
         // jobs must succeed
         assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
-        assert.match(
-            job(ci, "all-checks"),
-            /\(\(.key \| IN\("packages", "build", "lint", "checks", "docs"\)\) and \$r != "success"\)/,
-        );
+        assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
         assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
         const build = job(ci, "packages");
-        // light is set only on a push; every other event takes the affected (pull request) or full path
-        assert.equal(build.match(/echo "light=true"/g).length, 1);
+        // light is set only on a push of master itself and on a call that names its shards; every other
+        // event takes the affected (pull request) or full path
+        assert.equal(build.match(/echo "light=true"/g).length, 2);
+        assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
-        assert.equal(plan(PACKAGES).length, 18, "a full run is every shard");
+        assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
+        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify\n/);
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -849,6 +1345,231 @@ describe("ci.yml", () => {
         assert.ok(checkouts.length >= 10);
         for (const c of checkouts) {
             assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
+        }
+    });
+});
+
+describe("the test matrix limited to named shards (--only, a CI bisect point)", () => {
+    it("keeps only the named shards, a group member in its group's job", () => {
+        const include = plan(PACKAGES, ["graph-io", "graph-samples"]);
+        assert.deepEqual(
+            include.map((e) => e.shard),
+            ["graph-io", "small-node"],
+        );
+        const group = include.find((e) => e.shard === "small-node");
+        assert.match(group["test-command"], /graph-samples:coverage/);
+        assert.doesNotMatch(group["test-command"], /graph-format:coverage/);
+    });
+
+    it("still leaves out a named shard whose package the run does not test", () => {
+        assert.deepEqual(plan(["graph-io"], ["graph-samples"]), []);
+    });
+
+    it("refuses an unknown shard name, an empty list and anything but a JSON list", () => {
+        assert.equal(parseOnly(undefined), undefined);
+        assert.deepEqual(parseOnly('["graphty-1"]'), ["graphty-1"]);
+        assert.throws(() => parseOnly('["graphty-1", "no-such-shard"]'), /do not exist: no-such-shard/);
+        assert.throws(() => parseOnly("[]"), /non-empty/);
+        assert.throws(() => parseOnly('"graphty-1"'), /non-empty/);
+        assert.throws(() => parseOnly("not json"), SyntaxError);
+    });
+
+    it("fails the command line on an unknown shard, so a bisect point never runs an empty matrix", () => {
+        const all = JSON.stringify(PACKAGES);
+        const run = (...extra) =>
+            spawnSync("node", [new URL("ci-test-matrix.mjs", import.meta.url).pathname, all, all, ...extra], {
+                encoding: "utf8",
+            });
+        assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
+        const bad = run("--only", '["graphty-9"]');
+        assert.notEqual(bad.status, 0);
+        assert.match(bad.stderr, /graphty-9/);
+    });
+});
+
+describe("verification of golden in CI (golden-verify.yml)", () => {
+    const ci = workflow("ci.yml");
+    const verify = workflow("golden-verify.yml");
+
+    // The plan step's script, run as GitHub runs it (bash -eo pipefail), with nx answered by a stub.
+    const planStep = (env) => {
+        const build = job(ci, "packages");
+        const body = /\n {14}id: plan\n[\s\S]*?\n {14}run: \|\n((?: {18}.*\n|\n)+)/
+            .exec(build)[1]
+            .replace(/^ {18}/gm, "");
+        const dir = mkdtempSync(join(TMP, "plan-"));
+        const bin = join(dir, "bin");
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "pnpm"),
+            `#!/bin/bash\nif [[ "$*" == *--affected* ]]; then echo '["graph-io"]'; else echo '${JSON.stringify(PACKAGES)}'; fi\n`,
+            { mode: 0o755 },
+        );
+        const output = join(dir, "output");
+        writeFileSync(output, "");
+        const r = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", body], {
+            cwd: new URL("..", import.meta.url).pathname,
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                GITHUB_OUTPUT: output,
+                MERGE_QUEUE: "false",
+                BASE_REF: "master",
+                SKIP_UNAFFECTED_CAPTURES: "false",
+                LABELS: "[]",
+                CALLED_REF: "",
+                SHARDS: "",
+                ...env,
+            },
+        });
+        const out = Object.fromEntries(
+            readFileSync(output, "utf8")
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1)]),
+        );
+        return { status: r.status, stderr: r.stderr, out };
+    };
+
+    it("is called with a ref, an optional verify flag and an optional shard list", () => {
+        assert.match(
+            ci,
+            /\n {12}verify:\n {16}description: .*\n {16}type: boolean\n {16}required: false\n {16}default: false\n/,
+        );
+        assert.match(
+            ci,
+            /\n {12}shards:\n {16}description: .*\n {16}type: string\n {16}required: false\n {16}default: ""\n/,
+        );
+    });
+
+    it("plans a full run for a called run started by a push, and build-only for a push of master", () => {
+        const called = planStep({ EVENT: "push", CALLED_REF: "abc123" });
+        assert.equal(called.status, 0, called.stderr);
+        assert.equal(called.out.full, "true");
+        assert.equal(called.out.light, undefined, "a verification run is not light");
+        assert.equal(called.out["test-count"], "25");
+        const master = planStep({ EVENT: "push" });
+        assert.equal(master.status, 0, master.stderr);
+        assert.equal(master.out.light, "true");
+        assert.equal(master.out["test-count"], "0");
+        const pr = planStep({ EVENT: "pull_request" });
+        assert.equal(pr.out.full, "false");
+        assert.equal(pr.out.light, undefined);
+    });
+
+    it("runs only the named shards as a light run, and fails on an unknown one", () => {
+        const point = planStep({ EVENT: "push", CALLED_REF: "abc123", SHARDS: '["graph-io","graphty-3"]' });
+        assert.equal(point.status, 0, point.stderr);
+        assert.equal(point.out.light, "true");
+        assert.deepEqual(
+            JSON.parse(point.out["test-matrix"]).include.map((e) => e.shard),
+            ["graph-io", "graphty-3"],
+        );
+        const bad = planStep({ EVENT: "workflow_dispatch", CALLED_REF: "abc123", SHARDS: '["nope"]' });
+        assert.notEqual(bad.status, 0);
+    });
+
+    it("skips the benchmarks on a verification run", () => {
+        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify\n/);
+    });
+
+    it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
+        const upload = parseJobs(ci).test.steps.find((s) => s.name === "Upload JUnit results");
+        assert.ok(upload, "the test job uploads its JUnit reports");
+        assert.equal(upload.if, "${{ !cancelled() }}");
+        assert.equal(upload.coe, "true");
+        const text = job(ci, "test");
+        assert.match(
+            text,
+            /name: junit-\$\{\{ matrix.shard \}\}\n\s+path: test-results\/junit-\*.xml\n\s+retention-days: 7\n/,
+        );
+    });
+
+    it("runs on a push to exactly the four scratch branches, and on dispatch with a ref and shards", () => {
+        assert.match(
+            verify,
+            /\non:\n {4}push:\n {8}branches: \[golden-candidate, golden-cut-candidate, golden-bisect-1, golden-bisect-2\]\n {4}workflow_dispatch:\n/,
+        );
+        assert.match(verify, /\n {12}ref:\n(?: {16}.*\n)*? {16}required: true\n/);
+        assert.match(verify, /\n {12}shards:\n(?: {16}.*\n)*? {16}required: false\n/);
+        const triggers = verify.slice(verify.indexOf("\non:\n"), verify.indexOf("\nconcurrency:\n"));
+        assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
+    });
+
+    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
+        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
+    });
+
+    it("never cancels a run, one group per commit, pushed or dispatched", () => {
+        assert.match(
+            verify,
+            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
+        );
+    });
+
+    it("has one named job that calls ci.yml as a verification run, so no check is a bare All Checks Pass", () => {
+        const jobs = verify.slice(verify.indexOf("\njobs:\n")).match(/\n {4}[\w-]+:\n/g);
+        assert.deepEqual(jobs, ["\n    verify:\n"]);
+        const body = job(verify, "verify");
+        // The caller job's name prefixes every check of the called run: "Verify / All Checks Pass".
+        assert.match(body, /\n {8}name: Verify\n/);
+        assert.match(body, /\n {8}uses: \.\/\.github\/workflows\/ci\.yml\n/);
+        assert.match(body, /\n {12}ref: \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
+        assert.match(body, /\n {12}verify: true\n/);
+        assert.match(body, /\n {8}secrets: inherit\n/);
+        assert.match(verify, /\npermissions:\n {4}contents: read\n {4}actions: read\n {4}checks: write\n/);
+    });
+
+    it("leaves the visual job and the visual gate step exactly as master has them", () => {
+        // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
+        // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
+        // in the same commit.
+        const sha = (t) => createHash("sha256").update(t).digest("hex");
+        // The gate steps moved, unchanged, from "All Checks Pass" to the Visual report job (#3443).
+        const report = job(ci, "visual-report");
+        const from = report.indexOf("            - name: Check out the gate");
+        const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
+        assert.ok(gate.length > 1000, "found the gate steps");
+        assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
+        assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
+    });
+
+    it("keeps the screenshot report out of All Checks Pass, so a pull request never waits on captures (#3443)", () => {
+        const jobs = parseJobs(ci);
+        assert.ok(!jobs["all-checks"].needs.includes("visual"), "All Checks Pass must not need the visual job");
+        assert.ok(!/visual/.test(job(ci, "all-checks")), "All Checks Pass reads nothing of the screenshots");
+        const report = job(ci, "visual-report");
+        assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
+        assert.match(report, /\n {8}name: Visual report\n/);
+        assert.match(report, /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' \}\}\n/);
+        assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
+        assert.match(
+            report,
+            /id: visual-gate\n {14}if: github.event_name == 'pull_request'\n {14}continue-on-error: true\n/,
+        );
+        assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
+        assert.match(report, /::warning title=Visual gate \(report only\)::/);
+    });
+
+    it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
+        // stories-as-tests.md section 9: the old visual capture stays the judged one until two zero-difference runs.
+        const jobs = parseJobs(ci);
+        for (const name of ["story-tests", "story-tests-parity"]) {
+            assert.ok(jobs[name], `${name} exists`);
+            assert.equal(jobs[name].coe, "true", `${name} is report-only`);
+            assert.ok(!jobs["all-checks"].needs.includes(name), `All Checks Pass does not wait for ${name}`);
+        }
+        assert.match(job(ci, "story-tests"), /VISUAL_REVIEW_STORY_OUT: /);
+        assert.match(job(ci, "story-tests"), /node tools\/test-quarantine\.mjs run "\$SHARD" "\$COMMAND"/);
+        assert.deepEqual(jobs["story-tests-parity"].needs.sort(), ["story-tests", "visual"]);
+    });
+
+    it("is not seen by the workflows that react to master's CI", () => {
+        for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
+            const on = workflow(name);
+            const triggers = on.slice(on.indexOf("\non:\n"), on.search(/\n(permissions|concurrency|jobs|env):/));
+            assert.doesNotMatch(triggers, /Golden verify|golden-/, name);
         }
     });
 });
@@ -1002,6 +1723,74 @@ const gitShow = (path) => {
     return r.status === 0 ? r.stdout : undefined;
 };
 
+describe("dependabot.yml", () => {
+    const text = readFileSync(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
+    it("opens every version update against master, the default branch (golden is retired, #3418)", () => {
+        assert.doesNotMatch(text, /target-branch:/);
+    });
+    it("moves Storybook's packages together, in one pull request (#3294 and #3295 bumped them apart)", () => {
+        const npm = text.slice(
+            text.indexOf("package-ecosystem: npm"),
+            text.indexOf("package-ecosystem: github-actions"),
+        );
+        const groups = npm.slice(npm.indexOf("groups:"));
+        const names = [...groups.matchAll(/\n {10}([a-z-]+):\n/g)].map((m) => m[1]);
+        // Dependabot puts a dependency in the first group that matches
+        assert.deepEqual(names.slice(0, 2), ["storybook", "storybook-security"]);
+        for (const kind of ["version-updates", "security-updates"]) {
+            assert.match(groups, new RegExp(`applies-to: ${kind}\\n {14}patterns: \\["storybook", "@storybook/\\*"`));
+        }
+    });
+});
+
+describe("the Sentry source map upload", () => {
+    const ci = workflow("ci.yml");
+    const steps = Object.values(parseJobs(ci)).flatMap((j) => j.steps);
+    const upload = steps.find((s) => s.name === "Upload graphty's source maps to Sentry (master push)");
+
+    it("is never inside a build: the plugin's per-chunk re-mapping took graphty's build from 53 s to 13m33s", () => {
+        // The token is what would switch a Sentry build plugin on, so only the upload step may hold it
+        assert.deepEqual(ci.match(/SENTRY_AUTH_TOKEN: .*/g), ["SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}"]);
+        assert.ok(
+            !/sentry.*-plugin/i.test(readFileSync(new URL("../graphty/vite.config.ts", import.meta.url), "utf8")),
+        );
+    });
+
+    it("runs right after the build, only on a push to master, the build graphty.app deploys", () => {
+        assert.ok(upload);
+        assert.equal(
+            upload.if,
+            "steps.plan.outputs.full == 'true' && github.event_name == 'push' && " +
+                "github.ref == 'refs/heads/master' && !inputs.ref",
+        );
+        const i = steps.indexOf(upload);
+        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the merge queue)");
+        assert.equal(steps[i + 1].name, "Upload all package builds");
+        // deploy-pages.yml publishes only a push run's build, so that one carries the debug ids
+        assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
+    });
+
+    it("injects debug ids before uploading, under the release the build stamped", () => {
+        const body = ci.slice(ci.indexOf("- name: Upload graphty's source maps to Sentry"));
+        const inject = body.indexOf("sentry-cli sourcemaps inject dist");
+        const send = body.indexOf('sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist');
+        assert.ok(inject > 0 && send > inject);
+        assert.equal(upload["working-directory"], "graphty");
+        assert.equal((ci.match(/SENTRY_RELEASE: \$\{\{ github\.sha \}\}/g) ?? []).length, 2);
+    });
+
+    it("never cancels or fails the build: six master builds were cancelled by a hanging set-commits", () => {
+        assert.equal(String(upload["continue-on-error"]), "true");
+        assert.ok(Number(upload["timeout-minutes"]) > 0 && Number(upload["timeout-minutes"]) <= 5);
+        // every sentry-cli call is bounded (written out per line, so knip sees the binary)
+        const start = ci.indexOf("- name: Upload graphty's source maps to Sentry");
+        const body = ci.slice(start, ci.indexOf("- name: Upload all package builds", start));
+        const calls = body.match(/^.*pnpm exec sentry-cli.*$/gm) ?? [];
+        assert.equal(calls.length, 5);
+        for (const call of calls) assert.match(call, /timeout \d+ pnpm exec sentry-cli /);
+    });
+});
+
 describe("new required checks start as warnings", () => {
     const ci = workflow("ci.yml");
     const registry = JSON.parse(readFileSync(new URL("ci-advisory-checks.json", import.meta.url), "utf8"));
@@ -1010,7 +1799,8 @@ describe("new required checks start as warnings", () => {
         const checks = requiredChecks(parseJobs(ci));
         assert.ok(checks.packages.includes("Install dependencies"));
         assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
-        assert.ok(checks["all-checks"].includes("Check visual changes were accepted"));
+        // The visual gate reports and never blocks a pull request (#3418).
+        assert.ok(!checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
         assert.ok(!checks["all-checks"].includes("Download visual captures"));
     });
@@ -1194,6 +1984,63 @@ jobs:
         assert.equal(r.stdout.trim(), '["links","build/Lint"]');
     });
 
+    it("turns the nx remote cache on only when the Worker accepts the token", async () => {
+        // nx fails the whole build on a 401 from the cache, so a wrong or unregistered token must turn it off.
+        const run = /- name: Probe the nx remote cache\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "packages"),
+        )[1];
+        const { handle } = await import("./nx-cache-worker/src/cache.js");
+        const env = {
+            READ_TOKEN_HASHES: createHash("sha256").update("good").digest("hex"),
+            CACHE: { get: async () => null },
+        };
+        const { createServer } = await import("node:http");
+        const server = createServer(async (req, res) => {
+            const r = await handle(new Request(`http://x${req.url}`, { headers: req.headers }), env);
+            res.writeHead(r.status).end();
+        }).listen(0, "127.0.0.1");
+        await new Promise((resolve) => server.once("listening", resolve));
+        const dir = mkdtempSync(join(tmpdir(), "nx-probe-"));
+        const probe = (url, token) =>
+            new Promise((resolve) => {
+                writeFileSync(join(dir, "env"), "");
+                const child = spawn("bash", ["-e", "-c", run], {
+                    env: {
+                        ...process.env,
+                        NX_CACHE_URL: url,
+                        NX_CACHE_TOKEN: token,
+                        WRITES: "false",
+                        GITHUB_ENV: join(dir, "env"),
+                        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+                    },
+                    stdio: "ignore",
+                });
+                child.on("close", (code) => resolve({ code, env: readFileSync(join(dir, "env"), "utf8") }));
+            });
+        try {
+            const url = `http://127.0.0.1:${server.address().port}`;
+            const on = await probe(url, "good");
+            assert.equal(on.code, 0);
+            assert.match(
+                on.env,
+                /^NX_SELF_HOSTED_REMOTE_CACHE_SERVER=.+\nNX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=good\n$/,
+            );
+            for (const [u, token] of [
+                [url, "wrong"],
+                [url, ""],
+                ["", "good"],
+                ["http://127.0.0.1:1", "good"],
+            ]) {
+                const off = await probe(u, token);
+                assert.equal(off.code, 0, `${u} ${token}: the build goes on without the cache`);
+                assert.equal(off.env, "", `${u} ${token}: the cache stays off`);
+            }
+        } finally {
+            server.close();
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it("only warns about a failed job in its warning period", () => {
         const body = job(ci, "all-checks");
         const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(body)[1];
@@ -1219,9 +2066,8 @@ jobs:
 describe("the summary checks fail as soon as a required job fails", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
-    // The jobs "All Checks Pass" fails on: every job it needs but the visual job, whose results the
-    // gate step judges at the end.
-    const deciding = jobs["all-checks"].needs.filter((n) => n !== "visual");
+    // The jobs "All Checks Pass" fails on: every job it needs.
+    const deciding = jobs["all-checks"].needs;
 
     it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
         assert.deepEqual([...deciding].sort(), [
@@ -1332,6 +2178,18 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
         );
     });
 
+    it("captures the style fidelity Storybook when graph-io or graphty-element is affected", () => {
+        const fidelity = { ...base, visual: ["graph-io-fidelity"] };
+        assert.deepEqual(skippedProjects(fidelity), []);
+        assert.deepEqual(
+            skippedProjects({ ...fidelity, affected: ["graphty-element"], changed: ["graphty-element/a.ts"] }),
+            [],
+        );
+        assert.deepEqual(skippedProjects({ ...fidelity, affected: ["layout"], changed: ["layout/src/a.ts"] }), [
+            "graph-io-fidelity",
+        ]);
+    });
+
     it("captures everything when off, in the queue or on master, after a dequeue, or with a root file changed", () => {
         assert.deepEqual(skippedProjects({ ...base, on: false }), []);
         assert.deepEqual(skippedProjects({ ...base, pullRequest: false }), []);
@@ -1419,6 +2277,42 @@ describe("pr-title.yml", () => {
         assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.equal(pr.split(QUEUE).length, 2);
     });
+    // The breaking-change step's script, against a stub gh: the commits, the labels and who added them.
+    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [] } = {}) => {
+        const pr = workflow("pr-title.yml");
+        const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
+        const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
+        const dir = mkdtempSync(join(tmpdir(), "pr-breaking-"));
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\ncase "$2" in\n*/commits) printf '%s\\n' ${commits.map((c) => `$'${c.replaceAll("\n", "\\n")}'`).join(" ")};;\n` +
+                `*/labels) printf '%s\\n' ${labels.join(" ")};;\n*/events) printf '%s\\n' ${by.join(" ")};;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PR: "1",
+                PR_TITLE: title,
+                OWNER: "apowers313",
+                GITHUB_REPOSITORY: "o/r",
+                PATH: `${dir}:${process.env.PATH}`,
+            },
+        });
+        rmSync(dir, { recursive: true, force: true });
+        return r.status;
+    };
+    it("fails a breaking change until the owner adds breaking-go, and re-checks on a label", () => {
+        assert.match(workflow("pr-title.yml"), /types: \[opened, edited, synchronize, reopened, labeled, unlabeled\]/);
+        assert.equal(breaking(), 0);
+        assert.equal(breaking({ commits: ["fix: a", "feat(tools)!: drop"] }), 1, "a breaking commit pushed later");
+        assert.equal(breaking({ commits: ["fix: a\n\nBREAKING CHANGE: gone"] }), 1);
+        assert.equal(breaking({ title: "feat!: x" }), 1, "a breaking title");
+        assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
+        assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
+        assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
@@ -1465,7 +2359,25 @@ describe("pr-issue-link.yml", () => {
         assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
-        assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
+        // never in an environment variable: one over 128 KiB stops the runner starting the step
+        assert.doesNotMatch(wf, /pull_request\.body/);
+    });
+    it("reads a description over 128 KiB from the event file (run 40001752947: E2BIG)", () => {
+        const run = (body) => {
+            const event = join(TMP, "pr-event.json");
+            writeFileSync(event, JSON.stringify({ pull_request: { body } }));
+            const env = { ...process.env, PR_AUTHOR: "someone", GITHUB_EVENT_PATH: event };
+            delete env.PR_BODY;
+            return spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
+                encoding: "utf8",
+                env,
+            });
+        };
+        const long = "- land: fix/some-branch, merged into golden\n".repeat(4000);
+        assert.ok(long.length > 128 * 1024);
+        assert.equal(run(`${long}Fixes #3342\n`).status, 0);
+        assert.equal(run("a".repeat(200 * 1024)).status, 1);
+        assert.equal(run(null).status, 1);
     });
     it("fails with the message that says what to add", () => {
         const run = (env) =>
@@ -1662,6 +2574,11 @@ describe("Mergify is retired", () => {
     it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
         assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
     });
+    it("uploads nothing to Mergify: GitHub refused its token with 403 on every test job", () => {
+        for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
+            assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
+        }
+    });
 });
 
 describe("gpu.yml", () => {
@@ -1725,6 +2642,21 @@ describe("gpu.yml", () => {
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
     });
 
+    it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {
+        // nx names a project that only @nx/eslint infers by reading <root>/package.json relative to the
+        // process's cwd, so from a package directory it failed "have no name provided" (release run
+        // 40119894804, issue #3318) while graph-io/test/fidelity/oracles/tools/web was a project of its
+        // own. That directory is now part of graph-io; this keeps any such directory from coming back.
+        assert.match(job(gpu, "test-gpu"), /working-directory: graphty-element\n.*\n {14}run: pnpm exec nx run-many/);
+        const r = spawnSync("pnpm", ["exec", "nx", "show", "projects", "--json"], {
+            cwd: new URL("../graphty-element/", import.meta.url),
+            encoding: "utf8",
+            env: { ...process.env, NX_DAEMON: "false" },
+        });
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.ok(JSON.parse(r.stdout).includes("graph-io"));
+    });
+
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
         const dir = new URL("../.github/workflows/", import.meta.url);
         for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
@@ -1777,7 +2709,7 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
         // and announces nothing: the re-run attempt announces its own outcome
         assert.match(
             held,
-            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' \}\}/,
+            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' && inputs.mode == 'legacy' \}\}/,
         );
         assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
         // versioning still requires a green T4: the re-run attempt must pass it
@@ -1871,7 +2803,17 @@ describe("master-guard", () => {
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+    });
+
+    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+        assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
+        assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
+        assert.equal(decide(run("Deploy to GitHub Pages", "cancelled", "workflow_run")), "none");
+        // the guard job's filter lets the deploy's event through, and the name matches deploy-pages.yml's
+        assert.match(workflow("master-guard.yml"), /event == 'workflow_run'/);
+        assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {
@@ -2134,6 +3076,7 @@ describe("release.yml", () => {
     const version = job(release, "version");
     const land = job(release, "land");
     const publish = job(release, "publish");
+    const approve = job(release, "approve");
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
@@ -2153,6 +3096,35 @@ describe("release.yml", () => {
         assert.doesNotMatch(on, /^\s+push:/m);
     });
 
+    it("lands and publishes only in an owner-approved legacy run; a shadow run, the default, only tests", () => {
+        assert.match(
+            release,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: shadow\n\s+type: choice\n\s+options:\n\s+- shadow\n\s+- legacy\n/,
+        );
+        assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode == 'legacy' && 'legacy' \|\| 'shadow' \}\}\n/m);
+        // the owner's approval in production stands before the land job, and refuses a production that asks nobody
+        assert.match(approve, /\n {8}environment: production\n/);
+        assert.match(approve, /\n {8}permissions:\n {12}actions: read\n {8}steps:/);
+        assert.match(approve, /select\(.type == "required_reviewers"\)/);
+        assert.match(approve, /\[ "\$reviewers" -gt 0 \] \|\| \{\n[^\n]*::error::[^\n]*\n\s+exit 1\n/);
+        assert.doesNotMatch(approve, /secrets\./);
+        // every job that reads an outside-world secret declares its environment
+        assert.match(land, /\n {8}environment: release # the deploy key\n/);
+        assert.match(publish, /\n {8}environment: release # /);
+        assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
+        // pick and held read Pushover only for a legacy run's announcements
+        assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
+        assert.equal(release.match(/\n {8}environment: /g).length, 6);
+        // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
+        for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
+            const body = job(release, name);
+            if (/secrets\.(?!GITHUB_TOKEN\b)\w+/.test(body) && !/secrets: inherit/.test(body)) {
+                assert.match(body, /\n {8}environment: /, `${name} reads a secret, so it declares its environment`);
+            }
+        }
+    });
+
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
         // the release scheduler Worker (tools/release-scheduler/) dispatches with scheduled=true; GitHub's cron would fire twice a slot
         const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
@@ -2168,11 +3140,10 @@ describe("release.yml", () => {
             /^env:\n {4}TRIGGER: \$\{\{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' \|\| github.event_name \}\}\n/m,
         );
         assert.doesNotMatch(release, /\$EVENT\b|\$GITHUB_EVENT_NAME|EVENT: \$\{\{/);
-        assert.match(pick, /if: \$\{\{ github.ref == 'refs\/heads\/master' && /);
-        // the run's own commit (the pushed commit for a restart), so the run, Coveralls and the lanes all name
-        // the tested commit
-        assert.match(pick, /CANDIDATE: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/);
-        assert.match(pick, /ref: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/);
+        assert.match(pick, /if: \$\{\{ github.ref == 'refs\/heads\/master' \}\}/);
+        // the run's own commit, so the run, Coveralls and the lanes all name the tested commit
+        assert.match(pick, /CANDIDATE: \$\{\{ github.sha \}\}/);
+        assert.match(pick, /ref: \$\{\{ github.sha \}\}/);
         assert.match(pick, /echo "sha=\$\{CANDIDATE\}"/);
         assert.doesNotMatch(pick, /ref: master/);
         // no master CI run is read: master runs no tests, the train tests the candidate itself
@@ -2201,7 +3172,9 @@ describe("release.yml", () => {
             const text = workflow(file).replace(/^\s*#.*$/gm, "");
             assert.doesNotMatch(text, /\bdate -d|created_?[aA]t|updated_?[aA]t|mergedAt|\bhours?\b|3600|86400/, file);
         }
-        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /timeout-minutes/);
+        // A job's only clock is its hang guard (tools/ci-budgets.mjs lint): a hung job is a defect, not a wait.
+        const jobs = Object.values(parseYaml(release).jobs).filter((j) => !j.uses);
+        for (const j of jobs) assert.ok(Number.isInteger(j["timeout-minutes"]) && j["timeout-minutes"] >= 10, j.name);
     });
 
     it("tests the candidate with the full suite, the T4 and the audit before it versions anything", () => {
@@ -2236,8 +3209,12 @@ describe("release.yml", () => {
         assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
         assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        // land and publish follow only a version commit made after every lane passed
-        assert.match(land, /needs: \[pick, version\]\n\s+if: \$\{\{ needs.version.result == 'success' \}\}/);
+        // land and publish follow only a version commit made after every lane passed, and the owner's approval
+        assert.match(
+            approve,
+            /needs: \[pick, version\]\n\s+if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
+        );
+        assert.match(land, /needs: \[pick, version, approve\]\n\s+if: \$\{\{ needs.approve.result == 'success' \}\}/);
         assert.match(
             publish,
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/,
@@ -2290,7 +3267,7 @@ describe("release.yml", () => {
     });
 
     it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, land\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -2353,13 +3330,15 @@ describe("release.yml", () => {
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "land"].map((j) => [
-                        j,
-                        {
-                            result: results[j] ?? "success",
-                            outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
-                        },
-                    ]),
+                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "approve", "land"].map(
+                        (j) => [
+                            j,
+                            {
+                                result: results[j] ?? "success",
+                                outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
+                            },
+                        ],
+                    ),
                 ),
             );
         // every result a job can end with, including the ones GitHub does not document
@@ -2377,7 +3356,7 @@ describe("release.yml", () => {
                 "version",
                 "land",
             ]);
-            assert.match(held, new RegExp(`needs: \\[${trainNeeds.join(", ")}\\]`));
+            assert.match(held, new RegExp(`needs: \\[${trainNeeds.slice(0, -1).join(", ")}, approve, land\\]`));
         });
 
         it("runs whatever the run's state: always(), never a list of red results", () => {
@@ -2465,6 +3444,13 @@ describe("release.yml", () => {
             );
         });
 
+        it("stays quiet for a green shadow run, which lands nothing, and when the owner declines the approval", () => {
+            assert.equal(runs({ approve: "skipped", land: "skipped" }), false);
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                assert.equal(runs({ approve: result, land: "skipped" }), false, `approve ${result}`);
+            }
+        });
+
         it("still opens the held issue when versioning or landing fails before the push", () => {
             for (const result of NOT_SUCCESS) {
                 assert.equal(runs({ version: result, land: "skipped" }, "true", ""), true, `version ${result}`);
@@ -2486,7 +3472,7 @@ describe("release.yml", () => {
                 // `gh api .../jobs --jq <filter>` answers from jobs.json through the real jq; a job log is empty
                 writeFileSync(
                     join(dir, "bin", "gh"),
-                    `#!/bin/bash\ncase "$2" in */jobs\\?*) jq -r "$4" "${join(dir, "jobs.json")}";; esac\n`,
+                    `#!/bin/bash\ncase "$2" in */jobs\\?*) jq -r "$4" "${join(dir, "jobs.json")}";; comment) echo "#$3" > "${join(dir, "title")}"; cp "$5" "${join(dir, "body")}";; esac\n`,
                     { mode: 0o755 },
                 );
                 writeFileSync(join(dir, "tools", "gpu-runner-lost.sh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
@@ -2508,6 +3494,7 @@ describe("release.yml", () => {
                         GITHUB_OUTPUT: join(dir, "output"),
                         RUNNER_TEMP: dir,
                         TRIGGER: "schedule",
+                        MODE: "legacy",
                         SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
                         PICK_RESULT: "success",
                         CI_RESULT: "success",
@@ -2555,6 +3542,16 @@ describe("release.yml", () => {
             assert.match(body, /\nCI \/ Queue Checks Pass \(failure\): Check the run passed/);
             assert.match(body, /githubstatus\.com/);
             assert.doesNotMatch(body, /Hold the release|Coverage/);
+        });
+
+        it("in a shadow run, comments once on #3418 instead of opening a Release held issue", () => {
+            const { title, body } = issue({ MODE: "shadow", T4_RESULT: "failure" }, []);
+            assert.equal(title, "#3418\n");
+            assert.match(body, /^\*\*Shadow release run: T4 GPU failed on 44ab26d\*\*\n/);
+            assert.match(body, /A shadow run: it never pushes or publishes, and it holds nothing/);
+            assert.doesNotMatch(body, /Nothing was pushed to master and nothing was published/);
+            assert.match(held, /gh issue comment 3418 --body-file/);
+            assert.equal(held.match(/gh issue comment/g).length, 1);
         });
 
         it("opens the issue when a lane was only cancelled", () => {
@@ -2618,7 +3615,7 @@ describe("release.yml", () => {
         });
     });
 
-    describe("restarts a held release on a master push whose build passed", () => {
+    describe("starts only on dispatch, never on a master push", () => {
         // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
         // stubs for gh (no release pull request left, or one from the old design to close), git (no release yet) and
         // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
@@ -2626,7 +3623,15 @@ describe("release.yml", () => {
         // (scheduled=true), "workflow_dispatch" for one by hand. `calls` collects every gh call. `settle` stubs
         // tools/publish-hold.mjs settle: "closes" (npm lists what the publish hold awaited, so the hold is gone),
         // "keeps" or "throws".
-        const pending = (trigger, heldIssue, trainPr = false, publishHold = "", calls = [], settle = "keeps") => {
+        const pending = (
+            trigger,
+            heldIssue,
+            trainPr = false,
+            publishHold = "",
+            calls = [],
+            settle = "keeps",
+            extra = {},
+        ) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2636,7 +3641,9 @@ describe("release.yml", () => {
                 mkdirSync(join(dir, "bin"));
                 // `gh pr list` names an open release pull request of the old design; every gh call is recorded
                 const log = join(dir, "gh-calls");
-                const gh = `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$2" != list ] || echo 77' : ""}`;
+                const gh =
+                    `echo "$1 $2 $3" >> "${log}"\n${trainPr ? '[ "$1 $2" != "pr list" ] || echo 77' : ""}\n` +
+                    `[ "$1 $2" != "run list" ] || echo ${extra.shadowPassed ?? 0}`;
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
@@ -2667,6 +3674,7 @@ describe("release.yml", () => {
                         GITHUB_RUN_ID: "1",
                         CANDIDATE: "abc123",
                         GITHUB_OUTPUT: output,
+                        ...(extra.mode ? { MODE: extra.mode } : {}),
                     },
                 });
                 assert.equal(run.status, 0, run.stderr);
@@ -2677,39 +3685,21 @@ describe("release.yml", () => {
             }
         };
 
-        it("is started by every completed CI run of a push to master", () => {
-            assert.match(
-                release,
-                /\n {4}workflow_run:\n {8}workflows: \["CI"\]\n {8}types:\n {12}- completed\n {8}branches:\n {12}- master\n/,
-            );
+        it("has no workflow_run trigger, so a master push starts no release and restarts no held one", () => {
+            const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
+            assert.deepEqual(on.match(/^ {4}\w+:/gm), ["    workflow_dispatch:"]);
+            assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /workflow_run/);
+            assert.match(pick, /\n {8}if: \$\{\{ github.ref == 'refs\/heads\/master' \}\}\n/);
         });
 
-        it("starts only when the build passed, on a push to master in this repository", () => {
-            const gate = /\n {8}if: (\$\{\{.*\}\})\n/.exec(pick)[1];
-            assert.match(
-                gate,
-                /github.event_name != 'workflow_run' \|\| \(github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository\)/,
-            );
-        });
-
-        it("starts the held release on the pushed commit when a held issue is open", () => {
-            assert.equal(pending("workflow_run", "1234"), "pending=false\nsha=abc123\n");
-        });
-
-        it("never starts when no held issue is open", () => {
-            assert.equal(pending("workflow_run", ""), "pending=true\n");
-            // the schedule, unlike a restart, runs only when nothing is held
+        it("runs a schedule only when nothing is held, and a dispatch by hand anyway", () => {
             assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
         });
 
-        it("never restarts a train for a publish hold, which only a re-run publish clears; the schedule still skips", () => {
-            assert.equal(pending("workflow_run", "", false, "1440"), "pending=true\n");
+        it("skips the schedule for a publish hold too, which only a re-run publish clears", () => {
             assert.equal(pending("schedule", "", false, "1440"), "pending=true\n");
-            // a train hold beside it still restarts
-            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
-            assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
             assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
 
@@ -2738,6 +3728,15 @@ describe("release.yml", () => {
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
         });
 
+        it("skips a scheduled shadow run on a commit a shadow run already passed, never a dispatch", () => {
+            const shadow = (trigger, shadowPassed) =>
+                pending(trigger, "", false, "", [], "keeps", { mode: "shadow", shadowPassed });
+            assert.equal(shadow("schedule", 1), "pending=true\n");
+            assert.equal(shadow("schedule", 0), "pending=false\nsha=abc123\n");
+            assert.equal(shadow("workflow_dispatch", 1), "pending=false\nsha=abc123\n");
+            assert.match(pick, /actions: read/);
+        });
+
         it("closes a release pull request left from the old design and releases anyway", () => {
             const calls = [];
             assert.equal(pending("schedule", "", true, "", calls), "pending=false\nsha=abc123\n");
@@ -2748,9 +3747,9 @@ describe("release.yml", () => {
             assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         });
 
-        it("comments on the same held issue when the restarted release fails again", () => {
-            assert.match(held, /\[ "\$TRIGGER" != workflow_run \] \|\| echo "This was a restarted release/);
+        it("tells a legacy hold's fix to keep the issue open and dispatch again", () => {
             assert.match(held, /Refs #<this issue>/);
+            assert.match(held, /gh workflow run release.yml --ref master -f mode=legacy/);
         });
     });
 
@@ -2902,16 +3901,12 @@ describe("release.yml", () => {
         assert.ok(pick.indexOf("- name: Announce the train attempt") > pick.indexOf("id: releasable"));
         assert.match(
             pick,
-            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' \}\}\n\s+continue-on-error: true\n/,
+            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' && inputs.mode == 'legacy' \}\}\n\s+continue-on-error: true\n/,
         );
         assert.match(pick, /TAGS: \$\{\{ steps.releasable.outputs.tags \}\}/);
         assert.match(
             pick,
-            /if \[ "\$TRIGGER" = workflow_run \]; then\n\s+restart=\(--restart --issue "\$\(tools\/release-held.sh find --train\)" --fix /,
-        );
-        assert.match(
-            pick,
-            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" "\$\{restart\[@\]\}" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
+            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
         );
         // a re-run of a failed publish says it is retrying, before anything else in the job
         assert.match(
@@ -2955,7 +3950,12 @@ describe("release.yml", () => {
         assert.match(watch, /workflow_run:\n\s+workflows: \["Release"\]\n\s+types: \[completed\]\n/);
         assert.match(
             watch,
-            /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) \}\}/,
+            /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.display_title != 'Release \(shadow\)' \}\}/,
+        );
+        // a shadow run is named so, and never announced: it publishes nothing
+        assert.match(
+            release,
+            /^run-name: \$\{\{ inputs.mode == 'legacy' && 'Release \(legacy\)' \|\| 'Release \(shadow\)' \}\}\n/m,
         );
         assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
@@ -3212,13 +4212,91 @@ describe("release.yml", () => {
         });
     });
 
-    it("deploys graphty.app from every green CI run of a push to master", () => {
+    describe("deploy-pages.yml", () => {
         const deploy = workflow("deploy-pages.yml");
-        assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
-        assert.match(
-            job(deploy, "check"),
-            /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
-        );
+
+        it("keeps the site of every green CI run of a push to master as site-<sha>", () => {
+            assert.match(deploy, /workflow_run:\n\s+workflows: \["CI"\]/);
+            assert.match(
+                job(deploy, "check"),
+                /github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'/,
+            );
+            const build = job(deploy, "build");
+            assert.doesNotMatch(build, /\n {8}if:/, "the site is assembled on every green master build");
+            assert.match(
+                build,
+                /name: site-\$\{\{ env.SHA \}\}\n\s+path: site-\$\{\{ env.SHA \}\}.tar\n\s+retention-days: 14/,
+            );
+            assert.match(
+                build,
+                /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}\n\s+uses: actions\/upload-pages-artifact/,
+            );
+            assert.match(job(deploy, "deploy"), /if: \$\{\{ needs.check.outputs.deploy == 'true' \}\}/);
+            assert.doesNotMatch(
+                deploy,
+                /^concurrency:/m,
+                "an ordinary build must not replace a pending release deploy",
+            );
+        });
+
+        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's second
+        // parent, the first tag's annotated tag object and the commit that tag points at)
+        const decide = (message, { parents = 2, live = "0ld", tagged = "v1" } = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
+            const bin = join(dir, "bin");
+            mkdirSync(bin);
+            writeFileSync(
+                join(bin, "curl"),
+                `#!/bin/bash\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                { mode: 0o755 },
+            );
+            writeFileSync(
+                join(bin, "gh"),
+                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents === 2 ? "v1" : ""};;\n*/git/ref/tags/graphty%401.2.0) echo "tag t1";;\n*/git/ref/tags/*) exit 1;;\n*/git/tags/t1) echo ${tagged};;\n*/compare/*) echo ahead;;\nesac\n`,
+                { mode: 0o755 },
+            );
+            const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
+            const out = join(dir, "out");
+            const r = spawnSync("bash", ["-e", "-c", script], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    MESSAGE: message,
+                    SHA: "abc1",
+                    GITHUB_REPOSITORY: "o/r",
+                    GITHUB_OUTPUT: out,
+                    PATH: `${bin}:${process.env.PATH}`,
+                },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            const result = { deploy: readFileSync(out, "utf8").trim(), gh: existsSync(join(dir, "gh.log")) };
+            rmSync(dir, { recursive: true, force: true });
+            return result;
+        };
+        const RELEASE = "chore(release): publish graphty@1.2.0, layout@1.10.6 onto master";
+
+        it("deploys graphty.app only for the version merge release.yml's land job pushes", () => {
+            assert.deepEqual(decide(`${RELEASE}\n\nbody`), { deploy: "deploy=true", gh: true });
+            assert.equal(decide("Merge pull request #3500 from graphty-org/golden-cut\n\nship").deploy, "deploy=false");
+            assert.equal(decide("Merge pull request #3500").gh, false, "an ordinary merge asks GitHub nothing");
+            assert.equal(
+                decide("chore(release): publish graphty@1.2.0").deploy,
+                "deploy=false",
+                "the version commit itself",
+            );
+            assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+        });
+
+        it("does not deploy a merge that only borrows the release subject", () => {
+            // a pull request merged with the release's subject: its second parent is not the tagged commit
+            assert.equal(decide(RELEASE, { tagged: "old" }).deploy, "deploy=false");
+            // a subject naming a tag that does not exist
+            assert.equal(decide("chore(release): publish nope@9.9.9 onto master").deploy, "deploy=false");
+        });
+
+        it("does not deploy a release that is live already", () => {
+            assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        });
     });
 });
 
@@ -3247,11 +4325,13 @@ describe("release-diff", () => {
 });
 
 describe("pr-status-broker", () => {
-    it("writes one compact record per pull request, the newest check of each name", () => {
+    it("writes one compact record per pull request, its head commit and the newest check of each name", () => {
         const pr = (number, rollup) => ({
             number,
             title: "t",
+            author: number === 1 ? { login: "graphty-agent" } : null,
             headRefName: "h",
+            headRefOid: "abc123",
             baseRefName: "master",
             isDraft: false,
             mergeable: "MERGEABLE",
@@ -3286,7 +4366,9 @@ describe("pr-status-broker", () => {
         assert.deepEqual(a, {
             number: 1,
             title: "t",
+            author: "graphty-agent",
             head: "h",
+            headSha: "abc123",
             base: "master",
             draft: false,
             mergeable: "MERGEABLE",
@@ -3297,12 +4379,16 @@ describe("pr-status-broker", () => {
             checksTruncated: true,
         });
         assert.equal(b.state, null);
+        assert.equal(b.author, null, "a deleted account");
         assert.deepEqual(b.checks, {});
     });
 });
 
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    // run_step, bg_step and the functions they use, cut out of tools/prepush-source-checks.sh to run alone.
+    const stepFunctions = (checks) =>
+        checks.slice(checks.indexOf("script_missing() {"), checks.indexOf("trap bg_kill EXIT\n") + 18);
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
@@ -3391,20 +4477,85 @@ describe("the commit and push hooks", () => {
         const checks = repoFile("tools/prepush-source-checks.sh");
         const steps = ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"];
         for (const step of [...steps, "SonarQube (changed lines)"]) {
-            assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
+            assert.match(checks, new RegExp(`(run|bg)_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
+        // The two commonest failures start first, in the background, before any other check.
+        const firstRun = checks.indexOf('    run_step "');
+        assert.ok(checks.indexOf('bg_step "SonarQube (changed lines)"') < firstRun, "SonarQube starts first");
+        assert.ok(checks.indexOf('bg_step "CI workflow tests"') < firstRun, "the CI workflow tests start first");
         // SonarQube runs only there, so a push it fails never reaches the queue or the build.
         assert.doesNotMatch(prepush, /sonar-gate\.mjs/);
-        const runStep = checks.slice(
-            checks.indexOf("run_step() {"),
-            checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
-        );
-        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+        const steps_ = stepFunctions(checks);
+        const r = spawnSync("bash", ["-c", `${steps_}\nrun_step one false\nrun_step two "echo SECOND"`], {
             encoding: "utf8",
         });
         assert.equal(r.status, 1);
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
+    });
+
+    it("pre-push stops with a clear message when the remote branch moved while the gate ran", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const fn = prepush.slice(
+            prepush.indexOf("remote_moved() {"),
+            prepush.indexOf("\n}\n", prepush.indexOf("remote_moved() {")) + 3,
+        );
+        assert.ok(
+            prepush.indexOf("if remote_moved; then") > prepush.indexOf('record "gate${KNOWN_FAILURES:+-known}"'),
+            "after the pass is recorded",
+        );
+        assert.match(repoFile(".husky/pre-push"), /export PUSH_REMOTE_SHA PUSH_REMOTE_REF PUSH_REMOTE\n/);
+        const dir = mkdtempSync(join(tmpdir(), "prepush-remote-"));
+        try {
+            const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            git("init", "-q", "-b", "main");
+            git("commit", "-q", "--allow-empty", "-m", "a");
+            const a = git("rev-parse", "HEAD").stdout.trim();
+            spawnSync("git", ["init", "-q", "--bare", join(dir, "origin.git")]);
+            git("remote", "add", "origin", join(dir, "origin.git"));
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            git("commit", "-q", "--allow-empty", "-m", "b");
+            const moved = (ref, sha) =>
+                spawnSync("bash", ["-c", `${fn}\nremote_moved`], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { ...process.env, PUSH_REMOTE: "origin", PUSH_REMOTE_REF: ref, PUSH_REMOTE_SHA: sha },
+                }).status === 0;
+            assert.equal(moved("refs/heads/feat/x", a), false, "still where the push began");
+            git("push", "-q", "origin", "HEAD:feat/x", "HEAD:golden");
+            assert.equal(moved("refs/heads/feat/x", a), true, "moved during the gate");
+            assert.equal(moved("refs/heads/feat/x", "0".repeat(40)), true, "created during the gate");
+            assert.equal(moved("refs/heads/golden", a), false, "golden is land.mjs's to handle");
+            assert.equal(moved("refs/heads/gone", a), false, "a remote that has no answer is not moved");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("pre-push reports a background step's failure at the next step and stops the rest", () => {
+        const steps = stepFunctions(repoFile("tools/prepush-source-checks.sh"));
+        const dir = mkdtempSync(join(tmpdir(), "prepush-bg-"));
+        try {
+            const script = `${steps}
+bg_step slow "sleep 30; echo SLOW-DONE" "${dir}/slow.log"
+bg_step fails "echo FAILED-OUTPUT; exit 1" "${dir}/fails.log"
+until [ -s "${dir}/fails.log" ] && ! kill -0 "\${BG_PIDS[1]}" 2>/dev/null; do sleep 0.05; done
+run_step after "echo AFTER-RAN"`;
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20000 });
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stdout, /FAILED-OUTPUT[\s\S]*\[FAIL\] fails failed/);
+            assert.match(r.stdout, /stopped at the first failure: fails/);
+            assert.doesNotMatch(r.stdout, /AFTER-RAN|SLOW-DONE/);
+            const passing = spawnSync(
+                "bash",
+                ["-c", `${steps}\nbg_step ok "echo OK-OUTPUT" "${dir}/ok.log"\nrun_step next "echo NEXT"\nbg_wait`],
+                { encoding: "utf8", timeout: 20000 },
+            );
+            assert.equal(passing.status, 0, passing.stdout + passing.stderr);
+            assert.match(passing.stdout, /OK-OUTPUT[\s\S]*\[PASS\] ok passed/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     it("pre-push runs knip and the published-dependency check on a push that affects no package", () => {
@@ -3470,7 +4621,18 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs", "shard-verdict.mjs"]) {
+            for (const f of [
+                "prepush-tests.mjs",
+                "test-slots.mjs",
+                "wait-log.mjs",
+                "prepush-inputs.mjs",
+                "push-base.mjs",
+                "shard-verdict.mjs",
+                "test-quarantine.mjs",
+                "test-ledger.mjs",
+                "test-select.mjs",
+                "test-select-rules.json",
+            ]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -3535,9 +4697,7 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
                 ["a", "k"],
                 ["b", null],
             ]),
-            {
-                b: { key: null, sha: "s", at: "t" },
-            },
+            (key) => (key === null ? { key: null, sha: "s", at: "t" } : null),
         );
         assert.deepEqual(run, shards);
         assert.deepEqual(skipped, []);
@@ -3545,14 +4705,14 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
 
     it("skips only a shard whose recorded pass has exactly this key", () => {
         const shards = [shard("same"), shard("changed")];
-        const passes = { same: { key: "k1", sha: "s", at: "t" }, changed: { key: "old", sha: "s", at: "t" } };
+        const passes = { k1: { key: "k1", sha: "s", at: "t" }, old: { key: "old", sha: "s", at: "t" } };
         const { run, skipped } = partitionByPasses(
             shards,
             new Map([
                 ["same", "k1"],
                 ["changed", "new"],
             ]),
-            passes,
+            (key) => passes[key] ?? null,
         );
         assert.deepEqual(
             run.map((s) => s.shard),
@@ -3647,15 +4807,19 @@ describe("pre-push shards skipped on inputs that already passed (tools/prepush-i
         assert.equal(testsPassed("      Tests  2 failed | 5 passed (7)\n"), 5);
     });
 
-    it("records passes per branch and reads them back", () => {
+    it("records passes by kind and key, for every branch, and reads them back", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
         try {
-            const store = passStore(dir, "tools/x");
-            assert.deepEqual(store.read(), {});
-            store.record("a", { key: "k", sha: "s", at: "t" });
-            store.record("b", { key: "k2", sha: "s", at: "t" });
-            assert.deepEqual(Object.keys(passStore(dir, "tools/x").read()).sort(), ["a", "b"]);
-            assert.deepEqual(passStore(dir, "other").read(), {});
+            const k1 = "1".repeat(64);
+            const k2 = "2".repeat(64);
+            const store = passStore(dir);
+            assert.equal(store.get("shard", k1), null);
+            store.record("shard", k1, { shard: "a", branch: "tools/x", sha: "s", at: "t" });
+            store.record("shard", k2, { shard: "b", branch: "other", sha: "s", at: "t" });
+            assert.equal(passStore(dir).get("shard", k1).shard, "a");
+            assert.equal(passStore(dir).get("shard", k2).key, k2);
+            assert.equal(passStore(dir).get("gate", k1), null, "another kind");
+            assert.throws(() => store.record("shard", "../x", {}), /not a pass kind and key/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3677,7 +4841,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "bin"));
             mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
@@ -3688,10 +4852,22 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
                 join(dir, "tools/sonar-gate.mjs"),
                 `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "sonar\\n");\n`,
             );
+            writeFileSync(
+                join(dir, "tools/check-committed-images.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "images\\n");\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/check-figma-lock.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "figma-lock\\n");\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/release-dry-run.mjs"),
+                `import { appendFileSync } from "node:fs";\nappendFileSync("${dir}/calls", "release\\n");\n`,
+            );
             writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
             writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: sourceCheckScripts() }));
-            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
+            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\ntmp/\n");
             writeFileSync(join(dir, "a.ts"), "a\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
             git("init", "-q");
@@ -3714,6 +4890,8 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(first.calls, /run format:check/);
             assert.match(first.calls, /links/);
             assert.match(first.calls, /sonar/);
+            assert.match(first.calls, /images/);
+            assert.match(first.calls, /release/);
             const second = run();
             assert.equal(second.calls, "", "nothing changed: no check runs");
             assert.match(second.out, /\[SKIP\] Source-only checks/);
@@ -3721,10 +4899,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.match(run().calls, /run format:check/, "an edit runs them again");
             writeFileSync(join(dir, "new.ts"), "n\n");
             assert.match(run().calls, /run format:check/, "a new file runs them again");
+            assert.equal(run().calls, "");
             git("add", ".");
             git("commit", "-q", "-m", "b");
-            assert.match(run().calls, /run format:check/, "a commit runs them again");
-            assert.equal(run().calls, "");
+            assert.equal(run().calls, "", "a commit of the files they passed on does not run them again");
+            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n# reinstalled\n");
+            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n# reinstalled\n");
+            assert.match(run().calls, /run format:check/, "a new lockfile runs them again");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3749,11 +4930,14 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             ]) {
                 mkdirSync(d, { recursive: true });
             }
-            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs", "push-base.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(gate, "tools", f));
             }
             writeFileSync(join(gate, "tools/check-links.sh"), log("gate-links"), { mode: 0o755 });
             writeFileSync(join(gate, "tools/sonar-gate.mjs"), sonar("gate-sonar"));
+            writeFileSync(join(gate, "tools/check-committed-images.mjs"), sonar("gate-images"));
+            writeFileSync(join(gate, "tools/check-figma-lock.mjs"), sonar("gate-figma-lock"));
+            writeFileSync(join(gate, "tools/release-dry-run.mjs"), sonar("gate-release"));
             writeFileSync(join(root, "tools/check-links.sh"), log("root-links"), { mode: 0o755 });
             writeFileSync(join(root, "tools/sonar-gate.mjs"), sonar("root-sonar"));
             writeFileSync(join(root, "tools/prepush-source-checks.sh"), log("root-copy"), { mode: 0o755 });
@@ -3763,7 +4947,7 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             writeFileSync(join(root, "package.json"), JSON.stringify({ scripts }));
             writeFileSync(join(root, "pnpm-lock.yaml"), "lock\n");
             writeFileSync(join(root, "node_modules/.pnpm/lock.yaml"), "lock\n");
-            writeFileSync(join(root, ".gitignore"), "node_modules/\n");
+            writeFileSync(join(root, ".gitignore"), "node_modules/\ntmp/\n");
             const git = (...args) => assert.equal(spawnSync("git", args, { cwd: root }).status, 0, args.join(" "));
             git("init", "-q");
             git("add", ".");
@@ -3776,12 +4960,15 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
             assert.equal(r.status, 0, r.stdout + r.stderr);
             const calls = readFileSync(join(dir, "calls"), "utf8");
             assert.match(calls, /^gate-sonar$/m, "the gate's own scripts run");
+            assert.match(calls, /^gate-images$/m, "the image check runs from the gate's copy");
+            assert.match(calls, /^gate-figma-lock$/m, "the Figma lock runs from the gate's copy");
+            assert.match(calls, /^gate-release$/m, "the release dry run runs from the gate's copy");
             assert.match(calls, new RegExp(`^root-links ${root}$`, "m"), "the checkout's own checks run, in it");
             assert.match(calls, new RegExp(`^run format:check ${root}$`, "m"));
             assert.doesNotMatch(calls, /gate-links|root-sonar|root-copy/);
             assert.doesNotMatch(calls, /check:legacy-use/);
             assert.match(r.stdout, /\[SKIP\] Legacy graph API use: this checkout has no `check:legacy-use` script/);
-            assert.ok(existsSync(join(root, ".git/prepush-source-checks")), "the pass is recorded in the checkout");
+            assert.equal(readdirSync(join(root, "tmp/prepush-passes/source")).length, 1, "the pass is recorded");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
@@ -3821,5 +5008,684 @@ describe("pnpm-lock.yaml", () => {
             );
             assert.deepEqual([...versions], ["1.57.0"], `${name} versions in pnpm-lock.yaml`);
         }
+    });
+});
+
+describe("a run reuses an earlier run's results when only screenshot records changed", () => {
+    const ci = workflow("ci.yml");
+    const TREE = "a".repeat(40);
+    const OTHER = "b".repeat(40);
+    // The jobs of run 40001752903 (golden-cut, 2026-10-23), as the Actions API answered, shortened.
+    const recorded = [
+        ["Draft state", "success"],
+        ["Build", "success"],
+        ["Storybooks", "success"],
+        ["Lint", "success"],
+        ["Checks", "success"],
+        ["Docs", "success"],
+        ["Cost Estimate Accuracy", "success"],
+        ["Test (graphty-1)", "success"],
+        ["Test (graphty-element-browser-1)", "success"],
+        ["Test (small-node)", "success"],
+        ["visual (graphty-element)", "success"],
+        ["visual (graph-io-fidelity)", "failure"],
+        ["Links", "success"],
+        ["Performance Benchmarks", "skipped"],
+        ["All Checks Pass", "failure"],
+        ["Queue Checks Pass", "failure"],
+    ].map(([name, conclusion]) => ({ name, conclusion, status: "completed" }));
+    const withJob = (jobs, name, conclusion) =>
+        jobs.map((j) => (j.name === name ? { ...j, conclusion, status: conclusion ? "completed" : "in_progress" } : j));
+    const BUILDS = ["build-packages", ...Object.keys(STORYBOOKS)];
+    const artifactsOf = (record, { expired = false } = {}) => [
+        ...(record ? [{ name: record, expired: false }] : []),
+        ...BUILDS.map((name) => ({ name, expired })),
+        { name: "visual-graphty-element-1", expired: false },
+    ];
+    // An API that answers from recorded runs: { id: { jobs, artifacts } }, counting its calls.
+    const recordedApi = (byRun) => {
+        const api = async (path) => {
+            api.calls.push(path);
+            const [, id, what] = /^actions\/runs\/(\d+)\/(jobs|artifacts)\?/.exec(path);
+            return { [what]: byRun[id][what] };
+        };
+        api.calls = [];
+        return api;
+    };
+    const chain = ["h3", "h2", "h1"];
+    const runAt = (id, sha) => ({ id, head_sha: sha });
+
+    it("reuses the newest passing run that tested the same tree, and downloads its builds", async () => {
+        const api = recordedApi({ 10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2"), runAt(11, "h3")], runId: 11, api });
+        assert.equal(r.reuse, "10");
+        assert.equal(r.artifacts, "10");
+        assert.equal(api.calls.length, 2, "two requests for the one earlier run");
+    });
+
+    it("builds again when the reused run's builds expired, and still reuses its test results", async () => {
+        const api = recordedApi({
+            10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`, { expired: true }) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "10");
+        assert.equal(r.artifacts, null);
+    });
+
+    it("runs in full when any other file changed (the newest passing run tested another tree)", async () => {
+        const api = recordedApi({
+            10: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${OTHER}`) },
+            9: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2"), runAt(9, "h1")], runId: 11, api });
+        assert.equal(r.reuse, null, "an older run with the same tree is not looked at past a newer passing one");
+        assert.match(r.reason, /another tree/);
+    });
+
+    it("runs in full when the earlier run failed, was cancelled or has not finished", async () => {
+        for (const [name, conclusion] of [
+            ["Test (graphty-1)", "failure"],
+            ["Test (small-node)", "cancelled"],
+            ["Lint", "skipped"],
+            ["Links", null],
+            ["Build", "failure"],
+        ]) {
+            const api = recordedApi({
+                10: { jobs: withJob(recorded, name, conclusion), artifacts: artifactsOf(`ci-tested-${TREE}`) },
+            });
+            const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+            assert.equal(r.reuse, null, `${name} ${conclusion}`);
+            assert.match(r.skipped[0], new RegExp(`${name.replace(/[()]/g, "\\$&")} `));
+        }
+    });
+
+    it("passes over a cancelled newer run to an older one that passed on the same tree", async () => {
+        const api = recordedApi({
+            10: {
+                jobs: withJob(recorded, "Test (graphty-1)", "cancelled"),
+                artifacts: artifactsOf(`ci-tested-${TREE}`),
+            },
+            9: { jobs: recorded, artifacts: artifactsOf(`ci-tested-${TREE}`) },
+        });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(9, "h1"), runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "9");
+    });
+
+    it("runs in full when the earlier run recorded no tree (a ci.yml from before this record)", async () => {
+        const api = recordedApi({ 10: { jobs: recorded, artifacts: artifactsOf(null) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, null);
+        assert.match(r.reason, /recorded no tested tree/);
+    });
+
+    it("never reuses itself, another branch's commit, or a commit off the first-parent chain", async () => {
+        const api = recordedApi({});
+        const runs = [runAt(11, "h3"), runAt(12, "elsewhere")];
+        const r = await reuseDecide({ tree: TREE, chain, runs, runId: 11, api });
+        assert.equal(r.reuse, null);
+        assert.equal(api.calls.length, 0);
+    });
+
+    it("chains through a run that itself reused, to the run that ran the tests", async () => {
+        const reusedJobs = ["Lint", "Checks", "Docs", "Cost Estimate Accuracy", "Test (graphty-1)", "Links"].reduce(
+            (jobs, name) => withJob(jobs, name, "skipped"),
+            recorded,
+        );
+        const api = recordedApi({ 10: { jobs: reusedJobs, artifacts: artifactsOf(`ci-tested-${TREE}-from-7`) } });
+        const r = await reuseDecide({ tree: TREE, chain, runs: [runAt(10, "h2")], runId: 11, api });
+        assert.equal(r.reuse, "7", "the link names the run whose tests passed");
+        assert.equal(r.artifacts, "10", "the builds come from the newest run, whose copies are fresh");
+        assert.equal(notPassed(withJob(reusedJobs, "Storybooks", "failure"), true), "Storybooks failure");
+        assert.equal(notPassed(reusedJobs, false), "Lint skipped", "a full run must have run Lint");
+    });
+
+    it("reads the record from an artifact's name", () => {
+        assert.deepEqual(marker([{ name: "build-packages" }, { name: `ci-tested-${TREE}` }]), {
+            tree: TREE,
+            from: null,
+        });
+        assert.deepEqual(marker([{ name: `ci-tested-${TREE}-from-42` }]), { tree: TREE, from: "42" });
+        assert.equal(marker([{ name: "ci-tested-xyz" }]), null);
+    });
+
+    it("compares trees with exactly the baselines and approvals directories taken out", () => {
+        const repo = mkdtempSync(join(TMP, "reuse-"));
+        const g = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" }).stdout.trim();
+        const put = (file, text) => {
+            mkdirSync(join(repo, file, ".."), { recursive: true });
+            writeFileSync(join(repo, file), text);
+        };
+        const commit = (message) => {
+            g("add", "-A");
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
+            return g("rev-parse", "HEAD");
+        };
+        g("init", "-q");
+        put(
+            "visual-review.config.json",
+            JSON.stringify({ baselines: "visual-baselines", approvals: "visual-review-approvals" }),
+        );
+        put("src/a.ts", "1");
+        put("visual-baselines/p/a.png", "1");
+        put("visual-baselines/reviews/r.json", "1");
+        put("visual-baselines-old/a.png", "1");
+        put("visual-review/trusted/x.mjs", "1");
+        const base = commit("base");
+        const excluded = excludedPaths(repo, base);
+        assert.deepEqual(excluded, ["visual-baselines", "visual-review-approvals"]);
+        const before = treeWithout(repo, base, excluded);
+        put("visual-baselines/p/a.png", "2");
+        put("visual-baselines/reviews/r.json", "2");
+        put("visual-review-approvals/t.json", "{}");
+        const finish = commit("finish");
+        assert.equal(treeWithout(repo, finish, excluded), before, "a Finish commit leaves the tested tree as it was");
+        assert.notEqual(g("rev-parse", `${finish}^{tree}`), g("rev-parse", `${base}^{tree}`));
+        for (const file of [
+            "src/a.ts",
+            "visual-baselines-old/a.png",
+            "visual-review/trusted/x.mjs",
+            "visual-review-approvals.json",
+        ]) {
+            put(file, "changed");
+            const at = commit(file);
+            assert.notEqual(treeWithout(repo, at, excluded), before, `${file} is part of the tested tree`);
+            g("reset", "-q", "--hard", finish);
+            g("clean", "-qfd");
+        }
+        for (const bad of [".", "../x", "", "a b"]) {
+            put("visual-review.config.json", JSON.stringify({ baselines: bad, approvals: "visual-review-approvals" }));
+            assert.equal(excludedPaths(repo, commit(`bad ${bad}`)), null, `"${bad}" is refused`);
+        }
+        assert.equal(excludedPaths(repo, "HEAD~100"), null, "no config: no reuse");
+    });
+
+    it("prints the plan from the base's config and recorded API answers (the packages job's step)", () => {
+        const repo = mkdtempSync(join(TMP, "reuse-main-"));
+        const g = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" }).stdout.trim();
+        const put = (file, text) => {
+            mkdirSync(join(repo, file, ".."), { recursive: true });
+            writeFileSync(join(repo, file), text);
+        };
+        const commit = (message) => {
+            g("add", "-A");
+            g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
+            return g("rev-parse", "HEAD");
+        };
+        const merge = (base, head) => {
+            g("checkout", "-q", "--detach", base);
+            g("-c", "user.name=t", "-c", "user.email=t@t", "merge", "-q", "--no-ff", "-m", "m", head);
+            return g("rev-parse", "HEAD");
+        };
+        g("init", "-q", "-b", "master");
+        put(
+            "visual-review.config.json",
+            JSON.stringify({ baselines: "visual-baselines", approvals: "visual-review-approvals" }),
+        );
+        const base = commit("base");
+        g("checkout", "-q", "-b", "cut");
+        put("src/a.ts", "1");
+        const h1 = commit("code");
+        put("visual-review-approvals/t.json", "{}");
+        const h2 = commit("finish");
+        const tested = treeWithout(repo, merge(base, h1), ["visual-baselines", "visual-review-approvals"]);
+        merge(base, h2);
+        const answers = join(repo, "..", `answers-${Date.now()}`);
+        mkdirSync(answers);
+        const answer = (name, value) => writeFileSync(join(answers, name), JSON.stringify(value));
+        answer("runs", { workflow_runs: [{ id: 5, head_sha: h1 }] });
+        answer("artifacts", { artifacts: artifactsOf(`ci-tested-${tested}`) });
+        answer("jobs", { jobs: recorded });
+        const bin = join(answers, "bin");
+        mkdirSync(bin);
+        writeFileSync(
+            join(bin, "gh"),
+            `#!/bin/bash\ncase "$2" in *workflows/ci.yml/runs*) f=runs;; *artifacts*) f=artifacts;; *jobs*) f=jobs;; esac\ncat "${answers}/$f"\n`,
+            { mode: 0o755 },
+        );
+        const run = (env) =>
+            spawnSync("node", [new URL("./ci-reuse-plan.mjs", import.meta.url).pathname], {
+                cwd: repo,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${bin}:${process.env.PATH}`,
+                    GITHUB_REPOSITORY: "o/r",
+                    GITHUB_RUN_ID: "6",
+                    GITHUB_SERVER_URL: "https://github.com",
+                    HEAD_SHA: h2,
+                    HEAD_REF: "cut",
+                    GITHUB_STEP_SUMMARY: "",
+                    ...env,
+                },
+            });
+        const out = run({}).stdout;
+        assert.match(out, new RegExp(`^tested-tree=${tested}$`, "m"));
+        assert.match(out, new RegExp(`^marker=ci-tested-${tested}-from-5$`, "m"));
+        assert.match(out, /^reuse-run=5$/m);
+        assert.match(out, /^reuse-url=https:\/\/github.com\/o\/r\/actions\/runs\/5$/m);
+        assert.match(out, /^artifacts-run=5$/m);
+        answer("jobs", { jobs: withJob(recorded, "Test (graphty-1)", "failure") });
+        const full = run({}).stdout;
+        assert.match(full, /^reuse-run=$/m);
+        assert.match(full, new RegExp(`^marker=ci-tested-${tested}$`, "m"), "a full run records its tree");
+        writeFileSync(join(bin, "gh"), "#!/bin/bash\necho 'HTTP 403' >&2; exit 1\n", { mode: 0o755 });
+        const offline = run({});
+        assert.equal(offline.status, 0);
+        assert.match(offline.stdout, /^reuse-run=$/m, "an API failure is a full run");
+    });
+
+    it("skips exactly the jobs the reused run passed, and still builds, captures and gates", () => {
+        const jobs = parseJobs(ci);
+        const reused = Object.keys(jobs).filter((name) =>
+            /needs\.packages\.outputs\.reuse-run == ''/.test(job(ci, name)),
+        );
+        assert.deepEqual(reused.sort(), ["checks", "cost-accuracy", "docs", "links", "lint", "story-tests", "test"]);
+        for (const name of ["packages", "build", "visual", "all-checks"]) {
+            assert.ok(!reused.includes(name), `${name} runs on every run`);
+        }
+        const packages = job(ci, "packages");
+        assert.match(
+            packages,
+            /id: reuse\n {14}if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'\n {14}continue-on-error: true\n/,
+        );
+        assert.match(packages, /reuse-run: \$\{\{ steps.reuse.outputs.reuse-run \}\}/);
+        assert.match(packages, /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);
+        assert.match(job(ci, "build"), /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);
+    });
+
+    it("downloads exactly the Storybooks the build job uploads, to the paths it uploads them from", () => {
+        const build = job(ci, "build");
+        const uploads = [...build.matchAll(/name: (build-storybook-[\w-]+)\n {18}path: (\S+)\/\n/g)].map((m) => [
+            m[1],
+            m[2],
+        ]);
+        assert.deepEqual(Object.fromEntries(uploads), STORYBOOKS);
+        // every step that builds is skipped when the builds are downloaded instead
+        for (const step of build.split(/\n {12}- /).filter((s) => /nx run .*:build-storybook|pnpm install/.test(s))) {
+            assert.match(step, /\n {14}if: needs.packages.outputs.artifacts-run == ''\n/, step);
+        }
+    });
+
+    it("passes All Checks Pass with skipped check jobs only when the run reused a passing run", () => {
+        const body = job(ci, "all-checks");
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(body)[1];
+        const needs = (over) =>
+            JSON.stringify(
+                Object.fromEntries(
+                    ["packages", "build", "lint", "checks", "docs", "test", "links", "cost-accuracy"].map((n) => [
+                        n,
+                        {
+                            result: over[n] ?? (["packages", "build", "visual"].includes(n) ? "success" : "skipped"),
+                        },
+                    ]),
+                ),
+            );
+        const verdict = (reuse, over = {}) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "false",
+                    ADVISORY: "[]",
+                    LIGHT: "false",
+                    REUSE_RUN: reuse,
+                    REUSE_URL: reuse && `https://github.com/o/r/actions/runs/${reuse}`,
+                    NEEDS: needs(over),
+                },
+            });
+        const ok = verdict("5");
+        assert.equal(ok.status, 0, ok.stdout);
+        assert.match(ok.stdout, /::notice title=Results reused::.*actions\/runs\/5/);
+        assert.equal(verdict("").status, 1, "skipped Lint, Checks and Docs fail a run that reused nothing");
+        assert.equal(verdict("5", { build: "skipped" }).status, 1, "Storybooks must still succeed");
+        assert.equal(verdict("5", { lint: "failure" }).status, 1);
+    });
+});
+
+describe("promote.yml", () => {
+    const promote = workflow("promote.yml");
+    const main = job(promote, "promote");
+    const nightlySite = job(promote, "nightly-site");
+    const channelRef = job(promote, "channel-ref");
+    // each step of a job, as text, from its "- " line to the next one
+    const steps = (text) =>
+        text
+            .replace(/^\s*#.*\n/gm, "")
+            .split(/\n(?= {12}- )/)
+            .slice(1);
+
+    it("is dispatched only, with the nightly, the channel, dry_run (on by default) and config_only", () => {
+        const on = /^on:\n([\s\S]*?)\n\S/m.exec(promote)[1];
+        assert.deepEqual(
+            [...on.matchAll(/^ {4}(\w+):/gm)].map((m) => m[1]),
+            ["workflow_dispatch"],
+        );
+        assert.match(on, /\n {12}nightly:\n[\s\S]*?default: newest\n/);
+        assert.match(
+            on,
+            /\n {12}channel:\n[\s\S]*?type: choice\n\s+default: production\n\s+options:\n\s+- production\n\s+- nightly\n/,
+        );
+        assert.match(on, /\n {12}dry_run:\n[^\n]*\n\s+type: boolean\n\s+default: true\n/);
+        assert.match(on, /\n {12}config_only:\n[^\n]*\n\s+type: boolean\n\s+default: false\n/);
+    });
+
+    it("waits for the owner: the job runs in environment production, from master only, and checks production has a reviewer", () => {
+        assert.match(main, /\n {8}environment: production\n/);
+        assert.match(main, /\n {8}if: \$\{\{ github.ref == 'refs\/heads\/master' \}\}\n/);
+        assert.match(main, /required_reviewers/);
+        // the refusals come before anything that can move
+        const order = [
+            "promote.mjs gather",
+            "promote.mjs check",
+            "promote.mjs token",
+            "promote.mjs move",
+            "promote-push.sh",
+            "promote.mjs releases",
+        ];
+        const at = order.map((s) => main.indexOf(s));
+        assert.ok(
+            at.every((i) => i > 0),
+            JSON.stringify(at),
+        );
+        assert.deepEqual(
+            [...at].sort((a, b) => a - b),
+            at,
+        );
+    });
+
+    it("moves nothing in a dry run: every step that writes outside the run is off unless dry_run is false", () => {
+        const writers = steps(main).filter((s) =>
+            /promote\.mjs (move|releases)|promote-push\.sh|ssh-key|promote\.mjs wait/.test(s),
+        );
+        assert.equal(writers.length, 5);
+        for (const s of writers) assert.match(s, /if: \$\{\{ inputs.dry_run != true && /, s);
+        assert.match(nightlySite, /\n {8}if: \$\{\{ inputs.dry_run != true && inputs.channel == 'nightly' \}\}\n/);
+        assert.match(
+            channelRef,
+            /\n {8}if: \$\{\{ always\(\) && inputs.dry_run != true && inputs.config_only != true && needs.promote.result == 'success'/,
+        );
+        // no push happens anywhere else
+        assert.deepEqual(
+            [...promote.matchAll(/git push[^\n]*/g)].map((m) => m[0]),
+            [
+                'git push --no-verify --force-with-lease="${ref}:${old}" origin "${COMMIT}:${ref}"',
+                'git push --no-verify origin "${COMMIT}:${ref}"',
+            ],
+        );
+    });
+
+    it("config_only moves no tag and marks no release; channel: nightly deploys only from environment nightly", () => {
+        for (const s of steps(main).filter((s) => /promote\.mjs (move|releases)/.test(s)))
+            assert.match(s, /inputs.config_only != true/);
+        for (const s of steps(main).filter((s) => /graphty-site|promote-push\.sh|releases/.test(s)))
+            assert.match(s, /inputs.channel == 'production'/);
+        assert.match(nightlySite, /\n {8}environment: nightly\n/);
+        assert.match(nightlySite, /NIGHTLY_SITE_DEPLOY_KEY/);
+        assert.doesNotMatch(main, /NIGHTLY_SITE_DEPLOY_KEY/);
+    });
+
+    it("keeps each key in its own environment: the dist-tag token and graphty-site's key in production, the release key in release", () => {
+        assert.equal(promote.match(/secrets.RELEASE_DEPLOY_KEY/g).length, 1);
+        assert.match(channelRef, /\n {8}environment: release # the deploy key\n/);
+        assert.match(channelRef, /secrets.RELEASE_DEPLOY_KEY/);
+        assert.doesNotMatch(channelRef.replace(/^\s*#.*$/gm, ""), /npm |setup-node|pnpm/);
+        for (const secret of ["NPM_DIST_TAG_TOKEN", "PRODUCTION_SITE_DEPLOY_KEY"]) {
+            assert.ok(promote.includes(secret));
+            assert.doesNotMatch(nightlySite + channelRef, new RegExp(secret));
+        }
+        assert.match(promote, /\npermissions:\n {4}contents: read\n/);
+    });
+});
+
+describe("the light pull-request check (#3443, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const build = job(ci, "packages");
+    const stepOf = (name) => {
+        const m = new RegExp(`\\n {12}- name: ${name}\\n([\\s\\S]*?)(?=\\n\\n {12}(?:#|- ))`).exec(build);
+        assert.ok(m, `Build has the step ${name}`);
+        return `\n${m[1]}`;
+    };
+    const index = (name) => build.indexOf(`- name: ${name}\n`);
+
+    it("plans inside Build after the builds: one results-store read, then the selector's bins, pull requests only", () => {
+        const bins = stepOf("Plan the light check's test bins");
+        assert.match(bins, /\n {14}id: bins\n/);
+        assert.match(
+            bins,
+            /\n {14}if: steps\.plan\.outputs\.full == 'false' && steps\.reuse\.outputs\.reuse-run == ''\n/,
+        );
+        assert.match(bins, /\n {14}continue-on-error: true\n/, "a failed plan keeps the whole-shard matrix");
+        assert.match(bins, /node tools\/results\/plan-read\.mjs "\$AFFECTED" "\$plan"/);
+        assert.match(bins, /node tools\/test-select\.mjs --base "origin\/\$BASE_REF" --head HEAD --plan/);
+        assert.match(bins, /--durations "\$plan\/durations\.json"/);
+        assert.match(bins, /node tools\/ci-test-matrix\.mjs [^\n]* --plan "\$plan\/light-plan\.json"/);
+        // the import graphs resolve the other packages through their dist folders
+        for (const b of ["Build affected (PR)", "Build the rest (PR), so every shard finds its artifact"]) {
+            assert.ok(index(b) > 0 && index(b) < index("Plan the light check's test bins"), `${b} runs first`);
+        }
+        assert.ok(
+            index("Plan the light check's test bins") < index("Upload all package builds"),
+            "planned before the uploads",
+        );
+        assert.match(
+            build,
+            /test-matrix: \$\{\{ steps\.bins\.outputs\.test-matrix \|\| steps\.plan\.outputs\.test-matrix \}\}/,
+        );
+        assert.match(
+            build,
+            /test-count: \$\{\{ steps\.bins\.outputs\.test-count \|\| steps\.plan\.outputs\.test-count \}\}/,
+        );
+        // the Plan step itself never packs bins: a full run keeps every shard
+        assert.doesNotMatch(stepOf("Plan affected projects and test shards"), /plan-read|--plan/);
+        assert.match(build, /\n {12}id-token: write\n/, "Build may read the store with its OIDC token");
+        assert.match(stepOf("Upload the results plan"), /name: results-plan\n/);
+    });
+
+    it("restores the selector's import graphs read-only; only master's push build saves them", () => {
+        assert.match(build, /- name: Restore the selector's import graphs\n[\s\S]*?uses: actions\/cache\/restore@v4/);
+        assert.doesNotMatch(build, /actions\/cache\/save@|actions\/cache@v4\n[^\n]*\n[^\n]*tmp\/test-select/);
+        const graphs = job(ci, "select-graphs");
+        assert.match(
+            graphs,
+            /\n {8}if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && inputs\.ref == ''\n/,
+        );
+        assert.match(graphs, /uses: actions\/cache\/save@v4/);
+        assert.match(graphs, /lookup-only: true/, "the saved set holds only the current graphs");
+    });
+
+    it("runs the plan's bins as Test (<family>-<bin>) jobs, each through run-group.mjs", () => {
+        const test = job(ci, "test");
+        assert.match(test, /\n {8}name: Test \(\$\{\{ matrix\.shard \}\}\)\n/);
+        assert.match(test, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.test-matrix\) \}\}/);
+        assert.match(test, /\n {14}run: \$\{\{ matrix\.test-command \}\}\n/);
+        const light = {
+            bins: [
+                {
+                    name: "graphty-element-browser-1",
+                    family: "graphty-element-browser",
+                    shard: "graphty-element-browser-1",
+                    covers: SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard),
+                    files: ["graphty-element/test/browser/a.test.ts"],
+                    command: "pnpm exec vitest run --project=browser test/browser/a.test.ts",
+                },
+            ],
+            whole: [],
+            none: ["graphty-element-default"],
+        };
+        const include = plan(["graphty-element"], undefined, light);
+        const bin = include.find((e) => e.shard === "graphty-element-browser-1");
+        assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
+        assert.equal(bin.coverage, undefined, "a bin writes no coverage");
+        assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
+        assert.ok(!include.some((e) => /^graphty-element-browser-[2-5]$/.test(e.shard)), "the bin replaces its shards");
+        assert.ok(
+            !include.some((e) => e.shard === "graphty-element-default"),
+            "a shard with nothing selected runs nowhere",
+        );
+        for (const e of include) assert.match(e["test-command"], /^node tools\/results\/run-group\.mjs /);
+    });
+
+    it("a full run (dispatch, the release train) still runs every shard", () => {
+        const include = plan(PACKAGES);
+        const ran = new Set(include.flatMap((e) => [e.shard, ...(GROUPS[e.shard] ?? [])]));
+        assert.deepEqual(
+            SHARDS.map((s) => s.shard).filter((s) => !ran.has(s)),
+            [],
+        );
+    });
+
+    it("All Checks Pass fails when the plan made Test jobs that did not all pass", () => {
+        assert.match(job(ci, "all-checks"), /needs: \[[^\]]*\btest\b/);
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "all-checks"),
+        )[1];
+        const verdict = (count, testResult) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "false",
+                    LIGHT: "false",
+                    ADVISORY: "[]",
+                    REUSE_RUN: "",
+                    TEST_COUNT: count,
+                    NEEDS: JSON.stringify(
+                        Object.fromEntries(
+                            ["packages", "build", "lint", "checks", "docs"]
+                                .map((n) => [n, { result: "success" }])
+                                .concat([["test", { result: testResult }]]),
+                        ),
+                    ),
+                },
+            });
+        assert.equal(verdict("3", "success").status, 0);
+        assert.equal(verdict("0", "skipped").status, 0, "no planned Test job: a skipped Test passes");
+        assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
+        assert.equal(verdict("3", "failure").status, 1);
+        assert.equal(verdict("3", "cancelled").status, 1);
+    });
+});
+
+describe("the light check's Stories jobs (#3443 part b, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const stories = job(ci, "stories");
+    const runOf = (name) => {
+        const m = new RegExp(`- name: ${name}\\n[\\s\\S]*?\\n {14}run: \\|\\n([\\s\\S]*?)\\n\\n`).exec(stories);
+        assert.ok(m, `Stories has the step ${name}`);
+        return m[1];
+    };
+
+    it("is a Stories (<project>-<bin>) matrix from the Build job's plan, only when a story was selected", () => {
+        assert.match(stories, /\n {8}name: Stories \(\$\{\{ matrix\.name \}\}\)\n/);
+        assert.match(stories, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.stories-matrix\) \}\}/);
+        assert.match(stories, /fromJSON\(needs\.packages\.outputs\.stories-count \|\| '0'\) > 0/);
+        const build = job(ci, "packages");
+        assert.match(build, /stories-matrix: \$\{\{ steps\.bins\.outputs\.stories-matrix \}\}/);
+        assert.match(build, /grep -E '\^\(test\|stories\)-\(matrix\|count\)='/);
+    });
+
+    it("is report-only: outside All Checks Pass, and nothing in it fails the job", () => {
+        assert.doesNotMatch(job(ci, "all-checks"), /needs: \[[^\]]*\bstories\b/);
+        assert.match(stories, /\n {8}continue-on-error: true\n/);
+        assert.match(stories, /- name: Capture the selected stories\n[\s\S]*?\n {14}continue-on-error: true\n/);
+        // its partial captures are not visual-* artifacts, which the visual gate and the flaky report read
+        assert.match(stories, /name: stories-\$\{\{ matrix\.name \}\}-\$\{\{ github\.run_attempt \}\}/);
+    });
+
+    it("captures with the old visual-review capture, the base branch's copy, and only the selected stories", () => {
+        assert.match(stories, /git archive HEAD\^1 visual-review\/capture visual-review\/trusted \| tar -x/);
+        assert.match(
+            stories,
+            /run: pnpm exec visual-review capture --project \$\{\{ matrix\.project \}\} --out "\$RUNNER_TEMP\/visual" --reference "\$\{\{ steps\.reference\.outputs\.dir \}\}" --stories "\$STORIES"\n/,
+        );
+        const dir = mkdtempSync(join(TMP, "stories-"));
+        writeFileSync(
+            join(dir, "index.json"),
+            JSON.stringify({
+                v: 5,
+                entries: {
+                    "a--one": { id: "a--one", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--two": { id: "a--two", type: "story", importPath: "./stories/A.stories.ts" },
+                    "a--docs": { id: "a--docs", type: "docs", importPath: "./stories/A.stories.ts" },
+                    "b--one": { id: "b--one", type: "story", importPath: "./stories/B.stories.ts" },
+                },
+            }),
+        );
+        const pick = (files, ids) => {
+            const out = join(dir, "out.txt");
+            writeFileSync(out, "");
+            const r = spawnSync("bash", ["-e", "-c", runOf("Pick the selected stories")], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    FILES: JSON.stringify(files),
+                    IDS: JSON.stringify(ids),
+                    STORYBOOK: dir,
+                    GITHUB_OUTPUT: out,
+                },
+            });
+            assert.equal(r.status, 0, r.stderr);
+            return readFileSync(out, "utf8").trim();
+        };
+        assert.equal(pick(["graphty-element/stories/A.stories.ts"], []), "stories=a--one,a--two");
+        assert.equal(pick([], ["c--changed-baseline"]), "stories=c--changed-baseline");
+        assert.equal(
+            pick(["graphty-element/stories/C.stories.ts"], []),
+            "stories=",
+            "an unbuilt file captures nothing",
+        );
+    });
+
+    it("reports a changed picture in the job summary and passes", () => {
+        const dir = mkdtempSync(join(TMP, "stories-report-"));
+        mkdirSync(join(dir, "visual"));
+        writeFileSync(
+            join(dir, "visual", "results.json"),
+            JSON.stringify({
+                reference: null,
+                items: [
+                    { file: "a--one.png", status: "changed" },
+                    { file: "a--two.png", status: "unchanged" },
+                ],
+            }),
+        );
+        const summary = join(dir, "summary.md");
+        const r = spawnSync("bash", ["-e", "-c", runOf("Report the changed pictures \\(does not block\\)")], {
+            encoding: "utf8",
+            env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: summary, NAME: "graphty-element-1" },
+        });
+        assert.equal(r.status, 0, r.stderr);
+        const text = readFileSync(summary, "utf8");
+        assert.match(text, /### Stories \(graphty-element-1\), report-only/);
+        assert.match(text, /\n- changed: a--one\.png\n/);
+        assert.doesNotMatch(text, /- unchanged/);
+    });
+
+    it("storiesPlan() makes one entry per story bin with its project's Storybook artifact", () => {
+        assert.deepEqual(storiesPlan(undefined), []);
+        assert.deepEqual(storiesPlan({ bins: [] }), []);
+        const [e] = storiesPlan({
+            storyBins: [
+                {
+                    name: "graphty-element-1",
+                    project: "graphty-element",
+                    storybook: "graphty-element/storybook-static",
+                    files: ["graphty-element/stories/A.stories.ts"],
+                    ids: [],
+                    ms: 1000,
+                },
+            ],
+        });
+        assert.deepEqual(e, {
+            name: "graphty-element-1",
+            project: "graphty-element",
+            artifact: "build-storybook-element",
+            storybook: "graphty-element/storybook-static",
+            files: ["graphty-element/stories/A.stories.ts"],
+            ids: [],
+        });
+        assert.throws(() => storiesPlan({ storyBins: [{ name: "x-1", storybook: "x/storybook-static" }] }), /x-1/);
     });
 });

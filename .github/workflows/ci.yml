@@ -6,7 +6,8 @@ on:
     pull_request:
         # No "labeled": no job reads labels, and Mergify adds
         # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
-        # A draft runs no tests (see the build job), so marking it ready ("ready_for_review") starts its run.
+        # A draft runs like any other pull request (agents open them ready, with tools/pr-open.sh);
+        # "ready_for_review" stays so a draft someone opened by hand starts a run when it is marked ready.
         types: [opened, synchronize, reopened, ready_for_review]
     # Manual trigger. GitHub twice declined to queue a run for a push to master
     # (4ca5f8a and 756117b both reached the remote with zero runs created for
@@ -15,28 +16,38 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
+    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
+    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
+            verify:
+                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
+                type: boolean
+                required: false
+                default: false
+            shards:
+                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
+                type: string
+                required: false
+                default: ""
     workflow_dispatch:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
 # A push to master never cancels (each master commit is deployed from its own run). The release train's
 # call (inputs.ref) has a group of its own, so it never waits behind or replaces a push run of the same commit.
-# A plain draft's run (the build job's skip test) has its own group, so it can never cancel or replace
-# a ready run of the same pull request: `opened` (draft) and `ready_for_review` fire a second apart.
-# A Mergify merge-queue draft is a real run and stays in the ready group.
 concurrency:
-    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
+    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
-# release commits change every package.json and nx.json sharedGlobals includes .github/workflows/**, and each
-# run saved a new 600 MB entry that pushed the Git LFS baseline caches toward eviction.
+# The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
+# .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals
+# includes .github/workflows/**, and each run saved a new 600 MB entry that pushed the Git LFS baseline
+# caches toward eviction. See the "Probe the nx remote cache" step.
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
@@ -45,9 +56,8 @@ concurrency:
 # again: ubuntu-latest becomes Ubuntu 26 from 2026-10-19 (actions/runner-images#14748). Naming the image makes
 # that a commit we review rather than a Tuesday morning. Pinning is a no-op today; ubuntu-latest IS 24.04.
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
-# - a pull request: the affected suite, the screenshots and the visual gate. A draft runs no tests, and
-#   its two summary checks fail ("draft: CI not run"): agents iterate on drafts behind the local
-#   pre-push gate and mark them ready when done.
+# - a pull request into master (tools/pr-open.sh opens it ready, with auto-merge on): the affected
+#   build, lint, checks and test shards, and the screenshots, which are reported and never block.
 # - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
 #   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
 #   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
@@ -69,60 +79,48 @@ env:
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
-    # Whether a run that GitHub started as a draft's is still one. `gh pr create --draft` followed at once
-    # by `gh pr ready` delivers `opened` (draft: true) and `ready_for_review` a second apart, and GitHub
-    # can create the draft's run AFTER the ready run. Mergify and the ruleset read the newest run of the
-    # workflow on the head commit, so that draft run's failing "draft: CI not run" summary checks hid the
-    # ready run's green ones for good (#2991, #3068), and no job can rewrite another run's check (the
-    # Checks API answers 403). So a run started as a draft reads the pull request now: when it is ready
-    # and its head is still this commit, the run is a real run and reports a real verdict. It cannot be
-    # cancelled by a later push (it is in the draft concurrency group), which costs one stale run in that
-    # rare case. A failed read reports "not ready" (the run stays a draft run), so this never lets a
-    # draft through. continue-on-error: the job decides nothing itself, the build job reads its output.
-    # The job runs on every run and only its step is conditional: a SKIPPED job skips every job after it in
-    # the needs chain, even one whose own `if` passes, so skipping this job on a ready pull request skipped
-    # everything after the build (#3134's first run).
-    draft:
-        name: Draft state
-        continue-on-error: true
-        runs-on: ubuntu-24.04
-        outputs:
-            ready: ${{ steps.read.outputs.ready }}
-        steps:
-            - name: Read whether the pull request is still a draft
-              id: read
-              if: github.event_name == 'pull_request' && github.event.pull_request.draft
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  PR: ${{ github.event.pull_request.number }}
-                  SHA: ${{ github.event.pull_request.head.sha }}
-              run: |
-                  ready=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq '(.draft | not) and .head.sha == $ENV.SHA') || ready=false
-                  echo "ready=$ready" | tee -a "$GITHUB_OUTPUT"
-
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
     # formatting, the API report and the other checks) run beside the tests in jobs of their own, which
     # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
-    # Skipping it on a draft skips every job that needs it; the two summary jobs still run, and fail, on a
-    # draft. A run started as a draft's whose pull request is ready by now runs (the draft job above).
     packages:
         name: Build
-        needs: draft
-        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || needs.draft.outputs.ready == 'true' || (startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]')) }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 12
+        # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)
+        env:
+            NX_PROFILE: nx-profile.json
+        # Only master's runs (its push build, the release train's call) may write the nx remote cache: the
+        # write token is NX_CACHE_TOKEN in environment nx-cache-write (deployment branches: master only),
+        # which overrides the repository secret of the same name, the read token. A pull request can edit
+        # this file, so a write token it could see would let a branch plant build output master trusts.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
+        # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
+        # id-token: write is the results store's credential for the bins step's one read (tools/results/plan-read.mjs).
+        permissions:
+            contents: read
+            actions: read
+            checks: write
+            id-token: write
         # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
             full: ${{ steps.plan.outputs.full }}
             light: ${{ steps.plan.outputs.light }}
             affected: ${{ steps.plan.outputs.affected }}
-            test-matrix: ${{ steps.plan.outputs.test-matrix }}
-            test-count: ${{ steps.plan.outputs.test-count }}
+            # the light check's bins when the bins step planned them, else the Plan step's whole shards
+            test-matrix: ${{ steps.bins.outputs.test-matrix || steps.plan.outputs.test-matrix }}
+            test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
+            # the light check's story bins (the Stories jobs); unset when the bins step made no plan
+            stories-matrix: ${{ steps.bins.outputs.stories-matrix }}
+            stories-count: ${{ steps.bins.outputs.stories-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
+            reuse-run: ${{ steps.reuse.outputs.reuse-run }}
+            reuse-url: ${{ steps.reuse.outputs.reuse-url }}
+            artifacts-run: ${{ steps.reuse.outputs.artifacts-run }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -155,7 +153,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -167,6 +165,25 @@ jobs:
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
+
+            # The selector's Vite import graphs (tools/test-select.mjs, one file per package keyed by its tree),
+            # restored read-only for the light check's plan: only master's builds save them (the select-graphs
+            # job), and the prefix match restores master's newest set, so only the packages this pull request
+            # changed are walked again. A miss walks every package (slower, never wrong).
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              continue-on-error: true
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the selector's import graphs
+              if: steps.graphs-key.outputs.key != ''
+              continue-on-error: true
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  restore-keys: test-select-graphs-
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
@@ -183,6 +200,11 @@ jobs:
             # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
             # request event but tests everything, like master: full=true selects the master path for the
             # build and lint steps below as well.
+            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
+            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
+            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
+            # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
+            # so the summary accepts the jobs it skipped and no screenshots are taken.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
             # only on a pull request's own run, never with a root file changed or the "dequeued" label). The
             # switch stays "false" until master's visual-review/trusted/gate.mjs accepts the not-affected marker:
@@ -191,12 +213,14 @@ jobs:
               id: plan
               env:
                   EVENT: ${{ github.event_name }}
+                  CALLED_REF: ${{ inputs.ref }}
+                  SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
                   SKIP_UNAFFECTED_CAPTURES: "false"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
               run: |
                   all=$(pnpm exec nx show projects --json)
-                  if [[ "$EVENT" == "push" ]]; then
+                  if [[ "$EVENT" == "push" && -z "$CALLED_REF" ]]; then
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
                       affected='[]'
@@ -207,20 +231,94 @@ jobs:
                       echo "full=true" >> "$GITHUB_OUTPUT"
                       affected="$all"
                   fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+                  only=()
+                  if [[ -n "$SHARDS" ]]; then
+                      echo "light=true" >> "$GITHUB_OUTPUT"
+                      only=(--only "$SHARDS")
+                  fi
+                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
                   PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+
+            # A commit that changes only screenshot records (the owner's Finish on the review page commits
+            # the accepted baselines and the signed approval to the branch) needs no new test run. When
+            # the newest earlier commit of this branch whose run passed every job but the screenshots
+            # tested the same tree once visual-baselines/ and visual-review-approvals/ are taken out
+            # (tools/ci-reuse-plan.mjs; the merge commit's tree, so a moved base is a full run too),
+            # reuse-run names that run: Lint, Checks, Docs, the test shards, Links and Cost Estimate
+            # Accuracy are skipped, and "All Checks Pass" reports them as reused with a link to it. The
+            # screenshots are captured again and the gate judges the new approvals as on every run.
+            # artifacts-run names the run whose package and Storybook builds are downloaded instead of
+            # built, when they have not expired. Every run records the tree it tested (marker) for the
+            # next one. A failure here is a full run.
+            - name: Reuse an earlier run's results when only screenshot records changed
+              id: reuse
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                  HEAD_REF: ${{ github.head_ref }}
+              run: node tools/ci-reuse-plan.mjs | tee -a "$GITHUB_OUTPUT"
+
+            - name: Record the tree this run tests
+              if: steps.reuse.outputs.marker != ''
+              continue-on-error: true
+              env:
+                  TREE: ${{ steps.reuse.outputs.tested-tree }}
+              run: mkdir -p "$RUNNER_TEMP/ci-tested" && echo "$TREE" > "$RUNNER_TEMP/ci-tested/tree.txt"
+
+            - name: Upload the record of the tested tree
+              if: steps.reuse.outputs.marker != ''
+              continue-on-error: true
+              uses: actions/upload-artifact@v7
+              with:
+                  name: ${{ steps.reuse.outputs.marker }}
+                  path: ${{ runner.temp }}/ci-tested/
+                  retention-days: 30
+
+            - name: Download the package builds of the run whose results are reused
+              if: steps.reuse.outputs.artifacts-run != ''
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-packages
+                  path: .
+                  run-id: ${{ steps.reuse.outputs.artifacts-run }}
+                  github-token: ${{ github.token }}
 
             # No security audit here: a new advisory is published against code a pull request did not
             # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
             # train in release.yml audits before it publishes, and
             # dependency-review.yml reviews the pull requests that change dependencies.
 
+            # Turns on nx's remote cache for the build steps below when repository variable NX_CACHE_URL is set
+            # and the Worker accepts the token within 2 seconds; otherwise they build without it (slower, never
+            # wrong). The probe reads an entry with the token, not /v1/health: nx fails the whole build on a
+            # 401, so a wrong, rotated or not yet registered token must turn the cache off here (a 404 or 200
+            # means the token may read). Unset NX_CACHE_URL to turn it off. The token reaches the build steps
+            # through GITHUB_ENV, not a step's env, so no build step reads a secret directly.
+            - name: Probe the nx remote cache
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
             # PR: build what the pull request affects (the lint job lints it). The base is named explicitly: the checkout
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
             - name: Build affected (PR)
-              if: steps.plan.outputs.full == 'false'
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
               run: pnpm exec nx affected -t build --parallel=3 --base=origin/${{ github.base_ref }} --head=HEAD
 
             # Every test shard downloads every package's dist, so every package must be built even when the
@@ -233,18 +331,62 @@ jobs:
             # project is what master already does, and the Nx cache makes it a no-op for whatever the
             # affected build above produced.
             - name: Build the rest (PR), so every shard finds its artifact
-              if: steps.plan.outputs.full == 'false'
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
-                  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+            # The light check's test bins (merging.md 4.1), a pull request's own run only: the run's one read of the
+            # results store (the file durations the bins are packed by), then the selector's plan, whose bins
+            # replace the shards they cover and leave out a shard it selects nothing for. After the builds, because
+            # the selector's Vite import graphs resolve the other packages through their dist folders (before a
+            # build every graph fails to transform and every package runs whole). Fails open: a store that does
+            # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
+            # affected shard whole.
+            - name: Plan the light check's test bins
+              id: bins
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  HEAD_SHA: ${{ github.sha }}
+                  AFFECTED: ${{ steps.plan.outputs.affected }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+              run: |
+                  plan="$RUNNER_TEMP/results-plan"
+                  git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
+                  node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
+                      --base "$(git rev-parse "origin/$BASE_REF")" --files "$RUNNER_TEMP/changed.txt" || true
+                  if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
+                      --durations "$plan/durations.json" > "$plan/light-plan.json"; then
+                      echo "::warning::the test selector failed; every affected shard runs whole"
+                      exit 0
+                  fi
+                  jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
+                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
+                      | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+
+            # The run's one read of the results store and the light plan it fed, for every later job (quarantine
+            # and the master excuse read it from store-reads-live on). Absent when the run made no plan.
+            - name: Upload the results plan
+              if: steps.bins.outcome == 'success'
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan/
+                  retention-days: 7
+                  if-no-files-found: ignore
 
             # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
             # every project (the lint job lints them).
-            # graphty build needs Sentry env vars for error tracking.
+            # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
+            # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
+            # name by the step after this one, not during the build.
             #
             # The dispatch clause stands on its own rather than sitting inside the master test, because each
             # trigger has to reach exactly one build: a pull request builds in the steps above, a push to master
@@ -262,7 +404,37 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+
+            # graphty's source maps to Sentry, only on a push to master, the one build deploy-pages.yml
+            # publishes. This used to be the @sentry/vite-plugin inside graphty's build, which injected
+            # debug ids and regenerated the source map of every chunk in renderChunk: with the app split
+            # into 24 chunks the build took 13m33s instead of 53s, and the Build job 16 to 24 minutes.
+            # sentry-cli does the same after the build: debug ids into dist's JavaScript and its maps (in
+            # place, so the deployed files carry them), then the upload under the release the build
+            # stamped (SENTRY_RELEASE above), with the release created, given its commits and finalized
+            # as the plugin did. The .map files stay in the site, as they did with the plugin.
+            # Not a correctness check: a Sentry outage or a hang must never cancel or fail the build (on
+            # 2026-10-25 `set-commits` walked the local git tree for 10 minutes and the Build job's timeout
+            # cancelled six master builds in a row, so no site was deployed). Every call is bounded, a
+            # failure is a warning, and the step itself has a timeout and continue-on-error.
+            - name: Upload graphty's source maps to Sentry (master push)
+              if: steps.plan.outputs.full == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+              working-directory: graphty
+              continue-on-error: true
+              timeout-minutes: 4
+              env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+                  SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_RELEASE: ${{ github.sha }}
+              run: |
+                  warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }
+                  timeout 60 pnpm exec sentry-cli sourcemaps inject dist || { warn inject; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases new "$SENTRY_RELEASE" || { warn new; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases set-commits "$SENTRY_RELEASE" --auto --ignore-missing --ignore-empty || warn set-commits
+                  timeout 60 pnpm exec sentry-cli sourcemaps upload --release "$SENTRY_RELEASE" dist || { warn upload; exit 0; }
+                  timeout 60 pnpm exec sentry-cli releases finalize "$SENTRY_RELEASE" || warn finalize
 
             # Every package's dist in one artifact, so a test shard fetches them in one request.
             # The per-package artifacts below stay: release.yml and deploy-pages.yml download them
@@ -270,7 +442,7 @@ jobs:
             # src/session/commands/doors.ts and graphty's no-element-mutation lint rule reads; the Lint
             # job lints from this artifact.
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-packages
                   path: |
@@ -288,71 +460,82 @@ jobs:
                       compact-mantine/dist/
                   retention-days: 1
 
-            - name: Upload graph-format build
+            # The nx task timings of the build steps (NX_PROFILE), for the timings job.
+            - name: Upload the nx profile
+              if: ${{ !cancelled() }}
+              continue-on-error: true
               uses: actions/upload-artifact@v4
+              with:
+                  name: nx-profile
+                  path: nx-profile.json
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+            - name: Upload graph-format build
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-format
                   path: graph-format/dist/
                   retention-days: 1
 
             - name: Upload graph-io build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-io
                   path: graph-io/dist/
                   retention-days: 1
 
             - name: Upload webgpu-graph-algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-webgpu-graph-algorithms
                   path: webgpu-graph-algorithms/dist/
                   retention-days: 1
 
             - name: Upload graph-samples build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-algorithms
                   path: algorithms/dist/
                   retention-days: 1
 
             - name: Upload layout build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-layout
                   path: layout/dist/
                   retention-days: 1
 
             - name: Upload graphty build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty
                   path: graphty/dist/
                   retention-days: 1
 
             - name: Upload graphty-element build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty-element
                   path: graphty-element/dist/
                   retention-days: 1
 
             - name: Upload remote-logger build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-remote-logger
                   path: remote-logger/dist/
                   retention-days: 1
 
             - name: Upload compact-mantine build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-compact-mantine
                   path: compact-mantine/dist/
@@ -377,6 +560,12 @@ jobs:
         name: Storybooks
         needs: packages
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
+        permissions:
+            contents: read
+            actions: read
+            checks: write
         outputs:
             full: ${{ needs.packages.outputs.full }}
             light: ${{ needs.packages.outputs.light }}
@@ -391,84 +580,136 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
+              if: needs.packages.outputs.artifacts-run == ''
 
             - name: Setup Node.js
+              if: needs.packages.outputs.artifacts-run == ''
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              if: needs.packages.outputs.artifacts-run == ''
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Build Storybook (graphty-element)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run graphty-element:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (graphty)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run graphty:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (compact-mantine)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run compact-mantine:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (algorithms)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run algorithms:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (layout)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run layout:build-storybook --exclude-task-dependencies
 
             - name: Build Storybook (cytoscape-extensions)
+              if: needs.packages.outputs.artifacts-run == ''
               run: pnpm exec nx run cytoscape-extensions:build-storybook --exclude-task-dependencies
 
+            # The fidelity stories' reference pictures are Git LFS objects, cached like the visual job's
+            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
+            # build-storybook pulls them (a no-op once the cache restored them).
+            - name: Restore the style fidelity reference pictures
+              if: needs.packages.outputs.artifacts-run == ''
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
+                  restore-keys: lfs-fidelity-references-
+
+            - name: Build Storybook (graph-io-fidelity)
+              if: needs.packages.outputs.artifacts-run == ''
+              run: pnpm exec nx run graph-io:build-storybook --exclude-task-dependencies
+
+            # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
+            # Storybooks, built from the same tree, instead of building them again; the visual job
+            # downloads them from this run as always.
+            - name: Download the Storybooks of the run whose results are reused
+              if: needs.packages.outputs.artifacts-run != ''
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: build-storybook-*
+                  path: ${{ runner.temp }}/storybooks
+                  run-id: ${{ needs.packages.outputs.artifacts-run }}
+                  github-token: ${{ github.token }}
+
+            - name: Put the reused Storybooks where this job's uploads read them
+              if: needs.packages.outputs.artifacts-run != ''
+              run: |
+                  while read -r name dir; do
+                      mkdir -p "$(dirname "$dir")"
+                      mv "$RUNNER_TEMP/storybooks/$name" "$dir"
+                  done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
+
             - name: Upload Storybook build (graphty-element)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (graphty)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (compact-mantine)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (algorithms)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (layout)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (cytoscape-extensions)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (graph-io-fidelity)
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
                   retention-days: 1
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
@@ -485,14 +726,16 @@ jobs:
     lint:
         name: Lint
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -507,7 +750,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -554,14 +797,16 @@ jobs:
     checks:
         name: Checks
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -576,7 +821,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -623,6 +868,12 @@ jobs:
             - name: Public API report (graphty-element)
               run: pnpm run check:api-report
 
+            # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
+            # name is declared, every row has its issue, the features module reads nothing from the host, and
+            # no experimental item is in the public API report. The same check runs in tools/prepush.sh.
+            - name: Feature flags
+              run: pnpm run check:features
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
@@ -646,6 +897,18 @@ jobs:
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
 
+            # No pile of images committed outside the folders that hold them (more than 20 new images or
+            # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
+            # The same check runs in tools/prepush-source-checks.sh.
+            - name: No committed walk screenshots
+              run: pnpm run check:committed-images
+
+            # compact-mantine is locked to its Figma spec: a change to the spec, the Figma tests, their harness
+            # or the theme's token values needs the owner's `Figma-Approved: <reason>` trailer on the commit
+            # that makes it. The same check runs in tools/prepush-source-checks.sh.
+            - name: compact-mantine Figma lock
+              run: pnpm run check:figma-lock
+
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
@@ -661,14 +924,16 @@ jobs:
     docs:
         name: Docs
         needs: packages
+        if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -683,7 +948,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -703,21 +968,21 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
                   retention-days: 1
 
             - name: Upload layout gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -733,6 +998,70 @@ jobs:
                   job: docs
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Saves the selector's Vite import graphs (tools/test-select.mjs) for the pull requests' light-check plan,
+    # which only restores them (budgets-and-trust.md 1.8: only master writes the entry a pull request trusts).
+    # Master's push build only: one walk of every package, walked cold whenever the key moved, so the entry
+    # holds only current graphs. Gates nothing; a failure here only makes the next pull request's plan walk more packages.
+    select-graphs:
+        name: Selector import graphs
+        needs: packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            # Exact key only, no prefix restore: the saved set then holds only the current graphs, never the
+            # superseded ones of earlier commits, so the entry does not grow.
+            - name: Look up the import graphs
+              id: graphs
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  lookup-only: true
+
+            # The graphs resolve the other packages through their dist folders.
+            - name: Download all package builds
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            # Any selection walks every package's graph first (selectChange()), so this one call builds the set.
+            - name: Walk the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              run: node tools/test-select.mjs --base HEAD^1 --head HEAD --json > /dev/null
+
+            - name: Save the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
     # only the affected packages' shards on a pull request. A pull request that affects no package (a docs
@@ -742,8 +1071,14 @@ jobs:
     test:
         name: Test (${{ matrix.shard }})
         needs: packages
-        if: needs.packages.outputs.test-count != '0'
+        if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts each shard's record)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
@@ -754,7 +1089,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -774,17 +1109,32 @@ jobs:
             - name: Download all package builds
               id: download-packages
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Download all package builds (retry)
               if: steps.download-packages.outcome == 'failure'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
+
+            # The style fidelity scorecard (graphty-element/test/browser/oracle-scorecard.test.ts) compares graphty's
+            # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
+            # names (about 3 MB), cached like the visual job's baselines.
+            - name: Restore the style fidelity oracle pictures
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
+                  restore-keys: lfs-oracle-scorecard-
+
+            - name: Fetch the style fidelity oracle pictures from Git LFS
+              if: startsWith(matrix.shard, 'graphty-element-browser')
+              run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
             - name: Cache Playwright browsers
               if: matrix.needs-browser
@@ -858,38 +1208,42 @@ jobs:
               if: matrix.needs-lavapipe
               run: echo "core_pattern was $(cat /proc/sys/kernel/core_pattern)" && sudo sysctl -w kernel.core_pattern=core
 
-            # VITEST_BUDGET_CHECK warns about any passing test that used more than a quarter of its time
-            # limit (tools/vitest-time-budget.mjs): a test that close to its limit fails as a flake on a busy
-            # machine. VITEST_BUDGET_BASE is the branch a pull request merges into (the checkout has every
-            # branch, fetch-depth 0); a test over half its limit fails the shard only when the pull request
-            # changed its file. Empty on a merge-queue run, the release train and a dispatch, which only warn.
+            # The shard's recent test durations, which the slow-test report compares each test with (its
+            # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
+            - name: Restore the shard's test durations
+              uses: actions/cache@v4
+              with:
+                  path: test-durations
+                  key: test-durations-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: test-durations-${{ matrix.shard }}-
+
+            # VITEST_BUDGET_CHECK reports every passing test over 10 s, or over 3 times its median in
+            # VITEST_DURATION_HISTORY (tools/vitest-time-budget.mjs), as a warning; it never fails the shard.
             # Only here, not in the pre-push gate, whose machine runs several shards at once.
             - name: Run tests
               id: tests
               run: ${{ matrix.test-command }}
               env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
                   VITEST_BUDGET_CHECK: "1"
-                  VITEST_BUDGET_BASE: ${{ github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true' && format('origin/{0}', github.base_ref) || '' }}
+                  VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
-            # Every vitest run in CI writes test-results/junit-*.xml (vitest.ci-junit.mjs,
-            # ciReporters). Upload them to Mergify Test Insights, which flags flaky tests -- detection
-            # only: quarantine is never switched on, so a failing test still fails this job (the step above
-            # has no continue-on-error, so nothing here can turn a red run green). always(), so failed runs
-            # are reported too; continue-on-error, so a Mergify outage or a missing MERGIFY_API_KEY (fork
-            # and Dependabot pull requests get no secrets) never fails the job or blocks a merge.
-            - name: Upload test results to Mergify Test Insights
-              if: always()
+            # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
+            # failing test files and run only those on this machine. continue-on-error: a report that did
+            # not upload never changes the shard's verdict.
+            - name: Upload JUnit results
+              if: ${{ !cancelled() }}
               continue-on-error: true
-              uses: mergifyio/gha-mergify-ci@v26
+              uses: actions/upload-artifact@v7
               with:
-                  token: ${{ secrets.MERGIFY_API_KEY }}
-                  report_path: test-results/junit-*.xml
-                  job_name: Test (${{ matrix.shard }})
-                  test_step_outcome: ${{ steps.tests.outcome }}
+                  name: junit-${{ matrix.shard }}
+                  path: test-results/junit-*.xml
+                  retention-days: 7
+                  if-no-files-found: ignore
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: blob-report-${{ matrix.shard }}
                   path: graphty-element/.vitest-reports/*
@@ -899,7 +1253,7 @@ jobs:
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: graphty-element/coverage/lcov.info
@@ -923,7 +1277,7 @@ jobs:
 
             - name: Upload coverage (shard group)
               if: ${{ !cancelled() && matrix.coverage }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-group-${{ matrix.shard }}
                   path: ${{ runner.temp }}/coverage/
@@ -934,7 +1288,7 @@ jobs:
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: webgpu-graph-algorithms/coverage/lcov.info
@@ -948,7 +1302,7 @@ jobs:
             # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-webgpu-graph-algorithms-node-device-errors
                   path: webgpu-graph-algorithms/.coverage-parts/device-errors/lcov.info
@@ -974,8 +1328,9 @@ jobs:
     links:
         name: Links
         needs: [packages, build, docs]
-        if: needs.build.outputs.light != 'true'
+        if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
@@ -987,61 +1342,67 @@ jobs:
                   node-version: 22.x
 
             - name: Download graphty build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graphty
                   path: graphty/dist/
 
             - name: Download unified docs
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
 
             - name: Download Storybook build (graphty-element)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
 
             - name: Download Storybook build (graphty)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
 
             - name: Download Storybook build (compact-mantine)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
 
             - name: Download Storybook build (algorithms)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
 
             - name: Download Storybook build (layout)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
 
             - name: Download Storybook build (cytoscape-extensions)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
+            - name: Download Storybook build (graph-io-fidelity)
+              uses: actions/download-artifact@v8
+              with:
+                  name: build-storybook-graph-io-fidelity
+                  path: graph-io/fidelity-stories/storybook-static/
+
             - name: Download algorithms gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
 
             - name: Download layout gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -1072,15 +1433,16 @@ jobs:
     performance:
         name: Performance Benchmarks
         needs: test
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && !inputs.verify
         continue-on-error: true
         runs-on: ubuntu-24.04
+        timeout-minutes: 50
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1096,7 +1458,7 @@ jobs:
             # Every package's dist: the benchmark runs algorithms from source under tsx, and that
             # source imports @graphty/graph-format, which resolves to graph-format's dist.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1142,14 +1504,15 @@ jobs:
     cost-accuracy:
         name: Cost Estimate Accuracy
         needs: packages
-        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element')
+        if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1163,7 +1526,7 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1194,6 +1557,152 @@ jobs:
                   job: cost-accuracy
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
+    # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
+    # packed into bins of at most 8 minutes, each captured with the old visual-review capture exactly as the
+    # visual job captures, but only those stories (--stories). Report-only until rollout step 9 replaces it with
+    # story tests per project: a changed picture is listed in the job summary and never fails the job, and the
+    # job is outside "All Checks Pass". The artifact is "stories-<bin>-<attempt>", not "visual-*", so neither the
+    # visual gate nor the flaky-story report reads these partial captures. No story selected: no job.
+    stories:
+        name: Stories (${{ matrix.name }})
+        needs: [packages, build]
+        if: ${{ !cancelled() && needs.build.result == 'success' && fromJSON(needs.packages.outputs.stories-count || '0') > 0 }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            # To download master's newest capture (the reference step below).
+            actions: read
+        continue-on-error: true
+        timeout-minutes: 20
+        strategy:
+            fail-fast: false
+            matrix: ${{ fromJSON(needs.packages.outputs.stories-matrix) }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            - name: Restore this project's baseline images
+              uses: actions/cache@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+
+            # As the visual job: a pull request runs the base branch's capture code, never its own.
+            - name: Use the base branch's capture code
+              if: github.event_name == 'pull_request'
+              run: |
+                  rm -rf visual-review/capture visual-review/trusted
+                  git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Read the Playwright version
+              id: playwright
+              run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
+            - name: Install Chromium
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
+
+            - name: Download Storybook build
+              uses: actions/download-artifact@v4
+              with:
+                  name: ${{ matrix.artifact }}
+                  path: ${{ matrix.storybook }}/
+
+            # The bin's story files as story ids, from the built Storybook's index (an entry's importPath is
+            # relative to its Storybook's directory), plus the ids whose baseline image the change touched.
+            - name: Pick the selected stories
+              id: pick
+              env:
+                  FILES: ${{ toJSON(matrix.files) }}
+                  IDS: ${{ toJSON(matrix.ids) }}
+                  STORYBOOK: ${{ matrix.storybook }}
+              run: |
+                  ids=$(jq -r --argjson files "$FILES" --argjson ids "$IDS" '
+                      [.entries[] | select(.type == "story")
+                          | select((.importPath | sub("^(\\.\\.?/)+"; "")) as $p | any($files[]; . == $p or endswith("/" + $p)))
+                          | .id] + $ids | unique | join(",")' "$STORYBOOK/index.json")
+                  echo "stories=$ids" >> "$GITHUB_OUTPUT"
+                  echo "selected stories: ${ids:-none}"
+
+            - name: Download master's newest capture
+              id: reference
+              if: github.event_name == 'pull_request' && steps.pick.outputs.stories != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: echo "dir=$(pnpm exec visual-review reference --project ${{ matrix.project }} --out "$RUNNER_TEMP/reference")" >> "$GITHUB_OUTPUT"
+
+            # A changed picture is never a failure (capture exits 0 on changes); continue-on-error keeps even a
+            # crash of the tool from failing the job while it only reports.
+            - name: Capture the selected stories
+              if: steps.pick.outputs.stories != ''
+              continue-on-error: true
+              env:
+                  STORIES: ${{ steps.pick.outputs.stories }}
+              run: pnpm exec visual-review capture --project ${{ matrix.project }} --out "$RUNNER_TEMP/visual" --reference "${{ steps.reference.outputs.dir }}" --stories "$STORIES"
+
+            - name: Upload captures
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: stories-${{ matrix.name }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/visual/
+                  retention-days: 14
+                  if-no-files-found: ignore
+
+            - name: Report the changed pictures (does not block)
+              if: always()
+              env:
+                  NAME: ${{ matrix.name }}
+              run: |
+                  f="$RUNNER_TEMP/visual/results.json"
+                  {
+                      echo "### Stories ($NAME), report-only"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"\(.items | length) stories captured, master reference run: \(.reference)",
+                              "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |"),
+                              "", (.items[] | select(.status != "unchanged" and .status != "excluded") | "- \(.status): \(.id // .file)")' "$f"
+                          echo ""
+                          echo "Reported only: a changed picture does not fail this job or the pull request."
+                      else
+                          echo "No capture: no story of this bin is in the built Storybook, or capture did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     # Visual review: screenshot every story of a built Storybook and compare it with the baseline PNGs
     # in visual-baselines/ (@graphty/visual-review in visual-review/, configured by
     # visual-review.config.json, design in design/visual-testing/design.md). This job is the "visual"
@@ -1209,6 +1718,184 @@ jobs:
     # blocks a pull request is the step in "All Checks Pass" that reads the results. 45 minutes: an
     # unseeded project captures every story twice (as new), about 7 minutes for graphty-element on a
     # 4-worker development machine; CI runners are slower and not yet measured.
+    # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
+    # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
+    # the review page and the gate read. Report-only, outside All Checks Pass, until the project switches
+    # (two full runs whose Story tests parity shows zero differences); until then the plain story tests in the
+    # test job (graphty-storybook) decide the pull request and the visual job's capture is the one judged.
+    # Runs through the quarantine wrapper like every shard, so an unstable story (two renders that drew
+    # different pictures fail its test) is retried once and reported flaky when the retry passes.
+    story-tests:
+        name: Story tests (${{ matrix.project }})
+        needs: packages
+        if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 45
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - project: graphty
+                      shard: graphty-storybook
+                      command: cd graphty && pnpm exec vitest run --project=storybook
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+
+            - name: Restore this project's baseline images
+              uses: actions/cache/restore@v4
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-${{ matrix.project }}-${{ hashFiles(format('visual-baselines/{0}/**/*.png', matrix.project), 'visual-fonts/fonts/**') }}
+                  restore-keys: lfs-${{ matrix.project }}-
+
+            - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Download all package builds
+              id: download-packages
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Download all package builds (retry)
+              if: steps.download-packages.outcome == 'failure'
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@v4
+              id: playwright-cache
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  browsers: chromium
+
+            - name: Install Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              run: pnpm exec playwright install chromium
+
+            # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
+            # failed story files writes into the same directory.
+            - name: Run the story tests with their screenshots
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  COMMAND: ${{ matrix.command }}
+                  VISUAL_REVIEW_STORY_OUT: ${{ runner.temp }}/stories/part-1
+              run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
+
+            - name: Combine the capture
+              if: ${{ !cancelled() }}
+              run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
+
+            - name: Upload the capture
+              if: ${{ !cancelled() }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: ${{ runner.temp }}/stories/merged/
+                  retention-days: 30
+                  if-no-files-found: ignore
+
+            - name: Write the counts to the job summary
+              if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  f="$RUNNER_TEMP/stories/merged/results.json"
+                  {
+                      echo "### Stories ($PROJECT)"
+                      if [[ -f "$f" ]]; then
+                          jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
+                              (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
+                      else
+                          echo "No capture: the story tests did not start."
+                      fi
+                  } >> "$GITHUB_STEP_SUMMARY"
+
+    # Story tests parity (stories-as-tests.md section 9): the story tests' capture of a project against the old
+    # visual capture of the same commit, byte for byte. Report-only, outside All Checks Pass; every difference
+    # is a harness or story bug to fix at its mechanism, or a re-baseline the owner decides.
+    story-tests-parity:
+        name: Story tests parity (${{ matrix.project }})
+        needs: [story-tests, visual]
+        if: ${{ !cancelled() }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 10
+        strategy:
+            fail-fast: false
+            matrix:
+                project: [graphty]
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: visual-review
+
+            - name: Download the old capture
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: visual-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: captures/old
+
+            - name: Download the story tests' capture
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
+                  path: captures/new
+
+            - name: Compare
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  set -o pipefail
+                  if [[ ! -f captures/old/results.json || ! -f captures/new/results.json ]]; then
+                      echo "Not compared: one of the two captures is missing (the project was not affected, or a job failed)." | tee "$RUNNER_TEMP/parity.txt"
+                      exit 0
+                  fi
+                  node visual-review/trusted/cli.mjs parity --project "$PROJECT" captures/old captures/new | tee "$RUNNER_TEMP/parity.txt"
+
+            - name: Write the comparison to the job summary
+              if: always()
+              env:
+                  PROJECT: ${{ matrix.project }}
+              run: |
+                  {
+                      echo "### Story tests parity ($PROJECT)"
+                      echo '```'
+                      tail -n 60 "$RUNNER_TEMP/parity.txt" 2>/dev/null || echo "no comparison ran"
+                      echo '```'
+                  } >> "$GITHUB_STEP_SUMMARY"
+
     visual:
         name: visual (${{ matrix.project }})
         needs: build
@@ -1236,6 +1923,10 @@ jobs:
                       artifact: build-storybook-app
                     - project: cytoscape-extensions
                       artifact: build-storybook-cytoscape-extensions
+                    # Its Storybook is not at <project>/storybook-static, so the row names where it is.
+                    - project: graph-io-fidelity
+                      artifact: build-storybook-graph-io-fidelity
+                      storybook: graph-io/fidelity-stories/storybook-static
         steps:
             # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
             # writes the not-affected marker in place of results.json and uploads it as the capture, so the
@@ -1336,7 +2027,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   name: ${{ matrix.artifact }}
-                  path: ${{ matrix.project }}/storybook-static/
+                  path: ${{ matrix.storybook || format('{0}/storybook-static', matrix.project) }}/
 
             # A story with no baseline that looks as it does in master's newest capture is "unseeded"; one
             # that differs, or is new, is "new". Both block until the owner accepts the story or seeds it.
@@ -1387,100 +2078,76 @@ jobs:
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
     # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
-    # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
-    # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
-    # the head SHA after "gh pr ready" until the new run reports, so a skip here could let a pull
-    # request merge with no CI at all.
+    # not pass silently. When Build did not run at all this job still runs, and FAILS: GitHub counts a
+    # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
+        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check all jobs passed
               env:
-                  NEEDS: ${{ toJSON(needs) }}
+                  # Only the results, never toJSON(needs): that holds every job's outputs, and the light
+                  # check's bins (a file list per bin) make it longer than one environment variable may be
+                  # ("Argument list too long", the job then fails before its first line).
+                  R_PACKAGES: ${{ needs.packages.result }}
+                  R_BUILD: ${{ needs.build.result }}
+                  R_LINT: ${{ needs.lint.result }}
+                  R_CHECKS: ${{ needs.checks.result }}
+                  R_DOCS: ${{ needs.docs.result }}
+                  R_TEST: ${{ needs.test.result }}
+                  R_LINKS: ${{ needs.links.result }}
+                  R_COST: ${{ needs.cost-accuracy.result }}
                   BUILD: ${{ needs.packages.result }}
                   FULL: ${{ needs.packages.outputs.full }}
                   ADVISORY: ${{ needs.packages.outputs.advisory-checks }}
                   LIGHT: ${{ needs.packages.outputs.light }}
+                  REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
+                  REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
+                  TEST_COUNT: ${{ needs.packages.outputs.test-count }}
               run: |
+                  # The tests set NEEDS themselves; in CI it is built from the results above.
+                  [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
+                      --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
+                      --arg links "$R_LINKS" --arg cost "$R_COST" \
+                      '{packages: {result: $packages}, build: {result: $build}, lint: {result: $lint},
+                        checks: {result: $checks}, docs: {result: $docs}, test: {result: $test},
+                        links: {result: $links}, "cost-accuracy": {result: $cost}}')
                   if [[ "$BUILD" == "skipped" ]]; then
-                      echo "::error::draft: CI not run. Mark the pull request ready (gh pr ready) to run it."
+                      echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
                       exit 1
                   fi
                   ok='["success"]'
                   [[ "$FULL" == "false" || "$LIGHT" == "true" ]] && ok='["success","skipped"]'
                   jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
-                  # The visual job never decides here, whatever result job-level continue-on-error makes
-                  # it report: on a pull request the gate step below judges its results.json, and on
-                  # master a capture crash must not hold release, deploy or coverage.
+                  # A run that reuses an earlier run's results (the packages job's Reuse step: the tree it
+                  # tests equals that run's apart from the screenshot records) skips the jobs that run
+                  # passed; skipped then passes for them, and Build and Storybooks must still succeed.
+                  strict='["packages","build","lint","checks","docs"]'
+                  if [[ -n "$REUSE_RUN" ]]; then
+                      strict='["packages","build"]'
+                      echo "::notice title=Results reused::Lint, Checks, Docs, Test, Links and Cost Estimate Accuracy are reused from $REUSE_URL, which tested the same tree apart from the screenshot records"
+                  fi
                   # A job in its warning period (tools/ci-advisory-checks.json, see the build job) only warns.
                   adv="${ADVISORY:-[]}"
                   jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
-                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" \
-                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key | IN("packages", "build", "lint", "checks", "docs")) and $r != "success")) | .key' \
+                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
+                      'to_entries[] | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
+                  # The plan's Test jobs (whole shards, groups and light-check bins) are one matrix: when the plan
+                  # made any, the matrix must have run and passed, so a skipped or missing Test job is never a pass.
+                  test_result=$(jq -r '.test.result' <<<"$NEEDS")
+                  if [[ -z "$REUSE_RUN" && "${TEST_COUNT:-0}" != "0" && "$test_result" != "success" ]] && ! jq -e --arg k test 'index($k)' <<<"$adv" >/dev/null; then
+                      echo "::error::the plan made $TEST_COUNT Test jobs, but Test reports $test_result"
+                      bad="$bad test"
+                  fi
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
                       exit 1
                   fi
                   echo "All checks passed!"
-
-            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
-            # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
-            # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
-            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
-            # excluded items (so every story without an approved baseline blocks, unseeded included),
-            # or when that capture is missing, unfinished or invalid. It also fails when the git tree
-            # of visual-baselines/ differs from the base's without the owner's approval of exactly that
-            # tree (visual-review-approvals/<tree>.json), made at a commit that is an ancestor of this one.
-            # Once visual-review/passkeys.json on the base branch holds a key, that approval must carry
-            # the owner's passkey signature (Face ID), by a key read from the base branch, never from the
-            # pull request; a pull request that would leave no key fails (visual-review/README.md, "What
-            # the gate does and does not guarantee"). Pull requests only, so
-            # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
-            # (standard library only), run as the base branch has it, never the pull request's copy, so a
-            # pull request cannot loosen the gate that judges it (a change to the gate is first exercised
-            # by the pull request after it); it reads visual-review.config.json from the base tip (sparse
-            # checkout keeps the root's files). Full history, so the approval's commit can be checked as an
-            # ancestor and HEAD^1, the merge ref's first parent, is the base tip the pull request was merged
-            # onto; blob:none fetches only the blobs the gate reads, and the baselines are Git LFS pointer
-            # files naming each image's SHA-256, so no LFS object is downloaded here.
-            - name: Check out the gate
-              if: github.event_name == 'pull_request'
-              uses: actions/checkout@v4
-              with:
-                  sparse-checkout: visual-review
-                  fetch-depth: 0
-                  filter: blob:none
-
-            - name: Download visual captures
-              if: github.event_name == 'pull_request'
-              continue-on-error: true
-              uses: actions/download-artifact@v4
-              with:
-                  pattern: visual-*
-                  path: ${{ runner.temp }}/visual
-
-            - name: Check visual changes were accepted
-              if: github.event_name == 'pull_request'
-              env:
-                  PR: ${{ github.event.pull_request.number }}
-              run: |
-                  gate="$RUNNER_TEMP/gate"
-                  mkdir -p "$gate"
-                  git archive HEAD^1 visual-review/trusted | tar -x -C "$gate"
-                  # The base branch's gate takes --pr once it checks passkeys; one from before that does not.
-                  # In a merge-queue run the pull request is Mergify's draft, whose number no record names:
-                  # the gate reads the batch's pull requests from the draft's event instead.
-                  pr=()
-                  if [[ "$MERGE_QUEUE" == "true" ]] && grep -q -- "--queue-event <file>" "$gate/visual-review/trusted/gate.mjs"; then
-                      pr=(--queue-event "$GITHUB_EVENT_PATH")
-                  elif grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then
-                      pr=(--pr "$PR")
-                  fi
-                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
@@ -1504,14 +2171,15 @@ jobs:
                   done
 
     # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded (never on
-    # a draft), and on a merge-queue run (MERGE_QUEUE above) only when the run was the full suite: a
+    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
+    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
     # pass on a pull request's own affected run can never stand in for the queue's run.
     queue-checks:
         name: Queue Checks Pass
         needs: [packages, all-checks]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
@@ -1548,3 +2216,164 @@ jobs:
                           -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
                       echo "cleared early verdict $id"
                   done
+
+    # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
+    # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
+    # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
+    visual-report:
+        name: Visual report
+        needs: [packages, visual]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        steps:
+            # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
+            # rollout): the owner's approval of screenshots moves to the nightly gate, production stays frozen
+            # until promotion exists, and releases publish nothing in shadow mode. The gate below runs exactly
+            # as before; its step is continue-on-error and the step after it reports its verdict. What it judges:
+            # a project
+            # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
+            # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
+            # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
+            # excluded items (so every story without an approved baseline blocks, unseeded included),
+            # or when that capture is missing, unfinished or invalid. It also fails when the git tree
+            # of visual-baselines/ differs from the base's without the owner's approval of exactly that
+            # tree (visual-review-approvals/<tree>.json), made at a commit that is an ancestor of this one.
+            # Once visual-review/passkeys.json on the base branch holds a key, that approval must carry
+            # the owner's passkey signature (Face ID), by a key read from the base branch, never from the
+            # pull request; a pull request that would leave no key fails (visual-review/README.md, "What
+            # the gate does and does not guarantee"). Pull requests only, so
+            # master's release, deploy and coverage never wait. The logic is visual-review/trusted/gate.mjs
+            # (standard library only), run as the base branch has it, never the pull request's copy, so a
+            # pull request cannot loosen the gate that judges it (a change to the gate is first exercised
+            # by the pull request after it); it reads visual-review.config.json from the base tip (sparse
+            # checkout keeps the root's files). Full history, so the approval's commit can be checked as an
+            # ancestor and HEAD^1, the merge ref's first parent, is the base tip the pull request was merged
+            # onto; blob:none fetches only the blobs the gate reads, and the baselines are Git LFS pointer
+            # files naming each image's SHA-256, so no LFS object is downloaded here.
+            - name: Check out the gate
+              if: github.event_name == 'pull_request'
+              uses: actions/checkout@v4
+              with:
+                  sparse-checkout: visual-review
+                  fetch-depth: 0
+                  filter: blob:none
+
+            - name: Download visual captures
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              uses: actions/download-artifact@v4
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Check visual changes were accepted
+              id: visual-gate
+              if: github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  PR: ${{ github.event.pull_request.number }}
+              run: |
+                  gate="$RUNNER_TEMP/gate"
+                  mkdir -p "$gate"
+                  git archive HEAD^1 visual-review/trusted | tar -x -C "$gate"
+                  # The base branch's gate takes --pr once it checks passkeys; one from before that does not.
+                  # In a merge-queue run the pull request is Mergify's draft, whose number no record names:
+                  # the gate reads the batch's pull requests from the draft's event instead.
+                  pr=()
+                  if [[ "$MERGE_QUEUE" == "true" ]] && grep -q -- "--queue-event <file>" "$gate/visual-review/trusted/gate.mjs"; then
+                      pr=(--queue-event "$GITHUB_EVENT_PATH")
+                  elif grep -q -- "--pr <number>" "$gate/visual-review/trusted/gate.mjs"; then
+                      pr=(--pr "$PR")
+                  fi
+                  node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
+
+            # The gate's verdict as a report: a warning on the pull request and a line in the run's summary.
+            - name: Report the visual gate (does not block)
+              if: github.event_name == 'pull_request'
+              env:
+                  OUTCOME: ${{ steps.visual-gate.outcome }}
+              run: |
+                  if [[ "$OUTCOME" == "success" ]]; then
+                      echo "Visual gate: every screenshot matches its approved baseline." | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      msg="Visual gate: $OUTCOME (screenshots differ from their approved baselines, or the capture is missing). Reported only: it does not block this pull request; the owner reviews screenshots at the nightly gate. See the 'Check visual changes were accepted' step."
+                      echo "::warning title=Visual gate (report only)::$msg"
+                      echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
+    # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
+    # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
+    # pictures in one run -- a timing race. This job lists every one as a warning annotation
+    # (tools/visual-flaky-report.mjs). Report only: it never fails the run, and "All Checks Pass" does
+    # not need it.
+    visual-flaky:
+        name: Flaky screenshots
+        needs: visual
+        if: ${{ !cancelled() && needs.visual.result != 'skipped' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download visual captures
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Report flaky screenshots
+              run: |
+                  mkdir -p "$RUNNER_TEMP/visual"
+                  node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own
+    # timings job reports the whole run.
+    timings:
+        name: Timings
+        needs:
+            [
+                packages,
+                build,
+                lint,
+                checks,
+                docs,
+                test,
+                links,
+                performance,
+                cost-accuracy,
+                visual,
+                all-checks,
+                queue-checks,
+                visual-flaky,
+            ]
+        if: ${{ always() && contains(github.workflow_ref, '/ci.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}

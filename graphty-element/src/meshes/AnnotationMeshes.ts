@@ -6,31 +6,23 @@
  * annotation sits just behind the graph; a foreground one is drawn on top of it.
  */
 
-import {
-    Color3,
-    DynamicTexture,
-    Engine,
-    Mesh,
-    MeshBuilder,
-    type Scene,
-    StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
+import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
 import type {
     AnnotationPoint,
     ArrowAnnotation,
-    GraphAnnotation,
+    ImageAnnotation,
     ShapeAnnotation,
     TextAnnotation,
 } from "@graphty/graph-io/styles";
 
-import { drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
+import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
     /** Which annotation the mesh draws, and where its geometry is. */
     readonly annotation: {
-        readonly kind: GraphAnnotation["kind"];
+        readonly kind: DrawnAnnotation["kind"];
         readonly text?: string;
         /** The drawn geometry's box in world units (not the padded plane's). */
         readonly box: { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number };
@@ -59,13 +51,27 @@ export class AnnotationMeshes {
     readonly scene: Scene;
     private meshes: Mesh[] = [];
     private drawn: unknown = undefined;
+    /** The pictures still loading, which the frame on screen does not show yet. */
+    private readonly loading = new Set<HTMLImageElement>();
+    private readonly onPicture: () => void;
 
     /**
      * Draw nothing yet.
      * @param scene - The scene to draw into.
+     * @param onPicture - Called when a picture that was loading has been painted, or failed to load, so the frame
+     *     that shows it is drawn.
      */
-    constructor(scene: Scene) {
+    constructor(scene: Scene, onPicture: () => void = () => undefined) {
         this.scene = scene;
+        this.onPicture = onPicture;
+    }
+
+    /**
+     * Whether a picture annotation is still loading, so the picture on screen is not the finished one (issue #3383).
+     * @returns True while any picture has neither loaded nor failed.
+     */
+    get isLoading(): boolean {
+        return this.loading.size > 0;
     }
 
     /**
@@ -100,6 +106,13 @@ export class AnnotationMeshes {
     }
 
     private clear(): void {
+        // a picture of a disposed texture paints nothing and is waited for by nothing
+        for (const image of this.loading) {
+            image.onload = null;
+            image.onerror = null;
+        }
+
+        this.loading.clear();
         for (const mesh of this.meshes) {
             mesh.material?.getActiveTextures().forEach((t) => {
                 t.dispose();
@@ -117,7 +130,7 @@ export class AnnotationMeshes {
      * @param scale - Scene units per file unit.
      * @returns The mesh, or null when it has no area.
      */
-    private draw(a: GraphAnnotation, scale: number): Mesh | null {
+    private draw(a: DrawnAnnotation, scale: number): Mesh | null {
         const geometry = boxOf(a);
         const pad = padOf(a);
         const plane: Box = {
@@ -144,7 +157,14 @@ export class AnnotationMeshes {
         // file units, y up, to canvas pixels, y down
         ctx.setTransform(k, 0, 0, -k, -plane.x0 * k, plane.y1 * k);
         paint(ctx, a);
-        texture.update();
+        uploadPremultiplied(texture);
+        if (a.kind === "image") {
+            const image = paintImage(texture, ctx, a, () => {
+                this.loading.delete(image);
+                this.onPicture();
+            });
+            this.loading.add(image);
+        }
 
         const material = new StandardMaterial(`annotation_${a.id}`, this.scene);
         material.diffuseTexture = texture;
@@ -153,11 +173,12 @@ export class AnnotationMeshes {
         material.specularColor = new Color3(0, 0, 0);
         material.disableLighting = true;
         material.backFaceCulling = false;
-        material.alphaMode = Engine.ALPHA_COMBINE;
+        material.alphaMode = PREMULTIPLIED_ALPHA_MODE;
 
         const mesh = MeshBuilder.CreatePlane(
             `annotation_${a.id}`,
-            { width: w * scale, height: h * scale, sideOrientation: Mesh.DOUBLESIDE },
+            // one side, seen from both (backFaceCulling off): a double-sided plane blends twice
+            { width: w * scale, height: h * scale },
             this.scene,
         );
         mesh.material = material;
@@ -169,15 +190,24 @@ export class AnnotationMeshes {
         // group 0 is the graph; group 1 is drawn after it with the depth buffer cleared, as on-top labels are
         mesh.renderingGroupId = background ? 0 : 1;
         mesh.alphaIndex = a.z;
+        // turned about its box's center, clockwise on screen (y is up here); a value saved before rotation was read
+        // holds none
+        const rotation = a.kind === "arrow" ? 0 : ((a as { rotation?: number }).rotation ?? 0);
+        mesh.rotation.z = (-rotation * Math.PI) / 180;
+        // the box the turned geometry covers, about the same center
+        const [cx, cy] = [(geometry.x0 + geometry.x1) / 2, (geometry.y0 + geometry.y1) / 2];
+        const [cos, sin] = [Math.abs(Math.cos(mesh.rotation.z)), Math.abs(Math.sin(mesh.rotation.z))];
+        const [hw0, hh0] = [(geometry.x1 - geometry.x0) / 2, (geometry.y1 - geometry.y0) / 2];
+        const [hw, hh] = [cos * hw0 + sin * hh0, sin * hw0 + cos * hh0];
         const metadata: AnnotationMeshMetadata = {
             annotation: {
                 kind: a.kind,
                 ...(a.kind === "text" ? { text: a.text } : {}),
                 box: {
-                    x0: geometry.x0 * scale,
-                    y0: geometry.y0 * scale,
-                    x1: geometry.x1 * scale,
-                    y1: geometry.y1 * scale,
+                    x0: (cx - hw) * scale,
+                    y0: (cy - hh) * scale,
+                    x1: (cx + hw) * scale,
+                    y1: (cy + hh) * scale,
                 },
             },
         };
@@ -191,9 +221,10 @@ export class AnnotationMeshes {
  * @param a - The annotation.
  * @returns The box.
  */
-function boxOf(a: GraphAnnotation): Box {
+function boxOf(a: DrawnAnnotation): Box {
     switch (a.kind) {
         case "shape":
+        case "image":
             return {
                 x0: a.center.x - a.width / 2,
                 x1: a.center.x + a.width / 2,
@@ -223,12 +254,15 @@ function boxOf(a: GraphAnnotation): Box {
  * @param a - The annotation.
  * @returns The padding in file units.
  */
-function padOf(a: GraphAnnotation): number {
+function padOf(a: DrawnAnnotation): number {
     switch (a.kind) {
         case "shape":
+        case "image":
             return a.borderWidth / 2 + 1;
         case "arrow":
-            return headLength(a, Math.max(a.sourceSize, a.targetSize)) + a.width;
+            return (
+                Math.max(...(["source", "target"] as const).flatMap((end) => Object.values(headSize(a, end)))) + a.width
+            );
         default:
             return 1;
     }
@@ -259,13 +293,17 @@ function measure(a: TextAnnotation): number {
 }
 
 /**
- * An arrowhead's length in file units.
+ * An arrowhead's length and width in file units: the file's, else as long and as wide as `8 + 2 x` the line's width.
  * @param a - The arrow.
- * @param size - The head's size factor.
- * @returns The length.
+ * @param end - Which end.
+ * @returns The length and the width.
  */
-function headLength(a: ArrowAnnotation, size: number): number {
-    return (8 + 2 * a.width) * size;
+function headSize(a: ArrowAnnotation, end: "source" | "target"): { length: number; width: number } {
+    const size = end === "source" ? a.sourceSize : a.targetSize;
+    const own = (8 + 2 * a.width) * size;
+    const length = end === "source" ? a.sourceHeadLength : a.targetHeadLength;
+    const width = end === "source" ? a.sourceHeadWidth : a.targetHeadWidth;
+    return { length: length ?? own, width: width ?? own };
 }
 
 /**
@@ -273,7 +311,7 @@ function headLength(a: ArrowAnnotation, size: number): number {
  * @param ctx - The canvas context.
  * @param a - The annotation.
  */
-function paint(ctx: CanvasRenderingContext2D, a: GraphAnnotation): void {
+function paint(ctx: CanvasRenderingContext2D, a: DrawnAnnotation): void {
     switch (a.kind) {
         case "shape":
             paintShape(ctx, a);
@@ -319,6 +357,14 @@ function shapePath(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
             ctx.lineTo(x - hw, y - hh);
             ctx.closePath();
             break;
+        case "vee":
+            // a downward chevron: the two top corners, a notch between them, the point at the bottom middle
+            ctx.moveTo(x - hw, y + hh);
+            ctx.lineTo(x, y + hh - a.height * 0.38);
+            ctx.lineTo(x + hw, y + hh);
+            ctx.lineTo(x, y - hh);
+            ctx.closePath();
+            break;
         default:
             // ponytail: other outlines draw as their box; add the polygons when a file needs them
             ctx.rect(x - hw, y - hh, a.width, a.height);
@@ -344,6 +390,51 @@ function paintShape(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
         ctx.lineWidth = a.borderWidth;
         ctx.stroke();
     }
+}
+
+/**
+ * Paint a picture into its box once it has loaded, then its outline over it; a picture that cannot be loaded leaves
+ * the outline alone.
+ * @param texture - The texture the context paints.
+ * @param ctx - The canvas context, in file units with y up.
+ * @param a - The picture.
+ * @param settled - Called once the picture is painted, or has failed to load.
+ * @returns The picture, loading.
+ */
+function paintImage(
+    texture: DynamicTexture,
+    ctx: CanvasRenderingContext2D,
+    a: ImageAnnotation,
+    settled: () => void,
+): HTMLImageElement {
+    const box = boxOf(a);
+    const outline = (): void => {
+        if (a.borderWidth > 0 && a.borderOpacity > 0) {
+            ctx.globalAlpha = a.borderOpacity;
+            ctx.strokeStyle = a.borderColor;
+            ctx.lineWidth = a.borderWidth;
+            ctx.strokeRect(box.x0, box.y0, a.width, a.height);
+        }
+
+        uploadPremultiplied(texture);
+    };
+    outline();
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = (): void => {
+        ctx.save();
+        // an image is drawn y down: flip back about its top-left corner
+        ctx.translate(box.x0, box.y1);
+        ctx.scale(1, -1);
+        ctx.globalAlpha = a.opacity;
+        ctx.drawImage(image, 0, 0, a.width, a.height);
+        ctx.restore();
+        outline();
+        settled();
+    };
+    image.onerror = settled;
+    image.src = a.url;
+    return image;
 }
 
 /**
@@ -379,68 +470,90 @@ function paintArrow(ctx: CanvasRenderingContext2D, a: ArrowAnnotation): void {
     ctx.moveTo(a.from.x, a.from.y);
     ctx.lineTo(a.to.x, a.to.y);
     ctx.stroke();
-    paintHead(ctx, a, a.to, a.from, a.targetArrow, a.targetSize);
-    paintHead(ctx, a, a.from, a.to, a.sourceArrow, a.sourceSize);
+    // a value saved before the heads had colors of their own holds none: the line's color
+    ctx.strokeStyle = ctx.fillStyle = (a as { targetColor?: string }).targetColor ?? a.color;
+    paintHead(ctx, a.to, a.from, a.targetArrow, headSize(a, "target"));
+    ctx.strokeStyle = ctx.fillStyle = (a as { sourceColor?: string }).sourceColor ?? a.color;
+    paintHead(ctx, a.from, a.to, a.sourceArrow, headSize(a, "source"));
 }
 
 /**
- * Paint one arrowhead.
+ * Paint one arrowhead, its point at the line's end: a filled shape, or the strokes of an open one, a cross or a bar.
  * @param ctx - The canvas context.
- * @param a - The arrow.
  * @param tip - Where the head points.
  * @param tail - The other end of the line.
  * @param shape - The head's shape.
- * @param size - The head's size factor.
+ * @param head - Its length along the line and its width across.
+ * @param head.length - The length.
+ * @param head.width - The width.
  */
 function paintHead(
     ctx: CanvasRenderingContext2D,
-    a: ArrowAnnotation,
     tip: AnnotationPoint,
     tail: AnnotationPoint,
     shape: ArrowAnnotation["targetArrow"],
-    size: number,
+    head: { length: number; width: number },
 ): void {
     if (shape === "none") {
         return;
     }
 
-    const len = headLength(a, size);
+    const { length: len, width } = head;
+    const half = width / 2;
     const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
     ctx.save();
     ctx.translate(tip.x, tip.y);
     ctx.rotate(angle);
     ctx.beginPath();
+    let stroked = shape.endsWith("-open");
     switch (shape) {
         case "circle":
         case "circle-open":
-            ctx.arc(-len / 2, 0, len / 2, 0, 2 * Math.PI);
+            ctx.ellipse(-len / 2, 0, len / 2, half, 0, 0, 2 * Math.PI);
             break;
         case "tee":
-            ctx.rect(-a.width, -len / 2, a.width, len);
+            // a bar across the line's end
+            ctx.moveTo(0, -half);
+            ctx.lineTo(0, half);
+            stroked = true;
+            break;
+        case "other:x":
+            // a cross centered on the line's end
+            ctx.moveTo(-len / 2, -half);
+            ctx.lineTo(len / 2, half);
+            ctx.moveTo(-len / 2, half);
+            ctx.lineTo(len / 2, -half);
+            stroked = true;
+            break;
+        case "triangle-open":
+            // an open chevron: its two sides, no base
+            ctx.moveTo(-len, half);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-len, -half);
             break;
         case "diamond":
         case "diamond-open":
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len / 2, len / 3);
+            ctx.lineTo(-len / 2, half);
             ctx.lineTo(-len, 0);
-            ctx.lineTo(-len / 2, -len / 3);
+            ctx.lineTo(-len / 2, -half);
             ctx.closePath();
             break;
         case "vee":
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len, len / 2);
+            ctx.lineTo(-len, half);
             ctx.lineTo(-len * 0.7, 0);
-            ctx.lineTo(-len, -len / 2);
+            ctx.lineTo(-len, -half);
             ctx.closePath();
             break;
         default:
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len, len / 2);
-            ctx.lineTo(-len, -len / 2);
+            ctx.lineTo(-len, half);
+            ctx.lineTo(-len, -half);
             ctx.closePath();
     }
 
-    if (shape.endsWith("-open")) {
+    if (stroked) {
         ctx.stroke();
     } else {
         ctx.fill();

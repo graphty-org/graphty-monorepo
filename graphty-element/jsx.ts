@@ -29,6 +29,10 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the ids: an array, or a space-separated string as the attribute carries them.
+     */
+    features?: Graphty["features"];
+    /**
      * Turns autosave on (a key, `""` or `true`) or off (`null`, `false`).
      */
     autosave?: Graphty["autosave"];
@@ -174,6 +178,18 @@ export interface GraphtyElementJSXProps {
      */
     autoFrame?: Graphty["autoFrame"];
     /**
+     * Switches zooming toward the pointer on or off.
+     */
+    zoomToPointer?: Graphty["zoomToPointer"];
+    /**
+     * Sets how the 3D nodes are lit.
+     */
+    lighting?: Graphty["lighting"];
+    /**
+     * Sets the view insets.
+     */
+    viewInsets?: Graphty["viewInsets"];
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
@@ -219,6 +235,7 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    "aria-label"?: string;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
@@ -319,6 +336,10 @@ export interface GraphtyElementJSXProps {
      */
     "auto-frame"?: boolean;
     /**
+     * Switches zooming toward the pointer on or off.
+     */
+    "zoom-to-pointer"?: boolean;
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     "run-algorithms-on-load"?: boolean;
@@ -411,6 +432,7 @@ export interface GraphtyElementJSXProps {
     "ongraphty-autosave-restored"?: (event: GraphtyElementEventMap["graphty-autosave-restored"]) => void;
     "ongraphty-autosave-status"?: (event: GraphtyElementEventMap["graphty-autosave-status"]) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
+    "ongraphty-features"?: (event: GraphtyElementEventMap["graphty-features"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
     "ongraphty-node-click"?: (event: GraphtyElementEventMap["graphty-node-click"]) => void;

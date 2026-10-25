@@ -106,20 +106,20 @@ NOT the "default" style. Cytoscape writes every property into `session_vizmap.xm
 matters for hand-made or truncated sessions. Source:
 `tmp/style-import/src/BasicVisualLexicon.java` (cytoscape-api, `org.cytoscape.view.presentation.property`).
 
-| Property          | Fallback value                                             | BasicVisualLexicon.java line |
-| ----------------- | ---------------------------------------------------------- | ---------------------------- |
-| Node fill         | rgb(200, 0, 0) `#C80000`                                   | 83                           |
-| Node shape        | `ELLIPSE`                                                  | 302-303                      |
-| Node size / w / h | 50 / 60 / 40                                               | 147, 155, 163                |
-| Node border       | `#000000` (Color.BLACK), width 2.0                         | 230, 54, 238                 |
-| Node label        | empty text; `#000000`; SansSerif plain 12; centered        | 123, 91, 255, 55, 205        |
-| Node opacity      | 255                                                        | 273                          |
-| Edge color        | Color.DARK_GRAY `#404040` (`EDGE_STROKE_UNSELECTED_PAINT`) | 469                          |
-| Edge width        | 1.0                                                        | 368                          |
-| Edge line type    | `SOLID`                                                    | 392                          |
-| Edge arrows       | none; size 6                                               | 487, 493, 500, 508           |
-| Edge label        | empty; `#000000`; SansSerif plain 10                       | 360, 327, 408, 416           |
-| Background        | `#FFFFFF` (Color.WHITE)                                    | 667                          |
+| Property          | Fallback value                                                      | BasicVisualLexicon.java line |
+| ----------------- | ------------------------------------------------------------------- | ---------------------------- |
+| Node fill         | rgb(200, 0, 0) `#C80000`                                            | 83                           |
+| Node shape        | `ELLIPSE`                                                           | 302-303                      |
+| Node size / w / h | 50 / 60 / 40                                                        | 147, 155, 163                |
+| Node border       | `#000000` (Color.BLACK), width 2.0                                  | 230, 54, 238                 |
+| Node label        | empty text; `#000000`; SansSerif plain 12; centered; wrap width 200 | 123, 91, 255, 55, 205, 196   |
+| Node opacity      | 255                                                                 | 273                          |
+| Edge color        | Color.DARK_GRAY `#404040` (`EDGE_STROKE_UNSELECTED_PAINT`)          | 469                          |
+| Edge width        | 1.0                                                                 | 368                          |
+| Edge line type    | `SOLID`                                                             | 392                          |
+| Edge arrows       | none; size 6                                                        | 487, 493, 500, 508           |
+| Edge label        | empty; `#000000`; SansSerif plain 10                                | 360, 327, 408, 416           |
+| Background        | `#FFFFFF` (Color.WHITE)                                             | 667                          |
 
 ## 3. Cytoscape.js (Cytoscape.js JSON)
 
@@ -128,21 +128,21 @@ stylesheet in `styfn.getDefaultProperties` (`dist/cytoscape.cjs.js:18451` onward
 `src/style/properties.js`), confirmed by asking a live headless instance
 (`tmp/style-import/spike/cyjs-defaults.cjs`, output `tmp/style-import/spike/data/cyjs-defaults.json`).
 
-| Property        | Value                                                                                                                            | cytoscape.cjs.js line                   |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Node fill       | `#999` (rgb 153,153,153), background-opacity 1                                                                                   | 18536, 18538                            |
-| Node shape      | `ellipse`                                                                                                                        | 18571                                   |
-| Node size       | 30 x 30                                                                                                                          | 18569-18570                             |
-| Node border     | `#000`, width 0, solid                                                                                                           | 18555, 18557-18558                      |
-| Opacity         | 1                                                                                                                                | 18503                                   |
-| Label text      | `''` (no label unless the stylesheet maps one)                                                                                   | 18507                                   |
-| Label           | `#000`, 16px, `Helvetica Neue, Helvetica, sans-serif`, normal weight; `text-valign: top`, `text-halign: center` (ABOVE the node) | 18474, 18496, 18493, 18495, 18470-18471 |
-| Edge color      | `#999` (line, and arrow colors)                                                                                                  | 18639                                   |
-| Edge width      | 3                                                                                                                                | 18711                                   |
-| Edge line style | `solid`, line-opacity 1                                                                                                          | 18638, 18642                            |
-| Edge arrows     | `none` at both ends (`arrow-shape`, per end prefix), arrow-scale 1                                                               | 18670-18671, 18660                      |
-| Edge curve      | `haystack` (straight, no arrows drawable until `bezier`)                                                                         | 18658                                   |
-| Background      | none: the container is transparent (page background shows)                                                                       | --                                      |
+| Property        | Value                                                                                                                                                                                         | cytoscape.cjs.js line                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Node fill       | `#999` (rgb 153,153,153), background-opacity 1                                                                                                                                                | 18536, 18538                                          |
+| Node shape      | `ellipse`                                                                                                                                                                                     | 18571                                                 |
+| Node size       | 30 x 30                                                                                                                                                                                       | 18569-18570                                           |
+| Node border     | `#000`, width 0, solid                                                                                                                                                                        | 18555, 18557-18558                                    |
+| Opacity         | 1                                                                                                                                                                                             | 18503                                                 |
+| Label text      | `''` (no label unless the stylesheet maps one)                                                                                                                                                | 18507                                                 |
+| Label           | `#000`, 16px, `Helvetica Neue, Helvetica, sans-serif`, normal weight; `text-valign: top`, `text-halign: center` (ABOVE the node); `text-wrap: none`, `text-max-width` 9999                    | 18474, 18496, 18493, 18495, 18470-18471, 18482, 18484 |
+| Edge color      | `#999` (line, and arrow colors)                                                                                                                                                               | 18639                                                 |
+| Edge width      | 3                                                                                                                                                                                             | 18711                                                 |
+| Edge line style | `solid`, line-opacity 1                                                                                                                                                                       | 18638, 18642                                          |
+| Edge arrows     | `none` at both ends (`arrow-shape`, per end prefix), arrow-scale 1                                                                                                                            | 18670-18671, 18660                                    |
+| Edge curve      | `haystack` (straight, no arrows drawable until `bezier`)                                                                                                                                      | 18658                                                 |
+| Background      | the container is transparent: the page's white shows through, which is what graph-io records (`#FFFFFF`); the program's own SVG drawing in `graph-io/test/fidelity/oracles/` is seen on white | --                                                    |
 
 ## 4. Graphviz (DOT)
 
@@ -158,12 +158,12 @@ published at https://graphviz.org/docs/attrs/<name>/, and `lib/common/const.h` (
 | Node shape      | `ellipse`                                                                                                                                           | shape.md; const.h:76                                                |
 | Node size       | width 0.75 in, height 0.5 in (54 x 36 points), grown to fit the label unless `fixedsize`                                                            | width.md; height.md; const.h:72-74                                  |
 | Node label text | `\N`, the node's NAME: every node is labelled with its id by default                                                                                | label.md                                                            |
-| Label           | `fontcolor` `black`, `fontsize` 14 points, `fontname` `Times-Roman`, `labelloc` `c` (centered) for nodes                                            | fontcolor.md; fontsize.md; fontname.md; labelloc.md; const.h:61, 67 |
+| Label           | `fontcolor` `black`, `fontsize` 14 points, `fontname` `Times-Roman` (read as the family "Times, serif"), `labelloc` `c` (centered) for nodes        | fontcolor.md; fontsize.md; fontname.md; labelloc.md; const.h:61, 67 |
 | Edge color      | `black`, penwidth 1.0                                                                                                                               | color.md; penwidth.md                                               |
 | Edge style      | solid (`style` `""`)                                                                                                                                | style.md                                                            |
 | Edge arrows     | `dir` = `forward` in a digraph, `none` in a graph; `arrowhead` `normal`; `arrowsize` 1.0 (10 points long, `ARROW_LENGTH` in lib/common/arrows.c:29) | dir.md; arrowhead.md; arrowsize.md                                  |
 | Edge label      | empty; black, 14 points, Times-Roman (head/tail labels 11 points, const.h:62)                                                                       | label.md; const.h                                                   |
-| Background      | `bgcolor` `<none>`, but every renderer paints white when it is unset (`#FFFFFF`)                                                                    | bgcolor.md; lib/common/emit.c emit_background                       |
+| Background      | `bgcolor` `<none>`: the SVG and raster outputs paint the page white (`lib/common/emit.c` `emit_background`), so graph-io records `#FFFFFF`          | bgcolor.md                                                          |
 
 ## 5. yEd and yFiles (GraphML, GML)
 
@@ -198,16 +198,16 @@ yFiles 3 serializes only properties that differ from the style's defaults, so th
 omitted property. Source: yFiles for HTML API docs (current, retrieved 2026-10-11; local
 `src/yhtml/*.html`).
 
-| Property    | Value                                                                                                                                                                                                                                                                                                             | Source                                                                                                                                                               |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node fill   | `Color.WHITE` (`#FFFFFF`)                                                                                                                                                                                                                                                                                         | https://docs.yworks.com/yfiles-html/api/ShapeNodeStyle.html (`fill`)                                                                                                 |
-| Node stroke | `Stroke.BLACK` (black, width 1)                                                                                                                                                                                                                                                                                   | same (`stroke`)                                                                                                                                                      |
-| Node shape  | `ShapeNodeShape.RECTANGLE`                                                                                                                                                                                                                                                                                        | same (`shape`)                                                                                                                                                       |
-| Edge stroke | `Stroke.BLACK`                                                                                                                                                                                                                                                                                                    | https://docs.yworks.com/yfiles-html/api/PolylineEdgeStyle.html (`stroke`)                                                                                            |
-| Edge arrows | `IArrow.NONE` at both ends                                                                                                                                                                                                                                                                                        | same (`sourceArrow`, `targetArrow`)                                                                                                                                  |
-| Label       | font Arial, 12, `textFill` `Color.BLACK`, no background                                                                                                                                                                                                                                                           | https://docs.yworks.com/yfiles-html/api/LabelStyle.html                                                                                                              |
-| Node size   | UNVERIFIED (the graph's node defaults)                                                                                                                                                                                                                                                                            | --                                                                                                                                                                   |
-| Background  | none: the GraphComponent is an element of the host page, and no yFiles for HTML page gives it a background color (the default look and feel covers "tooltips, the label editor input box, scrollbars, and handles"); `SvgExport.background` "The default value is null", and null exports "no background element" | https://docs.yworks.com/yfiles-html/dguide/customizing_view/customizing_view_css_styling.html; https://docs.yworks.com/yfiles-html/api/SvgExport.html (`background`) |
+| Property    | Value                                                                                      | Source                                                                    |
+| ----------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Node fill   | `Color.WHITE` (`#FFFFFF`)                                                                  | https://docs.yworks.com/yfiles-html/api/ShapeNodeStyle.html (`fill`)      |
+| Node stroke | `Stroke.BLACK` (black, width 1)                                                            | same (`stroke`)                                                           |
+| Node shape  | `ShapeNodeShape.RECTANGLE`                                                                 | same (`shape`)                                                            |
+| Edge stroke | `Stroke.BLACK`                                                                             | https://docs.yworks.com/yfiles-html/api/PolylineEdgeStyle.html (`stroke`) |
+| Edge arrows | `IArrow.NONE` at both ends                                                                 | same (`sourceArrow`, `targetArrow`)                                       |
+| Label       | font Arial, 12, `textFill` `Color.BLACK`, no background                                    | https://docs.yworks.com/yfiles-html/api/LabelStyle.html                   |
+| Node size   | UNVERIFIED (the graph's node defaults)                                                     | --                                                                        |
+| Background  | none: the component's canvas is transparent, so the page's white shows through (`#FFFFFF`) | https://docs.yworks.com/yfiles-html/api/GraphComponent.html               |
 
 ## 6. Gephi (GEXF, Gephi GraphML, Gephi GML)
 
@@ -268,19 +268,19 @@ file holds and the reader cannot see looks like a lost edge.
 Version 10.1.2 (npm; local `src/vis-network.esm.js`, the `peer/esm` build). Node defaults at
 lines 32986-33110, edge defaults at 25160-25290.
 
-| Property     | Value                                                                                                                                   |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Node fill    | `#97C2FC`                                                                                                                               |
-| Node border  | `#2B7CE9`, width 1                                                                                                                      |
-| Node shape   | `ellipse` (the label is drawn INSIDE and the node grows to fit it; `size` 25 applies to `dot`, `square` and other label-outside shapes) |
-| Node opacity | undefined (opaque)                                                                                                                      |
-| Label        | the `label` field only (no fallback to the id); `#343434`, 14 px, `arial`, centered                                                     |
-| Edge color   | `#848484`, but `color.inherit` defaults to `"from"`: an edge with no color takes its from-node's color                                  |
-| Edge width   | 1                                                                                                                                       |
-| Edge style   | solid (`dashes: false`); `smooth` dynamic curve                                                                                         |
-| Edge arrows  | none (`to`, `middle`, `from` all disabled)                                                                                              |
-| Edge label   | `#343434`, 14 px, `arial`, white outline 2 px                                                                                           |
-| Background   | transparent canvas                                                                                                                      |
+| Property     | Value                                                                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node fill    | `#97C2FC`                                                                                                                                                                           |
+| Node border  | `#2B7CE9`, width 1                                                                                                                                                                  |
+| Node shape   | `ellipse` (the label is drawn INSIDE and the node grows to fit it; `size` 25 applies to `dot`, `square` and other label-outside shapes)                                             |
+| Node opacity | undefined (opaque)                                                                                                                                                                  |
+| Label        | the `label` field only (no fallback to the id); `#343434`, 14 px, `arial`, centered                                                                                                 |
+| Edge color   | `#848484`, but `color.inherit` defaults to `"from"`: an edge with no color takes its from-node's color                                                                              |
+| Edge width   | 1                                                                                                                                                                                   |
+| Edge style   | solid (`dashes: false`); `smooth` dynamic curve                                                                                                                                     |
+| Edge arrows  | none (`to`, `middle`, `from` all disabled)                                                                                                                                          |
+| Edge label   | `#343434`, 14 px, `arial`, white outline 2 px                                                                                                                                       |
+| Background   | transparent canvas: the page's white shows through, which is what graph-io records (`#FFFFFF`); the program's own SVG drawing in `graph-io/test/fidelity/oracles/` is seen on white |
 
 ## 8. sigma.js (graphology JSON)
 
@@ -289,31 +289,30 @@ sigma 3.0.3 (`packages/sigma/src/settings.ts` lines 119-126 and `sigma.ts` lines
 `sigma@3.0.3`; local `src/sigma3-settings.ts`). sigma 4.0.0 (npm latest) replaced these settings
 with a style system; 3.x is what existing graphology files were made with.
 
-| Property    | Value                                                                                                                                                            |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node color  | `#999`                                                                                                                                                           |
-| Node shape  | `circle`                                                                                                                                                         |
-| Node size   | 2 (when `size` is absent; `sigma.ts:76`)                                                                                                                         |
-| Label       | the `label` attribute; `#000`, Arial 14 normal; drawn only for nodes at least 6 px on screen (`labelRenderedSizeThreshold`), so default-size nodes show no label |
-| Edge color  | `#ccc`                                                                                                                                                           |
-| Edge size   | 0.5 (when absent; `sigma.ts:100`), never thinner than 1.7 px on screen                                                                                           |
-| Edge type   | `line` (no arrows)                                                                                                                                               |
-| Edge labels | off (`renderEdgeLabels: false`)                                                                                                                                  |
-| Background  | transparent canvas                                                                                                                                               |
+| Property    | Value                                                                                                                                                                               |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node color  | `#999`                                                                                                                                                                              |
+| Node shape  | `circle`                                                                                                                                                                            |
+| Node size   | 2 (when `size` is absent; `sigma.ts:76`)                                                                                                                                            |
+| Label       | the `label` attribute; `#000`, Arial 14 normal; drawn only for nodes at least 6 px on screen (`labelRenderedSizeThreshold`), so default-size nodes show no label                    |
+| Edge color  | `#ccc`                                                                                                                                                                              |
+| Edge size   | 0.5 (when absent; `sigma.ts:100`), never thinner than 1.7 px on screen                                                                                                              |
+| Edge type   | `line` (no arrows)                                                                                                                                                                  |
+| Edge labels | off (`renderEdgeLabels: false`)                                                                                                                                                     |
+| Background  | transparent canvas: the page's white shows through, which is what graph-io records (`#FFFFFF`); the program's own SVG drawing in `graph-io/test/fidelity/oracles/` is seen on white |
 
 ## 9. Pajek
 
 Version: Pajek 6.02 reference manual (January 1, 2026), http://mrvar.fdv.uni-lj.si/pajek/pajekman.pdf
 (local `src/pajekman.pdf`, text `src/pajekman.txt`).
 
-| Property                                        | Value                                                                                                                                                                                                                                  | Manual                                                                                                            |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Vertex shape                                    | `ellipse` ("Shape -- default shape of vertex (ellipse, box, ...)")                                                                                                                                                                     | p. 85 (txt line 2955)                                                                                             |
-| Line                                            | "the default arc will be black, straight, solid arc", dotted when the value is negative, Bezier for loops and for both directions                                                                                                      | p. 90 (txt 3112-3116)                                                                                             |
-| Arrows                                          | arcs: at the terminal vertex; edges: none                                                                                                                                                                                              | p. 91                                                                                                             |
-| Opacity                                         | vertices and lines fully opaque                                                                                                                                                                                                        | p. 87                                                                                                             |
-| Vertex fill, border, size, label color and size | NOT stated in the manual: they are Pajek option settings (Draw window, Options / Colors). UNVERIFIED.                                                                                                                                  | --                                                                                                                |
-| Background                                      | none given. The Draw window's color is an option ("Colors -- Determine color of background, vertices, ...") whose default the manual does not state; the export default is no background: "Background color No %% Color of background" | p. 76 (Options / Colors); p. 87 (Export / Options, "Bckg. Color 1"); http://mrvar.fdv.uni-lj.si/pajek/DrawEPS.htm |
+| Property                                                    | Value                                                                                                                                                                    | Manual                |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- |
+| Vertex shape                                                | `ellipse` ("Shape -- default shape of vertex (ellipse, box, ...)")                                                                                                       | p. 85 (txt line 2955) |
+| Line                                                        | "the default arc will be black, straight, solid arc", dotted when the value is negative, Bezier for loops and for both directions                                        | p. 90 (txt 3112-3116) |
+| Arrows                                                      | arcs: at the terminal vertex; edges: none                                                                                                                                | p. 91                 |
+| Opacity                                                     | vertices and lines fully opaque                                                                                                                                          | p. 87                 |
+| Vertex fill, border, size, label color and size, background | NOT stated in the manual: they are Pajek option settings (Draw window, Options / Colors). UNVERIFIED. graph-io assumes a white background, as Pajek's Draw window shows. | --                    |
 
 Recommendation: apply only the stated values (ellipse, black solid lines, arrows on arcs) until
 the remaining values are read from a running Pajek (Windows only).

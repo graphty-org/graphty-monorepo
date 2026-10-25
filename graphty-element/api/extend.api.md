@@ -212,6 +212,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // (undocumented)
     static type: string;
     get type(): string;
+    // @internal
+    protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped">;
+    // @internal
+    static readonly weightMeaning: WeightReads | null;
+    // @internal
+    protected weightReading(): WeightReading;
     static zodOptionsSchema?: OptionsSchema_2;
 }
 export { Algorithm_2 as Algorithm }
@@ -267,6 +273,7 @@ export interface AlgorithmDescriptor {
     shape: ResultShape;
     // (undocumented)
     technicalName: string;
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 // @public
@@ -444,7 +451,6 @@ export interface CameraState {
     };
     // (undocumented)
     type?: "arcRotate" | "free" | "universal" | "orthographic";
-    // (undocumented)
     zoom?: number;
 }
 
@@ -454,6 +460,7 @@ export interface CameraViewInput {
     readonly bounds: GraphBounds;
     readonly current: CameraState;
     readonly fov?: number;
+    readonly insets?: Required<ViewInsets>;
     // (undocumented)
     readonly mode: DrawingMode;
     readonly options: Readonly<Record<string, unknown>>;
@@ -493,6 +500,7 @@ export interface Caveats {
     readonly sampleSize?: number;
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
+    readonly weightSkipped?: WeightSkip;
     readonly windowScope?: boolean;
 }
 
@@ -724,6 +732,8 @@ export class Edge {
     arrowHeadText: RichTextLabel | null;
     // @deprecated
     arrowMesh: AbstractMesh | null;
+    arrowMiddleHeadCap: ArrowCap | null;
+    arrowMiddleTailCap: ArrowCap | null;
     arrowTailCap: ArrowCap | null;
     // @deprecated
     arrowTailMesh: AbstractMesh | null;
@@ -732,13 +742,15 @@ export class Edge {
     get data(): AdHocData;
     dispose(): void;
     get drawnCaps(): {
-        end: "arrowHead" | "arrowTail";
+        end: EdgeCapEnd;
         name: string;
         span: number;
         visibility: number;
     }[];
     get drawnCentre(): Vector3;
     get drawnCurve(): Vector3[] | null;
+    // @internal
+    get drawnGradient(): readonly string[];
     get drawnLine(): {
         name: string;
         length: number;
@@ -782,6 +794,9 @@ export class Edge {
     static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
+
+// @public (undocumented)
+export type EdgeCapEnd = "arrowHead" | "arrowTail" | "arrowMiddleHead" | "arrowMiddleTail";
 
 export { EdgeMask }
 
@@ -886,6 +901,7 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
 export interface FieldDescriptor {
+    directedOnly?: boolean;
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
@@ -916,6 +932,8 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    description?: string;
+    exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
     // (undocumented)
@@ -927,6 +945,19 @@ export interface FormatDescriptor {
     plainName: string;
     styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
+}
+
+// @public
+export interface FormatExportVariant {
+    // (undocumented)
+    extensions: readonly string[];
+    id: string;
+    // (undocumented)
+    mimeTypes: readonly string[];
+    options: readonly OptionDescriptor[];
+    // (undocumented)
+    plainName: string;
+    preset: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -1020,8 +1051,12 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details` carry the character offset. The caller
-* corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details.reason` is a stable code naming the
+* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
+* reading the message; an expression's refusal also carries the character offset
+* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
+* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
+* caller corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -1036,8 +1071,10 @@ export type GraphtyErrorCode =
 */
 | "E_SELECTOR_EMPTY"
 /**
-* A universal selector is combined with an encoding bound to a run, which would ask the
-* element to paint elements the run never measured. The caller scopes the layer to the
+* A universal selector is combined with an encoding bound to a run that paints a value for a
+* missing result (`missing: { value }`), which would ask the element to paint elements the run
+* never measured. Without `missing`, such a layer is accepted: an element with no result is
+* not painted. The caller scopes the layer to the
 * elements that carry the run's result.
 */
 | "E_UNSCOPED_RUN_ENCODING"
@@ -1200,6 +1237,12 @@ export type GraphtyErrorCode =
 */
 | "E_PROTECTED"
 /**
+* The target is locked by the reader: a style layer whose row, or a folder holding it, has
+* the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
+* caller unlocks the row first, or leaves the layer as it is.
+*/
+| "E_LOCKED"
+/**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
 * unreadable file. `details` carry the url and the status where there was one, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
@@ -1212,6 +1255,14 @@ export type GraphtyErrorCode =
 * corrects the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
+/**
+* A graphty project or document file (one `session.project.save` writes) was handed to a data
+* import (`session.data.import`, `session.data.prepare`, a data source) instead of being
+* opened. `details` are `{ kind, use: "project.open" }`: the document's `kind`, and the verb
+* that opens it. Nothing in the session changed. The caller opens the file with
+* `session.project.open`, which reads data files too.
+*/
+| "E_PROJECT_FILE_AS_DATA"
 /**
 * An edge table declares no endpoint columns and contains none of the accepted pairs
 * (`source`/`target`, `src`/`dst`, `from`/`to`). `details.columns` list what the file does
@@ -1352,6 +1403,21 @@ export type GraphtyErrorCode =
 * installs the optional peer package, or drops back to `auto` and accepts the CPU path.
 */
 | "E_NO_ACCELERATOR"
+/**
+* No accelerator factory is registered, so the element never looked for a GPU. Usually
+* `import "@graphty/graphty-element/webgpu"` was never evaluated -- not written, or its module
+* failed to load (a network error, a blocked request, a stale dev-server cache). Reported
+* through `capabilities.acceleration`; a registration that arrives later switches
+* acceleration on without the consumer doing anything.
+*/
+| "E_NO_ACCELERATOR_REGISTERED"
+/**
+* A registered accelerator factory threw while setting up, with an error that is not one of
+* the other acceleration codes -- a module of the backend that failed to load, or a defect in
+* the backend. `reason` carries what it threw. Reported through `capabilities.acceleration`;
+* the CPU path runs.
+*/
+| "E_ACCELERATOR_FAILED"
 /**
 * The runtime exposes no WebGPU at all: no `navigator.gpu`, usually because the page is not
 * in a secure context or the browser does not implement it. Reported through
@@ -1606,7 +1672,7 @@ export { IssueCategory }
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
@@ -1615,7 +1681,7 @@ export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radia
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
 
 // @public
-export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
+export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "kelly", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
 
 // @public
 export const LAYERED_GROUPING_FIELD_SPECS: readonly ResultFieldSpec[];
@@ -1815,11 +1881,14 @@ class Node_2 {
     // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
+    // @internal
+    get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
     // (undocumented)
     dragging: boolean;
     // (undocumented)
     dragHandler?: NodeDragHandler;
+    get drawnFill(): string | null;
     get drawnHalfExtents(): Readonly<{
         x: number;
         y: number;
@@ -1839,6 +1908,7 @@ class Node_2 {
     readonly id: NodeIdType;
     get index(): number;
     isDisposed(): boolean;
+    get isDrawnAsGroup(): boolean;
     isPinned(): boolean;
     isSelected(): boolean;
     // (undocumented)
@@ -1852,12 +1922,15 @@ class Node_2 {
     pin(): void;
     // (undocumented)
     pinOnDrag: boolean;
+    // @internal
+    refreshScreenBorder(): void;
     refreshSelectionOverlay(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
     // (undocumented)
@@ -2267,6 +2340,9 @@ export type ScopeInputDeclaration = NonNullable<AlgorithmDescriptor["scopeInput"
 export type Score = number | null | undefined;
 
 // @public
+export function setDefaultFeatures(ids: readonly string[]): void;
+
+// @public
 export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldSpec, "kind">): readonly ResultFieldSpec[];
 
 // @public
@@ -2316,6 +2392,7 @@ export interface SnapshotLayoutInput {
     };
     readonly graph: GraphSnapshot;
     readonly initial: F32;
+    nodeExtents?(): F32;
     nodeSizes?(): F32;
     readonly options: Readonly<Record<string, unknown>>;
     report(progress: SnapshotLayoutProgress): void;
@@ -2516,10 +2593,26 @@ export interface Vec3 {
 }
 
 // @public
-export interface WeightMeaning {
-    readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+export interface ViewInsets {
+    // (undocumented)
+    readonly bottom?: number;
+    // (undocumented)
+    readonly left?: number;
+    // (undocumented)
+    readonly right?: number;
+    // (undocumented)
+    readonly top?: number;
 }
+
+// @public
+export interface WeightMeaning {
+    readonly assumed?: true;
+    readonly attribute: string;
+    readonly meaning: "distance" | "strength" | "capacity";
+}
+
+// @public
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

@@ -32,9 +32,19 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
-import { workerShare } from "../tools/test-slots.mjs";
+import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
+
+/**
+ * Each pre-push gate shard's own Vite dependency cache (tools/test-slots.mjs shardCacheDir()), set
+ * on every browser project below, since none extends the root. The gate runs several shards of
+ * this package side by side in one checkout; sharing a cache, a stale one is re-optimized by every
+ * shard at once, each deleting chunks the others load ("error when mocking a module", "The file
+ * does not exist ... in the optimize deps directory", issue #3319). Outside the gate, Vite's
+ * default directory.
+ */
+const SHARD_CACHE_DIR = shardCacheDir();
 
 /**
  * Babylon modules the element imports only for their side effects (see
@@ -357,6 +367,8 @@ export default defineConfig({
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
                         "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -442,6 +454,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
@@ -525,6 +538,7 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
@@ -548,6 +562,7 @@ export default defineConfig({
                 // ci.yml's advisory "performance" job, and by hand with:
                 // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
@@ -580,9 +595,16 @@ export default defineConfig({
                 // property test's reproduction seed and path (test/helpers/fc-params.ts).
                 // GRAPHTY_UPDATE_RENDER_BUDGET makes test/browser/render-budget.test.ts rewrite its
                 // baseline instead of checking against it.
-                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
+                envPrefix: [
+                    "VITE_",
+                    "GRAPHTY_BROWSER_GPU",
+                    "GRAPHTY_FC_",
+                    "GRAPHTY_UPDATE_RENDER_BUDGET",
+                    "GRAPHTY_FIDELITY_RECORD",
+                ],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
@@ -643,6 +665,7 @@ export default defineConfig({
                 // own dependencies are pre-bundled up front, as for "browser": discovered mid-run,
                 // Vite re-optimizes and reloads the page under the running test.
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: {
                     include: [
                         ...PREBUNDLED,
@@ -714,12 +737,17 @@ export default defineConfig({
                 // annotation session draws about one frame a second and does not settle.
                 define: { ...define },
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: PREBUNDLED },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "fidelity",
                     setupFiles: ["./test/setup.ts"],
-                    include: ["test/fidelity/fidelity.test.ts"],
+                    include: [
+                        "test/fidelity/fidelity.test.ts",
+                        "test/fidelity/oracle-report.test.ts",
+                        "test/fidelity/mutants.test.ts",
+                    ],
                     testTimeout: 0,
                     fileParallelism: false,
                     browser: {
@@ -757,6 +785,7 @@ export default defineConfig({
             },
             {
                 define: { ...define },
+                cacheDir: SHARD_CACHE_DIR,
                 optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",

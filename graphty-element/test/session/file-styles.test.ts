@@ -13,11 +13,13 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import {
     createGraphSession,
+    type EdgeId,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
     fileStyleOf,
     type GraphSession,
     type Layer,
+    type NodeId,
 } from "../../session";
 import { DataSource } from "../../src/data/DataSource";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -196,7 +198,74 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
-    it("draws a rounded rectangle and a parallelogram as the flat shapes of those names, with no nearest note", async () => {
+    it("draws a node's opacity on its border too, times the border's own", async () => {
+        const doc = JSON.stringify({
+            elements: [
+                { data: { id: "a" }, classes: "faint" },
+                { data: { id: "b" }, classes: "half" },
+                { data: { id: "c" } },
+            ],
+            style: [
+                { selector: "node", style: { "border-width": 2 } },
+                { selector: ".faint", style: { opacity: 0.15 } },
+                { selector: ".half", style: { opacity: 0.5, "border-opacity": 0.5 } },
+            ],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(drawn(session, { node: "a" }, "node.borderOpacity"), 0.15);
+        assert.strictEqual(drawn(session, { node: "b" }, "node.borderOpacity"), 0.25);
+        assert.notStrictEqual(drawn(session, { node: "c" }, "node.borderOpacity"), 0.15);
+        session.dispose();
+    });
+
+    it("draws a vis-network edge background in its own dashes: dotted, dashed or dash-dot", async () => {
+        const edge = (id: string, dashes: number[]): object => ({
+            id,
+            from: "s",
+            to: "t",
+            smooth: { enabled: true, type: "curvedCW" },
+            background: { enabled: true, dashes },
+        });
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "s", x: 0, y: 0 },
+                { id: "t", x: 100, y: 0 },
+            ],
+            edges: [edge("dot", [6, 4]), edge("dash", [30, 10]), edge("dash-dot", [30, 5, 6, 5])],
+            options: { physics: false },
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.deepEqual(
+            session.data.edges().map((record) => drawn(session, { edge: record.id }, "edge.outlineStyle")),
+            ["dot", "dash", "dash-dot"],
+        );
+        session.dispose();
+    });
+
+    it("draws each node's own opacity on its border when rules by id set them", async () => {
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "p" } }, { data: { id: "q" } }, { data: { id: "r" } }],
+            style: [
+                { selector: "node", style: { "border-width": 1, "border-opacity": 1, opacity: 1 } },
+                { selector: "#p", style: { opacity: 0.5 } },
+                { selector: "#q", style: { opacity: 0.15 } },
+            ],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(drawn(session, { node: "p" }, "node.borderOpacity"), 0.5);
+        assert.strictEqual(drawn(session, { node: "q" }, "node.borderOpacity"), 0.15);
+        // a border at full strength is left at the element's default, 1
+        assert.include([undefined, 1], drawn(session, { node: "r" }, "node.borderOpacity"));
+        session.dispose();
+    });
+
+    it("draws every 2D shape as the flat shape of the same name, with no nearest note", async () => {
         const doc = JSON.stringify({
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
             style: [
@@ -206,7 +275,7 @@ describe("a file's styles drawn by the load", () => {
             ],
         });
         const session = createGraphSession();
-        // Without Cytoscape's default ellipse beneath, which is itself drawn as the nearest solid.
+        // Without Cytoscape's default ellipse beneath.
         await session.data.import(
             { type: "json", config: { data: doc } },
             { styles: "file", styleOptions: { toolDefaults: false } },
@@ -214,15 +283,11 @@ describe("a file's styles drawn by the load", () => {
 
         assert.strictEqual(drawn(session, { node: "a" }, "node.shape"), "round-rectangle");
         assert.strictEqual(drawn(session, { node: "b" }, "node.shape"), "parallelogram");
-        assert.strictEqual(drawn(session, { node: "c" }, "node.shape"), "box");
+        assert.strictEqual(drawn(session, { node: "c" }, "node.shape"), "rectangle");
         const nearest = (session.data.lastImport()?.styles?.notes ?? []).filter(
             (note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST && note.params.property === "shape",
         );
-        // Only the rectangle is drawn as the nearest solid.
-        assert.deepEqual(
-            nearest.map((note) => note.params.count),
-            [1],
-        );
+        assert.deepEqual(nearest, []);
         session.dispose();
     });
 
@@ -536,6 +601,114 @@ describe("a file's groups (compound nodes)", () => {
     });
 });
 
+describe("a file's arrowheads", () => {
+    /**
+     * How long an edge's head is drawn against its source node's width, both in the scene's units.
+     * @param session - The session.
+     * @param edge - The edge.
+     * @param node - The node.
+     * @returns The ratio.
+     */
+    const headPerNode = (session: GraphSession, edge: EdgeId, node: NodeId): number =>
+        (0.5 * (drawn(session, { edge }, "edge.arrowHeadSize") as number)) /
+        (1.5 * (drawn(session, { node: String(node) }, "node.size") as number));
+
+    it("draws Graphviz's arrowheads ARROW_LENGTH 10 times arrowsize long, against its 54-wide nodes", async () => {
+        const session = createGraphSession();
+        const dot = "digraph { a -> b; b -> c [arrowsize=2]; }";
+        await session.data.import({ type: "dot", config: { data: dot } }, { styles: "file" });
+        const [plain, doubled] = session.data.edges();
+        assert.approximately(headPerNode(session, plain.id, plain.source), 10 / 54, 1e-6);
+        assert.approximately(headPerNode(session, doubled.id, doubled.source), 20 / 54, 1e-6);
+        // Graphviz's normal arrow is 0.7 of its length wide, the element's 0.8
+        assert.approximately(drawn(session, { edge: plain.id }, "edge.arrowHeadWidth") as number, 0.7 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws Cytoscape's DELTA (6 + width) * 2 long and half as wide, so a wider line has a longer head", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                    { id: 3, x: 200, y: 0 },
+                ],
+            },
+            {
+                edges: [
+                    { id: 10, s: 1, t: 2 },
+                    { id: 11, s: 2, t: 3, v: { w: 4 } },
+                ],
+            },
+            { attributeDeclarations: [{ edges: { w: { d: "double" } } }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: { EDGE_WIDTH: 1, EDGE_TARGET_ARROW_SHAPE: "triangle" },
+                        },
+                        edgeMapping: {
+                            EDGE_WIDTH: { type: "PASSTHROUGH", definition: { attribute: "w", type: "double" } },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [thin, wide] = session.data.edges();
+        assert.approximately(headPerNode(session, thin.id, thin.source), 14 / 75, 1e-6);
+        assert.approximately(headPerNode(session, wide.id, wide.source), 20 / 75, 1e-6);
+        assert.approximately(drawn(session, { edge: thin.id }, "edge.arrowHeadWidth") as number, 0.5 / 0.8, 1e-9);
+        session.dispose();
+    });
+
+    it("draws Cytoscape's source arrow at its own size, and a short delta half as long as a DELTA", async () => {
+        const session = createGraphSession();
+        const cx2 = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            {
+                nodes: [
+                    { id: 1, x: 0, y: 0 },
+                    { id: 2, x: 100, y: 0 },
+                ],
+            },
+            { edges: [{ id: 10, s: 1, t: 2 }] },
+            {
+                visualProperties: [
+                    {
+                        default: {
+                            node: { NODE_WIDTH: 75, NODE_HEIGHT: 35 },
+                            edge: {
+                                EDGE_WIDTH: 1,
+                                EDGE_TARGET_ARROW_SHAPE: "triangle",
+                                EDGE_TARGET_ARROW_SIZE: 6,
+                                EDGE_SOURCE_ARROW_SHAPE: "delta_short_1",
+                                EDGE_SOURCE_ARROW_SIZE: 12,
+                            },
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        await session.data.import({ type: "cx2", config: { data: cx2 } }, { styles: "file" });
+        const [edge] = session.data.edges();
+        const tailPerNode =
+            (0.5 * (drawn(session, { edge: edge.id }, "edge.arrowTailSize") as number)) /
+            (1.5 * (drawn(session, { node: String(edge.source) }, "node.size") as number));
+        // the head is a DELTA of size 6: (6 + 1) * 2 long
+        assert.approximately(headPerNode(session, edge.id, edge.source), 14 / 75, 1e-6);
+        // the tail is DELTA_SHORT_1 of size 12: (12 + 1) long, as wide as a DELTA of that size
+        assert.approximately(tailPerNode, 13 / 75, 1e-6);
+        assert.approximately(drawn(session, { edge: edge.id }, "edge.arrowTailWidth") as number, 1 / 0.8, 1e-9);
+        session.dispose();
+    });
+});
+
 describe("a file's drawing order", () => {
     const order = (session: GraphSession, id: string): unknown => drawn(session, { node: id }, "node.drawOrder");
     const doc = JSON.stringify({
@@ -608,22 +781,22 @@ describe("a graphty layer whose expression holds an escape JSON rejects", () => 
 
 describe("a load's notes", () => {
     it("count each element once, however many of the file's rules give it a value drawn as the nearest", async () => {
-        // Gephi's default disc applies to all three nodes and the file's own square to one: both
-        // are drawn as the nearest 3D shape, but only three nodes are drawn that way.
-        const gexf = `<?xml version="1.0" encoding="UTF-8"?>
-<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
-<graph defaultedgetype="undirected"><nodes>
-<node id="a"><viz:color r="255" g="0" b="0"/><viz:size value="20"/></node>
-<node id="b"><viz:color r="0" g="128" b="255"/><viz:size value="10"/></node>
-<node id="c"><viz:color r="0" g="200" b="0"/><viz:size value="5"/><viz:shape value="square"/></node>
-</nodes><edges><edge source="a" target="b"/><edge source="b" target="c"/></edges></graph></gexf>`;
+        // Two rules give node a a box wider than it is tall, which is drawn as one size (the
+        // nearest): two nodes are drawn that way, not three.
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],
+            style: [
+                { selector: "#a, #b", style: { width: 40, height: 20 } },
+                { selector: "#a", style: { width: 60, height: 20 } },
+            ],
+        });
         const session = createGraphSession();
-        await session.data.import({ type: "gexf", config: { data: gexf } }, { styles: "file" });
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
         const notes = session.data.lastImport()?.styles?.notes ?? [];
         const nearest = notes.filter((note) => note.code === FILE_STYLE_ISSUE.DRAWN_NEAREST);
         assert.isAbove(nearest.length, 0);
         for (const note of nearest) {
-            assert.isAtMost(Number(note.params.count), 3, JSON.stringify(note.params));
+            assert.isAtMost(Number(note.params.count), 2, JSON.stringify(note.params));
         }
 
         session.dispose();

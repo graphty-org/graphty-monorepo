@@ -1003,12 +1003,19 @@ export async function assertShapeVariety(scene: Drawn, atLeast: number): Promise
     const geometries = new Set(scene.nodes.map((node) => node.geometryDigest));
     const meshes = new Set(scene.nodes.map((node) => node.geometryKey));
     const shapes = new Set(scene.nodes.map((node) => node.shape));
+    const byGeometry = new Map<string, DrawnNode[]>();
+    for (const node of scene.nodes) {
+        byGeometry.set(node.geometryDigest, [...(byGeometry.get(node.geometryDigest) ?? []), node]);
+    }
+    const shared = [...byGeometry.values()]
+        .filter((group) => group.length > 1)
+        .map((group) => group.map((node) => node.id).join(" = "));
 
     await holds(
         geometries.size >= atLeast,
         `${scene.story}: the story promises ${String(atLeast)} different node shapes and the scene draws ` +
             `${String(geometries.size)} distinct geometries -- spread over ${String(meshes.size)} source meshes ` +
-            `and ${String(shapes.size)} shape names -- ${listed([...shapes])}`,
+            `and ${String(shapes.size)} shape names; these nodes draw the same geometry: ${listed(shared)}`,
     );
 }
 

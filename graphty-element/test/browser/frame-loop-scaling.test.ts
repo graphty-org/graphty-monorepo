@@ -390,6 +390,30 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        methods: ["UpdateManager.drawArrivedPaint"],
+        prepare: async (element, size) => {
+            const { graph } = element;
+            await graph
+                .getSession()
+                .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
+            const manager = updateManagerOf(graph);
+            return counting(
+                Node.prototype,
+                "applySessionPaint",
+                () => {
+                    manager.drawArrivedPaint();
+                },
+                (count) => {
+                    assert.strictEqual(count.calls, size, "every node was repainted");
+                    assert.isFalse(painter.hasPending, "and nothing is left to paint");
+                },
+            );
+        },
+    },
+    {
         methods: ["StylesApi.highlight"],
         prepare: async (element, size) => {
             const { graph } = element;
@@ -577,23 +601,38 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        // Lit's render hands back the element's container, and the frame after the update draws it.
-        methods: ["Graphty.render"],
+        // Lit renders nothing: the element's container is placed in the shadow root when it
+        // connects (e63ee191b9) and the element's update skips Lit's template render, so an update
+        // never moves it -- and the frame after the update draws the graph in that container.
+        // render() still returns the container, as released.
+        methods: ["Graphty.render", "Graphty.update"],
         prepare: (element) => {
-            let container: unknown;
+            let rendered: unknown;
+            let before: ChildNode[] = [];
             return Promise.resolve(
                 drawing(
                     element.graph,
                     1,
                     1,
                     async () => {
-                        container = element.render();
+                        rendered = element.render();
+                        before = [...element.renderRoot.childNodes];
                         element.requestUpdate();
                         await element.updateComplete;
                         updateManagerOf(element.graph).renderFrames(1);
                     },
                     () => {
-                        assert.instanceOf(container, HTMLElement, "render handed back the container");
+                        assert.instanceOf(rendered, Element, "render returns the graph container");
+                        assert.isTrue(rendered.contains(element.graph.canvas));
+                        const after = [...element.renderRoot.childNodes];
+                        assert.isTrue(
+                            after.length === before.length && after.every((node, i) => node === before[i]),
+                            "an update adds, removes and moves nothing in the shadow root",
+                        );
+                        assert.isTrue(
+                            element.renderRoot.contains(element.graph.canvas),
+                            "the drawing stays in the shadow root",
+                        );
                     },
                 ),
             );
@@ -633,4 +672,40 @@ describe("the frame loop and the repaints do work in proportion to the graph", (
             );
         });
     }
+});
+
+// A finished run's layer repaints every node, and applying 3,214 nodes' paint in one frame took
+// 450 ms at a 6x CPU throttle. A frame now paints in batches and stops starting batches once its
+// time is up. Given no time at all, each frame paints exactly one batch.
+describe("a repaint of every node", () => {
+    it("is drawn across several frames, one batch a frame when the frame has no time to spare", async () => {
+        const size = 400;
+        const element = await mount(size);
+        try {
+            const { graph } = element;
+            await graph
+                .getSession()
+                .styles.add({ name: "Red", selector: { match: "everything" }, set: { "node.color": "#ff0000" } });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            assert.isTrue(painter.hasPending, "the repaint is waiting for the next frame");
+            const manager = updateManagerOf(graph);
+
+            const perFrame: number[] = [];
+            while (painter.hasPending && perFrame.length < size) {
+                const counter = countCalls(Node.prototype, "applySessionPaint");
+                try {
+                    manager.syncStyles(0);
+                } finally {
+                    counter.restore();
+                }
+                perFrame.push(counter.count.calls);
+            }
+
+            assert.deepStrictEqual(perFrame, [128, 128, 128, 16], "every node once, one batch of 128 a frame");
+            assert.isFalse(painter.hasPending, "and nothing is left to paint");
+        } finally {
+            element.remove();
+        }
+    });
 });

@@ -222,6 +222,7 @@ function dispatchRows(
         ...(options.existing === undefined ? {} : { existing: options.existing }),
         ...(options.unmatched === undefined ? {} : { unmatched: options.unmatched }),
         ...(options.duplicateIds === undefined ? {} : { duplicateIds: options.duplicateIds }),
+        ...(options.history === "start" ? { startsHistory: true } : {}),
     };
     return host.dispatch(command);
 }
@@ -240,6 +241,8 @@ export async function importSource(
 ): Promise<SourceLoadRecord> {
     const access = await accessFor(host, input.source, options);
     const read = await readRows(input.source, input.config, access, options);
+    // A load asked for earlier dispatches first, however long it spends reading (issue #3382).
+    await host.waitTurn?.();
     // Recorded as the step is dispatched, so a consumer that hears the step finds the record; put
     // back as it was when the step fails.
     const before = host.ledger.toMember();

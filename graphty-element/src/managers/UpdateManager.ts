@@ -1,8 +1,19 @@
-import type { AbstractMesh, EffectLayer, Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
+import {
+    type AbstractEngine,
+    type AbstractMesh,
+    Camera,
+    type EffectLayer,
+    type Mesh,
+    type Nullable,
+    type Observer,
+    type Scene,
+    type TransformNode,
+    type Vector3,
+} from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
-import type { FramingSpot } from "../cameras/OrbitCameraController";
+import { type FramingSpot, OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
@@ -16,7 +27,7 @@ import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
-import type { NodePaint } from "./StylePainter";
+import type { NodePaint, StylePainter } from "./StylePainter";
 
 /** The corners of a box in world space, and what it holds. */
 interface FramingBox {
@@ -193,6 +204,33 @@ const NOMINAL_FRAME_MS = 1000 / 60;
  */
 const MAX_CATCH_UP_ROUNDS = 12;
 
+/**
+ * The most time one frame spends on layout catch-up rounds, however slow the frame before it was.
+ *
+ * Half the previous frame was the only bound before, and it feeds itself on a slow CPU: a frame of
+ * 1 s owes 12 rounds and may spend 500 ms on them, which keeps the next frame at 1 s. An iPad
+ * running a 3,000 node force layout drew a frame a second that way. With an absolute budget the
+ * page keeps drawing and answering input, and the layout takes longer in wall time to settle --
+ * at the same step and in the same place, because whole rounds are only ever deferred.
+ */
+const LAYOUT_FRAME_BUDGET_MS = 40;
+
+/**
+ * How long one frame spends applying a repaint before it leaves the rest for the next frame.
+ *
+ * A finished run's layer repaints every node, and building and applying 3,214 nodes' paint took
+ * one 450 ms frame at a 6x CPU throttle, the stand-in for an iPad. The session's style pass already
+ * yields between slices; this is the renderer's half of the same rule. The picture is not final
+ * (`graph-frame-stable` waits) until every batch is drawn.
+ */
+const STYLE_FRAME_BUDGET_MS = 16;
+
+/** How many nodes are painted between two looks at the clock. */
+const NODE_PAINT_BATCH = 128;
+
+/** How many edges are painted between two looks at the clock. */
+const EDGE_PAINT_BATCH = 1024;
+
 /** What an unbound renderer reads: no selection, no filter, nothing hidden. */
 const EMPTY_MASKS: ViewMasks = Object.freeze({});
 
@@ -233,6 +271,16 @@ export class UpdateManager implements Manager {
     /** The longest frame the auto-rotation turns for, so a tab coming back does not jump. */
     private static readonly MAX_TURN_MS = 100;
     private hasZoomedToFit = false;
+
+    /**
+     * Whether the session's derivation lane has a pass running or waiting: a change written to
+     * project state that has not reached the picture yet. Its hooks are awaited one by one, the
+     * graph and layout hooks before the styles hook asks for the repaint, so for frames on end a
+     * style stack can be written while no style pass says it is painting. Set by the graph that
+     * owns the lane; a context with no session has nothing on its way.
+     * @returns True while a pass is running or waiting to run.
+     */
+    deriving: () => boolean = () => false;
 
     /**
      * An outstanding request to frame the graph on the next frame that can.
@@ -305,7 +353,10 @@ export class UpdateManager implements Manager {
     private framingHasNothingToFrame = false;
 
     /** Watches the scene for a frame being drawn, so a finished state can be promoted. */
-    private drawWatcher: Nullable<Observer<Scene>>;
+    private drawWatcher: Nullable<Observer<Scene>> = null;
+
+    /** Watches the engine for a new canvas size; see {@link UpdateManager.viewMoved}. */
+    private resizeWatcher: Nullable<Observer<AbstractEngine>> = null;
 
     /**
      * Creates a new update manager
@@ -336,9 +387,7 @@ export class UpdateManager implements Manager {
         // only thing that knows a draw finished. Watching the scene -- rather than counting update
         // passes -- is what keeps the flag honest when frames are pumped by hand: `stepFrames`
         // draws nothing and promotes nothing, `renderFrames` draws and promotes.
-        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
-            this.noteFrameDrawn();
-        });
+        this.watchFrames();
     }
 
     /**
@@ -348,8 +397,20 @@ export class UpdateManager implements Manager {
      */
     rebindScene(camera: CameraManager): void {
         this.camera = camera;
-        this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
+        this.watchFrames();
+    }
+
+    /**
+     * Watch the current scene for drawn frames and its engine for a new canvas size. A canvas of a
+     * new size draws the graph at a new aspect, so the frame drawn before it is no longer final.
+     */
+    private watchFrames(): void {
+        const scene = this.graphContext.getScene();
+        this.drawWatcher = scene.onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
+        });
+        this.resizeWatcher = scene.getEngine().onResizeObservable.add(() => {
+            this.viewMoved();
         });
     }
 
@@ -366,9 +427,9 @@ export class UpdateManager implements Manager {
      * Dispose the update manager
      */
     dispose(): void {
-        if (this.drawWatcher) {
-            this.graphContext.getScene().onAfterRenderObservable.remove(this.drawWatcher);
-        }
+        const scene = this.graphContext.getScene();
+        scene.onAfterRenderObservable.remove(this.drawWatcher);
+        scene.getEngine().onResizeObservable.remove(this.resizeWatcher);
     }
 
     /**
@@ -580,17 +641,26 @@ export class UpdateManager implements Manager {
             }
         });
 
+        let changed = false;
         for (const edge of this.drawnSelectedEdges) {
-            if (!next.has(edge)) {
-                edge.setSelected(false);
+            if (!next.has(edge) && edge.setSelected(false)) {
+                changed = true;
             }
         }
 
         for (const edge of next) {
-            edge.setSelected(true);
+            if (edge.setSelected(true)) {
+                changed = true;
+            }
         }
 
         this.drawnSelectedEdges = next;
+
+        // Selecting redraws the edge marked, from a band batch of its own, and only the walk places
+        // that band: with nothing moving, the walk is skipped and the band was never drawn.
+        if (changed) {
+            this.forceEdgeWalk();
+        }
     }
 
     /**
@@ -621,8 +691,11 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
+            // Selecting redraws the edge marked, from a different batch: placed by the walk too.
             const selected = edgeSelection !== null && placed && edgeSelection.has(index);
-            edge.setSelected(selected);
+            if (edge.setSelected(selected)) {
+                revealed = true;
+            }
             if (selected) {
                 this.drawnSelectedEdges.add(edge);
             }
@@ -702,8 +775,10 @@ export class UpdateManager implements Manager {
      * `Edge.applySessionPaint` compare the source mesh they are handed with the one already on
      * screen and rebuild only when it differs, so a colour change on a node is one buffer write
      * and no geometry at all.
+     * @param budgetMs - How long this frame may spend applying paint before it leaves the rest
+     *     for the next frame; each kind of element paints at least one batch. Unbounded when absent.
      */
-    syncStyles(): void {
+    syncStyles(budgetMs = Number.POSITIVE_INFINITY): void {
         const painter = this.graphContext.getStylePainter?.();
 
         // NOT WHILE A PASS IS PAINTING. A pass yields to the event loop part way through, and
@@ -717,50 +792,141 @@ export class UpdateManager implements Manager {
             return;
         }
 
-        // A repaint can change a node's SIZE, which moves where its edges have to stop without
-        // moving the node at all, and it can change an edge's own appearance. Either way the
-        // next frame has to visit every edge, whatever the node positions say.
-        this.forceEdgeWalk();
+        // IN BATCHES, WITHIN A BUDGET: each kind paints at least one batch a frame, and more while
+        // the frame has time; what is left stays pending for the next frame. See
+        // STYLE_FRAME_BUDGET_MS.
+        const deadline = performance.now() + budgetMs;
 
-        const nodes = painter.takeNodes();
-        const edges = painter.takeEdges();
-
-        if (nodes.length > 0) {
-            // Walked rather than indexed because the data manager keeps its nodes by id. The
-            // membership test is one hash lookup per node and touches no mesh; every rebuild
-            // below it is still bounded by the dirty set. A dense index array beside
-            // `edgesByIndex` would remove even the walk.
-            const wanted = new Set(nodes);
-            const painted: [Node, NodePaint][] = [];
-
-            for (const node of this.dataManager.nodes.values()) {
-                const paint = wanted.has(node.index) ? painter.nodePaint(node.index) : null;
-
-                if (paint !== null) {
-                    painted.push([node, paint]);
-                }
-            }
-
-            this.paintNodes(painted);
+        if (painter.hasPendingNodes) {
+            this.syncNodeStyles(painter, deadline);
         }
 
-        for (const index of edges) {
-            const edge = this.dataManager.edgesByIndex[index];
-
-            if (edge === undefined) {
-                continue;
-            }
-
-            const paint = painter.edgePaint(index);
-
-            if (paint !== null) {
-                edge.applySessionPaint(paint);
-            }
+        if (painter.hasPendingEdges) {
+            this.syncEdgeStyles(painter, deadline);
         }
 
         // Every element the pass moved has now left its old source mesh, so a mesh this left
         // with no instances is a look nothing on screen has any more.
         this.graphContext.getMeshCache().prune();
+    }
+
+    /**
+     * Paint the pending edges, batch by batch, until none is left or the frame's time is up.
+     * @param painter - Where the paint is read from.
+     * @param deadline - When this frame stops starting batches; the first always runs.
+     */
+    private syncEdgeStyles(painter: StylePainter, deadline: number): void {
+        // A repainted edge's own appearance changed: the frame visits every edge.
+        this.forceEdgeWalk();
+
+        do {
+            for (const index of painter.takeEdges(EDGE_PAINT_BATCH)) {
+                const edge = this.dataManager.edgesByIndex[index];
+                const paint = edge === undefined ? null : painter.edgePaint(index);
+
+                if (edge !== undefined && paint !== null) {
+                    edge.applySessionPaint(paint);
+                }
+            }
+        } while (painter.hasPendingEdges && performance.now() < deadline);
+    }
+
+    /**
+     * Take one batch of pending nodes and the paint each is to be drawn with.
+     * @param painter - Where the paint is read from.
+     * @param pending - The nodes that were pending when the frame began, by index.
+     * @returns Each node of the batch and its paint.
+     */
+    private takeNodeBatch(painter: StylePainter, pending: ReadonlyMap<number, Node>): [Node, NodePaint][] {
+        const painted: [Node, NodePaint][] = [];
+
+        for (const index of painter.takeNodes(NODE_PAINT_BATCH)) {
+            const node = pending.get(index);
+            const paint = node === undefined ? null : painter.nodePaint(index);
+
+            if (node !== undefined && paint !== null) {
+                painted.push([node, paint]);
+            }
+        }
+
+        return painted;
+    }
+
+    /**
+     * Paint the pending nodes, batch by batch, until none is left or the frame's time is up.
+     * @param painter - Where the paint is read from.
+     * @param deadline - When this frame stops starting batches; the first always runs.
+     */
+    private syncNodeStyles(painter: StylePainter, deadline: number): void {
+        // Walked once a frame rather than indexed, because the data manager keeps its nodes by id.
+        // The membership test is one hash lookup per node and touches no mesh; every rebuild is
+        // still bounded by the batches taken.
+        const pending = new Map<number, Node>();
+
+        for (const node of this.dataManager.nodes.values()) {
+            if (painter.isNodePending(node.index)) {
+                pending.set(node.index, node);
+            }
+        }
+
+        const resized = new Set<Node>();
+
+        do {
+            for (const node of this.paintNodes(this.takeNodeBatch(painter, pending))) {
+                resized.add(node);
+            }
+        } while (painter.hasPendingNodes && performance.now() < deadline);
+
+        if (resized.size > 0) {
+            for (const group of this.redrawGroups()) {
+                resized.add(group);
+            }
+        }
+
+        // A repaint can change how a node is drawn in ways that move where its edges stop without
+        // moving the node, so the frame that finishes the repaint visits every edge. So does any
+        // frame that resized a node, and the edges of those nodes, found in one walk however many
+        // batches ran, measure again. The frames in between walk no edge: on a graph of 36,906
+        // edges that walk was most of every frame a repaint was spread over.
+        if (resized.size > 0 || !painter.hasPendingNodes) {
+            this.forceEdgeWalk();
+        }
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
+     * Place the groups that follow their members on the box the members now make, and draw each
+     * over it. A frame that places no node -- the layout stopped, nothing framing -- still applies
+     * paint, and paint that resizes a member moves its group's box, while paint that rebuilds a
+     * group's mesh leaves the new mesh unstretched until the group is drawn again (issue #3478).
+     * @returns The group nodes drawn again, whose edges have to be measured again.
+     */
+    private redrawGroups(): Node[] {
+        const { groups } = this.dataManager;
+        if (groups.length === 0) {
+            return [];
+        }
+
+        this.layoutManager.placeGroups();
+        const drawn: Node[] = [];
+        for (const { group } of groups) {
+            const node = this.dataManager.nodes.get(group);
+            if (node !== undefined) {
+                node.update();
+                drawn.push(node);
+            }
+        }
+
+        return drawn;
     }
 
     /**
@@ -771,10 +937,11 @@ export class UpdateManager implements Manager {
      * node whose size or shape changes also used to walk every edge to find its own. Restyling
      * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
      * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
-     * new ones are built after it, and the edges of the resized nodes are found in one walk.
+     * new ones are built after it, and the caller finds the edges of the resized nodes in one walk.
      * @param painted - Each node and the paint it is to be drawn with.
+     * @returns The nodes whose size or shape changed, or whose mesh was rebuilt.
      */
-    private paintNodes(painted: readonly [Node, NodePaint][]): void {
+    private paintNodes(painted: readonly [Node, NodePaint][]): ReadonlySet<Node> {
         const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
         disposeReleased(rebuilt, [], () => {
             for (const node of rebuilt) {
@@ -787,15 +954,11 @@ export class UpdateManager implements Manager {
             }
         });
 
-        if (resized.size === 0) {
-            return;
+        for (const node of rebuilt) {
+            resized.add(node);
         }
 
-        for (const edge of this.dataManager.edges.values()) {
-            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
-                edge.invalidatePositionCache();
-            }
-        }
+        return resized;
     }
 
     /**
@@ -937,6 +1100,23 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Say that the element moved what the canvas shows without moving anything a pass tracks -- a
+     * camera placed without animation, a canvas resized -- so the next frame drawn is the final one
+     * and the frame before it is not (issue #3377). Nothing else here would notice: the layout is
+     * at rest, no framing is owed, and no style work is queued. A reader's own drag is not counted,
+     * on purpose; see {@link UpdateManager.frameIsStable}.
+     */
+    viewMoved(): void {
+        this.drawnFrameIsFinished = false;
+    }
+
+    /**
+     * Whether a picture the scene draws is still loading, so the frame on screen does not show it yet: an image
+     * annotation, painted onto its texture when the image arrives (issue #3383). Null when nothing loads that way.
+     */
+    picturesLoading: (() => boolean) | null = null;
+
+    /**
      * What is still keeping the picture from being final, in a consumer's words.
      *
      * Written for the message a timed-out wait carries, because "the frame never settled" on its
@@ -958,6 +1138,10 @@ export class UpdateManager implements Manager {
             return "a style repaint is still painting";
         }
 
+        if (this.deriving()) {
+            return "a change has not reached the picture yet, so its style repaint is still to come";
+        }
+
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
             return "the camera has not finished framing the graph";
         }
@@ -972,6 +1156,10 @@ export class UpdateManager implements Manager {
 
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
+        }
+
+        if (this.picturesLoading?.() === true) {
+            return "an annotation's picture is still loading";
         }
 
         if (!this.drawnFrameIsFinished) {
@@ -1008,7 +1196,7 @@ export class UpdateManager implements Manager {
 
         // Paint that has arrived and not been drawn, and paint that has not arrived yet: either
         // one changes the picture. See `willZoomToFit` for the second.
-        if (painter?.hasPending === true || painter?.isPainting === true) {
+        if (painter?.hasPending === true || this.styleIsPainting()) {
             return false;
         }
 
@@ -1018,8 +1206,17 @@ export class UpdateManager implements Manager {
             return false;
         }
 
+        // The depth-independent size switched on or off and not yet applied to the meshes.
+        if ((this.depthSizingPivot() !== null) !== this.depthScaled) {
+            return false;
+        }
+
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending() || this.followingSelection) {
+            return false;
+        }
+
+        if (this.picturesLoading?.() === true) {
             return false;
         }
 
@@ -1115,6 +1312,14 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        // `stateIsFinished` is the last pass's answer, and work can arrive between that pass and
+        // this frame: a load that brings nodes and starts the layout, then a resize that calls
+        // `viewMoved()`, drew a frame of unplaced meshes and called it final (issue #3517).
+        if (!this.pictureIsFinished()) {
+            this.stateIsFinished = false;
+            return;
+        }
+
         this.drawnFrameIsFinished = true;
         this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
     }
@@ -1142,6 +1347,16 @@ export class UpdateManager implements Manager {
         }
 
         this.runUpdatePass(frameMs);
+        this.refreshScreenBorders();
+
+        // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
+        if (this.sizeNodesForDepth()) {
+            for (const edge of this.dataManager.edges.values()) {
+                edge.invalidatePositionCache();
+            }
+            this.forceEdgeWalk();
+            this.updateEdges();
+        }
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1162,15 +1377,27 @@ export class UpdateManager implements Manager {
      * Not while the element is still framing the graph, which places the camera itself until it
      * is done, and not while a selected node is being dragged: a camera following the node under
      * the pointer would carry the drag along with it.
+     *
+     * The glide keeps to the clock, as the layout does: a pass stands for the nominal 60 Hz frames
+     * `frameMs` took, so a page drawing slowly arrives in the same time rather than over seconds.
+     * @param frameMs - How long the previous frame took; 0 glides one frame's share.
      */
-    private followSelection(): void {
+    private followSelection(frameMs: number): void {
         this.followingSelection = false;
-        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection) {
             return;
         }
 
         const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
         if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        if (this.willZoomToFit()) {
+            // The glide starts on the pass after the framing ends, so the frame the framing ends
+            // on is not the final one: without this, a stable frame was reported in between, with
+            // the pivot on the graph's middle rather than on the selection.
+            this.followingSelection = !this.framingHasNothingToFrame;
             return;
         }
 
@@ -1180,16 +1407,19 @@ export class UpdateManager implements Manager {
         }
 
         // A camera still gliding to the selection is a picture that is not final yet.
-        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
+        const frames = Math.min(MAX_CATCH_UP_ROUNDS, frameMs / NOMINAL_FRAME_MS);
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length), frames);
     }
 
     /**
-     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
-     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     * Bring the meshes into line with the masks and the style paint that has arrived: what every
+     * frame does first, and what a layout that reads node sizes asks for before it reads them
+     * (`LayoutManager.drawArrivedPaint`), so it reads the sizes about to be drawn whether or not a
+     * frame has run since the paint arrived.
+     * @param frameMs - How long the previous frame took, when the render loop runs this pass. A
+     *     layout asking for the sizes states none, so the whole repaint is applied first.
      */
-    private runUpdatePass(frameMs: number): void {
-        this.frameCount++;
-
+    drawArrivedPaint(frameMs = 0): void {
         // Before anything is drawn or measured: the masks decide what IS drawn, so a node that a
         // filter has just hidden must not contribute to this frame's bounding box or be picked.
         this.syncViewMasks();
@@ -1199,14 +1429,27 @@ export class UpdateManager implements Manager {
         // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
         // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
         disposeLabelsTogether(() => {
-            this.syncStyles();
+            // A pass the render loop runs keeps to the frame budget. One pumped by hand states no
+            // frame time (`Graph.update()` with no argument), so it has no frame to keep short and
+            // applies the whole repaint, as a caller drawing one frame to read the result expects.
+            this.syncStyles(frameMs > 0 ? STYLE_FRAME_BUDGET_MS : Number.POSITIVE_INFINITY);
         });
+    }
+
+    /**
+     * One pass of the update loop: masks, styles, camera, layout, meshes and framing.
+     * @param frameMs - How long the previous frame took; see {@link UpdateManager.update}.
+     */
+    private runUpdatePass(frameMs: number): void {
+        this.frameCount++;
+
+        this.drawArrivedPaint(frameMs);
         // Nothing painted is left to apply: a frame drawn now shows every element's style.
         if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
             this.dataManager.notePaintDrawn();
         }
 
-        this.followSelection();
+        this.followSelection(frameMs);
 
         const { camera } = this.graphContext.getStyles().config.behavior;
         this.camera.setFitInsets(camera.fitInsets);
@@ -1288,9 +1531,11 @@ export class UpdateManager implements Manager {
      * frames it stood in for would have taken, `frameMs` / 16.7 of them, and moves the meshes once.
      * The steps and where the layout ends are the same; only the number of drawn frames changes.
      *
-     * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
-     * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
-     * `frameMs`. An accelerated simulation layout keeps its one batch a frame (see below).
+     * Bounded three times, so a frame that is slow BECAUSE of stepping cannot feed itself: never
+     * more than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round that would take stepping past
+     * half of `frameMs` or past {@link LAYOUT_FRAME_BUDGET_MS}, judged by what the rounds so far
+     * cost. The first round always runs. An accelerated simulation layout keeps its one batch a
+     * frame (see below).
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
@@ -1311,33 +1556,65 @@ export class UpdateManager implements Manager {
             ? 1
             : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
         const started = rounds > 1 ? performance.now() : 0;
+        const budget = Math.min(frameMs / 2, LAYOUT_FRAME_BUDGET_MS);
 
         for (let round = 0; round < rounds; round++) {
-            // A settled engine has nothing left to catch up on.
-            const engine = this.layoutManager.layoutEngine;
-            if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+            if (round > 0 && this.catchUpEnds(started, round, budget)) {
                 break;
             }
 
-            const before = minDelta > 0 ? this.enginePositions() : null;
-
-            if (simulation) {
-                this.layoutManager.stepBatch();
-                this.layoutStepCount++;
-            } else {
-                for (let i = 0; i < stepMultiplier; i++) {
-                    this.layoutManager.step();
-                    this.layoutStepCount++;
-                }
-            }
-
-            if (before !== null && this.largestMove(before) < minDelta) {
+            if (this.stepRound(simulation, stepMultiplier, minDelta)) {
                 this.layoutManager.running = false;
                 break;
             }
         }
 
         this.statsManager.graphStep.endMonitoring();
+    }
+
+    /**
+     * Take one round of layout steps: one batch of a simulation, `stepMultiplier` steps of any
+     * other engine.
+     * @param simulation - Whether the engine is a simulation.
+     * @param stepMultiplier - How many steps a round of a non-simulation engine takes.
+     * @param minDelta - The settle threshold; 0 switches it off.
+     * @returns True when the round moved no node as far as `minDelta`: the layout has arrived.
+     */
+    private stepRound(simulation: boolean, stepMultiplier: number, minDelta: number): boolean {
+        const before = minDelta > 0 ? this.enginePositions() : null;
+
+        if (simulation) {
+            this.layoutManager.stepBatch();
+            this.layoutStepCount++;
+        } else {
+            for (let i = 0; i < stepMultiplier; i++) {
+                this.layoutManager.step();
+                this.layoutStepCount++;
+            }
+        }
+
+        return before !== null && this.largestMove(before) < minDelta;
+    }
+
+    /**
+     * Whether this frame takes no more catch-up rounds: the engine has settled or gone, or one
+     * more round would take the frame's stepping past its budget, guessing the next round costs
+     * what the rounds so far cost on average.
+     * @param started - When the frame's first round began.
+     * @param done - How many rounds have run; at least one.
+     * @param budget - The most stepping time this frame may take.
+     * @returns True when the next round should wait for the next frame.
+     */
+    private catchUpEnds(started: number, done: number, budget: number): boolean {
+        // A settled engine has nothing left to catch up on.
+        const engine = this.layoutManager.layoutEngine;
+        if (!engine || engine.isSettled) {
+            return true;
+        }
+
+        const spent = performance.now() - started;
+
+        return spent + spent / done > budget;
     }
 
     /**
@@ -1597,6 +1874,103 @@ export class UpdateManager implements Manager {
         return true;
     }
 
+    /** Whether a node mesh currently carries a depth-independent scale. */
+    private depthScaled = false;
+
+    /**
+     * The point whose depth every node is drawn at, when depth-independent size applies: the
+     * option is on and the active camera is the perspective orbit camera.
+     * @returns The orbit's pivot, or null when sizes follow the perspective.
+     */
+    private depthSizingPivot(): TransformNode | null {
+        const camera = this.graphContext.getScene().activeCamera;
+        const orbit = this.camera.getActiveController();
+        return this.graphContext.getStyles().config.behavior.node.depthIndependentSize === true &&
+            camera?.mode === Camera.PERSPECTIVE_CAMERA &&
+            orbit instanceof OrbitCameraController
+            ? orbit.pivot
+            : null;
+    }
+
+    /**
+     * Draw every node at the size it would have at the orbit's pivot depth when
+     * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
+     * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
+     * divides by the depth, so the drawn size is world size over the pivot depth for every node.
+     * Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     *
+     * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
+     * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
+     * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
+     */
+    private sizeNodesForDepth(): boolean {
+        const camera = this.graphContext.getScene().activeCamera;
+        const pivot = this.depthSizingPivot();
+        const on = pivot !== null;
+
+        if (!on && !this.depthScaled) {
+            return false;
+        }
+
+        let changed = false;
+        if (!on) {
+            for (const node of this.layoutManager.nodes) {
+                if (node.mesh.scaling.x !== 1) {
+                    node.mesh.scaling.setAll(1);
+                    changed = true;
+                }
+            }
+            this.depthScaled = false;
+
+            return changed;
+        }
+
+        const view = camera?.getViewMatrix().m;
+        const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
+        this.depthScaled = true;
+        const reference = depthOf(pivot.getAbsolutePosition());
+        if (Number.isNaN(reference) || reference <= 0) {
+            return false;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const { mesh } = node;
+            const depth = depthOf(mesh.getAbsolutePosition());
+            const scale = depth > 0 ? depth / reference : 1;
+            if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
+                mesh.scaling.setAll(scale);
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    /**
+     * Say that a mesh was shown or hidden outside a pass, so the next frame re-reads what is drawn
+     * instead of drawing the frozen list (see `settleActiveMeshFreeze`).
+     */
+    meshesShownOrHidden(): void {
+        this.sceneChanged = true;
+    }
+
+    /**
+     * Unfreeze Babylon's list of what is drawn now, for a draw made outside the frame loop.
+     *
+     * A frozen scene draws the list it cached, so a mesh built for a draw of its own -- a node
+     * thumbnail, drawn by its own camera into a render target -- is not in it and comes out as
+     * nothing. The next quiet frame freezes the list again (see `settleActiveMeshFreeze`).
+     */
+    thawActiveMeshes(): void {
+        // Withdraws a freeze Babylon has not run yet; see `settleActiveMeshFreeze`.
+        this.freezeRequest++;
+
+        if (this.activeMeshesFrozen) {
+            this.graphContext.getScene().unfreezeActiveMeshes();
+            this.activeMeshesFrozen = false;
+        }
+    }
+
     /**
      * Make the next frame visit every edge, whatever the nodes say.
      *
@@ -1647,14 +2021,7 @@ export class UpdateManager implements Manager {
         this.sceneChanged = false;
 
         if (changed) {
-            // Withdraws a freeze Babylon has not run yet; see below.
-            this.freezeRequest++;
-
-            if (this.activeMeshesFrozen) {
-                scene.unfreezeActiveMeshes();
-                this.activeMeshesFrozen = false;
-            }
-
+            this.thawActiveMeshes();
             return;
         }
 
@@ -1690,6 +2057,32 @@ export class UpdateManager implements Manager {
                     scene.incrementRenderId();
                 }
             });
+        }
+    }
+
+    /** The camera's matrices when screen-width borders were last checked; see `refreshScreenBorders`. */
+    private screenBorderCamera: [number, number] | null = null;
+
+    /**
+     * Keep every border drawn in screen pixels (`border.screenWidth`) at its width on screen: on a
+     * frame the camera's view or projection changed, each such node rebuilds its ring if the zoom
+     * moved its width. A node with no such border answers at once.
+     */
+    private refreshScreenBorders(): void {
+        const camera = this.graphContext.getScene().activeCamera;
+        if (!camera) {
+            return;
+        }
+
+        const now: [number, number] = [camera.getViewMatrix().updateFlag, camera.getProjectionMatrix().updateFlag];
+        const before = this.screenBorderCamera;
+        this.screenBorderCamera = now;
+        if (before?.[0] === now[0] && before[1] === now[1]) {
+            return;
+        }
+
+        for (const node of this.dataManager.nodes.values()) {
+            node.refreshScreenBorder();
         }
     }
 
@@ -1747,9 +2140,12 @@ export class UpdateManager implements Manager {
         // unstyled size, the sizes land a few frames later, and nothing frames them. Whether the
         // pass had finished first depended on how fast the machine was, so the same story drew
         // two pictures. The pass is waited for here, and `syncStyles` applies what it painted at
-        // the top of the pass that then frames it.
+        // the top of the pass that then frames it -- all of it, which on a slow frame takes more
+        // than one pass: the paint is applied in batches within a frame budget, and a framing
+        // answered between two batches measured the nodes of the later ones at their old size
+        // (issue #3479).
         if (this.forceZoomToFit) {
-            return !this.styleIsPainting();
+            return !this.paintIsOutstanding();
         }
 
         // Check if we should zoom:
@@ -1757,6 +2153,17 @@ export class UpdateManager implements Manager {
         // 2. Zoom every N steps during layout (based on zoomStepInterval)
         // 3. Zoom when layout settles
         const isSettled = this.layoutManager.layoutEngine?.isSettled ?? false;
+
+        // The framing taken once the layout has arrived is the LAST one -- it stops the following
+        // -- so it waits for a style pass on its way, as a request does. After the first load
+        // nothing forces a framing at settlement, so a later load or layout change ended on this
+        // one, taken with the nodes at their unstyled sizes whenever its size layer was still
+        // painting (issue #3378). A framing while the layout moves is followed by another and
+        // does not wait.
+        if (isSettled && this.paintIsOutstanding()) {
+            return false;
+        }
+
         const { zoomStepInterval } = this.graphContext.getStyles().config.behavior.layout;
         const shouldZoomPeriodically =
             this.layoutStepCount > 0 && this.layoutStepCount >= this.lastZoomStep + zoomStepInterval;
@@ -1781,11 +2188,21 @@ export class UpdateManager implements Manager {
     }
 
     /**
-     * Whether a style pass has been asked for and has not announced what it painted yet.
-     * @returns True while the session's style stack is painting.
+     * Whether a style pass has been asked for and has not announced what it painted yet, or a
+     * change is still on its way through the derivation lane to the pass that will paint it.
+     * @returns True while the session's style stack is painting or about to.
      */
     private styleIsPainting(): boolean {
-        return this.graphContext.getStylePainter?.()?.isPainting === true;
+        return this.graphContext.getStylePainter?.()?.isPainting === true || this.deriving();
+    }
+
+    /**
+     * Whether paint can still change the box a framing measures: a style pass on its way, or paint
+     * that has arrived and is not applied to every element yet (`syncStyles` applies it in batches).
+     * @returns True while some element is still to be drawn with paint it does not have yet.
+     */
+    private paintIsOutstanding(): boolean {
+        return this.graphContext.getStylePainter?.()?.hasPending === true || this.styleIsPainting();
     }
 
     /**

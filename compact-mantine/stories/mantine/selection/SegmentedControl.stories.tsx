@@ -1,7 +1,7 @@
 import { SegmentedControl, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { AdvancedButton, ControlSection, PANEL_GRID, TrailingSlot, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -119,6 +119,10 @@ export const States: Story = {
                     />,
                 ],
                 ["panel, text", <SegmentedControl data={["Basic", "Dynamic", "Brush"]} />],
+                [
+                    "panel, text, unequal",
+                    <SegmentedControl size="xs" data={["Add", "Leave out"]} defaultValue="Leave out" />,
+                ],
                 [
                     "panel, focus",
                     <div data-story-focus>

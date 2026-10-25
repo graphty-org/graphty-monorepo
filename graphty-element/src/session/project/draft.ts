@@ -25,6 +25,7 @@ import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
+import { ownRows } from "../styles/tree";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
 import type { Counted } from "./History";
@@ -35,7 +36,8 @@ import { strictStateEnabled, strictViolation } from "./strict";
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+type ValueSlice =
+    "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -142,7 +144,12 @@ function wroteNothing(entry: PatchEntry): boolean {
 
     const prior = entry.prior as readonly CompiledLayer[];
     const next = entry.next as readonly CompiledLayer[];
-    return prior.length === next.length && prior.every((layer, at) => sameValue(layer.layer, next[at].layer));
+    // The style tree rides on the stack: a tree verb changes it and no layer.
+    return (
+        prior.length === next.length &&
+        prior.every((layer, at) => sameValue(layer.layer, next[at].layer)) &&
+        sameValue(ownRows(prior), ownRows(next))
+    );
 }
 
 /**
@@ -327,6 +334,7 @@ export interface Draft {
     readonly views: KeyedWriter<string, CameraState>;
     readonly notes: KeyedWriter<string, NoteEntry>;
     readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
+    readonly valueLabels: KeyedWriter<string, string>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -340,6 +348,11 @@ export interface Draft {
      * @param rows - The rows, with their prior and new values.
      */
     arrange(rows: RowPatch): void;
+    /**
+     * Whether it has changed anything yet: a value, an op-log write or arranged rows.
+     * @returns True once it has.
+     */
+    written(): boolean;
     /** Close the draft and hand back what it recorded. */
     seal(): Patch;
     /**
@@ -429,6 +442,7 @@ export function createProjectStore(
         views: state.views as Map<string, unknown>,
         notes: state.notes as Map<string, unknown>,
         attributes: state.attributes as Map<string, unknown>,
+        valueLabels: state.valueLabels as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -589,6 +603,7 @@ export function createProjectStore(
                 views: keyed(draft, "views"),
                 notes: keyed(draft, "notes"),
                 attributes: keyed(draft, "attributes"),
+                valueLabels: keyed(draft, "valueLabels"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);
@@ -608,6 +623,7 @@ export function createProjectStore(
 
                     draft.rows = draft.rows === null ? rows : mergeRowPatches(draft.rows, rows);
                 },
+                written: () => draft.entries.size > 0 || draft.log.length > 0 || draft.rows !== null,
                 seal,
                 rollback() {
                     const patch = seal();

@@ -1,3 +1,6 @@
+# Never copy, always merge: a cherry-pick that applies cleanly runs no pre-commit hook, only this one
+# (tools/no-copy.sh).
+./tools/no-copy.sh || exit 1
 # Commitizen wizard only when a terminal can be opened. Without one (an IDE, a script, an
 # agent), `exec < /dev/tty` would abort the commit before `|| true` is reached; skip instead
 # and let commitlint in commit-msg check the message.

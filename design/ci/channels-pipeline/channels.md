@@ -196,12 +196,15 @@ Every job's queue time is recorded and pull-request queue time in a full-run win
 trend key (`queue:pr:full-window`), so queueing shows as queueing. A restart is a full run too: with
 8 of 17 recent verifications red, plan for about 6 full runs a day.
 
-**LLM regression** runs once per candidate, as the owner decided: the `llm` job `needs` the ci.yml
-lane and runs when it is green (off the critical path, since the T4 lane is longer), in the Off
-configuration only. A restart's failing-tests phase and a slot skipped as judged run none. A hosted
-model can change behind the same name with no change here, so no candidate inherits another's
-result. Up to four candidates a day is up to $113 a month against the owner's standing ceiling of
-about $60; the store keeps a monthly spend counter, and the design keeps the binding decision and alarms on the spend (main section 9). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
+**LLM regression** runs once per UTC day (implementation plan, item `llm-once-a-day`): the `llm` job
+`needs` the ci.yml lane and runs when it is green (off the critical path, since the T4 lane is
+longer), in the Off configuration only, and its paid step runs only when no run passed it yet that
+UTC day, or on an owner `mode=full` run (`tools/llm-due.mjs`; otherwise the job passes with the step
+skipped). A restart's failing-tests phase and a slot skipped as judged run none. A hosted model can
+change behind the same name with no change here, so the day's later candidates are judged on the
+day's pass; a model change shows up the next day at most. About $29 a month against the owner's
+standing ceiling of about $60; the store keeps a monthly spend counter, and `spend:llm` warns at $60
+(main section 9). A red LLM lane: at most 2 confirm runs; a model answer that differs between them is an
 `owner-item` (or flaky, by the usual rule), never bisected blind; a consistent failure bisects only
 over merges that touched graphty-element's AI code, prompts, schemas or the lockfile, with one paid
 run per point, each dispatch checked against the month's spend first and refused at the ceiling.

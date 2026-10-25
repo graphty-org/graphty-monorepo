@@ -18,6 +18,7 @@ import {
     lintWorkflow,
     prComment,
     rowsFromJobs,
+    storeRows,
     syncIssues,
     taskRows,
     trend,
@@ -189,6 +190,61 @@ describe("report", () => {
             rows.map((r) => [r.key, r.seconds]),
             [["task:graphty:build", 83]],
         );
+    });
+
+    it("writes the rows in the results store's shape, run and queue rows as pseudo job and step", () => {
+        const stored = storeRows({ ...run, id: 77, run_attempt: 2, head_sha: "abc" }, [
+            ...rowsFromJobs(run, jobs, "pr"),
+            ...taskRows({ traceEvents: [{ ph: "X", name: "graphty:build", dur: 83_000_000 }] }),
+        ]);
+        const common = { runId: 77, attempt: 2, workflow: "ci.yml", sha: "abc" };
+        assert.deepEqual(stored, [
+            {
+                ...common,
+                job: "(run)",
+                step: "",
+                task: "",
+                startedAt: Date.parse(run.created_at),
+                ms: 873_000,
+                conclusion: "success",
+            },
+            {
+                ...common,
+                job: "Build",
+                step: "",
+                task: "",
+                startedAt: Date.parse("2026-10-24T10:01:00Z"),
+                ms: 813_000,
+                conclusion: "success",
+            },
+            {
+                ...common,
+                job: "Build",
+                step: "(queue)",
+                task: "",
+                startedAt: Date.parse("2026-10-24T10:00:10Z"),
+                ms: 50_000,
+                conclusion: "success",
+            },
+            {
+                ...common,
+                job: "Build",
+                step: "Build all",
+                task: "",
+                startedAt: Date.parse("2026-10-24T10:02:00Z"),
+                ms: 720_000,
+                conclusion: "success",
+            },
+            {
+                ...common,
+                job: "(nx)",
+                step: "",
+                task: "graphty:build",
+                startedAt: null,
+                ms: 83_000,
+                conclusion: "success",
+            },
+        ]);
     });
 
     it("marks keys over budget and slow against master", () => {

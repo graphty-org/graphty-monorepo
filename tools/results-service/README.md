@@ -23,7 +23,8 @@ token, never from the body:
 
 - **GitHub Actions OIDC**, audience `graphty-results` (the job needs `permissions: id-token: write`):
     - a `pull_request` run of graphty-monorepo writes kind `pr`, only for its own merge commit;
-    - master's own `release.yml` or `ci.yml` writes `full`, `bisect.yml` writes `bisect`,
+    - master's own `release.yml` or `ci.yml`, and the lanes release.yml calls (`gpu.yml`, `hosts.yml`,
+      `work-protection-macos.yml`), write `full`; `bisect.yml` writes `bisect`,
       `base-check.yml` writes `base` and `restricted-cpu-stress.yml` writes `stress`, only when both the
       run's ref and the workflow file's ref are `refs/heads/master`. Anything else is refused with 403;
     - a site repository (`DEPLOY_REPOSITORY_IDS` in `wrangler.toml`) writes only durations, of kind

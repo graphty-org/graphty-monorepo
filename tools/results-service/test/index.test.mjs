@@ -148,6 +148,9 @@ describe("POST /v1/invocations", () => {
             ["bisect.yml", "bisect", 3],
             ["base-check.yml", "base", 4],
             ["restricted-cpu-stress.yml", "stress", 5],
+            ["gpu.yml", "full", 6],
+            ["hosts.yml", "full", 7],
+            ["work-protection-macos.yml", "full", 8],
         ]) {
             const res = await call("POST", "/v1/invocations", {
                 token: master(file),
@@ -155,7 +158,7 @@ describe("POST /v1/invocations", () => {
             });
             assert.deepEqual(res.body, { stored: true, kind }, file);
         }
-        assert.equal(rows("SELECT * FROM invocation").length, 5);
+        assert.equal(rows("SELECT * FROM invocation").length, 8);
     });
 
     it("refuses a full record from a branch ref, and from a branch's copy of a master workflow", async () => {

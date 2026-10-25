@@ -24,6 +24,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { parse as parseYaml } from "yaml";
+
 import { ciCommand, GROUPS, groupEntry, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import {
@@ -128,9 +130,13 @@ describe("the test matrix", () => {
         }
         // The wrapper gets back exactly the shard's command, quotes and all.
         const graphty = SHARDS.find((s) => s.shard === "graphty-1");
-        const r = spawnSync("bash", ["-c", ciCommand(graphty).replace(/^node \S+ run \S+ /, "printf %s ")], {
-            encoding: "utf8",
-        });
+        const r = spawnSync(
+            "bash",
+            ["-c", ciCommand(graphty).replace(/^node tools\/results\/run-group\.mjs graphty-1 /, "printf %s ")],
+            {
+                encoding: "utf8",
+            },
+        );
         assert.equal(r.stdout, graphty["test-command"]);
     });
 
@@ -3053,7 +3059,9 @@ describe("release.yml", () => {
             const text = workflow(file).replace(/^\s*#.*$/gm, "");
             assert.doesNotMatch(text, /\bdate -d|created_?[aA]t|updated_?[aA]t|mergedAt|\bhours?\b|3600|86400/, file);
         }
-        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /timeout-minutes/);
+        // A job's only clock is its hang guard (tools/ci-budgets.mjs lint): a hung job is a defect, not a wait.
+        const jobs = Object.values(parseYaml(release).jobs).filter((j) => !j.uses);
+        for (const j of jobs) assert.ok(Number.isInteger(j["timeout-minutes"]) && j["timeout-minutes"] >= 10, j.name);
     });
 
     it("tests the candidate with the full suite, the T4 and the audit before it versions anything", () => {

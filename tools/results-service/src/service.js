@@ -4,7 +4,8 @@
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
-//   for its own merge commit; master's own release.yml or ci.yml writes `full`, bisect.yml `bisect`,
+//   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
+//   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
@@ -15,6 +16,10 @@ export const AUDIENCE = "graphty-results";
 const MASTER_KINDS = {
     "release.yml": "full",
     "ci.yml": "full",
+    // the lanes release.yml calls; a called workflow's token names its own file in job_workflow_ref
+    "gpu.yml": "full",
+    "hosts.yml": "full",
+    "work-protection-macos.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",

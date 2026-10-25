@@ -252,8 +252,10 @@ export function junitOf(dir, id) {
 
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const firstOutcome = (code, result) => {
-    // The group's code is its verdict after the retry; the first try is judged by its own exit code.
-    if ((result.firstCode ?? code) === 0) return "passed";
+    // The group's code is its verdict after the retry; the first try is judged by its own exit code. A first try
+    // that exited 0 is never retried, so a group code other than 0 is runShard's own verdict on it (the output
+    // budget): an error, not a pass.
+    if ((result.firstCode ?? code) === 0) return code === 0 ? "passed" : "error";
     return OUTCOMES.has(result.firstOutcome) ? result.firstOutcome : "infra";
 };
 const retryOutcome = (result, junit) => {
@@ -403,6 +405,25 @@ export async function runGroup(
     const startedAt = Date.now();
     const code = await runShard(shardName, cmd, { root, env: childEnv, state: emptyState(), ...rules });
     const endedAt = Date.now();
+    try {
+        const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
+        await record(shard, { ...facts, flags, selected, variant, head, gh });
+    } catch (e) {
+        // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
+        console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
+    }
+    return code;
+}
+
+/**
+ * Builds a finished group's records, posts them (spooling what the store does not take) and files the
+ * quarantine issues the store asks for.
+ * @param shard its SHARDS entry, or undefined
+ * @param o runGroup()'s facts: `cmd`, `root`, `env`, `id`, `runId`, `code`, `resultFile`, `startedAt`,
+ *   `endedAt`, `flags`, `selected`, `variant`, `head`, `gh`
+ */
+async function record(shard, o) {
+    const { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt, flags, selected, variant, head, gh } = o;
     const shardKey = (shard && shardKeys(root)?.()(shard)) || `unknown-${randomUUID()}`;
     const result = readResult(resultFile);
     const facts = { id, head, code, result, startedAt, endedAt, runId };
@@ -416,7 +437,6 @@ export async function runGroup(
     const cfg = config(env, root);
     const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"));
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh);
-    return code;
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

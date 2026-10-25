@@ -10,6 +10,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { click } from "../helpers/real-input";
 
 /** Four nodes at the corners of a diamond, far enough apart that their discs never touch. */
@@ -32,22 +33,13 @@ const IDS = NODES.map((node) => node.id);
 
 /**
  * Wait until the element's own render loop has drawn a few frames, so the camera and the meshes
- * have been through a render since the last change.
+ * have been through a render since the last change. One observer per frame: a graph drawing on
+ * demand draws a frame for a callback newly waiting on it, not for one left registered.
  * @param element - The element whose render loop to count.
  * @param count - How many frames to wait for.
  */
 async function frames(element: Graphty, count = 3): Promise<void> {
-    const { scene } = element.graph;
-    await new Promise<void>((resolve) => {
-        let drawn = 0;
-        const observer = scene.onAfterRenderObservable.add(() => {
-            drawn++;
-            if (drawn >= count) {
-                scene.onAfterRenderObservable.remove(observer);
-                resolve();
-            }
-        });
-    });
+    await drawnFrames(element.graph.scene, count);
 }
 
 describe("nodeScreenPosition", () => {

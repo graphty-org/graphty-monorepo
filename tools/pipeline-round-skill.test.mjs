@@ -1,5 +1,4 @@
-// The pipeline-round and issue-round skills after golden's retirement (#3418): the interim rules sit above every
-// step, every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
+// The pipeline-round and issue-round skills after golden's retirement (#3418): every change goes through its own pull request opened by tools/pr-open.sh, no skill names a land.mjs
 // command that now refuses, and the subagent rules end every job with pr-open.sh.
 //
 //   node --test tools/pipeline-round-skill.test.mjs
@@ -19,11 +18,9 @@ const claude = read("CLAUDE.md");
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
 describe("pipeline-round skill", () => {
-    it("puts the interim rules above every step", () => {
-        assert.ok(flat.indexOf("**Interim rules") < flat.indexOf("### 1."));
-        assert.match(flat, /\*\*Production is frozen\.\*\*/);
-        assert.match(flat, /\*\*Screenshots still gate pull requests\.\*\*/);
-        assert.match(flat, /changes a screenshot\*\* gets its own immediate `ACTION NEEDED` line/);
+    it("names no interim rule: the skill describes only the channels pipeline", () => {
+        assert.doesNotMatch(flat, /\*\*Interim rules/);
+        assert.doesNotMatch(flat, /\bgolden\b/);
     });
 
     it("sends every fix through its own pull request from origin/master", () => {
@@ -34,8 +31,11 @@ describe("pipeline-round skill", () => {
 
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
         const at = (s) => flat.indexOf(s);
-        assert.ok(at("### 1. Red master") < at("### 3. Red pull requests"));
-        assert.ok(at("### 3. Red pull requests") < at("### 5. Finished branches with no pull request"));
+        assert.ok(at("### 1. Red master") >= 0);
+        assert.ok(at("### 1. Red master") < at("### 7. Red or conflicted agent pull requests"));
+        assert.ok(
+            at("### 7. Red or conflicted agent pull requests") < at("### 8. Finished branches with no pull request"),
+        );
         assert.match(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
@@ -71,7 +71,7 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const step = flat.slice(flat.indexOf("### 3. Red pull requests"), flat.indexOf("### 4."));
+        const step = flat.slice(flat.indexOf("### 7. Red or conflicted agent pull requests"), flat.indexOf("### 8."));
         assert.match(step, /opened by graphty-agent \(its `author`\)/);
         assert.match(step, /#1677/);
     });
@@ -90,5 +90,83 @@ describe("CLAUDE.md", () => {
         assert.match(claude, /tools\/pr-open\.sh --proof tmp\/<task>\/proof\.md/);
         assert.match(claude, /\*\*Rolling out a change to this flow\.\*\* /);
         assert.doesNotMatch(claude, /node tools\/land\.mjs land <branch>/, "no instruction to land on golden");
+    });
+});
+
+// The channels pipeline (design/ci/channels-pipeline.md section 12) rewrites the skill to work in this
+// order, and deletes the golden landing tools. `channelsProblems` lists what keeps a skill from that
+// shape; the real skill must have none.
+const ROUND_ORDER = [
+    ["red master build and its reverts", /red master/i],
+    ["red full run", /full run/i],
+    ["flaky tests and base checks", /flaky|base check/i],
+    ["budget alarms", /budget/i],
+    ["held release or failed publish", /held release|failed publish/i],
+    ["owner items", /owner/i],
+    ["red or conflicted agent pull requests", /pull request/i],
+    ["finished worktrees", /finished worktree/i],
+];
+
+const DELETED_COMMANDS =
+    /\b(?:land|verify|branch-sync|queued-push-guard|prepush-tests|prepush-inputs|shard-verdict|push-base|wait-log|ship-risks|test-ledger|test-quarantine)\.mjs\b|\b(?:push-queue|prepush|prepush-source-checks|gate-snapshot|visual-preview)\.sh\b|live\.sh (?:gate|land)\b/g;
+
+function channelsProblems(text) {
+    const headings = text.split("\n").flatMap((line) => line.match(/^#{2,4}\s+(.*)/)?.slice(1) ?? []);
+    const problems = [];
+    let at = 0;
+    for (const [name, pattern] of ROUND_ORDER) {
+        const found = headings.findIndex((heading, i) => i >= at && pattern.test(heading));
+        if (found === -1) {
+            problems.push(`no section for "${name}" after the previous one`);
+        } else {
+            at = found + 1;
+        }
+    }
+    for (const command of new Set(text.match(DELETED_COMMANDS) ?? [])) {
+        problems.push(`names deleted command ${command}`);
+    }
+    return problems;
+}
+
+describe("pipeline-round skill in the channels order", () => {
+    const ordered = ROUND_ORDER.map(([name], i) => `### ${i + 1}. ${name}\n\nBody.\n`).join("\n");
+
+    it("accepts a skill with every section in order", () => {
+        assert.deepEqual(channelsProblems(`# Round\n\n${ordered}`), []);
+    });
+
+    it("rejects a section out of order", () => {
+        const swapped = ordered
+            .replace("red full run", "x")
+            .replace("budget alarms", "budget alarms\n\n### red full run");
+        assert.deepEqual(channelsProblems(swapped), [
+            'no section for "flaky tests and base checks" after the previous one',
+            'no section for "budget alarms" after the previous one',
+        ]);
+    });
+
+    it("rejects a deleted command, once per command", () => {
+        const text = `${ordered}\nRun \`node tools/land.mjs land x\`, then land.mjs status and tools/push-queue.sh.\n`;
+        assert.deepEqual(channelsProblems(text), [
+            "names deleted command land.mjs",
+            "names deleted command push-queue.sh",
+        ]);
+    });
+
+    it("keeps the local tools that stay", () => {
+        assert.deepEqual(
+            channelsProblems(`${ordered}\ntools/live.sh visual-review b, worktree-cleanup.mjs, branch-note.mjs\n`),
+            [],
+        );
+    });
+
+    it("the skill follows the channels order and names no deleted command", () => {
+        assert.deepEqual(channelsProblems(skill), []);
+    });
+
+    it("names the full run's, flaky and budget tools the design names", () => {
+        for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[KNOWN?]", "[FLAKY-UNRELATED]"]) {
+            assert.ok(skill.includes(name), name);
+        }
     });
 });

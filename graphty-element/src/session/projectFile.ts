@@ -22,6 +22,7 @@ import {
     type RunId,
     type SetDefinitionInput,
 } from "../catalog/types";
+import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { projectBoundary } from "./project/boundary";
@@ -167,6 +168,12 @@ export interface ProjectOpenOptions {
     readonly discard?: boolean;
     /** The file's name, for the project's name when the file holds none. A `File`'s own name is used otherwise. */
     readonly fileName?: string;
+    /**
+     * For a document that is not a project: `"step"` (the default) adds its contents as one
+     * undoable step; `"start"` makes the session after it where the history starts, as
+     * `ImportOptions.history` does for a load. A project always starts the history.
+     */
+    readonly history?: "step" | "start";
     readonly limits?: {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
@@ -432,7 +439,66 @@ function configOf(session: GraphSession): ProjectConfigPatch {
         selectionStyle,
         layoutBehavior,
     });
-    return JSON.parse(text) as ProjectConfigPatch;
+    const config = JSON.parse(text) as Record<string, unknown>;
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && JSON.stringify(parent[leaf]) === JSON.stringify(fallback)) {
+            Reflect.deleteProperty(parent, leaf);
+        }
+    }
+
+    return config;
+}
+
+/**
+ * The settings added after the first project files, with their defaults. Each is written only when
+ * it is not its default, so a project that does not use it saves as before and an older
+ * graphty-element, which refuses every setting of a file when one is unknown to it, still opens it
+ * (test/lifecycle/production-compat.test.ts opens the candidate's file with production's build).
+ * One left out reads back as its default.
+ * A new setting goes here.
+ */
+const ADDED_SETTINGS: readonly (readonly [group: readonly string[], leaf: string, fallback: unknown])[] = [
+    [["data", "knownFields"], "edgeWeightMeaning", null],
+    [["selectionStyle"], "edgeColor", DEFAULT_SELECTION_STYLE.edgeColor],
+    [["selectionStyle"], "edgeScale", DEFAULT_SELECTION_STYLE.edgeScale],
+    [["selectionStyle"], "edgeOpacity", DEFAULT_SELECTION_STYLE.edgeOpacity],
+];
+
+/**
+ * The object holding a setting.
+ * @param config - The settings.
+ * @param group - The path to the object holding the setting.
+ * @returns The object, or undefined when one on the way is missing.
+ */
+function parentOf(config: Record<string, unknown>, group: readonly string[]): Record<string, unknown> | undefined {
+    let at = config;
+    for (const key of group) {
+        if (!isObject(at[key])) {
+            return undefined;
+        }
+        at = at[key];
+    }
+
+    return at;
+}
+
+/**
+ * A file's settings with every added setting it leaves out set to its default, where the file
+ * holds the setting's group (a file without `selectionStyle` leaves the session's as it was).
+ * @param saved - The settings as the file holds them.
+ * @returns A copy with the defaults filled in.
+ */
+function withAddedDefaults(saved: unknown): Record<string, unknown> {
+    const config = isObject(saved) ? structuredClone(saved) : {};
+    for (const [group, leaf, fallback] of ADDED_SETTINGS) {
+        const parent = parentOf(config, group);
+        if (parent !== undefined && !(leaf in parent)) {
+            parent[leaf] = fallback;
+        }
+    }
+
+    return config;
 }
 
 /**
@@ -1289,7 +1355,7 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
+    await attempt(opening, "config", () => tx.config.set({ ...withAddedDefaults(state.config), name }));
     const edgeIds = await importInto(tx, graph, source, sources);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
@@ -1804,7 +1870,13 @@ export function projectOf(
 
         const graph = nodeLinkOf(data);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-        const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        // A project opens with a fresh history: its opened state is the baseline, and the steps
+        // before it go when it is in. Undo pressed while it opens never cancels it, and work the
+        // reader starts meanwhile stays theirs to undo.
+        const opening: TransactionOptions = {
+            fact: { code: "project.open", params: { name: name ?? null } },
+            starts: true,
+        };
         projectBoundary(session, "open");
         await session.transaction(
             "Open project",
@@ -1820,12 +1892,9 @@ export function projectOf(
                 params: { kind: SOURCE_RECORD_MEMBER },
             });
         }
-        // A project opens with a fresh history: its opened state is the baseline. Work the reader
-        // started since the open landed (a run, a style edit) and that has changed nothing yet is
-        // kept and records over it; a run of the replaced graph is already stale and cancelled.
-        session.history.clear({ pending: "keep" });
         fresh = false;
-        adopt(pointNow());
+        // Saved at the baseline: anything the reader did while it opened is a change.
+        adopt({ ...pointNow(), step: null });
     };
 
     /**
@@ -1834,11 +1903,13 @@ export function projectOf(
      * @param doc - the read document
      * @param problems - collects what could not be restored
      * @param restored - collects the slices that were
+     * @param starts - whether it starts the history (`ProjectOpenOptions.history`)
      */
     const openDocument = async (
         doc: ReadDocument,
         problems: ProjectProblem[],
         restored: Set<ProjectSlice>,
+        starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
         const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
@@ -1865,7 +1936,7 @@ export function projectOf(
 
                 await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
             },
-            OPEN_DOCUMENT,
+            starts ? { ...OPEN_DOCUMENT, starts } : OPEN_DOCUMENT,
         );
     };
 
@@ -1931,7 +2002,7 @@ export function projectOf(
             if (isProject) {
                 await openProject(doc, fileName, options.discard === true, problems, restored);
             } else {
-                await openDocument(doc, problems, restored);
+                await openDocument(doc, problems, restored, options.history === "start");
             }
 
             return Object.freeze({

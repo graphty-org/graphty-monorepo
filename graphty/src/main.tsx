@@ -9,6 +9,7 @@ import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
 import { loadGraphtyElement } from "./elementLoader";
+import { loadSiteConfig } from "./siteConfig";
 import { theme } from "./theme";
 import { loadFrame } from "./workspace/frameLoader";
 import { startUsageDataIfShared } from "./workspace/privacy/usageData";
@@ -17,8 +18,9 @@ import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 export { theme } from "./theme";
 
 // Nothing is sent until the reader says Share usage data on the start screen or in Settings >
-// Privacy; a reader who said so on an earlier visit starts sending again here, before React renders.
-startUsageDataIfShared();
+// Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
+// site.json (fetched first, before the element) has said how this site labels its errors.
+void loadSiteConfig().then(startUsageDataIfShared); // NOSONAR(S7785): a top-level await would hold the first paint for the fetch
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {

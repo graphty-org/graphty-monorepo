@@ -34,7 +34,7 @@ export function failureHashes(text, file, main = "/nonexistent") {
         .split("\n")
         .map((l) => l.trim())
         .filter(Boolean);
-    const frame = (l) => /^(❯|at )/.test(l);
+    const frame = (l) => /^(\u276F|at )/.test(l); // \u276F: the marker Vitest puts before a stack frame
     const said = lines
         .filter((l) => !frame(l) && !UNINFORMATIVE.test(l))
         .slice(0, 2)

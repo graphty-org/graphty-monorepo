@@ -243,6 +243,9 @@ describe("knowing the picture is final", () => {
         container.style.height = "300px";
         document.body.appendChild(container);
         graph = new Graph(container);
+        // Drawn every frame, not on demand: these tests keep drawing frames after the picture is
+        // called final to show nothing moves, and count the frames a wait drew.
+        await graph.setRenderSettings({ onDemand: false }, { skipQueue: true });
         await graph.init();
     });
 

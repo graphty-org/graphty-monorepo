@@ -53,8 +53,8 @@ anything under `design/brand`, the held major (#676, #702, #843, #1370), `Releas
 
 An issue whose last marker is `released -- 2 fix attempts failed ... branch <b> kept` is picked like any other; its job
 continues on that branch, with the evidence on the issue. The new `taken` marker starts the fix-attempt count from
-zero; if the job fails again for the same cause, pipeline-round labels it `needs-decision` and asks the owner, and this
-skill skips it from then on.
+zero; if the job fails again for the same cause, pipeline-round starts it again from a different approach, with the
+earlier attempts' evidence in the prompt (a failing job is never a question for the owner).
 
 ## 3. Group related issues
 

@@ -5,11 +5,13 @@
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
-//   for its own merge commit; master's own release.yml or ci.yml writes `full`, bisect.yml `bisect`,
-//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
+//   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
+//   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
+//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, deploy-pages.yml `site` (the site-<sha> it
+//   kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
-import { concludeFlaky, getCandidate, getPlan, getReleaseState, trendFor } from "./queries.js";
+import { concludeFlaky, getCandidate, getFailures, getMedians, getPlan, getReleaseState, trendFor } from "./queries.js";
 import { failureHashes } from "./signature.js";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
@@ -17,9 +19,19 @@ export const AUDIENCE = "graphty-results";
 const MASTER_KINDS = {
     "release.yml": "full",
     "ci.yml": "full",
+    // the lanes release.yml calls; a called workflow's token names its own file in job_workflow_ref
+    "gpu.yml": "full",
+    "hosts.yml": "full",
+    "work-protection-macos.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
+    "deploy-pages.yml": "site",
+};
+// Kinds that write no test records, and why.
+const NO_TESTS = {
+    deploy: "a site repository writes only durations",
+    site: "deploy-pages.yml writes only its site and durations",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
@@ -64,6 +76,19 @@ async function signingKey(kid, doFetch) {
     return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
+// A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
+function decodeJwt(token) {
+    try {
+        const [header, payload, signature] = token.split(".");
+        const { alg, kid } = part(header);
+        const claims = part(payload);
+        if (claims === null || typeof claims !== "object") throw new TypeError("claims are not an object");
+        return { alg, kid, claims, signature: bytes(signature), signed: `${header}.${payload}` };
+    } catch {
+        return refuse(401, "the OIDC token is not a well-formed JWT");
+    }
+}
+
 /**
  * Checks an Actions OIDC token's signature, issuer, audience and lifetime.
  * @param token the JWT
@@ -72,15 +97,12 @@ async function signingKey(kid, doFetch) {
  * @returns its claims
  */
 async function verifyOidc(token, doFetch, nowMs) {
-    const [header, payload, signature] = token.split(".");
-    const { alg, kid } = part(header);
+    const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
     const key = await signingKey(kid, doFetch);
-    const signed = new TextEncoder().encode(`${header}.${payload}`);
-    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, bytes(signature), signed))) {
+    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
-    const claims = part(payload);
     const now = nowMs / 1000;
     if (claims.iss !== ISSUER || claims.aud !== AUDIENCE) refuse(401, `OIDC token is not for ${AUDIENCE}`);
     if (typeof claims.exp !== "number" || claims.exp <= now || claims.nbf > now + 60)
@@ -147,6 +169,8 @@ function inserts(db, table, columns, rows) {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
+    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
         const { line, key, signature, status } = failureHashes(f.message, f.file, root);
@@ -166,7 +190,7 @@ const FAILURE_COLUMNS = [
 ];
 
 async function postInvocation(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
@@ -259,11 +283,12 @@ async function postIssue(body, who, db, nowMs) {
 }
 
 async function postFailures(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.invocation, who);
-    const failures = body.failures ?? [body];
-    await db.batch(inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.invocation, failures, body.root, nowMs)));
-    return { stored: failures.length };
+    const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
+    // D1 refuses an empty batch
+    if (rows.length) await db.batch(inserts(db, "failure", FAILURE_COLUMNS, rows));
+    return { stored: rows.length };
 }
 
 async function postDurations(body, who, db, nowMs) {
@@ -307,16 +332,92 @@ async function postDurations(body, who, db, nowMs) {
     return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
 }
 
+// A test shard's duration history (tools/vitest-time-budget.mjs). Any credential reads; only master's own runs
+// write, so a pull request's slow test never moves the medians master is judged by.
+const TESTS_PATH = "/v1/durations/tests/";
+const HISTORY_WRITERS = new Set(["full", "bisect", "base"]);
+const HISTORY_MAX = 1_900_000; // D1 keeps a value up to 2 MB
+
+async function getTestDurations(_query, _who, db, _nowMs, name) {
+    const row = await db.prepare("SELECT body FROM test_durations WHERE name = ?").bind(name).first();
+    return row ? JSON.parse(row.body) : {};
+}
+
+async function putTestDurations(body, who, db, nowMs, name) {
+    if (!HISTORY_WRITERS.has(who.kind)) refuse(403, "only master's own runs write a test duration history");
+    if (!body || typeof body !== "object" || Array.isArray(body)) refuse(400, "the history must be an object");
+    const text = JSON.stringify(body);
+    if (text.length > HISTORY_MAX) refuse(413, `a history holds at most ${HISTORY_MAX} bytes`);
+    await db
+        .prepare("INSERT OR REPLACE INTO test_durations (name, body, updated_at, run_id) VALUES (?, ?, ?, ?)")
+        .bind(name, text, nowMs, Number(who.claims.run_id))
+        .run();
+    return { stored: true };
+}
+
+const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item"]);
+
+// The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
+async function postVerdict(body, who, db, nowMs) {
+    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+        refuse(403, "only master's own release.yml records a verdict");
+    }
+    need(body, { sha: "string", state: "string" });
+    if (!VERDICTS.has(body.state)) refuse(400, `state must be one of ${[...VERDICTS].join(", ")}`);
+    if (body.issue != null && !Number.isInteger(body.issue)) refuse(400, "issue must be an issue number");
+    const { meta } = await db
+        .prepare(
+            "INSERT OR IGNORE INTO verdict (run_id, attempt, sha, state, lane, issue, at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(
+            Number(who.claims.run_id),
+            Number(who.claims.run_attempt),
+            body.sha,
+            body.state,
+            body.lane ?? null,
+            body.issue ?? null,
+            nowMs,
+        )
+        .run();
+    return { stored: meta.changes === 1 };
+}
+
+// A master build kept its site as artifact site-<sha> in this run: the full run's candidate pick reads it.
+async function postSite(body, who, db, nowMs) {
+    if (who.kind !== "site") refuse(403, "only master's own deploy-pages.yml records a site");
+    if (!/^[0-9a-f]{40}$/.test(body?.sha ?? "")) refuse(400, "sha must be a full commit id");
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO site (sha, built_at, run_id) VALUES (?, ?, ?)")
+        .bind(body.sha, nowMs, Number(who.claims.run_id))
+        .run();
+    return { stored: meta.changes === 1, sha: body.sha };
+}
+
 const ROUTES = {
+    "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
     "POST /v1/issues": postIssue,
+    "POST /v1/sites": postSite,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/failures": getFailures,
+    "GET /v1/durations/medians": getMedians,
+    [`GET ${TESTS_PATH}:name`]: getTestDurations,
+    [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };
+
+// The route key and its one path parameter: `/v1/durations/tests/<name>` names a history.
+function routeOf(method, pathname) {
+    if (!pathname.startsWith(TESTS_PATH)) return [`${method} ${pathname}`, undefined];
+    const raw = pathname.slice(TESTS_PATH.length);
+    const name = /^[\w.-]{1,128}$/.test(raw) ? raw : "";
+    if (!name) refuse(400, "a history name is 1 to 128 letters, digits, '.', '_' or '-'");
+    return [`${method} ${TESTS_PATH}:name`, name];
+}
 
 /**
  * Answers one request.
@@ -334,13 +435,14 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
             await env.DB.prepare("SELECT 1").first();
             return json({ ok: true, schema: 1 });
         }
-        const route = ROUTES[`${request.method} ${pathname}`] ?? refuse(404, `no ${request.method} ${pathname}`);
+        const [key, name] = routeOf(request.method, pathname);
+        const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
         const who = await authenticate(request, env, doFetch, now);
         const body =
             request.method === "GET"
                 ? searchParams
                 : await request.json().catch(() => refuse(400, "the body is not JSON"));
-        return json(await route(body, who, env.DB, now));
+        return json(await route(body, who, env.DB, now, name));
     } catch (error) {
         if (error instanceof Refused) return json({ error: error.message }, error.status);
         console.error(`${request.method} ${pathname} failed: ${error.stack ?? error}`);

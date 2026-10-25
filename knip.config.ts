@@ -182,6 +182,8 @@ const config: KnipConfig = {
         // Algorithms package
         algorithms: {
             entry: [
+                // Loaded by its storybook vitest config only when VISUAL_REVIEW_STORY_OUT is set (issue #3472).
+                ".storybook/vitest.setup.visual.ts",
                 "algorithms.ts!",
                 "src/index.ts!",
                 "test/**/*.test.ts",

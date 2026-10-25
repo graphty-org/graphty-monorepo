@@ -233,6 +233,11 @@ else
     # source only, every push.
     run_step "Legacy graph API use" "pnpm run check:legacy-use"
 
+    # Experiment flags (graphty-element's FEATURES): ids named are declared, rows have their issue, the
+    # features module reads nothing from the host, no experimental item in the API report. Source only.
+    # See tools/check-features.mjs.
+    run_step "Feature flags" "pnpm run check:features"
+
     # No pile of images committed outside the folders that hold them (visual-baselines/, fixtures, public
     # assets): more than 20 new images or 20 MB since the push base fails. Design studio walk screenshots
     # go to tmp/design-studio/, never git; an `Images-Approved: <reason>` trailer passes a deliberate

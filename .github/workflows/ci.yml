@@ -137,7 +137,7 @@ jobs:
                   checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
                   echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -236,7 +236,7 @@ jobs:
             - name: Upload the record of the tested tree
               if: steps.reuse.outputs.marker != ''
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: ${{ steps.reuse.outputs.marker }}
                   path: ${{ runner.temp }}/ci-tested/
@@ -244,7 +244,7 @@ jobs:
 
             - name: Download the package builds of the run whose results are reused
               if: steps.reuse.outputs.artifacts-run != ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -335,7 +335,7 @@ jobs:
             # src/session/commands/doors.ts and graphty's no-element-mutation lint rule reads; the Lint
             # job lints from this artifact.
             - name: Upload all package builds
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-packages
                   path: |
@@ -354,70 +354,70 @@ jobs:
                   retention-days: 1
 
             - name: Upload graph-format build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-format
                   path: graph-format/dist/
                   retention-days: 1
 
             - name: Upload graph-io build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-io
                   path: graph-io/dist/
                   retention-days: 1
 
             - name: Upload webgpu-graph-algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-webgpu-graph-algorithms
                   path: webgpu-graph-algorithms/dist/
                   retention-days: 1
 
             - name: Upload graph-samples build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graph-samples
                   path: graph-samples/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-algorithms
                   path: algorithms/dist/
                   retention-days: 1
 
             - name: Upload layout build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-layout
                   path: layout/dist/
                   retention-days: 1
 
             - name: Upload graphty build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty
                   path: graphty/dist/
                   retention-days: 1
 
             - name: Upload graphty-element build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-graphty-element
                   path: graphty-element/dist/
                   retention-days: 1
 
             - name: Upload remote-logger build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-remote-logger
                   path: remote-logger/dist/
                   retention-days: 1
 
             - name: Upload compact-mantine build
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-compact-mantine
                   path: compact-mantine/dist/
@@ -461,7 +461,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
               if: needs.packages.outputs.artifacts-run == ''
 
             - name: Setup Node.js
@@ -480,7 +480,7 @@ jobs:
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
               if: needs.packages.outputs.artifacts-run == ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -529,7 +529,7 @@ jobs:
             # downloads them from this run as always.
             - name: Download the Storybooks of the run whose results are reused
               if: needs.packages.outputs.artifacts-run != ''
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: build-storybook-*
                   path: ${{ runner.temp }}/storybooks
@@ -545,49 +545,49 @@ jobs:
                   done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
 
             - name: Upload Storybook build (graphty-element)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (graphty)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (compact-mantine)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (algorithms)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (layout)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (cytoscape-extensions)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
             - name: Upload Storybook build (graph-io-fidelity)
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
@@ -615,7 +615,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -630,7 +630,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -685,7 +685,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -700,7 +700,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -805,7 +805,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -820,7 +820,7 @@ jobs:
 
             # Every package's dist, as the packages job built it.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -840,21 +840,21 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
                   retention-days: 1
 
             - name: Upload layout gh-pages
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -891,7 +891,7 @@ jobs:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -911,14 +911,14 @@ jobs:
             - name: Download all package builds
               id: download-packages
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
 
             - name: Download all package builds (retry)
               if: steps.download-packages.outcome == 'failure'
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1035,7 +1035,7 @@ jobs:
             - name: Upload JUnit results
               if: ${{ !cancelled() }}
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: junit-${{ matrix.shard }}
                   path: test-results/junit-*.xml
@@ -1044,7 +1044,7 @@ jobs:
 
             - name: Upload blob report
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: blob-report-${{ matrix.shard }}
                   path: graphty-element/.vitest-reports/*
@@ -1054,7 +1054,7 @@ jobs:
 
             - name: Upload coverage (graphty-element)
               if: ${{ !cancelled() && startsWith(matrix.shard, 'graphty-element') }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: graphty-element/coverage/lcov.info
@@ -1078,7 +1078,7 @@ jobs:
 
             - name: Upload coverage (shard group)
               if: ${{ !cancelled() && matrix.coverage }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-group-${{ matrix.shard }}
                   path: ${{ runner.temp }}/coverage/
@@ -1089,7 +1089,7 @@ jobs:
             # coverage. The node project's report is the one its thresholds judge; coverage.yml merges both.
             - name: Upload coverage (webgpu-graph-algorithms)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-${{ matrix.shard }}
                   path: webgpu-graph-algorithms/coverage/lcov.info
@@ -1103,7 +1103,7 @@ jobs:
             # name is the one it had when this pass ran inside the node shard.
             - name: Upload coverage (webgpu-graph-algorithms, the device-error project)
               if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node-device-errors' }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: coverage-webgpu-graph-algorithms-node-device-errors
                   path: webgpu-graph-algorithms/.coverage-parts/device-errors/lcov.info
@@ -1142,67 +1142,67 @@ jobs:
                   node-version: 22.x
 
             - name: Download graphty build
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-graphty
                   path: graphty/dist/
 
             - name: Download unified docs
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-docs
                   path: docs/.vitepress/dist/
 
             - name: Download Storybook build (graphty-element)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
 
             - name: Download Storybook build (graphty)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
 
             - name: Download Storybook build (compact-mantine)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
 
             - name: Download Storybook build (algorithms)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
 
             - name: Download Storybook build (layout)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
 
             - name: Download Storybook build (cytoscape-extensions)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
 
             - name: Download Storybook build (graph-io-fidelity)
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
 
             - name: Download algorithms gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-algorithms
                   path: algorithms/gh-pages/
 
             - name: Download layout gh-pages
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-ghpages-layout
                   path: layout/gh-pages/
@@ -1241,7 +1241,7 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1257,7 +1257,7 @@ jobs:
             # Every package's dist: the benchmark runs algorithms from source under tsx, and that
             # source imports @graphty/graph-format, which resolves to graph-format's dist.
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1310,7 +1310,7 @@ jobs:
               with:
                   ref: ${{ inputs.ref }}
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -1324,7 +1324,7 @@ jobs:
                   HUSKY: "0"
 
             - name: Download all package builds
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
@@ -1734,7 +1734,7 @@ jobs:
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
+        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy]
         if: always()
         runs-on: ubuntu-24.04
         steps:
@@ -1763,14 +1763,11 @@ jobs:
                       strict='["packages","build"]'
                       echo "::notice title=Results reused::Lint, Checks, Docs, Test, Links and Cost Estimate Accuracy are reused from $REUSE_URL, which tested the same tree apart from the screenshot records"
                   fi
-                  # The visual job never decides here, whatever result job-level continue-on-error makes
-                  # it report: on a pull request the gate step below judges its results.json, and on
-                  # master a capture crash must not hold release, deploy or coverage.
                   # A job in its warning period (tools/ci-advisory-checks.json, see the build job) only warns.
                   adv="${ADVISORY:-[]}"
                   jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
                   bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
-                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
+                      'to_entries[] | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
@@ -1778,6 +1775,83 @@ jobs:
                   fi
                   echo "All checks passed!"
 
+            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
+            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            - name: Clear this check's early verdicts
+              if: success() && github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  CHECK: All Checks Pass
+                  SHA: ${{ github.event.pull_request.head.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  # An early verdict is a failure posted through the Checks API: its details link is a run,
+                  # never a job (".../job/<id>"), and only those can be rewritten.
+                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
+                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                          -f "output[title]=Superseded by a passing run" \
+                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
+                      echo "cleared early verdict $id"
+                  done
+
+    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
+    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
+    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
+    # pass on a pull request's own affected run can never stand in for the queue's run.
+    queue-checks:
+        name: Queue Checks Pass
+        needs: [packages, all-checks]
+        if: always()
+        runs-on: ubuntu-24.04
+        steps:
+            - name: Check the run passed, and was the full suite in the queue
+              env:
+                  ALL_CHECKS: ${{ needs.all-checks.result }}
+                  FULL: ${{ needs.packages.outputs.full }}
+              run: |
+                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
+                  if [[ "$ALL_CHECKS" != "success" ]]; then
+                      echo "::error::All Checks Pass did not succeed"
+                      exit 1
+                  fi
+                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
+                      echo "::error::a merge-queue run must run the full suite"
+                      exit 1
+                  fi
+
+            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
+            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            - name: Clear this check's early verdicts
+              if: success() && github.event_name == 'pull_request'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  CHECK: Queue Checks Pass
+                  SHA: ${{ github.event.pull_request.head.sha }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  # An early verdict is a failure posted through the Checks API: its details link is a run,
+                  # never a job (".../job/<id>"), and only those can be rewritten.
+                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
+                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
+                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
+                          -f "output[title]=Superseded by a passing run" \
+                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
+                      echo "cleared early verdict $id"
+                  done
+
+    # The screenshot report. Not needed by "All Checks Pass", so a pull request never waits on the captures:
+    # the gate below only reports (channels pipeline, #3418, the owner's rollout), and the job never fails
+    # the run (continue-on-error). On master a capture crash must not hold release, deploy or coverage.
+    visual-report:
+        name: Visual report
+        needs: [packages, visual]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        runs-on: ubuntu-24.04
+        continue-on-error: true
+        steps:
             # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
             # rollout): the owner's approval of screenshots moves to the nightly gate, production stays frozen
             # until promotion exists, and releases publish nothing in shadow mode. The gate below runs exactly
@@ -1853,73 +1927,6 @@ jobs:
                       echo "$msg" >> "$GITHUB_STEP_SUMMARY"
                   fi
 
-            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            - name: Clear this check's early verdicts
-              if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CHECK: All Checks Pass
-                  SHA: ${{ github.event.pull_request.head.sha }}
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
-                  done
-
-    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
-    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
-    # pass on a pull request's own affected run can never stand in for the queue's run.
-    queue-checks:
-        name: Queue Checks Pass
-        needs: [packages, all-checks]
-        if: always()
-        runs-on: ubuntu-24.04
-        steps:
-            - name: Check the run passed, and was the full suite in the queue
-              env:
-                  ALL_CHECKS: ${{ needs.all-checks.result }}
-                  FULL: ${{ needs.packages.outputs.full }}
-              run: |
-                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
-                  if [[ "$ALL_CHECKS" != "success" ]]; then
-                      echo "::error::All Checks Pass did not succeed"
-                      exit 1
-                  fi
-                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
-                      echo "::error::a merge-queue run must run the full suite"
-                      exit 1
-                  fi
-
-            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            - name: Clear this check's early verdicts
-              if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CHECK: Queue Checks Pass
-                  SHA: ${{ github.event.pull_request.head.sha }}
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
-                  done
-
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
     # pictures in one run -- a timing race. This job lists every one as a warning annotation
@@ -1945,7 +1952,7 @@ jobs:
 
             - name: Download visual captures
               continue-on-error: true
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v8
               with:
                   pattern: visual-*
                   path: ${{ runner.temp }}/visual

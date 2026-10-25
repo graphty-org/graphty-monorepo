@@ -13,6 +13,7 @@ import {
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { StartSample } from "../../data/sampleManifest";
+import { siteConfig } from "../../siteConfig";
 import type { CommandContext } from "../commands/registry";
 import { openProjectFile } from "../project/actions";
 import { fileStylesChoice } from "../settings/preferences";
@@ -54,14 +55,22 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
 }
 
 /**
- * Where the datasets are read from: graphty.app in a build (graph-samples' default), this
- * machine's copy on the dev server and in the tests (vite.sample-data.ts) and in a built
- * Storybook (its staticDirs), which never reads the network.
+ * This machine's copy, on the dev server and in the tests (vite.sample-data.ts) and in a built
+ * Storybook (its staticDirs), which never read the network.
  */
-const DATASET_BASE =
+const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+
+/**
+ * Where the datasets are read from: this machine's copy where there is one, else the site's own
+ * (its site.json's `datasets`), else graph-samples' default.
+ * @returns the address, or undefined for graph-samples' default.
+ */
+function datasetBase(): string | undefined {
+    return LOCAL_DATASETS ?? siteConfig().datasets;
+}
 
 /**
  * The address of the picture graph-samples publishes of a dataset or a generator, beside the
@@ -73,7 +82,7 @@ const DATASET_BASE =
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
     return entry.thumbnail === undefined
         ? undefined
-        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+        : new URL(entry.thumbnail, datasetBase() ?? DEFAULT_DATASET_BASE_URL).href;
 }
 
 /**
@@ -83,10 +92,11 @@ export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbn
  * @param dataset - the dataset's metadata, from graph-samples' catalog.
  */
 export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): void {
+    const baseUrl = datasetBase();
     openProject(workspace, dataset.title, (session) =>
         session.data.loadDataset(dataset.name, {
             history: "start",
-            ...(DATASET_BASE === undefined ? {} : { baseUrl: DATASET_BASE }),
+            ...(baseUrl === undefined ? {} : { baseUrl }),
         }),
     );
 }

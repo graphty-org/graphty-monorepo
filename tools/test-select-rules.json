@@ -60,11 +60,22 @@
     },
     "fileLevel": {
         "$comment": "Packages whose shards may run a list of test files instead of the whole shard, adopted one by one as the replay shows no misses (design/ci/fast-pipeline.md section 5.1, item 2). A shard that runs a browser project still runs whole. Elsewhere the file-level answer is measured and logged, never used.",
-        "packages": ["graph-format", "remote-logger", "compact-mantine", "graphty", "graphty-element"]
+        "packages": [
+            "graph-format",
+            "remote-logger",
+            "compact-mantine",
+            "graphty",
+            "graphty-element",
+            "graph-io",
+            "graph-samples",
+            "layout",
+            "algorithms",
+            "cytoscape-extensions"
+        ]
     },
     "fileLevelBrowser": {
         "$comment": "Packages of fileLevel whose shards that run a browser project may also run a list of test files (design/ci/minimal-tests.md section 3). A package joins only after tools/test-select-mutate.mjs finds no miss in its browser projects.",
-        "packages": ["compact-mantine", "graphty", "graphty-element"]
+        "packages": ["compact-mantine", "graphty", "graphty-element", "graph-io", "algorithms"]
     },
     "alsoRun": {
         "$comment": "Packages that read another package's files without importing them and that nx's graph and the relative-path scan miss. Each entry: a changed path pattern and the packages whose shards then all run.",
@@ -83,5 +94,23 @@
     "opaqueTest": {
         "$comment": "A test whose own files (outside src/) read files, list directories or run programs at run time. Such a test runs whenever any file of its package other than another test changes, because what it reads is invisible to the import graph. Any use of child_process or node:fs counts, so a program run through promisify(execFile) is seen; so do ESLint (which loads its config at run time) and fetch() of a served file.",
         "pattern": "readFileSync|readdirSync|readFile\\(|readdir\\(|existsSync|statSync|globSync|import\\.meta\\.glob|execFileSync|execSync|spawnSync|spawn\\(|execFile\\(|exec\\(|fork\\(|new Worker\\(|promisify\\(|\\bexecFile\\b|\\bspawn\\b|child_process|node:fs|new ESLint\\(|loadESLint|calculateConfigForFile|\\bfetch\\(|page\\.goto"
+    },
+    "stories": {
+        "$comment": "Which stories a change runs (design/ci/channels-pipeline/stories-as-tests.md section 5). A change to a global path runs every story of every project; projectGlobal ({dir} is the project's Storybook directory) runs every story of that project; a lockfile change that moves a package matching lockfile runs every story (the one exception to the lockfile rule above: these change every picture); theme runs every story of the listed projects; drawnBy names, for a project with no story import graph, the packages whose selection runs all its stories (default: its own package).",
+        "global": [
+            "^visual-review\\.config\\.json$",
+            "^visual-fonts/",
+            "^visual-review/capture/",
+            "^visual-review/trusted/lib/compare\\.mjs$"
+        ],
+        "projectGlobal": ["^{dir}/\\.storybook/", "^{dir}/vitest(\\.[\\w-]+)?\\.config\\.[cm]?[jt]s$"],
+        "lockfile": "playwright|chromium|storybook|vitest|font",
+        "theme": {
+            "pattern": "^compact-mantine/src/theme/",
+            "projects": ["graphty", "compact-mantine"]
+        },
+        "drawnBy": {
+            "graph-io-fidelity": ["graph-io", "graphty-element"]
+        }
     }
 }

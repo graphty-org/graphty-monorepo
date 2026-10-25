@@ -1520,14 +1520,30 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
         const sha = (t) => createHash("sha256").update(t).digest("hex");
-        const all = job(ci, "all-checks");
-        const gate = all.slice(
-            all.indexOf("            - name: Check out the gate"),
-            all.indexOf("            - name: Clear this check's early verdicts"),
-        );
+        // The gate steps moved, unchanged, from "All Checks Pass" to the Visual report job (#3443).
+        const report = job(ci, "visual-report");
+        const from = report.indexOf("            - name: Check out the gate");
+        const gate = report.slice(from, report.indexOf("\n\n    #", from) + 1);
         assert.ok(gate.length > 1000, "found the gate steps");
         assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
-        assert.equal(sha(gate), "b1238945ae324566eeec195bc66008621eae2884a1c1ded07589a4860af817eb");
+        assert.equal(sha(gate), "575b27ce4867b26ba3159100b157c8333074616ef5be1a8aa2c2a0576b42823e");
+    });
+
+    it("keeps the screenshot report out of All Checks Pass, so a pull request never waits on captures (#3443)", () => {
+        const jobs = parseJobs(ci);
+        assert.ok(!jobs["all-checks"].needs.includes("visual"), "All Checks Pass must not need the visual job");
+        assert.ok(!/visual/.test(job(ci, "all-checks")), "All Checks Pass reads nothing of the screenshots");
+        const report = job(ci, "visual-report");
+        assert.deepEqual(jobs["visual-report"].needs, ["packages", "visual"]);
+        assert.match(report, /\n {8}name: Visual report\n/);
+        assert.match(report, /\n {8}if: \$\{\{ !cancelled\(\) && github.event_name == 'pull_request' \}\}\n/);
+        assert.match(report, /\n {8}continue-on-error: true\n/, "the job never fails the run");
+        assert.match(
+            report,
+            /id: visual-gate\n {14}if: github.event_name == 'pull_request'\n {14}continue-on-error: true\n/,
+        );
+        assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
+        assert.match(report, /::warning title=Visual gate \(report only\)::/);
     });
 
     it("runs the story tests' capture and its parity report-only, outside All Checks Pass, until a project switches", () => {
@@ -1976,9 +1992,8 @@ jobs:
 describe("the summary checks fail as soon as a required job fails", () => {
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
-    // The jobs "All Checks Pass" fails on: every job it needs but the visual job, whose results the
-    // gate step judges at the end.
-    const deciding = jobs["all-checks"].needs.filter((n) => n !== "visual");
+    // The jobs "All Checks Pass" fails on: every job it needs.
+    const deciding = jobs["all-checks"].needs;
 
     it("ends every job whose failure fails them with the early-verdict step, on pull requests only", () => {
         assert.deepEqual([...deciding].sort(), [
@@ -2551,6 +2566,21 @@ describe("gpu.yml", () => {
             }
         }
         assert.ok(checked >= 2, `found the T4 jobs (${checked})`);
+    });
+
+    it("builds nx's project graph from graphty-element, where the T4's element step runs nx", () => {
+        // nx names a project that only @nx/eslint infers by reading <root>/package.json relative to the
+        // process's cwd, so from a package directory it failed "have no name provided" (release run
+        // 40119894804, issue #3318) while graph-io/test/fidelity/oracles/tools/web was a project of its
+        // own. That directory is now part of graph-io; this keeps any such directory from coming back.
+        assert.match(job(gpu, "test-gpu"), /working-directory: graphty-element\n.*\n {14}run: pnpm exec nx run-many/);
+        const r = spawnSync("pnpm", ["exec", "nx", "show", "projects", "--json"], {
+            cwd: new URL("../graphty-element/", import.meta.url),
+            encoding: "utf8",
+            env: { ...process.env, NX_DAEMON: "false" },
+        });
+        assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+        assert.ok(JSON.parse(r.stdout).includes("graph-io"));
     });
 
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
@@ -5206,15 +5236,12 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const needs = (over) =>
             JSON.stringify(
                 Object.fromEntries(
-                    ["packages", "build", "lint", "checks", "docs", "test", "links", "cost-accuracy", "visual"].map(
-                        (n) => [
-                            n,
-                            {
-                                result:
-                                    over[n] ?? (["packages", "build", "visual"].includes(n) ? "success" : "skipped"),
-                            },
-                        ],
-                    ),
+                    ["packages", "build", "lint", "checks", "docs", "test", "links", "cost-accuracy"].map((n) => [
+                        n,
+                        {
+                            result: over[n] ?? (["packages", "build", "visual"].includes(n) ? "success" : "skipped"),
+                        },
+                    ]),
                 ),
             );
         const verdict = (reuse, over = {}) =>

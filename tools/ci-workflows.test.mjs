@@ -1178,93 +1178,37 @@ exec ${realGit} "$@"
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
 
-    it("starts a run when a draft is marked ready, and skips drafts except the merge queue's", () => {
+    it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
+        // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
-        assert.ok(
-            job(ci, "packages").includes(
-                "        needs: draft\n" +
-                    "        if: ${{ !cancelled() && (github.event_name != 'pull_request' || !github.event.pull_request.draft || " +
-                    `needs.draft.outputs.ready == 'true' || (${QUEUE})) }}\n`,
-            ),
-        );
+        assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
+        assert.doesNotMatch(job(ci, "packages"), /\n {8}(needs|if):/, "Build has no needs and no condition");
+        assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
-    it("never lets a draft run cancel a ready run, and never cancels a push to master (#1108)", () => {
-        // `opened` (draft: true) and `ready_for_review` (draft: false) fire a second apart. Sharing one
-        // group, whichever was queued second cancelled the other, which could leave only the draft's
-        // "draft: CI not run". A plain draft -- exactly the drafts the build job skips -- gets its own
-        // group; the merge queue's drafts are real runs and stay with the ready runs.
+    it("cancels a pull request's older run, never a push to master, and has no golden-cut exemption (#1108, #3418)", () => {
         const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
-            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-" +
-                `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
-                "    cancel-in-progress: ${{ github.event_name == 'pull_request' && github.head_ref != 'golden-cut' }}\n",
+            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}\n" +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
-    });
-
-    it("never cancels the cut pull request's running run, so an approval commit can reuse its tests (#3349)", () => {
-        // The owner's Finish commits approvals to golden-cut. Cancelling would throw the suite away;
-        // instead the new run waits pending until the old one ends, then reuses its passing tests.
         const expr = /^ {4}cancel-in-progress: \$\{\{ (.+) \}\}$/m.exec(ci)[1];
-        const cancels = (event, head) =>
-            Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event, head_ref: head });
-        assert.equal(cancels("pull_request", "golden-cut"), false, "the cut pull request");
-        assert.equal(cancels("pull_request", "fix/123-topic"), true, "any other pull request");
-        assert.equal(cancels("push", ""), false, "a push to master");
+        const cancels = (event) => Function("github", `return ${expr.replaceAll("'", '"')};`)({ event_name: event });
+        assert.equal(cancels("pull_request"), true, "a pull request");
+        assert.equal(cancels("push"), false, "a push to master");
     });
 
-    it("runs a draft's run for real when the pull request is ready by the time it starts (#2991)", () => {
-        // GitHub can create the `opened` draft run after the `ready_for_review` run, and that newer
-        // draft run's failing summary checks are the ones Mergify reads.
-        const draft = job(ci, "draft");
-        assert.match(draft, /\n {14}if: github.event_name == 'pull_request' && github.event.pull_request.draft\n/);
-        assert.match(draft, /\n {8}continue-on-error: true\n/, "it never decides a verdict itself");
-        const program = /--jq '([^']+)'\) \|\| ready=false/.exec(draft)[1];
-        const ready = (pr) =>
-            spawnSync("jq", [program], {
-                input: JSON.stringify(pr),
-                encoding: "utf8",
-                env: { ...process.env, SHA: "abc" },
-            }).stdout.trim();
-        assert.equal(ready({ draft: false, head: { sha: "abc" } }), "true");
-        assert.equal(ready({ draft: true, head: { sha: "abc" } }), "false", "still a draft");
-        assert.equal(ready({ draft: false, head: { sha: "def" } }), "false", "the pull request moved on");
-    });
-
-    it("never skips a job the build job needs, directly or through another job", () => {
-        // GitHub skips every job after a skipped one in the needs chain, even one whose own `if` passes
-        // (only `always()` and friends escape it), so a skipped ancestor of the build job skips the build's
-        // dependents on every run: a ready pull request ran the build and nothing after it (#3134).
-        const needsOf = (name) => {
-            const m = /\n {8}needs: (\[[^\]]*\]|\S+)\n/.exec(job(ci, name));
-            return m
-                ? m[1]
-                      .replace(/[[\]\s]/g, "")
-                      .split(",")
-                      .filter(Boolean)
-                : [];
-        };
-        const seen = new Set();
-        const walk = (name) => needsOf(name).forEach((n) => seen.has(n) || (seen.add(n), walk(n)));
-        walk("packages");
-        assert.ok(seen.has("draft"), "the build job needs the draft job");
-        for (const name of seen) {
-            assert.doesNotMatch(job(ci, name), /\n {8}if:/, `${name} has no job-level if, so it is never skipped`);
-        }
-    });
-
-    it("fails, never skips, the summary checks on a draft", () => {
-        // A skipped required check counts as passing, and the draft run's check stays on the head SHA
-        // after "gh pr ready" until the new run reports.
+    it("fails, never skips, the summary checks when Build did not run", () => {
+        // A skipped required check counts as passing.
         for (const name of ["all-checks", "queue-checks"]) {
             assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
         }
         assert.match(
             job(ci, "all-checks"),
-            /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*draft: CI not run.*\n\s+exit 1/,
+            /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*Build did not run.*\n\s+exit 1/,
         );
     });
 

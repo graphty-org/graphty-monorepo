@@ -7,6 +7,7 @@
 //   node tools/bisect-ci.mjs plan  --out <state.json>           the first round's state from LANE, GOOD, BAD,
 //                                                                TARGETS, FAILED_BEFORE; or STATE (a later round)
 //   node tools/bisect-ci.mjs run   --state <f> --sha <s> --out <f>   runs the targets `next.runs` times here
+//   node tools/bisect-ci.mjs setup-failed --state <f> --sha <s> --out <f>   the result of a point that could not build
 //   node tools/bisect-ci.mjs judge --state <f> --results <dir> --out <f>   folds the results in, says what is next
 //
 // Each writes `points`, `runs`, `files` and `done` to GITHUB_OUTPUT when it is set. BISECT_ROOT names the checkout
@@ -98,6 +99,37 @@ export const realGit = (cwd = ROOT) => {
  */
 export function offMaster(s, onMaster) {
     return [s.good, s.bad, ...(s.next?.points ?? [])].filter((sha) => sha && !onMaster.has(sha));
+}
+
+const quote = (f) => `'${f.replaceAll("'", String.raw`'\''`)}'`;
+const SAFE_PATH = /^[\w@+-][\w@./+-]*$/;
+
+/**
+ * The targets whose shard or file is not a plain name or path: a file reaches a shell command with the
+ * LLM lane's key in its environment, so a dispatch may name only paths (no spaces, quotes, `;` or `..`).
+ * @param s the state
+ * @returns the unsafe targets, as JSON
+ */
+export function unsafeTargets(s) {
+    return (s.targets ?? [])
+        .filter(
+            (t) => !/^[\w-]*$/.test(t.shard ?? "") || (t.file && (!SAFE_PATH.test(t.file) || t.file.includes(".."))),
+        )
+        .map((t) => JSON.stringify({ shard: t.shard, file: t.file }));
+}
+
+/**
+ * A point whose checkout, install or build failed ran no test: every followed target counts as failed on every
+ * run the round asked for, so a merge that breaks the build is a bad point, not a lost one tested again.
+ * ponytail: an install that failed for the network also reads as bad; the confirming parent run catches it.
+ * @param s the state
+ * @param sha the point
+ * @returns the point's result
+ */
+export function setupFailed(s, sha) {
+    const runs = s.next?.runs ?? 1;
+    const ids = (s.followed ?? s.targets ?? []).map((t) => t.id);
+    return { sha, runs, failed: Object.fromEntries(ids.map((i) => [i, runs])) };
 }
 
 /**
@@ -227,7 +259,7 @@ export async function runArgs(shard, files) {
         return [
             "--command",
             "graphty-element-default",
-            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.join(" ")}`.trimEnd(),
+            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
         ];
     const { SHARDS } = await import(pathToFileURL(join(ROOT, "tools/ci-test-matrix.mjs")).href);
     const { selectedCommand } = await import(pathToFileURL(join(ROOT, "tools/test-select.mjs")).href);
@@ -313,12 +345,20 @@ async function main() {
             console.error(`::error::bisect.yml tests only master's first-parent commits; not: ${off.join(", ")}`);
             process.exit(1);
         }
+        const unsafe = unsafeTargets(s);
+        if (unsafe.length) {
+            console.error(`::error::bisect.yml runs only plain test paths; not: ${unsafe.join(", ")}`);
+            process.exit(1);
+        }
         return output(s, v.out);
     }
     if (cmd === "run") {
         const s = read(v.state);
         const r = await runPoint(s, v.sha, s.next.runs);
         return writeFileSync(v.out, JSON.stringify(r));
+    }
+    if (cmd === "setup-failed") {
+        return writeFileSync(v.out, JSON.stringify(setupFailed(read(v.state), v.sha)));
     }
     if (cmd === "judge") {
         const files = readdirSync(v.results, { recursive: true }).filter((f) => f.endsWith(".json"));

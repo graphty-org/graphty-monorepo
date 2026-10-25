@@ -10,7 +10,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { judge, laneFiles, LANES, offMaster, realGit, start, T4_CAP_MINUTES } from "./bisect-ci.mjs";
+import {
+    judge,
+    laneFiles,
+    LANES,
+    offMaster,
+    realGit,
+    runArgs,
+    setupFailed,
+    start,
+    T4_CAP_MINUTES,
+    unsafeTargets,
+} from "./bisect-ci.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -251,5 +262,28 @@ describe("offMaster", () => {
         assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["m1", "m2"] } }, master), []);
         assert.deepEqual(offMaster({ good: "g", bad: "b", next: { points: ["branch1"] } }, master), ["branch1"]);
         assert.deepEqual(offMaster({ good: "x", bad: "b" }, master), ["x"]);
+    });
+});
+
+describe("what a dispatch may name", () => {
+    it("refuses a target whose file is not a plain path", () => {
+        const ok = { targets: [{ shard: "llm-regression", file: "test/ai/x.test.ts" }] };
+        assert.deepEqual(unsafeTargets(ok), []);
+        for (const file of ["x; curl evil", "$(id)", "../etc/passwd", "a b.test.ts", "'q'"]) {
+            assert.equal(unsafeTargets({ targets: [{ shard: "s", file }] }).length, 1, file);
+        }
+        assert.equal(unsafeTargets({ targets: [{ shard: "s;x", file: "a.test.ts" }] }).length, 1);
+    });
+
+    it("quotes each LLM file on the command line", async () => {
+        const [, , command] = await runArgs("llm-regression", ["test/ai/a.test.ts", "test/ai/b.test.ts"]);
+        assert.match(command, /--project llm-regression 'test\/ai\/a\.test\.ts' 'test\/ai\/b\.test\.ts'$/);
+    });
+});
+
+describe("setupFailed", () => {
+    it("fails every followed target on every run the round asked for", () => {
+        const s = { targets: [{ id: "a" }, { id: "b" }], followed: [{ id: "a" }], next: { runs: 5 } };
+        assert.deepEqual(setupFailed(s, "p"), { sha: "p", runs: 5, failed: { a: 5 } });
     });
 });

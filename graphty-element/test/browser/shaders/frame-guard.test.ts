@@ -83,7 +83,7 @@ beforeAll(() => {
         glsl: `vec4 shade(NodeInput n) {
             float v = n.time;
             for (int i = 0; i < 64; i++) {
-                for (int j = 0; j < 32; j++) {
+                for (int j = 0; j < 16; j++) {
                     v = fract(sin(v + 1.7) * 43.5);
                 }
             }
@@ -255,7 +255,9 @@ describe("the frame guard", () => {
 
     it("steps quality down when a heavy shader really keeps the GPU behind, with no fence simulated", async () => {
         // Three sprites drawn over one another: each frame shades the canvas about three times
-        // over, some 200 ms of SwiftShader's time, with almost none of it on the CPU.
+        // over, some 80 to 180 ms of SwiftShader's time, with almost none of it on the CPU: well
+        // between the slow-frame line (50 ms) and the long-frame line (250 ms), which two frames
+        // of twice the work crossed in a row often enough to step heavy shaders off instead.
         const element = await mounted(
             [
                 { id: "a", x: 0, y: 0 },

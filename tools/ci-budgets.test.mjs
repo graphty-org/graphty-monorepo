@@ -116,6 +116,13 @@ describe("lint", () => {
         assert.match(lintWorkflow(FILE, "other.yml", workflow(jobEnv)).errors.join(), /env TOKEN reads a secret/);
     });
 
+    it("fails a secret in the workflow's env, read with brackets, under pnpm run build", () => {
+        const wfEnv = parseYaml(
+            `on: push\nenv:\n    TOKEN: \${{ secrets['X'] }}\njobs:\n    b:\n        steps:\n            - run: pnpm run build\n`,
+        );
+        assert.match(lintWorkflow(FILE, "other.yml", wfEnv).errors.join(), /env TOKEN reads a secret/);
+    });
+
     it("fails a build step that runs only on some events or refs", () => {
         const gated = ok.replace(
             "            - run:",

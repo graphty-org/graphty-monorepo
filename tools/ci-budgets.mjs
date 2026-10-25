@@ -86,17 +86,19 @@ export function jobsOf(doc) {
     }));
 }
 
-const BUILD_RUN = /\bnx\b[^\n]*(-t|--targets?)[ =]\S*\bbuild\b|\bnx\b[^\n]*\s\S+:build\b|\bnx\s+build\b/;
+const BUILD_RUN =
+    /\bnx\b[^\n]*(-t|--targets?)[ =]\S*\bbuild\b|\bnx\b[^\n]*\s\S+:build\b|\bnx\s+build\b|\bp?npm( run)? build\b/;
+const SECRET = /\$\{\{[^}]*\bsecrets\b/;
 const EVENT_IF = /github\.(event_name|ref)\b/;
 
-function buildStepProblems(where, job) {
+function buildStepProblems(where, job, workflowEnv = {}) {
     const out = [];
     for (const step of job.steps) {
         if (!BUILD_RUN.test(step.run ?? "")) continue;
         const label = `${where}: job ${job.name}, step "${step.name ?? step.run}"`;
-        const env = { ...job.env, ...step.env };
+        const env = { ...workflowEnv, ...job.env, ...step.env };
         for (const [k, v] of Object.entries(env)) {
-            if (String(v).includes("secrets."))
+            if (SECRET.test(String(v)))
                 out.push(`${label}: env ${k} reads a secret; a build gets the same inputs on every event`);
         }
         if (EVENT_IF.test(String(step.if ?? "")))
@@ -132,7 +134,7 @@ export function lintWorkflow(file, workflow, doc) {
     const errors = [];
     const warnings = [];
     for (const job of jobsOf(doc)) {
-        errors.push(...buildStepProblems(where, job));
+        errors.push(...buildStepProblems(where, job, doc?.env));
         if (!budgeted || job.uses) continue; // a called workflow's jobs carry their own guards
         const p = timeoutProblem(where, file, job, workflow);
         if (p.error) errors.push(p.error);

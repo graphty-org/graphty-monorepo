@@ -162,7 +162,9 @@ export function bisectPlan({ red, sha, good, run, failures }) {
     const lane = red.find((l) => LANES[l].bisect);
     if (!lane) return { why: `${red.map((l) => LANES[l].name).join(", ")}: no bisect; the pipeline round looks` };
     if (!good) return { why: "no green full run is recorded before this one, so there is no range to bisect" };
-    const tests = lane === "ci" ? (failures?.tests ?? []) : [];
+    // ponytail: the first MAX_TARGETS failing tests; a dispatch input holds at most 65,535 characters, and a
+    // broken setup fails a thousand tests that all bisect to the same merge
+    const tests = lane === "ci" ? (failures?.tests ?? []).slice(0, MAX_TARGETS) : [];
     return {
         inputs: {
             lane: LANES[lane].bisect,
@@ -175,6 +177,7 @@ export function bisectPlan({ red, sha, good, run, failures }) {
     };
 }
 
+const MAX_TARGETS = 100;
 const short = (sha) => (sha ?? "").slice(0, 7);
 const sh = (cmd, args, input) =>
     execFileSync(cmd, args, { encoding: "utf8", input, stdio: [input ? "pipe" : "ignore", "pipe", "inherit"] }).trim();
@@ -208,8 +211,8 @@ async function pickMain(env) {
     output({ run: String(p.run), sha: p.sha, good: p.good ?? "", why: p.why });
 }
 
-// The open red issue's number, or empty.
-const openRed = () =>
+// The open red issue's number and title ("<number> <title>"), or empty.
+const openRedIssue = () =>
     sh("gh", [
         "issue",
         "list",
@@ -220,8 +223,30 @@ const openRed = () =>
         "--json",
         "number,title",
         "--jq",
-        `[.[] | select(.title | startswith("${RED_TITLE}"))][0].number // empty`,
+        `[.[] | select(.title | startswith("${RED_TITLE}"))][0] | select(.) | "\\(.number) \\(.title)"`,
     ]);
+const openRed = () => openRedIssue().split(" ")[0];
+
+/**
+ * Whether a green verdict on `green` closes the open red issue: only when the red commit its title names
+ * (`... on <short sha>`) is in the green commit's history, so an older green commit never closes a newer red.
+ * @param title the red issue's title
+ * @param green the green commit
+ * @param isAncestor (a, b) => whether a is in b's history
+ * @returns boolean
+ */
+export function greenCloses(title, green, isAncestor) {
+    const red = / on ([0-9a-f]{7,40})$/.exec(title ?? "")?.[1];
+    return !!red && isAncestor(red, green);
+}
+const ancestor = (a, b) => {
+    try {
+        execFileSync("git", ["merge-base", "--is-ancestor", a, b], { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+};
 
 function fileRed(issue) {
     const file = join(tmpdir(), `full-run-red-${process.pid}.md`);
@@ -272,13 +297,23 @@ async function verdictMain(env) {
     }
     if (state === "red") {
         const failures = cfg ? await read(cfg, `/v1/failures?run=${env.RUN_ID}&good=${env.GOOD}`) : null;
-        const bisect = dispatchBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
+        // a dispatch that fails must not lose the red: the issue and the record still follow
+        let bisect;
+        try {
+            bisect = dispatchBisect(bisectPlan({ red, sha: env.SHA, good: env.GOOD, run: env.RUN_ID, failures }));
+        } catch (error) {
+            console.log(`::warning::bisect.yml was not dispatched: ${error.message.split("\n")[0]}`);
+            bisect = `No bisect: dispatching bisect.yml failed (${error.message.split("\n")[0]}); the pipeline round looks.`;
+        }
         issue = fileRed(redIssue({ sha: env.SHA, red, lanes, run: env.RUN_URL, bisect }));
         what = red.map((l) => LANES[l].name).join(", ");
     } else if (state !== "owner-item") {
-        const open = openRed();
-        if (open)
+        const [open, ...title] = openRedIssue().split(" ");
+        if (open && greenCloses(title.join(" "), env.SHA, ancestor)) {
             sh("gh", ["issue", "close", open, "--comment", `The full run is ${state} on ${env.SHA}: ${env.RUN_URL}`]);
+        } else if (open) {
+            console.log(`::notice::#${open} stays open: its red commit is not in ${short(env.SHA)}'s history`);
+        }
     }
     // a failed pick judged no commit: recording red on one would make the next slot skip it
     if (cfg && red[0] !== "pick") await record(cfg, { sha: env.SHA, state, lane: red.join(",") || null, issue });

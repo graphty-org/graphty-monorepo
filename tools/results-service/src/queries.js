@@ -217,7 +217,7 @@ export async function getCandidate(q, who, db, now) {
 /**
  * GET /v1/failures?run=&good= : the tests a full run saw fail, for its bisect (channels 6). `run` is the run id;
  * `good` the last green full-run commit: `failedBefore` names the tests master's own runs saw fail before that
- * commit's site was built (flaky before the range, so never bisected).
+ * commit's site was built, in the 7 days before it (flaky before the range, so never bisected).
  * @param q the query string
  * @param who the caller
  * @param db the D1 database
@@ -245,10 +245,13 @@ export async function getFailures(q, who, db) {
         const [hit] = await all(
             db,
             `SELECT 1 FROM failure f JOIN invocation i ON i.id = f.invocation
-             WHERE f.file = ? AND f.name = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.started_at < ? LIMIT 1`,
+             WHERE f.file = ? AND f.name = ? AND i.kind IN ${MASTER_EVIDENCE} AND i.started_at < ?
+               AND i.started_at >= ? LIMIT 1`,
             t.file,
             t.name,
             built,
+            // flaky before the range means recently: one failure months ago does not excuse a regression now
+            built - 7 * DAY,
         );
         if (hit) failedBefore.push(id);
     }

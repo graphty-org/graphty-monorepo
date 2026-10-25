@@ -21,7 +21,8 @@ import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const RED_TITLE = "Full run red:";
+import { RED_TITLE } from "./full-run.mjs";
+
 // how long after its close a red issue still restarts: the merge that closed it ran this job minutes later
 const CLOSED_WITHIN_MS = 60 * 60 * 1000;
 

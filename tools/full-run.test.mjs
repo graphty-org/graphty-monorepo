@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
-import { bisectPlan, differingImages, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
+import { bisectPlan, differingImages, greenCloses, LANES, pick, redIssue, verdictOf } from "./full-run.mjs";
 
 // master's first parents, newest first: c3 <- c2 <- c1 <- c0
 const CHAIN = ["c3", "c2", "c1", "c0"];
@@ -173,5 +173,24 @@ describe("the red issue and its bisect", () => {
         assert.deepEqual([t4.inputs.lane, t4.inputs.targets], ["gpu", "[]"], "a lane bisect runs the whole lane");
         assert.match(bisectPlan({ red: ["ci"], sha: "bad", good: "", run: 9, failures }).why, /no green full run/);
         assert.match(bisectPlan({ red: ["audit"], sha: "bad", good: "g", run: 9, failures }).why, /no bisect/);
+    });
+});
+
+describe("greenCloses", () => {
+    const history = { new: ["new", "abc1234", "old"], old: ["old"] };
+    const isAncestor = (a, b) => history[b].includes(a);
+    it("closes the red issue only from a green commit that contains the red one", () => {
+        assert.equal(greenCloses("Full run red: CI on abc1234", "new", isAncestor), true);
+        assert.equal(greenCloses("Full run red: CI on abc1234", "old", isAncestor), false);
+        assert.equal(greenCloses("Something else", "new", isAncestor), false);
+    });
+});
+
+describe("bisectPlan's targets", () => {
+    it("names at most 100 failing tests, so the dispatch input stays under GitHub's limit", () => {
+        const tests = Array.from({ length: 1000 }, (_, i) => ({ shard: "s", file: `f${i}.test.ts`, name: "t" }));
+        const plan = bisectPlan({ red: ["ci"], sha: "b", good: "g", run: 1, failures: { tests, failedBefore: [] } });
+        assert.equal(JSON.parse(plan.inputs.targets).length, 100);
+        assert.ok(plan.inputs.targets.length < 65_535);
     });
 });

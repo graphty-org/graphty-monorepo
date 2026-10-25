@@ -8,7 +8,7 @@ earlier run already built. Entries expire 14 days after they are written.
 
 | Call                   | Who may call it | What it does                                                                |
 | ---------------------- | --------------- | --------------------------------------------------------------------------- |
-| `GET /v1/health`       | anyone          | `{ "ok": true }`; CI's probe                                                |
+| `GET /v1/health`       | anyone          | `{ "ok": true }`; the deploy job's check                                    |
 | `GET /v1/cache/{hash}` | read or write   | the task's tarball, or 404                                                  |
 | `PUT /v1/cache/{hash}` | write only      | stores the tarball; 403 for a read token, 409 when the entry already exists |
 

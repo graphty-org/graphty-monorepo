@@ -2,7 +2,7 @@
 // GET and PUT /v1/cache/{hash} with `Authorization: Bearer <NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN>`:
 // - a token whose SHA-256 is in READ_TOKEN_HASHES or WRITE_TOKEN_HASHES may read;
 // - only one in WRITE_TOKEN_HASHES may write (a read token gets 403), and an entry is never replaced (409).
-// GET /v1/health answers anyone, for CI's probe. Objects expire after 14 days (an R2 lifecycle rule).
+// GET /v1/health answers anyone, for the deploy job's check (CI's probe reads an entry with its token). Objects expire after 14 days (an R2 lifecycle rule).
 
 const HASH = /^[A-Za-z0-9_-]{1,128}$/;
 

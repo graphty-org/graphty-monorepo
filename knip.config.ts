@@ -260,6 +260,8 @@ const config: KnipConfig = {
                 "stories/**/*.stories.ts",
                 "scripts/**/*.{ts,js}",
                 ".storybook/*.js",
+                // Loaded by vitest.config.ts only when STORY_SPIKE_OUT is set (issue #3389).
+                ".storybook/story-spike.setup.ts",
             ],
             project: [
                 "*.ts!",
@@ -328,7 +330,9 @@ const config: KnipConfig = {
 
         // visual-review tool (plain .mjs, no build)
         "visual-review": {
-            entry: ["test/**/*.test.mjs"],
+            // The story screenshot spike (issue #3389) is loaded by other packages' Vitest configs
+            // and setup files, which knip does not follow across workspaces.
+            entry: ["test/**/*.test.mjs", "capture/story-spike*.mjs"],
             project: ["trusted/**/*.mjs!", "capture/**/*.mjs!", "test/**/*.mjs"],
         },
 

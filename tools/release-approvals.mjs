@@ -26,7 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const KINDS = ["major", "first"];
+const KINDS = new Set(["major", "first"]);
 
 /**
  * Everything wrong with a parsed release-approvals.json.
@@ -39,7 +39,7 @@ export function problems(file) {
     }
     const checks = [
         ["project", (v) => typeof v === "string" && v.length > 0, "an nx project name"],
-        ["kind", (v) => KINDS.includes(v), '"major" or "first"'],
+        ["kind", (v) => KINDS.has(v), '"major" or "first"'],
         ["merge", (v) => /^[0-9a-f]{40}$/.test(v), "a full 40-character commit id"],
         ["approval", (v) => typeof v === "string" && v.startsWith("https://github.com/"), "a github.com review URL"],
         ["since", (v) => /^\d{4}-\d{2}-\d{2}$/.test(v), "a YYYY-MM-DD date"],

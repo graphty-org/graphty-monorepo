@@ -1451,7 +1451,7 @@ jobs:
                   rm -rf visual-review/capture visual-review/trusted
                   git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x
 
-            - uses: pnpm/action-setup@v6
+            - uses: pnpm/action-setup@v4
               if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js

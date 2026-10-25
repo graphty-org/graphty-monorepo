@@ -148,11 +148,12 @@ export function isJsonImportDialect(value: unknown): value is JsonImportDialect 
 }
 
 /**
- * The dialect of a parsed JSON document, by the shape rules of design section 8.2 (Cytoscape:
+ * The dialect of a parsed JSON document, told by its shape (Cytoscape:
  * `elements` or a top-level array of `{ data }` elements; OBO Graphs: `graphs[]` whose first graph
  * has an edge with `sub` (or `subj`) and `obj` or a `pred`, or a node with `lbl`, `meta` or an OWL
  * `type`; JGF: `graph.nodes` / `graph.edges` or any other `graphs[]`; graphology: `options.type` / `options.multi`, `key` nodes without `id`, edges with
- * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, both only without
+ * `undirected` or an `attributes` record, and vis: edges with `from` / `to`, or no edge record and an `options`
+ * object holding a vis-network option group (`nodes`, `edges`, `groups`, `physics`, ...), both only without
  * NetworkX's `links` / `directed` / `multigraph` / `graph` keys; d3: `links` without
  * `directed` / `multigraph` / `graph`; NetworkX adjacency_data: `nodes` and `adjacency` without
  * `links` / `edges`; NetworkX tree_data: `children` without `nodes` / `links` / `edges`; else
@@ -229,14 +230,46 @@ function sniffEdgeListDialect(root: Record<string, unknown>): JsonImportDialect 
     if (record !== undefined) {
         return record;
     }
+    // vis: a `{ nodes, edges, options }` document with no edge record still carries vis-network's options
+    if (!networkx && firstEdge === null && isVisOptions(root.options)) {
+        return "vis";
+    }
     const bare = !hasKey(root, "directed") && !hasKey(root, "multigraph") && !hasKey(root, "graph");
     return bare && hasKey(root, "links") ? "d3" : "node-link";
 }
 
+/** vis-network's top-level option groups (https://visjs.github.io/vis-network/docs/network/#options). */
+const VIS_OPTION_GROUPS = [
+    "nodes",
+    "edges",
+    "groups",
+    "physics",
+    "layout",
+    "interaction",
+    "manipulation",
+    "configure",
+    "autoResize",
+    "clickToUse",
+    "locale",
+    "locales",
+    "height",
+    "width",
+];
+
+/**
+ * Whether a document's `options` is vis-network's: an object holding one of its top-level option groups.
+ * @param options - the document's `options`
+ * @returns true for vis-network options
+ */
+function isVisOptions(options: unknown): boolean {
+    return isJsonObject(options) && VIS_OPTION_GROUPS.some((k) => hasKey(options, k));
+}
+
 /**
  * The graphology or vis dialect, read from the first node and edge records of a document without
- * NetworkX's keys: graphology for a `key` node without `id`, or an edge without `from` that has
- * `undirected` or an `attributes` record; vis for an edge with `from` and `to` but no `source`.
+ * NetworkX's keys: graphology for a `key` node without `id`, an edge without `from` that has
+ * `undirected` or an `attributes` record, or, with no edges, an `id` node with an `attributes` record
+ * (Gephi's JSON export); vis for an edge with `from` and `to` but no `source`.
  * @param firstNode - the first node record, or null
  * @param firstEdge - the first edge record, or null
  * @returns the dialect, or undefined when the records name neither
@@ -249,7 +282,10 @@ function sniffRecordDialect(
         return "graphology";
     }
     if (firstEdge === null) {
-        return undefined;
+        // Gephi's JSON export of a graph with no edges: its nodes still carry the exporter's `attributes` record
+        return firstNode !== null && hasKey(firstNode, "id") && isJsonObject(firstNode.attributes)
+            ? "graphology"
+            : undefined;
     }
     if (!hasKey(firstEdge, "from")) {
         return hasKey(firstEdge, "undirected") || isJsonObject(firstEdge.attributes) ? "graphology" : undefined;

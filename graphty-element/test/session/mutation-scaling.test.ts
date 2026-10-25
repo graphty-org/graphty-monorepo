@@ -162,6 +162,21 @@ async function groupLayer(session: GraphSession): Promise<string> {
 }
 
 /**
+ * A layer colouring every node by its group as categories, whose values take entries.
+ * @param session - The session.
+ * @returns The layer's id.
+ */
+async function categoryLayer(session: GraphSession): Promise<string> {
+    const layer = await session.styles.add({
+        name: "Categories",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "data.group", scale: "ordinal" } },
+    });
+    await session.styles.settled();
+    return layer.id;
+}
+
+/**
  * Add as many new nodes as the graph holds, as one recorded step.
  * @param session - The session.
  * @param size - The node count.
@@ -270,6 +285,33 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.previewHover",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.config.set({ startingRows: true });
+            await session.selection.apply({ nodes: ids(size) });
+            return async () => {
+                session.selection.previewHover(true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SelectionApi.hover",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.styles.add({
+                name: "Fade the rest",
+                target: "node",
+                selector: { match: "hover", reach: "neighbors", invert: true },
+                set: { "node.opacity": 0.25 },
+            });
+            return () => {
+                session.selection.hover("n5");
+            };
+        },
+    },
+    {
         method: "SelectionApi.promote",
         growth: "linear",
         prepare: async (session, size) => {
@@ -293,6 +335,36 @@ const CASES: readonly Case[] = [
             const id = await everyNodeLayer(session);
             return async () => {
                 await session.styles.update(id, { set: { "node.color": BLUE } });
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.addRow",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(async () => {
+                await session.styles.addRow({
+                    name: "Both",
+                    target: "both",
+                    selector: { match: "everything" },
+                    set: { color: BLUE },
+                });
+                await session.styles.settled();
+            }),
+    },
+    {
+        method: "StylesApi.writeRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const row = await session.styles.addRow({
+                name: "Both",
+                target: "both",
+                selector: { match: "everything" },
+                set: { color: BLUE },
+            });
+            return async () => {
+                await session.styles.writeRow(row.id, { set: { color: "#ff0000" } });
                 await session.styles.settled();
             };
         },
@@ -366,6 +438,44 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "StylesApi.setValueEntry",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            return async () => {
+                await session.styles.setValueEntry(id, "node.color", 2, "#123456");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.setValueEntries",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            return async () => {
+                await session.styles.setValueEntries(id, "data.group", [
+                    { channel: "node.color", value: 2, entry: "#123456" },
+                    { channel: "node.shape", value: 2, entry: "box" },
+                ]);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.setFoldBelow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await categoryLayer(session);
+            let below = 2;
+            return async () => {
+                below = below === 2 ? 3 : 2;
+                await session.styles.setFoldBelow(id, "data.group", below);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
         method: "StylesApi.applyTemplate",
         growth: "linear",
         prepare: async (session) => {
@@ -374,6 +484,116 @@ const CASES: readonly Case[] = [
             const document = session.styles.toDocument();
             return async () => {
                 await session.styles.applyTemplate(document);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.addFolder",
+        growth: "linear",
+        prepare: async (session) => {
+            await everyNodeLayer(session);
+            return async () => {
+                await session.styles.addFolder("Folder");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.renameRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.renameRow(id, "Renamed");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.moveRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            const folder = await session.styles.addFolder("Folder");
+            return async () => {
+                await session.styles.moveRow(id, { parent: folder.id });
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.pinRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session, "First");
+            await everyNodeLayer(session, "Second");
+            return async () => {
+                await session.styles.pinRow(id, "top");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.lockRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.lockRow(id, true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.hideRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.hideRow(id, true);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.replaceColor",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.replaceColor([id], RED, "#00ff00");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.updateMany",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.updateMany([{ id, patch: { set: { "node.color": "#00ff00" } } }]);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "StylesApi.restoreStartingRows",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(async () => {
+                await session.styles.restoreStartingRows();
+                await session.styles.settled();
+            }),
+    },
+    {
+        method: "StylesApi.deleteRow",
+        growth: "linear",
+        prepare: async (session) => {
+            const id = await everyNodeLayer(session);
+            return async () => {
+                await session.styles.deleteRow(id);
                 await session.styles.settled();
             };
         },
@@ -453,6 +673,11 @@ const CASES: readonly Case[] = [
             Promise.resolve(() =>
                 session.data.declare({ kind: "node", name: "group" }, { measurement: "categorical" }),
             ),
+    },
+    {
+        method: "SessionDataApi.setValueLabel",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setValueLabel("data.group", 1, "First")),
     },
     // Visibility, scope and settings
     {

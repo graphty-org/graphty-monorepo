@@ -33,6 +33,8 @@ export default tseslint.config(
             // registered, so ESLint refuses these files outright. Scope that block to .ts and fix
             // the findings to remove this line.
             "test/helpers/scripts/**/*.js",
+            // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
+            "test/lifecycle/discard-extension/**",
             "test/fast-check-experiment/**",
             "examples/**/*.js",
             "bin/**",

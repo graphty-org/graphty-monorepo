@@ -1,0 +1,22 @@
+{
+    "sample": "dot-profile",
+    "file": "graph-io/test/corpus/styles/dot/graphviz-gallery-directed-profile.gv",
+    "sha256": "ad498c50838e41b5eb5c6aa65314e45be4875f07a388991a7f4a1e8b235515e6",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "dot",
+    "command": "dot -Kdot -Tsvg -Gsize=\"12.5,9.375!\" <file>",
+    "engineSource": "the file names no layout, so dot (Graphviz's default)",
+    "standIn": false,
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 270,
+        "widthPx": 1200,
+        "heightPx": 360
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-18",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-profile && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-profile.svg"
+}

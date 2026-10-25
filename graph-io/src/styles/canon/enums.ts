@@ -1,7 +1,7 @@
 /**
  * Canonical enumeration values: each dialect's spellings matched against an alias table without regard to case,
  * spaces or underscores. An unknown value of an open enumeration (shapes, border and line styles, arrows) is kept as
- * `other:<raw>` and noted; an unknown value of a closed one (weights, positions) gives no value and is noted.
+ * `other:<raw>` and noted; an unknown value of a closed one (weights, positions, label fits) gives no value and is noted.
  */
 
 import { STYLE_ISSUE } from "../codes.js";
@@ -12,7 +12,17 @@ import { type CanonSite, noteAt, scalarText } from "./site.js";
  * The enumerations a style value can belong to.
  * @category Styles
  */
-export type StyleEnumKind = "shape" | "borderStyle" | "lineStyle" | "arrow" | "weight" | "position";
+export type StyleEnumKind =
+    | "shape"
+    | "borderStyle"
+    | "borderPosition"
+    | "lineStyle"
+    | "arrow"
+    | "arrowSide"
+    | "weight"
+    | "position"
+    | "labelFit"
+    | "textAlign";
 
 type Aliases = Readonly<Record<string, readonly string[]>>;
 
@@ -55,16 +65,34 @@ const SHAPES: Aliases = {
         "roundedrectangle",
         "round-rect",
         "mrecord",
-        "cut-rectangle",
         "round-tag",
         "bottom-round-rectangle",
+        "bottomroundrectangle",
     ],
     triangle: ["triangle", "invtriangle", "round-triangle", "tag"],
     diamond: ["diamond", "rhombus", "mdiamond", "round-diamond"],
     pentagon: ["pentagon", "round-pentagon"],
-    hexagon: ["hexagon", "hexagon2", "round-hexagon", "concave-hexagon", "septagon", "heptagon", "round-heptagon"],
-    octagon: ["octagon", "doubleoctagon", "tripleoctagon", "round-octagon", "octagon2"],
-    parallelogram: ["parallelogram", "parallelogram2", "rhomboid", "fat-arrow", "fatarrow"],
+    hexagon: [
+        "hexagon",
+        "hexagon2",
+        "round-hexagon",
+        "concave-hexagon",
+        "concavehexagon",
+        "septagon",
+        "heptagon",
+        "round-heptagon",
+    ],
+    // a cut rectangle is a rectangle with its four corners cut off: eight sides
+    octagon: [
+        "octagon",
+        "doubleoctagon",
+        "tripleoctagon",
+        "round-octagon",
+        "octagon2",
+        "cut-rectangle",
+        "cutrectangle",
+    ],
+    parallelogram: ["parallelogram", "parallelogram2", "rhomboid", "right-rhomboid", "fat-arrow", "fatarrow"],
     trapezoid: ["trapezoid", "trapezoid2", "invtrapezoid", "trapezium", "round-trapezoid"],
     star: ["star", "star5", "star6", "star8", "polygon"],
     vee: ["vee", "v"],
@@ -135,6 +163,36 @@ const POSITIONS: Aliases = {
     "top-right": ["top-right", "north-east", "northeast"],
     "bottom-left": ["bottom-left", "south-west", "southwest"],
     "bottom-right": ["bottom-right", "south-east", "southeast"],
+    "inside-top": ["inside-top"],
+    "inside-bottom": ["inside-bottom"],
+    "inside-left": ["inside-left"],
+    "inside-right": ["inside-right"],
+    "inside-top-left": ["inside-top-left"],
+    "inside-top-right": ["inside-top-right"],
+    "inside-bottom-left": ["inside-bottom-left"],
+    "inside-bottom-right": ["inside-bottom-right"],
+};
+
+const BORDER_POSITIONS: Aliases = {
+    inside: ["inside"],
+    center: ["center", "centre", "middle"],
+    outside: ["outside"],
+};
+
+const ARROW_SIDES: Aliases = {
+    left: ["left"],
+    right: ["right"],
+};
+
+const TEXT_ALIGNS: Aliases = {
+    left: ["left", "start"],
+    center: ["center", "centre", "middle"],
+    right: ["right", "end"],
+};
+
+const LABEL_FITS: Aliases = {
+    inside: ["inside"],
+    bounds: ["bounds"],
 };
 
 /** vis-network draws these spellings differently from the common reading. */
@@ -145,11 +203,40 @@ const VIS: Partial<Record<StyleEnumKind, Aliases>> = {
         triangle: ["triangledown"],
         none: ["text"],
     },
-    arrow: { inverted: ["inv-triangle"], square: ["box"] },
+    // curve and inv_curve: an arc at the end, bulging toward the node and away from it
+    arrow: { inverted: ["inv-triangle"], square: ["box"], "other:curve": ["curve"], "other:inv-curve": ["inv-curve"] },
+};
+
+/**
+ * Cytoscape.js's compound arrows (https://js.cytoscape.org/#style/edge-arrow): a triangle with a bar behind it, with a
+ * thin bar across the line behind it, a dot with a triangle behind it and its short chevron each keep their own name;
+ * its triangle-backcurve is a triangle whose back is hollowed out, which is how a vee is drawn.
+ */
+const CYJS: Partial<Record<StyleEnumKind, Aliases>> = {
+    arrow: {
+        "other:triangle-tee": ["triangle-tee"],
+        "other:triangle-cross": ["triangle-cross"],
+        "other:circle-triangle": ["circle-triangle"],
+        // a vee two thirds as long as its triangle (0.2 of the arrow width against 0.3)
+        "other:chevron": ["chevron"],
+        vee: ["triangle-backcurve"],
+    },
+};
+
+/**
+ * Graphviz's curve and icurve (lib/common/arrows.c arrow_type_curve): a stem to the tip with an arc across it, bulging
+ * toward the tip and, inverted, away from it -- vis-network's curve and inv_curve.
+ */
+const GRAPHVIZ: Partial<Record<StyleEnumKind, Aliases>> = {
+    arrow: { "other:curve": ["curve"], "other:inv-curve": ["icurve"] },
 };
 
 /** Per-dialect overrides; a dialect not listed reads the common table alone. */
-const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([["vis", VIS]]);
+const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([
+    ["vis", VIS],
+    ["graphviz", GRAPHVIZ],
+    ["cytoscape-js", CYJS],
+]);
 
 const OPEN: ReadonlySet<StyleEnumKind> = new Set<StyleEnumKind>(["shape", "borderStyle", "lineStyle", "arrow"]);
 
@@ -173,8 +260,12 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["borderStyle", lookup(BORDER_STYLES)],
     ["lineStyle", lookup(LINE_STYLES)],
     ["arrow", lookup(ARROWS)],
+    ["arrowSide", lookup(ARROW_SIDES)],
     ["weight", lookup(WEIGHTS)],
     ["position", lookup(POSITIONS)],
+    ["labelFit", lookup(LABEL_FITS)],
+    ["borderPosition", lookup(BORDER_POSITIONS)],
+    ["textAlign", lookup(TEXT_ALIGNS)],
 ]);
 
 const DIALECT: ReadonlyMap<string, ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>>> = new Map(

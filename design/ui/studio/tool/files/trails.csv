@@ -1,0 +1,14 @@
+from,to,km
+Trailhead,Pine Fork,3.0
+Pine Fork,Summit,6.0
+Trailhead,Creek,1.5
+Creek,Meadow,2.0
+Meadow,Ridge,2.5
+Ridge,Summit,1.5
+Creek,Lake,3.0
+Lake,Summit,4.5
+Pine Fork,Meadow,1.0
+Lake,Falls,2.0
+Falls,Ridge,3.5
+Trailhead,Lookout,4.0
+Lookout,Ridge,3.0

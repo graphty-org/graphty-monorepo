@@ -109,6 +109,9 @@ export function builtInImporter(id: string): GraphImporter | undefined {
  */
 export const MIN_CONTENT_CONFIDENCE = 0.5;
 
+/** The characters opening the leading comment lines (SNAP `#`, KONECT `%`) the CSV reader skips. */
+const CSV_COMMENTS: ReadonlySet<string> = new Set(["#", "%"]);
+
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.
  *
@@ -116,14 +119,14 @@ export const MIN_CONTENT_CONFIDENCE = 0.5;
  * for any other consistently delimited rows -- which is most real tables, headerless or with
  * column names of their own (`person,friend`). The element's reader takes those, so any score
  * counts. But graph-io also splits on spaces, which the element's reader does not, so a line of
- * prose (`Name of the report`) would be answered "csv"; the first line must hold one of the
- * reader's own delimiters.
+ * prose (`Name of the report`) would be answered "csv"; the first line after any leading comment
+ * lines must hold one of the reader's own delimiters.
  * @param content - graph-io's CSV content score.
  * @param sample - The first bytes of the file, trimmed.
  * @returns Whether the element should answer "csv".
  */
 function isReadableTable(content: number, sample: string): boolean {
-    const firstLine = sample.split(/\r?\n|\r/, 1)[0];
+    const firstLine = sample.split(/\r?\n|\r/).find((line) => !CSV_COMMENTS.has(line.charAt(0))) ?? "";
 
     return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
 }
@@ -188,9 +191,9 @@ export function detectFormats(input: DetectionInput): readonly FormatId[] {
     const extension = input.filename === undefined ? null : extensionOf(input.filename);
     if (extension !== null) {
         const claimants: FormatId[] = [
-            ...FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.extensions.includes(extension)).map(
-                (descriptor) => descriptor.id,
-            ),
+            ...FORMAT_DESCRIPTORS.filter(
+                (descriptor) => descriptor.canImport && descriptor.extensions.includes(extension),
+            ).map((descriptor) => descriptor.id),
             ...registered
                 .filter((entry) => entry.descriptor.extensions.includes(extension))
                 .map((entry) => entry.descriptor.id),
@@ -252,7 +255,7 @@ export function detectFormat(input: DetectionInput): FormatId | null {
  */
 function knownFormatIds(): readonly FormatId[] {
     return [
-        ...FORMAT_DESCRIPTORS.map((descriptor) => descriptor.id),
+        ...FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport).map((descriptor) => descriptor.id),
         ...registeredFormats().map((entry) => entry.descriptor.id),
     ];
 }
@@ -272,10 +275,13 @@ export function unknownFormat(name: string): GraphtyError {
     // A deprecated built-in name is still offered by `FormatId`, so it is not unknown: say why it
     // cannot be read instead.
     const unserved = UNSERVED_FORMAT_IDS.find((entry) => entry.id === name);
-    const refusal =
-        unserved === undefined
-            ? `no format is named "${name}".`
-            : `the format "${name}" cannot be read: ${unserved.reason}`;
+    const writeOnly = FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === name && !descriptor.canImport);
+    let refusal = `no format is named "${name}".`;
+    if (unserved !== undefined) {
+        refusal = `the format "${name}" cannot be read: ${unserved.reason}`;
+    } else if (writeOnly !== undefined) {
+        refusal = `the format "${name}" is written, not imported. ${writeOnly.description ?? ""}`.trimEnd();
+    }
 
     return new GraphtyError({
         code: "E_UNKNOWN_FORMAT",

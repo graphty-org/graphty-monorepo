@@ -1,0 +1,3691 @@
+{
+    "elements": {
+        "nodes": [
+            {
+                "data": {
+                    "id": "anchor-nw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-ne"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-sw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-se"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-leftward",
+                    "label": "taxi-direction=leftward"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-rightward",
+                    "label": "taxi-direction=rightward"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-vertical",
+                    "label": "taxi-direction=vertical"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-vertical-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-vertical-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-upward",
+                    "label": "taxi-direction=upward"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-downward",
+                    "label": "taxi-direction=downward"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-auto",
+                    "label": "taxi-direction=auto"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-auto-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-auto-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-leftward-target-left",
+                    "label": "taxi-direction=leftward (target left)"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left-s"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left-t"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-rightward-target-left",
+                    "label": "taxi-direction=rightward (target left)"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-target-left-s"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-target-left-t"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-upward-target-above",
+                    "label": "taxi-direction=upward (target above)"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-target-above-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-target-above-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-direction-downward-target-above",
+                    "label": "taxi-direction=downward (target above)"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 148
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 128
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 88
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-turn-20pct",
+                    "label": "taxi-turn=20%"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-20pct-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 252
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-20pct-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 292
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-turn-10",
+                    "label": "taxi-turn=10"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-10-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 252
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-10-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 292
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-turn-min-distance-60",
+                    "label": "taxi-turn-min-distance=60"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-min-distance-60-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 252
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-min-distance-60-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 292
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-taxi-radius-4",
+                    "label": "taxi-radius=4"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "taxi-radius-4-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 252
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "taxi-radius-4-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 292
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-distances-intersection",
+                    "label": "edge-distances=intersection"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-intersection-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-intersection-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-distances-node-position",
+                    "label": "edge-distances=node-position"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-node-position-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-node-position-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-distances-endpoints",
+                    "label": "edge-distances=endpoints"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-endpoints-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-distances-endpoints-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 272
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-inside-to-node",
+                    "label": "source-endpoint=inside-to-node"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-inside-to-node-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 264
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-inside-to-node-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-node",
+                    "label": "source-endpoint=outside-to-node"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 264
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-node-or-label",
+                    "label": "source-endpoint=outside-to-node-or-label"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 312
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-or-label-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 264
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-or-label-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 280
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-line",
+                    "label": "source-endpoint=outside-to-line"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-outside-to-line-or-label",
+                    "label": "source-endpoint=outside-to-line-or-label"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line-or-label-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line-or-label-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-90deg",
+                    "label": "source-endpoint=90deg"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-90deg-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-90deg-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-endpoint-50pct-0pct",
+                    "label": "source-endpoint=-50% 0%"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-50pct-0pct-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-50pct-0pct-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-inside-to-node",
+                    "label": "target-endpoint=inside-to-node"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-inside-to-node-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-inside-to-node-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-outside-to-node",
+                    "label": "target-endpoint=outside-to-node"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-outside-to-node-or-label",
+                    "label": "target-endpoint=outside-to-node-or-label"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node-or-label-s"
+                },
+                "position": {
+                    "x": 730,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node-or-label-t"
+                },
+                "position": {
+                    "x": 806,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-outside-to-line",
+                    "label": "target-endpoint=outside-to-line"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-outside-to-line-or-label",
+                    "label": "target-endpoint=outside-to-line-or-label"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-or-label-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-or-label-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-270deg",
+                    "label": "target-endpoint=270deg"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 476
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-270deg-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 428
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-270deg-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 444
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-endpoint-50pct-0pct",
+                    "label": "target-endpoint=50% 0%"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-50pct-0pct-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 592
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-50pct-0pct-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-source-distance-from-node-8",
+                    "label": "source-distance-from-node=8"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "source-distance-from-node-8-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "source-distance-from-node-8-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-distance-from-node-8",
+                    "label": "target-distance-from-node=8"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-distance-from-node-8-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-distance-from-node-8-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-loop",
+                    "label": "self loop"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "loop-s"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-loop-direction-90deg",
+                    "label": "loop-direction=90deg"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "loop-direction-90deg-s"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-loop-sweep-30deg",
+                    "label": "loop-sweep=30deg"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "loop-sweep-30deg-s"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-loop-control-point-step-size-60",
+                    "label": "control-point-step-size=60"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "loop-control-point-step-size-60-s"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 608
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-visibility-hidden",
+                    "label": "visibility=hidden"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden-s"
+                },
+                "position": {
+                    "x": 842,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 918,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-display-none",
+                    "label": "display=none"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-display-none-s"
+                },
+                "position": {
+                    "x": 954,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-display-none-t"
+                },
+                "position": {
+                    "x": 1030,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-display-none",
+                    "label": "target node display=none"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 640
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-display-none-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-display-none-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 600
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-target-visibility-hidden",
+                    "label": "target node visibility=hidden"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-underlay-opacity-0-5",
+                    "label": "underlay-opacity=0.5"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-overlay-opacity-0-5",
+                    "label": "overlay-opacity=0.5"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 804
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 764
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            }
+        ],
+        "edges": [
+            {
+                "data": {
+                    "id": "taxi-direction-leftward",
+                    "source": "taxi-direction-leftward-s",
+                    "target": "taxi-direction-leftward-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward",
+                    "source": "taxi-direction-rightward-s",
+                    "target": "taxi-direction-rightward-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-vertical",
+                    "source": "taxi-direction-vertical-s",
+                    "target": "taxi-direction-vertical-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward",
+                    "source": "taxi-direction-upward-s",
+                    "target": "taxi-direction-upward-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward",
+                    "source": "taxi-direction-downward-s",
+                    "target": "taxi-direction-downward-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-auto",
+                    "source": "taxi-direction-auto-s",
+                    "target": "taxi-direction-auto-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-leftward-target-left",
+                    "source": "taxi-direction-leftward-target-left-s",
+                    "target": "taxi-direction-leftward-target-left-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-rightward-target-left",
+                    "source": "taxi-direction-rightward-target-left-s",
+                    "target": "taxi-direction-rightward-target-left-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-upward-target-above",
+                    "source": "taxi-direction-upward-target-above-s",
+                    "target": "taxi-direction-upward-target-above-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-direction-downward-target-above",
+                    "source": "taxi-direction-downward-target-above-s",
+                    "target": "taxi-direction-downward-target-above-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-20pct",
+                    "source": "taxi-turn-20pct-s",
+                    "target": "taxi-turn-20pct-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-10",
+                    "source": "taxi-turn-10-s",
+                    "target": "taxi-turn-10-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-turn-min-distance-60",
+                    "source": "taxi-turn-min-distance-60-s",
+                    "target": "taxi-turn-min-distance-60-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "taxi-radius-4",
+                    "source": "taxi-radius-4-s",
+                    "target": "taxi-radius-4-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-intersection",
+                    "source": "edge-distances-intersection-s",
+                    "target": "edge-distances-intersection-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-intersection-2",
+                    "source": "edge-distances-intersection-s",
+                    "target": "edge-distances-intersection-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-node-position",
+                    "source": "edge-distances-node-position-s",
+                    "target": "edge-distances-node-position-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-node-position-2",
+                    "source": "edge-distances-node-position-s",
+                    "target": "edge-distances-node-position-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-endpoints",
+                    "source": "edge-distances-endpoints-s",
+                    "target": "edge-distances-endpoints-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-distances-endpoints-2",
+                    "source": "edge-distances-endpoints-s",
+                    "target": "edge-distances-endpoints-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-inside-to-node",
+                    "source": "source-endpoint-inside-to-node-s",
+                    "target": "source-endpoint-inside-to-node-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node",
+                    "source": "source-endpoint-outside-to-node-s",
+                    "target": "source-endpoint-outside-to-node-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-node-or-label",
+                    "source": "source-endpoint-outside-to-node-or-label-s",
+                    "target": "source-endpoint-outside-to-node-or-label-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line",
+                    "source": "source-endpoint-outside-to-line-s",
+                    "target": "source-endpoint-outside-to-line-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-outside-to-line-or-label",
+                    "source": "source-endpoint-outside-to-line-or-label-s",
+                    "target": "source-endpoint-outside-to-line-or-label-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-90deg",
+                    "source": "source-endpoint-90deg-s",
+                    "target": "source-endpoint-90deg-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-endpoint-50pct-0pct",
+                    "source": "source-endpoint-50pct-0pct-s",
+                    "target": "source-endpoint-50pct-0pct-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-inside-to-node",
+                    "source": "target-endpoint-inside-to-node-s",
+                    "target": "target-endpoint-inside-to-node-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node",
+                    "source": "target-endpoint-outside-to-node-s",
+                    "target": "target-endpoint-outside-to-node-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-node-or-label",
+                    "source": "target-endpoint-outside-to-node-or-label-s",
+                    "target": "target-endpoint-outside-to-node-or-label-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line",
+                    "source": "target-endpoint-outside-to-line-s",
+                    "target": "target-endpoint-outside-to-line-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-outside-to-line-or-label",
+                    "source": "target-endpoint-outside-to-line-or-label-s",
+                    "target": "target-endpoint-outside-to-line-or-label-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-270deg",
+                    "source": "target-endpoint-270deg-s",
+                    "target": "target-endpoint-270deg-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-endpoint-50pct-0pct",
+                    "source": "target-endpoint-50pct-0pct-s",
+                    "target": "target-endpoint-50pct-0pct-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "source-distance-from-node-8",
+                    "source": "source-distance-from-node-8-s",
+                    "target": "source-distance-from-node-8-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-distance-from-node-8",
+                    "source": "target-distance-from-node-8-s",
+                    "target": "target-distance-from-node-8-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "loop",
+                    "source": "loop-s",
+                    "target": "loop-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "loop-direction-90deg",
+                    "source": "loop-direction-90deg-s",
+                    "target": "loop-direction-90deg-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "loop-sweep-30deg",
+                    "source": "loop-sweep-30deg-s",
+                    "target": "loop-sweep-30deg-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "loop-control-point-step-size-60",
+                    "source": "loop-control-point-step-size-60-s",
+                    "target": "loop-control-point-step-size-60-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-visibility-hidden",
+                    "source": "edge-visibility-hidden-s",
+                    "target": "edge-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-display-none",
+                    "source": "edge-display-none-s",
+                    "target": "edge-display-none-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-display-none",
+                    "source": "target-display-none-s",
+                    "target": "target-display-none-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "target-visibility-hidden",
+                    "source": "target-visibility-hidden-s",
+                    "target": "target-visibility-hidden-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-underlay-opacity-0-5",
+                    "source": "edge-underlay-opacity-0-5-s",
+                    "target": "edge-underlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-overlay-opacity-0-5",
+                    "source": "edge-overlay-opacity-0-5-s",
+                    "target": "edge-overlay-opacity-0-5-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            }
+        ]
+    },
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "shape": "ellipse",
+                "width": "36px",
+                "height": "36px",
+                "background-color": "rgb(200,200,200)",
+                "background-opacity": "1",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "border-style": "solid",
+                "border-opacity": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "font-style": "normal",
+                "font-weight": "normal",
+                "text-valign": "center",
+                "text-halign": "center",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node:parent",
+            "style": {
+                "shape": "rectangle",
+                "padding": "10px",
+                "background-color": "rgb(238,238,238)",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "text-valign": "top",
+                "text-halign": "center"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "width": "1.5px",
+                "line-color": "rgb(80,80,80)",
+                "line-style": "solid",
+                "line-opacity": "1",
+                "curve-style": "straight",
+                "source-arrow-shape": "none",
+                "target-arrow-shape": "none",
+                "mid-source-arrow-shape": "none",
+                "mid-target-arrow-shape": "none",
+                "source-arrow-color": "rgb(80,80,80)",
+                "target-arrow-color": "rgb(80,80,80)",
+                "mid-source-arrow-color": "rgb(80,80,80)",
+                "mid-target-arrow-color": "rgb(80,80,80)",
+                "arrow-scale": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node.end",
+            "style": {
+                "width": "8px",
+                "height": "8px"
+            }
+        },
+        {
+            "selector": "node.child",
+            "style": {
+                "width": "14px",
+                "height": "14px"
+            }
+        },
+        {
+            "selector": "node.anchor",
+            "style": {
+                "width": "6px",
+                "height": "6px"
+            }
+        },
+        {
+            "selector": "node.cap",
+            "style": {
+                "width": "1px",
+                "height": "1px",
+                "background-opacity": "0",
+                "border-width": "0px",
+                "label": "data(label)",
+                "font-size": "9px",
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-wrap": "wrap",
+                "text-max-width": "104px",
+                "text-overflow-wrap": "anywhere"
+            }
+        },
+        {
+            "selector": "#taxi-direction-leftward",
+            "style": {
+                "taxi-direction": "leftward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-rightward",
+            "style": {
+                "taxi-direction": "rightward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-vertical",
+            "style": {
+                "taxi-direction": "vertical",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-upward",
+            "style": {
+                "taxi-direction": "upward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-downward",
+            "style": {
+                "taxi-direction": "downward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-auto",
+            "style": {
+                "taxi-direction": "auto",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-leftward-target-left",
+            "style": {
+                "taxi-direction": "leftward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-rightward-target-left",
+            "style": {
+                "taxi-direction": "rightward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-upward-target-above",
+            "style": {
+                "taxi-direction": "upward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-direction-downward-target-above",
+            "style": {
+                "taxi-direction": "downward",
+                "curve-style": "taxi"
+            }
+        },
+        {
+            "selector": "#taxi-turn-20pct",
+            "style": {
+                "taxi-turn": "20%",
+                "curve-style": "taxi",
+                "taxi-direction": "horizontal"
+            }
+        },
+        {
+            "selector": "#taxi-turn-10",
+            "style": {
+                "taxi-turn": "10px",
+                "curve-style": "taxi",
+                "taxi-direction": "horizontal"
+            }
+        },
+        {
+            "selector": "#taxi-turn-min-distance-60",
+            "style": {
+                "taxi-turn-min-distance": "60px",
+                "curve-style": "taxi",
+                "taxi-direction": "vertical"
+            }
+        },
+        {
+            "selector": "#taxi-radius-4",
+            "style": {
+                "taxi-radius": "4",
+                "curve-style": "round-taxi",
+                "taxi-direction": "horizontal"
+            }
+        },
+        {
+            "selector": "#edge-distances-intersection, #edge-distances-intersection-2",
+            "style": {
+                "curve-style": "bezier",
+                "edge-distances": "intersection"
+            }
+        },
+        {
+            "selector": "#edge-distances-intersection-s, #edge-distances-intersection-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#edge-distances-node-position, #edge-distances-node-position-2",
+            "style": {
+                "curve-style": "bezier",
+                "edge-distances": "node-position"
+            }
+        },
+        {
+            "selector": "#edge-distances-node-position-s, #edge-distances-node-position-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#edge-distances-endpoints, #edge-distances-endpoints-2",
+            "style": {
+                "curve-style": "bezier",
+                "edge-distances": "endpoints"
+            }
+        },
+        {
+            "selector": "#edge-distances-endpoints-s, #edge-distances-endpoints-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-inside-to-node",
+            "style": {
+                "source-endpoint": "inside-to-node"
+            }
+        },
+        {
+            "selector": "#source-endpoint-inside-to-node-s, #source-endpoint-inside-to-node-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-node",
+            "style": {
+                "source-endpoint": "outside-to-node"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-node-s, #source-endpoint-outside-to-node-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-node-or-label",
+            "style": {
+                "source-endpoint": "outside-to-node-or-label"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-node-or-label-s, #source-endpoint-outside-to-node-or-label-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-line",
+            "style": {
+                "source-endpoint": "outside-to-line"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-line-s, #source-endpoint-outside-to-line-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-line-or-label",
+            "style": {
+                "source-endpoint": "outside-to-line-or-label"
+            }
+        },
+        {
+            "selector": "#source-endpoint-outside-to-line-or-label-s, #source-endpoint-outside-to-line-or-label-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-90deg",
+            "style": {
+                "source-endpoint": "90deg"
+            }
+        },
+        {
+            "selector": "#source-endpoint-90deg-s, #source-endpoint-90deg-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-endpoint-50pct-0pct",
+            "style": {
+                "source-endpoint": "-50% 0%"
+            }
+        },
+        {
+            "selector": "#source-endpoint-50pct-0pct-s, #source-endpoint-50pct-0pct-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-inside-to-node",
+            "style": {
+                "target-endpoint": "inside-to-node"
+            }
+        },
+        {
+            "selector": "#target-endpoint-inside-to-node-s, #target-endpoint-inside-to-node-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-node",
+            "style": {
+                "target-endpoint": "outside-to-node"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-node-s, #target-endpoint-outside-to-node-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-node-or-label",
+            "style": {
+                "target-endpoint": "outside-to-node-or-label"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-node-or-label-s, #target-endpoint-outside-to-node-or-label-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-line",
+            "style": {
+                "target-endpoint": "outside-to-line"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-line-s, #target-endpoint-outside-to-line-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-line-or-label",
+            "style": {
+                "target-endpoint": "outside-to-line-or-label"
+            }
+        },
+        {
+            "selector": "#target-endpoint-outside-to-line-or-label-s, #target-endpoint-outside-to-line-or-label-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-270deg",
+            "style": {
+                "target-endpoint": "270deg"
+            }
+        },
+        {
+            "selector": "#target-endpoint-270deg-s, #target-endpoint-270deg-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-endpoint-50pct-0pct",
+            "style": {
+                "target-endpoint": "50% 0%"
+            }
+        },
+        {
+            "selector": "#target-endpoint-50pct-0pct-s, #target-endpoint-50pct-0pct-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#source-distance-from-node-8",
+            "style": {
+                "source-distance-from-node": "8px"
+            }
+        },
+        {
+            "selector": "#source-distance-from-node-8-s, #source-distance-from-node-8-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#target-distance-from-node-8",
+            "style": {
+                "target-distance-from-node": "8px"
+            }
+        },
+        {
+            "selector": "#target-distance-from-node-8-s, #target-distance-from-node-8-t",
+            "style": {
+                "width": "24px",
+                "height": "24px",
+                "background-opacity": "0.35"
+            }
+        },
+        {
+            "selector": "#loop",
+            "style": {
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "#loop-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "#loop-direction-90deg",
+            "style": {
+                "curve-style": "bezier",
+                "loop-direction": "90deg"
+            }
+        },
+        {
+            "selector": "#loop-direction-90deg-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "#loop-sweep-30deg",
+            "style": {
+                "curve-style": "bezier",
+                "loop-sweep": "30deg"
+            }
+        },
+        {
+            "selector": "#loop-sweep-30deg-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "#loop-control-point-step-size-60",
+            "style": {
+                "curve-style": "bezier",
+                "control-point-step-size": "60px"
+            }
+        },
+        {
+            "selector": "#loop-control-point-step-size-60-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "#edge-visibility-hidden",
+            "style": {
+                "visibility": "hidden"
+            }
+        },
+        {
+            "selector": "#edge-display-none",
+            "style": {
+                "display": "none"
+            }
+        },
+        {
+            "selector": "#target-display-none-t",
+            "style": {
+                "display": "none"
+            }
+        },
+        {
+            "selector": "#target-visibility-hidden-t",
+            "style": {
+                "visibility": "hidden"
+            }
+        },
+        {
+            "selector": "#edge-underlay-opacity-0-5",
+            "style": {
+                "underlay-opacity": "0.5",
+                "underlay-color": "rgb(44,160,44)",
+                "underlay-padding": "6px"
+            }
+        },
+        {
+            "selector": "#edge-overlay-opacity-0-5",
+            "style": {
+                "overlay-opacity": "0.5",
+                "overlay-color": "rgb(31,119,180)",
+                "overlay-padding": "6px"
+            }
+        }
+    ],
+    "zoom": 1e-50,
+    "pan": {
+        "x": 0.5,
+        "y": 0.5
+    },
+    "data": {
+        "sheet": "specimen-edges-lines-p2",
+        "about": "Cytoscape.js style specimen sheet specimen-edges-lines-p2: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js 3.34.3"
+    }
+}

@@ -1,0 +1,188 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ev="http://www.w3.org/2001/xml-events" version="1.1" baseProfile="full" width="1200px" height="900px" viewBox="0 0 1200 900">
+	<g>
+		<rect x="0" y="0" width="0" height="0" fill="none" stroke="#808080" stroke-width="1.000000px" />
+		<text y="10" x="0" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="104" y="176" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="256" x="200" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="328" y="176" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="256" x="424" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="552" y="176" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="256" x="648" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="776" y="176" width="96" height="70" fill="#FFE0C0" stroke="#000000" stroke-width="1.000000px" />
+		<text y="256" x="776" text-anchor="start" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="1000" y="176" width="96" height="70" fill="#F5F5F5" stroke="#0000FF" stroke-width="3.000000px" />
+		<text y="256" x="1000" text-anchor="start" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="104" y="586" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="576" x="200" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="328" y="586" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="576" x="424" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="552" y="586" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="576" x="648" text-anchor="end" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="776" y="586" width="96" height="70" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="576" x="776" text-anchor="start" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="978" y="556" width="140" height="100" fill="#F5F5F5" stroke="#000000" stroke-width="1.000000px" />
+		<text y="546" x="978" text-anchor="start" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Group</text>
+	</g>
+	<g>
+		<rect x="599.20000000000005" y="209.0909" width="40" height="31.818200000000001" fill="#E0E0FF" stroke="#000000" stroke-width="1.000000px" />
+		<text y="250.9091" x="599.20000000000005" text-anchor="start" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">Inner</text>
+	</g>
+	<g>
+		<g>
+			<path fill="none" d=" M576,633 L624,633" stroke="#505050" stroke-width="1.500000px" />
+		</g>
+	</g>
+	<g>
+		<rect x="17" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="17" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="20" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="17" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="20" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="1177" y="877" width="6" height="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1180" y="880" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="128" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="128" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="176" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="176" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="127.5" y="264.5" width="49" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="152" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">cluster</text>
+	</g>
+	<g>
+		<rect x="332.5" y="264.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="376" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">empty cluster</text>
+	</g>
+	<g>
+		<ellipse cx="600" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="600" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="619.20000000000005" cy="225" rx="6" ry="6" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="619.20000000000005" y="225" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="553.5" y="264.5" width="93" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">nested cluster</text>
+	</g>
+	<g>
+		<ellipse cx="800" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="800" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="848" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="848" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="784" y="264.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="824" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">fill=#FFE0C0</text>
+	</g>
+	<g>
+		<ellipse cx="1024" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1024" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="1072" cy="223" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1072" y="223" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="967.5" y="264.5" width="161" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1048" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">color=#0000FF lineWidth=3</text>
+	</g>
+	<g>
+		<ellipse cx="128" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="128" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="176" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="176" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="112" y="674.5" width="80" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="152" y="681" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">stipple=Dash</text>
+	</g>
+	<g>
+		<ellipse cx="352" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="352" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="400" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="400" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="332.5" y="674.5" width="87" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="376" y="681" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">pattern=Cross</text>
+	</g>
+	<g>
+		<ellipse cx="576" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="576" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="624" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="624" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="563" y="674.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="600" y="681" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">edge inside</text>
+	</g>
+	<g>
+		<ellipse cx="800" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="800" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="848" cy="633" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="848" y="633" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="787" y="674.5" width="74" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="824" y="681" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">label empty</text>
+	</g>
+	<g>
+		<ellipse cx="1013" cy="618" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1013" y="618" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="1048" cy="618" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1048" y="618" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<ellipse cx="1083" cy="618" rx="9" ry="9" fill="#C8C8C8" stroke-width="1.000000px" stroke="#505050" />
+		<text x="1083" y="618" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000"></text>
+	</g>
+	<g>
+		<rect x="983" y="674.5" width="130" height="13" fill="#FFFFFF" stroke-width="0.000000px" stroke="none" />
+		<text x="1048" y="681" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="10" fill="#000000">width=140 height=100</text>
+	</g>
+</svg>

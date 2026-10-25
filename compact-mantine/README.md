@@ -371,7 +371,7 @@ Values the reader types or picks. [Overview](https://graphty.app/storybook/compa
 | Component                                                                                                        | Reach for it when                                                                                                                                                                |
 | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`PanelField`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-panelfield--docs)     | a value is typed, picked from a list or dragged in a panel row. A 24px text box, number box or select whose caption is a 16px drawing inside the box instead of a word above it. |
-| [`Select`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs)             | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a dark list.                                                                                  |
+| [`Select`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-select--docs)             | one of a fixed list. Mantine's `Select` is themed as Figma's outlined trigger with a list.                                                                                       |
 | [`SearchInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-searchinput--docs)   | a filter or find box: a leading magnifier, a clear button and Escape to clear.                                                                                                   |
 | [`ComboInput`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-comboinput--docs)     | a value you can type, with a chevron that opens a list of presets over the field (font size, gap, export scale).                                                                 |
 | [`VariablePill`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-inputs-variablepill--docs) | a value bound to a named variable, drawn as a pill inside a field, with a Detach button.                                                                                         |
@@ -463,12 +463,12 @@ props on `Popout.Panel`: `anchorX` decides which edge it lines up with (`"panel"
 
 ### Other overlays
 
-| Component                                                                                                                         | What it is                                                                                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs)        | A dark menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
-| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs)                  | A tooltip label with its keyboard shortcut after it.                                                                                                        |
-| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs)                        | The footer row of a Mantine `Modal`: its action buttons, end-aligned.                                                                                       |
-| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one.                                                                |
+| Component                                                                                                                         | What it is                                                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`ContextMenu`, `MenuCheckItem`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-menu--docs)        | A menu opened at the pointer by a right-click, or from the keyboard with Shift+F10 or the ContextMenu key; and a checkable row for any Mantine `Menu`. |
+| [`TooltipShortcut`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-tooltip--docs)                  | A tooltip label with its keyboard shortcut after it.                                                                                                   |
+| [`ModalFooter`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-modal--docs)                        | The footer row of a Mantine `Modal`: its action buttons, end-aligned.                                                                                  |
+| [`Toast`, `ToastProvider`, `useToast`](https://graphty.app/storybook/compact-mantine/?path=/docs/components-overlays-toast--docs) | Figma's dark toast: put one `ToastProvider` near the root and call `useToast()` to show one.                                                           |
 
 ### Lists and trees
 
@@ -1014,7 +1014,7 @@ page has the migrations.
     32 tall with an 11px name; `DataTable` rows and header are 40; `FieldRow` puts captions above
     by default (`labelPosition="inline"` restores beside).
 15. **Display and overlays.** `Badge` defaults to the outlined look, `Kbd` is a dark key cap in
-    both schemes, `Modal` has no backdrop by default, `Loader` at `sm` is 16px, and
+    both schemes, `Modal` blocks the page behind a transparent overlay by default, `Loader` at `sm` is 16px, and
     `PopoutButton` defaults to `sm` and shows its open state as the ghost button's
     `aria-expanded` look.
 16. **Mantine's `ColorInput` and `ColorPicker` are no longer themed.** They render as plain

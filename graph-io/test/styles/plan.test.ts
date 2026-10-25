@@ -217,6 +217,20 @@ describe("degree", () => {
         checkPlan(ex, { node: { width } }, snapshot);
     });
 
+    it("offers no degree where an undirected edge is stored as a directed pair (a mixed Pajek file)", async () => {
+        // vertex 1 is only ever a source: a reader that folds the *Edges pair counts its in-degree 0, the pair 1
+        const text = "*Vertices 4\n1 a\n2 b\n3 c\n4 d\n*Arcs\n3 4\n*Edges\n1 2\n";
+        const { snapshot } = await importGraph(new TextEncoder().encode(text), { format: "pajek" });
+        expect(snapshot.directed).toBe(true);
+        expect(featuresOf(snapshot, "node").some((f) => "computed" in f.ref)).toBe(false);
+        const arcs = await importGraph(new TextEncoder().encode("*Vertices 2\n1 a\n2 b\n*Arcs\n1 2\n"), {
+            format: "pajek",
+        });
+        expect(
+            featuresOf(arcs.snapshot, "node").some((f) => "computed" in f.ref && f.ref.computed === "indegree"),
+        ).toBe(true);
+    });
+
     it("fingerprints the ids whatever their order, and tells other ids apart", () => {
         const a = randomGraph(10, 5, 1);
         const reversed = new GraphBuilder({ directed: false });

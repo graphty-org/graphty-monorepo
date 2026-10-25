@@ -927,7 +927,8 @@ describe("the traversal, path and tree adapters answer what the reference implem
             ["both, weighted", { personalization, initialRanks, weight: "weight" }],
         ] as const) {
             it(name, async () => {
-                const graph = await graphWith(DANGLING);
+                // A weighted run reads the weight the graph was loaded with.
+                const graph = await graphWith("weight" in options ? { ...DANGLING, loadedWeight: "weight" } : DANGLING);
                 const algorithm = new PageRankAlgorithm(graph, options);
                 await algorithm.run();
 

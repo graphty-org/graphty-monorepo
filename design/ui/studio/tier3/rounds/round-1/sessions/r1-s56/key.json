@@ -1,0 +1,32 @@
+{
+ "key": [
+  {
+   "title": "Color: kind",
+   "text": "Color: kind person company agency",
+   "rows": [
+    {
+     "text": "person",
+     "color": "#e69f00"
+    },
+    {
+     "text": "company",
+     "color": "#56b4e9"
+    },
+    {
+     "text": "agency",
+     "color": "#009e73"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#56b4e9": 6,
+   "#e69f00": 14,
+   "#009e73": 4
+  },
+  "edges": {
+   "#a9a9a9": 59
+  }
+ }
+}

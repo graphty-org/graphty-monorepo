@@ -85,16 +85,7 @@ export const MainMenuOpen: Story = {
     },
 };
 
-/** The project-name menu open (the mock's `#/project-menu/open`). */
-export const ProjectMenuOpen: Story = {
-    args: { initialState: OPEN },
-    play: async ({ canvasElement }) => {
-        await loadRing(canvasElement);
-        click(canvasElement, "Project: Ring");
-    },
-};
-
-/** Renaming the project in place (double-click or F2). */
+/** Renaming the project in place (a tap on the name, or F2). */
 export const Renaming: Story = {
     args: { initialState: { ...OPEN, renaming: true } },
     play: async ({ canvasElement }) => {

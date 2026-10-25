@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Title: 1. C:\pj\in\specimen-node-fills-borders-p2.net (102) -->
+<!-- Creator: Pajek 6.02: http://mrvar.fdv.uni-lj.si/pajek -->
+<!-- CreationDate: (the run's clock time, removed by tools/pajek.mjs) -->
+<svg xml:space="preserve" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
+<title>1. C:\pj\in\specimen-node-fills-borders-p2.net (102)</title>
+<g inkscape:groupmode="layer" id="PajekSig" inkscape:label="PajekSignature">
+<g transform="translate(3 882)">
+<g transform="scale(0.1)">
+<g transform="matrix(1 0 0 -1 0 96)">
+<path d="M   7.67  49.98 L  31.76  72.76 L  46.91  78.63
+         L  57.23  80.49 M  72.86  65.23 L  65.73  83.25
+         L  57.06  75.49 L  56.75  68.65 M  76.27  68.03
+         L  75.65  84.50 L  93.92  91.02 L 107.24  74.87
+         M  80.29  67.72 L  89.28  84.81 L 104.77  81.70
+         L 116.23  73.31 L 121.18  59.33 M  56.75  81.08
+         L  71.31  64.30"
+         style="fill:none; stroke:saddlebrown; stroke-width:5;"/>
+<path d="M  86.18  70.21 L  91.45  73.00 L  95.78  69.58
+         M  91.14  60.88 L  96.09  62.75 L  98.26  59.33"
+         style="fill:none; stroke:saddlebrown; stroke-width:1.5;"/>
+<path d="M  81.07  49.08 L  87.81  49.08 L  93.30  54.38
+         L  93.30  60.88 L  93.30  67.39 L  87.81  72.69
+         L  81.07  72.69 L  74.33  72.69 L  68.83  67.39
+         L  68.83  60.88 L  68.83  54.38 L  74.33  49.08
+         L  81.07  49.08 z"
+         style="fill:maroon; stroke:saddlebrown; stroke-width:1;"/>
+<path d="M  54.63  37.53 L  68.53  43.56 L  75.39  55.85
+         L  69.90  65.35 L  64.41  72.86 L  48.60  74.06
+         L  34.71  68.04 L  20.81  55.02 L  15.95  40.72
+         L  17.44  33.22 L  24.92  28.72 L  40.73  30.51
+         L  54.63  37.53 z"
+         style="fill:maroon; stroke:saddlebrown; stroke-width:1;" />
+<path d="M  77.82  50.63 L 103.84  59.33 L 131.10  43.80
+         L 139.46  27.95 L 139.15  15.83 M  35.99   5.27
+         L  47.15  32.92 L  61.71  50.01 L  70.07  46.90
+         L  82.77  45.04 L  83.39  27.02 L  65.42  12.11
+         M  68.52  50.63 L  91.14  49.39 L 103.53  43.17
+         L 117.16  22.67 L 115.30   8.38"
+         style="fill:none; stroke:saddlebrown; stroke-width:5;"/>
+<path d="M  41.57  54.98 L  60.16  64.61 M  52.41  66.17
+         L  57.99  57.47"
+         style="fill:none; stroke:white; stroke-width:5;"/>
+</g>
+</g>
+<animateMotion dur="20s" path="M3 0 L1182 0" begin="120s" fill="freeze"/>
+</g>
+<g transform="translate(3 882)">
+<g transform="scale(0.1)">
+<text x="5" y="140" style="font-family:Brush Script MT;font-size:75px;fill:green;">Pajek</text>
+</g>
+<animateMotion dur="0.1s" path="M3 0 L1182 0" begin="120s" fill="freeze"/>
+</g>
+</g>      <!-- Layer Signature -->
+
+<g inkscape:groupmode="layer" id="PajekNet" inkscape:label="PajekNetwork">
+
+<!-- Vertex:     1 -->
+<ellipse cx="96.00" cy="108.00" rx="10.00" ry="10.00" style="fill:rgb(255,217,188);stroke:rgb(102,0,0);stroke-width:0.50;"/>
+<!-- Vertex:     2 -->
+<ellipse cx="208.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(30,249,163);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     3 -->
+<ellipse cx="320.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(45,255,178);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     4 -->
+<ellipse cx="432.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(38,255,170);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     5 -->
+<ellipse cx="544.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(15,255,127);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     6 -->
+<ellipse cx="656.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(2,255,122);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     7 -->
+<ellipse cx="768.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(79,255,127);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     8 -->
+<ellipse cx="880.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(0,255,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:     9 -->
+<ellipse cx="992.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(0,224,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    10 -->
+<ellipse cx="1104.00" cy="108.00" rx="18.00" ry="18.00" style="fill:rgb(0,191,40);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    11 -->
+<ellipse cx="96.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(127,255,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    12 -->
+<ellipse cx="208.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(142,255,66);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    13 -->
+<ellipse cx="320.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(188,255,61);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    14 -->
+<ellipse cx="432.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(0,153,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    15 -->
+<ellipse cx="544.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(140,0,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    16 -->
+<ellipse cx="656.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(76,0,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    17 -->
+<ellipse cx="768.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(102,0,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    18 -->
+<ellipse cx="880.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(219,147,112);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    19 -->
+<ellipse cx="992.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(127,127,127);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    20 -->
+<ellipse cx="1104.00" cy="272.00" rx="18.00" ry="18.00" style="fill:rgb(0,0,0);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    21 -->
+<ellipse cx="96.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,255,255);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    22 -->
+<ellipse cx="208.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,255,153);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    23 -->
+<ellipse cx="320.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(204,255,255);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    24 -->
+<ellipse cx="432.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,204,255);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    25 -->
+<ellipse cx="544.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(204,204,255);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    26 -->
+<ellipse cx="656.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(204,255,178);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    27 -->
+<ellipse cx="768.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,217,188);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    28 -->
+<ellipse cx="880.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,255,127);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    29 -->
+<ellipse cx="992.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(229,255,204);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    30 -->
+<ellipse cx="1104.00" cy="436.00" rx="18.00" ry="18.00" style="fill:rgb(255,216,242);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    31 -->
+<ellipse cx="96.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(216,242,255);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    32 -->
+<ellipse cx="208.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(242,242,242);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    33 -->
+<ellipse cx="320.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(229,229,229);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    34 -->
+<ellipse cx="432.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(216,216,216);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    35 -->
+<ellipse cx="544.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(204,204,204);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    36 -->
+<ellipse cx="656.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(191,191,191);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    37 -->
+<ellipse cx="768.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(178,178,178);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    38 -->
+<ellipse cx="880.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(165,165,165);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    39 -->
+<ellipse cx="992.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(153,153,153);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    40 -->
+<ellipse cx="1104.00" cy="600.00" rx="18.00" ry="18.00" style="fill:rgb(140,140,140);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    41 -->
+<ellipse cx="96.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(114,114,114);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    42 -->
+<ellipse cx="208.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(102,102,102);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    43 -->
+<ellipse cx="320.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(89,89,89);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    44 -->
+<ellipse cx="432.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(76,76,76);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    45 -->
+<ellipse cx="544.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(63,63,63);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    46 -->
+<ellipse cx="656.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(51,51,51);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    47 -->
+<ellipse cx="768.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(38,38,38);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    48 -->
+<ellipse cx="880.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(25,25,25);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    49 -->
+<ellipse cx="992.00" cy="764.00" rx="18.00" ry="18.00" style="fill:rgb(12,12,12);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    50 -->
+<ellipse cx="20.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    51 -->
+<ellipse cx="1180.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    52 -->
+<ellipse cx="20.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    53 -->
+<ellipse cx="1180.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    54 -->
+<ellipse cx="96.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="96.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">default</text>
+<!-- Vertex:    55 -->
+<ellipse cx="208.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="208.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=TealBlue</text>
+<!-- Vertex:    56 -->
+<ellipse cx="320.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="320.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Aquamarine</text>
+<!-- Vertex:    57 -->
+<ellipse cx="432.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="432.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=BlueGreen</text>
+<!-- Vertex:    58 -->
+<ellipse cx="544.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Emerald</text>
+<!-- Vertex:    59 -->
+<ellipse cx="656.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=JungleGreen</text>
+<!-- Vertex:    60 -->
+<ellipse cx="768.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=SeaGreen</text>
+<!-- Vertex:    61 -->
+<ellipse cx="880.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Green</text>
+<!-- Vertex:    62 -->
+<ellipse cx="992.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="992.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=ForestGreen</text>
+<!-- Vertex:    63 -->
+<ellipse cx="1104.00" cy="148.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="1104.00" y="151.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=PineGreen</text>
+<!-- Vertex:    64 -->
+<ellipse cx="96.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="96.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LimeGreen</text>
+<!-- Vertex:    65 -->
+<ellipse cx="208.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="208.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=YellowGreen</text>
+<!-- Vertex:    66 -->
+<ellipse cx="320.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="320.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=SpringGreen</text>
+<!-- Vertex:    67 -->
+<ellipse cx="432.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="432.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=OliveGreen</text>
+<!-- Vertex:    68 -->
+<ellipse cx="544.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=RawSienna</text>
+<!-- Vertex:    69 -->
+<ellipse cx="656.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Sepia</text>
+<!-- Vertex:    70 -->
+<ellipse cx="768.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Brown</text>
+<!-- Vertex:    71 -->
+<ellipse cx="880.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Tan</text>
+<!-- Vertex:    72 -->
+<ellipse cx="992.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="992.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray</text>
+<!-- Vertex:    73 -->
+<ellipse cx="1104.00" cy="312.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="1104.00" y="315.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Black</text>
+<!-- Vertex:    74 -->
+<ellipse cx="96.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="96.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=White</text>
+<!-- Vertex:    75 -->
+<ellipse cx="208.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="208.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightYellow</text>
+<!-- Vertex:    76 -->
+<ellipse cx="320.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="320.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightCyan</text>
+<!-- Vertex:    77 -->
+<ellipse cx="432.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="432.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightMagenta</text>
+<!-- Vertex:    78 -->
+<ellipse cx="544.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightPurple</text>
+<!-- Vertex:    79 -->
+<ellipse cx="656.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightGreen</text>
+<!-- Vertex:    80 -->
+<ellipse cx="768.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LightOrange</text>
+<!-- Vertex:    81 -->
+<ellipse cx="880.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Canary</text>
+<!-- Vertex:    82 -->
+<ellipse cx="992.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="992.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LFadedGreen</text>
+<!-- Vertex:    83 -->
+<ellipse cx="1104.00" cy="476.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="1104.00" y="479.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Pink</text>
+<!-- Vertex:    84 -->
+<ellipse cx="96.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="96.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=LSkyBlue</text>
+<!-- Vertex:    85 -->
+<ellipse cx="208.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="208.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray05</text>
+<!-- Vertex:    86 -->
+<ellipse cx="320.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="320.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray10</text>
+<!-- Vertex:    87 -->
+<ellipse cx="432.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="432.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray15</text>
+<!-- Vertex:    88 -->
+<ellipse cx="544.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray20</text>
+<!-- Vertex:    89 -->
+<ellipse cx="656.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray25</text>
+<!-- Vertex:    90 -->
+<ellipse cx="768.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray30</text>
+<!-- Vertex:    91 -->
+<ellipse cx="880.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray35</text>
+<!-- Vertex:    92 -->
+<ellipse cx="992.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="992.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray40</text>
+<!-- Vertex:    93 -->
+<ellipse cx="1104.00" cy="640.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="1104.00" y="643.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray45</text>
+<!-- Vertex:    94 -->
+<ellipse cx="96.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="96.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray55</text>
+<!-- Vertex:    95 -->
+<ellipse cx="208.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="208.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray60</text>
+<!-- Vertex:    96 -->
+<ellipse cx="320.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="320.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray65</text>
+<!-- Vertex:    97 -->
+<ellipse cx="432.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="432.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray70</text>
+<!-- Vertex:    98 -->
+<ellipse cx="544.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray75</text>
+<!-- Vertex:    99 -->
+<ellipse cx="656.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray80</text>
+<!-- Vertex:   100 -->
+<ellipse cx="768.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray85</text>
+<!-- Vertex:   101 -->
+<ellipse cx="880.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray90</text>
+<!-- Vertex:   102 -->
+<ellipse cx="992.00" cy="804.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="992.00" y="807.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">ic=Gray95</text>
+</g>         <!-- Layer Network -->
+</svg>

@@ -451,7 +451,9 @@ describe("a node border another program wrote", () => {
         assert.strictEqual(norm(merged["node.color"]), "#00ff00");
         assert.isNull(norm(merged["node.outline"]));
         assert.strictEqual(norm(merged["node.borderColor"]), "#ff0000");
-        assert.strictEqual(merged["node.borderStyle"], "dashed");
+        // Cytoscape.js dashes a border 4 on and 2 off in pixels whatever its width, so a 4-wide dashed border is
+        // drawn as the dots it looks like
+        assert.strictEqual(merged["node.borderStyle"], "dotted");
         const notDrawn = notes.filter((note) => note.code === FILE_STYLE_ISSUE.NOT_DRAWN);
         assert.deepEqual(
             notDrawn.map((note) => note.params.property),
@@ -473,5 +475,61 @@ describe("a node border another program wrote", () => {
         const { merged, notes } = await load({ "border-width": 2, "border-style": "double", width: 40, height: 40 });
         assert.strictEqual(merged["node.borderStyle"], "double");
         assert.isFalse(notes.some((note) => note.params.property === "borderStyle"));
+    });
+});
+
+describe("a Cytoscape node's own size under a locked node size", () => {
+    // syn-bypass.cx2 locks width and height to NODE_SIZE (40), and bypasses some nodes' width and
+    // height to 75, 60 or 30. Cytoscape draws the bypassed size.
+    it("is drawn at its own size, not the locked one", async () => {
+        const data = new Uint8Array(readFileSync(join(CORPUS, "cx2", "fidelity", "syn-bypass.cx2")));
+        const session = createGraphSession();
+        try {
+            await session.data.import({ type: "cx2", config: { data } }, { styles: "file" });
+            const size = (id: string): number => session.styles.explain({ node: id }).merged["node.size"] as number;
+            const plain = String(session.data.nodes()[0].id);
+            assert.closeTo(size("2244") / size(plain), 75 / 40, 1e-6);
+            assert.closeTo(size("2097") / size(plain), 60 / 40, 1e-6);
+            assert.closeTo(size("2223") / size(plain), 30 / 40, 1e-6);
+        } finally {
+            session.dispose();
+        }
+    });
+});
+
+describe("a label outline another program wrote", () => {
+    // GeneMANIA's Cytoscape.js stylesheet draws white labels over the node with a grey outline
+    // (`text-outline-color`, `text-outline-width`). Without the outline the white letters spill
+    // onto the light canvas and cannot be read.
+    it("draws the outline around the label's letters, in the label's own proportion", async () => {
+        const doc = JSON.stringify({
+            elements: [{ data: { id: "a", name: "A" } }, { data: { id: "b", name: "B" } }],
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        label: "data(name)",
+                        color: "white",
+                        "font-size": 14,
+                        "text-outline-color": "#888",
+                        "text-outline-width": 2,
+                    },
+                },
+            ],
+        });
+        const session = createGraphSession();
+        try {
+            await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+            // The label field channels land in the node's label style, field by field.
+            const label = session.styles.explain({ node: "a" }).merged["node.labelStyle"] as Record<string, unknown>;
+            assert.strictEqual(label.color, "#ffffff");
+            assert.strictEqual(label.outline, "#888888");
+            assert.isNumber(label.sizePx);
+            assert.isNumber(label.outlineWidth);
+            // One ratio of outline to label size stands for every label, taken at the usual 14 px.
+            assert.closeTo((label.outlineWidth as number) / (label.sizePx as number), 2 / 14, 1e-6);
+        } finally {
+            session.dispose();
+        }
     });
 });

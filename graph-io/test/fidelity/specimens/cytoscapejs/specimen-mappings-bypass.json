@@ -1,0 +1,3036 @@
+{
+    "elements": {
+        "nodes": [
+            {
+                "data": {
+                    "id": "anchor-nw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-ne"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 20
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-sw"
+                },
+                "position": {
+                    "x": 20,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "anchor-se"
+                },
+                "position": {
+                    "x": 1180,
+                    "y": 880
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "anchor"
+            },
+            {
+                "data": {
+                    "id": "cap-default",
+                    "label": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "default"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-id",
+                    "label": "#id { background-color }"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-id"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-class",
+                    "label": ".class { background-color }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-class"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "blue"
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-attribute",
+                    "label": "[kind = 'blue'] { background-color }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-attribute",
+                    "kind": "blue"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-data",
+                    "label": "background-color=data(fill)"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-data",
+                    "fill": "#1f77b4"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-mapdata-lo",
+                    "label": "mapData(score 0 of 0..10) blue..red"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-mapdata-lo",
+                    "score": 0
+                },
+                "position": {
+                    "x": 656,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-mapdata-mid",
+                    "label": "mapData(score 5 of 0..10) blue..red"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-mapdata-mid",
+                    "score": 5
+                },
+                "position": {
+                    "x": 768,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-mapdata-hi",
+                    "label": "mapData(score 10 of 0..10) blue..red"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-mapdata-hi",
+                    "score": 10
+                },
+                "position": {
+                    "x": 880,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-mapdata-clamped",
+                    "label": "mapData(score 20 of 0..10) clamps"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-mapdata-clamped",
+                    "score": 20
+                },
+                "position": {
+                    "x": 992,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-bypass",
+                    "label": "element style { background-color }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 134.33333333333331
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-bypass"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 94.33333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "",
+                "style": {
+                    "background-color": "#1f77b4"
+                }
+            },
+            {
+                "data": {
+                    "id": "cap-bypass-over-rule",
+                    "label": "bypass over #id rule (red)"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "bypass-over-rule"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "",
+                "style": {
+                    "background-color": "#1f77b4"
+                }
+            },
+            {
+                "data": {
+                    "id": "cap-later-rule-wins",
+                    "label": "two rules: later (blue) wins"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "later-rule-wins"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-class-rule-after-id",
+                    "label": "#id red, then .class blue"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "class-rule-after-id"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "blue-late"
+            },
+            {
+                "data": {
+                    "id": "cap-size-by-data",
+                    "label": "width=data(w) w=24"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "size-by-data",
+                    "w": 24
+                },
+                "position": {
+                    "x": 432,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-size-by-mapdata-lo",
+                    "label": "width=mapData(score 0, 16..56)"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "size-by-mapdata-lo",
+                    "score": 0
+                },
+                "position": {
+                    "x": 544,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-size-by-mapdata-hi",
+                    "label": "width=mapData(score 10, 16..56)"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "size-by-mapdata-hi",
+                    "score": 10
+                },
+                "position": {
+                    "x": 656,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-border-width-by-mapdata",
+                    "label": "border-width=mapData(score 5, 0..8)"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "border-width-by-mapdata",
+                    "score": 5
+                },
+                "position": {
+                    "x": 768,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-shape-by-data",
+                    "label": "shape=data(shape) diamond"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "shape-by-data",
+                    "shape": "diamond"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-shape-by-attribute",
+                    "label": "[kind = 'd'] { shape: diamond }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "shape-by-attribute",
+                    "kind": "d"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-shape-by-bypass",
+                    "label": "element style { shape: diamond }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 271
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "shape-by-bypass"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 231
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "",
+                "style": {
+                    "shape": "diamond"
+                }
+            },
+            {
+                "data": {
+                    "id": "cap-label-by-data",
+                    "label": "label=data(name)"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-by-data",
+                    "name": "Named"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-label-data-missing",
+                    "label": "label=data(missing)"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-data-missing"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-label-by-bypass",
+                    "label": "element style { label }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "label-by-bypass"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "",
+                "style": {
+                    "label": "Bypassed"
+                }
+            },
+            {
+                "data": {
+                    "id": "cap-border-by-bool",
+                    "label": "[?flag] { border-style: dashed }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "border-by-bool",
+                    "flag": true
+                },
+                "position": {
+                    "x": 432,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-numeric-attribute",
+                    "label": "[deg >= 5] { background-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-numeric-attribute",
+                    "deg": 7
+                },
+                "position": {
+                    "x": 544,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-prefix-attribute",
+                    "label": "[name ^= 'Ni'] { background-color }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-prefix-attribute",
+                    "name": "Nine"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-fill-by-degree",
+                    "label": "[[degree = 0]] { background-color }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "fill-by-degree"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-pie-by-mapdata",
+                    "label": "pie sizes = mapData(a 30, b 50)"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "pie-by-mapdata",
+                    "a": 30,
+                    "b": 50
+                },
+                "position": {
+                    "x": 880,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-opacity-by-mapdata",
+                    "label": "opacity=mapData(score 3, 0.1..1)"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "opacity-by-mapdata",
+                    "score": 3
+                },
+                "position": {
+                    "x": 992,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-edge-color-by-data",
+                    "label": "line-color=data(color)"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 407.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-color-by-data-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-color-by-data-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 367.66666666666663
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-width-by-mapdata",
+                    "label": "width=mapData(weight 5, 1..9)"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-width-by-mapdata-s"
+                },
+                "position": {
+                    "x": 58,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-width-by-mapdata-t"
+                },
+                "position": {
+                    "x": 134,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-color-by-mapdata",
+                    "label": "line-color=mapData(weight 10)"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-color-by-mapdata-s"
+                },
+                "position": {
+                    "x": 170,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-color-by-mapdata-t"
+                },
+                "position": {
+                    "x": 246,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-label-by-data",
+                    "label": "label=data(name)"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-label-by-data-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-label-by-data-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-by-class",
+                    "label": ".thick { width: 5 }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-by-class-s"
+                },
+                "position": {
+                    "x": 394,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-by-class-t"
+                },
+                "position": {
+                    "x": 470,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-by-bypass",
+                    "label": "element style { line-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-by-bypass-s"
+                },
+                "position": {
+                    "x": 506,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-by-bypass-t"
+                },
+                "position": {
+                    "x": 582,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-arrow-by-attribute",
+                    "label": "edge[?directed] { target-arrow }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-arrow-by-attribute-s"
+                },
+                "position": {
+                    "x": 618,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-arrow-by-attribute-t"
+                },
+                "position": {
+                    "x": 694,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-selector-childless",
+                    "label": "node:childless.cl { background }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-childless"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cl"
+            },
+            {
+                "data": {
+                    "id": "cap-state-selected-no-rule",
+                    "label": "selected: true, no :selected rule"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-selected-no-rule"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-state-selected",
+                    "label": "selected: true, node.st:selected { blue }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-selected"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-selected"
+            },
+            {
+                "data": {
+                    "id": "cap-state-unselectable",
+                    "label": "selectable: false, node.st:unselectable { blue }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 544.3333333333333
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-unselectable"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 504.33333333333326
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": false,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-unselectable"
+            },
+            {
+                "data": {
+                    "id": "cap-state-locked",
+                    "label": "locked: true, node.st:locked { blue }"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-locked"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": true,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "st-locked"
+            },
+            {
+                "data": {
+                    "id": "cap-state-ungrabbable",
+                    "label": "grabbable: false, node.st:ungrabbable { blue }"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "state-ungrabbable"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": false,
+                "pannable": false,
+                "classes": "st-ungrabbable"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-state-selected",
+                    "label": "edge selected: true, edge.st:selected { blue }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected-s"
+                },
+                "position": {
+                    "x": 282,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected-t"
+                },
+                "position": {
+                    "x": 358,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-selector-not-equal",
+                    "label": "[score != 3] { background-color }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-not-equal",
+                    "score": 4
+                },
+                "position": {
+                    "x": 432,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-less-than",
+                    "label": "[score < 3] { background-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-less-than",
+                    "score": 1
+                },
+                "position": {
+                    "x": 544,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-less-or-equal",
+                    "label": "[score <= 3] { background-color }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-less-or-equal",
+                    "score": 3
+                },
+                "position": {
+                    "x": 656,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-greater-than",
+                    "label": "[score > 3] { background-color }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-greater-than",
+                    "score": 4
+                },
+                "position": {
+                    "x": 768,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-contains",
+                    "label": "[name *= 'ic'] { background-color }"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-contains",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-suffix",
+                    "label": "[name $= 'ck'] { background-color }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-suffix",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-case-insensitive",
+                    "label": "[name @= 'nick'] { background-color }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 681
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-case-insensitive",
+                    "name": "NICK"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 641
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-not-prefix",
+                    "label": "[name !^= 'Zz'] { background-color }"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-not-prefix",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 96,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-falsy",
+                    "label": "[!flag] { background-color }"
+                },
+                "position": {
+                    "x": 208,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-falsy",
+                    "flag": false
+                },
+                "position": {
+                    "x": 208,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-undefined",
+                    "label": "[^missing] { background-color }"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-undefined"
+                },
+                "position": {
+                    "x": 320,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-defined",
+                    "label": "[name] { background-color }"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-defined",
+                    "name": "Nick"
+                },
+                "position": {
+                    "x": 432,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-indegree",
+                    "label": "[[indegree = 0]] { background-color }"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-indegree"
+                },
+                "position": {
+                    "x": 544,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-two-classes",
+                    "label": "node.ka.kb { background-color }"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-two-classes"
+                },
+                "position": {
+                    "x": 656,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "ka kb"
+            },
+            {
+                "data": {
+                    "id": "cap-selector-list",
+                    "label": "#nothing, #id { background-color }"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-list"
+                },
+                "position": {
+                    "x": 768,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-no-match",
+                    "label": "[score > 3] (score 1) { red }: no match"
+                },
+                "position": {
+                    "x": 880,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-no-match",
+                    "score": 1
+                },
+                "position": {
+                    "x": 880,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "cap-selector-loop",
+                    "label": "edge.lp:loop { line-color }"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "selector-loop-s"
+                },
+                "position": {
+                    "x": 992,
+                    "y": 785.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "cap-edge-by-source",
+                    "label": "edge[source = id] { line-color }"
+                },
+                "position": {
+                    "x": 1104,
+                    "y": 817.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "cap"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source-s"
+                },
+                "position": {
+                    "x": 1066,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source-t"
+                },
+                "position": {
+                    "x": 1142,
+                    "y": 777.6666666666666
+                },
+                "group": "nodes",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": false,
+                "classes": "end"
+            }
+        ],
+        "edges": [
+            {
+                "data": {
+                    "id": "edge-color-by-data",
+                    "source": "edge-color-by-data-s",
+                    "target": "edge-color-by-data-t",
+                    "color": "#1f77b4"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-width-by-mapdata",
+                    "source": "edge-width-by-mapdata-s",
+                    "target": "edge-width-by-mapdata-t",
+                    "weight": 5
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-color-by-mapdata",
+                    "source": "edge-color-by-mapdata-s",
+                    "target": "edge-color-by-mapdata-t",
+                    "weight": 10
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-label-by-data",
+                    "source": "edge-label-by-data-s",
+                    "target": "edge-label-by-data-t",
+                    "name": "Named"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-by-class",
+                    "source": "edge-by-class-s",
+                    "target": "edge-by-class-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "thick"
+            },
+            {
+                "data": {
+                    "id": "edge-by-bypass",
+                    "source": "edge-by-bypass-s",
+                    "target": "edge-by-bypass-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "",
+                "style": {
+                    "line-color": "#1f77b4",
+                    "width": 4
+                }
+            },
+            {
+                "data": {
+                    "id": "edge-arrow-by-attribute",
+                    "source": "edge-arrow-by-attribute-s",
+                    "target": "edge-arrow-by-attribute-t",
+                    "directed": true
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            },
+            {
+                "data": {
+                    "id": "edge-state-selected",
+                    "source": "edge-state-selected-s",
+                    "target": "edge-state-selected-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": true,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "st-edge"
+            },
+            {
+                "data": {
+                    "id": "selector-loop",
+                    "source": "selector-loop-s",
+                    "target": "selector-loop-s"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": "lp"
+            },
+            {
+                "data": {
+                    "id": "edge-by-source",
+                    "source": "edge-by-source-s",
+                    "target": "edge-by-source-t"
+                },
+                "position": {
+                    "x": 0,
+                    "y": 0
+                },
+                "group": "edges",
+                "removed": false,
+                "selected": false,
+                "selectable": true,
+                "locked": false,
+                "grabbable": true,
+                "pannable": true,
+                "classes": ""
+            }
+        ]
+    },
+    "style": [
+        {
+            "selector": "node",
+            "style": {
+                "shape": "ellipse",
+                "width": "36px",
+                "height": "36px",
+                "background-color": "rgb(200,200,200)",
+                "background-opacity": "1",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "border-style": "solid",
+                "border-opacity": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "font-style": "normal",
+                "font-weight": "normal",
+                "text-valign": "center",
+                "text-halign": "center",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node:parent",
+            "style": {
+                "shape": "rectangle",
+                "padding": "10px",
+                "background-color": "rgb(238,238,238)",
+                "border-color": "rgb(80,80,80)",
+                "border-width": "1px",
+                "text-valign": "top",
+                "text-halign": "center"
+            }
+        },
+        {
+            "selector": "edge",
+            "style": {
+                "width": "1.5px",
+                "line-color": "rgb(80,80,80)",
+                "line-style": "solid",
+                "line-opacity": "1",
+                "curve-style": "straight",
+                "source-arrow-shape": "none",
+                "target-arrow-shape": "none",
+                "mid-source-arrow-shape": "none",
+                "mid-target-arrow-shape": "none",
+                "source-arrow-color": "rgb(80,80,80)",
+                "target-arrow-color": "rgb(80,80,80)",
+                "mid-source-arrow-color": "rgb(80,80,80)",
+                "mid-target-arrow-color": "rgb(80,80,80)",
+                "arrow-scale": "1",
+                "label": "",
+                "color": "rgb(0,0,0)",
+                "font-family": "DejaVu Sans",
+                "font-size": "10px",
+                "opacity": "1"
+            }
+        },
+        {
+            "selector": "node.end",
+            "style": {
+                "width": "8px",
+                "height": "8px"
+            }
+        },
+        {
+            "selector": "node.child",
+            "style": {
+                "width": "14px",
+                "height": "14px"
+            }
+        },
+        {
+            "selector": "node.anchor",
+            "style": {
+                "width": "6px",
+                "height": "6px"
+            }
+        },
+        {
+            "selector": "node.cap",
+            "style": {
+                "width": "1px",
+                "height": "1px",
+                "background-opacity": "0",
+                "border-width": "0px",
+                "label": "data(label)",
+                "font-size": "9px",
+                "text-valign": "bottom",
+                "text-halign": "center",
+                "text-wrap": "wrap",
+                "text-max-width": "104px",
+                "text-overflow-wrap": "anywhere"
+            }
+        },
+        {
+            "selector": "#fill-by-id",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.blue",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node[kind = \"blue\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#fill-by-data",
+            "style": {
+                "background-color": "data(fill)"
+            }
+        },
+        {
+            "selector": "#fill-by-mapdata-lo",
+            "style": {
+                "background-color": "mapData(score, 0, 10, #1f77b4, #d62728)"
+            }
+        },
+        {
+            "selector": "#fill-by-mapdata-mid",
+            "style": {
+                "background-color": "mapData(score, 0, 10, #1f77b4, #d62728)"
+            }
+        },
+        {
+            "selector": "#fill-by-mapdata-hi",
+            "style": {
+                "background-color": "mapData(score, 0, 10, #1f77b4, #d62728)"
+            }
+        },
+        {
+            "selector": "#fill-by-mapdata-clamped",
+            "style": {
+                "background-color": "mapData(score, 0, 10, #1f77b4, #d62728)"
+            }
+        },
+        {
+            "selector": "#bypass-over-rule",
+            "style": {
+                "background-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "#later-rule-wins",
+            "style": {
+                "background-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "#later-rule-wins",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#class-rule-after-id",
+            "style": {
+                "background-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "node.blue-late",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#size-by-data",
+            "style": {
+                "width": "data(w)",
+                "height": "data(w)"
+            }
+        },
+        {
+            "selector": "#size-by-mapdata-lo",
+            "style": {
+                "width": "mapData(score, 0, 10, 16, 56)",
+                "height": "mapData(score, 0, 10, 16, 56)"
+            }
+        },
+        {
+            "selector": "#size-by-mapdata-hi",
+            "style": {
+                "width": "mapData(score, 0, 10, 16, 56)",
+                "height": "mapData(score, 0, 10, 16, 56)"
+            }
+        },
+        {
+            "selector": "#border-width-by-mapdata",
+            "style": {
+                "border-width": "mapData(score, 0, 10, 0, 8)"
+            }
+        },
+        {
+            "selector": "#shape-by-data",
+            "style": {
+                "shape": "data(shape)"
+            }
+        },
+        {
+            "selector": "node[kind = \"d\"]",
+            "style": {
+                "shape": "diamond"
+            }
+        },
+        {
+            "selector": "#label-by-data",
+            "style": {
+                "label": "data(name)"
+            }
+        },
+        {
+            "selector": "#label-data-missing",
+            "style": {
+                "label": "data(missing)"
+            }
+        },
+        {
+            "selector": "node[?flag]",
+            "style": {
+                "border-style": "dashed",
+                "border-width": "3px"
+            }
+        },
+        {
+            "selector": "node[deg >= 5]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node[name ^= \"Ni\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#fill-by-degree[[degree = 0]]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#pie-by-mapdata",
+            "style": {
+                "pie-1-background-color": "rgb(228,26,28)",
+                "pie-1-background-size": "mapData(a, 0, 100, 0, 100)",
+                "pie-2-background-color": "rgb(55,126,184)",
+                "pie-2-background-size": "mapData(b, 0, 100, 0, 100)"
+            }
+        },
+        {
+            "selector": "#opacity-by-mapdata",
+            "style": {
+                "opacity": "mapData(score, 0, 10, 0.1, 1)"
+            }
+        },
+        {
+            "selector": "#edge-color-by-data",
+            "style": {
+                "line-color": "data(color)"
+            }
+        },
+        {
+            "selector": "#edge-width-by-mapdata",
+            "style": {
+                "width": "mapData(weight, 0, 10, 1, 9)"
+            }
+        },
+        {
+            "selector": "#edge-color-by-mapdata",
+            "style": {
+                "line-color": "mapData(weight, 0, 10, #1f77b4, #d62728)"
+            }
+        },
+        {
+            "selector": "#edge-label-by-data",
+            "style": {
+                "label": "data(name)"
+            }
+        },
+        {
+            "selector": "edge.thick",
+            "style": {
+                "width": "5px"
+            }
+        },
+        {
+            "selector": "edge[?directed]",
+            "style": {
+                "target-arrow-shape": "triangle"
+            }
+        },
+        {
+            "selector": "node.cl:childless",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-selected:selected",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-unselectable:unselectable",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-locked:locked",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.st-ungrabbable:ungrabbable",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "edge.st-edge:selected",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "4px"
+            }
+        },
+        {
+            "selector": "#selector-not-equal[score != 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-less-than[score < 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-less-or-equal[score <= 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-greater-than[score > 3]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-contains[name *= \"ic\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-suffix[name $= \"ck\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-case-insensitive[name @= \"nick\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-not-prefix[name !^= \"Zz\"]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-falsy[!flag]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-undefined[^missing]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-defined[name]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-indegree[[indegree = 0]]",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "node.ka.kb",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#nothing, #selector-list",
+            "style": {
+                "background-color": "rgb(31,119,180)"
+            }
+        },
+        {
+            "selector": "#selector-no-match[score > 3]",
+            "style": {
+                "background-color": "rgb(255,0,0)"
+            }
+        },
+        {
+            "selector": "#selector-loop",
+            "style": {
+                "curve-style": "bezier"
+            }
+        },
+        {
+            "selector": "edge.lp:loop",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "3px"
+            }
+        },
+        {
+            "selector": "#selector-loop-s",
+            "style": {
+                "width": "16px",
+                "height": "16px"
+            }
+        },
+        {
+            "selector": "edge[source = \"edge-by-source-s\"]",
+            "style": {
+                "line-color": "rgb(31,119,180)",
+                "width": "3px"
+            }
+        }
+    ],
+    "zoom": 1e-50,
+    "pan": {
+        "x": 0.5,
+        "y": 0.5
+    },
+    "data": {
+        "sheet": "specimen-mappings-bypass",
+        "about": "Cytoscape.js style specimen sheet specimen-mappings-bypass: one setting per element, caption nodes cap-<id> name it; written by graph-io/test/fidelity/generators/specimens/cytoscapejs.mjs with cy.json() of Cytoscape.js 3.34.3"
+    }
+}

@@ -142,6 +142,22 @@ describe("what a selected node looks like", () => {
         assert.strictEqual(haloMaterial()?.alpha, 0.9);
     });
 
+    it("draws no halo at all at opacity 0, and draws it again when the opacity comes back", async () => {
+        // Drawn invisible, the halo still covered the node in the depth and stencil buffers, so
+        // an outline on the selected node was painted over the whole node instead of around it.
+        await graph.select({ nodes: ["alpha"] });
+        await frames();
+        assert.isDefined(drawnHalo(), "a selected node has a halo by default");
+
+        graph.setSelectionStyle({ opacity: 0 });
+        await frames();
+        assert.isUndefined(drawnHalo(), "an opacity of 0 takes the halo off");
+
+        graph.setSelectionStyle({ opacity: 0.4 });
+        await frames();
+        assert.isDefined(drawnHalo(), "the halo comes back with its opacity");
+    });
+
     it("restyles a selection that is already on screen", async () => {
         await graph.select({ nodes: ["alpha"] });
         await frames();
@@ -180,6 +196,9 @@ describe("what a selected node looks like", () => {
             color: "#00BCD4",
             scale: 1.45,
             opacity: 0.4,
+            edgeColor: "#0077BB",
+            edgeScale: 2.5,
+            edgeOpacity: 1,
         });
     });
 

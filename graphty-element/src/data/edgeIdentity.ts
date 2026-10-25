@@ -111,6 +111,17 @@ export function mintedEdgeId(counter: number): string {
     return `graphty:e${counter}`;
 }
 
+/**
+ * One ordered endpoint pair as a set key, for matching a measured load's records against the
+ * graph's edges. Both ids are read as text, as a CSV file gives them.
+ * @param source - the source node id
+ * @param target - the target node id
+ * @returns the key
+ */
+export function pairKey(source: unknown, target: unknown): string {
+    return `${String(source)}\u0000${String(target)}`;
+}
+
 /** What becomes of a record repeating an edge the graph already holds. */
 type RepeatDecision =
     /** `keep`: the repeat is an edge of its own. */

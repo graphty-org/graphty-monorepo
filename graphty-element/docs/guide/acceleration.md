@@ -285,14 +285,16 @@ element.layoutBehavior = { layout: { iterationsPerStep: 16, maxInFlight: 2 } };
 These arrive as `capabilities.acceleration.code`, beside a `reason` written for a person. None of
 them stops your graph from being drawn; they say why it is being drawn by the CPU.
 
-| Code                 | What happened                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `E_NO_WEBGPU`        | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it. |
-| `E_NO_ADAPTER`       | WebGPU is there but no adapter could be acquired.                                                             |
-| `E_SOFTWARE_ONLY`    | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.               |
-| `E_DEVICE_INCORRECT` | The adapter answers, and its answers are wrong. See below.                                                    |
-| `E_DEVICE_LOST`      | The device was lost mid-session -- a driver reset, a suspended tab.                                           |
-| `E_TOO_LARGE`        | The accelerator cannot compute exactly over as many nodes as it was asked for.                                |
+| Code                          | What happened                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `E_NO_WEBGPU`                 | The runtime exposes no WebGPU at all -- usually an insecure context, or a browser that does not implement it.     |
+| `E_NO_ADAPTER`                | WebGPU is there but no adapter could be acquired.                                                                 |
+| `E_SOFTWARE_ONLY`             | The only adapter is a software rasteriser, which `auto` turns down as slower than the CPU path.                   |
+| `E_DEVICE_INCORRECT`          | The adapter answers, and its answers are wrong. See below.                                                        |
+| `E_DEVICE_LOST`               | The device was lost mid-session -- a driver reset, a suspended tab.                                               |
+| `E_TOO_LARGE`                 | The accelerator cannot compute exactly over as many nodes as it was asked for.                                    |
+| `E_NO_ACCELERATOR_REGISTERED` | No accelerator is registered: `@graphty/graphty-element/webgpu` was never imported, or its module failed to load. |
+| `E_ACCELERATOR_FAILED`        | A registered accelerator threw while setting up, with no code of its own; `reason` says what it threw.            |
 
 A lost device is not the end of it. The element drops to the CPU path and then tries up to
 three times to attach a fresh accelerator, so a state that goes `error` and comes back to `idle`

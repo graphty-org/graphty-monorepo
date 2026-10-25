@@ -780,6 +780,10 @@ describe("mutation testing of the selection", () => {
             report: "/r/tmp/select-mutate/default/report.txt",
         });
         assert.equal(runPaths("/r", "x", "mine").worktree, "/r/.worktrees/mine");
+        // the worktree is reset and cleaned, so a name must not reach outside .worktrees
+        assert.throws(() => runPaths("/r", "/../..", null), /--name/);
+        assert.throws(() => runPaths("/r", "..", null), /--name/);
+        assert.throws(() => runPaths("/r", null, "a/b"), /--worktree/);
     });
 });
 

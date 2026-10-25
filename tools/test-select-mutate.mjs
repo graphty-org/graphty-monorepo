@@ -108,9 +108,20 @@ export function unexplained(failing, broken, chosen) {
  * @param main the main checkout
  * @param name the --name, or null
  * @param worktree the --worktree directory name, or null (overrides the one the name gives)
- * @returns `{ worktree, report }` absolute paths
+ * @returns `{ worktree, report }` absolute paths; throws on a name that is not one plain directory name, since
+ *   the worktree is reset and cleaned (`--name /../..` would otherwise reset the main checkout)
  */
 export function runPaths(main, name, worktree) {
+    for (const [flag, v] of [
+        ["--name", name],
+        ["--worktree", worktree],
+    ]) {
+        if (v != null && !/^[\w-][\w.-]*$/.test(v)) {
+            throw new Error(
+                `${flag} must be a plain directory name (letters, digits, - _ .), not ${JSON.stringify(v)}`,
+            );
+        }
+    }
     return {
         worktree: join(main, ".worktrees", worktree ?? (name ? `select-mutate-${name}` : "select-mutate")),
         report: join(main, "tmp", "select-mutate", name ?? "default", "report.txt"),

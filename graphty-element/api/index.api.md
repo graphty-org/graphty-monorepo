@@ -5436,6 +5436,7 @@ export function projectFileName(name: string | null | undefined): string;
 export interface ProjectOpenOptions {
     readonly discard?: boolean;
     readonly fileName?: string;
+    readonly history?: "step" | "start";
     // (undocumented)
     readonly limits?: {
         readonly fileBytes?: number;
@@ -6357,6 +6358,7 @@ export class UpdateManager implements Manager {
     thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
+    viewMoved(): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

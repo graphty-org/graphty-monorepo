@@ -24,7 +24,10 @@ file and the workflow are what the next launch reads.
 ## Where things live
 
 All studio work happens in the studio worktree (today `.worktrees/design-studio-tier1`, branch
-`design/studio-tier1`), never in the main checkout. Inside it, `design/ui/studio/` holds:
+`design/studio-tier1`), never in the main checkout. The studio reads earlier rounds' screenshots, so create
+its worktree with `./tools/worktree-new.sh <branch> <base> --full-images ...`; an ordinary worktree has the
+`design/**` images only as Git LFS pointer files (fix one with `git lfs pull --include "design/**"`). Inside
+it, `design/ui/studio/` holds:
 
 | Path                              | What it is                                                                                                                                                                                                                                                                           |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -116,7 +119,7 @@ true` rather than resuming the old one (see the lessons below).
    that the starting round's session folder is empty, and the browser count. It returns before
    anything costly if one fails.
 2. **Prepare** -- waits for a clean branch; the researcher, user advocate and red team review the
-   criteria once; the director applies the reviews and **freezes** them; origin/golden is merged
+   criteria once; the director applies the reviews and **freezes** them; origin/master is merged
    into the studio branch and a build is frozen and served; every task is piloted three ways (the
    success path, its commonest detours, and by keyboard), and a pilot that skipped a route is run
    again; the **dry run** triages what the pilots found against `decided.md` and the
@@ -138,19 +141,20 @@ true` rather than resuming the old one (see the lessons below).
    role proposes, the red team attacks, the director decides (with a generality check), engineers
    fix in the owning package with tests (the round's decisions plus backlog items, grouped by
    shared component; the accessibility expert also checks the backlog's accessibility items), the
-   fixes land, origin/golden is merged in, a new build is frozen and served, the dry run runs again,
+   fixes land, origin/master is merged in, a new build is frozen and served, the dry run runs again,
    every designer updates their notes, and the documents are committed.
 4. **Report** -- the director writes `tier<N>/report.md`; the branch is made ready to land.
 
 ## Landing
 
-Studio fixes reach master like every other change, through golden-local (`CLAUDE.md`, "Landing
-changes (golden-local)"). Workflow agents never push, so at every landing point the workflow
-merges origin/master into the studio branch, builds, lints, commits, and logs one line:
-`ready to land: <branch> at <sha> (<pass>)`. It then waits until that commit is on
-`origin/golden`. The session that launched the workflow answers that line by running
-`node tools/land.mjs land <branch>` in the background and fixing the branch if the gate fails;
-the line also names any breaking commit, which lands only with the owner's go. Pass
+Studio fixes reach master like every other change, through their own pull request (`CLAUDE.md`,
+"Shipping a change"; golden is retired). Workflow agents never push, so at every landing point the
+workflow merges origin/master into the studio branch, builds, lints, commits, and logs one line:
+`ready to land: <branch> at <sha> (<pass>)`. The session that launched the workflow answers that
+line by running `tools/pr-open.sh --proof <file>` in the branch's worktree and fixing the branch if
+its pull request goes red; the line also names any breaking commit, which merges only with the
+owner's go. The saved workflow still waits for the commit on `origin/golden`; until it is changed to
+wait on `origin/master`, answer that wait by hand. Pass
 `landEachPass: false` only for a run whose fixes must not reach master.
 
 Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/` with screenshots,
@@ -158,7 +162,14 @@ Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/`
 `tmp/studio-sessions/`, `tool-dry-run-<k>.md`, `expert/<role>.md`, `scores.md`, `insights.md`, `decisions.md`); pilots, each with a
 `report.md` of every route walked, under `tier<N>/rounds/r<r>[d<pass>]/pilot/`; dry-run triage in
 `tier<N>/dry-run-r<r>-<pass>.md`; fix groups the re-walk rejected in `tier<N>/rejected-fixes.md`.
-The pilot reports and triage are committed after every pass.
+The pilot reports and triage are committed after every pass. The walks' screenshots and step files
+(pilot, dry-run, readiness and tool-check walks) are never committed: they go under the main
+checkout's `tmp/design-studio/tier<N>/<round or pass>/`, which git ignores, and a report names them
+by that path as plain text. `real.mjs` refuses a walk folder inside the studio's files, and
+`.gitignore` keeps everything but `.md` out of `rounds/r*/`.
+Walk screenshots go to `tmp/design-studio/`, never into git (owner, 2026-10-21): the pre-push gate
+refuses more than 20 new images or 20 MB outside the image folders (`tools/check-committed-images.mjs`);
+an `Images-Approved: <reason>` trailer passes a deliberate few, such as mockups.
 
 ## Keeping the owner informed
 
@@ -186,8 +197,8 @@ Each rule below exists because breaking it cost a run.
   friction, wording or cosmetic, and round 1 could have started after pass 2 or 3. The opposite
   failure is real too: the first tier 2 launch used the pilots only to correct the answer key, and
   defects that blocked or misled participants stopped the round after five sessions.
-- **Merge origin/golden before every freeze of a round's build.** Before a tier's first build and
-  before each round's build, origin/golden is merged into the studio branch, so the study never
+- **Merge origin/master before every freeze of a round's build.** Before a tier's first build and
+  before each round's build, origin/master is merged into the studio branch, so the study never
   runs on a stale app.
 - **A dry run that passes on the answer key's route is necessary but not sufficient; it also walks
   each task's commonest detours.** Tier 2 round 1's dry run walked every success path on four
@@ -324,8 +335,12 @@ Each rule below exists because breaking it cost a run.
 - **Land every pass.** 526 product fix commits on the tier 3 branch never reached master, so no
   CI, SonarQube or screenshot review saw them and no consumer got them, and pass 2's work was
   committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
-  reproduces is invalid), merge origin/master into the studio branch every pass, land through
-  `node tools/land.mjs land <branch>` (see "Landing"), and commit the pilot reports and triage.
+  reproduces is invalid), merge origin/master into the studio branch every pass, open its pull
+  request with `tools/pr-open.sh` (see "Landing"), and commit the pilot reports and triage.
+- **Never commit walk screenshots.** Study screenshots filled golden with 83k LFS files (9.9 GB) on
+  2026-10-21, almost all of them pilot and dry-run walk images. Walks write under the main
+  checkout's `tmp/design-studio/`; only reports, scored round sessions and the images a report or
+  insight file cites go in git.
 - **Commits must really run the hooks.** Agents skip only the interactive `prepare-commit-msg`, by
   copying the WHOLE `.husky/` folder to a fixed path of their own under the worktree's
   `tmp/<task>/hooks`, deleting its `prepare-commit-msg` and passing

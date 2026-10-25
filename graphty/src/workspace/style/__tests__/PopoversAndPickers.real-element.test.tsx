@@ -168,6 +168,11 @@ describe("the binding popover's rows and readings", () => {
                 "the row wrote its own color",
             );
         });
+        // Enter keeps the picker open (Figma); Escape closes it.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByTestId("color-picker-value"), "Escape closes the picker");
+        });
 
         // Every column lines up row to row, the recolored row included: the grid's own columns.
         const rows = dataRows();

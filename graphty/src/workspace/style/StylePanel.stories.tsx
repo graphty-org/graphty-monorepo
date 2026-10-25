@@ -5,9 +5,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { freshStore } from "../../stories/freshStore";
 import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
-import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
@@ -57,6 +57,8 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
     await session.layout.set("circular");
+    // A layout change frames the camera on later frames: wait for the framing to land.
+    await element.waitForStableFrame();
     const idOf = (name: string): string => {
         const node = session.data.nodes().find((n) => n.name === name);
         if (node === undefined) {
@@ -197,7 +199,7 @@ type Story = StoryObj<typeof meta>;
  */
 function sceneStory(play: (scene: Scene) => Promise<void>): Story {
     return {
-        args: { store: createWorkspaceStore() },
+        ...freshStore(),
         play: async ({ canvasElement }) => {
             const scene = await loadScene(canvasElement);
             await play(scene);
@@ -559,6 +561,8 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
+    // A layout change frames the camera on later frames: wait for the framing to land.
+    await element.waitForStableFrame();
     return element;
 }
 
@@ -568,7 +572,7 @@ async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement>
  * "One color per value". The binding popover is left open.
  */
 export const FootballConference: Story = {
-    args: { store: createWorkspaceStore() },
+    ...freshStore(),
     play: async ({ canvasElement }) => {
         const element = await loadFootball(canvasElement);
         const { session } = element;

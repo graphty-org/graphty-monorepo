@@ -514,7 +514,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     colorPanelTitle: "Color",
     colorGenericName: "color",
 
-    colorStops: "Color Stops",
+    colorStops: "Stops",
     addColorStop: "Add color stop",
     colorStopPosition: (position: string): string => `Stop ${position} position`,
     removeColorStop: (position: string): string => `Remove color stop ${position}`,

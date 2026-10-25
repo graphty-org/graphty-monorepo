@@ -71,13 +71,21 @@ function samples() {
     if (existsSync(gmlRoutes)) {
         const sheets = JSON.parse(readFileSync(gmlRoutes, "utf8")).sheets;
         for (const sheet of Object.keys(sheets).sort()) {
-            if (sheets[sheet].route !== "cytoscape-gml") continue;
-            out.push({
-                id: `gml-${sheet}`,
-                file: `fidelity/specimens/gml/${sheet}.gml`,
-                route: "cytoscape-gml",
-                specimen: true,
-            });
+            const file = `fidelity/specimens/gml/${sheet}.gml`;
+            if (sheets[sheet].route === "cytoscape-gml") {
+                out.push({ id: `gml-${sheet}`, file, route: "cytoscape-gml", specimen: true });
+            }
+            // a sheet whose oracle draws only part of its keys is also drawn by Cytoscape's GML reader, as a stand-in
+            // for the settings the oracle does not draw (specimens/gml/judges.json): oracles/stand-ins/
+            if (sheets[sheet].standIns?.includes("cytoscape-gml")) {
+                out.push({
+                    id: `gml-${sheet}`,
+                    file,
+                    route: "cytoscape-gml",
+                    specimen: true,
+                    path: `stand-ins/gml-${sheet}.cytoscape-gml`,
+                });
+            }
         }
     }
     for (const m of src.matchAll(/\{\s*id: "([^"]+)",[^}]*?file: ([^,]+),[^}]*?routes: \[([^\]]*)\]/g)) {
@@ -290,7 +298,8 @@ try {
             const same = sameDrawing(first.svg, second.svg);
             const { normalized, n, viewed, style, p, title, exports, distinct } = first;
             // keep the committed oracle when a load drew the same things (in any order)
-            const target = join(oracles, `${s.id}.svg`);
+            const path = s.path ?? s.id;
+            const target = join(oracles, `${path}.svg`);
             const committed = existsSync(target) ? readFileSync(target, "utf8") : null;
             const kept = committed !== null && [first, second].some((d) => sameDrawing(d.svg, committed));
             if (!kept) writeFileSync(target, first.svg);
@@ -349,13 +358,13 @@ try {
                       }
                     : {}),
                 date: kept
-                    ? JSON.parse(readFileSync(join(oracles, `${s.id}.oracle.json`), "utf8")).date
+                    ? JSON.parse(readFileSync(join(oracles, `${path}.oracle.json`), "utf8")).date
                     : new Date().toISOString().slice(0, 10),
                 regenerate:
                     `CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs ${s.id} && ` +
-                    `node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/${s.id}.svg`,
+                    `node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/${path}.svg`,
             };
-            writeFileSync(join(oracles, `${s.id}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
+            writeFileSync(join(oracles, `${path}.oracle.json`), `${JSON.stringify(meta, null, 4)}\n`);
             console.log(
                 `${s.id}\t${n} nodes\t${viewed.length} views\t${out.length} bytes\tdash ${normalized}\texports ${exports}/${distinct}\t${same ? "stable" : "VARIES"}\t${kept ? "unchanged" : "written"}`,
             );

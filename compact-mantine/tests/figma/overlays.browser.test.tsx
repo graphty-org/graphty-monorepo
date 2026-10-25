@@ -279,8 +279,11 @@ describe.skipIf(!available)("8.1 inverse menu", () => {
                 );
                 await drive(part(container, "button"), "open");
                 await waitFor(() => document.querySelector(".mantine-Menu-dropdown"));
-                // Opened by a click, the first row takes focus; down and back up returns to it.
+                // Opened by a click, the menu itself takes focus and no row is highlighted (Figma);
+                // the first ArrowDown reaches the first row, and down and back up returns to it.
                 const first = row(document, "First");
+                await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
+                await userEvent.keyboard("{ArrowDown}");
                 await waitFor(() => expect(first).toHaveFocus());
                 await userEvent.keyboard("{ArrowDown}");
                 await waitFor(() => document.activeElement === row(document, "Second"));
@@ -409,8 +412,8 @@ describe("8.1 menu keyboard and scroll", () => {
         );
         await userEvent.click(getByRole("button", { name: "Main menu" }));
         await waitFor(() => document.querySelector(".cm-menu"));
-        // Opened by a click, the first row has focus; type-ahead starts from it.
-        await waitFor(() => (document.activeElement?.textContent?.startsWith("Actions") ? true : null));
+        // Opened by a click, the menu itself has focus; type-ahead starts from before the first row.
+        await waitFor(() => expect(document.querySelector(".cm-menu")).toHaveFocus());
         const focused = (): string => document.activeElement?.textContent ?? "";
         await userEvent.keyboard("l");
         expect(focused()).toBe("Libraries");
@@ -421,7 +424,7 @@ describe("8.1 menu keyboard and scroll", () => {
         await userEvent.keyboard("{Escape}");
     });
 
-    it("a row with a second line is a 44px touch target and neither line is cut off", async () => {
+    it("a row with a second line grows to hold both lines (38), neither cut off", async () => {
         await renderFigma(
             <Menu opened trapFocus={false} closeOnClickOutside={false}>
                 <Menu.Target>
@@ -439,7 +442,7 @@ describe("8.1 menu keyboard and scroll", () => {
         const two = await waitFor(() =>
             document.querySelector<HTMLElement>(".cm-menu-item:has(.cm-menu-item-description)"),
         );
-        expect(box(two).height).toBeGreaterThanOrEqual(44);
+        expect(box(two).height).toBe(38);
         const line = part(two, ".cm-menu-item-description");
         expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
         expect(box(line).bottom).toBeLessThanOrEqual(box(two).bottom);
@@ -516,8 +519,8 @@ describe.skipIf(!available)("8.2 context menu", () => {
         }
         await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => document.activeElement === copy);
-        // the page-themed menu's highlight in the light app (white text at 5.4:1)
-        expectMeasured(copy, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
+        // the page-themed menu's highlight in the light app: Figma's brand fill
+        expectMeasured(copy, { backgroundColor: "#0d99ff" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));
         expect(area.textContent).toBe("Copy");
@@ -744,6 +747,47 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await waitFor(() => isVisible(next));
     });
 
+    /**
+     * How many Escape keydowns reach the window, where a page shortcut listens, while `run` runs.
+     * @param run - what presses the keys
+     * @returns the count
+     */
+    async function escapesAtWindow(run: () => Promise<void>): Promise<number> {
+        let heard = 0;
+        const hear = (event: KeyboardEvent): void => {
+            if (event.key === "Escape") {
+                heard++;
+            }
+        };
+        globalThis.addEventListener("keydown", hear);
+        try {
+            await run();
+        } finally {
+            globalThis.removeEventListener("keydown", hear);
+        }
+        return heard;
+    }
+
+    it("a tooltip kept hidden under a resting pointer does not take the page's Escape", async () => {
+        const { getByRole } = await renderFigma(<Toggle />);
+        // The click's tooltip mounts later under the still pointer, open to floating-ui but hidden.
+        const mounted = tooltipMount("Showing only these");
+        await userEvent.click(getByRole("button", { name: "Filter" }));
+        const tip = await mounted;
+        expect(isVisible(tip)).toBe(false);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(1);
+    });
+
+    it("a visible tooltip still takes the Escape that closes it", async () => {
+        const { getByRole } = await renderFigma(<Tips />);
+        await userEvent.hover(getByRole("button", { name: "1" }));
+        await waitFor(visibleTip);
+        const heard = await escapesAtWindow(() => userEvent.keyboard("{Escape}"));
+        expect(heard).toBe(0);
+        await waitFor(hiddenTip);
+    });
+
     /** A tree row whose caret toggles it open, its tooltip saying what the next click does. */
     function CaretRow(): React.JSX.Element {
         const [open, setOpen] = useState(false);
@@ -858,60 +902,35 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         );
     }
 
-    it("opens off the control under its trigger rather than over it", async () => {
+    it("opens 6px below its trigger, as Figma places it, even over the control under it", async () => {
         const { getByRole } = await renderFigma(<Crowded />);
         const mounted = tooltipMount("Add a layer or a folder");
-        await userEvent.hover(getByRole("button", { name: "+" }));
+        const trigger = getByRole("button", { name: "+" });
+        await userEvent.hover(trigger);
         const tip = await mounted;
         await waitFor(() => (isVisible(tip) ? true : null), 2000);
         const box = tip.getBoundingClientRect();
-        const next = getByRole("button", { name: "Next row" }).getBoundingClientRect();
-        const overlaps =
-            box.left < next.right && box.right > next.left && box.top < next.bottom && box.bottom > next.top;
-        expect(overlaps).toBe(false);
+        const anchor = trigger.getBoundingClientRect();
+        expect(Math.round(box.top - anchor.bottom)).toBe(6);
+        expect(Math.round(box.left + box.width / 2)).toBe(Math.round(anchor.left + anchor.width / 2));
     });
 
-    /**
-     * Two section headers at the window's right edge, each a heading and a "+" at its end: the
-     * "+"'s tooltip has no room to the right, a "+" below and above, and the heading's words to
-     * the left.
-     */
-    function Headers(): React.JSX.Element {
-        const header = (title: string): React.JSX.Element => (
-            <div style={{ display: "flex", alignItems: "center", height: 40, padding: "0 8px 0 16px" }}>
-                <div role="heading" aria-level={3} style={{ flex: 1 }}>
-                    {title}
-                </div>
-                <Tooltip label={`Everything in node ${title.toLowerCase()} is set`}>
-                    <button type="button" aria-label={`Add to ${title}`} style={{ width: 24, height: 24 }}>
-                        +
+    it("flips above only when below would run off the window", async () => {
+        const { getByRole } = await renderFigma(
+            <div style={{ position: "fixed", bottom: 4, left: 200 }}>
+                <Tooltip label="At the bottom edge">
+                    <button type="button" style={{ display: "block", width: 24, height: 24 }}>
+                        B
                     </button>
                 </Tooltip>
-            </div>
+            </div>,
         );
-        return (
-            <div style={{ position: "fixed", top: 200, right: 0, width: 240 }}>
-                {header("Text")}
-                {header("Visibility")}
-                {header("Effects")}
-            </div>
-        );
-    }
-
-    it("opens off its own section's heading rather than over its words", async () => {
-        const { getByRole } = await renderFigma(<Headers />);
-        const mounted = tooltipMount("Everything in node visibility is set");
-        await userEvent.hover(getByRole("button", { name: "Add to Visibility" }));
+        const mounted = tooltipMount("At the bottom edge");
+        const trigger = getByRole("button", { name: "B" });
+        await userEvent.hover(trigger);
         const tip = await mounted;
         await waitFor(() => (isVisible(tip) ? true : null), 2000);
-        const box = tip.getBoundingClientRect();
-        const heading = getByRole("heading", { name: "Visibility" });
-        const words = document.createRange();
-        words.selectNodeContents(heading);
-        const text = words.getBoundingClientRect();
-        const overlaps =
-            box.left < text.right && box.right > text.left && box.top < text.bottom && box.bottom > text.top;
-        expect(overlaps).toBe(false);
+        expect(Math.round(trigger.getBoundingClientRect().top - tip.getBoundingClientRect().bottom)).toBe(6);
     });
 
     it("hides at once on a key press but not on a modifier", async () => {
@@ -1312,7 +1331,7 @@ describe.skipIf(!available)("8.4 light popover", () => {
             const bubble = await waitFor(() => document.querySelector<HTMLElement>('[role="dialog"]'));
             expectMeasured(bubble, { width: 240, borderRadius: "13px", borderTopWidth: "0px" });
             expectMeasured(part(bubble, ".cm-info-bubble"), {
-                color: scheme === "light" ? "#0000008c" : "#ffffffb2",
+                color: scheme === "light" ? "#00000080" : "#ffffffb2",
                 fontSize: "11px",
                 lineHeight: "16px",
                 fontWeight: "450",
@@ -1407,18 +1426,20 @@ describe.skipIf(!available)("8.5 modal", () => {
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
-            // The footer departs from Figma's 40px / 8px desktop footer for touch (figma-spec.md 8.5):
-            // 48 tall with 16px on both sides. The divider still matches.
+            // Figma's footer: 40 tall, padding 0 8 0 16, its divider.
             expectMeasured(bottom, {
-                ...figmaSpec(footer, ["paddingLeft", ...(scheme === "light" ? ["boxShadow"] : [])]),
-                height: 48,
-                paddingRight: "16px",
+                ...figmaSpec(footer, [
+                    "height",
+                    "paddingLeft",
+                    "paddingRight",
+                    ...(scheme === "light" ? ["boxShadow"] : []),
+                ]),
                 width: frame.box[2],
             });
             expect(box(content).bottom - box(bottom).bottom).toBeCloseTo(0, 0);
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
-            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(16, 0);
+            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
             // centered, a transparent overlay that blocks the page by default, focus in the first field
             const overlay = document.querySelector(".mantine-Modal-overlay");
             expect(overlay).not.toBeNull();

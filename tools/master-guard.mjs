@@ -9,6 +9,9 @@
 //   When the failure looks external (outsideCause: an outside service's error, a lost runner, or the same
 //   job failing on an earlier commit), it neither freezes nor reverts: it re-runs the failed jobs once and
 //   files the issue with the evidence.
+// - CI cancelled or never started on a master commit (`cancelled`, `startup_failure`; a job that runs into its
+//   timeout-minutes ends the run `cancelled`): the same red-master issue, with no freeze and no revert, since no
+//   failed step names a culprit. Not when a newer master run superseded it (superseded).
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - Either way, close the guard's own open revert pull requests that are no longer needed (staleReverts).
 // - Hosts red on master (the nightly; a push to master no longer runs Hosts): open (or add to) a
@@ -26,6 +29,11 @@ export const FREEZE_PREFIX = "Red master: CI failed on ";
 export const DEPLOY = "Deploy to GitHub Pages";
 export const DEPLOY_PREFIX = "graphty.app deploy failed on ";
 const FAILED = new Set(["failure", "timed_out"]);
+// A run that ended without a verdict: master has no green build, but nothing failed to point at.
+const STOPPED = new Set(["cancelled", "startup_failure"]);
+// A run superseded by a newer one is cancelled the moment the newer run is queued.
+// ponytail: a time window, not GitHub's cancel reason (the API has none); a push in the last minute of a timeout reads as superseded
+const SUPERSEDE_MS = 60 * 1000;
 // Jobs that only report on the others: they fail whenever another job fails.
 const SUMMARY_JOBS = new Set(["All Checks Pass", "Queue Checks Pass"]);
 // A log line naming an outside service's failure: an HTTP 5xx (lychee prints "[502] <url> | ..."), a network
@@ -112,6 +120,9 @@ export function decide(run) {
         if (failed) {
             return "red";
         }
+        if (STOPPED.has(run.conclusion)) {
+            return "stopped";
+        }
         return run.conclusion === "success" ? "green" : "none";
     }
     if (run.name === "Hosts" && failed && run.event === "schedule") {
@@ -121,6 +132,22 @@ export function decide(run) {
         return "deploy-red";
     }
     return "none";
+}
+
+/**
+ * Whether a stopped master CI run was superseded: a run for a later commit was queued just before it ended.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param run - The workflow_run payload's run.
+ * @returns True when superseded.
+ */
+export async function superseded(gh, run) {
+    const { workflow_runs: runs } = await gh("/actions/workflows/ci.yml/runs?branch=master&event=push&per_page=20");
+    const start = Date.parse(run.created_at);
+    const end = Date.parse(run.updated_at);
+    return runs.some((r) => {
+        const at = Date.parse(r.created_at);
+        return r.head_sha !== run.head_sha && at > start && at <= end && end - at <= SUPERSEDE_MS;
+    });
 }
 
 /**
@@ -362,6 +389,38 @@ export async function closeStaleReverts(gh, at) {
     return closed;
 }
 
+/**
+ * Files the red-master issue for a stopped master CI run, unless a newer run superseded it or it is already reported.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param run - The workflow_run payload's run.
+ * @param ctx - What main() shares.
+ * @param ctx.attempt - Runs a step, logging and recording its error.
+ * @param ctx.alreadyReported - Whether this commit is already on the red-master issue.
+ * @param ctx.title - The issue title.
+ * @param ctx.labels - The issue labels.
+ */
+async function reportStopped(gh, run, { attempt, alreadyReported, title, labels }) {
+    const sha = run.head_sha;
+    // An error here leaves `skip` undefined, so the run still alarms.
+    const skip = await attempt("look for a newer master run", () => superseded(gh, run));
+    if (skip) {
+        console.log("superseded by a newer master run: no alarm");
+    } else if (await alreadyReported()) {
+        console.log("already reported");
+    } else {
+        const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No freeze and no revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
+        await attempt("open or update the issue", () =>
+            fileIssue(gh, {
+                prefix: FREEZE_PREFIX,
+                title,
+                labels,
+                body: `CI did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+                comment: `CI also did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+            }),
+        );
+    }
+}
+
 async function main() {
     const { workflow_run: run } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
     const repo = process.env.GITHUB_REPOSITORY;
@@ -403,7 +462,18 @@ async function main() {
     const action = decide(run);
     const sha = run.head_sha;
     const short = sha.slice(0, 7);
+    const title = `${FREEZE_PREFIX}${short}`;
     console.log(`${run.name} ${run.conclusion} on ${sha} (${run.event}): ${action}`);
+    // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
+    const alreadyReported = () =>
+        attempt("look for an existing issue", async () => {
+            const [open] = await openIssues(gh, FREEZE_PREFIX);
+            if (!open) {
+                return false;
+            }
+            const comments = await gh(`/issues/${open.number}/comments?per_page=100`);
+            return open.title === title || comments.some((c) => c.body.includes(sha));
+        });
 
     if (action === "red") {
         const examined = await attempt("look for an outside cause", () => examineRed(gh, run));
@@ -444,16 +514,7 @@ async function main() {
             console.log("merge queue frozen; priority:critical pull requests still merge");
         });
 
-        const title = `${FREEZE_PREFIX}${short}`;
-        // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
-        const reported = await attempt("look for an existing issue", async () => {
-            const [open] = await openIssues(gh, FREEZE_PREFIX);
-            if (!open) {
-                return false;
-            }
-            const comments = await gh(`/issues/${open.number}/comments?per_page=100`);
-            return open.title === title || comments.some((c) => c.body.includes(sha));
-        });
+        const reported = await alreadyReported();
         if (reported) {
             console.log("already reported");
         } else {
@@ -547,6 +608,10 @@ async function main() {
                 }),
             );
         }
+    }
+
+    if (action === "stopped") {
+        await reportStopped(gh, run, { attempt, alreadyReported, title, labels: labels("low") });
     }
 
     if (action === "green") {

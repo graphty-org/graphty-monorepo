@@ -7,7 +7,7 @@
 //     test moved to another file or rewritten in place does not count as gone; a deleted test file
 //     is named when the net drops;
 //   - fewer assertions (expect, assert), net of the whole change;
-//   - more .skip, .only, .todo, .fails, .skipIf or .runIf, net of the whole change;
+//   - more .skip, .only, .fails, .skipIf, .runIf or pending-test modifiers, net of the whole change;
 //   - a timeout that grows, a retry added or raised, a timeout added to a vitest config;
 //   - a coverage threshold that drops or goes, a vitest config's include or exclude changed, a
 //     vitest config deleted;
@@ -49,14 +49,22 @@ const LIFECYCLE = /^(pre|post)|^(install|prepare|publish|pack)$/;
 const git = (args, cwd) =>
     execFileSync("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["ignore", "pipe", "pipe"] });
 
-const code = (line) => line.replace(/\/\/.*$/, "").replace(/^\s*\*.*$/, "");
+// A line without its `//` comment; a block comment's continuation line is all comment.
+function code(line) {
+    const cut = line.indexOf("//");
+    const kept = cut < 0 ? line : line.slice(0, cut);
+    return kept.trimStart().startsWith("*") ? "" : kept;
+}
 const count = (re, line) => (code(line).match(re) || []).length;
 const toNumber = (s) => s.split("*").reduce((p, f) => p * Number(f.replaceAll("_", "").trim()), 1);
 
 function values(re, lines) {
     const out = {};
     for (const line of lines) {
-        for (const m of code(line).matchAll(re)) (out[m[1]] ||= []).push(toNumber(m[2]));
+        for (const m of code(line).matchAll(re)) {
+            out[m[1]] ??= [];
+            out[m[1]].push(toNumber(m[2]));
+        }
     }
     return out;
 }
@@ -105,19 +113,22 @@ function netFinding(files, measure, sign, what) {
     return [`${what} ${net > 0 ? "+" : ""}${net} net: ${where.join(", ")}`];
 }
 
-function numberFindings(f, re, { grows, added: addedToo, what }) {
-    const before = values(re, f.removed);
-    const after = values(re, f.added);
+// How a number on the removed lines became the one on the added lines, or null when that is not
+// a weakening: `grows` reports a rise (timeouts, retries), else a drop or a removal (thresholds).
+function weakened(was, now, { grows, added }) {
+    if (was === undefined) return added && now !== undefined ? "added" : null;
+    if (now === undefined) return grows ? null : "removed";
+    return (grows ? now > was : now < was) ? `${was} -> ${now}` : null;
+}
+
+function numberFindings(f, re, rule) {
+    const pick = (vals) => (vals ? (rule.grows ? Math.max : Math.min)(...vals) : undefined);
+    const [before, after] = [values(re, f.removed), values(re, f.added)];
     const out = [];
-    for (const [key, vals] of Object.entries(after)) {
-        const now = grows ? Math.max(...vals) : Math.min(...vals);
-        const was = before[key] && (grows ? Math.max(...before[key]) : Math.min(...before[key]));
-        if (was === undefined ? addedToo : grows ? now > was : now < was) {
-            out.push(`${pathOf(f)}: ${what} ${key} ${was === undefined ? "added" : `${was} -> ${now}`}`);
-        }
+    for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
+        const how = weakened(pick(before[key]), pick(after[key]), rule);
+        if (how) out.push(`${pathOf(f)}: ${rule.what} ${key} ${how}`);
     }
-    if (!grows)
-        for (const key of Object.keys(before)) if (!after[key]) out.push(`${pathOf(f)}: ${what} ${key} removed`);
     return out;
 }
 
@@ -129,10 +140,11 @@ function blocks(text, re) {
         let depth = 0;
         let i = m.index + m[0].length - 1;
         for (; i < text.length; i++) {
-            depth += text[i] === open ? 1 : text[i] === close ? -1 : 0;
+            if (text[i] === open) depth++;
+            else if (text[i] === close) depth--;
             if (depth === 0) break;
         }
-        out.push(text.slice(m.index, i + 1).replace(/\s+/g, " "));
+        out.push(text.slice(m.index, i + 1).replaceAll(/\s+/g, " "));
     }
     return out;
 }
@@ -141,8 +153,8 @@ function blocks(text, re) {
 // vitest's default excludes never count: a config that names them only restates the default.
 const DEFAULT_EXCLUDES = new Set(["**/node_modules/**", "**/dist/**"]);
 function entries(text, key) {
-    const code = (text || "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    return blocks(code, new RegExp(String.raw`\b${key}\s*:\s*\[`, "g"))
+    const uncommented = (text || "").split("\n").map(code).join("\n");
+    return blocks(uncommented, new RegExp(String.raw`\b${key}\s*:\s*\[`, "g"))
         .flatMap((b) => b.match(/(["'`])[^"'`]*\1/g) || [])
         .map((x) => x.slice(1, -1))
         .filter((x) => /\*|\.(test|spec|stories)\./.test(x) && !DEFAULT_EXCLUDES.has(x));
@@ -156,18 +168,11 @@ const overlaps = (a, b) => prefix(a).startsWith(prefix(b)) || prefix(b).startsWi
 // or an include entry dropped where no exclude entry under it was dropped too (a test file removed
 // from both is the test count's to judge).
 function includeExcludeFindings(configs, read) {
-    const all = (key, side) =>
-        configs
-            .flatMap((f) =>
-                side === "old"
-                    ? f.status === "A"
-                        ? ""
-                        : read.old(f.oldPath)
-                    : f.status === "D"
-                      ? ""
-                      : read.new(f.newPath),
-            )
-            .flatMap((t) => entries(t, key));
+    const text = (f, side) => {
+        if (side === "old") return f.status === "A" ? "" : read.old(f.oldPath);
+        return f.status === "D" ? "" : read.new(f.newPath);
+    };
+    const all = (key, side) => configs.flatMap((f) => entries(text(f, side), key));
     const [inc0, inc1, exc0, exc1] = [
         all("include", "old"),
         all("include", "new"),
@@ -213,9 +218,10 @@ function packageFindings(f, read) {
     for (const n of names) {
         const [before, after] = [was.scripts?.[n], now.scripts?.[n]];
         if (before === after || (before === undefined && !LIFECYCLE.test(n))) continue;
-        out.push(
-            `${pathOf(f)}: scripts.${n} ${before === undefined ? "added" : after === undefined ? "removed" : "changed"}`,
-        );
+        let how = "changed";
+        if (before === undefined) how = "added";
+        else if (after === undefined) how = "removed";
+        out.push(`${pathOf(f)}: scripts.${n} ${how}`);
     }
     if (pathOf(f) === "package.json" && sortedJson(was.pnpm) !== sortedJson(now.pnpm))
         out.push("package.json: pnpm field changed");

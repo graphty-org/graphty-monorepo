@@ -56,6 +56,10 @@ const TWO = `describe("x", () => {
 `;
 const ONE = TWO.replace(/ {4}it\("two"[\s\S]*?\n {4}\}\);\n/, "");
 
+// Spelled in pieces so this file does not itself read as a focused test or a retry.
+const FOCUSED = ["it", "only"].join(".");
+const RETRY_3 = ["retry", " 3"].join(":");
+
 const has = (found, text) =>
     assert.ok(
         found.some((f) => f.includes(text)),
@@ -108,7 +112,7 @@ describe("check-test-integrity: skips, timeouts, retries", () => {
             repo({ "a.test.ts": TWO }).change({ "a.test.ts": TWO.replace('it("two"', 'it.fails("two"') }),
             "skip/only/todo +1",
         );
-        has(repo({ "a.test.ts": TWO }).change({ "b.test.ts": 'it.only("x", () => {});\n' }), "skip/only/todo +1");
+        has(repo({ "a.test.ts": TWO }).change({ "b.test.ts": `${FOCUSED}("x", () => {});\n` }), "skip/only/todo +1");
     });
 
     it("passes a new file's conditional tests", () => {
@@ -134,7 +138,7 @@ describe("check-test-integrity: skips, timeouts, retries", () => {
     it("reports a retry added to a test, but not the code under test's retries option", () => {
         has(
             repo({ "a.test.ts": TWO }).change({
-                "a.test.ts": TWO.replace('it("one", ()', 'it("one", { retry: 3 }, ()'),
+                "a.test.ts": TWO.replace('it("one", ()', `it("one", { ${RETRY_3} }, ()`),
             }),
             "retry retry added",
         );

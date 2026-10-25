@@ -18,6 +18,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs as parseCli } from "node:util";
 
 export const REPO = "graphty-org/graphty-monorepo";
 export const BASE = "scratch/ruleset-trial";
@@ -37,7 +38,7 @@ const text = (s) => `Scratch ruleset trial file (#3435), ${s}. Deleted with its 
 /**
  * The ten cases. `files(stamp, read)` gives the commit's changes as { path: content }; `read(path)` reads the
  * base. `from: "parent"` starts the branch at the base's first parent, so merging the base later is a merge
- * of master. `then` is a second commit pushed after the review is posted.
+ * of master. `after` is a second commit pushed after the review is posted.
  */
 export const CASES = [
     {
@@ -107,7 +108,7 @@ export const CASES = [
         files: (s, _r, id) => ({ [note(id, s)]: text("master merge") }),
         from: "parent",
         reviewed: true,
-        then: "merge-base",
+        after: "merge-base",
         expect: { kind: "integrity", want: "SUCCESS" },
     },
     {
@@ -116,7 +117,7 @@ export const CASES = [
         title: "test(tools): scratch ruleset trial, fix push",
         files: (s, _r, id) => ({ [note(id, s)]: text("fix push") }),
         reviewed: true,
-        then: "fix",
+        after: "fix",
         expect: { kind: "integrity", want: "FAILURE" },
     },
 ];
@@ -157,8 +158,33 @@ export function observe(node) {
 }
 
 const failedRequired = (o) => REQUIRED.filter((n) => o.checks[n] && !["PENDING", "SUCCESS"].includes(o.checks[n]));
-const describe = (o) =>
-    `merged=${o.merged} review=${o.reviewDecision ?? "none"} ${REQUIRED.map((n) => `${n}=${o.checks[n] ?? "none"}`).join(" ")}`;
+const checkText = (o) => REQUIRED.map((n) => n + "=" + (o.checks[n] ?? "none")).join(" ");
+const describe = (o) => `merged=${o.merged} review=${o.reviewDecision ?? "none"} ${checkText(o)}`;
+const unfinished = (o) => REQUIRED.some((n) => !o.checks[n] || o.checks[n] === "PENDING");
+
+const JUDGES = {
+    admin: (_e, o) => ({
+        verdict: o.refused ? "pass" : "fail",
+        actual: o.refused ? `refused: ${o.output}` : "merged with --admin",
+    }),
+    integrity: (e, o) => {
+        const got = o.checks[INTEGRITY];
+        if (!got || got === "PENDING") return { verdict: "pending", actual: `PR Integrity ${got ?? "not run"}` };
+        return { verdict: got === e.want ? "pass" : "fail", actual: `PR Integrity ${got}` };
+    },
+    merges: (_e, o) => {
+        if (o.merged) return { verdict: "pass", actual: "merged" };
+        const bad = failedRequired(o).length > 0 || o.state === "CLOSED";
+        return { verdict: bad ? "fail" : "pending", actual: describe(o) };
+    },
+    // Settled once every required check finished; then it must still be open, wanting a review.
+    waits: (_e, o) => {
+        if (o.merged) return { verdict: "fail", actual: "merged without a code-owner review" };
+        if (unfinished(o)) return { verdict: "pending", actual: describe(o) };
+        const ok = failedRequired(o).length === 0 && o.reviewDecision === "REVIEW_REQUIRED";
+        return { verdict: ok ? "pass" : "fail", actual: describe(o) };
+    },
+};
 
 /**
  * Whether a case met its expectation.
@@ -167,30 +193,7 @@ const describe = (o) =>
  * @returns the verdict ("pending", "pass" or "fail") and what was seen (actual)
  */
 export function judge(expect, o) {
-    if (!o) return { verdict: "pending", actual: "not observed yet" };
-    if (expect.kind === "admin") {
-        return {
-            verdict: o.refused ? "pass" : "fail",
-            actual: o.refused ? `refused: ${o.output}` : "merged with --admin",
-        };
-    }
-    if (expect.kind === "integrity") {
-        const got = o.checks[INTEGRITY];
-        if (!got || got === "PENDING") return { verdict: "pending", actual: `PR Integrity ${got ?? "not run"}` };
-        return { verdict: got === expect.want ? "pass" : "fail", actual: `PR Integrity ${got}` };
-    }
-    if (expect.kind === "merges") {
-        if (o.merged) return { verdict: "pass", actual: "merged" };
-        const bad = failedRequired(o);
-        if (bad.length || o.state === "CLOSED") return { verdict: "fail", actual: describe(o) };
-        return { verdict: "pending", actual: describe(o) };
-    }
-    // waits: settled once every required check finished; then it must still be open, wanting a review.
-    if (o.merged) return { verdict: "fail", actual: "merged without a code-owner review" };
-    if (REQUIRED.some((n) => !o.checks[n] || o.checks[n] === "PENDING"))
-        return { verdict: "pending", actual: describe(o) };
-    const ok = !failedRequired(o).length && o.reviewDecision === "REVIEW_REQUIRED";
-    return { verdict: ok ? "pass" : "fail", actual: describe(o) };
+    return o ? JUDGES[expect.kind](expect, o) : { verdict: "pending", actual: "not observed yet" };
 }
 
 const expectText = (e) =>
@@ -218,6 +221,8 @@ export function table(rows) {
 // GitHub and git, as graphty-agent. Everything below needs the network; the parts above are pure.
 
 class RateLimit extends Error {}
+
+let indexCount = 0;
 
 const agentEnv = () => {
     const env = { ...process.env, GIT_CONFIG_GLOBAL: `${process.env.HOME}/.config/git-agent/config` };
@@ -258,7 +263,7 @@ const gh = (args, input) => run("gh", args, { input });
 function commit(ctx, parents, files, message, tree) {
     const g = (args, input) => run("git", args, { input, cwd: ctx.root });
     if (!tree) {
-        const env = { ...agentEnv(), GIT_INDEX_FILE: join(ctx.tmp, `index-${Date.now()}-${Math.random()}`) };
+        const env = { ...agentEnv(), GIT_INDEX_FILE: join(ctx.tmp, `index-${++indexCount}`) };
         const gi = (args, input) => run("git", args, { input, env, cwd: ctx.root });
         gi(["read-tree", parents[0]]);
         for (const [path, content] of Object.entries(files)) {
@@ -284,59 +289,73 @@ const bodyFor = (c, stamp, proof) =>
 /**
  * The plan: each case's branch and commits, made locally (real run) or only described (dry run).
  * @param ctx { root, tmp, base, stamp, make }
- * @returns [{ case, branch, head, then, describe }]
+ * @returns [{ case, branch, title, head, after, describe }]
  */
 function plan(ctx) {
-    const read = (p) => run("git", ["show", `${ctx.base}:${p}`], { cwd: ctx.root }) + "\n";
-    const parent = run("git", ["rev-parse", `${ctx.base}^1`], { cwd: ctx.root });
-    const reverted = run("git", ["rev-list", "--first-parent", "--merges", "-1", ctx.base], { cwd: ctx.root });
+    const git = (...args) => run("git", args, { cwd: ctx.root });
+    const read = (path) => git("show", `${ctx.base}:${path}`) + "\n";
+    const parent = git("rev-parse", `${ctx.base}^1`);
+    const reverted = git("rev-list", "--first-parent", "--merges", "-1", ctx.base);
     return CASES.filter((c) => !c.uses && !c.observe).map((c) => {
-        const branch = `scratch/trial-${ctx.stamp}-${c.id}`;
         const start = c.from === "parent" ? parent : ctx.base;
-        const p = { case: c, branch, title: c.title, describe: [] };
-        if (c.revert) {
-            const subject = run("git", ["log", "-1", "--format=%s", reverted], { cwd: ctx.root });
-            p.title = `revert: scratch ruleset trial, revert of ${reverted.slice(0, 10)}`;
-            const msg = `Revert "${subject}"\n\nThis reverts commit ${reverted}.\n\nRefs #3435\n`;
-            p.describe.push(`revert -m 1 ${reverted.slice(0, 10)} ("${subject}") on ${start.slice(0, 10)}`);
-            if (ctx.make) {
-                const tree = run(
-                    "git",
-                    ["merge-tree", "--write-tree", `--merge-base=${reverted}`, start, `${reverted}^1`],
-                    {
-                        cwd: ctx.root,
-                    },
-                );
-                p.head = commit(ctx, [start], {}, msg, tree.split("\n")[0]);
-            }
-            return p;
-        }
+        const p = { case: c, branch: `scratch/trial-${ctx.stamp}-${c.id}`, title: c.title, describe: [] };
+        if (c.revert) return planRevert(ctx, p, start, reverted, git);
         const files = c.files(ctx.stamp, read, c.id);
         p.describe.push(`${c.title} on ${start.slice(0, 10)}: ${Object.keys(files).join(", ")}`);
         if (ctx.make) p.head = commit(ctx, [start], files, `${c.title}\n\nRefs #3435\n`);
-        if (c.then === "merge-base") {
-            p.describe.push(`after the review: merge ${ctx.base.slice(0, 10)} (a master commit) into it`);
-            if (ctx.make) {
-                const tree = run("git", ["merge-tree", "--write-tree", p.head, ctx.base], { cwd: ctx.root }).split(
-                    "\n",
-                )[0];
-                p.then = commit(
-                    ctx,
-                    [p.head, ctx.base],
-                    {},
-                    `Merge master (${ctx.base.slice(0, 10)}) into ${branch}\n`,
-                    tree,
-                );
-            }
-        } else if (c.then === "fix") {
-            p.describe.push("after the review: a fix commit changing the same file");
-            if (ctx.make) {
-                const more = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, `${v}fixed\n`]));
-                p.then = commit(ctx, [p.head], more, "test(tools): scratch ruleset trial, the fix\n\nRefs #3435\n");
-            }
-        }
+        if (c.after) planAfter(ctx, p, files, git);
         return p;
     });
+}
+
+/**
+ * The revert case: exactly the tree PR Integrity's revert check computes, on a commit naming the merge.
+ * @param ctx the plan's context
+ * @param p the case's plan entry, filled in
+ * @param start the branch's start
+ * @param reverted the merge it reverts
+ * @param git git in the repository
+ * @returns p
+ */
+function planRevert(ctx, p, start, reverted, git) {
+    const subject = git("log", "-1", "--format=%s", reverted);
+    p.title = `revert: scratch ruleset trial, revert of ${reverted.slice(0, 10)}`;
+    p.describe.push(`revert -m 1 ${reverted.slice(0, 10)} ("${subject}") on ${start.slice(0, 10)}`);
+    if (ctx.make) {
+        const tree = git("merge-tree", "--write-tree", `--merge-base=${reverted}`, start, `${reverted}^1`).split(
+            "\n",
+        )[0];
+        const msg = `Revert "${subject}"\n\nThis reverts commit ${reverted}.\n\nRefs #3435\n`;
+        p.head = commit(ctx, [start], {}, msg, tree);
+    }
+    return p;
+}
+
+/**
+ * The second commit, pushed after the review: a merge of master, or a fix to the branch's own file.
+ * @param ctx the plan's context
+ * @param p the case's plan entry, filled in
+ * @param files the first commit's changes
+ * @param git git in the repository
+ */
+function planAfter(ctx, p, files, git) {
+    if (p.case.after === "merge-base") {
+        p.describe.push(`after the review: merge ${ctx.base.slice(0, 10)} (a master commit) into it`);
+        if (!ctx.make) return;
+        const tree = git("merge-tree", "--write-tree", p.head, ctx.base).split("\n")[0];
+        p.after = commit(
+            ctx,
+            [p.head, ctx.base],
+            {},
+            `Merge master (${ctx.base.slice(0, 10)}) into ${p.branch}\n`,
+            tree,
+        );
+        return;
+    }
+    p.describe.push("after the review: a fix commit changing the same file");
+    if (!ctx.make) return;
+    const more = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, `${v}fixed\n`]));
+    p.after = commit(ctx, [p.head], more, "test(tools): scratch ruleset trial, the fix\n\nRefs #3435\n");
 }
 
 const POLL = `query($q: String!) { repository(owner: "graphty-org", name: "graphty-monorepo") { %PRS% }
@@ -448,8 +467,8 @@ async function open(planned, stamp, root) {
         }
         if (c.autoMerge) gh(["pr", "merge", String(p.pr), "--auto", "--merge"]);
     }
-    const later = planned.filter((p) => p.then);
-    if (later.length) push(later.map((p) => `${p.then}:refs/heads/${p.branch}`));
+    const later = planned.filter((p) => p.after);
+    if (later.length) push(later.map((p) => `${p.after}:refs/heads/${p.branch}`));
 }
 
 function tryAdmin(pr) {
@@ -486,31 +505,38 @@ function cleanup(planned, root) {
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
+/**
+ * Judges every case on one poll; tries --admin once the owned-path pull request is waiting.
+ * @param byCase the plan entries by case id
+ * @param seen poll()
+ * @param state { admin }: the --admin attempt, made once
+ * @returns the results by case id
+ */
+function judgeAll(byCase, seen, state) {
+    const results = {};
+    for (const c of CASES) {
+        let o = seen.prs[byCase[c.id]?.pr];
+        if (c.observe) o = pickDependabot(seen.dependabot);
+        if (c.uses) o = state.admin;
+        results[c.id] = { ...judge(c.expect, o), pr: c.observe ? o?.number : byCase[c.uses ?? c.id]?.pr };
+    }
+    const owned = results["owned-waits"];
+    if (!state.admin && owned.verdict === "pass") {
+        state.admin = tryAdmin(owned.pr);
+        results["admin-refused"] = { ...judge({ kind: "admin" }, state.admin), pr: owned.pr };
+    } else if (!state.admin && owned.verdict === "fail") {
+        results["admin-refused"] = { verdict: "fail", actual: "not tried: owned-waits did not wait", pr: owned.pr };
+    }
+    return results;
+}
+
 async function watch(planned, { interval, maxHours }) {
     const byCase = Object.fromEntries(planned.map((p) => [p.case.id, p]));
-    const results = {};
-    let admin = null;
+    const state = { admin: null };
     const deadline = Date.now() + maxHours * 3600e3;
     for (;;) {
         await sleep(interval);
-        const seen = poll(planned.map((p) => p.pr));
-        for (const c of CASES) {
-            let o;
-            if (c.observe) o = pickDependabot(seen.dependabot);
-            else if (c.uses) o = admin;
-            else o = seen.prs[byCase[c.id].pr];
-            results[c.id] = { ...judge(c.expect, o), pr: c.observe ? o?.number : byCase[c.uses ?? c.id]?.pr };
-        }
-        if (!admin && results["owned-waits"].verdict === "pass") {
-            admin = tryAdmin(byCase["owned-waits"].pr);
-            results["admin-refused"] = { ...judge({ kind: "admin" }, admin), pr: byCase["owned-waits"].pr };
-        } else if (!admin && results["owned-waits"].verdict === "fail") {
-            results["admin-refused"] = {
-                verdict: "fail",
-                actual: "not tried: owned-waits did not wait",
-                pr: byCase["owned-waits"].pr,
-            };
-        }
+        const results = judgeAll(byCase, poll(planned.map((p) => p.pr)), state);
         const open = CASES.filter((c) => !c.observe && results[c.id].verdict === "pending");
         console.log(`${new Date().toISOString()} pending: ${open.map((c) => c.id).join(", ") || "none"}`);
         if (!open.length || Date.now() > deadline) return results;
@@ -539,17 +565,24 @@ function finish(results, post) {
  * @returns the options
  */
 export function parseArgs(argv) {
-    const o = { dryRun: false, post: false, interval: 300, maxHours: 4 };
-    for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        if (a === "--dry-run") o.dryRun = true;
-        else if (a === "--post") o.post = true;
-        else if (a === "--interval") o.interval = Math.max(300, Number(argv[++i]));
-        else if (a === "--max-hours") o.maxHours = Number(argv[++i]);
-        else throw new Error(`unknown argument: ${a}`);
+    const { values } = parseCli({
+        args: argv,
+        options: {
+            "dry-run": { type: "boolean", default: false },
+            post: { type: "boolean", default: false },
+            interval: { type: "string", default: "300" },
+            "max-hours": { type: "string", default: "4" },
+        },
+    });
+    const o = {
+        dryRun: values["dry-run"],
+        post: values.post,
+        interval: Math.max(300, Number(values.interval)),
+        maxHours: Number(values["max-hours"]),
+    };
+    if (Number.isNaN(o.interval) || !(o.maxHours > 0)) {
+        throw new Error("--interval must be a number of seconds, --max-hours above 0");
     }
-    if (!(o.interval >= 300) || !(o.maxHours > 0))
-        throw new Error("--interval must be 300 or more, --max-hours above 0");
     return o;
 }
 
@@ -582,15 +615,11 @@ async function main() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    main().then(
-        (code) => process.exit(code),
-        (e) => {
-            if (e instanceof RateLimit) {
-                console.error(`scratch-ruleset-cases: GitHub rate limit; stopped. ${e.message}`);
-                process.exit(4);
-            }
-            console.error(`scratch-ruleset-cases: ${e.message}`);
-            process.exit(2);
-        },
-    );
+    try {
+        process.exitCode = await main();
+    } catch (e) {
+        const limited = e instanceof RateLimit;
+        console.error(`scratch-ruleset-cases: ${limited ? "GitHub rate limit; stopped. " : ""}${e.message}`);
+        process.exitCode = limited ? 4 : 2;
+    }
 }

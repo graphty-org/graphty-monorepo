@@ -1581,10 +1581,8 @@ jobs:
     # would read as a pass. A push to master (light=true) skips every test job by design, so skipped passes
     # there too, and Build must still succeed. On dispatch, the release train and the merge queue every job
     # must succeed: nothing is meant to be skipped there, so a skip means the plan went wrong and must
-    # not pass silently. On a draft the rest of the run is skipped but this job still runs, and FAILS:
-    # GitHub and Mergify count a skipped required check as passing, and the draft run's check stays on
-    # the head SHA after "gh pr ready" until the new run reports, so a skip here could let a pull
-    # request merge with no CI at all.
+    # not pass silently. When Build did not run at all this job still runs, and FAILS: GitHub counts a
+    # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
@@ -1632,7 +1630,11 @@ jobs:
                   fi
                   echo "All checks passed!"
 
-            # Until the owner has reviewed a pull request's visual changes, it does not merge. A project
+            # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
+            # rollout): the owner's approval of screenshots moves to the nightly gate, production stays frozen
+            # until promotion exists, and releases publish nothing in shadow mode. The gate below runs exactly
+            # as before; its step is continue-on-error and the step after it reports its verdict. What it judges:
+            # a project
             # of the base branch's or this pull request's visual-review.config.json, or with baselines on the
             # base branch, seeded or not (it fails closed), fails here when its newest capture (the highest attempt
             # of this run, so "Re-run failed jobs" cannot skip it) holds anything but unchanged or
@@ -1669,7 +1671,9 @@ jobs:
                   path: ${{ runner.temp }}/visual
 
             - name: Check visual changes were accepted
+              id: visual-gate
               if: github.event_name == 'pull_request'
+              continue-on-error: true
               env:
                   PR: ${{ github.event.pull_request.number }}
               run: |
@@ -1686,6 +1690,20 @@ jobs:
                       pr=(--pr "$PR")
                   fi
                   node "$gate/visual-review/trusted/cli.mjs" gate --captures "$RUNNER_TEMP/visual" "${pr[@]}" --base HEAD^1 --head HEAD
+
+            # The gate's verdict as a report: a warning on the pull request and a line in the run's summary.
+            - name: Report the visual gate (does not block)
+              if: github.event_name == 'pull_request'
+              env:
+                  OUTCOME: ${{ steps.visual-gate.outcome }}
+              run: |
+                  if [[ "$OUTCOME" == "success" ]]; then
+                      echo "Visual gate: every screenshot matches its approved baseline." | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      msg="Visual gate: $OUTCOME (screenshots differ from their approved baselines, or the capture is missing). Reported only: it does not block this pull request; the owner reviews screenshots at the nightly gate. See the 'Check visual changes were accepted' step."
+                      echo "::warning title=Visual gate (report only)::$msg"
+                      echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+                  fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).

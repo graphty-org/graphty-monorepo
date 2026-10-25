@@ -40,7 +40,8 @@ part: in the one-client normal mode, issue-round still runs after it in the same
   confirmed and no fix is ready, first close and reopen it as graphty-agent (`gh pr close <n> && gh pr reopen <n>`:
   master-guard opens it with the workflow token, and such a pull request starts no CI, so its required checks never
   report), then turn on its auto-merge (`gh pr merge <n> --auto --merge`); when master is green again without it,
-  close it with a one-line reason. After three failed fix attempts on one problem, ask the owner once.
+  close it with a one-line reason. After three failed fix attempts on one problem, keep master green by reverting the
+  culprit and start the next attempt from a different approach, with the earlier attempts' evidence in its prompt.
 - **While master's build is red:** no other pull request is opened (steps 5 and 6 wait), and issue-round starts
   nothing.
 - **A critical issue that is not a red master** is still this skill's alarm (issue-round skips every

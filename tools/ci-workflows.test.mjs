@@ -1523,6 +1523,7 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
 
     it("leaves the visual job and the visual gate step exactly as master has them", () => {
         // Both are the owner's (CLAUDE.md, "Visual review"). A change the owner asked for updates these hashes
+        // The owner asked on 2026-10-25 for the gate to report only until stories are tests (#3418).
         // in the same commit.
         const sha = (t) => createHash("sha256").update(t).digest("hex");
         const all = job(ci, "all-checks");
@@ -1531,8 +1532,8 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
             all.indexOf("            - name: Clear this check's early verdicts"),
         );
         assert.ok(gate.length > 1000, "found the gate steps");
-        assert.equal(sha(job(ci, "visual")), "dc1990ea30b6fd6f4316c423921dd8910e971f0d951d42e809e48c605b4075a8");
-        assert.equal(sha(gate), "3c8920e4d2effc42e5f2c4e5dbf279ae9ea9d79ce4022063c20e6854b1b1073d");
+        assert.equal(sha(job(ci, "visual")), "76b8ec934fe74a088c5c91cfe3c2452954bec747bb1b75ac7e3a3d901a001bba");
+        assert.equal(sha(gate), "b1238945ae324566eeec195bc66008621eae2884a1c1ded07589a4860af817eb");
     });
 
     it("is not seen by the workflows that react to master's CI", () => {
@@ -1758,7 +1759,8 @@ describe("new required checks start as warnings", () => {
         const checks = requiredChecks(parseJobs(ci));
         assert.ok(checks.packages.includes("Install dependencies"));
         assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
-        assert.ok(checks["all-checks"].includes("Check visual changes were accepted"));
+        // The visual gate reports and never blocks a pull request (#3418).
+        assert.ok(!checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
         assert.ok(!checks["all-checks"].includes("Download visual captures"));
     });

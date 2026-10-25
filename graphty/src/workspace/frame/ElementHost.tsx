@@ -72,8 +72,6 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         }),
         [allLabelsShown, labelsAvoid, sameSize, outlineWidth],
     );
-    // The legend card's margins: the element keeps every fit clear of them.
-    const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
     // React 19 writes a prop onto a custom element as a property only when the tag is defined at
     // commit time; before that it writes `String(value)` as an attribute, or drops a `false`, and
@@ -123,7 +121,6 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={layoutBehavior}
             lighting={lighting}
-            viewInsets={viewInsets}
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}

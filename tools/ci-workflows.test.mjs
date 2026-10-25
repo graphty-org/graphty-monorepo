@@ -4246,7 +4246,6 @@ describe("the commit and push hooks", () => {
             prepush.indexOf("if remote_moved; then") > prepush.indexOf('record "gate${KNOWN_FAILURES:+-known}"'),
             "after the pass is recorded",
         );
-        assert.match(repoFile(".husky/pre-push"), /export PUSH_REMOTE_SHA PUSH_REMOTE_REF PUSH_REMOTE\n/);
         const dir = mkdtempSync(join(tmpdir(), "prepush-remote-"));
         try {
             const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
@@ -4716,12 +4715,13 @@ describe("the source-only checks before the queue (tools/prepush-source-checks.s
         }
     });
 
-    it("the hook and tools/prepush.sh run the gate's scripts from their own copy", () => {
+    it("the hook runs only the LFS upload, the secret scan and the image limit, from its own copy", () => {
         const code = (text) => text.replace(/^\s*#.*$/gm, "");
         const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
         const hook = code(readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8"));
-        assert.match(hook, /PREPUSH_ROOT="\$PWD" "\$GATE_DIR\/tools\/prepush.sh"/);
-        assert.doesNotMatch(hook, /\.\/tools\/|pnpm run prepush/);
+        const tools = [...hook.matchAll(/"\$GATE_DIR\/tools\/([\w.-]+)"/g)].map((m) => m[1]);
+        assert.deepEqual(tools, ["lfs-pre-push.sh", "push-base.mjs", "scan-secrets.sh", "check-committed-images.mjs"]);
+        assert.doesNotMatch(hook, /\.\/tools\/|prepush|sonar-gate|nx /);
         const prepush = code(repoFile("tools/prepush.sh"));
         for (const s of [
             "queued-push-guard.mjs",

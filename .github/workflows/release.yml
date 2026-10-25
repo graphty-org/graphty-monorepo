@@ -109,10 +109,14 @@ concurrency:
 
 # What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
 # (scheduled=true), otherwise the event's name ("workflow_dispatch" for a person's ad hoc release). MODE is the
-# dispatch's mode, full when it named none.
+# dispatch's mode, full when it named none. DIST_TAG is the npm dist-tag the land and publish jobs release to: `latest`
+# for a legacy run (behind the owner's production approval), `next` for the nightly promotion of a full or restart
+# run (channels pipeline step 7, issue #3461). Both publish from the same job in environment `release`, so npm
+# trusted publishing bound to that environment serves both.
 env:
     TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
     MODE: ${{ inputs.mode || 'full' }}
+    DIST_TAG: ${{ inputs.mode == 'legacy' && 'latest' || 'next' }}
 
 jobs:
     # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
@@ -946,6 +950,21 @@ jobs:
                   for tag in ${TAGS//,/ }; do
                       refs+=("refs/tags/${tag}:refs/tags/${tag}")
                   done
+                  # A nightly promotion (npm next) also pushes the site tag, on the tested commit, which the site
+                  # job's prerelease hangs the commit's built site on, and fast-forwards channel/nightly to the
+                  # version commit (design/ci/channels-pipeline/channels.md section 2). Never forced: a
+                  # channel/nightly that is not an ancestor refuses the whole atomic push.
+                  if [ "$DIST_TAG" = next ]; then
+                      site="site-${SHA}"
+                      if git ls-remote --exit-code --tags origin "refs/tags/${site}" >/dev/null; then
+                          git fetch --quiet origin "+refs/tags/${site}:refs/tags/${site}"
+                          [ "$(git rev-parse "refs/tags/${site}^{commit}")" = "$SHA" ] ||
+                              { echo "::error::tag ${site} exists already on another commit"; exit 1; }
+                      else
+                          git tag "$site" "$SHA"
+                      fi
+                      refs+=("refs/tags/${site}:refs/tags/${site}" "${COMMIT}:refs/heads/channel/nightly")
+                  fi
                   for try in 1 2 3 4 5; do
                       git fetch --quiet origin +refs/heads/master:refs/remotes/origin/master
                       if git merge-base --is-ancestor "$COMMIT" origin/master; then
@@ -1066,13 +1085,16 @@ jobs:
                   npm install -g npm@11
                   npm --version
 
+            # --ignore-scripts: this job holds npm's OIDC, so no dependency's install script runs beside it (the
+            # tarballs come from CI's build, which held no secret). nx release publish needs none of them.
             - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+              run: pnpm install --frozen-lockfile --ignore-scripts
               env:
                   HUSKY: "0"
 
             # One GitHub release per package the version commit lists, on the tag the land job pushed; its notes
-            # are the changelog section nx wrote. A re-run skips the releases that exist already.
+            # are the changelog section nx wrote. A re-run skips the releases that exist already. A nightly (next)
+            # release is a prerelease and never "Latest": that stays the production version's.
             - name: Create the GitHub releases
               id: tags
               run: |
@@ -1086,7 +1108,9 @@ jobs:
                       if gh release view "$tag" >/dev/null 2>&1; then echo "${tag} exists already"; continue; fi
                       root=$(pnpm exec nx show project "$project" --json | jq -r .root)
                       git diff -U0 "${COMMIT}^1" "$COMMIT" -- "${root}/CHANGELOG.md" | sed -n '/^+++/d; s/^+//p' > "$RUNNER_TEMP/notes.md"
-                      gh release create "$tag" --verify-tag --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
+                      flags=()
+                      [ "$DIST_TAG" = latest ] || flags=(--prerelease --latest=false)
+                      gh release create "$tag" --verify-tag "${flags[@]}" --title "$tag" --notes-file "$RUNNER_TEMP/notes.md"
                   done < <(git log -1 --format=%b "$COMMIT" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
                   [ "${#projects[@]}" -gt 0 ] || { echo "::error::${COMMIT} lists no released project"; exit 1; }
                   echo "projects=$(IFS=,; echo "${projects[*]}")" >> "$GITHUB_OUTPUT"
@@ -1106,7 +1130,7 @@ jobs:
                   #
                   # The output is kept for the failed-publish report, which reads npm's login error from it.
                   set -o pipefail
-                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false 2>&1 | tee "$RUNNER_TEMP/publish.log" ||
+                  pnpm exec nx release publish --projects="$PROJECTS" --tag "$DIST_TAG" --nxBail=false 2>&1 | tee "$RUNNER_TEMP/publish.log" ||
                       echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   PROJECTS: ${{ steps.tags.outputs.projects }}

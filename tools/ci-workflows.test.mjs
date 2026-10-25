@@ -3882,6 +3882,19 @@ describe("release.yml", () => {
         assert.match(publish, /gh release create "\$tag" --verify-tag /);
     });
 
+    it("publishes npm next for the nightly path and latest for legacy, from the one release environment", () => {
+        assert.match(release, /^ {4}DIST_TAG: \$\{\{ inputs.mode == 'legacy' && 'latest' \|\| 'next' \}\}\n/m);
+        assert.match(publish, /\n {8}environment: release # npm trusted publishing/);
+        assert.match(publish, /nx release publish --projects="\$PROJECTS" --tag "\$DIST_TAG" /);
+        // a next release is a GitHub prerelease, never "Latest"
+        assert.match(publish, /\[ "\$DIST_TAG" = latest \] \|\| flags=\(--prerelease --latest=false\)/);
+        assert.match(publish, /gh release create "\$tag" --verify-tag "\$\{flags\[@\]\}" /);
+        // no dependency's install script runs beside npm's OIDC
+        assert.deepEqual(publish.match(/pnpm install[^\n]*/g), ["pnpm install --frozen-lockfile --ignore-scripts"]);
+        // legacy still lands and publishes only behind the owner's production approval
+        assert.match(land, /needs: \[pick, version, approve\]\n\s+if: \$\{\{ needs.approve.result == 'success' \}\}/);
+    });
+
     describe("the land job's push, against a real repository", () => {
         // The "Push the version commit and its tags to master" step, run against a bare origin: master at the
         // tested commit T, the version commit V made on T and kept as a bundle, and optionally a commit that
@@ -3944,6 +3957,7 @@ describe("release.yml", () => {
                         SHA: T,
                         COMMIT: V,
                         TAGS: "a@1.1.0",
+                        DIST_TAG: opts.distTag ?? "latest",
                         HUSKY: "0",
                     },
                 });
@@ -3958,7 +3972,13 @@ describe("release.yml", () => {
                     },
                 ).stdout.trim();
                 const parents = git(dir, "--git-dir", origin, "log", "-1", "--format=%P %s", "master");
-                return { run, output: readFileSync(output, "utf8"), master, tag, parents, T, V };
+                const ref = (name) =>
+                    spawnSync("git", ["--git-dir", origin, "rev-parse", "-q", "--verify", `${name}^{commit}`], {
+                        encoding: "utf8",
+                    }).stdout.trim();
+                const site = ref(`refs/tags/site-${T}`);
+                const nightly = ref("refs/heads/channel/nightly");
+                return { run, output: readFileSync(output, "utf8"), master, tag, parents, site, nightly, T, V };
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
@@ -3970,6 +3990,16 @@ describe("release.yml", () => {
             assert.equal(r.output, "pushed=true\n");
             assert.equal(r.tag, r.V, "the tag names the shipped source, not the merge");
             assert.equal(r.parents, `${r.T} ${r.V} chore(release): publish a@1.1.0 onto master`);
+            assert.equal(r.site, "", "a legacy (latest) release pushes no site tag");
+            assert.equal(r.nightly, "", "and does not move channel/nightly");
+        });
+
+        it("a nightly (next) release also pushes the site tag on the tested commit and channel/nightly", () => {
+            const r = land_({ distTag: "next" });
+            assert.equal(r.run.status, 0, r.run.stdout + r.run.stderr);
+            assert.equal(r.tag, r.V);
+            assert.equal(r.site, r.T, "site-<sha> names the tested commit");
+            assert.equal(r.nightly, r.V, "channel/nightly is the version commit");
         });
 
         it("lands on top of a master that moved since the candidate", () => {
@@ -4143,7 +4173,7 @@ describe("release.yml", () => {
     it("keeps the publish output for the report and still lets the registry check decide", () => {
         assert.match(
             publish,
-            /set -o pipefail\n\s+pnpm exec nx release publish --projects="\$PROJECTS" --nxBail=false 2>&1 \| tee "\$RUNNER_TEMP\/publish.log" \|\|\n\s+echo "::warning::/,
+            /set -o pipefail\n\s+pnpm exec nx release publish --projects="\$PROJECTS" --tag "\$DIST_TAG" --nxBail=false 2>&1 \| tee "\$RUNNER_TEMP\/publish.log" \|\|\n\s+echo "::warning::/,
         );
         assert.match(
             publish,

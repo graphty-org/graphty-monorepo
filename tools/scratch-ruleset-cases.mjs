@@ -1,0 +1,596 @@
+#!/usr/bin/env node
+/**
+ * scratch-ruleset-cases.mjs -- the trial cases for the master ruleset planned in design/ci/channels-pipeline.md
+ * (section 13 item 5), run against the scratch ruleset "scratch ruleset trial" on branch scratch/ruleset-trial
+ * (tmp/scratch-ruleset.sh makes both). Issue #3435, part of #3418.
+ *
+ *   node tools/scratch-ruleset-cases.mjs --dry-run           # the plan; no GitHub write
+ *   node tools/scratch-ruleset-cases.mjs [--post]            # run it (with run_in_background), --post comments on #3418
+ *       [--interval <s>] (300 or more)  [--max-hours <h>] (4)
+ *
+ * It opens one pull request per case into scratch/ruleset-trial as graphty-agent, polls all of them in one
+ * GraphQL query at most every 5 minutes, judges each against its expectation, prints a table, and at the end
+ * closes its pull requests and deletes its branches. It never uses the owner's credentials. Exit 0 when every
+ * case matched, 1 when one did not, 2 when it refused to start, 4 on a GitHub rate limit.
+ */
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+export const REPO = "graphty-org/graphty-monorepo";
+export const BASE = "scratch/ruleset-trial";
+export const RULESET = "scratch ruleset trial";
+export const LOG_ISSUE = 3418;
+export const REQUIRED = ["All Checks Pass", "Lint PR Title", "Link PR Issue", "PR Integrity"];
+const INTEGRITY = "PR Integrity";
+// A 1x1 PNG, stored as a plain blob: no signed approval names it, which is the point of the case.
+const PNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+);
+
+const note = (id, stamp) => `design/ci/scratch-ruleset-trial/${id}-${stamp}.md`;
+const text = (s) => `Scratch ruleset trial file (#3435), ${s}. Deleted with its branch.\n`;
+
+/**
+ * The ten cases. `files(stamp, read)` gives the commit's changes as { path: content }; `read(path)` reads the
+ * base. `from: "parent"` starts the branch at the base's first parent, so merging the base later is a merge
+ * of master. `then` is a second commit pushed after the review is posted.
+ */
+export const CASES = [
+    {
+        id: "owned-waits",
+        what: "an owned path (tools/results/, in .github/CODEOWNERS) with auto-merge on waits for code-owner review",
+        title: "test(tools): scratch ruleset trial, owned path",
+        files: (s) => ({ [`tools/results/scratch-ruleset-trial-${s}.txt`]: text("owned path") }),
+        reviewed: true,
+        autoMerge: true,
+        expect: { kind: "waits" },
+    },
+    {
+        id: "src-merges",
+        what: "a graphty/src/ change with auto-merge on merges once the required checks pass",
+        title: "test(graphty): scratch ruleset trial, unowned path",
+        files: (s, read) => ({
+            "graphty/src/App.tsx": `${read("graphty/src/App.tsx")}// scratch ruleset trial ${s}\n`,
+        }),
+        reviewed: true,
+        autoMerge: true,
+        expect: { kind: "merges" },
+    },
+    {
+        id: "admin-refused",
+        what: "gh pr merge --admin on the waiting owned-path pull request is refused",
+        uses: "owned-waits",
+        expect: { kind: "admin" },
+    },
+    {
+        id: "revert-passes",
+        what: "a revert of the newest first-parent merge of master passes PR Integrity with no Proof or review",
+        revert: true,
+        expect: { kind: "integrity", want: "SUCCESS" },
+    },
+    {
+        id: "accept-only-passes",
+        what: "an accept-only pull request (a visual-baselines/reviews/ record) passes PR Integrity with no Proof",
+        title: "test(visual-review): scratch ruleset trial, accept-only",
+        files: (s) => ({ [`visual-baselines/reviews/scratch-ruleset-trial-${s}.json`]: '{ "trial": true }\n' }),
+        expect: { kind: "integrity", want: "SUCCESS" },
+    },
+    {
+        id: "dependabot-passes",
+        what: "an open Dependabot pull request passes PR Integrity (read only: it is observed, never touched)",
+        observe: "dependabot",
+        expect: { kind: "integrity", want: "SUCCESS" },
+    },
+    {
+        id: "breaking-fails",
+        what: "a 'feat!:' title fails PR Integrity (Proof and review present, so only the title can fail it)",
+        title: "feat(tools)!: scratch ruleset trial, breaking title",
+        files: (s, _r, id) => ({ [note(id, s)]: text("breaking title") }),
+        reviewed: true,
+        expect: { kind: "integrity", want: "FAILURE" },
+    },
+    {
+        id: "unsigned-png-fails",
+        what: "a baseline PNG with no signed approval fails PR Integrity",
+        title: "test(visual-review): scratch ruleset trial, unsigned png",
+        files: (s) => ({ [`visual-baselines/graphty/scratch-ruleset-trial-${s}.png`]: PNG }),
+        expect: { kind: "integrity", want: "FAILURE" },
+    },
+    {
+        id: "master-merge-keeps-review",
+        what: "merging master into a reviewed pull request keeps its fresh review (PR Integrity passes on the merge)",
+        title: "test(tools): scratch ruleset trial, master merge",
+        files: (s, _r, id) => ({ [note(id, s)]: text("master merge") }),
+        from: "parent",
+        reviewed: true,
+        then: "merge-base",
+        expect: { kind: "integrity", want: "SUCCESS" },
+    },
+    {
+        id: "fix-push-drops-review",
+        what: "a fix commit pushed after the review makes the review stale (PR Integrity fails on the fix)",
+        title: "test(tools): scratch ruleset trial, fix push",
+        files: (s, _r, id) => ({ [note(id, s)]: text("fix push") }),
+        reviewed: true,
+        then: "fix",
+        expect: { kind: "integrity", want: "FAILURE" },
+    },
+];
+
+/**
+ * The newest run of a check on a commit, from a statusCheckRollup's contexts.
+ * @param contexts CheckRun nodes ({ name, status, conclusion, startedAt }) or StatusContext ones
+ * @param name the check's name
+ * @returns "PENDING", the conclusion ("SUCCESS", "FAILURE", ...) or null when it never ran
+ */
+export function latestCheck(contexts, name) {
+    const runs = contexts
+        .map((c) =>
+            c.__typename === "StatusContext"
+                ? { name: c.context, at: c.createdAt, result: c.state === "PENDING" ? "PENDING" : c.state }
+                : { name: c.name, at: c.startedAt, result: c.status === "COMPLETED" ? c.conclusion : "PENDING" },
+        )
+        .filter((r) => r.name === name)
+        .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    return runs.length ? runs.at(-1).result : null;
+}
+
+/**
+ * One pull request's state, as the judge reads it.
+ * @param node a pullRequest node of the poll query
+ * @returns its number, state, merged, reviewDecision and checks (name to result)
+ */
+export function observe(node) {
+    const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+    const names = new Set([...REQUIRED, ...contexts.map((c) => c.name ?? c.context)]);
+    return {
+        number: node.number,
+        state: node.state,
+        merged: node.merged,
+        reviewDecision: node.reviewDecision,
+        checks: Object.fromEntries([...names].map((n) => [n, latestCheck(contexts, n)])),
+    };
+}
+
+const failedRequired = (o) => REQUIRED.filter((n) => o.checks[n] && !["PENDING", "SUCCESS"].includes(o.checks[n]));
+const describe = (o) =>
+    `merged=${o.merged} review=${o.reviewDecision ?? "none"} ${REQUIRED.map((n) => `${n}=${o.checks[n] ?? "none"}`).join(" ")}`;
+
+/**
+ * Whether a case met its expectation.
+ * @param expect the case's expectation
+ * @param o observe() of its pull request, or for "admin" `{ refused, output }`
+ * @returns the verdict ("pending", "pass" or "fail") and what was seen (actual)
+ */
+export function judge(expect, o) {
+    if (!o) return { verdict: "pending", actual: "not observed yet" };
+    if (expect.kind === "admin") {
+        return {
+            verdict: o.refused ? "pass" : "fail",
+            actual: o.refused ? `refused: ${o.output}` : "merged with --admin",
+        };
+    }
+    if (expect.kind === "integrity") {
+        const got = o.checks[INTEGRITY];
+        if (!got || got === "PENDING") return { verdict: "pending", actual: `PR Integrity ${got ?? "not run"}` };
+        return { verdict: got === expect.want ? "pass" : "fail", actual: `PR Integrity ${got}` };
+    }
+    if (expect.kind === "merges") {
+        if (o.merged) return { verdict: "pass", actual: "merged" };
+        const bad = failedRequired(o);
+        if (bad.length || o.state === "CLOSED") return { verdict: "fail", actual: describe(o) };
+        return { verdict: "pending", actual: describe(o) };
+    }
+    // waits: settled once every required check finished; then it must still be open, wanting a review.
+    if (o.merged) return { verdict: "fail", actual: "merged without a code-owner review" };
+    if (REQUIRED.some((n) => !o.checks[n] || o.checks[n] === "PENDING"))
+        return { verdict: "pending", actual: describe(o) };
+    const ok = !failedRequired(o).length && o.reviewDecision === "REVIEW_REQUIRED";
+    return { verdict: ok ? "pass" : "fail", actual: describe(o) };
+}
+
+const expectText = (e) =>
+    ({ waits: "open, REVIEW_REQUIRED, checks green", merges: "merged", admin: "--admin refused" })[e.kind] ??
+    `PR Integrity ${e.want}`;
+
+/**
+ * The results as a plain-ASCII table.
+ * @param rows [{ id, expected, actual, verdict, pr }]
+ * @returns the table
+ */
+export function table(rows) {
+    const cols = ["case", "pr", "expected", "actual", "verdict"];
+    const cells = rows.map((r) => [r.id, r.pr ? `#${r.pr}` : "-", r.expected, r.actual, r.verdict]);
+    const width = cols.map((c, i) => Math.max(c.length, ...cells.map((row) => String(row[i]).length)));
+    const line = (row) =>
+        row
+            .map((c, i) => String(c).padEnd(width[i]))
+            .join(" | ")
+            .trimEnd();
+    return [line(cols), width.map((w) => "-".repeat(w)).join("-+-"), ...cells.map(line)].join("\n");
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// GitHub and git, as graphty-agent. Everything below needs the network; the parts above are pure.
+
+class RateLimit extends Error {}
+
+const agentEnv = () => {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: `${process.env.HOME}/.config/git-agent/config` };
+    env.GH_CONFIG_DIR = `${process.env.HOME}/.config/gh-agent`;
+    for (const k of ["GH_TOKEN", "GITHUB_TOKEN", "GIT_CONFIG_PARAMETERS"]) delete env[k];
+    return env;
+};
+
+function run(cmd, args, { input, env, cwd } = {}) {
+    try {
+        return execFileSync(cmd, args, {
+            input,
+            cwd,
+            env: env ?? agentEnv(),
+            encoding: "utf8",
+            maxBuffer: 1 << 28,
+            stdio: ["pipe", "pipe", "pipe"],
+        }).trim();
+    } catch (e) {
+        const msg = `${e.stderr ?? ""}${e.stdout ?? ""}`;
+        if (/rate limit/iu.test(msg)) throw new RateLimit(msg.trim());
+        e.message = `${cmd} ${args.join(" ")}: ${msg.trim() || e.message}`;
+        throw e;
+    }
+}
+
+const gh = (args, input) => run("gh", args, { input });
+
+/**
+ * A signed commit made with plumbing in a private index, so no worktree, hook or checkout is touched.
+ * @param ctx { root, tmp }
+ * @param parents parent shas, the first being the tree's start
+ * @param files { path: string | Buffer }
+ * @param message the commit message
+ * @param tree a tree to use instead (the revert and merge cases)
+ * @returns the commit sha
+ */
+function commit(ctx, parents, files, message, tree) {
+    const g = (args, input) => run("git", args, { input, cwd: ctx.root });
+    if (!tree) {
+        const env = { ...agentEnv(), GIT_INDEX_FILE: join(ctx.tmp, `index-${Date.now()}-${Math.random()}`) };
+        const gi = (args, input) => run("git", args, { input, env, cwd: ctx.root });
+        gi(["read-tree", parents[0]]);
+        for (const [path, content] of Object.entries(files)) {
+            const blob = gi(["hash-object", "-w", "--stdin"], content);
+            gi(["update-index", "--add", "--cacheinfo", `100644,${blob},${path}`]);
+        }
+        tree = gi(["write-tree"]);
+    }
+    return g(["commit-tree", "-S", tree, ...parents.flatMap((p) => ["-p", p]), "-F", "-"], message);
+}
+
+const bodyFor = (c, stamp, proof) =>
+    [
+        `Scratch ruleset trial (#3435, run ${stamp}): ${c.what}.`,
+        "Opened by tools/scratch-ruleset-cases.mjs into scratch/ruleset-trial; it closes this pull request itself.",
+        "",
+        "Refs #3435",
+        ...(proof
+            ? ["", "## Proof", "", "A scratch ruleset trial case; the runner judges its checks and merge state."]
+            : []),
+    ].join("\n");
+
+/**
+ * The plan: each case's branch and commits, made locally (real run) or only described (dry run).
+ * @param ctx { root, tmp, base, stamp, make }
+ * @returns [{ case, branch, head, then, describe }]
+ */
+function plan(ctx) {
+    const read = (p) => run("git", ["show", `${ctx.base}:${p}`], { cwd: ctx.root }) + "\n";
+    const parent = run("git", ["rev-parse", `${ctx.base}^1`], { cwd: ctx.root });
+    const reverted = run("git", ["rev-list", "--first-parent", "--merges", "-1", ctx.base], { cwd: ctx.root });
+    return CASES.filter((c) => !c.uses && !c.observe).map((c) => {
+        const branch = `scratch/trial-${ctx.stamp}-${c.id}`;
+        const start = c.from === "parent" ? parent : ctx.base;
+        const p = { case: c, branch, title: c.title, describe: [] };
+        if (c.revert) {
+            const subject = run("git", ["log", "-1", "--format=%s", reverted], { cwd: ctx.root });
+            p.title = `revert: scratch ruleset trial, revert of ${reverted.slice(0, 10)}`;
+            const msg = `Revert "${subject}"\n\nThis reverts commit ${reverted}.\n\nRefs #3435\n`;
+            p.describe.push(`revert -m 1 ${reverted.slice(0, 10)} ("${subject}") on ${start.slice(0, 10)}`);
+            if (ctx.make) {
+                const tree = run(
+                    "git",
+                    ["merge-tree", "--write-tree", `--merge-base=${reverted}`, start, `${reverted}^1`],
+                    {
+                        cwd: ctx.root,
+                    },
+                );
+                p.head = commit(ctx, [start], {}, msg, tree.split("\n")[0]);
+            }
+            return p;
+        }
+        const files = c.files(ctx.stamp, read, c.id);
+        p.describe.push(`${c.title} on ${start.slice(0, 10)}: ${Object.keys(files).join(", ")}`);
+        if (ctx.make) p.head = commit(ctx, [start], files, `${c.title}\n\nRefs #3435\n`);
+        if (c.then === "merge-base") {
+            p.describe.push(`after the review: merge ${ctx.base.slice(0, 10)} (a master commit) into it`);
+            if (ctx.make) {
+                const tree = run("git", ["merge-tree", "--write-tree", p.head, ctx.base], { cwd: ctx.root }).split(
+                    "\n",
+                )[0];
+                p.then = commit(
+                    ctx,
+                    [p.head, ctx.base],
+                    {},
+                    `Merge master (${ctx.base.slice(0, 10)}) into ${branch}\n`,
+                    tree,
+                );
+            }
+        } else if (c.then === "fix") {
+            p.describe.push("after the review: a fix commit changing the same file");
+            if (ctx.make) {
+                const more = Object.fromEntries(Object.entries(files).map(([k, v]) => [k, `${v}fixed\n`]));
+                p.then = commit(ctx, [p.head], more, "test(tools): scratch ruleset trial, the fix\n\nRefs #3435\n");
+            }
+        }
+        return p;
+    });
+}
+
+const POLL = `query($q: String!) { repository(owner: "graphty-org", name: "graphty-monorepo") { %PRS% }
+  dependabot: search(query: $q, type: ISSUE, first: 10) { nodes { ... on PullRequest { %FIELDS% } } } }`;
+const FIELDS = `number state merged reviewDecision commits(last: 1) { nodes { commit { statusCheckRollup {
+  contexts(first: 100) { nodes { __typename ... on CheckRun { name status conclusion startedAt }
+  ... on StatusContext { context state createdAt } } } } } } }`;
+
+/**
+ * One GraphQL query for every trial pull request and the open Dependabot ones.
+ * @param numbers the trial pull requests
+ * @returns prs (number to observation) and dependabot (observations)
+ */
+function poll(numbers) {
+    const prs = numbers.map((n) => `p${n}: pullRequest(number: ${n}) { ${FIELDS} }`).join("\n");
+    const query = POLL.replace("%PRS%", prs).replaceAll("%FIELDS%", FIELDS);
+    const q = `repo:${REPO} is:pr is:open author:app/dependabot`;
+    const data = JSON.parse(gh(["api", "graphql", "-f", `query=${query}`, "-f", `q=${q}`])).data;
+    return {
+        prs: Object.fromEntries(numbers.map((n) => [n, observe(data.repository[`p${n}`])])),
+        dependabot: data.dependabot.nodes.filter((n) => n.number).map(observe),
+    };
+}
+
+/**
+ * The newest Dependabot pull request whose PR Integrity finished.
+ * @param list observations of the open Dependabot pull requests
+ * @returns one observation, or null
+ */
+const pickDependabot = (list) =>
+    [...list].sort((a, b) => b.number - a.number).find((o) => !["PENDING", null].includes(o.checks[INTEGRITY])) ?? null;
+
+function preflight(root, dryRun) {
+    let found = false;
+    try {
+        found = JSON.parse(gh(["api", `repos/${REPO}/rulesets`])).some((r) => r.name === RULESET);
+    } catch (e) {
+        if (e instanceof RateLimit) throw e;
+        if (!dryRun) throw new Error(`cannot list the rulesets of ${REPO}: ${e.message}`);
+    }
+    const remote = run("git", ["ls-remote", "origin", `refs/heads/${BASE}`], { cwd: root });
+    if (dryRun) return { found, remote: Boolean(remote) };
+    if (!found) {
+        throw new Error(
+            `the ruleset '${RULESET}' does not exist on ${REPO}. The owner makes it with "bash tmp/scratch-ruleset.sh" ` +
+                "once .github/workflows/pr-integrity.yml is on master; nothing was created",
+        );
+    }
+    if (!remote) throw new Error(`branch ${BASE} does not exist on GitHub; tmp/scratch-ruleset.sh creates it`);
+    return { found, remote: true };
+}
+
+function printPlan(planned, base, pre) {
+    console.log(
+        `scratch ruleset trial plan, base ${pre.remote ? BASE : "origin/master (standing in for " + BASE + ")"} at ${base.slice(0, 10)}`,
+    );
+    console.log(
+        `ruleset '${RULESET}': ${pre.found ? "present" : "MISSING (a real run refuses)"}; branch ${BASE}: ${pre.remote ? "present" : "missing"}`,
+    );
+    for (const c of CASES) {
+        const p = planned.find((x) => x.case === c);
+        console.log(`\n${c.id}: ${c.what}`);
+        console.log(`  expect: ${expectText(c.expect)}`);
+        if (p) {
+            console.log(
+                `  branch: ${p.branch}${c.autoMerge ? " (auto-merge on)" : ""}${c.reviewed ? " (Proof and fresh review)" : ""}`,
+            );
+            for (const d of p.describe) console.log(`  commit: ${d}`);
+        } else if (c.uses) {
+            console.log(`  on the pull request of ${c.uses}, once its checks are green: gh pr merge --admin --merge`);
+        } else {
+            console.log("  no branch: reads the open Dependabot pull requests in the poll query");
+        }
+    }
+}
+
+async function open(planned, stamp, root) {
+    const { patchId } = await import("./pr-integrity.mjs");
+    const push = (refs) =>
+        run("git", ["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", ...refs], { cwd: root });
+    push(planned.map((p) => `${p.head}:refs/heads/${p.branch}`));
+    for (const p of planned) {
+        const c = p.case;
+        const url = gh([
+            "pr",
+            "create",
+            "--base",
+            BASE,
+            "--head",
+            p.branch,
+            "--title",
+            p.title,
+            "--body",
+            bodyFor(c, stamp, c.reviewed),
+        ]);
+        p.pr = Number(url.split("/").at(-1));
+        console.log(`opened ${c.id}: ${url}`);
+        if (c.reviewed) {
+            const mb = run("git", ["merge-base", "origin/master", p.head], { cwd: root });
+            const id = patchId(root, mb, p.head);
+            gh([
+                "pr",
+                "review",
+                String(p.pr),
+                "--comment",
+                "--body",
+                `<!-- fresh-review ${id} -->\nScratch ruleset trial review (#3435).`,
+            ]);
+        }
+        if (c.autoMerge) gh(["pr", "merge", String(p.pr), "--auto", "--merge"]);
+    }
+    const later = planned.filter((p) => p.then);
+    if (later.length) push(later.map((p) => `${p.then}:refs/heads/${p.branch}`));
+}
+
+function tryAdmin(pr) {
+    try {
+        gh(["pr", "merge", String(pr), "--admin", "--merge"]);
+        return { refused: false, output: "" };
+    } catch (e) {
+        if (e instanceof RateLimit) throw e;
+        return { refused: true, output: e.message.split("\n").at(-1).slice(0, 120) };
+    }
+}
+
+function cleanup(planned, root) {
+    for (const p of planned) {
+        try {
+            if (p.pr) gh(["pr", "close", String(p.pr), "--delete-branch"]);
+            else if (p.head)
+                run("git", ["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "--delete", p.branch], {
+                    cwd: root,
+                });
+        } catch (e) {
+            if (e instanceof RateLimit) throw e;
+            // A merged pull request cannot be closed: delete its branch.
+            try {
+                run("git", ["-c", "core.hooksPath=/dev/null", "push", "-q", "origin", "--delete", p.branch], {
+                    cwd: root,
+                });
+            } catch {
+                console.log(`cleanup: could not remove ${p.branch} (pull request ${p.pr ?? "none"})`);
+            }
+        }
+    }
+}
+
+const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
+
+async function watch(planned, { interval, maxHours }) {
+    const byCase = Object.fromEntries(planned.map((p) => [p.case.id, p]));
+    const results = {};
+    let admin = null;
+    const deadline = Date.now() + maxHours * 3600e3;
+    for (;;) {
+        await sleep(interval);
+        const seen = poll(planned.map((p) => p.pr));
+        for (const c of CASES) {
+            let o;
+            if (c.observe) o = pickDependabot(seen.dependabot);
+            else if (c.uses) o = admin;
+            else o = seen.prs[byCase[c.id].pr];
+            results[c.id] = { ...judge(c.expect, o), pr: c.observe ? o?.number : byCase[c.uses ?? c.id]?.pr };
+        }
+        if (!admin && results["owned-waits"].verdict === "pass") {
+            admin = tryAdmin(byCase["owned-waits"].pr);
+            results["admin-refused"] = { ...judge({ kind: "admin" }, admin), pr: byCase["owned-waits"].pr };
+        } else if (!admin && results["owned-waits"].verdict === "fail") {
+            results["admin-refused"] = {
+                verdict: "fail",
+                actual: "not tried: owned-waits did not wait",
+                pr: byCase["owned-waits"].pr,
+            };
+        }
+        const open = CASES.filter((c) => !c.observe && results[c.id].verdict === "pending");
+        console.log(`${new Date().toISOString()} pending: ${open.map((c) => c.id).join(", ") || "none"}`);
+        if (!open.length || Date.now() > deadline) return results;
+    }
+}
+
+function finish(results, post) {
+    const rows = CASES.map((c) => {
+        const r = results[c.id] ?? { verdict: "pending", actual: "never observed" };
+        // The Dependabot case only observes; with no finished run it is skipped, never failed.
+        const verdict = c.observe && r.verdict === "pending" ? "skip" : r.verdict;
+        return { id: c.id, pr: r.pr, expected: expectText(c.expect), actual: r.actual, verdict };
+    });
+    const out = table(rows);
+    console.log(`\n${out}`);
+    if (post) {
+        const body = `Scratch ruleset trial (#3435), run by tools/scratch-ruleset-cases.mjs against '${RULESET}' on ${BASE}:\n\n\`\`\`\n${out}\n\`\`\`\n`;
+        gh(["issue", "comment", String(LOG_ISSUE), "--repo", REPO, "--body-file", "-"], body);
+    }
+    return rows.every((r) => r.verdict === "pass" || r.verdict === "skip") ? 0 : 1;
+}
+
+/**
+ * The command line.
+ * @param argv the arguments after the script
+ * @returns the options
+ */
+export function parseArgs(argv) {
+    const o = { dryRun: false, post: false, interval: 300, maxHours: 4 };
+    for (let i = 0; i < argv.length; i++) {
+        const a = argv[i];
+        if (a === "--dry-run") o.dryRun = true;
+        else if (a === "--post") o.post = true;
+        else if (a === "--interval") o.interval = Math.max(300, Number(argv[++i]));
+        else if (a === "--max-hours") o.maxHours = Number(argv[++i]);
+        else throw new Error(`unknown argument: ${a}`);
+    }
+    if (!(o.interval >= 300) || !(o.maxHours > 0))
+        throw new Error("--interval must be 300 or more, --max-hours above 0");
+    return o;
+}
+
+async function main() {
+    const opts = parseArgs(process.argv.slice(2));
+    const root = run("git", ["rev-parse", "--show-toplevel"]);
+    const pre = preflight(root, opts.dryRun);
+    const ref = pre.remote ? `origin/${BASE}` : "origin/master";
+    run(
+        "git",
+        ["fetch", "-q", "origin", "master", ...(pre.remote ? [`+refs/heads/${BASE}:refs/remotes/origin/${BASE}`] : [])],
+        { cwd: root },
+    );
+    const base = run("git", ["rev-parse", ref], { cwd: root });
+    const stamp = new Date().toISOString().replaceAll(/[-:]/gu, "").slice(0, 13);
+    const tmp = mkdtempSync(join(tmpdir(), "scratch-ruleset-"));
+    const planned = plan({ root, tmp, base, stamp, make: !opts.dryRun });
+    if (opts.dryRun) {
+        printPlan(planned, base, pre);
+        rmSync(tmp, { recursive: true, force: true });
+        return 0;
+    }
+    try {
+        await open(planned, stamp, root);
+        return finish(await watch(planned, opts), opts.post);
+    } finally {
+        cleanup(planned, root);
+        rmSync(tmp, { recursive: true, force: true });
+    }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    main().then(
+        (code) => process.exit(code),
+        (e) => {
+            if (e instanceof RateLimit) {
+                console.error(`scratch-ruleset-cases: GitHub rate limit; stopped. ${e.message}`);
+                process.exit(4);
+            }
+            console.error(`scratch-ruleset-cases: ${e.message}`);
+            process.exit(2);
+        },
+    );
+}

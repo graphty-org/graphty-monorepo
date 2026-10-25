@@ -4118,6 +4118,15 @@ describe("release.yml", () => {
                     git(other, "commit", "-qam", "fix: after the candidate");
                     git(other, "push", "-q", "origin", "HEAD:master");
                 }
+                if (opts.nightlyAhead) {
+                    // a nightly the candidate's history lacks (a newer commit off master)
+                    const other = join(dir, "ahead");
+                    git(dir, "clone", "-q", origin, other);
+                    for (const k of ["user.name", "user.email"]) git(other, "config", k, "t@t");
+                    writeFileSync(join(other, "src.txt"), "nightly code\n");
+                    git(other, "commit", "-qam", "fix: on nightly");
+                    git(other, "push", "-q", "origin", "HEAD:refs/heads/channel/nightly");
+                }
                 const output = join(dir, "output");
                 writeFileSync(output, "");
                 const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
@@ -4173,6 +4182,18 @@ describe("release.yml", () => {
             assert.equal(r.tag, r.V);
             assert.equal(r.site, r.T, "site-<sha> names the tested commit");
             assert.equal(r.nightly, r.V, "channel/nightly is the version commit");
+            assert.equal(
+                r.parents,
+                `${r.T} ${r.V} chore(release): nightly a@1.1.0 onto master`,
+                "not a production subject",
+            );
+        });
+
+        it("refuses a nightly whose candidate lacks the current channel/nightly, by name, pushing nothing", () => {
+            const r = land_({ distTag: "next", nightlyAhead: true });
+            assert.equal(r.run.status, 1);
+            assert.match(r.run.stdout, /::error::channel\/nightly \([0-9a-f]+\) is not in the history of /);
+            assert.deepEqual([r.output, r.site, r.master, r.tag], ["", "", r.T, ""]);
         });
 
         it("a nightly with nothing versioned moves only the site tag and channel/nightly, to the tested commit", () => {
@@ -4232,7 +4253,7 @@ describe("release.yml", () => {
         // the site job's comment follows the publish job
         assert.match(
             publish.replace(/(\n {4}#[^\n]*)+$/, ""),
-            /- name: Announce the publish outcome\n\s+if: \$\{\{ always\(\) \}\}[\s\S]*OUTCOME: \$\{\{ job.status == 'success' && 'published' \|\| 'publish-failed' \}\}[\s\S]*node tools\/release-status.mjs "\$OUTCOME"[^\n]*\n[^\n]*\n$/,
+            /- name: Announce the publish outcome\n\s+if: \$\{\{ always\(\) && \(env.DIST_TAG == 'latest' \|\| job.status != 'success'\) \}\}[\s\S]*OUTCOME: \$\{\{ job.status == 'success' && 'published' \|\| 'publish-failed' \}\}[\s\S]*node tools\/release-status.mjs "\$OUTCOME"[^\n]*\n[^\n]*\n$/,
         );
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
@@ -5898,9 +5919,18 @@ describe("release.yml's nightly promotion (#1020)", () => {
             ["Push deployed.json to the site repository", "Wait for the site's deploy"],
             ["Wait for the site's deploy", "Record the promotion in the results store"],
             ["Record the promotion in the results store", "Announce the promoted nightly"],
+            ["Wait for the site's deploy", "Close the failed-deploy issue"],
         ]) {
             assert.ok(at(a) >= 0 && at(a) < at(b), `${a} before ${b}`);
         }
+        // a deploy that worked closes the "Nightly site deploy failed" issue a failed one filed
+        assert.equal(
+            steps.site.steps[at("Close the failed-deploy issue")].run,
+            "node tools/channel/nightly.mjs deployed",
+        );
+        // a nightly closes no legacy train hold
+        const closeHeld = steps.land.steps.find((st) => st.name === "Close the held-release issue");
+        assert.equal(closeHeld.if, "${{ inputs.mode == 'legacy' }}");
         assert.match(site, /gh release create "\$tag" --verify-tag --prerelease --latest=false/);
         assert.match(site, /node tools\/release-status.mjs nightly --sha "\$SHA" --tags "\$TAGS"/);
         const failed = steps.site.steps.find((st) => st.name === "Report a failed nightly deploy");

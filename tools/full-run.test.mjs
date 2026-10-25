@@ -41,6 +41,20 @@ describe("pick", () => {
         assert.equal(pick({ mode: "full", head: "h", store: store(recent), firstParents, stray: code }).run, true);
     });
 
+    it("tests a green-clean commit again while nightly lacks it, so a promotion that waited can happen", () => {
+        const own = store([{ sha: "c3", state: "green-clean" }]);
+        const off = () => false;
+        assert.equal(
+            pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off }).run,
+            true,
+        );
+        assert.equal(pick({ mode: "full", head: "h", store: own, firstParents, stray: code }).run, false);
+        // nor does an unpromoted green-clean commit pass its verdict on
+        const inherited = store([{ sha: "c1", state: "green-clean" }]);
+        const p = pick({ mode: "full", head: "h", store: inherited, firstParents, stray: () => [], onNightly: off });
+        assert.deepEqual([p.run, p.inherit], [true, undefined]);
+    });
+
     it("finds the last green commit for the bisect, past a red one", () => {
         const recent = [
             { sha: "c2", state: "red" },

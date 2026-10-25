@@ -19,6 +19,8 @@
 //       env RESULTS_URL, GH_TOKEN, GITHUB_REPOSITORY, RUN_URL
 //   node tools/channel/nightly.mjs failed        the site job, when it failed: one priority:critical issue
 //       env SHA, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY; prints the issue's number
+//   node tools/channel/nightly.mjs deployed      the site job, when it deployed: closes that issue, if open
+//       env SHA, RUN_URL, GH_TOKEN, GITHUB_REPOSITORY
 import { execFileSync } from "node:child_process";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -440,6 +442,15 @@ function failedMain(env) {
     console.log(url.split("/").pop());
 }
 
+function deployedMain(env) {
+    need(env, ["SHA", "GITHUB_REPOSITORY"]);
+    const open = openIssue(FAILED_TITLE, env.GITHUB_REPOSITORY);
+    if (!open) return;
+    const text = `nightly.graphty.app serves ${env.SHA} (${env.RUN_URL ?? ""}).`;
+    gh("issue", "close", String(open.number), "-R", env.GITHUB_REPOSITORY, "--comment", text);
+    console.log(`closed #${open.number}`);
+}
+
 const COMMANDS = {
     decide: decideMain,
     "channel-json": channelJsonMain,
@@ -448,6 +459,7 @@ const COMMANDS = {
     record: recordMain,
     stall: stallMain,
     failed: failedMain,
+    deployed: deployedMain,
 };
 
 async function main(command, env = process.env) {

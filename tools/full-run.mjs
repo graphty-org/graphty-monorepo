@@ -48,9 +48,11 @@ export const LANES = {
  * @param o.store `GET /v1/candidate`'s answer (candidate, sites, recent), or null when the store did not answer
  * @param o.firstParents (sha) => that commit and its first parents, newest first
  * @param o.stray (from, to) => the changes between two commits that are neither versions nor screenshot approvals
+ * @param o.onNightly (sha) => whether channel/nightly holds that commit; a green-clean commit it lacks was not
+ *     promoted (a publish hold, the screenshot gate, a refused push) and is tested again, so it can promote
  * @returns `{ run, sha, why, good, inherit }`; inherit is the verdict the commit takes over, when it does
  */
-export function pick({ mode, head, store, firstParents, stray }) {
+export function pick({ mode, head, store, firstParents, stray, onNightly = () => true }) {
     if (!store) return { run: true, sha: head, why: "the results store did not answer: testing master's head" };
     // a restart tests the merge that references the red issue; a slot tests the newest commit with a built site,
     // newest by master's first-parent order from the head, not by when its site was recorded (a re-run of an
@@ -62,10 +64,15 @@ export function pick({ mode, head, store, firstParents, stray }) {
     const judged = new Map((store.recent ?? []).map((v) => [v.sha, v]));
     const chain = firstParents(sha);
     const good = chain.slice(1).find((s) => GREEN.has(judged.get(s)?.state)) ?? "";
+    // ponytail: an unpromoted green-clean commit re-runs the whole suite; a promote-only run if slots get scarce
+    const unpromoted = (v) => v.state === "green-clean" && !onNightly(v.sha);
     const own = judged.get(sha);
+    if (own && unpromoted(own)) {
+        return { run: true, sha, good, why: `${short(sha)} is judged green-clean but nightly lacks it: testing again` };
+    }
     if (own) return { run: false, sha, good, why: `${short(sha)} is already judged ${own.state}` };
     const at = chain.findIndex((s) => judged.has(s));
-    if (at > 0 && stray(chain[at], sha).length === 0) {
+    if (at > 0 && !unpromoted(judged.get(chain[at])) && stray(chain[at], sha).length === 0) {
         const inherit = judged.get(chain[at]);
         const why = `every merge since ${short(chain[at])} (judged ${inherit.state}) changes only versions or screenshot approvals`;
         return { run: false, sha, good, why, inherit };
@@ -208,7 +215,17 @@ async function pickMain(env) {
     const store = cfg ? await read(cfg, "/v1/candidate") : null;
     const firstParents = (sha) => sh("git", ["rev-list", "--first-parent", "-n", "200", sha]).split("\n");
     const stray = (from, to) => diffCommits(from, to, { acceptMerges: true }).stray;
-    const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray });
+    const onNightly = (sha) => {
+        try {
+            execFileSync("git", ["merge-base", "--is-ancestor", sha, "refs/remotes/origin/channel/nightly"], {
+                stdio: "ignore",
+            });
+            return true;
+        } catch {
+            return false; // not in nightly's history, or no channel/nightly yet
+        }
+    };
+    const p = pick({ mode: env.MODE, head: env.HEAD_SHA, store, firstParents, stray, onNightly });
     console.log(`::notice::${p.why}`);
     if (p.inherit) {
         await record(cfg, { sha: p.sha, state: p.inherit.state, lane: `inherited from ${short(p.inherit.sha)}` });

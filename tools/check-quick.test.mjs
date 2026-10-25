@@ -37,7 +37,7 @@ function sandbox({ affected = "graph-format", env = {} } = {}) {
     writeFileSync(
         join(dir, "bin/pnpm"),
         `#!/bin/sh\necho "$*" >> ${out("pnpm")}\n` +
-            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; esac\n`,
+            `case "$*" in "exec nx show projects"*) printf "%s\\n" ${affected}; exit \${STUB_RC_SHOW:-0} ;; "exec nx affected"*) exit \${STUB_RC_NX:-0} ;; esac\n`,
         { mode: 0o755 },
     );
     const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8", env: isolatedGitEnv() });
@@ -122,6 +122,12 @@ describe("tools/check-quick.sh", () => {
             r.stdout,
             /\[FAIL\] quick check: Build, lint and type-check \(affected\)\n\[FAIL\] quick check: Selected tests/,
         );
+    });
+
+    it("fails, rather than skipping the GPU step silently, when nx cannot list the affected projects", () => {
+        const { r } = sandbox({ env: { STUB_RC_SHOW: "1" } });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /\[FAIL\] quick check: Affected projects \(nx show projects\)/);
     });
 
     it("refuses an unknown argument", () => {

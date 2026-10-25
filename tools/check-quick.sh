@@ -62,7 +62,10 @@ step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint
 # The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
 step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE"
 step "SonarQube (changed lines)" node tools/sonar-gate.mjs
-if pnpm exec nx show projects --affected --base="$BASE" | grep -qx webgpu-graph-algorithms; then
+# Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
+# GPU step, and a failing nx must not read as "not affected".
+AFFECTED="$(pnpm exec nx show projects --affected --base="$BASE")" || FAILED+=("Affected projects (nx show projects)")
+if grep -qx webgpu-graph-algorithms <<<"$AFFECTED"; then
     step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
 fi
 

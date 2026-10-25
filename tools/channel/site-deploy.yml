@@ -49,20 +49,25 @@ jobs:
             site: ${{ steps.read.outputs.site }}
             tag: ${{ steps.read.outputs.tag }}
             sha256: ${{ steps.read.outputs.sha256 }}
+            started: ${{ steps.read.outputs.started }}
         steps:
             - uses: actions/checkout@v4
               with:
                   sparse-checkout: deployed.json
                   sparse-checkout-cone-mode: false
 
-            # configRef and tag are checked before they are used as a ref and a release name; the rest
-            # is checked by site-deploy.mjs below.
+            # Every field this job outputs is checked before it is used as a ref, a release name or a
+            # step output; site-deploy.mjs below checks deployed.json again with the asset.
             - id: read
               run: |
+                  started=$(date +%s%3N)
                   ref=$(jq -r .configRef deployed.json)
                   grep -Eqx '[0-9a-f]{40}' <<< "$ref" || { echo "::error::deployed.json configRef '$ref' is not a commit id"; exit 1; }
                   grep -Eqx 'site-[0-9a-f]{40}' <<< "$(jq -r .tag deployed.json)" || { echo "::error::deployed.json tag is not site-<commit>"; exit 1; }
+                  grep -Eqx 'nightly|production' <<< "$(jq -r .site deployed.json)" || { echo "::error::deployed.json site is not nightly or production"; exit 1; }
+                  grep -Eqx '[0-9a-f]{64}' <<< "$(jq -r .sha256 deployed.json)" || { echo "::error::deployed.json sha256 is not a sha256"; exit 1; }
                   {
+                      echo "started=$started"
                       echo "config_ref=$ref"
                       echo "site=$(jq -r .site deployed.json)"
                       echo "tag=$(jq -r .tag deployed.json)"
@@ -123,8 +128,10 @@ jobs:
             - id: deployment
               uses: actions/deploy-pages@v4
 
-    # The promotion that pushed deployed.json waits for this report. Fail open: a store that does not
-    # answer leaves a warning here and the waiting job falls back to the site's build stamp.
+    # The promotion that pushed deployed.json waits for this report: one duration row per job (kind
+    # `deploy`, set by the store from this repository's OIDC token), with the site commit as sha, the
+    # site as task and each job's result as conclusion. Fail open: a store that does not answer leaves a
+    # warning here and the waiting job falls back to the site's build stamp.
     report:
         name: Report to the results store
         needs: [check, deploy]
@@ -136,16 +143,24 @@ jobs:
         steps:
             - env:
                   RESULTS_URL: ${{ vars.RESULTS_URL }}
-                  BODY: >-
-                      {"site":"${{ needs.check.outputs.site }}","tag":"${{ needs.check.outputs.tag }}",
-                      "sha256":"${{ needs.check.outputs.sha256 }}","outcome":"${{ needs.deploy.result }}",
-                      "check":"${{ needs.check.result }}","repository":"${{ github.repository }}",
-                      "run":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+                  SITE: ${{ needs.check.outputs.site }}
+                  TAG: ${{ needs.check.outputs.tag }}
+                  STARTED: ${{ needs.check.outputs.started }}
+                  CHECK: ${{ needs.check.result }}
+                  DEPLOY: ${{ needs.deploy.result }}
               run: |
                   if [ -z "$RESULTS_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
                   token=$(curl -fsS --max-time 5 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-                      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r .value) \
-                      || { echo "::warning::no OIDC token; no deploy report"; exit 0; }
+                      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r '.value // empty') || true
+                  if [ -z "$token" ]; then echo "::warning::no OIDC token; no deploy report"; exit 0; fi
+                  body=$(jq -nc --arg site "$SITE" --arg tag "$TAG" --arg started "$STARTED" \
+                      --arg check "$CHECK" --arg deploy "$DEPLOY" \
+                      --argjson run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+                      '($started | tonumber? // null) as $t | (now * 1000 | floor) as $end
+                       | [["check", $check], ["deploy", $deploy]]
+                       | { rows: map({ runId: $run, attempt: $attempt, workflow: "deploy.yml", job: .[0],
+                           task: $site, sha: ($tag | ltrimstr("site-")), startedAt: $t,
+                           ms: (if $t then $end - $t else 0 end), conclusion: .[1] }) }')
                   curl -fsS --max-time 5 -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
-                      --data "$BODY" "$RESULTS_URL/v1/deploys" \
+                      --data "$body" "$RESULTS_URL/v1/durations" \
                       || echo "::warning::the results store did not take the deploy report"

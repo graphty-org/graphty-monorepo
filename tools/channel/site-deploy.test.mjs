@@ -95,10 +95,69 @@ describe("site-deploy.yml", () => {
         assert.equal((jobs.match(/timeout-minutes: \d+/g) ?? []).length, 3);
     });
 
-    it("reports kind deploy to the store with this repository's OIDC token and fails open", () => {
-        assert.match(workflow, /audience=graphty-results/);
-        assert.match(workflow, /\/v1\/deploys/);
-        assert.match(workflow, /\|\| echo "::warning::the results store did not take the deploy report"/);
+    // The report step's shell, run with a curl that hands out an OIDC token and records the POST.
+    const report = workflow.slice(at("    report:"));
+    const reportScript = report.slice(report.indexOf("run: |\n") + "run: |\n".length).replace(/^ {18}/gm, "");
+    function runReport(curlExit = 0) {
+        const bin = mkdtempSync(join(dir, "bin-"));
+        const posted = join(bin, "posted");
+        writeFileSync(
+            join(bin, "curl"),
+            `#!/bin/bash\ncase "$*" in *audience=graphty-results*) echo '{"value":"oidc-token"}';; ` +
+                `*) printf '%s\\n' "$@" > ${JSON.stringify(posted)}; exit ${curlExit};; esac\n`,
+            { mode: 0o755 },
+        );
+        const env = {
+            PATH: `${bin}:${process.env.PATH}`,
+            RESULTS_URL: "https://results.example",
+            ACTIONS_ID_TOKEN_REQUEST_URL: "https://token.example/?x=1",
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
+            SITE: "nightly",
+            TAG: valid.tag,
+            STARTED: String(Date.now() - 1000),
+            CHECK: "success",
+            DEPLOY: "failure",
+            GITHUB_RUN_ID: "4242",
+            GITHUB_RUN_ATTEMPT: "2",
+        };
+        const r = spawnSync("bash", ["-e", "-c", reportScript], { encoding: "utf8", env });
+        let args = [];
+        try {
+            args = readFileSync(posted, "utf8").trim().split("\n");
+        } catch {
+            // nothing was posted
+        }
+        return { ...r, args };
+    }
+
+    it("reports each job's result to the store's durations, which a site repository may write", () => {
+        const r = runReport();
+        assert.equal(r.status, 0, r.stderr);
+        assert.ok(r.args.includes("https://results.example/v1/durations"), r.args.join(" "));
+        assert.ok(r.args.includes("Authorization: Bearer oidc-token"));
+        const body = JSON.parse(r.args[r.args.indexOf("--data") + 1]);
+        assert.deepEqual(
+            body.rows.map((row) => [row.job, row.conclusion]),
+            [
+                ["check", "success"],
+                ["deploy", "failure"],
+            ],
+        );
+        for (const row of body.rows) {
+            assert.equal(row.runId, 4242);
+            assert.equal(row.attempt, 2);
+            assert.equal(row.workflow, "deploy.yml");
+            assert.equal(row.task, "nightly");
+            assert.equal(row.sha, "a".repeat(40));
+            assert.equal(typeof row.ms, "number");
+            assert.ok(row.ms >= 1000);
+        }
+    });
+
+    it("fails open when the store does not take the report", () => {
+        const r = runReport(22);
+        assert.equal(r.status, 0, r.stderr);
+        assert.match(r.stdout, /::warning::the results store did not take the deploy report/);
     });
 });
 

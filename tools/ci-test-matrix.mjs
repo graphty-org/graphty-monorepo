@@ -483,7 +483,9 @@ export function plan(affected, only, light, full = false, shards = SHARDS) {
             include.push(groupEntry(name, members));
         }
     }
-    return [...include, ...(light?.bins ?? []).map(binEntry)];
+    // The On shards go last, so with ci.yml's max-parallel the Off shards always start first.
+    const all = [...include, ...(light?.bins ?? []).map(binEntry)];
+    return [...all.filter((e) => !e["full-run-only"]), ...all.filter((e) => e["full-run-only"])];
 }
 
 /**
@@ -510,9 +512,17 @@ export function binEntry(bin) {
  */
 export function parseOnly(arg) {
     if (arg === undefined) return undefined;
-    const only = JSON.parse(arg);
-    if (!Array.isArray(only) || only.length === 0) {
+    const asked = JSON.parse(arg);
+    if (!Array.isArray(asked) || asked.length === 0) {
         throw new Error("--only needs a non-empty JSON array of shard names");
+    }
+    // "features-on" names every On shard: ci.yml's dispatch with shards='["features-on"]' runs the On
+    // configuration for one branch on demand.
+    const only = asked.flatMap((n) =>
+        n === ON_SUFFIX ? SHARDS.filter((s) => s["full-run-only"]).map((s) => s.shard) : [n],
+    );
+    if (only.length === 0) {
+        throw new Error("--only features-on: graphty-element declares no experiment, so there is no On shard");
     }
     const unknown = only.filter((n) => !SHARDS.some((s) => s.shard === n));
     if (unknown.length > 0) {

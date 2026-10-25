@@ -9,12 +9,20 @@ import manifest from "virtual:vite-plugin-cem/custom-elements-manifest";
 
 import { initConsoleCaptureUI } from "@graphty/remote-logger/ui";
 
+import { featuresFromUrl, setDefaultFeatures } from "../src/features/resolve";
 import { pinLabelFont } from "../test/helpers/pin-label-font";
 
 // Force import and registration of graphty-element and all its dependencies
 import { Graphty } from "../src/graphty-element";
 // @ts-expect-error MDX files are handled by Storybook's build system
 import DocumentationTemplate from "./DocumentationTemplate.mdx";
+
+// `?features=<ids>` on the story URL switches experiments on for the whole Storybook, as a consumer
+// would (the visual capture's VISUAL_REVIEW_STORY_QUERY=features=all captures the "On" configuration).
+const urlFeatures = featuresFromUrl(location.href);
+if (urlFeatures.length > 0) {
+    setDefaultFeatures(urlFeatures);
+}
 
 // Ensure custom element is registered
 if (!customElements.get("graphty-element")) {

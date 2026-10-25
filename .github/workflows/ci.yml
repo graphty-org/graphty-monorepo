@@ -1101,6 +1101,9 @@ jobs:
             id-token: write
         strategy:
             fail-fast: false
+            # A full run with the features-on shards is over 40 jobs; they come last in the matrix
+            # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
+            max-parallel: 40
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
 
         steps:

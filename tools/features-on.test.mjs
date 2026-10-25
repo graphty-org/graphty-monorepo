@@ -5,8 +5,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { FEATURES_ON_SHARDS, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { readFileSync } from "node:fs";
+
+import { parse as parseYaml } from "yaml";
+
+import { FEATURES_ON_SHARDS, parseOnly, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { FEATURES_DECLARED, withFeaturesOn } from "./features-on.mjs";
+import { candidateShards } from "./test-changed.mjs";
+import { storyUrl } from "../visual-review/capture/capture.mjs";
 
 const SETUP = "./test/setup-features-on.ts";
 
@@ -85,5 +91,51 @@ describe("the On shards", () => {
             (e) => e.shard === "graphty-features-on-1",
         );
         assert.equal(entry.coverage, undefined, "no coverage upload for an On shard");
+    });
+
+    it("come after every Off shard and group, and the test job runs at most 40 jobs at once", () => {
+        const include = plan([...PACKAGES, "graph-format", "layout"], undefined, undefined, true, shards);
+        const first = include.findIndex((e) => e["full-run-only"]);
+        assert.ok(first > 0);
+        assert.ok(
+            include.slice(first).every((e) => e["full-run-only"]),
+            "nothing Off after the first On",
+        );
+        const ci = parseYaml(readFileSync(".github/workflows/ci.yml", "utf8"));
+        const max = ci.jobs.test.strategy["max-parallel"];
+        assert.ok(Number.isInteger(max) && max <= 40, `max-parallel ${max}`);
+    });
+
+    it("are named all at once by --only features-on (a dispatch for one branch), or refused when none exist", () => {
+        if (FEATURES_DECLARED) {
+            assert.deepEqual(
+                parseOnly('["features-on"]'),
+                FEATURES_ON_SHARDS.map((s) => s.shard),
+            );
+        } else {
+            assert.throws(() => parseOnly('["features-on"]'), /declares no experiment/);
+        }
+    });
+});
+
+// The done criterion of #3476: graphty-element declares no experiment today, so the On configuration must
+// change nothing -- no On shard in any plan, no extra test:changed candidate, the same story URLs.
+describe("with an empty FEATURES table", { skip: FEATURES_DECLARED && "an experiment is declared" }, () => {
+    it("no plan has an On shard, a full run included", () => {
+        assert.ok(!SHARDS.some((s) => s["full-run-only"]));
+        const all = [...new Set(SHARDS.map((s) => s.package))];
+        for (const full of [false, true]) {
+            assert.ok(
+                !plan(all, undefined, undefined, full).some((e) => e["full-run-only"] || /features-on/.test(e.shard)),
+            );
+        }
+    });
+
+    it("test:changed --features-on selects from exactly the same shards", () => {
+        assert.deepEqual(candidateShards(true), candidateShards(false));
+    });
+
+    it("a capture without VISUAL_REVIEW_STORY_QUERY opens the same story URL", () => {
+        assert.equal(storyUrl("a--b", null, ""), "iframe.html?id=a--b&viewMode=story&chromatic=true");
     });
 });

@@ -8,12 +8,19 @@
  * ```
  *
  * Paths are relative to the study, without `.styles.json`; the folder abbreviations of
- * design/figma-spec.md section 0 work (`bc/`, `dt/`, ...). The files are read on the Node side
- * by the `readFigmaCapture` browser command in vitest.config.ts. The study is not in every
- * checkout: gate a suite with `describe.skipIf(!(await figmaAvailable()))`.
+ * design/figma-spec.md section 0 work (`bc/`, `dt/`, ...).
+ *
+ * The study itself (design/ui/figma, 943 MB) is not in git, so the tests read
+ * ../figma/figma-fixture.json: exactly the fields of the captures the tests read, and nothing else.
+ * `node tests/figma/figma-fixture.mjs build` regenerates it from the study, by running the browser
+ * tests with FIGMA_FIXTURE_RECORD set: then every capture is read from the study (the
+ * `readFigmaCapture` command in vitest.config.ts) and every field a test reads is written down.
+ * Regenerate it after changing which captures, elements or properties a test reads.
  */
+import { afterAll } from "vitest";
 import { commands } from "vitest/browser";
 
+import fixtureText from "../figma/figma-fixture.json?raw";
 import type { MeasureSpec } from "./measure";
 
 /** One captured element, as the study's capture script wrote it. */
@@ -56,14 +63,136 @@ interface FigmaSelector {
     nth?: number;
 }
 
-const cache = new Map<string, Promise<FigmaCapture>>();
+/** The folder abbreviations design/figma-spec.md cites captures by. */
+const FIGMA_FOLDERS: Record<string, string> = {
+    bc: "buttons-and-controls",
+    dt: "dark-theme",
+    ii: "index-and-inventory",
+    cr: "contradictions-resolved",
+    rs: "right-sidebar-selection",
+    ls: "left-sidebar",
+    pm: "popovers-and-menus",
+    bt: "bottom-toolbar",
+    hm: "header-and-modes",
+    ma: "measurement-audit",
+    ac: "accessibility",
+};
 
 /**
- * Whether the Figma study is in this checkout.
- * @returns true when captures can be read
+ * A capture path in the study's own spelling: folder abbreviation expanded, no `.styles.json`.
+ * @param path - as a test gives it
+ * @returns the path relative to the study
  */
-export async function figmaAvailable(): Promise<boolean> {
-    return commands.figmaAvailable();
+function studyPath(path: string): string {
+    const [head, ...rest] = path.split("/");
+    return [FIGMA_FOLDERS[head] ?? head, ...rest].join("/").replace(/\.styles\.json$/, "");
+}
+
+/** One capture in the fixture: only the fields a test reads, elements keyed by index. */
+interface FixtureCapture {
+    url?: string;
+    viewport?: [number, number];
+    rect?: FigmaCapture["rect"];
+    count: number;
+    elements: Record<string, Partial<FigmaElement>>;
+}
+
+const fixture = JSON.parse(fixtureText) as Record<string, FixtureCapture>;
+const recording = await commands.figmaRecording();
+const cache = new Map<string, Promise<FigmaCapture>>();
+
+/** Every field read while recording, as `path<TAB>index<TAB>field` (index `-` for the capture). */
+const reads = new Set<string>();
+if (recording) {
+    afterAll(() => commands.figmaRecordReads([...reads]));
+}
+
+/**
+ * The capture, wrapped so that every field a test reads is written down (recording mode only).
+ * @param path - the study path
+ * @param capture - the capture as the study has it
+ * @returns the watched capture
+ */
+function watched(path: string, capture: FigmaCapture): FigmaCapture {
+    const note = (index: number | "-", field: string): void => {
+        reads.add(`${path}\t${String(index)}\t${field}`);
+    };
+    const watchStyle = (index: number, style: Record<string, string>): Record<string, string> =>
+        new Proxy(style, {
+            get(target, key, receiver) {
+                if (typeof key === "string") {
+                    note(index, `style.${key}`);
+                }
+                return Reflect.get(target, key, receiver) as unknown;
+            },
+            has(target, key) {
+                if (typeof key === "string") {
+                    note(index, `style.${key}`);
+                }
+                return Reflect.has(target, key);
+            },
+            ownKeys(target) {
+                Object.keys(target).forEach((key) => {
+                    note(index, `style.${key}`);
+                });
+                return Reflect.ownKeys(target);
+            },
+        });
+    const elements = capture.elements.map((e, i) => {
+        e.index = i;
+        const style = watchStyle(i, e.style);
+        return new Proxy(e, {
+            get(target, key, receiver) {
+                if (key === "style") {
+                    note(i, "style");
+                    return style;
+                }
+                if (typeof key === "string" && key !== "index") {
+                    note(i, key);
+                }
+                return Reflect.get(target, key, receiver) as unknown;
+            },
+        });
+    });
+    return new Proxy(
+        { ...capture, elements },
+        {
+            get(target, key, receiver) {
+                if (typeof key === "string" && key !== "elements") {
+                    note("-", key);
+                }
+                return Reflect.get(target, key, receiver) as unknown;
+            },
+        },
+    );
+}
+
+/**
+ * A capture rebuilt from the fixture: `elements` keeps the study's length and indices, with only
+ * the elements (and fields) the tests read.
+ * @param path - the study path
+ * @returns the capture
+ */
+function fromFixture(path: string): FigmaCapture {
+    const entry = fixture[path] as FixtureCapture | undefined;
+    if (!entry) {
+        throw new Error(
+            `${path} is not in tests/figma/figma-fixture.json; regenerate it: node tests/figma/figma-fixture.mjs build`,
+        );
+    }
+    const elements = new Array<FigmaElement>(entry.count);
+    for (const [index, e] of Object.entries(entry.elements)) {
+        elements[Number(index)] = { ...e, index: Number(index) } as FigmaElement;
+    }
+    return { url: entry.url ?? "", viewport: entry.viewport ?? [0, 0], rect: entry.rect ?? null, elements };
+}
+
+/**
+ * Whether the Figma captures can be read. Always true: the fixture is committed.
+ * @returns true
+ */
+export function figmaAvailable(): Promise<boolean> {
+    return Promise.resolve(true);
 }
 
 /**
@@ -72,16 +201,13 @@ export async function figmaAvailable(): Promise<boolean> {
  * @returns the capture, with each element's index filled in
  */
 export function figmaCapture(path: string): Promise<FigmaCapture> {
-    let hit = cache.get(path);
+    const key = studyPath(path);
+    let hit = cache.get(key);
     if (!hit) {
-        hit = commands.readFigmaCapture(path).then((raw) => {
-            const capture = raw as FigmaCapture;
-            capture.elements.forEach((e, i) => {
-                e.index = i;
-            });
-            return capture;
-        });
-        cache.set(path, hit);
+        hit = recording
+            ? commands.readFigmaCapture(key).then((raw) => watched(key, raw as FigmaCapture))
+            : Promise.resolve(fromFixture(key));
+        cache.set(key, hit);
     }
     return hit;
 }

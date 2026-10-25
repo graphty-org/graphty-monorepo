@@ -1,6 +1,7 @@
 // Tests of tools/check-figma-lock.mjs: a push that changes compact-mantine's Figma spec, its Figma tests
 // or its token values fails unless the commit that makes the change carries `Figma-Approved: <reason>`,
-// also through a landing's --no-ff merge; untouched files pass; the study digest is stable.
+// also through a landing's --no-ff merge, or when a later approved commit of the push names it in
+// `Figma-Approves: <sha>`; untouched files pass; the study digest is stable.
 //
 //   node --test tools/check-figma-lock.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -10,6 +11,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { buildFixture, checkFixture, serialize } from "../compact-mantine/tests/figma/figma-fixture.mjs";
 import { isLocked, studyDigest, unapprovedChanges } from "./check-figma-lock.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
@@ -52,6 +54,7 @@ describe("check-figma-lock", () => {
             "compact-mantine/design/figma-spec.md",
             FIGMA_TEST,
             "compact-mantine/tests/figma/figma-study.sha256",
+            "compact-mantine/tests/figma/figma-fixture.json",
             "compact-mantine/tests/harness/measure.ts",
             TOKENS,
             "compact-mantine/src/theme/colors.ts",
@@ -108,6 +111,47 @@ describe("check-figma-lock", () => {
         );
     });
 
+    it("approves an earlier commit of the push named by Figma-Approves on an approved commit", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${sha}`);
+        assert.deepEqual(r.check(), []);
+    });
+
+    it("Figma-Approves does nothing for a commit outside the push, or from a commit outside it", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("checkout", "-qb", "elsewhere");
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${sha}`);
+        const outside = r.git("rev-parse", "HEAD").trim();
+        r.git("checkout", "-q", "work");
+        assert.equal(r.check().length, 1);
+        r.git(
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            `test: approve\n\nFigma-Approved: owner\nFigma-Approves: ${outside}`,
+        );
+        assert.deepEqual(
+            r.check().map((b) => b.subject),
+            ["fix: accent"],
+        );
+    });
+
+    it("Figma-Approves without Figma-Approved approves nothing", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent");
+        const sha = r.git("rev-parse", "HEAD").trim();
+        r.git("commit", "-q", "--allow-empty", "-m", `test: approve\n\nFigma-Approves: ${sha}`);
+        assert.equal(r.check().length, 1);
+    });
+
     it("fails a merge whose resolution edits a locked file", () => {
         const r = repo();
         r.git("checkout", "-qb", "topic");
@@ -151,5 +195,38 @@ describe("check-figma-lock", () => {
         assert.equal(studyDigest(dir), before);
         writeFileSync(join(dir, "bc/a.styles.json"), '{"x":1}');
         assert.notEqual(studyDigest(dir), before);
+    });
+
+    it("keeps in the Figma fixture only the fields read, and flags a fixture value the study no longer has", () => {
+        const dir = join(TMP, "fixture-study");
+        mkdirSync(join(dir, "bc"), { recursive: true });
+        const el = (tag, color) => ({ tag, cls: "x", text: "", box: [1, 2, 3, 4], style: { color, height: "8px" } });
+        const capture = (color) => ({
+            url: "u",
+            viewport: [10, 10],
+            rect: null,
+            elements: [el("div", "red"), el("button", color)],
+        });
+        writeFileSync(join(dir, "bc/a.styles.json"), JSON.stringify(capture("blue")));
+        const fixture = buildFixture(dir, [
+            "bc/a\t0\ttag",
+            "bc/a\t1\ttag",
+            "bc/a\t1\tstyle.color",
+            "bc/a\t-\trect",
+            "",
+        ]);
+        assert.deepEqual(fixture, {
+            "bc/a": {
+                rect: null,
+                count: 2,
+                elements: { 0: { tag: "div" }, 1: { tag: "button", style: { color: "blue" } } },
+            },
+        });
+        const file = join(dir, "fixture.json");
+        writeFileSync(file, serialize(fixture));
+        assert.deepEqual(JSON.parse(serialize(fixture)), fixture);
+        assert.deepEqual(checkFixture(dir, file), []);
+        writeFileSync(join(dir, "bc/a.styles.json"), JSON.stringify(capture("green")));
+        assert.deepEqual(checkFixture(dir, file), ["bc/a #1 color: blue, the study has green"]);
     });
 });

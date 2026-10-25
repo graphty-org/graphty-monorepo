@@ -10,22 +10,30 @@
 // Every commit from the push base (tools/push-base.mjs) to HEAD is judged on its own, so an approval
 // survives a landing's merge commit and an unapproved commit cannot hide behind an approved one. A merge
 // is judged on what it changes beyond its parents (its combined diff), so a conflict resolution that
-// edits a locked file needs the trailer too. Commits that are ancestors of APPROVED_BASE -- the design the
+// edits a locked file needs the trailer too. An approved commit may also carry `Figma-Approves: <sha>[,
+// <sha>...]`, which approves each named commit of the same push (an empty commit the owner adds to approve
+// a commit already made); without its own Figma-Approved line it approves nothing. Commits that are ancestors of APPROVED_BASE -- the design the
 // owner approved, before the lock existed -- are not judged.
 //
-// The tests also read the Figma study (design/ui/figma, outside git, not in CI). When it is present,
-// its captures must hash to compact-mantine/tests/figma/figma-study.sha256, itself a locked file.
+// The tests read compact-mantine/tests/figma/figma-fixture.json, the part of the Figma study
+// (design/ui/figma, outside git, not in CI) they compare with. When the study is present, its captures
+// must hash to compact-mantine/tests/figma/figma-study.sha256 and every value in the fixture (and in
+// figma-variables.json beside it) must equal the study's (compact-mantine/tests/figma/figma-fixture.mjs
+// check); all of them are locked.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { checkFixture } from "../compact-mantine/tests/figma/figma-fixture.mjs";
 import { pushBase } from "./push-base.mjs";
 
 export const LOCKED = [
     "compact-mantine/design/figma-spec.md",
     "compact-mantine/tests/figma/", // the Figma tests, their expected values and figma-study.sha256
+    "compact-mantine/tests/figma/figma-fixture.json", // what the tests read of the study (also under the line above)
+    "compact-mantine/tests/figma/figma-variables.json", // Figma's CSS variables, for the token tests (likewise)
     "compact-mantine/tests/harness/figma.ts", // reads the study's captures
     "compact-mantine/tests/harness/measure.ts", // compares what is drawn with them
     "compact-mantine/src/theme/tokens.ts", // Figma's colors, type, spacing, radii, elevations
@@ -35,7 +43,9 @@ export const LOCKED = [
 // golden with the owner-approved design (fix/compact-mantine-figma-drift) merged, just before the lock.
 export const APPROVED_BASE = "aa4e9ae9635e1f49c30aa26f0866d8e0531fdb9c";
 export const STUDY_DIGEST = "compact-mantine/tests/figma/figma-study.sha256";
+export const FIXTURE = "compact-mantine/tests/figma/figma-fixture.json";
 const TRAILER = "Figma-Approved";
+const APPROVES = "Figma-Approves";
 
 export const isLocked = (f) => LOCKED.some((p) => (p.endsWith("/") ? f.startsWith(p) : f === p));
 
@@ -64,21 +74,33 @@ export function unapprovedChanges({ cwd, base, approvedBase = APPROVED_BASE, env
         "--cc",
         "--name-only",
         "--no-renames",
-        `--format=%x01%h %s%x02%(trailers:key=${TRAILER},valueonly,separator=%x20)`,
+        `--format=%x01%H %h %s%x02%(trailers:key=${TRAILER},valueonly,separator=%x20)%x02%(trailers:key=${APPROVES},valueonly,separator=%x2C)`,
         `${base}..HEAD`,
         ...(known ? [`^${approvedBase}`] : []),
     ]);
-    const bad = [];
-    for (const chunk of log.split("\x01").slice(1)) {
-        const [head, ...rest] = chunk.split("\n");
-        const [title, approval] = head.split("\x02");
-        const files = rest.filter((f) => f && isLocked(f));
-        if (files.length && !approval.trim()) {
-            const at = title.indexOf(" ");
-            bad.push({ commit: title.slice(0, at), subject: title.slice(at + 1), files });
-        }
-    }
-    return bad;
+    const commits = log
+        .split("\x01")
+        .slice(1)
+        .map((chunk) => {
+            const [head, ...rest] = chunk.split("\n");
+            const [title, approval, approves] = head.split("\x02");
+            const [sha, short, ...subject] = title.split(" ");
+            const approved = approval.trim() !== "";
+            const named = approved ? approves.split(/[\s,]+/).filter((s) => s.length >= 7) : [];
+            return {
+                sha,
+                short,
+                subject: subject.join(" "),
+                approved,
+                named,
+                files: rest.filter((f) => f && isLocked(f)),
+            };
+        });
+    const named = commits.flatMap((c) => c.named);
+    const approvedBy = (sha) => named.some((s) => sha.startsWith(s.toLowerCase()));
+    return commits
+        .filter((c) => c.files.length && !c.approved && !approvedBy(c.sha))
+        .map((c) => ({ commit: c.short, subject: c.subject, files: c.files }));
 }
 
 /**
@@ -114,7 +136,8 @@ const HOW =
     "compact-mantine is locked to Figma by the owner (2026-10-23): it draws and behaves exactly as Figma does, " +
     "and the only departures are the owner-approved rows of compact-mantine/design/figma-spec.md section 14. " +
     "Undo the change, or ask the owner to approve it: the owner adds a `Figma-Approved: <reason>` trailer " +
-    "to the commit that makes it. Never add the trailer yourself.";
+    "to the commit that makes it, or adds a commit carrying it and `Figma-Approves: <sha>`. " +
+    "Never add either trailer yourself.";
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const cwd = process.cwd();
@@ -128,6 +151,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         const got = studyDigest(dir);
         if (got !== want)
             lines.push(`the Figma study's captures in ${dir} hash to ${got}, not ${STUDY_DIGEST}'s ${want}`);
+        if (existsSync(join(cwd, FIXTURE))) {
+            lines.push(...checkFixture(dir, join(cwd, FIXTURE)).map((b) => `${FIXTURE}: ${b}`));
+        }
     } else {
         console.log("The Figma study (design/ui/figma) is not in this checkout: its captures were not checked.");
     }

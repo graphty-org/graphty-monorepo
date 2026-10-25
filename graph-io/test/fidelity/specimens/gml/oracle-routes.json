@@ -1,12 +1,13 @@
 {
-    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG), gephi (Gephi's own Preview) or graphviz (Graphviz's own drawing of the DOT file its gv2gml converted to the sheet).",
+    "about": "Which program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG of its own GraphIO::writeGML of the sheet), ogdf-draw (OGDF's GraphIO::readGML and GraphIO::drawSVG of the sheet as written), gephi (Gephi's own Preview) or graphviz (Graphviz's own drawing of the DOT file its gv2gml converted to the sheet). standIns: the programs that also draw the sheet into oracles/stand-ins/, for the settings its oracle does not draw (judges.json).",
     "sheets": {
         "specimen-node-shapes": {
-            "route": "cytoscape-gml",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 9,
-            "about": "every graphics type of the GML draft"
+            "about": "every graphics type of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-node-shapes-p2": {
             "route": "cytoscape-gml",
@@ -23,11 +24,12 @@
             "about": "every yEd flowchart configuration (customconfiguration)"
         },
         "specimen-node-fills-borders": {
-            "route": "cytoscape-gml",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 24,
-            "about": "fill color syntaxes, outline colors, outline widths, stipples (Tk)"
+            "about": "fill color syntaxes, outline colors, outline widths, stipples (Tk)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-node-fills-borders-p2": {
             "route": "cytoscape-gml",
@@ -37,11 +39,12 @@
             "about": "yEd fills, gradients, outlines and outline styles"
         },
         "specimen-node-sizes-opacity": {
-            "route": "cytoscape-gml",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 12,
-            "about": "w and h of the GML draft"
+            "about": "w and h of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-node-sizes-opacity-p2": {
             "route": "cytoscape-gml",
@@ -51,11 +54,12 @@
             "about": "yEd sizes and the alpha of yEd's #RRGGBBAA colors"
         },
         "specimen-labels": {
-            "route": "gml2gv",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 6,
-            "about": "the node label key of the GML draft"
+            "about": "the node label key of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-labels-p2": {
             "route": "gml2gv",
@@ -72,11 +76,12 @@
             "about": "yEd node label models and positions (model, anchor) and free offsets"
         },
         "specimen-edges-lines": {
-            "route": "gml2gv",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 17,
-            "about": "edge fill, width, Line bends, loops, parallels, smooth, stipple (GML draft and Tk)"
+            "about": "edge fill, width, Line bends, loops, parallels, smooth, stipple (GML draft and Tk)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-edges-lines-p2": {
             "route": "gml2gv",
@@ -86,11 +91,12 @@
             "about": "yEd edge styles, widths, colors, bends, smoothed bends, arcs, loops"
         },
         "specimen-arrows": {
-            "route": "cytoscape-gml",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": true,
             "specimens": 5,
-            "about": "the arrow key (Tk): which ends have an arrow"
+            "about": "the arrow key (Tk): which ends have an arrow",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-arrows-p2": {
             "route": "cytoscape-gml",
@@ -114,11 +120,12 @@
             "about": "Cytoscape 2.x's numbered arrows (source_arrow, target_arrow)"
         },
         "specimen-edge-labels": {
-            "route": "gml2gv",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 3,
-            "about": "the edge label key of the GML draft"
+            "about": "the edge label key of the GML draft",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-edge-labels-p2": {
             "route": "gml2gv",
@@ -135,11 +142,12 @@
             "about": "yEd groups (isGroup, gid): boxes, labels, nesting"
         },
         "specimen-images-charts": {
-            "route": "cytoscape-gml",
+            "route": "ogdf-draw",
             "flavor": "graphlet",
             "directed": false,
             "specimens": 6,
-            "about": "image and bitmap files (the GML draft)"
+            "about": "image and bitmap files (the GML draft)",
+            "standIns": ["cytoscape-gml", "gml2gv"]
         },
         "specimen-node-shapes-p4": {
             "route": "cytoscape-gml",

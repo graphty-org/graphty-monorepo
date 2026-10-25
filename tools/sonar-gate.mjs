@@ -7,6 +7,13 @@
 //    with the branch the push merges into, tools/push-base.mjs), kept to the
 //    extensions SonarQube analyzes. A file with uncommitted changes is left out with a warning (the
 //    scanner reads the working tree; the push sends HEAD). Nothing left: pass, no server contact.
+//    When the merge base itself was never scanned -- it reached the branch the push merges into through a
+//    `git push --no-verify`, or while the server was unreachable -- the base moves back along that
+//    branch's first-parent history to the newest commit that was (scannedBase), so those commits'
+//    changes count as this push's, and the step names each commit it adds. A commit counts as scanned
+//    when <git common dir>/sonar/gate.log records it passed, bypassed or reused (the source checks'
+//    recorded pass), when GitHub made it (a merged pull request, a release commit), or when it changes
+//    only visual-baselines/ and visual-review-approvals/ (the owner's screenshot approvals).
 // 2. The server and the setup. Unreachable, or not the pinned server: pass with a boxed warning and
 //    send no token. Anything else wrong (no token, rejected token, no Java, no scanner, no
 //    `<key>-local` project): block, with the fix.
@@ -89,6 +96,44 @@ const NC = "\x1b[0m";
 // ---------------------------------------------------------------------------------------------
 // Pure helpers (exported for the tests)
 // ---------------------------------------------------------------------------------------------
+
+// How far back along the push base's first-parent history to look for a scanned commit.
+const SCAN_HISTORY = 200;
+const SCANNED_OUTCOMES = new Set(["passed", "bypassed", "reused"]);
+const APPROVAL_ONLY = /^(visual-baselines|visual-review-approvals)\//;
+const approvalOnly = (files) => files.length > 0 && files.every((f) => APPROVAL_ONLY.test(f));
+
+/**
+ * The commits gate.log records as scanned, by their 12-character prefix.
+ * @param text - gate.log: "<time> <branch> <sha12> <outcome> left-out:<n>" per line
+ * @returns the prefixes
+ */
+export function scannedCommits(text) {
+    const out = new Set();
+    for (const line of text.split("\n")) {
+        const [, , sha, outcome] = line.split(" ");
+        if (sha && SCANNED_OUTCOMES.has(outcome)) out.add(sha);
+    }
+    return out;
+}
+
+/**
+ * Where the scan must start so that no commit pushed past the gate goes unscanned.
+ * @param commits - the push base and its first-parent ancestors, newest first: { sha, committer, files }
+ * @param scanned - scannedCommits()
+ * @returns `base`, the newest accounted-for commit (null when none is in `commits`), and `missed`, the
+ *   commits above it, newest first
+ */
+export function scannedBase(commits, scanned) {
+    const missed = [];
+    for (const c of commits) {
+        const accounted =
+            scanned.has(c.sha.slice(0, 12)) || /noreply[@.]github\.com$/.test(c.committer) || approvalOnly(c.files);
+        if (accounted) return { base: c.sha, missed };
+        missed.push(c);
+    }
+    return { base: null, missed };
+}
 
 /**
  * SonarQube's line hash: MD5 of the line with all whitespace removed (matching lines, not security).
@@ -639,7 +684,7 @@ function box(lines) {
 
 // Phase 1: the analyzable files the push changes, minus those with uncommitted changes.
 function changedFiles(run) {
-    run.base = pushBase({ env: envWithoutToken() });
+    run.base = widenedBase(run, pushBase({ env: envWithoutToken() }));
     const changed = parseNameStatus(git(["diff", "-M", "--name-status", "--diff-filter=AMR", run.base, "HEAD"]));
     const analyzable = changed.filter((c) => EXTENSIONS.has(extname(c.path)));
     const dirty = new Set(git(["diff", "--name-only", "HEAD"]).split("\n").filter(Boolean));
@@ -648,6 +693,45 @@ function changedFiles(run) {
         console.log(`${YELLOW}not checked: ${p} has uncommitted changes; the next push checks it${NC}`);
     }
     return analyzable.filter((c) => !dirty.has(c.path));
+}
+
+// Phase 1 too: the merge base moved back past commits that reached the base branch unscanned.
+function widenedBase(run, base) {
+    let log = "";
+    try {
+        log = readFileSync(join(run.sonarDir, "gate.log"), "utf8");
+    } catch {
+        return base; // no scan recorded on this machine yet
+    }
+    const commits = git(["log", "--first-parent", `--max-count=${SCAN_HISTORY}`, "--format=%H %ce", base])
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => {
+            const [sha, committer = ""] = l.split(" ");
+            const diff = ["diff-tree", "-r", "-m", "--first-parent", "--no-commit-id", "--name-only", sha];
+            // Read only for the commits scannedBase reaches, which is usually one.
+            return {
+                sha,
+                committer,
+                get files() {
+                    return git(diff).split("\n").filter(Boolean);
+                },
+            };
+        });
+    const { base: from, missed } = scannedBase(commits, scannedCommits(log));
+    if (missed.length === 0) return base;
+    const list = missed.map((c) => `  ${c.sha.slice(0, 12)} ${git(["log", "-1", "--format=%s", c.sha]).trim()}`);
+    if (!from) {
+        console.log(`${YELLOW}NOT SCANNED: no scanned commit in the last ${SCAN_HISTORY} of the push base:${NC}`);
+        for (const l of list) console.log(l);
+        return base;
+    }
+    console.log(
+        `${YELLOW}These commits reached the push base without a SonarQube scan (pushed past the gate), ` +
+            `so this push is scanned from ${from.slice(0, 12)} and their changed lines count as its own:${NC}`,
+    );
+    for (const l of list) console.log(l);
+    return from;
 }
 
 // The server answers and is the one `--setup` pinned; otherwise a skip (no token is sent).

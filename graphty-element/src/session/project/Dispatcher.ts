@@ -1172,11 +1172,19 @@ export class Dispatcher {
     }
 
     /**
-     * Drop every step, cancelling all pending work and aborting every open transaction: the
-     * current state becomes the baseline.
+     * Drop every step: the current state becomes the baseline. Pending work that has already
+     * changed something (a value, the graph, or the lane it took a before-arrangement of) is
+     * cancelled, open transactions aborted, along with the work queued behind it: its step would
+     * undo to a state older than the baseline. Unless `keepPending`, the rest is cancelled too;
+     * kept, it records its step over the new baseline when it seals.
+     * @param keepPending - Leave pending work that has changed nothing yet to finish.
      */
-    clear(): void {
-        this.cancelAll(this.cascade(this.ordered()), "cancel");
+    clear(keepPending = false): void {
+        const pending = this.ordered();
+        const cancel = keepPending
+            ? pending.filter((group) => group.arrangement !== null || group.draft.written())
+            : pending;
+        this.cancelAll(this.cascade(cancel), "cancel");
         this.arrangement.flush();
         this.history.clear(this.arrangement.capture());
         this.steps.clear();
@@ -1842,6 +1850,9 @@ export class Dispatcher {
 
         job.slotContext = context;
         // Waiting on a key, the job gives the slot up; it runs off the queue when the key frees.
+        // Keeping it would hang a batch whose queued member is behind it on the queue while the
+        // batch holds the key. The queue is then idle with the command still owed, so a settle
+        // wait also waits for `waitersSettled`.
         return this.admit(job) === "waiting"
             ? Promise.resolve()
             : job.promise.then(
@@ -2401,6 +2412,21 @@ export class Dispatcher {
      */
     get graphWritesWaiting(): boolean {
         return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Settles once no queued command is waiting off the queue for a key: each such command gave
+     * its queue slot up, so an idle queue does not mean it has run.
+     * @returns Whether there was one to wait for; what it ran may have queued more work.
+     */
+    async waitersSettled(): Promise<boolean> {
+        let waited = false;
+        while (this.waiters.size > 0) {
+            waited = true;
+            await Promise.allSettled([...this.waiters].map((job) => job.promise));
+        }
+
+        return waited;
     }
 
     /**

@@ -15,6 +15,10 @@ compact-mantine draws and behaves exactly as Figma does. The only departures are
 
 `tools/check-figma-lock.mjs` enforces this in the pre-push gate and in CI's Checks job. The Figma
 browser tests (`tests/figma/*.browser.test.tsx`) compare every component with the Figma study in
-`design/ui/figma`, which is outside git: they run in the pre-push gate on this machine and skip in
-CI, where the study is absent. The lock also checks the study's captures against
-`tests/figma/figma-study.sha256`.
+`design/ui/figma`, which is outside git, through `tests/figma/figma-fixture.json`: exactly the
+fields of the study's captures the tests read. The token tests (`tests/theme/tokens.test.ts`) read
+Figma's CSS variables from `tests/figma/figma-variables.json`. So they run everywhere, CI included. After changing
+which captures, elements or properties a test reads, regenerate it from the study with
+`node tests/figma/figma-fixture.mjs build` (a test that reads a capture the fixture lacks fails and
+names that command). Where the study is present, the lock checks its captures against
+`tests/figma/figma-study.sha256` and every fixture value against the study.

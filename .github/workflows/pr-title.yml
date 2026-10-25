@@ -12,10 +12,13 @@ name: PR Title
 # lints the title in its own event and finishes in seconds.
 on:
     pull_request:
-        types: [opened, edited, synchronize, reopened]
+        # labeled and unlabeled: the owner's breaking-go label re-checks a breaking change at once.
+        types: [opened, edited, synchronize, reopened, labeled, unlabeled]
 
 permissions:
     contents: read
+    pull-requests: read
+    issues: read
 
 jobs:
     lint-pr:
@@ -30,9 +33,35 @@ jobs:
         if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
         runs-on: ubuntu-24.04
         steps:
+            # A breaking change bumps a published major, and nothing lowers it afterwards, so it reaches master
+            # only with the owner's go: the label breaking-go, added by the owner. tools/pr-open.sh leaves
+            # auto-merge off for one, but a breaking commit pushed after the pull request opened would merge
+            # on its own without this check.
+            - name: No breaking change without the owner's go
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  PR_TITLE: ${{ github.event.pull_request.title }}
+                  OWNER: apowers313
+              run: |
+                  msgs=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" --paginate --jq '.[].commit.message')
+                  # A here-string, not a pipe: grep -q exits at the first match, and under pipefail the writer's
+                  # SIGPIPE would read as "no match".
+                  if ! grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$PR_TITLE"$'\n'"$msgs"; then
+                      echo "no breaking change"; exit 0
+                  fi
+                  labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name')
+                  by=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/events" --paginate \
+                      --jq '.[] | select(.event == "labeled" and .label.name == "breaking-go") | .actor.login' | tail -1)
+                  if grep -qx breaking-go <<<"$labels" && [ "$by" = "$OWNER" ]; then
+                      echo "breaking change, with the owner's go"; exit 0
+                  fi
+                  echo "::error::this pull request holds a breaking change (type!: or BREAKING CHANGE); it merges only once $OWNER adds the label breaking-go"
+                  exit 1
+
             - uses: actions/checkout@v4
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - name: Setup Node.js
               uses: actions/setup-node@v4

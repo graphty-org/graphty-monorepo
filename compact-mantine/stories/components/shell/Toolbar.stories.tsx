@@ -1,7 +1,7 @@
 import { SegmentedControl, Stack, Text, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { Toolbar, type ToolbarProps, ToolButton, ToolGroup } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

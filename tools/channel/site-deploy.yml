@@ -1,0 +1,166 @@
+# The deploy workflow of a channel's site repository. Not a workflow of this repository: the owner
+# commits this file, unchanged, as .github/workflows/deploy.yml in graphty-org/graphty-nightly and in
+# graphty-org/graphty-site (design/ci/channels-pipeline/channels.md, section 3).
+#
+# A promotion (release.yml's site job for nightly, promote.yml for production) pushes one small
+# deployed.json to the site repository with that repository's deploy key:
+#
+#   { "site": "nightly", "tag": "site-<commit>", "sha256": "<hex of site.tar.zst>",
+#     "configRef": "<graphty-monorepo commit>", "time": "<iso>", "approver": "auto" | "<login>" }
+#
+# That push runs this workflow. It downloads site.tar.zst from graphty-monorepo's release <tag>,
+# refuses it unless its sha256 equals deployed.json's (a release asset can be replaced by any Write
+# collaborator; deployed.json only by the deploy key), unpacks it, writes site.json from
+# graphty/sites/<site>.json at configRef, deploys it to this repository's Pages, and reports the
+# outcome to the results store (kind `deploy`, this repository's OIDC token, fail open).
+#
+# A dispatch with dry_run (the default for a dispatch) does everything up to the deploy and stops.
+name: Deploy
+
+on:
+    push:
+        branches: [main]
+        paths: [deployed.json]
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: Check and assemble the site, deploy nothing
+                type: boolean
+                default: true
+
+# One deploy at a time; a newer deployed.json waits for the running one, never cancels it.
+concurrency:
+    group: site-deploy
+    cancel-in-progress: false
+
+permissions:
+    contents: read
+
+env:
+    MONOREPO: graphty-org/graphty-monorepo
+    DRY_RUN: ${{ inputs.dry_run == true }}
+
+jobs:
+    check:
+        name: Check and assemble
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        outputs:
+            site: ${{ steps.read.outputs.site }}
+            tag: ${{ steps.read.outputs.tag }}
+            sha256: ${{ steps.read.outputs.sha256 }}
+            started: ${{ steps.read.outputs.started }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: deployed.json
+                  sparse-checkout-cone-mode: false
+
+            # Every field this job outputs is checked before it is used as a ref, a release name or a
+            # step output; site-deploy.mjs below checks deployed.json again with the asset.
+            - id: read
+              run: |
+                  started=$(date +%s%3N)
+                  ref=$(jq -r .configRef deployed.json)
+                  grep -Eqx '[0-9a-f]{40}' <<< "$ref" || { echo "::error::deployed.json configRef '$ref' is not a commit id"; exit 1; }
+                  grep -Eqx 'site-[0-9a-f]{40}' <<< "$(jq -r .tag deployed.json)" || { echo "::error::deployed.json tag is not site-<commit>"; exit 1; }
+                  grep -Eqx 'nightly|production' <<< "$(jq -r .site deployed.json)" || { echo "::error::deployed.json site is not nightly or production"; exit 1; }
+                  grep -Eqx '[0-9a-f]{64}' <<< "$(jq -r .sha256 deployed.json)" || { echo "::error::deployed.json sha256 is not a sha256"; exit 1; }
+                  {
+                      echo "started=$started"
+                      echo "config_ref=$ref"
+                      echo "site=$(jq -r .site deployed.json)"
+                      echo "tag=$(jq -r .tag deployed.json)"
+                      echo "sha256=$(jq -r .sha256 deployed.json)"
+                  } >> "$GITHUB_OUTPUT"
+
+            # The check script and the site configuration, at the commit deployed.json names.
+            - uses: actions/checkout@v4
+              with:
+                  repository: ${{ env.MONOREPO }}
+                  ref: ${{ steps.read.outputs.config_ref }}
+                  path: monorepo
+                  sparse-checkout: |
+                      tools/channel
+                      graphty/sites
+                  persist-credentials: false
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+
+            - name: Download the site asset
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TAG: ${{ steps.read.outputs.tag }}
+              run: gh release download "$TAG" --repo "$MONOREPO" --pattern site.tar.zst --dir asset
+
+            - name: Refuse an asset whose sha256 is not deployed.json's
+              run: node monorepo/tools/channel/site-deploy.mjs check deployed.json asset/site.tar.zst
+
+            - name: Unpack and add site.json
+              env:
+                  SITE: ${{ steps.read.outputs.site }}
+              run: |
+                  mkdir public
+                  tar --zstd -xf asset/site.tar.zst -C public
+                  jq . "monorepo/graphty/sites/${SITE}.json" > public/site.json
+                  grep -o 'name="graphty-build" content="[^"]*"' public/index.html || echo "::warning::no build stamp in index.html"
+
+            - if: ${{ env.DRY_RUN != 'true' }}
+              uses: actions/upload-pages-artifact@v3
+              with:
+                  path: ./public
+
+    deploy:
+        name: Deploy
+        needs: check
+        if: ${{ inputs.dry_run != true }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        permissions:
+            pages: write
+            id-token: write
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
+        steps:
+            - id: deployment
+              uses: actions/deploy-pages@v4
+
+    # The promotion that pushed deployed.json waits for this report: one duration row per job (kind
+    # `deploy`, set by the store from this repository's OIDC token), with the site commit as sha, the
+    # site as task and each job's result as conclusion. Fail open: a store that does not answer leaves a
+    # warning here and the waiting job falls back to the site's build stamp.
+    report:
+        name: Report to the results store
+        needs: [check, deploy]
+        if: ${{ always() && inputs.dry_run != true }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        permissions:
+            id-token: write
+        steps:
+            - env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  SITE: ${{ needs.check.outputs.site }}
+                  TAG: ${{ needs.check.outputs.tag }}
+                  STARTED: ${{ needs.check.outputs.started }}
+                  CHECK: ${{ needs.check.result }}
+                  DEPLOY: ${{ needs.deploy.result }}
+              run: |
+                  if [ -z "$RESULTS_URL" ]; then echo "::warning::RESULTS_URL is not set; no deploy report"; exit 0; fi
+                  token=$(curl -fsS --max-time 5 -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+                      "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=graphty-results" | jq -r '.value // empty') || true
+                  if [ -z "$token" ]; then echo "::warning::no OIDC token; no deploy report"; exit 0; fi
+                  body=$(jq -nc --arg site "$SITE" --arg tag "$TAG" --arg started "$STARTED" \
+                      --arg check "$CHECK" --arg deploy "$DEPLOY" \
+                      --argjson run "$GITHUB_RUN_ID" --argjson attempt "$GITHUB_RUN_ATTEMPT" \
+                      '($started | tonumber? // null) as $t | (now * 1000 | floor) as $end
+                       | [["check", $check], ["deploy", $deploy]]
+                       | { rows: map({ runId: $run, attempt: $attempt, workflow: "deploy.yml", job: .[0],
+                           task: $site, sha: ($tag | ltrimstr("site-")), startedAt: $t,
+                           ms: (if $t then $end - $t else 0 end), conclusion: .[1] }) }')
+                  curl -fsS --max-time 5 -X POST -H "Authorization: Bearer $token" -H "Content-Type: application/json" \
+                      --data "$body" "$RESULTS_URL/v1/durations" \
+                      || echo "::warning::the results store did not take the deploy report"

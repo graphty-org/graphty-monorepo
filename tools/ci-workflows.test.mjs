@@ -49,7 +49,16 @@ import {
     testsPassed,
 } from "./prepush-inputs.mjs";
 import { byFailureRate, failureRates, gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
-import { decide as reuseDecide, excludedPaths, marker, notPassed, STORYBOOKS, treeWithout } from "./ci-reuse-plan.mjs";
+import {
+    buildNotReusable,
+    decide as reuseDecide,
+    excludedPaths,
+    marker,
+    notPassed,
+    STORYBOOKS,
+    treeWithout,
+} from "./ci-reuse-plan.mjs";
+import { due as releaseDue } from "./release-due.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -1271,7 +1280,10 @@ describe("ci.yml", () => {
     it("runs the full suite on a merge-queue branch", () => {
         const step = job(ci, "packages");
         assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
-        assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
+        assert.match(
+            step,
+            /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
+        );
         assert.match(
             job(ci, "lint"),
             /if: needs.packages.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/,
@@ -1315,8 +1327,105 @@ describe("ci.yml", () => {
         assert.match(review, /fail-on-severity: high/);
     });
 
-    it("keeps the benchmarks advisory", () => {
+    it("keeps the benchmarks advisory, outside the verdict and beside the tests", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+        assert.doesNotMatch(job(ci, "performance"), /needs: .*test/);
+        assert.doesNotMatch(job(ci, "all-checks"), /needs: .*performance/);
+    });
+
+    it("reuses the build of the run reuse_build_run names, on a dispatch and on a call", () => {
+        for (const trigger of ["workflow_call", "workflow_dispatch"]) {
+            const on = ci.split(`    ${trigger}:\n`)[1].split(/\n {4}\w/)[0];
+            assert.match(on, /\n {12}reuse_build_run:\n(?: {16}.*\n){1,2} {16}type: string\n/, trigger);
+        }
+        const packages = job(ci, "packages");
+        assert.match(
+            packages,
+            /id: reuse-build\n {14}if: inputs.reuse_build_run != ''\n {14}continue-on-error: true\n/,
+            "an unreadable run is a build, never a failure",
+        );
+        assert.match(packages, /node tools\/ci-reuse-plan.mjs --build-run "\$RUN"/);
+        assert.match(
+            packages,
+            /artifacts-run: \$\{\{ steps.reuse.outputs.artifacts-run \|\| steps.reuse-build.outputs.artifacts-run \}\}/,
+        );
+        // the master build is skipped, and the named run's packages are downloaded instead
+        assert.match(
+            packages,
+            /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
+        );
+        assert.match(
+            packages,
+            /run-id: \$\{\{ steps.reuse.outputs.artifacts-run \|\| steps.reuse-build.outputs.artifacts-run \}\}/,
+        );
+        // a master push keeps the builds 14 days, so a full run 6 hours later can reuse them
+        const keep = /retention-days: \$\{\{ github.event_name == 'push' && !inputs.ref && 14 \|\| 1 \}\}/;
+        assert.match(packages.split("name: build-packages\n").at(-1), keep);
+        for (const name of Object.keys(STORYBOOKS)) {
+            assert.match(job(ci, "build").split(`name: ${name}\n`)[1].split("\n\n")[0], keep, name);
+        }
+    });
+
+    it("reuses a named run's builds only when it built this commit and they are all still there", () => {
+        const head = "a".repeat(40);
+        const all = ["build-packages", ...Object.keys(STORYBOOKS)].map((name) => ({ name, expired: false }));
+        assert.equal(buildNotReusable({ head_sha: head }, all, head), null);
+        assert.match(buildNotReusable({ head_sha: "b".repeat(40) }, all, head), /not a{40}/);
+        const expired = all.map((a) => (a.name === "build-storybook-app" ? { ...a, expired: true } : a));
+        assert.match(buildNotReusable({ head_sha: head }, expired, head), /build-storybook-app/);
+        assert.match(buildNotReusable({ head_sha: head }, all.slice(1), head), /build-packages/);
+    });
+
+    it("prints the named run as artifacts-run only when it can be reused (the --build-run step)", () => {
+        const dir = mkdtempSync(join(TMP, "reuse-build-"));
+        const g = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" }).stdout.trim();
+        g("init", "-q");
+        g("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "--no-gpg-sign", "-m", "c");
+        const head = g("rev-parse", "HEAD");
+        const bin = join(dir, "bin");
+        mkdirSync(bin);
+        const artifacts = ["build-packages", ...Object.keys(STORYBOOKS)].map((name) => ({ name, expired: false }));
+        const stub = (sha) =>
+            writeFileSync(
+                join(bin, "gh"),
+                `#!/bin/bash\ncase "$2" in *artifacts*) echo '${JSON.stringify({ artifacts })}';; *) echo '{"head_sha":"${sha}"}';; esac\n`,
+                { mode: 0o755 },
+            );
+        const run = () =>
+            spawnSync("node", [new URL("./ci-reuse-plan.mjs", import.meta.url).pathname, "--build-run", "77"], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: "o/r" },
+            });
+        stub(head);
+        assert.equal(run().stdout, "artifacts-run=77\n");
+        stub("0".repeat(40));
+        const other = run();
+        assert.equal(other.stdout, "artifacts-run=\n");
+        assert.match(other.stderr, /this run builds/);
+        writeFileSync(join(bin, "gh"), "#!/bin/bash\necho 'HTTP 404' >&2; exit 1\n", { mode: 0o755 });
+        assert.equal(run().stdout, "artifacts-run=\n", "an unreadable run is a build");
+    });
+
+    it("dispatches release.yml from the master push run only for a merge that references a red issue", () => {
+        const red = [
+            { number: 9001, title: "Full run red: ci on abc" },
+            { number: 9002, title: "Release held: T4 GPU failed on abc" },
+        ];
+        assert.deepEqual(releaseDue(red, "fix(ci): x\n\nRefs #9001\n"), { mode: "restart", issue: 9001 });
+        assert.deepEqual(releaseDue(red, "fix: y\n\nfixes #9001"), { mode: "restart", issue: 9001 });
+        assert.equal(releaseDue(red, "fix: z\n\nRefs #9002"), null, "only a Full run red issue restarts");
+        assert.equal(releaseDue(red, "fix: z\n\nRefs #90011"), null);
+        assert.equal(releaseDue(red, "feat: unrelated"), null);
+        assert.equal(releaseDue([], "Refs #9001"), null, "no open red issue: nothing is due");
+        const due = job(ci, "release-due");
+        assert.match(due, /\n {8}needs: all-checks\n/);
+        assert.match(
+            due,
+            /\n {8}if: github.event_name == 'push' && github.ref == 'refs\/heads\/master' && !inputs.ref\n/,
+        );
+        assert.match(due, /actions: write\n/);
+        assert.doesNotMatch(due, /concurrency:/);
     });
 
     it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
@@ -1353,11 +1462,15 @@ describe("ci.yml", () => {
                 `${name} is skipped on master`,
             );
         }
-        // the benchmarks need the test job, so they are skipped with it
-        assert.match(job(ci, "performance"), /needs: test\n/);
+        // the benchmarks need only the build, and a light run (master) skips them
+        assert.match(job(ci, "performance"), /needs: packages\n/);
+        assert.match(job(ci, "performance"), /&& needs.packages.outputs.light != 'true'\n/);
         assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
-        assert.match(build, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
+        assert.match(
+            build,
+            /if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''\n\s+run: pnpm exec nx run-many -t build/,
+        );
         assert.match(job(ci, "docs"), /name: build-docs\n/);
         assert.match(job(ci, "build"), /name: build-storybook-element\n/);
         for (const name of ["build", "lint", "checks", "docs"]) {
@@ -1386,7 +1499,7 @@ describe("ci.yml", () => {
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify\n/);
+        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify &&/);
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1521,7 +1634,7 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
     });
 
     it("skips the benchmarks on a verification run", () => {
-        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify\n/);
+        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify &&/);
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {

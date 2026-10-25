@@ -80,11 +80,6 @@ const testStandIns = (): Plugin => {
 };
 
 /**
- * A fresh headless Chromium config per project: vitest writes each instance's name into the
- * object it is handed, so two projects must not share one.
- * @returns the browser config.
- */
-/**
  * SPIKE (issue #3389), off unless STORY_SPIKE_OUT is set: the storybook project shoots every story
  * at the end of its test into that directory, for `visual-review parity` against the built
  * Storybook's capture. STORY_SPIKE_BUILD=production runs it with production semantics, and
@@ -102,6 +97,11 @@ const STORY_SPIKE = process.env.STORY_SPIKE_OUT
     : null;
 const STORY_SPIKE_PRODUCTION = process.env.STORY_SPIKE_BUILD === "production";
 
+/**
+ * A fresh headless Chromium config per project: vitest writes each instance's name into the
+ * object it is handed, so two projects must not share one.
+ * @returns the browser config.
+ */
 const chromium = () => ({
     enabled: true,
     headless: true,

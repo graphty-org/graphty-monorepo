@@ -274,11 +274,6 @@ function appendBenchRow(log: string): undefined {
 }
 
 /**
- * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
- * it. Every project sets it, since an inline project does not inherit the root's `define`, and each
- * gets its own copy, since vitest deletes the keys from the object it is handed.
- */
-/**
  * SPIKE (issue #3389), off unless STORY_SPIKE_OUT is set: the storybook project shoots every story
  * at the end of its test into that directory, for `visual-review parity` against the built
  * Storybook's capture. STORY_SPIKE_BUILD=production runs it with production semantics.
@@ -294,6 +289,11 @@ const STORY_SPIKE = process.env.STORY_SPIKE_OUT
     : null;
 const STORY_SPIKE_PRODUCTION = process.env.STORY_SPIKE_BUILD === "production";
 
+/**
+ * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
+ * it. Every project sets it, since an inline project does not inherit the root's `define`, and each
+ * gets its own copy, since vitest deletes the keys from the object it is handed.
+ */
 const define = {
     __GRAPHTY_ELEMENT_VERSION__: JSON.stringify(
         (JSON.parse(readFileSync(path.join(dirname, "package.json"), "utf8")) as { version: string }).version,

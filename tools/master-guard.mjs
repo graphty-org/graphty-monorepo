@@ -389,6 +389,38 @@ export async function closeStaleReverts(gh, at) {
     return closed;
 }
 
+/**
+ * Files the red-master issue for a stopped master CI run, unless a newer run superseded it or it is already reported.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param run - The workflow_run payload's run.
+ * @param ctx - What main() shares.
+ * @param ctx.attempt - Runs a step, logging and recording its error.
+ * @param ctx.alreadyReported - Whether this commit is already on the red-master issue.
+ * @param ctx.title - The issue title.
+ * @param ctx.labels - The issue labels.
+ */
+async function reportStopped(gh, run, { attempt, alreadyReported, title, labels }) {
+    const sha = run.head_sha;
+    // An error here leaves `skip` undefined, so the run still alarms.
+    const skip = await attempt("look for a newer master run", () => superseded(gh, run));
+    if (skip) {
+        console.log("superseded by a newer master run: no alarm");
+    } else if (await alreadyReported()) {
+        console.log("already reported");
+    } else {
+        const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No freeze and no revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
+        await attempt("open or update the issue", () =>
+            fileIssue(gh, {
+                prefix: FREEZE_PREFIX,
+                title,
+                labels,
+                body: `CI did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+                comment: `CI also did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
+            }),
+        );
+    }
+}
+
 async function main() {
     const { workflow_run: run } = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
     const repo = process.env.GITHUB_REPOSITORY;
@@ -579,24 +611,7 @@ async function main() {
     }
 
     if (action === "stopped") {
-        // An error here leaves `skip` undefined, so the run still alarms.
-        const skip = await attempt("look for a newer master run", () => superseded(gh, run));
-        if (skip) {
-            console.log("superseded by a newer master run: no alarm");
-        } else if (await alreadyReported()) {
-            console.log("already reported");
-        } else {
-            const note = `The run ended \`${run.conclusion}\` with no verdict (a job that runs into its time limit ends this way), so master has no green build at this commit. No freeze and no revert: no failed step names a culprit. Read the run (\`gh run view ${run.id}\`), fix what stopped it, then re-run it (\`gh run rerun ${run.id}\`).`;
-            await attempt("open or update the issue", () =>
-                fileIssue(gh, {
-                    prefix: FREEZE_PREFIX,
-                    title,
-                    labels: labels("low"),
-                    body: `CI did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
-                    comment: `CI also did not finish on master at ${sha}: ${run.html_url}\n\n${note}`,
-                }),
-            );
-        }
+        await reportStopped(gh, run, { attempt, alreadyReported, title, labels: labels("low") });
     }
 
     if (action === "green") {

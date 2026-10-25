@@ -411,6 +411,31 @@
                 stroke: var(--ink);
                 stroke-width: 1.4;
             }
+            .spark .win {
+                fill: var(--faint);
+            }
+            .spark .ctx {
+                stroke: var(--line);
+                stroke-width: 1.2;
+            }
+            .val .v6 {
+                display: block;
+                font-size: 12px;
+                font-weight: 400;
+                color: var(--muted);
+                white-space: normal;
+                line-height: 1.3;
+            }
+            .kvl {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--muted);
+            }
+            .range .rlab {
+                cursor: default;
+                padding-right: 2px;
+                font-size: 12px;
+            }
             .spark .nht {
                 font-size: 12px;
                 fill: var(--muted);
@@ -990,14 +1015,15 @@
                         <div class="phrow">
                             <h1>Pipeline health</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
                     </header>
                     <p class="kcap">
-                        Each block is its category's state now. Under it: the headline measure now, and the last 24 h,
-                        hourly.
+                        Each block is its category's state: rates judged on the last 1 h, states now. Under it: the
+                        headline measure, its 6 h value, and the last 6 h by 15 min with the last hour shaded; the faint
+                        line at the left is the rest of the last 24 h, hourly.
                     </p>
                     <ol class="status" aria-label="Category status">
                         <li class="col">
@@ -1007,20 +1033,34 @@
                                 aria-label="Master: FAILING, 5 pull requests red on one check, Test (graphty-*)"
                                 ><span class="bn">Master</span><span class="bw">FAILING</span
                                 ><span class="by">5 PRs red on one check</span
-                                ><span class="by bym">+ green time 87%</span
+                                ><span class="by bym">+ green time 40%</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#master"
-                                ><span class="kn">Green time, 24 h</span><span class="kv">87<small> %</small></span
-                                ><span class="kt">target &gt;= 95%</span
+                                ><span class="kn">Green time, last 1 h</span><span class="kv">40<small> %</small></span
+                                ><span class="kt">6 h 49%; target &gt;= 92%</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="3.1" width="120" height="2" />
                                     <polyline
-                                        points="3,3 8,3 12.9,3 17.9,3 22.8,3 27.8,3 32.7,3 37.7,3 42.7,3 47.6,3 52.6,3 57.5,3 62.5,3 67.4,3 72.4,3 77.3,3 82.3,3 87.3,3 92.2,3 97.2,3 102.1,24.6 107.1,25 112,25 117,25"
+                                        class="ctx"
+                                        points="1,3 2.6,3 4.3,3 5.9,3 7.6,3 9.2,3 10.9,3 12.5,3 14.2,3 15.8,3 17.5,3 19.1,3 20.8,3 22.4,3 24.1,3 25.7,3 27.4,3 29,3"
                                     />
-                                    <line class="seg bad" x1="102.1" y1="24.6" x2="107.1" y2="25" />
-                                    <line class="seg bad" x1="107.1" y1="25" x2="112" y2="25" />
-                                    <line class="seg bad" x1="112" y1="25" x2="117" y2="25" />
+                                    <polyline
+                                        points="35,3 38.6,3 42.1,3 45.7,3 49.3,3 52.8,3 56.4,3 60,3 63.5,5.7 67.1,11.1 70.7,16.5 74.2,21.9 77.8,24.7 81.3,24.8 84.9,24.9 88.5,24.9 92,25 95.6,25 99.2,25 102.7,25 106.3,25 109.9,25 113.4,25 117,25"
+                                    />
+                                    <line class="seg bad" x1="74.2" y1="21.9" x2="77.8" y2="24.7" />
+                                    <line class="seg bad" x1="77.8" y1="24.7" x2="81.3" y2="24.8" />
+                                    <line class="seg bad" x1="81.3" y1="24.8" x2="84.9" y2="24.9" />
+                                    <line class="seg bad" x1="84.9" y1="24.9" x2="88.5" y2="24.9" />
+                                    <line class="seg bad" x1="88.5" y1="24.9" x2="92" y2="25" />
+                                    <line class="seg bad" x1="92" y1="25" x2="95.6" y2="25" />
+                                    <line class="seg bad" x1="95.6" y1="25" x2="99.2" y2="25" />
+                                    <line class="seg bad" x1="99.2" y1="25" x2="102.7" y2="25" />
+                                    <line class="seg bad" x1="102.7" y1="25" x2="106.3" y2="25" />
+                                    <line class="seg bad" x1="106.3" y1="25" x2="109.9" y2="25" />
+                                    <line class="seg bad" x1="109.9" y1="25" x2="113.4" y2="25" />
+                                    <line class="seg bad" x1="113.4" y1="25" x2="117" y2="25" />
                                     <circle class="now" cx="117" cy="25" r="2.4" /></svg
                             ></a>
                         </li>
@@ -1030,46 +1070,87 @@
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#prs"
-                                ><span class="kn">Time to merge, median</span
-                                ><span class="kv">52<small> min</small></span
-                                ><span class="kt">target &lt;= 60 min</span
+                                ><span class="kn">Time to merge, last 1 h</span
+                                ><span class="kv"><span class="kvl">too few, n=2 of 5</span></span
+                                ><span class="kt">6 h 74 min; target &lt;= 60 min</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="6.2" width="120" height="2" />
-                                    <rect x="0" y="1" width="80.3" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="40.2" y="18" text-anchor="middle">no history</text>
+                                    <rect x="0" y="1" width="25.9" height="26" style="fill: url(#nh)" />
+                                    <polyline class="ctx" points="27.4,13.7 29,11.9" />
                                     <polyline
-                                        points="82.3,13.7 87.3,11.9 92.2,9.8 97.2,6.3 102.1,7.8 107.1,5.4 112,3.9 117,3"
+                                        points="35,11.6 38.6,11.1 42.1,10.6 45.7,10.1 49.3,9.4 52.8,8.5 56.4,7.6 60,6.7 63.5,6.5 67.1,6.9 70.7,7.2 74.2,7.6 77.8,7.5 81.3,6.9 84.9,6.3 88.5,5.7 92,5.2 95.6,4.8 99.2,4.5 102.7,4.1 106.3,3.8 109.9,3.5 113.4,3.1 117,3"
                                     />
-                                    <line class="segedge" x1="107.1" y1="5.4" x2="112" y2="3.9" />
-                                    <line class="seg warn" x1="107.1" y1="5.4" x2="112" y2="3.9" />
-                                    <line class="segedge" x1="112" y1="3.9" x2="117" y2="3" />
-                                    <line class="seg warn" x1="112" y1="3.9" x2="117" y2="3" />
-                                    <circle class="pt warn" cx="97.2" cy="6.3" r="2.6" />
+                                    <line class="segedge" x1="88.5" y1="5.7" x2="92" y2="5.2" />
+                                    <line class="seg warn" x1="88.5" y1="5.7" x2="92" y2="5.2" />
+                                    <line class="segedge" x1="92" y1="5.2" x2="95.6" y2="4.8" />
+                                    <line class="seg warn" x1="92" y1="5.2" x2="95.6" y2="4.8" />
+                                    <line class="segedge" x1="95.6" y1="4.8" x2="99.2" y2="4.5" />
+                                    <line class="seg warn" x1="95.6" y1="4.8" x2="99.2" y2="4.5" />
+                                    <line class="segedge" x1="99.2" y1="4.5" x2="102.7" y2="4.1" />
+                                    <line class="seg warn" x1="99.2" y1="4.5" x2="102.7" y2="4.1" />
+                                    <line class="segedge" x1="102.7" y1="4.1" x2="106.3" y2="3.8" />
+                                    <line class="seg warn" x1="102.7" y1="4.1" x2="106.3" y2="3.8" />
+                                    <line class="segedge" x1="106.3" y1="3.8" x2="109.9" y2="3.5" />
+                                    <line class="seg warn" x1="106.3" y1="3.8" x2="109.9" y2="3.5" />
+                                    <line class="segedge" x1="109.9" y1="3.5" x2="113.4" y2="3.1" />
+                                    <line class="seg warn" x1="109.9" y1="3.5" x2="113.4" y2="3.1" />
+                                    <line class="segedge" x1="113.4" y1="3.1" x2="117" y2="3" />
+                                    <line class="seg warn" x1="113.4" y1="3.1" x2="117" y2="3" />
+                                    <circle class="pt warn" cx="60" cy="6.7" r="2.6" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg
                             ></a>
                         </li>
                         <li class="col">
                             <a class="blk bad" href="#ci" aria-label="CI: FAILING, runner wait p90 31 min"
                                 ><span class="bn">CI</span><span class="bw">FAILING</span
-                                ><span class="by">runner wait p90 31 min</span><span class="by bym">+ 5 more</span
+                                ><span class="by">runner wait p90 31 min</span><span class="by bym">+ 3 more</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#ci"
-                                ><span class="kn">Runner wait, p90</span><span class="kv">31<small> min</small></span
-                                ><span class="kt">target &lt;= 5 min</span
+                                ><span class="kn">Runner wait p90, last 1 h</span
+                                ><span class="kv">31<small> min</small></span
+                                ><span class="kt">6 h 24 min; target &lt;= 5 min</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="21.5" width="120" height="2" />
                                     <polyline
-                                        points="3,24.4 8,24.5 12.9,24.6 17.9,24.5 22.8,24.4 27.8,24.5 32.7,24.3 37.7,24.4 42.7,24.2 47.6,24.4 52.6,24.5 57.5,24.3 62.5,24.1 67.4,24.3 72.4,24.2 77.3,24 82.3,23.5 87.3,22 92.2,20.5 97.2,16 102.1,12 107.1,8 112,4.5 117,3"
+                                        class="ctx"
+                                        points="1,24.4 2.6,24.5 4.3,24.6 5.9,24.5 7.6,24.4 9.2,24.5 10.9,24.3 12.5,24.4 14.2,24.2 15.8,24.4 17.5,24.5 19.1,24.3 20.8,24.1 22.4,24.3 24.1,24.2 25.7,24 27.4,23.5 29,22"
                                     />
-                                    <line class="segedge" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="seg warn" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="segedge" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg warn" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg bad" x1="97.2" y1="16" x2="102.1" y2="12" />
-                                    <line class="seg bad" x1="102.1" y1="12" x2="107.1" y2="8" />
-                                    <line class="seg bad" x1="107.1" y1="8" x2="112" y2="4.5" />
-                                    <line class="seg bad" x1="112" y1="4.5" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,21.8 38.6,21.4 42.1,21.1 45.7,20.7 49.3,19.9 52.8,18.8 56.4,17.7 60,16.6 63.5,15.5 67.1,14.5 70.7,13.5 74.2,12.5 77.8,11.5 81.3,10.5 84.9,9.5 88.5,8.5 92,7.6 95.6,6.7 99.2,5.8 102.7,4.9 106.3,4.2 109.9,3.8 113.4,3.2 117,3"
+                                    />
+                                    <line class="segedge" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="seg warn" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="segedge" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="seg warn" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="segedge" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="seg warn" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="segedge" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="seg warn" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="segedge" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="seg warn" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="segedge" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="seg warn" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="segedge" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg warn" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg bad" x1="60" y1="16.6" x2="63.5" y2="15.5" />
+                                    <line class="seg bad" x1="63.5" y1="15.5" x2="67.1" y2="14.5" />
+                                    <line class="seg bad" x1="67.1" y1="14.5" x2="70.7" y2="13.5" />
+                                    <line class="seg bad" x1="70.7" y1="13.5" x2="74.2" y2="12.5" />
+                                    <line class="seg bad" x1="74.2" y1="12.5" x2="77.8" y2="11.5" />
+                                    <line class="seg bad" x1="77.8" y1="11.5" x2="81.3" y2="10.5" />
+                                    <line class="seg bad" x1="81.3" y1="10.5" x2="84.9" y2="9.5" />
+                                    <line class="seg bad" x1="84.9" y1="9.5" x2="88.5" y2="8.5" />
+                                    <line class="seg bad" x1="88.5" y1="8.5" x2="92" y2="7.6" />
+                                    <line class="seg bad" x1="92" y1="7.6" x2="95.6" y2="6.7" />
+                                    <line class="seg bad" x1="95.6" y1="6.7" x2="99.2" y2="5.8" />
+                                    <line class="seg bad" x1="99.2" y1="5.8" x2="102.7" y2="4.9" />
+                                    <line class="seg bad" x1="102.7" y1="4.9" x2="106.3" y2="4.2" />
+                                    <line class="seg bad" x1="106.3" y1="4.2" x2="109.9" y2="3.8" />
+                                    <line class="seg bad" x1="109.9" y1="3.8" x2="113.4" y2="3.2" />
+                                    <line class="seg bad" x1="113.4" y1="3.2" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg
                             ></a>
                         </li>
@@ -1080,17 +1161,20 @@
                                 aria-label="Flaky tests: FAILING, 3 pull requests held by a flake"
                                 ><span class="bn">Flaky tests</span><span class="bw">FAILING</span
                                 ><span class="by">3 pull requests held by a flake</span
-                                ><span class="by bym">+ 2 more</span
+                                ><span class="by bym">+ 2 flaky with no issue</span
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#flaky"
-                                ><span class="kn">Flake rate, since 20:42</span><span class="kv">1.4</span
-                                ><span class="kt">target &lt; 2</span
+                                ><span class="kn">Flake rate, last 1 h</span><span class="kv">1.4</span
+                                ><span class="kt">6 h 1.2, since 20:42; target &lt; 2</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="2" width="120" height="2" />
-                                    <rect x="0" y="1" width="100.1" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="50.1" y="18" text-anchor="middle">no history</text>
-                                    <polyline points="102.1,12.9 107.1,7.4 112,11.8 117,8.5" />
+                                    <rect x="0" y="1" width="68.7" height="26" style="fill: url(#nh)" />
+                                    <text class="nht" x="34.3" y="18" text-anchor="middle">no history</text>
+                                    <polyline
+                                        points="70.7,12.9 74.2,12.9 77.8,12.2 81.3,10.8 84.9,9.5 88.5,8.1 92,8 95.6,9.1 99.2,10.2 102.7,11.2 106.3,11.2 109.9,10.2 113.4,9.1 117,8.5"
+                                    />
                                     <circle class="now" cx="117" cy="8.5" r="2.4" /></svg
                             ></a>
                         </li>
@@ -1101,36 +1185,41 @@
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#releases"
-                                ><span class="kn">Release lanes red</span><span class="kv">2</span
-                                ><span class="kt">target 0</span
+                                ><span class="kn">Release lanes red, now</span><span class="kv">2</span
+                                ><span class="kt">2 all of the last 6 h; target 0</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,10.3 8,10.3 12.9,10.3 17.9,10.3 22.8,10.3 27.8,10.3 32.7,10.3 37.7,10.3 42.7,10.3 47.6,10.3 52.6,10.3 57.5,10.3 62.5,10.3 67.4,10.3 72.4,10.3 77.3,10.3 82.3,10.3 87.3,10.3 92.2,10.3 97.2,10.3 102.1,10.3 107.1,10.3 112,10.3 117,10.3"
+                                        class="ctx"
+                                        points="1,10.3 2.6,10.3 4.3,10.3 5.9,10.3 7.6,10.3 9.2,10.3 10.9,10.3 12.5,10.3 14.2,10.3 15.8,10.3 17.5,10.3 19.1,10.3 20.8,10.3 22.4,10.3 24.1,10.3 25.7,10.3 27.4,10.3 29,10.3"
                                     />
-                                    <line class="seg bad" x1="3" y1="10.3" x2="8" y2="10.3" />
-                                    <line class="seg bad" x1="8" y1="10.3" x2="12.9" y2="10.3" />
-                                    <line class="seg bad" x1="12.9" y1="10.3" x2="17.9" y2="10.3" />
-                                    <line class="seg bad" x1="17.9" y1="10.3" x2="22.8" y2="10.3" />
-                                    <line class="seg bad" x1="22.8" y1="10.3" x2="27.8" y2="10.3" />
-                                    <line class="seg bad" x1="27.8" y1="10.3" x2="32.7" y2="10.3" />
-                                    <line class="seg bad" x1="32.7" y1="10.3" x2="37.7" y2="10.3" />
-                                    <line class="seg bad" x1="37.7" y1="10.3" x2="42.7" y2="10.3" />
-                                    <line class="seg bad" x1="42.7" y1="10.3" x2="47.6" y2="10.3" />
-                                    <line class="seg bad" x1="47.6" y1="10.3" x2="52.6" y2="10.3" />
-                                    <line class="seg bad" x1="52.6" y1="10.3" x2="57.5" y2="10.3" />
-                                    <line class="seg bad" x1="57.5" y1="10.3" x2="62.5" y2="10.3" />
-                                    <line class="seg bad" x1="62.5" y1="10.3" x2="67.4" y2="10.3" />
-                                    <line class="seg bad" x1="67.4" y1="10.3" x2="72.4" y2="10.3" />
-                                    <line class="seg bad" x1="72.4" y1="10.3" x2="77.3" y2="10.3" />
-                                    <line class="seg bad" x1="77.3" y1="10.3" x2="82.3" y2="10.3" />
-                                    <line class="seg bad" x1="82.3" y1="10.3" x2="87.3" y2="10.3" />
-                                    <line class="seg bad" x1="87.3" y1="10.3" x2="92.2" y2="10.3" />
-                                    <line class="seg bad" x1="92.2" y1="10.3" x2="97.2" y2="10.3" />
-                                    <line class="seg bad" x1="97.2" y1="10.3" x2="102.1" y2="10.3" />
-                                    <line class="seg bad" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
-                                    <line class="seg bad" x1="107.1" y1="10.3" x2="112" y2="10.3" />
-                                    <line class="seg bad" x1="112" y1="10.3" x2="117" y2="10.3" />
+                                    <polyline
+                                        points="35,10.3 38.6,10.3 42.1,10.3 45.7,10.3 49.3,10.3 52.8,10.3 56.4,10.3 60,10.3 63.5,10.3 67.1,10.3 70.7,10.3 74.2,10.3 77.8,10.3 81.3,10.3 84.9,10.3 88.5,10.3 92,10.3 95.6,10.3 99.2,10.3 102.7,10.3 106.3,10.3 109.9,10.3 113.4,10.3 117,10.3"
+                                    />
+                                    <line class="seg bad" x1="35" y1="10.3" x2="38.6" y2="10.3" />
+                                    <line class="seg bad" x1="38.6" y1="10.3" x2="42.1" y2="10.3" />
+                                    <line class="seg bad" x1="42.1" y1="10.3" x2="45.7" y2="10.3" />
+                                    <line class="seg bad" x1="45.7" y1="10.3" x2="49.3" y2="10.3" />
+                                    <line class="seg bad" x1="49.3" y1="10.3" x2="52.8" y2="10.3" />
+                                    <line class="seg bad" x1="52.8" y1="10.3" x2="56.4" y2="10.3" />
+                                    <line class="seg bad" x1="56.4" y1="10.3" x2="60" y2="10.3" />
+                                    <line class="seg bad" x1="60" y1="10.3" x2="63.5" y2="10.3" />
+                                    <line class="seg bad" x1="63.5" y1="10.3" x2="67.1" y2="10.3" />
+                                    <line class="seg bad" x1="67.1" y1="10.3" x2="70.7" y2="10.3" />
+                                    <line class="seg bad" x1="70.7" y1="10.3" x2="74.2" y2="10.3" />
+                                    <line class="seg bad" x1="74.2" y1="10.3" x2="77.8" y2="10.3" />
+                                    <line class="seg bad" x1="77.8" y1="10.3" x2="81.3" y2="10.3" />
+                                    <line class="seg bad" x1="81.3" y1="10.3" x2="84.9" y2="10.3" />
+                                    <line class="seg bad" x1="84.9" y1="10.3" x2="88.5" y2="10.3" />
+                                    <line class="seg bad" x1="88.5" y1="10.3" x2="92" y2="10.3" />
+                                    <line class="seg bad" x1="92" y1="10.3" x2="95.6" y2="10.3" />
+                                    <line class="seg bad" x1="95.6" y1="10.3" x2="99.2" y2="10.3" />
+                                    <line class="seg bad" x1="99.2" y1="10.3" x2="102.7" y2="10.3" />
+                                    <line class="seg bad" x1="102.7" y1="10.3" x2="106.3" y2="10.3" />
+                                    <line class="seg bad" x1="106.3" y1="10.3" x2="109.9" y2="10.3" />
+                                    <line class="seg bad" x1="109.9" y1="10.3" x2="113.4" y2="10.3" />
+                                    <line class="seg bad" x1="113.4" y1="10.3" x2="117" y2="10.3" />
                                     <circle class="now" cx="117" cy="10.3" r="2.4" /></svg
                             ></a>
                         </li>
@@ -1140,12 +1229,18 @@
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#costs"
-                                ><span class="kn">Spend, projected</span><span class="kv">229<small> USD</small></span
-                                ><span class="kt">target &lt;= 300 USD</span
+                                ><span class="kn">Spend projected, now</span
+                                ><span class="kv">229<small> USD</small></span
+                                ><span class="kt">billing is daily; target &lt;= 300 USD</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="2" width="120" height="2" />
                                     <polyline
-                                        points="3,19.3 8,19.3 12.9,19.3 17.9,19.1 22.8,19.1 27.8,19.1 32.7,19.1 37.7,19.1 42.7,18.8 47.6,18.8 52.6,18.8 57.5,18.8 62.5,18.8 67.4,18.8 72.4,18.8 77.3,18.6 82.3,18.6 87.3,18.6 92.2,18.6 97.2,18.6 102.1,18.6 107.1,18.6 112,18.6 117,18.6"
+                                        class="ctx"
+                                        points="1,19.3 2.6,19.3 4.3,19.3 5.9,19.1 7.6,19.1 9.2,19.1 10.9,19.1 12.5,19.1 14.2,18.8 15.8,18.8 17.5,18.8 19.1,18.8 20.8,18.8 22.4,18.8 24.1,18.8 25.7,18.6 27.4,18.6 29,18.6"
+                                    />
+                                    <polyline
+                                        points="35,18.6 38.6,18.6 42.1,18.6 45.7,18.6 49.3,18.6 52.8,18.6 56.4,18.6 60,18.6 63.5,18.6 67.1,18.6 70.7,18.6 74.2,18.6 77.8,18.6 81.3,18.6 84.9,18.6 88.5,18.6 92,18.6 95.6,18.6 99.2,18.6 102.7,18.6 106.3,18.6 109.9,18.6 113.4,18.6 117,18.6"
                                     />
                                     <circle class="now" cx="117" cy="18.6" r="2.4" /></svg
                             ></a>
@@ -1157,28 +1252,41 @@
                                 ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                     <path d="M2 2l6 6-6 6" /></svg></a
                             ><a class="kpi" href="#data"
-                                ><span class="kn">Sources not OK</span><span class="kv">1<small> of 8</small></span
-                                ><span class="kt">target 0</span
+                                ><span class="kn">Sources not OK, now</span><span class="kv">1<small> of 8</small></span
+                                ><span class="kt">1 all of the last 6 h; target 0</span
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,14 52.6,14 57.5,14 62.5,14 67.4,14 72.4,14 77.3,14 82.3,14 87.3,14 92.2,14 97.2,14 102.1,14 107.1,14 112,14 117,14"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,14 17.5,14 19.1,14 20.8,14 22.4,14 24.1,14 25.7,14 27.4,14 29,14"
                                     />
-                                    <line class="seg bad" x1="42.7" y1="14" x2="47.6" y2="14" />
-                                    <line class="seg bad" x1="47.6" y1="14" x2="52.6" y2="14" />
-                                    <line class="seg bad" x1="52.6" y1="14" x2="57.5" y2="14" />
-                                    <line class="seg bad" x1="57.5" y1="14" x2="62.5" y2="14" />
-                                    <line class="seg bad" x1="62.5" y1="14" x2="67.4" y2="14" />
-                                    <line class="seg bad" x1="67.4" y1="14" x2="72.4" y2="14" />
-                                    <line class="seg bad" x1="72.4" y1="14" x2="77.3" y2="14" />
-                                    <line class="seg bad" x1="77.3" y1="14" x2="82.3" y2="14" />
-                                    <line class="seg bad" x1="82.3" y1="14" x2="87.3" y2="14" />
-                                    <line class="seg bad" x1="87.3" y1="14" x2="92.2" y2="14" />
-                                    <line class="seg bad" x1="92.2" y1="14" x2="97.2" y2="14" />
-                                    <line class="seg bad" x1="97.2" y1="14" x2="102.1" y2="14" />
-                                    <line class="seg bad" x1="102.1" y1="14" x2="107.1" y2="14" />
-                                    <line class="seg bad" x1="107.1" y1="14" x2="112" y2="14" />
-                                    <line class="seg bad" x1="112" y1="14" x2="117" y2="14" />
+                                    <polyline
+                                        points="35,14 38.6,14 42.1,14 45.7,14 49.3,14 52.8,14 56.4,14 60,14 63.5,14 67.1,14 70.7,14 74.2,14 77.8,14 81.3,14 84.9,14 88.5,14 92,14 95.6,14 99.2,14 102.7,14 106.3,14 109.9,14 113.4,14 117,14"
+                                    />
+                                    <line class="seg bad" x1="35" y1="14" x2="38.6" y2="14" />
+                                    <line class="seg bad" x1="38.6" y1="14" x2="42.1" y2="14" />
+                                    <line class="seg bad" x1="42.1" y1="14" x2="45.7" y2="14" />
+                                    <line class="seg bad" x1="45.7" y1="14" x2="49.3" y2="14" />
+                                    <line class="seg bad" x1="49.3" y1="14" x2="52.8" y2="14" />
+                                    <line class="seg bad" x1="52.8" y1="14" x2="56.4" y2="14" />
+                                    <line class="seg bad" x1="56.4" y1="14" x2="60" y2="14" />
+                                    <line class="seg bad" x1="60" y1="14" x2="63.5" y2="14" />
+                                    <line class="seg bad" x1="63.5" y1="14" x2="67.1" y2="14" />
+                                    <line class="seg bad" x1="67.1" y1="14" x2="70.7" y2="14" />
+                                    <line class="seg bad" x1="70.7" y1="14" x2="74.2" y2="14" />
+                                    <line class="seg bad" x1="74.2" y1="14" x2="77.8" y2="14" />
+                                    <line class="seg bad" x1="77.8" y1="14" x2="81.3" y2="14" />
+                                    <line class="seg bad" x1="81.3" y1="14" x2="84.9" y2="14" />
+                                    <line class="seg bad" x1="84.9" y1="14" x2="88.5" y2="14" />
+                                    <line class="seg bad" x1="88.5" y1="14" x2="92" y2="14" />
+                                    <line class="seg bad" x1="92" y1="14" x2="95.6" y2="14" />
+                                    <line class="seg bad" x1="95.6" y1="14" x2="99.2" y2="14" />
+                                    <line class="seg bad" x1="99.2" y1="14" x2="102.7" y2="14" />
+                                    <line class="seg bad" x1="102.7" y1="14" x2="106.3" y2="14" />
+                                    <line class="seg bad" x1="106.3" y1="14" x2="109.9" y2="14" />
+                                    <line class="seg bad" x1="109.9" y1="14" x2="113.4" y2="14" />
+                                    <line class="seg bad" x1="113.4" y1="14" x2="117" y2="14" />
                                     <circle class="now" cx="117" cy="14" r="2.4" /></svg
                             ></a>
                         </li>
@@ -1278,7 +1386,7 @@
                         <div class="phrow">
                             <h1>Master</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -1287,44 +1395,73 @@
                         <span class="sw bad">FAILING</span
                         ><span
                             >Test (graphty-*) is red in 5 open pull requests since 18:03; suspects #3495, #3496, #3497.
-                            Also failing: green time 87%, after no green build from 20:01 to 23:06. Master is green now,
-                            but 5 newer builds are still queued, the oldest for 68 min.</span
+                            Also failing: green time 40% over the last hour (6 h: 49%), after no green build from 20:01
+                            to 23:06. Master is green now, but 5 newer builds are still queued, the oldest for 68
+                            min.</span
                         >
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#master-red"
                             ><span class="nm">Red now<small>green since 23:06; newest build queued 68 min</small></span
-                            ><span class="val">0</span><span class="tg">target 0, red &gt;= 15 min or 2 builds</span
+                            ><span class="val">0<small class="v6">now</small></span
+                            ><span class="tg">target 0, red &gt;= 15 min or 2 builds</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,25 102.1,18.1 107.1,11.3 112,4.4 117,25"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="102.1" y1="18.1" x2="107.1" y2="11.3" />
-                                    <line class="seg bad" x1="107.1" y1="11.3" x2="112" y2="4.4" />
+                                    <polyline
+                                        points="35,25 38.6,25 42.1,25 45.7,25 49.3,25 52.8,25 56.4,25 60,25 63.5,24.1 67.1,22.4 70.7,20.7 74.2,19 77.8,17.2 81.3,15.6 84.9,13.9 88.5,12.2 92,10.4 95.6,8.7 99.2,7 102.7,5.3 106.3,7.8 109.9,14.7 113.4,21.6 117,25"
+                                    />
+                                    <line class="seg bad" x1="74.2" y1="19" x2="77.8" y2="17.2" />
+                                    <line class="seg bad" x1="77.8" y1="17.2" x2="81.3" y2="15.6" />
+                                    <line class="seg bad" x1="81.3" y1="15.6" x2="84.9" y2="13.9" />
+                                    <line class="seg bad" x1="84.9" y1="13.9" x2="88.5" y2="12.2" />
+                                    <line class="seg bad" x1="88.5" y1="12.2" x2="92" y2="10.4" />
+                                    <line class="seg bad" x1="92" y1="10.4" x2="95.6" y2="8.7" />
+                                    <line class="seg bad" x1="95.6" y1="8.7" x2="99.2" y2="7" />
+                                    <line class="seg bad" x1="99.2" y1="7" x2="102.7" y2="5.3" />
                                     <circle class="now" cx="117" cy="25" r="2.4" /></svg></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#master-red"
                             ><span class="nm"
-                                >Green time<small>cancels are red unless superseded or by hand</small></span
-                            ><span class="val">87<small> %</small></span
-                            ><span class="tg">target &gt;= 95%, red &lt; 90</span
+                                >Green time<small
+                                    >share of the last hour green; cancels are red unless superseded or by hand</small
+                                ></span
+                            ><span class="val">40<small> %</small><small class="v6">1 h; 6 h 49%</small></span
+                            ><span class="tg">target &gt;= 92%, red &lt; 75</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="3.1" width="120" height="2" />
                                     <polyline
-                                        points="3,3 8,3 12.9,3 17.9,3 22.8,3 27.8,3 32.7,3 37.7,3 42.7,3 47.6,3 52.6,3 57.5,3 62.5,3 67.4,3 72.4,3 77.3,3 82.3,3 87.3,3 92.2,3 97.2,3 102.1,24.6 107.1,25 112,25 117,25"
+                                        class="ctx"
+                                        points="1,3 2.6,3 4.3,3 5.9,3 7.6,3 9.2,3 10.9,3 12.5,3 14.2,3 15.8,3 17.5,3 19.1,3 20.8,3 22.4,3 24.1,3 25.7,3 27.4,3 29,3"
                                     />
-                                    <line class="seg bad" x1="102.1" y1="24.6" x2="107.1" y2="25" />
-                                    <line class="seg bad" x1="107.1" y1="25" x2="112" y2="25" />
-                                    <line class="seg bad" x1="112" y1="25" x2="117" y2="25" />
+                                    <polyline
+                                        points="35,3 38.6,3 42.1,3 45.7,3 49.3,3 52.8,3 56.4,3 60,3 63.5,5.7 67.1,11.1 70.7,16.5 74.2,21.9 77.8,24.7 81.3,24.8 84.9,24.9 88.5,24.9 92,25 95.6,25 99.2,25 102.7,25 106.3,25 109.9,25 113.4,25 117,25"
+                                    />
+                                    <line class="seg bad" x1="74.2" y1="21.9" x2="77.8" y2="24.7" />
+                                    <line class="seg bad" x1="77.8" y1="24.7" x2="81.3" y2="24.8" />
+                                    <line class="seg bad" x1="81.3" y1="24.8" x2="84.9" y2="24.9" />
+                                    <line class="seg bad" x1="84.9" y1="24.9" x2="88.5" y2="24.9" />
+                                    <line class="seg bad" x1="88.5" y1="24.9" x2="92" y2="25" />
+                                    <line class="seg bad" x1="92" y1="25" x2="95.6" y2="25" />
+                                    <line class="seg bad" x1="95.6" y1="25" x2="99.2" y2="25" />
+                                    <line class="seg bad" x1="99.2" y1="25" x2="102.7" y2="25" />
+                                    <line class="seg bad" x1="102.7" y1="25" x2="106.3" y2="25" />
+                                    <line class="seg bad" x1="106.3" y1="25" x2="109.9" y2="25" />
+                                    <line class="seg bad" x1="109.9" y1="25" x2="113.4" y2="25" />
+                                    <line class="seg bad" x1="113.4" y1="25" x2="117" y2="25" />
                                     <circle class="now" cx="117" cy="25" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -1334,17 +1471,35 @@
                                 >Red on the same check<small
                                     >most open pull requests failing one check or family</small
                                 ></span
-                            ><span class="val">5</span><span class="tg">target &lt;= 1, red &gt;= 3</span
+                            ><span class="val">5<small class="v6">now</small></span
+                            ><span class="tg">target &lt;= 1, red &gt;= 3</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="19.6" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,20.6 97.2,11.8 102.1,3 107.1,3 112,3 117,3"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="97.2" y1="11.8" x2="102.1" y2="3" />
-                                    <line class="seg bad" x1="102.1" y1="3" x2="107.1" y2="3" />
-                                    <line class="seg bad" x1="107.1" y1="3" x2="112" y2="3" />
-                                    <line class="seg bad" x1="112" y1="3" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,24.4 38.6,23.4 42.1,22.2 45.7,21.2 49.3,19.5 52.8,17.3 56.4,15.1 60,12.9 63.5,10.7 67.1,8.5 70.7,6.3 74.2,4.1 77.8,3 81.3,3 84.9,3 88.5,3 92,3 95.6,3 99.2,3 102.7,3 106.3,3 109.9,3 113.4,3 117,3"
+                                    />
+                                    <line class="seg bad" x1="60" y1="12.9" x2="63.5" y2="10.7" />
+                                    <line class="seg bad" x1="63.5" y1="10.7" x2="67.1" y2="8.5" />
+                                    <line class="seg bad" x1="67.1" y1="8.5" x2="70.7" y2="6.3" />
+                                    <line class="seg bad" x1="70.7" y1="6.3" x2="74.2" y2="4.1" />
+                                    <line class="seg bad" x1="74.2" y1="4.1" x2="77.8" y2="3" />
+                                    <line class="seg bad" x1="77.8" y1="3" x2="81.3" y2="3" />
+                                    <line class="seg bad" x1="81.3" y1="3" x2="84.9" y2="3" />
+                                    <line class="seg bad" x1="84.9" y1="3" x2="88.5" y2="3" />
+                                    <line class="seg bad" x1="88.5" y1="3" x2="92" y2="3" />
+                                    <line class="seg bad" x1="92" y1="3" x2="95.6" y2="3" />
+                                    <line class="seg bad" x1="95.6" y1="3" x2="99.2" y2="3" />
+                                    <line class="seg bad" x1="99.2" y1="3" x2="102.7" y2="3" />
+                                    <line class="seg bad" x1="102.7" y1="3" x2="106.3" y2="3" />
+                                    <line class="seg bad" x1="106.3" y1="3" x2="109.9" y2="3" />
+                                    <line class="seg bad" x1="109.9" y1="3" x2="113.4" y2="3" />
+                                    <line class="seg bad" x1="113.4" y1="3" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -1352,43 +1507,48 @@
                         ><a class="row" href="#releases-lanes"
                             ><span class="nm"
                                 >Last full-run verdict<small>ci lane, candidate a870943ef, 10-24 18:15</small></span
-                            ><span class="val">passed</span><span class="tg">target passed</span><span class="sp"></span
-                            ><span class="st"></span
+                            ><span class="val">passed<small class="v6">now</small></span
+                            ><span class="tg">target passed</span><span class="sp"></span><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#releases-trains"
                             ><span class="nm"
                                 >Untested master age<small>the 18:00 train skipped new commit 1fa254bf3</small></span
-                            ><span class="val">6.8<small> h</small></span
+                            ><span class="val">6.8<small> h</small><small class="v6">now</small></span
                             ><span class="tg">target &lt;= 7 h, red &gt; 13</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="2" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,24.1 87.3,20.9 92.2,17.8 97.2,14.6 102.1,11.5 107.1,8.3 112,5.2 117,4.6"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,24.1 29,20.9"
+                                    />
+                                    <polyline
+                                        points="35,20.5 38.6,19.7 42.1,19 45.7,18.2 49.3,17.4 52.8,16.6 56.4,15.8 60,15 63.5,14.2 67.1,13.4 70.7,12.7 74.2,11.9 77.8,11.1 81.3,10.3 84.9,9.5 88.5,8.7 92,7.9 95.6,7.1 99.2,6.4 102.7,5.6 106.3,5.1 109.9,4.9 113.4,4.7 117,4.6"
                                     />
                                     <circle class="now" cx="117" cy="4.6" r="2.4" /></svg></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#"
-                            ><span class="nm">Reverts, 7 d<small>reverted merges / merges</small></span
-                            ><span class="val">0<small> of 41</small></span
+                        ><a class="row dim" href="#"
+                            ><span class="nm">Reverts<small>slow measure: reverted merges / merges, 7 d</small></span
+                            ><span class="val">0<small> of 41</small><small class="v6">7 d</small></span
                             ><span class="tg">target &lt; 5%, red &gt; 10%</span><span class="sp"></span
-                            ><span class="st"></span
+                            ><span class="st"><span class="sw low">slow measure</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
                     </div>
                     <h2 id="master-red">
                         Master builds<span class="h2sub"
-                            >last 24 h by minute; gray = cancelled by hand or superseded, as GitHub records it; not
+                            >last 6 h by minute; gray = cancelled by hand or superseded, as GitHub records it; not
                             counted</span
                         >
                     </h2>
                     <svg
                         class="strip"
-                        viewBox="0 0 1440 18"
+                        viewBox="1050 0 390 18"
                         preserveAspectRatio="none"
                         aria-label="master state by minute"
                     >
@@ -1400,11 +1560,10 @@
                         <rect x="1410" y="0" width="30" height="18" style="fill: url(#nh)" />
                     </svg>
                     <div class="ticks">
-                        <span style="left: 0%">00:00</span><span style="left: 12.5%">03:00</span
-                        ><span style="left: 25%">06:00</span><span style="left: 37.5%">09:00</span
-                        ><span style="left: 50%">12:00</span><span style="left: 62.5%">15:00</span
-                        ><span style="left: 75%">18:00</span><span style="left: 87.5%">21:00</span
-                        ><span style="left: 97.9%">now</span>
+                        <span style="left: 0%">17:30</span><span style="left: 7.7%">18:00</span
+                        ><span style="left: 23.1%">19:00</span><span style="left: 38.5%">20:00</span
+                        ><span style="left: 53.8%">21:00</span><span style="left: 69.2%">22:00</span
+                        ><span style="left: 84.6%">23:00</span><span style="left: 92.3%">now</span>
                     </div>
                     <div class="tbl t-spans">
                         <div class="thead"><span>span</span><span>builds</span><span>cause</span><span>fix</span></div>
@@ -1491,7 +1650,7 @@
                         <div class="phrow">
                             <h1>Pull requests</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -1499,47 +1658,66 @@
                     <p class="pstate">
                         <span class="sw ok">OK</span
                         ><span
-                            >Every member is within its target. The pull requests waiting on the owner are listed below
-                            and left out of the times.</span
+                            >Every judged member is within its target. Time to merge and merge ratio had too few pull
+                            requests in the last hour to judge (2 merged, 3 created), so they are gray with their 6 h
+                            values. The pull requests waiting on the owner are listed below and left out of the
+                            times.</span
                         >
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
-                        <a class="row" href="#"
+                        <a class="row dim" href="#"
                             ><span class="nm"
-                                >Time to merge<small>median, ready to merged, owner waits left out</small></span
-                            ><span class="val">52<small> min</small></span
-                            ><span class="tg">target &lt;= 60 min, red &gt; 180</span
+                                >Time to merge<small
+                                    >median, ready to merged, owner waits left out; 2 merged in 1 h</small
+                                ></span
+                            ><span class="val">--<small class="v6">1 h; 6 h 74 min</small></span
+                            ><span class="tg">target &lt;= 60 min, red &gt; 180, 6 h too</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="6.2" width="120" height="2" />
-                                    <rect x="0" y="1" width="80.3" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="40.2" y="18" text-anchor="middle">no history</text>
+                                    <rect x="0" y="1" width="25.9" height="26" style="fill: url(#nh)" />
+                                    <polyline class="ctx" points="27.4,13.7 29,11.9" />
                                     <polyline
-                                        points="82.3,13.7 87.3,11.9 92.2,9.8 97.2,6.3 102.1,7.8 107.1,5.4 112,3.9 117,3"
+                                        points="35,11.6 38.6,11.1 42.1,10.6 45.7,10.1 49.3,9.4 52.8,8.5 56.4,7.6 60,6.7 63.5,6.5 67.1,6.9 70.7,7.2 74.2,7.6 77.8,7.5 81.3,6.9 84.9,6.3 88.5,5.7 92,5.2 95.6,4.8 99.2,4.5 102.7,4.1 106.3,3.8 109.9,3.5 113.4,3.1 117,3"
                                     />
-                                    <line class="segedge" x1="107.1" y1="5.4" x2="112" y2="3.9" />
-                                    <line class="seg warn" x1="107.1" y1="5.4" x2="112" y2="3.9" />
-                                    <line class="segedge" x1="112" y1="3.9" x2="117" y2="3" />
-                                    <line class="seg warn" x1="112" y1="3.9" x2="117" y2="3" />
-                                    <circle class="pt warn" cx="97.2" cy="6.3" r="2.6" />
+                                    <line class="segedge" x1="88.5" y1="5.7" x2="92" y2="5.2" />
+                                    <line class="seg warn" x1="88.5" y1="5.7" x2="92" y2="5.2" />
+                                    <line class="segedge" x1="92" y1="5.2" x2="95.6" y2="4.8" />
+                                    <line class="seg warn" x1="92" y1="5.2" x2="95.6" y2="4.8" />
+                                    <line class="segedge" x1="95.6" y1="4.8" x2="99.2" y2="4.5" />
+                                    <line class="seg warn" x1="95.6" y1="4.8" x2="99.2" y2="4.5" />
+                                    <line class="segedge" x1="99.2" y1="4.5" x2="102.7" y2="4.1" />
+                                    <line class="seg warn" x1="99.2" y1="4.5" x2="102.7" y2="4.1" />
+                                    <line class="segedge" x1="102.7" y1="4.1" x2="106.3" y2="3.8" />
+                                    <line class="seg warn" x1="102.7" y1="4.1" x2="106.3" y2="3.8" />
+                                    <line class="segedge" x1="106.3" y1="3.8" x2="109.9" y2="3.5" />
+                                    <line class="seg warn" x1="106.3" y1="3.8" x2="109.9" y2="3.5" />
+                                    <line class="segedge" x1="109.9" y1="3.5" x2="113.4" y2="3.1" />
+                                    <line class="seg warn" x1="109.9" y1="3.5" x2="113.4" y2="3.1" />
+                                    <line class="segedge" x1="113.4" y1="3.1" x2="117" y2="3" />
+                                    <line class="seg warn" x1="113.4" y1="3.1" x2="117" y2="3" />
+                                    <circle class="pt warn" cx="60" cy="6.7" r="2.6" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
-                            ><span class="st"></span
+                            ><span class="st"><span class="sw low">too few, n=2 of 5</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Open pull requests<small>not draft</small></span
-                            ><span class="val">14</span><span class="tg">target &lt;= 15, red &gt; 25</span
+                            ><span class="val">14<small class="v6">now</small></span
+                            ><span class="tg">target &lt;= 15, red &gt; 25</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="2" width="120" height="2" />
-                                    <rect x="0" y="1" width="80.3" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="40.2" y="18" text-anchor="middle">no history</text>
+                                    <rect x="0" y="1" width="25.9" height="26" style="fill: url(#nh)" />
+                                    <polyline class="ctx" points="27.4,20.6 29,13.3" />
                                     <polyline
-                                        points="82.3,20.6 87.3,13.3 92.2,8.9 97.2,5.9 102.1,3 107.1,4.5 112,4.5 117,4.5"
+                                        points="35,12.8 38.6,11.7 42.1,10.6 45.7,9.4 49.3,8.5 52.8,7.8 56.4,7 60,6.3 63.5,5.5 67.1,4.8 70.7,4.1 74.2,3.4 77.8,3.2 81.3,3.6 84.9,3.9 88.5,4.3 92,4.5 95.6,4.5 99.2,4.5 102.7,4.5 106.3,4.5 109.9,4.5 113.4,4.5 117,4.5"
                                     />
                                     <circle class="now" cx="117" cy="4.5" r="2.4" /></svg></span
                             ><span class="st"></span
@@ -1547,27 +1725,29 @@
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Oldest open<small>not waiting on the owner</small></span
-                            ><span class="val">6.1<small> h</small></span
+                            ><span class="val">6.1<small> h</small><small class="v6">now</small></span
                             ><span class="tg">target &lt; 24 h, red &gt; 72</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#"
-                            ><span class="nm">Merge ratio<small>merged / created</small></span
-                            ><span class="val">0.93</span><span class="tg">target &gt;= 0.9, red &lt; 0.7</span
-                            ><span class="sp"></span><span class="st"></span
+                        ><a class="row dim" href="#"
+                            ><span class="nm">Merge ratio<small>merged / created; 3 created in 1 h</small></span
+                            ><span class="val">--<small class="v6">1 h; 6 h 0.64</small></span
+                            ><span class="tg">target &gt;= 0.9, red &lt; 0.7, 6 h too</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">too few, n=3 of 5</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Auto-merge stuck<small>armed, green, unmerged 2 h</small></span
-                            ><span class="val">0</span><span class="tg">target 0, red &gt;= 3</span
-                            ><span class="sp"></span><span class="st"></span
+                            ><span class="val">0<small class="v6">now</small></span
+                            ><span class="tg">target 0, red &gt;= 3</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm"
                                 >Screenshot backlog<small>oldest pictures waiting for the owner</small></span
-                            ><span class="val">2.1<small> h</small></span
+                            ><span class="val">2.1<small> h</small><small class="v6">now</small></span
                             ><span class="tg">target &lt; 24 h, red &gt; 72</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -1576,7 +1756,8 @@
                     </div>
                     <h2>
                         Where the time goes<span class="h2sub"
-                            >pull requests merged in 24 h, median minutes per stage; owner waits left out</span
+                            >only 2 merged in the last 1 h, so the last 6 h (9 merged); median minutes per stage; owner
+                            waits left out</span
                         >
                     </h2>
                     <div class="bars">
@@ -1636,7 +1817,7 @@
                         <div class="phrow">
                             <h1>CI</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -1644,102 +1825,196 @@
                     <p class="pstate">
                         <span class="sw bad">FAILING</span
                         ><span
-                            >Runner wait p90 is 31 min (red &gt; 15): 57 of the plan's 60 jobs are running and 235 are
-                            queued. Also failing: longest queued now 68 min, first-attempt pass rate 66%, saturated time
-                            2.6 h, hangs 6.</span
+                            >Runner wait p90 is 31 min over the last hour (red &gt; 15): 57 of the plan's 60 jobs are
+                            running and 235 are queued. Also failing: longest queued now 68 min, saturated all of the
+                            last hour, first-attempt pass rate 55% (6 h: 63%). Hangs have cleared: none in the last
+                            hour, 6 in 6 h.</span
                         >
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#ci-runners"
-                            ><span class="nm">Runner wait<small>p90, job start minus created</small></span
-                            ><span class="val">31<small> min</small></span
+                            ><span class="nm">Runner wait<small>p90, job start minus created; n=168 jobs</small></span
+                            ><span class="val">31<small> min</small><small class="v6">1 h; 6 h 24 min</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="21.5" width="120" height="2" />
                                     <polyline
-                                        points="3,24.4 8,24.5 12.9,24.6 17.9,24.5 22.8,24.4 27.8,24.5 32.7,24.3 37.7,24.4 42.7,24.2 47.6,24.4 52.6,24.5 57.5,24.3 62.5,24.1 67.4,24.3 72.4,24.2 77.3,24 82.3,23.5 87.3,22 92.2,20.5 97.2,16 102.1,12 107.1,8 112,4.5 117,3"
+                                        class="ctx"
+                                        points="1,24.4 2.6,24.5 4.3,24.6 5.9,24.5 7.6,24.4 9.2,24.5 10.9,24.3 12.5,24.4 14.2,24.2 15.8,24.4 17.5,24.5 19.1,24.3 20.8,24.1 22.4,24.3 24.1,24.2 25.7,24 27.4,23.5 29,22"
                                     />
-                                    <line class="segedge" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="seg warn" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="segedge" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg warn" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg bad" x1="97.2" y1="16" x2="102.1" y2="12" />
-                                    <line class="seg bad" x1="102.1" y1="12" x2="107.1" y2="8" />
-                                    <line class="seg bad" x1="107.1" y1="8" x2="112" y2="4.5" />
-                                    <line class="seg bad" x1="112" y1="4.5" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,21.8 38.6,21.4 42.1,21.1 45.7,20.7 49.3,19.9 52.8,18.8 56.4,17.7 60,16.6 63.5,15.5 67.1,14.5 70.7,13.5 74.2,12.5 77.8,11.5 81.3,10.5 84.9,9.5 88.5,8.5 92,7.6 95.6,6.7 99.2,5.8 102.7,4.9 106.3,4.2 109.9,3.8 113.4,3.2 117,3"
+                                    />
+                                    <line class="segedge" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="seg warn" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="segedge" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="seg warn" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="segedge" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="seg warn" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="segedge" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="seg warn" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="segedge" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="seg warn" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="segedge" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="seg warn" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="segedge" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg warn" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg bad" x1="60" y1="16.6" x2="63.5" y2="15.5" />
+                                    <line class="seg bad" x1="63.5" y1="15.5" x2="67.1" y2="14.5" />
+                                    <line class="seg bad" x1="67.1" y1="14.5" x2="70.7" y2="13.5" />
+                                    <line class="seg bad" x1="70.7" y1="13.5" x2="74.2" y2="12.5" />
+                                    <line class="seg bad" x1="74.2" y1="12.5" x2="77.8" y2="11.5" />
+                                    <line class="seg bad" x1="77.8" y1="11.5" x2="81.3" y2="10.5" />
+                                    <line class="seg bad" x1="81.3" y1="10.5" x2="84.9" y2="9.5" />
+                                    <line class="seg bad" x1="84.9" y1="9.5" x2="88.5" y2="8.5" />
+                                    <line class="seg bad" x1="88.5" y1="8.5" x2="92" y2="7.6" />
+                                    <line class="seg bad" x1="92" y1="7.6" x2="95.6" y2="6.7" />
+                                    <line class="seg bad" x1="95.6" y1="6.7" x2="99.2" y2="5.8" />
+                                    <line class="seg bad" x1="99.2" y1="5.8" x2="102.7" y2="4.9" />
+                                    <line class="seg bad" x1="102.7" y1="4.9" x2="106.3" y2="4.2" />
+                                    <line class="seg bad" x1="106.3" y1="4.2" x2="109.9" y2="3.8" />
+                                    <line class="seg bad" x1="109.9" y1="3.8" x2="113.4" y2="3.2" />
+                                    <line class="seg bad" x1="113.4" y1="3.2" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-runners"
                             ><span class="nm">Longest queued now<small>a master build run, no job yet</small></span
-                            ><span class="val">68<small> min</small></span
+                            ><span class="val">68<small> min</small><small class="v6">now</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="22.4" width="120" height="2" />
                                     <polyline
-                                        points="3,24.7 8,24.7 12.9,24.7 17.9,24.7 22.8,24.7 27.8,24.7 32.7,24.7 37.7,24.7 42.7,24.7 47.6,24.7 52.6,24.7 57.5,24.7 62.5,24.7 67.4,24.7 72.4,24.7 77.3,24.7 82.3,24 87.3,22.7 92.2,21.1 97.2,17.2 102.1,12.4 107.1,8.5 112,4.9 117,3"
+                                        class="ctx"
+                                        points="1,24.7 2.6,24.7 4.3,24.7 5.9,24.7 7.6,24.7 9.2,24.7 10.9,24.7 12.5,24.7 14.2,24.7 15.8,24.7 17.5,24.7 19.1,24.7 20.8,24.7 22.4,24.7 24.1,24.7 25.7,24.7 27.4,24 29,22.7"
                                     />
-                                    <line class="segedge" x1="87.3" y1="22.7" x2="92.2" y2="21.1" />
-                                    <line class="seg warn" x1="87.3" y1="22.7" x2="92.2" y2="21.1" />
-                                    <line class="segedge" x1="92.2" y1="21.1" x2="97.2" y2="17.2" />
-                                    <line class="seg warn" x1="92.2" y1="21.1" x2="97.2" y2="17.2" />
-                                    <line class="seg bad" x1="97.2" y1="17.2" x2="102.1" y2="12.4" />
-                                    <line class="seg bad" x1="102.1" y1="12.4" x2="107.1" y2="8.5" />
-                                    <line class="seg bad" x1="107.1" y1="8.5" x2="112" y2="4.9" />
-                                    <line class="seg bad" x1="112" y1="4.9" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,22.5 38.6,22.1 42.1,21.7 45.7,21.3 49.3,20.6 52.8,19.6 56.4,18.7 60,17.7 63.5,16.6 67.1,15.4 70.7,14.2 74.2,13 77.8,11.9 81.3,10.9 84.9,10 88.5,9 92,8.1 95.6,7.2 99.2,6.2 102.7,5.4 106.3,4.6 109.9,4 113.4,3.3 117,3"
+                                    />
+                                    <line class="segedge" x1="35" y1="22.5" x2="38.6" y2="22.1" />
+                                    <line class="seg warn" x1="35" y1="22.5" x2="38.6" y2="22.1" />
+                                    <line class="segedge" x1="38.6" y1="22.1" x2="42.1" y2="21.7" />
+                                    <line class="seg warn" x1="38.6" y1="22.1" x2="42.1" y2="21.7" />
+                                    <line class="segedge" x1="42.1" y1="21.7" x2="45.7" y2="21.3" />
+                                    <line class="seg warn" x1="42.1" y1="21.7" x2="45.7" y2="21.3" />
+                                    <line class="segedge" x1="45.7" y1="21.3" x2="49.3" y2="20.6" />
+                                    <line class="seg warn" x1="45.7" y1="21.3" x2="49.3" y2="20.6" />
+                                    <line class="segedge" x1="49.3" y1="20.6" x2="52.8" y2="19.6" />
+                                    <line class="seg warn" x1="49.3" y1="20.6" x2="52.8" y2="19.6" />
+                                    <line class="segedge" x1="52.8" y1="19.6" x2="56.4" y2="18.7" />
+                                    <line class="seg warn" x1="52.8" y1="19.6" x2="56.4" y2="18.7" />
+                                    <line class="segedge" x1="56.4" y1="18.7" x2="60" y2="17.7" />
+                                    <line class="seg warn" x1="56.4" y1="18.7" x2="60" y2="17.7" />
+                                    <line class="seg bad" x1="60" y1="17.7" x2="63.5" y2="16.6" />
+                                    <line class="seg bad" x1="63.5" y1="16.6" x2="67.1" y2="15.4" />
+                                    <line class="seg bad" x1="67.1" y1="15.4" x2="70.7" y2="14.2" />
+                                    <line class="seg bad" x1="70.7" y1="14.2" x2="74.2" y2="13" />
+                                    <line class="seg bad" x1="74.2" y1="13" x2="77.8" y2="11.9" />
+                                    <line class="seg bad" x1="77.8" y1="11.9" x2="81.3" y2="10.9" />
+                                    <line class="seg bad" x1="81.3" y1="10.9" x2="84.9" y2="10" />
+                                    <line class="seg bad" x1="84.9" y1="10" x2="88.5" y2="9" />
+                                    <line class="seg bad" x1="88.5" y1="9" x2="92" y2="8.1" />
+                                    <line class="seg bad" x1="92" y1="8.1" x2="95.6" y2="7.2" />
+                                    <line class="seg bad" x1="95.6" y1="7.2" x2="99.2" y2="6.2" />
+                                    <line class="seg bad" x1="99.2" y1="6.2" x2="102.7" y2="5.4" />
+                                    <line class="seg bad" x1="102.7" y1="5.4" x2="106.3" y2="4.6" />
+                                    <line class="seg bad" x1="106.3" y1="4.6" x2="109.9" y2="4" />
+                                    <line class="seg bad" x1="109.9" y1="4" x2="113.4" y2="3.3" />
+                                    <line class="seg bad" x1="113.4" y1="3.3" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-causes"
                             ><span class="nm"
-                                >First-attempt pass rate<small>pull request check suites, n=50</small></span
-                            ><span class="val">66<small> %</small></span
-                            ><span class="tg">target &gt;= 85%, red &lt; 70</span
+                                >First-attempt pass rate<small>pull request check suites; n=11</small></span
+                            ><span class="val">55<small> %</small><small class="v6">1 h; 6 h 63%</small></span
+                            ><span class="tg">target &gt;= 85%, red &lt; 70, 6 h too</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="5.4" width="120" height="2" />
-                                    <rect x="0" y="1" width="80.3" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="40.2" y="18" text-anchor="middle">no history</text>
+                                    <rect x="0" y="1" width="25.9" height="26" style="fill: url(#nh)" />
+                                    <polyline class="ctx" points="27.4,3 29,9.2" />
                                     <polyline
-                                        points="82.3,3 87.3,9.2 92.2,14 97.2,22.9 102.1,25 107.1,22.3 112,20.9 117,19.5"
+                                        points="35,9.8 38.6,11 42.1,12.2 45.7,13.4 49.3,15.1 52.8,17.3 56.4,19.6 60,21.8 63.5,23.2 67.1,23.7 70.7,24.2 74.2,24.7 77.8,24.7 81.3,24 84.9,23.3 88.5,22.6 92,22.1 95.6,21.8 99.2,21.4 102.7,21.1 106.3,20.7 109.9,20.2 113.4,19.7 117,19.5"
                                     />
-                                    <line class="segedge" x1="87.3" y1="9.2" x2="92.2" y2="14" />
-                                    <line class="seg warn" x1="87.3" y1="9.2" x2="92.2" y2="14" />
-                                    <line class="segedge" x1="92.2" y1="14" x2="97.2" y2="22.9" />
-                                    <line class="seg warn" x1="92.2" y1="14" x2="97.2" y2="22.9" />
-                                    <line class="seg bad" x1="97.2" y1="22.9" x2="102.1" y2="25" />
-                                    <line class="seg bad" x1="102.1" y1="25" x2="107.1" y2="22.3" />
-                                    <line class="seg bad" x1="107.1" y1="22.3" x2="112" y2="20.9" />
-                                    <line class="seg bad" x1="112" y1="20.9" x2="117" y2="19.5" />
+                                    <line class="segedge" x1="35" y1="9.8" x2="38.6" y2="11" />
+                                    <line class="seg warn" x1="35" y1="9.8" x2="38.6" y2="11" />
+                                    <line class="segedge" x1="38.6" y1="11" x2="42.1" y2="12.2" />
+                                    <line class="seg warn" x1="38.6" y1="11" x2="42.1" y2="12.2" />
+                                    <line class="segedge" x1="42.1" y1="12.2" x2="45.7" y2="13.4" />
+                                    <line class="seg warn" x1="42.1" y1="12.2" x2="45.7" y2="13.4" />
+                                    <line class="segedge" x1="45.7" y1="13.4" x2="49.3" y2="15.1" />
+                                    <line class="seg warn" x1="45.7" y1="13.4" x2="49.3" y2="15.1" />
+                                    <line class="segedge" x1="49.3" y1="15.1" x2="52.8" y2="17.3" />
+                                    <line class="seg warn" x1="49.3" y1="15.1" x2="52.8" y2="17.3" />
+                                    <line class="segedge" x1="52.8" y1="17.3" x2="56.4" y2="19.6" />
+                                    <line class="seg warn" x1="52.8" y1="17.3" x2="56.4" y2="19.6" />
+                                    <line class="segedge" x1="56.4" y1="19.6" x2="60" y2="21.8" />
+                                    <line class="seg warn" x1="56.4" y1="19.6" x2="60" y2="21.8" />
+                                    <line class="seg bad" x1="60" y1="21.8" x2="63.5" y2="23.2" />
+                                    <line class="seg bad" x1="63.5" y1="23.2" x2="67.1" y2="23.7" />
+                                    <line class="seg bad" x1="67.1" y1="23.7" x2="70.7" y2="24.2" />
+                                    <line class="seg bad" x1="70.7" y1="24.2" x2="74.2" y2="24.7" />
+                                    <line class="seg bad" x1="74.2" y1="24.7" x2="77.8" y2="24.7" />
+                                    <line class="seg bad" x1="77.8" y1="24.7" x2="81.3" y2="24" />
+                                    <line class="seg bad" x1="81.3" y1="24" x2="84.9" y2="23.3" />
+                                    <line class="seg bad" x1="84.9" y1="23.3" x2="88.5" y2="22.6" />
+                                    <line class="seg bad" x1="88.5" y1="22.6" x2="92" y2="22.1" />
+                                    <line class="seg bad" x1="92" y1="22.1" x2="95.6" y2="21.8" />
+                                    <line class="seg bad" x1="95.6" y1="21.8" x2="99.2" y2="21.4" />
+                                    <line class="seg bad" x1="99.2" y1="21.4" x2="102.7" y2="21.1" />
+                                    <line class="seg bad" x1="102.7" y1="21.1" x2="106.3" y2="20.7" />
+                                    <line class="seg bad" x1="106.3" y1="20.7" x2="109.9" y2="20.2" />
+                                    <line class="seg bad" x1="109.9" y1="20.2" x2="113.4" y2="19.7" />
+                                    <line class="seg bad" x1="113.4" y1="19.7" x2="117" y2="19.5" />
                                     <circle class="now" cx="117" cy="19.5" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-runners"
                             ><span class="nm"
-                                >Saturated time<small>running within 3 of the limit, jobs queued</small></span
-                            ><span class="val">2.6<small> h</small></span
-                            ><span class="tg">target 0, red &gt;= 1 h</span
+                                >Saturated time<small>minutes running within 3 of the limit, jobs queued</small></span
+                            ><span class="val">60<small> min</small><small class="v6">1 h; 6 h 4.2 h</small></span
+                            ><span class="tg">target 0, red &gt;= 15 min</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
-                                    <rect class="band" x="0" y="23.8" width="120" height="2" />
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
+                                    <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,11.8 102.1,3 107.1,3 112,3 117,20.6"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="97.2" y1="11.8" x2="102.1" y2="3" />
-                                    <line class="seg bad" x1="102.1" y1="3" x2="107.1" y2="3" />
-                                    <line class="seg bad" x1="107.1" y1="3" x2="112" y2="3" />
-                                    <line class="segedge" x1="112" y1="3" x2="117" y2="20.6" />
-                                    <line class="seg warn" x1="112" y1="3" x2="117" y2="20.6" />
-                                    <circle class="now" cx="117" cy="20.6" r="2.4" /></svg></span
+                                    <polyline
+                                        points="35,25 38.6,25 42.1,25 45.7,25 49.3,25 52.8,25 56.4,25 60,10.3 63.5,3 67.1,3 70.7,3 74.2,3 77.8,3 81.3,3 84.9,3 88.5,3 92,3 95.6,3 99.2,3 102.7,3 106.3,3 109.9,3 113.4,3 117,3"
+                                    />
+                                    <line class="seg bad" x1="60" y1="10.3" x2="63.5" y2="3" />
+                                    <line class="seg bad" x1="63.5" y1="3" x2="67.1" y2="3" />
+                                    <line class="seg bad" x1="67.1" y1="3" x2="70.7" y2="3" />
+                                    <line class="seg bad" x1="70.7" y1="3" x2="74.2" y2="3" />
+                                    <line class="seg bad" x1="74.2" y1="3" x2="77.8" y2="3" />
+                                    <line class="seg bad" x1="77.8" y1="3" x2="81.3" y2="3" />
+                                    <line class="seg bad" x1="81.3" y1="3" x2="84.9" y2="3" />
+                                    <line class="seg bad" x1="84.9" y1="3" x2="88.5" y2="3" />
+                                    <line class="seg bad" x1="88.5" y1="3" x2="92" y2="3" />
+                                    <line class="seg bad" x1="92" y1="3" x2="95.6" y2="3" />
+                                    <line class="seg bad" x1="95.6" y1="3" x2="99.2" y2="3" />
+                                    <line class="seg bad" x1="99.2" y1="3" x2="102.7" y2="3" />
+                                    <line class="seg bad" x1="102.7" y1="3" x2="106.3" y2="3" />
+                                    <line class="seg bad" x1="106.3" y1="3" x2="109.9" y2="3" />
+                                    <line class="seg bad" x1="109.9" y1="3" x2="113.4" y2="3" />
+                                    <line class="seg bad" x1="113.4" y1="3" x2="117" y2="3" />
+                                    <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
@@ -1748,7 +2023,7 @@
                                 >Runners not being assigned<small
                                     >jobs wait with room to run; githubstatus.com</small
                                 ></span
-                            ><span class="val">0<small> min</small></span
+                            ><span class="val">0<small> min</small><small class="v6">now</small></span
                             ><span class="tg">target 0 min, red &gt;= 15</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -1756,102 +2031,117 @@
                         ><a class="row" href="#master-red"
                             ><span class="nm"
                                 >Hangs<small>jobs ended at their own timeout; cleared 2.8 h ago</small></span
-                            ><span class="val">6</span><span class="tg">target 0 in 7 d, red any in 24 h</span
+                            ><span class="val">0<small class="v6">1 h; 6 h 6</small></span
+                            ><span class="tg">target 0, red &gt;= 2</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,20.6 102.1,3 107.1,25 112,25 117,25"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="97.2" y1="20.6" x2="102.1" y2="3" />
+                                    <polyline
+                                        points="35,25 38.6,25 42.1,25 45.7,25 49.3,24.4 52.8,23.4 56.4,22.2 60,21.2 63.5,18.4 67.1,14 70.7,9.6 74.2,5.2 77.8,5.8 81.3,11.2 84.9,16.8 88.5,22.2 92,25 95.6,25 99.2,25 102.7,25 106.3,25 109.9,25 113.4,25 117,25"
+                                    />
+                                    <line class="seg bad" x1="60" y1="21.2" x2="63.5" y2="18.4" />
+                                    <line class="seg bad" x1="63.5" y1="18.4" x2="67.1" y2="14" />
+                                    <line class="seg bad" x1="67.1" y1="14" x2="70.7" y2="9.6" />
+                                    <line class="seg bad" x1="70.7" y1="9.6" x2="74.2" y2="5.2" />
                                     <circle class="now" cx="117" cy="25" r="2.4" /></svg></span
-                            ><span class="st"><span class="sw bad">FAILING</span></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
-                            ><span class="nm">PR check duration<small>median run / its kind's budget</small></span
-                            ><span class="val">0.9<small> x</small></span
-                            ><span class="tg">target &lt;= 1x, red &gt; 2x</span
+                            ><span class="nm"
+                                >PR check duration<small>median run / its kind's budget; n=6 runs</small></span
+                            ><span class="val">0.9<small> x</small><small class="v6">1 h; 6 h 1.0x</small></span
+                            ><span class="tg">target &lt;= 1x, red &gt; 2x, 6 h too</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="2" width="120" height="2" />
-                                    <rect x="0" y="1" width="80.3" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="40.2" y="18" text-anchor="middle">no history</text>
+                                    <rect x="0" y="1" width="25.9" height="26" style="fill: url(#nh)" />
+                                    <polyline class="ctx" points="27.4,7.4 29,7.4" />
                                     <polyline
-                                        points="82.3,7.4 87.3,7.4 92.2,5.2 97.2,5.2 102.1,3 107.1,5.2 112,5.2 117,5.2"
+                                        points="35,7.1 38.6,6.6 42.1,6 45.7,5.5 49.3,5.2 52.8,5.2 56.4,5.2 60,5.2 63.5,4.9 67.1,4.4 70.7,3.8 74.2,3.3 77.8,3.3 81.3,3.8 84.9,4.4 88.5,4.9 92,5.2 95.6,5.2 99.2,5.2 102.7,5.2 106.3,5.2 109.9,5.2 113.4,5.2 117,5.2"
                                     />
                                     <circle class="now" cx="117" cy="5.2" r="2.4" /></svg></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row" href="#ci-shards"
+                        ><a class="row dim" href="#ci-shards"
                             ><span class="nm"
-                                >Full-run shards over budget<small>median past its budget, 7 d</small></span
-                            ><span class="val">1</span><span class="tg">target 0, red &gt;= 3</span
-                            ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
+                                >Full-run shards over budget<small
+                                    >slow measure: medians past their budget, 7 d</small
+                                ></span
+                            ><span class="val">1<small class="v6">7 d</small></span
+                            ><span class="tg">target 0, red &gt;= 3</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">slow measure</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#ci-shards"
-                            ><span class="nm"
-                                >Pull request bins over 8 min<small>packing target, since 18:09</small></span
-                            ><span class="val">6<small> %</small></span
-                            ><span class="tg">target &lt;= 10%, red &gt; 25</span><span class="sp"></span
+                            ><span class="nm">Pull request bins over 8 min<small>packing target; n=34 bins</small></span
+                            ><span class="val">6<small> %</small><small class="v6">1 h; 6 h 7%</small></span
+                            ><span class="tg">target &lt;= 10%, red &gt; 25, 6 h too</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#ci-superseded"
                             ><span class="nm"
                                 >Superseded runs running<small>no cancel-in-progress; not judged yet</small></span
-                            ><span class="val">2</span><span class="tg">informational until it fires</span
-                            ><span class="sp"></span><span class="st"></span
+                            ><span class="val">2<small class="v6">now</small></span
+                            ><span class="tg">informational until it fires</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
-                            ><span class="nm">Reruns<small>attempts above 1 / runs</small></span
-                            ><span class="val">4.1<small> %</small></span
-                            ><span class="tg">target &lt; 5%, red &gt; 15</span><span class="sp"></span
+                            ><span class="nm">Reruns<small>attempts above 1 / runs; n=49</small></span
+                            ><span class="val">4.1<small> %</small><small class="v6">1 h; 6 h 3.8%</small></span
+                            ><span class="tg">target &lt; 5%, red &gt; 15, 6 h too</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
                     </div>
                     <h2 id="ci-causes">
-                        Why first attempts failed<span class="h2sub">17 failed pull request suites, 24 h</span>
+                        Why first attempts failed<span class="h2sub">5 failed pull request suites, last 1 h</span>
                     </h2>
                     <div class="bars">
                         <div class="br">
                             <span class="bl">shared: the same check in 3 or more pull requests</span
                             ><span class="bv"
-                                ><span class="hb bad" style="width: 100%"></span><span class="bn2">8</span></span
+                                ><span class="hb bad" style="width: 100%"></span><span class="bn2">3</span></span
                             >
                         </div>
                         <div class="br">
                             <span class="bl">shared: an aggregator failing alone</span
                             ><span class="bv"
-                                ><span class="hb bad" style="width: 25%"></span><span class="bn2">2</span></span
+                                ><span class="hb bad" style="width: 0%"></span><span class="bn2">0</span></span
                             >
                         </div>
                         <div class="br">
                             <span class="bl">the change itself</span
                             ><span class="bv"
-                                ><span class="hb" style="width: 50%"></span><span class="bn2">4</span></span
+                                ><span class="hb" style="width: 33.3%"></span><span class="bn2">1</span></span
                             >
                         </div>
                         <div class="br">
                             <span class="bl">flaky</span
                             ><span class="bv"
-                                ><span class="hb" style="width: 25%"></span><span class="bn2">2</span></span
+                                ><span class="hb" style="width: 33.3%"></span><span class="bn2">1</span></span
                             >
                         </div>
                         <div class="br">
                             <span class="bl">infrastructure</span
                             ><span class="bv"
-                                ><span class="hb" style="width: 12.5%"></span><span class="bn2">1</span></span
+                                ><span class="hb" style="width: 0%"></span><span class="bn2">0</span></span
                             >
                         </div>
                     </div>
                     <h2 id="ci-shards">
-                        Shard times<span class="h2sub">test step, attempt 1, successful runs, 7 d</span
+                        Shard times<span class="h2sub">slow measure; test step, attempt 1, successful runs</span
+                        ><span class="seg"><span class="on">7 d</span><span>28 d</span></span
                         ><span class="seg"><span class="on">full runs</span><span>pull request bins</span></span>
                     </h2>
                     <div class="shards">
@@ -1974,7 +2264,7 @@
                         <div class="phrow">
                             <h1>Runners</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -1988,70 +2278,140 @@
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#"
-                            ><span class="nm">Runner wait<small>p90, organization</small></span
-                            ><span class="val">31<small> min</small></span
+                            ><span class="nm">Runner wait<small>p90, organization; n=168 jobs</small></span
+                            ><span class="val">31<small> min</small><small class="v6">1 h; 6 h 24 min</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="21.5" width="120" height="2" />
                                     <polyline
-                                        points="3,24.4 8,24.5 12.9,24.6 17.9,24.5 22.8,24.4 27.8,24.5 32.7,24.3 37.7,24.4 42.7,24.2 47.6,24.4 52.6,24.5 57.5,24.3 62.5,24.1 67.4,24.3 72.4,24.2 77.3,24 82.3,23.5 87.3,22 92.2,20.5 97.2,16 102.1,12 107.1,8 112,4.5 117,3"
+                                        class="ctx"
+                                        points="1,24.4 2.6,24.5 4.3,24.6 5.9,24.5 7.6,24.4 9.2,24.5 10.9,24.3 12.5,24.4 14.2,24.2 15.8,24.4 17.5,24.5 19.1,24.3 20.8,24.1 22.4,24.3 24.1,24.2 25.7,24 27.4,23.5 29,22"
                                     />
-                                    <line class="segedge" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="seg warn" x1="87.3" y1="22" x2="92.2" y2="20.5" />
-                                    <line class="segedge" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg warn" x1="92.2" y1="20.5" x2="97.2" y2="16" />
-                                    <line class="seg bad" x1="97.2" y1="16" x2="102.1" y2="12" />
-                                    <line class="seg bad" x1="102.1" y1="12" x2="107.1" y2="8" />
-                                    <line class="seg bad" x1="107.1" y1="8" x2="112" y2="4.5" />
-                                    <line class="seg bad" x1="112" y1="4.5" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,21.8 38.6,21.4 42.1,21.1 45.7,20.7 49.3,19.9 52.8,18.8 56.4,17.7 60,16.6 63.5,15.5 67.1,14.5 70.7,13.5 74.2,12.5 77.8,11.5 81.3,10.5 84.9,9.5 88.5,8.5 92,7.6 95.6,6.7 99.2,5.8 102.7,4.9 106.3,4.2 109.9,3.8 113.4,3.2 117,3"
+                                    />
+                                    <line class="segedge" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="seg warn" x1="35" y1="21.8" x2="38.6" y2="21.4" />
+                                    <line class="segedge" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="seg warn" x1="38.6" y1="21.4" x2="42.1" y2="21.1" />
+                                    <line class="segedge" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="seg warn" x1="42.1" y1="21.1" x2="45.7" y2="20.7" />
+                                    <line class="segedge" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="seg warn" x1="45.7" y1="20.7" x2="49.3" y2="19.9" />
+                                    <line class="segedge" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="seg warn" x1="49.3" y1="19.9" x2="52.8" y2="18.8" />
+                                    <line class="segedge" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="seg warn" x1="52.8" y1="18.8" x2="56.4" y2="17.7" />
+                                    <line class="segedge" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg warn" x1="56.4" y1="17.7" x2="60" y2="16.6" />
+                                    <line class="seg bad" x1="60" y1="16.6" x2="63.5" y2="15.5" />
+                                    <line class="seg bad" x1="63.5" y1="15.5" x2="67.1" y2="14.5" />
+                                    <line class="seg bad" x1="67.1" y1="14.5" x2="70.7" y2="13.5" />
+                                    <line class="seg bad" x1="70.7" y1="13.5" x2="74.2" y2="12.5" />
+                                    <line class="seg bad" x1="74.2" y1="12.5" x2="77.8" y2="11.5" />
+                                    <line class="seg bad" x1="77.8" y1="11.5" x2="81.3" y2="10.5" />
+                                    <line class="seg bad" x1="81.3" y1="10.5" x2="84.9" y2="9.5" />
+                                    <line class="seg bad" x1="84.9" y1="9.5" x2="88.5" y2="8.5" />
+                                    <line class="seg bad" x1="88.5" y1="8.5" x2="92" y2="7.6" />
+                                    <line class="seg bad" x1="92" y1="7.6" x2="95.6" y2="6.7" />
+                                    <line class="seg bad" x1="95.6" y1="6.7" x2="99.2" y2="5.8" />
+                                    <line class="seg bad" x1="99.2" y1="5.8" x2="102.7" y2="4.9" />
+                                    <line class="seg bad" x1="102.7" y1="4.9" x2="106.3" y2="4.2" />
+                                    <line class="seg bad" x1="106.3" y1="4.2" x2="109.9" y2="3.8" />
+                                    <line class="seg bad" x1="109.9" y1="3.8" x2="113.4" y2="3.2" />
+                                    <line class="seg bad" x1="113.4" y1="3.2" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Longest queued now<small>a master build run, no job yet</small></span
-                            ><span class="val">68<small> min</small></span
+                            ><span class="val">68<small> min</small><small class="v6">now</small></span
                             ><span class="tg">target &lt;= 5 min, red &gt; 15</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="22.4" width="120" height="2" />
                                     <polyline
-                                        points="3,24.7 8,24.7 12.9,24.7 17.9,24.7 22.8,24.7 27.8,24.7 32.7,24.7 37.7,24.7 42.7,24.7 47.6,24.7 52.6,24.7 57.5,24.7 62.5,24.7 67.4,24.7 72.4,24.7 77.3,24.7 82.3,24 87.3,22.7 92.2,21.1 97.2,17.2 102.1,12.4 107.1,8.5 112,4.9 117,3"
+                                        class="ctx"
+                                        points="1,24.7 2.6,24.7 4.3,24.7 5.9,24.7 7.6,24.7 9.2,24.7 10.9,24.7 12.5,24.7 14.2,24.7 15.8,24.7 17.5,24.7 19.1,24.7 20.8,24.7 22.4,24.7 24.1,24.7 25.7,24.7 27.4,24 29,22.7"
                                     />
-                                    <line class="segedge" x1="87.3" y1="22.7" x2="92.2" y2="21.1" />
-                                    <line class="seg warn" x1="87.3" y1="22.7" x2="92.2" y2="21.1" />
-                                    <line class="segedge" x1="92.2" y1="21.1" x2="97.2" y2="17.2" />
-                                    <line class="seg warn" x1="92.2" y1="21.1" x2="97.2" y2="17.2" />
-                                    <line class="seg bad" x1="97.2" y1="17.2" x2="102.1" y2="12.4" />
-                                    <line class="seg bad" x1="102.1" y1="12.4" x2="107.1" y2="8.5" />
-                                    <line class="seg bad" x1="107.1" y1="8.5" x2="112" y2="4.9" />
-                                    <line class="seg bad" x1="112" y1="4.9" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,22.5 38.6,22.1 42.1,21.7 45.7,21.3 49.3,20.6 52.8,19.6 56.4,18.7 60,17.7 63.5,16.6 67.1,15.4 70.7,14.2 74.2,13 77.8,11.9 81.3,10.9 84.9,10 88.5,9 92,8.1 95.6,7.2 99.2,6.2 102.7,5.4 106.3,4.6 109.9,4 113.4,3.3 117,3"
+                                    />
+                                    <line class="segedge" x1="35" y1="22.5" x2="38.6" y2="22.1" />
+                                    <line class="seg warn" x1="35" y1="22.5" x2="38.6" y2="22.1" />
+                                    <line class="segedge" x1="38.6" y1="22.1" x2="42.1" y2="21.7" />
+                                    <line class="seg warn" x1="38.6" y1="22.1" x2="42.1" y2="21.7" />
+                                    <line class="segedge" x1="42.1" y1="21.7" x2="45.7" y2="21.3" />
+                                    <line class="seg warn" x1="42.1" y1="21.7" x2="45.7" y2="21.3" />
+                                    <line class="segedge" x1="45.7" y1="21.3" x2="49.3" y2="20.6" />
+                                    <line class="seg warn" x1="45.7" y1="21.3" x2="49.3" y2="20.6" />
+                                    <line class="segedge" x1="49.3" y1="20.6" x2="52.8" y2="19.6" />
+                                    <line class="seg warn" x1="49.3" y1="20.6" x2="52.8" y2="19.6" />
+                                    <line class="segedge" x1="52.8" y1="19.6" x2="56.4" y2="18.7" />
+                                    <line class="seg warn" x1="52.8" y1="19.6" x2="56.4" y2="18.7" />
+                                    <line class="segedge" x1="56.4" y1="18.7" x2="60" y2="17.7" />
+                                    <line class="seg warn" x1="56.4" y1="18.7" x2="60" y2="17.7" />
+                                    <line class="seg bad" x1="60" y1="17.7" x2="63.5" y2="16.6" />
+                                    <line class="seg bad" x1="63.5" y1="16.6" x2="67.1" y2="15.4" />
+                                    <line class="seg bad" x1="67.1" y1="15.4" x2="70.7" y2="14.2" />
+                                    <line class="seg bad" x1="70.7" y1="14.2" x2="74.2" y2="13" />
+                                    <line class="seg bad" x1="74.2" y1="13" x2="77.8" y2="11.9" />
+                                    <line class="seg bad" x1="77.8" y1="11.9" x2="81.3" y2="10.9" />
+                                    <line class="seg bad" x1="81.3" y1="10.9" x2="84.9" y2="10" />
+                                    <line class="seg bad" x1="84.9" y1="10" x2="88.5" y2="9" />
+                                    <line class="seg bad" x1="88.5" y1="9" x2="92" y2="8.1" />
+                                    <line class="seg bad" x1="92" y1="8.1" x2="95.6" y2="7.2" />
+                                    <line class="seg bad" x1="95.6" y1="7.2" x2="99.2" y2="6.2" />
+                                    <line class="seg bad" x1="99.2" y1="6.2" x2="102.7" y2="5.4" />
+                                    <line class="seg bad" x1="102.7" y1="5.4" x2="106.3" y2="4.6" />
+                                    <line class="seg bad" x1="106.3" y1="4.6" x2="109.9" y2="4" />
+                                    <line class="seg bad" x1="109.9" y1="4" x2="113.4" y2="3.3" />
+                                    <line class="seg bad" x1="113.4" y1="3.3" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm"
-                                >Saturated time<small>running within 3 of the limit, jobs queued</small></span
-                            ><span class="val">2.6<small> h</small></span
-                            ><span class="tg">target 0, red &gt;= 1 h</span
+                                >Saturated time<small>minutes running within 3 of the limit, jobs queued</small></span
+                            ><span class="val">60<small> min</small><small class="v6">1 h; 6 h 4.2 h</small></span
+                            ><span class="tg">target 0, red &gt;= 15 min</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
-                                    <rect class="band" x="0" y="23.8" width="120" height="2" />
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
+                                    <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,11.8 102.1,3 107.1,3 112,3 117,20.6"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="97.2" y1="11.8" x2="102.1" y2="3" />
-                                    <line class="seg bad" x1="102.1" y1="3" x2="107.1" y2="3" />
-                                    <line class="seg bad" x1="107.1" y1="3" x2="112" y2="3" />
-                                    <line class="segedge" x1="112" y1="3" x2="117" y2="20.6" />
-                                    <line class="seg warn" x1="112" y1="3" x2="117" y2="20.6" />
-                                    <circle class="now" cx="117" cy="20.6" r="2.4" /></svg></span
+                                    <polyline
+                                        points="35,25 38.6,25 42.1,25 45.7,25 49.3,25 52.8,25 56.4,25 60,10.3 63.5,3 67.1,3 70.7,3 74.2,3 77.8,3 81.3,3 84.9,3 88.5,3 92,3 95.6,3 99.2,3 102.7,3 106.3,3 109.9,3 113.4,3 117,3"
+                                    />
+                                    <line class="seg bad" x1="60" y1="10.3" x2="63.5" y2="3" />
+                                    <line class="seg bad" x1="63.5" y1="3" x2="67.1" y2="3" />
+                                    <line class="seg bad" x1="67.1" y1="3" x2="70.7" y2="3" />
+                                    <line class="seg bad" x1="70.7" y1="3" x2="74.2" y2="3" />
+                                    <line class="seg bad" x1="74.2" y1="3" x2="77.8" y2="3" />
+                                    <line class="seg bad" x1="77.8" y1="3" x2="81.3" y2="3" />
+                                    <line class="seg bad" x1="81.3" y1="3" x2="84.9" y2="3" />
+                                    <line class="seg bad" x1="84.9" y1="3" x2="88.5" y2="3" />
+                                    <line class="seg bad" x1="88.5" y1="3" x2="92" y2="3" />
+                                    <line class="seg bad" x1="92" y1="3" x2="95.6" y2="3" />
+                                    <line class="seg bad" x1="95.6" y1="3" x2="99.2" y2="3" />
+                                    <line class="seg bad" x1="99.2" y1="3" x2="102.7" y2="3" />
+                                    <line class="seg bad" x1="102.7" y1="3" x2="106.3" y2="3" />
+                                    <line class="seg bad" x1="106.3" y1="3" x2="109.9" y2="3" />
+                                    <line class="seg bad" x1="109.9" y1="3" x2="113.4" y2="3" />
+                                    <line class="seg bad" x1="113.4" y1="3" x2="117" y2="3" />
+                                    <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
@@ -2060,7 +2420,7 @@
                                 >Runners not being assigned<small
                                     >jobs wait with room to run; githubstatus.com</small
                                 ></span
-                            ><span class="val">0<small> min</small></span
+                            ><span class="val">0<small> min</small><small class="v6">now</small></span
                             ><span class="tg">target 0 min, red &gt;= 15</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -2068,8 +2428,9 @@
                         ><a class="row dim" href="#ci-superseded"
                             ><span class="nm"
                                 >Superseded runs still running<small>no cancel-in-progress; not judged yet</small></span
-                            ><span class="val">2</span><span class="tg">informational until it fires</span
-                            ><span class="sp"></span><span class="st"></span
+                            ><span class="val">2<small class="v6">now</small></span
+                            ><span class="tg">informational until it fires</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
@@ -2083,16 +2444,16 @@
                         <svg
                             viewBox="0 0 960 120"
                             preserveAspectRatio="none"
-                            aria-label="jobs running and queued per hour"
+                            aria-label="jobs running and queued, last 6 h by 15 minutes"
                         >
                             <line class="plat" x1="0" y1="89" x2="960" y2="89" />
                             <polyline
                                 class="run"
-                                points="0,114.2 41.7,114.7 83.5,115.1 125.2,115.1 167,114.7 208.7,115.1 250.4,113.8 292.2,113.3 333.9,112.4 375.7,112.8 417.4,113.3 459.1,112 500.9,110.6 542.6,111 584.3,109.7 626.1,108.3 667.8,106.1 709.6,103.4 751.3,100.2 793,96.2 834.8,92.6 876.5,90.3 918.3,90.3 960,90.3"
+                                points="0,103.4 40,102.6 80,101.8 120,101 160,100.2 200,99.2 240,98.2 280,97.2 320,96.2 360,95.3 400,94.4 440,93.5 480,92.6 520,92 560,91.4 600,90.9 640,90.3 680,90.3 720,90.3 760,90.3 800,90.3 840,90.3 880,90.3 920,90.3 960,90.3"
                             />
                             <polyline
                                 class="q"
-                                points="0,116 41.7,116 83.5,116 125.2,116 167,116 208.7,116 250.4,116 292.2,116 333.9,116 375.7,116 417.4,116 459.1,116 500.9,116 542.6,116 584.3,116 626.1,116 667.8,115.1 709.6,113.8 751.3,110.6 793,102.5 834.8,84.5 876.5,62 918.3,35 960,10.2"
+                                points="0,113.8 40,113 80,112.2 120,111.4 160,110.6 200,108.6 240,106.5 280,104.5 320,102.5 360,98 400,93.5 440,89 480,84.5 520,78.9 560,73.2 600,67.6 640,62 680,55.2 720,48.5 760,41.8 800,35 840,28.8 880,22.6 920,16.4 960,10.2"
                             /></svg
                         ><span class="cl" style="top: -4px; left: 0">240 jobs</span
                         ><span class="cl" style="top: 70px; left: 0"
@@ -2101,14 +2462,14 @@
                         ><span class="cl bad r" style="top: -4px; right: 34px">235 queued</span>
                     </div>
                     <div class="ticks">
-                        <span style="left: 0%">00:00</span><span style="left: 13%">03:00</span
-                        ><span style="left: 26.1%">06:00</span><span style="left: 39.1%">09:00</span
-                        ><span style="left: 52.2%">12:00</span><span style="left: 65.2%">15:00</span
-                        ><span style="left: 78.3%">18:00</span><span style="left: 91.3%">21:00</span>
+                        <span style="left: 0%">17:30</span><span style="left: 8.3%">18:00</span
+                        ><span style="left: 25%">19:00</span><span style="left: 41.7%">20:00</span
+                        ><span style="left: 58.3%">21:00</span><span style="left: 75%">22:00</span
+                        ><span style="left: 91.7%">23:00</span>
                     </div>
                     <h2>
                         Who holds the runners<span class="h2sub">by workflow and event</span
-                        ><span class="seg"><span class="on">now</span><span>saturated spans, 24 h</span></span>
+                        ><span class="seg"><span class="on">now</span><span>saturated spans, 6 h</span></span>
                     </h2>
                     <div class="two">
                         <div>
@@ -2187,7 +2548,7 @@
                     </div>
                     <p class="note">
                         Also queued: 5 CI push-to-master runs with no job created yet, the oldest since 22:22. All in
-                        graphty-monorepo; no other graphty-org repository ran a job in 24 h.
+                        graphty-monorepo; no other graphty-org repository ran a job in 6 h.
                     </p>
                     <h2 id="ci-superseded">
                         Superseded runs still running<span class="h2sub"
@@ -2218,7 +2579,7 @@
                         <div class="phrow">
                             <h1>Local runs</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -2233,13 +2594,14 @@
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row dim" href="#"
                             ><span class="nm"
                                 >Local vs CI disagreement<small>same shard and inputs, different outcome</small></span
-                            ><span class="val">--</span><span class="tg">target &lt; 2%, red &gt; 5%</span
+                            ><span class="val">--<small class="v6">1 h</small></span
+                            ><span class="tg">target &lt; 2%, red &gt; 5%</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
                                     <rect x="0" y="1" width="120" height="26" style="fill: url(#nh)" />
@@ -2250,14 +2612,16 @@
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#"
                             ><span class="nm">Local shard time vs CI<small>median ratio</small></span
-                            ><span class="val">--</span><span class="tg">target &lt;= 1.5x, red &gt; 3x</span
-                            ><span class="sp"></span><span class="st"><span class="sw low">n=0</span></span
+                            ><span class="val">--<small class="v6">1 h</small></span
+                            ><span class="tg">target &lt;= 1.5x, red &gt; 3x</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">n=0</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#"
                             ><span class="nm">Slot waits<small>p90 wait for a test slot</small></span
-                            ><span class="val">--</span><span class="tg">target &lt;= 2 min, red &gt; 10</span
-                            ><span class="sp"></span><span class="st"><span class="sw low">n=0</span></span
+                            ><span class="val">--<small class="v6">1 h</small></span
+                            ><span class="tg">target &lt;= 2 min, red &gt; 10</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">n=0</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
@@ -2272,7 +2636,7 @@
                         <div class="phrow">
                             <h1>Flaky tests</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span>24 h</span><span class="on">7 d</span><span>28 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -2281,76 +2645,109 @@
                         <span class="sw bad">FAILING</span
                         ><span
                             >3 open pull requests are held by a flake (red at 3), the oldest for 4.5 h. Also: 2 tests
-                            were flaky in CI and have no open issue, and net new flaky is +2.</span
+                            were flaky in CI and have no open issue. The flake rate is judged again: the last hour is
+                            fully covered by per-test results, which began at 20:42.</span
                         >
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#flaky-hotspots"
                             ><span class="nm"
                                 >Blocked by a flake<small>newest failure flaky, or an unstable story</small></span
-                            ><span class="val">3</span><span class="tg">target 0, red &gt;= 3 or any &gt;= 24 h</span
+                            ><span class="val">3<small class="v6">now</small></span
+                            ><span class="tg">target 0, red &gt;= 3 or any &gt;= 24 h</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,25 97.2,17.7 102.1,10.3 107.1,10.3 112,3 117,3"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="segedge" x1="97.2" y1="17.7" x2="102.1" y2="10.3" />
-                                    <line class="seg warn" x1="97.2" y1="17.7" x2="102.1" y2="10.3" />
-                                    <line class="segedge" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
-                                    <line class="seg warn" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
-                                    <line class="seg bad" x1="107.1" y1="10.3" x2="112" y2="3" />
-                                    <line class="seg bad" x1="112" y1="3" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,25 38.6,25 42.1,25 45.7,25 49.3,24.1 52.8,22.3 56.4,20.4 60,18.6 63.5,16.8 67.1,14.9 70.7,13.1 74.2,11.2 77.8,10.3 81.3,10.3 84.9,10.3 88.5,10.3 92,9.4 95.6,7.6 99.2,5.7 102.7,3.9 106.3,3 109.9,3 113.4,3 117,3"
+                                    />
+                                    <line class="segedge" x1="60" y1="18.6" x2="63.5" y2="16.8" />
+                                    <line class="seg warn" x1="60" y1="18.6" x2="63.5" y2="16.8" />
+                                    <line class="segedge" x1="63.5" y1="16.8" x2="67.1" y2="14.9" />
+                                    <line class="seg warn" x1="63.5" y1="16.8" x2="67.1" y2="14.9" />
+                                    <line class="segedge" x1="67.1" y1="14.9" x2="70.7" y2="13.1" />
+                                    <line class="seg warn" x1="67.1" y1="14.9" x2="70.7" y2="13.1" />
+                                    <line class="segedge" x1="70.7" y1="13.1" x2="74.2" y2="11.2" />
+                                    <line class="seg warn" x1="70.7" y1="13.1" x2="74.2" y2="11.2" />
+                                    <line class="segedge" x1="74.2" y1="11.2" x2="77.8" y2="10.3" />
+                                    <line class="seg warn" x1="74.2" y1="11.2" x2="77.8" y2="10.3" />
+                                    <line class="segedge" x1="77.8" y1="10.3" x2="81.3" y2="10.3" />
+                                    <line class="seg warn" x1="77.8" y1="10.3" x2="81.3" y2="10.3" />
+                                    <line class="segedge" x1="81.3" y1="10.3" x2="84.9" y2="10.3" />
+                                    <line class="seg warn" x1="81.3" y1="10.3" x2="84.9" y2="10.3" />
+                                    <line class="segedge" x1="84.9" y1="10.3" x2="88.5" y2="10.3" />
+                                    <line class="seg warn" x1="84.9" y1="10.3" x2="88.5" y2="10.3" />
+                                    <line class="seg bad" x1="88.5" y1="10.3" x2="92" y2="9.4" />
+                                    <line class="seg bad" x1="92" y1="9.4" x2="95.6" y2="7.6" />
+                                    <line class="seg bad" x1="95.6" y1="7.6" x2="99.2" y2="5.7" />
+                                    <line class="seg bad" x1="99.2" y1="5.7" x2="102.7" y2="3.9" />
+                                    <line class="seg bad" x1="102.7" y1="3.9" x2="106.3" y2="3" />
+                                    <line class="seg bad" x1="106.3" y1="3" x2="109.9" y2="3" />
+                                    <line class="seg bad" x1="109.9" y1="3" x2="113.4" y2="3" />
+                                    <line class="seg bad" x1="113.4" y1="3" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#flaky-hotspots"
                             ><span class="nm"
-                                >Flaky in CI with no open issue<small>7 d; the drill-down drafts the issue</small></span
-                            ><span class="val">2</span><span class="tg">target 0, red &gt;= 3</span
-                            ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
-                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
-                                <path d="M2 2l6 6-6 6" /></svg></a
-                        ><a class="row dim" href="#"
-                            ><span class="nm"
-                                >Flake rate<small
-                                    >per 1,000 test-file runs, CI; per-test results since 20:42</small
+                                >Flaky in CI with no open issue<small
+                                    >seen flaky in CI in 7 d; the drill-down drafts the issue</small
                                 ></span
-                            ><span class="val">1.4</span><span class="tg">target &lt; 2, red &gt; 10</span
-                            ><span class="sp"
-                                ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
-                                    <rect class="band" x="0" y="2" width="120" height="2" />
-                                    <rect x="0" y="1" width="100.1" height="26" style="fill: url(#nh)" />
-                                    <text class="nht" x="50.1" y="18" text-anchor="middle">no history</text>
-                                    <polyline points="102.1,12.9 107.1,7.4 112,11.8 117,8.5" />
-                                    <circle class="now" cx="117" cy="8.5" r="2.4" /></svg></span
-                            ><span class="st"><span class="sw low">partial window, 2.8 h of 24</span></span
+                            ><span class="val">2<small class="v6">now</small></span
+                            ><span class="tg">target 0, red &gt;= 3</span><span class="sp"></span
+                            ><span class="st"><span class="sw warn">WARNING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
-                            ><span class="nm">Net new flaky<small>7 d: 4 new, 2 resolved</small></span
-                            ><span class="val">+2</span><span class="tg">target &lt;= 0, red &gt; 3</span
-                            ><span class="sp"></span><span class="st"><span class="sw warn">WARNING</span></span
+                            ><span class="nm"
+                                >Flake rate<small
+                                    >per 1,000 test-file runs, CI; n=2,140; results since 20:42</small
+                                ></span
+                            ><span class="val">1.4<small class="v6">1 h; 6 h 1.2, 2.8 h of 6</small></span
+                            ><span class="tg">target &lt; 2, red &gt; 10, 6 h too</span
+                            ><span class="sp"
+                                ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
+                                    <rect class="band" x="0" y="2" width="120" height="2" />
+                                    <rect x="0" y="1" width="68.7" height="26" style="fill: url(#nh)" />
+                                    <text class="nht" x="34.3" y="18" text-anchor="middle">no history</text>
+                                    <polyline
+                                        points="70.7,12.9 74.2,12.9 77.8,12.2 81.3,10.8 84.9,9.5 88.5,8.1 92,8 95.6,9.1 99.2,10.2 102.7,11.2 106.3,11.2 109.9,10.2 113.4,9.1 117,8.5"
+                                    />
+                                    <circle class="now" cx="117" cy="8.5" r="2.4" /></svg></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#"
-                            ><span class="nm">Detected to fixed<small>median, 28 d</small></span
-                            ><span class="val">1.5<small> d</small></span
+                            ><span class="nm">Net new flaky<small>slow measure: 4 new, 2 resolved, 7 d</small></span
+                            ><span class="val">+2<small class="v6">7 d</small></span
+                            ><span class="tg">target &lt;= 0, red &gt; 3</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">slow measure</span></span
+                            ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
+                                <path d="M2 2l6 6-6 6" /></svg></a
+                        ><a class="row dim" href="#"
+                            ><span class="nm">Detected to fixed<small>slow measure: median, 28 d; n=2</small></span
+                            ><span class="val">1.5<small> d</small><small class="v6">28 d</small></span
                             ><span class="tg">target &lt;= 3 d, red &gt; 7</span><span class="sp"></span
-                            ><span class="st"><span class="sw low">n=2</span></span
+                            ><span class="st"><span class="sw low">slow measure</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
                     </div>
                     <h2 id="flaky-hotspots">
                         Hotspots<span class="h2sub"
-                            >ranked by distinct flaky tests; open a row for its files and tests</span
-                        >
+                            >slow measure; ranked by distinct flaky tests; open a row for its files and tests</span
+                        ><span class="seg"><span class="on">7 d</span><span>28 d</span></span>
                     </h2>
                     <div class="hott">
                         <div class="hrow thead">
@@ -2471,7 +2868,7 @@
                         <div class="phrow">
                             <h1>Releases</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span><span>28 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -2487,62 +2884,90 @@
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#releases-lanes"
                             ><span class="nm"
                                 >Lanes red on the candidate<small>newest candidate a full train tested</small></span
-                            ><span class="val">2</span><span class="tg">target 0, red open &gt;= 6 h</span
+                            ><span class="val">2<small class="v6">now</small></span
+                            ><span class="tg">target 0, red open &gt;= 6 h</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,10.3 8,10.3 12.9,10.3 17.9,10.3 22.8,10.3 27.8,10.3 32.7,10.3 37.7,10.3 42.7,10.3 47.6,10.3 52.6,10.3 57.5,10.3 62.5,10.3 67.4,10.3 72.4,10.3 77.3,10.3 82.3,10.3 87.3,10.3 92.2,10.3 97.2,10.3 102.1,10.3 107.1,10.3 112,10.3 117,10.3"
+                                        class="ctx"
+                                        points="1,10.3 2.6,10.3 4.3,10.3 5.9,10.3 7.6,10.3 9.2,10.3 10.9,10.3 12.5,10.3 14.2,10.3 15.8,10.3 17.5,10.3 19.1,10.3 20.8,10.3 22.4,10.3 24.1,10.3 25.7,10.3 27.4,10.3 29,10.3"
                                     />
-                                    <line class="seg bad" x1="3" y1="10.3" x2="8" y2="10.3" />
-                                    <line class="seg bad" x1="8" y1="10.3" x2="12.9" y2="10.3" />
-                                    <line class="seg bad" x1="12.9" y1="10.3" x2="17.9" y2="10.3" />
-                                    <line class="seg bad" x1="17.9" y1="10.3" x2="22.8" y2="10.3" />
-                                    <line class="seg bad" x1="22.8" y1="10.3" x2="27.8" y2="10.3" />
-                                    <line class="seg bad" x1="27.8" y1="10.3" x2="32.7" y2="10.3" />
-                                    <line class="seg bad" x1="32.7" y1="10.3" x2="37.7" y2="10.3" />
-                                    <line class="seg bad" x1="37.7" y1="10.3" x2="42.7" y2="10.3" />
-                                    <line class="seg bad" x1="42.7" y1="10.3" x2="47.6" y2="10.3" />
-                                    <line class="seg bad" x1="47.6" y1="10.3" x2="52.6" y2="10.3" />
-                                    <line class="seg bad" x1="52.6" y1="10.3" x2="57.5" y2="10.3" />
-                                    <line class="seg bad" x1="57.5" y1="10.3" x2="62.5" y2="10.3" />
-                                    <line class="seg bad" x1="62.5" y1="10.3" x2="67.4" y2="10.3" />
-                                    <line class="seg bad" x1="67.4" y1="10.3" x2="72.4" y2="10.3" />
-                                    <line class="seg bad" x1="72.4" y1="10.3" x2="77.3" y2="10.3" />
-                                    <line class="seg bad" x1="77.3" y1="10.3" x2="82.3" y2="10.3" />
-                                    <line class="seg bad" x1="82.3" y1="10.3" x2="87.3" y2="10.3" />
-                                    <line class="seg bad" x1="87.3" y1="10.3" x2="92.2" y2="10.3" />
-                                    <line class="seg bad" x1="92.2" y1="10.3" x2="97.2" y2="10.3" />
-                                    <line class="seg bad" x1="97.2" y1="10.3" x2="102.1" y2="10.3" />
-                                    <line class="seg bad" x1="102.1" y1="10.3" x2="107.1" y2="10.3" />
-                                    <line class="seg bad" x1="107.1" y1="10.3" x2="112" y2="10.3" />
-                                    <line class="seg bad" x1="112" y1="10.3" x2="117" y2="10.3" />
+                                    <polyline
+                                        points="35,10.3 38.6,10.3 42.1,10.3 45.7,10.3 49.3,10.3 52.8,10.3 56.4,10.3 60,10.3 63.5,10.3 67.1,10.3 70.7,10.3 74.2,10.3 77.8,10.3 81.3,10.3 84.9,10.3 88.5,10.3 92,10.3 95.6,10.3 99.2,10.3 102.7,10.3 106.3,10.3 109.9,10.3 113.4,10.3 117,10.3"
+                                    />
+                                    <line class="seg bad" x1="35" y1="10.3" x2="38.6" y2="10.3" />
+                                    <line class="seg bad" x1="38.6" y1="10.3" x2="42.1" y2="10.3" />
+                                    <line class="seg bad" x1="42.1" y1="10.3" x2="45.7" y2="10.3" />
+                                    <line class="seg bad" x1="45.7" y1="10.3" x2="49.3" y2="10.3" />
+                                    <line class="seg bad" x1="49.3" y1="10.3" x2="52.8" y2="10.3" />
+                                    <line class="seg bad" x1="52.8" y1="10.3" x2="56.4" y2="10.3" />
+                                    <line class="seg bad" x1="56.4" y1="10.3" x2="60" y2="10.3" />
+                                    <line class="seg bad" x1="60" y1="10.3" x2="63.5" y2="10.3" />
+                                    <line class="seg bad" x1="63.5" y1="10.3" x2="67.1" y2="10.3" />
+                                    <line class="seg bad" x1="67.1" y1="10.3" x2="70.7" y2="10.3" />
+                                    <line class="seg bad" x1="70.7" y1="10.3" x2="74.2" y2="10.3" />
+                                    <line class="seg bad" x1="74.2" y1="10.3" x2="77.8" y2="10.3" />
+                                    <line class="seg bad" x1="77.8" y1="10.3" x2="81.3" y2="10.3" />
+                                    <line class="seg bad" x1="81.3" y1="10.3" x2="84.9" y2="10.3" />
+                                    <line class="seg bad" x1="84.9" y1="10.3" x2="88.5" y2="10.3" />
+                                    <line class="seg bad" x1="88.5" y1="10.3" x2="92" y2="10.3" />
+                                    <line class="seg bad" x1="92" y1="10.3" x2="95.6" y2="10.3" />
+                                    <line class="seg bad" x1="95.6" y1="10.3" x2="99.2" y2="10.3" />
+                                    <line class="seg bad" x1="99.2" y1="10.3" x2="102.7" y2="10.3" />
+                                    <line class="seg bad" x1="102.7" y1="10.3" x2="106.3" y2="10.3" />
+                                    <line class="seg bad" x1="106.3" y1="10.3" x2="109.9" y2="10.3" />
+                                    <line class="seg bad" x1="109.9" y1="10.3" x2="113.4" y2="10.3" />
+                                    <line class="seg bad" x1="113.4" y1="10.3" x2="117" y2="10.3" />
                                     <circle class="now" cx="117" cy="10.3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#releases-wf"
                             ><span class="nm"
-                                >Release workflows failing<small>promote.yml; fix #3577 waits on the owner</small></span
-                            ><span class="val">131<small> runs</small></span
-                            ><span class="tg">target 0, red &gt;= 3</span
+                                >Release workflows failing<small
+                                    >newest run failed: promote.yml, 131 in a row; fix #3577 waits on the owner</small
+                                ></span
+                            ><span class="val">1<small class="v6">now</small></span
+                            ><span class="tg">target 0, red 3 failed in a row</span
                             ><span class="sp"
                                 ><svg class="spark" viewBox="0 0 120 28" width="120" height="28" aria-hidden="true">
+                                    <rect class="win" x="104.5" y="0" width="15.5" height="28" />
                                     <rect class="band" x="0" y="24" width="120" height="2" />
                                     <polyline
-                                        points="3,25 8,25 12.9,25 17.9,25 22.8,25 27.8,25 32.7,25 37.7,25 42.7,25 47.6,25 52.6,25 57.5,25 62.5,25 67.4,25 72.4,25 77.3,25 82.3,25 87.3,25 92.2,24.3 97.2,21.3 102.1,18.1 107.1,13.9 112,8.5 117,3"
+                                        class="ctx"
+                                        points="1,25 2.6,25 4.3,25 5.9,25 7.6,25 9.2,25 10.9,25 12.5,25 14.2,25 15.8,25 17.5,25 19.1,25 20.8,25 22.4,25 24.1,25 25.7,25 27.4,25 29,25"
                                     />
-                                    <line class="seg bad" x1="92.2" y1="24.3" x2="97.2" y2="21.3" />
-                                    <line class="seg bad" x1="97.2" y1="21.3" x2="102.1" y2="18.1" />
-                                    <line class="seg bad" x1="102.1" y1="18.1" x2="107.1" y2="13.9" />
-                                    <line class="seg bad" x1="107.1" y1="13.9" x2="112" y2="8.5" />
-                                    <line class="seg bad" x1="112" y1="8.5" x2="117" y2="3" />
+                                    <polyline
+                                        points="35,24.9 38.6,24.7 42.1,24.6 45.7,24.4 49.3,23.9 52.8,23.2 56.4,22.4 60,21.7 63.5,20.9 67.1,20.1 70.7,19.3 74.2,18.5 77.8,17.6 81.3,16.5 84.9,15.5 88.5,14.4 92,13.2 95.6,11.9 99.2,10.5 102.7,9.2 106.3,7.6 109.9,5.8 113.4,3.9 117,3"
+                                    />
+                                    <line class="seg bad" x1="45.7" y1="24.4" x2="49.3" y2="23.9" />
+                                    <line class="seg bad" x1="49.3" y1="23.9" x2="52.8" y2="23.2" />
+                                    <line class="seg bad" x1="52.8" y1="23.2" x2="56.4" y2="22.4" />
+                                    <line class="seg bad" x1="56.4" y1="22.4" x2="60" y2="21.7" />
+                                    <line class="seg bad" x1="60" y1="21.7" x2="63.5" y2="20.9" />
+                                    <line class="seg bad" x1="63.5" y1="20.9" x2="67.1" y2="20.1" />
+                                    <line class="seg bad" x1="67.1" y1="20.1" x2="70.7" y2="19.3" />
+                                    <line class="seg bad" x1="70.7" y1="19.3" x2="74.2" y2="18.5" />
+                                    <line class="seg bad" x1="74.2" y1="18.5" x2="77.8" y2="17.6" />
+                                    <line class="seg bad" x1="77.8" y1="17.6" x2="81.3" y2="16.5" />
+                                    <line class="seg bad" x1="81.3" y1="16.5" x2="84.9" y2="15.5" />
+                                    <line class="seg bad" x1="84.9" y1="15.5" x2="88.5" y2="14.4" />
+                                    <line class="seg bad" x1="88.5" y1="14.4" x2="92" y2="13.2" />
+                                    <line class="seg bad" x1="92" y1="13.2" x2="95.6" y2="11.9" />
+                                    <line class="seg bad" x1="95.6" y1="11.9" x2="99.2" y2="10.5" />
+                                    <line class="seg bad" x1="99.2" y1="10.5" x2="102.7" y2="9.2" />
+                                    <line class="seg bad" x1="102.7" y1="9.2" x2="106.3" y2="7.6" />
+                                    <line class="seg bad" x1="106.3" y1="7.6" x2="109.9" y2="5.8" />
+                                    <line class="seg bad" x1="109.9" y1="5.8" x2="113.4" y2="3.9" />
+                                    <line class="seg bad" x1="113.4" y1="3.9" x2="117" y2="3" />
                                     <circle class="now" cx="117" cy="3" r="2.4" /></svg></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -2550,27 +2975,33 @@
                         ><a class="row" href="#releases-trains"
                             ><span class="nm"
                                 >Train skipped a new commit<small>18:00 attempt, 1fa254bf3 untested</small></span
-                            ><span class="val">yes</span><span class="tg">target no</span><span class="sp"></span
+                            ><span class="val">yes<small class="v6">now</small></span
+                            ><span class="tg">target no</span><span class="sp"></span
                             ><span class="st"><span class="sw warn">WARNING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Tagged, not on npm<small>tag time vs npm's time</small></span
-                            ><span class="val">0</span><span class="tg">target 0, red after 30 min</span
-                            ><span class="sp"></span><span class="st"></span
+                            ><span class="val">0<small class="v6">now</small></span
+                            ><span class="tg">target 0, red after 30 min</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#"
-                            ><span class="nm">Train first-attempt pass<small>7 d, attempts that tested</small></span
-                            ><span class="val">1<small> of 3</small></span
+                            ><span class="nm"
+                                >Train first-attempt pass<small
+                                    >slow measure: attempts that tested, 7 d; n=3</small
+                                ></span
+                            ><span class="val">1<small> of 3</small><small class="v6">7 d</small></span
                             ><span class="tg">target &gt;= 90%, red &lt; 75</span><span class="sp"></span
-                            ><span class="st"><span class="sw low">n=3</span></span
+                            ><span class="st"><span class="sw low">slow measure</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row dim" href="#data-notsetup"
                             ><span class="nm">Channel members<small>canary, nightly, production; #3418</small></span
-                            ><span class="val">--</span><span class="tg">canary age target &lt; 6 h</span
-                            ><span class="sp"></span><span class="st"><span class="sw low">not set up</span></span
+                            ><span class="val">--<small class="v6">now</small></span
+                            ><span class="tg">canary age target &lt; 6 h</span><span class="sp"></span
+                            ><span class="st"><span class="sw low">not set up</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg
                         ></a>
@@ -2638,10 +3069,11 @@
                     <h2 id="releases-wf">Release workflows</h2>
                     <div class="tbl t-wf">
                         <div class="thead">
-                            <span>workflow</span><span>runs, 24 h</span><span>failing since</span><span>cause</span>
+                            <span>workflow</span><span>runs, last 1 h</span><span>failing since</span><span>cause</span>
                         </div>
                         <div class="tr">
-                            <span>promote.yml</span><span><span class="mk bad">131 of 131 failed</span></span
+                            <span>promote.yml</span
+                            ><span><span class="mk bad">24 of 24 failed</span>; 131 in a row</span
                             ><span>18:03, merge of #3511</span
                             ><span
                                 >workflow error: WORK read from the runner context in job env; fix
@@ -2649,7 +3081,7 @@
                             >
                         </div>
                         <div class="tr past">
-                            <span>release-watch.yml</span><span>1, skipped</span><span></span><span></span>
+                            <span>release-watch.yml</span><span>0</span><span></span><span></span>
                         </div>
                     </div>
                 </section>
@@ -2661,8 +3093,8 @@
                         </div>
                         <div class="phrow">
                             <h1>Costs</h1>
-                            <div class="range" role="group" aria-label="Range">
-                                <span>7 d</span><span class="on">28 d</span>
+                            <div class="range" role="group" aria-label="Range, slow measure">
+                                <span class="rlab">slow measure</span><span>7 d</span><span class="on">28 d</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -2674,7 +3106,11 @@
                             Cloudflare usage are not set up (no read-only token yet) and are left out.</span
                         >
                     </p>
-                    <h2>Money this month<span class="h2sub">projected to 10-31; 28 d by day</span></h2>
+                    <h2>
+                        Money this month<span class="h2sub"
+                            >month to date, projected to 10-31; the line is 28 d by day</span
+                        >
+                    </h2>
                     <div class="tbl t-cost">
                         <div class="thead">
                             <span>line</span><span>projected, USD</span><span>so far / budget</span
@@ -2840,7 +3276,7 @@
                         <div class="phrow">
                             <h1>Data sources</h1>
                             <div class="range" role="group" aria-label="Range">
-                                <span class="on">24 h</span><span>7 d</span>
+                                <span class="on">1 h</span><span>6 h</span><span>24 h</span>
                             </div>
                             <span class="upd">updated 2 min ago, 23:30 UTC</span>
                         </div>
@@ -2855,12 +3291,12 @@
                     </p>
                     <div class="rows">
                         <div class="thead rowh">
-                            <span>member</span><span>now</span><span>SLA</span><span>last 24 h, hourly</span
+                            <span>member</span><span>value</span><span>SLA</span><span>6 h by 15 min</span
                             ><span>state</span><span></span>
                         </div>
                         <a class="row" href="#data-stress"
                             ><span class="nm">Stress run<small>read from GitHub's job and step results</small></span
-                            ><span class="val">filed 0</span
+                            ><span class="val">filed 0<small class="v6">now</small></span
                             ><span class="tg">target passed and filed, red filing failed</span><span class="sp"></span
                             ><span class="st"><span class="sw bad">FAILING</span></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
@@ -2868,34 +3304,38 @@
                         ><a class="row" href="#data-sources"
                             ><span class="nm"
                                 >Sources past their age limit<small>8 judged; 1 idle, 3 not set up</small></span
-                            ><span class="val">0</span><span class="tg">target 0, red any past 2x</span
-                            ><span class="sp"></span><span class="st"></span
+                            ><span class="val">0<small class="v6">now</small></span
+                            ><span class="tg">target 0, red any past 2x</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#data-sources"
                             ><span class="nm"
-                                >Sources thin for their activity<small>rows per run vs the 7 d median</small></span
-                            ><span class="val">0</span><span class="tg">target 0, red under 20%</span
-                            ><span class="sp"></span><span class="st"></span
+                                >Sources thin for their activity<small
+                                    >rows per run, last 1 h (n=9 runs), against the 7 d median</small
+                                ></span
+                            ><span class="val">0<small class="v6">1 h; 6 h 0</small></span
+                            ><span class="tg">target 0, red under 20%, 6 h too</span><span class="sp"></span
+                            ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Collector<small>last run; a CloudWatch alarm watches it too</small></span
-                            ><span class="val">2<small> min ago</small></span
+                            ><span class="val">2<small> min ago</small><small class="v6">now</small></span
                             ><span class="tg">target &lt;= 10 min, red &gt; 20</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">GitHub App rate limit<small>requests left this hour</small></span
-                            ><span class="val">94<small> %</small></span
+                            ><span class="val">94<small> %</small><small class="v6">now</small></span
                             ><span class="tg">target &gt; 50%, red &lt; 20</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">
                                 <path d="M2 2l6 6-6 6" /></svg></a
                         ><a class="row" href="#"
                             ><span class="nm">Daily write budget<small>rows today / 300,000</small></span
-                            ><span class="val">7<small> %</small></span
+                            ><span class="val">7<small> %</small><small class="v6">now</small></span
                             ><span class="tg">target &lt; 50%, red &gt; 90</span><span class="sp"></span
                             ><span class="st"></span
                             ><svg class="chev" viewBox="0 0 10 16" width="10" height="16" aria-hidden="true">

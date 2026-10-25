@@ -13,15 +13,20 @@ serves them through a public read API.
 The mockup is `design/ci/health-dashboard/mockup.html`: open it in a browser. It needs no network
 and no script, its pages are reached from the left navigation, and its sample data is the
 pipeline's real incidents of 2026-10-25 as the page would have shown them at 23:30 UTC (numbers
-rounded, some filled in). This is version 2; version 1 is in git history.
+rounded, some filled in). This is version 2, revised so that every state is judged on the last
+hour (section 8); version 1 is in git history.
 
 ## Changes from version 1
 
 The owner's review of version 1 asked for a calm page with color instead of icons; the category
-status line first and largest; an SLA for every measurement; 1 h and 6 h steps, not 90 days or 12
+status line first and largest; an SLA for every measurement; 1 h and 6 h windows, not days or
 months; obvious drill-down; costs per process; flake hotspots by test and test group; median shard
 and test-segment times; an MCP for agents; AWS as the one backend behind a GitHub Pages page, with
 issues to move the Cloudflare services; and no agent vs human tracking. Sections 2 to 14 answer each.
+
+His review of version 2 added: windows measured in days hide a problem or a trend for days, when it
+should be noticed within hours. So every state is judged on the last 1 h, the 6 h is the trend, and
+24 h is only backdrop (section 8, and the decision in section 15).
 
 ## 1. What it must catch
 
@@ -75,10 +80,10 @@ design is "not set up", gray and out of the status, so a category can be green o
 ### 2.1 Front page
 
 It fits 1440 x 900 without scrolling, and every page works down to 1024 wide with no sideways
-scroll (the mockup's overview). From the top: the title, the range picker and "updated 2 min ago,
-23:30 UTC"; a muted caption, "under each block: its headline measure now, and the last 24 h
-hourly"; the seven category blocks, each with its headline measure under it; then "Last 24
-hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
+scroll (the mockup's overview). From the top: the title, the range picker (1 h, 6 h, 24 h; 1 h by
+default) and "updated 2 min ago, 23:30 UTC"; a muted caption saying that rates are judged on the
+last 1 h and states now, and what the sparkline shows; the seven category blocks, each with its
+headline measure under it; then "Last 24 hours", the list of episodes. The order follows Few ("a single screen read at a glance") and Google
 SRE ("symptoms first, causes second"): the blocks say whether anything is wrong and where, the
 measures give each category's number, and the episodes say what happened and link to where to act.
 
@@ -91,22 +96,27 @@ p90 31 min"; the threshold is on the detail page); the others not OK, named when
 ("+ promote.yml failing") and counted when there are more ("+ 3 more"); and a chevron. The whole block links
 to the category's page. Below 1280 px the blocks wrap into rows of four.
 
-The blocks always show now: each member is judged over its own window (section 4), whatever range
-the picker shows. This is the one place where healthy has a color, because the owner asked for
+The blocks always show the status: each member is judged on the last 1 h or, for a state, now
+(section 4), whatever range the picker shows, so a problem reaches its block within one collector
+cycle (5 minutes) of crossing its threshold. This is the one place where healthy has a color, because the owner asked for
 green, yellow and red per category and a row of green is itself the answer.
 
 ### 2.3 Headline measures
 
-Under each block, in its column, sits the category's headline measure (name, value, target, 24 h
-sparkline), a symptom someone would act on (DORA; the SRE golden signals): Master green time
-(errors), time to merge (latency), runner wait p90 (saturation, 2026's largest delay), flake rate
-per 1,000 test-file runs (normalized), lanes red on the release candidate (a hold from any lane),
-spend this month projected (the one thing that cannot be rerun), and sources not OK.
+Under each block, in its column, sits the category's headline measure (name with its window, "last
+1 h" or "now"; value; its 6 h value and the target; sparkline), a symptom someone would act on
+(DORA; the SRE golden signals): Master green time (errors), time to merge (latency), runner wait p90
+(saturation, 2026's largest delay), flake rate per 1,000 test-file runs (normalized), lanes red on
+the release candidate (a hold from any lane), spend this month projected (the one thing that cannot
+be rerun), and sources not OK. A headline with too few samples in the last hour says "too few, n=2
+of 5" in gray in place of its value, with its 6 h value beside it.
 
-A sparkline is 24 hourly points with the target as a thin gray band. A breach that lasts colors the
-line itself (vermillion, or yellow with a dark edge); a single point past a threshold is a dot; the
-current, partial hour is a hollow dot. Before a source has history the line gives way to a hatched
-"no history" area. There are no end labels: the value is beside it.
+A sparkline is the last 6 h in 15-minute buckets, with the last hour (the window that sets the
+state) shaded and the target as a thin gray band. To its left, in a faint line, the rest of the last
+24 h by hour: backdrop only, never colored. A breach that lasts colors the 6 h line itself
+(vermillion, or yellow with a dark edge); a single bucket past a threshold is a dot; the current,
+partial bucket is a hollow dot. Before a source has history the line gives way to a hatched "no
+history" area. There are no end labels: the value is beside it.
 
 ### 2.4 Last 24 hours
 
@@ -115,7 +125,8 @@ ones. Each row: a 4 px bar in the worst state the episode reached, its span ("20
 "19:48 - 20:20"), the category, one sentence naming the member, its value and the cause when the
 collector knows it, "ongoing" or "cleared 2.3 h ago", and a chevron to the section where it is
 acted on. Cleared rows are muted. This is how an incident that ended before the reader looked is
-still seen, and how a 24 h member that is still red after its cause ended says so.
+still seen, and how a 1 h member that stays red for up to an hour after its cause ended says so.
+The list always covers 24 h, whatever the picker shows.
 
 ### 2.5 Navigation and drill-down
 
@@ -129,7 +140,7 @@ still seen, and how a 24 h member that is still red after its cause ended says s
   target. Tree rows turn their chevron down when open.
 - **Breadcrumbs** on every page below the front ("Overview > CI > Runners"), ending at the page,
   unlinked. A section reached from the navigation scrolls into view on its page.
-- Page, section and range live in the URL (`#/ci/runners?range=7d`), so a link reproduces the view.
+- Page, section and range live in the URL (`#/ci/runners?range=6h`), so a link reproduces the view.
 
 ### 2.6 Views
 
@@ -139,9 +150,13 @@ right above its evidence.
 
 Every category page has a breadcrumb, its title and range picker, its state word with one sentence
 naming the member that set it and the others not OK, one row per member (name and one-line
-definition, value, SLA, sparkline, state, chevron; OK members carry no word), then its sections:
+definition with n for a rate; value with its window under it, "1 h; 6 h 24 min", "now" or "7 d";
+SLA; sparkline; state; chevron; OK members carry no word), then its sections. Sections follow the
+picker: a table or count covers the picked window, a chart covers 6 h at 1 h and 6 h and 24 h at
+24 h. A section whose window holds too few events to say anything widens to 6 h and says so ("only
+2 merged in the last 1 h, so the last 6 h").
 
-- **Master**: a 24 h strip by minute (green, red, gray for cancels that are not failures:
+- **Master**: a strip by minute, 6 h at the default (green, red, gray for cancels that are not failures:
   superseded, or cancelled by hand); red spans with builds, cause and fix; shared failures with the
   pull requests failing, start, suspect merges and issue.
 - **Pull requests**: where the time goes for pull requests merged in the range (median minutes per
@@ -150,14 +165,15 @@ definition, value, SLA, sparkline, state, chevron; OK members carry no word), th
   each naming the red member its merge would fix.
 - **CI**: why first attempts failed (shared, an aggregator alone, the change, flaky,
   infrastructure); Shard times (section 6). Hangs link to the red span they caused.
-- **Runners**: running and queued jobs over 24 h on one count axis, with the plan's limit from
+- **Runners**: running and queued jobs over the range on one count axis, with the plan's limit from
   config as a reference line and the observed peak as a label beside it; who holds the runners,
   now and during saturated spans, by repository, workflow and event, as sorted bars; runs still
   queued with no job created; superseded runs still running. Every GitHub-hosted job counts against
   the limit of 60 and a macOS job also against its own 5; machine.dev T4 jobs are not counted.
 - **Local runs**: "no local gate since 2026-10-25"; the page state is a gray IDLE, and its members
   are idle with hatched "no history" sparklines (3.1).
-- **Flaky tests**: Hotspots (section 5); Quarantine, which states that no entries exist.
+- **Flaky tests**: Hotspots (section 5, a slow measure with its own 7 d / 28 d choice); Quarantine,
+  which states that no entries exist.
 - **Releases**: the lanes of the newest tested candidate; train attempts, including those that
   skipped every lane; release workflows; the channels once they exist.
 - **Costs**: section 7. **Data sources**: the stress run's history; one row per source (last
@@ -184,17 +200,18 @@ definition, value, SLA, sparkline, state, chevron; OK members carry no word), th
   page, with the issue or owner decision that unblocks it, and its row elsewhere links there. So
   Costs, Releases and Data sources can be green on day one, and gray keeps meaning "something we
   rely on stopped".
-- **Low sample.** A member with fewer events than its minimum (5 unless stated) is drawn gray with
-  "n=3" and left out of the rollup: one failure in two runs is not a trend. So is a member whose
-  source covers less than its window ("partial window, 2.8 h of 24").
+- **Too few samples.** A rate whose last hour holds fewer events than its minimum n (the "Min n"
+  column of section 4) is drawn gray as "too few, n=2 of 5", with its 6 h value beside it, and left
+  out of the rollup: it is never red on one event. So is a member whose source covers less than its
+  window ("partial window, 0.4 h of 1").
 - **Idle.** A member whose activity stopped by design (the local gate, retired on 2026-10-25) is
   drawn gray as "n=0" and left out of the rollup, and its page says why with a gray IDLE state.
 - **A fix waiting on the owner.** When the pull request that fixes a red member waits on the owner
   (auto-merge off by rule), the member's row, its episode and the Pull requests page say "fix #N
   waits on the owner", so a red member is not read as unattended.
-- **Clearing.** A windowed member ("hangs in 24 h") stays past its threshold until the window
-  passes, but its row and its episode say "cleared 2.3 h ago" once the current value has recovered,
-  and the alert's clear message fires then.
+- **Clearing.** A 1 h member ("hangs in the last 1 h") stays past its threshold until its events
+  leave the hour, but its row and its episode say "cleared 12 min ago" once the newest 5-minute
+  bucket has recovered, and the alert's clear message fires then.
 - Thresholds live in `tools/pipeline-health/config/slas.json`.
 
 ### 3.2 Colors
@@ -263,21 +280,49 @@ Checks Pass`, `Lint PR Title`, `Link PR Issue`, `Visual report`, `Draft state`. 
 (<family>-<bin>)`), so a check is grouped by family, never by bin.
 - Medians and p90 come from raw events, never averages of buckets; rates are ratios of sums.
 
-Thresholds below give the target (green) and red; yellow lies between. The window is what the status
-uses. (H) marks a category's headline.
+**Windows.** Every member is one of four kinds, named in the Window column:
+
+- **1 h**: a rate, share, median or count over the last hour, recomputed every 5 minutes from
+  twelve 5-minute buckets. It decides the state.
+- **1 h, 6 h agrees**: a noisy rate (a few events an hour, a mix of run kinds). The 1 h value alone
+  makes it yellow; it turns red only when the 6 h value is past the red threshold too, and stays
+  yellow otherwise. This is the SRE workbook's multiwindow alerting turned to a dashboard: the short
+  window makes a state fast to set and fast to clear, the long one keeps a burst of two bad runs
+  from turning a category red. Rates with many events an hour (runner wait) and shares of wall
+  time (green time, saturated time) need no agreement.
+- **now**: a state -- a count, an age, a verdict, a month-to-date projection -- read at the newest
+  cycle. It has no window and no n. Untested master age, the release lanes, the costs and the
+  budgets are states: a 24 h target for them does not become a 1 h target, it is simply read now.
+- **slow**: a measure over weeks (reverts, net new flaky, detected to fixed, train first-attempt
+  pass, full-run shard medians). It is drawn on its detail section with its own 7 d / 28 d choice,
+  labeled "slow measure", and never sets a state: at hour scale it would either never move or move
+  on one event.
+
+The 6 h value is the trend: shown beside every 1 h value and as the sparkline. 24 h never decides a
+color.
+
+**Min n** is the fewest events the last hour must hold before a rate is judged; below it the member is
+gray "too few" (3.1). It is set so that one event moves the rate by no more than the gap between its
+target and its red threshold (first-attempt pass: a 15-point gap, so 8 suites), and at least 5 for a
+median. Every row states its n.
+
+Thresholds below give the target (green) and red; yellow lies between. All are for the window named
+and were re-derived for one hour, not copied from the 24 h version. (H) marks a category's headline.
 
 ### 4.1 Master
 
-| Member                | Measure, window                                            | Target | Red                   |
-| --------------------- | ---------------------------------------------------------- | ------ | --------------------- |
-| Red now               | length of the current red span; newest build queued, age   | 0      | >= 15 min or 2 builds |
-| Green time (H)        | share of wall time master's newest commit was green, 24 h  | >= 95% | < 90%                 |
-| Red on the same check | most open pull requests failing one check or family        | <= 1   | >= 3                  |
-| Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | passed | failed                |
-| Untested master age   | age of the oldest master commit no full run has judged     | <= 7 h | > 13 h                |
-| Reverts               | reverted merges / merges, 7 d (min 10)                     | < 5%   | > 10%                 |
+| Member                | Measure                                                    | Window | Min n | Target                | Red                      |
+| --------------------- | ---------------------------------------------------------- | ------ | ----- | --------------------- | ------------------------ |
+| Red now               | length of the current red span; newest build queued, age   | now    | --    | 0                     | >= 15 min or 2 builds    |
+| Green time (H)        | share of the hour master's newest commit was green         | 1 h    | --    | >= 92% (<= 5 min red) | < 75% (> 15 min red)     |
+| Red on the same check | most open pull requests failing one check or family        | now    | --    | <= 1                  | >= 3                     |
+| Last full-run verdict | ci lane of the newest judged candidate; names failing jobs | now    | --    | passed                | failed                   |
+| Untested master age   | age of the oldest master commit no full run has judged     | now    | --    | <= 7 h                | > 13 h                   |
+| Reverts               | reverted merges / merges                                   | slow   | 10    | < 5%                  | > 10% (never sets state) |
 
-A red Master alerts at once (section 13). Untested master age replaces both "full-run verdict age"
+Green time's 24 h target of 95% allowed 72 minutes of red a day; over one hour the same 95% would be
+yellow after 3 minutes, so the hour allows 5 minutes (one slow build) and is red past 15, the same
+15 minutes as Red now. A red Master alerts at once (section 13). Untested master age replaces both "full-run verdict age"
 and "since the last passing train": a quiet night on which the train skips an unchanged master
 does not grow it, and a train that skips a new commit (the 18:00 attempt on 2026-10-25) does; the
 row names that attempt and commit at once, and Releases turns yellow (4.5).
@@ -286,30 +331,38 @@ row names that attempt and commit at once, and Releases turns yellow (4.5).
 
 Times leave out pull requests waiting on the owner (auto-merge off by rule).
 
-| Member             | Measure, window                                  | Target    | Red    |
-| ------------------ | ------------------------------------------------ | --------- | ------ |
-| Time to merge (H)  | median of merged minus ready, 24 h               | <= 60 min | > 180  |
-| Open pull requests | open, not draft                                  | <= 15     | > 25   |
-| Oldest open        | age of the oldest open, not waiting on the owner | < 24 h    | > 72 h |
-| Merge ratio        | merged / created, 24 h (min 5 created)           | >= 0.9    | < 0.7  |
-| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h      | 0         | >= 3   |
-| Screenshot backlog | oldest pictures waiting for the owner            | < 24 h    | > 72 h |
+| Member             | Measure                                            | Window          | Min n     | Target    | Red    |
+| ------------------ | -------------------------------------------------- | --------------- | --------- | --------- | ------ |
+| Time to merge (H)  | median of merged minus ready, pull requests merged | 1 h, 6 h agrees | 5 merged  | <= 60 min | > 180  |
+| Open pull requests | open, not draft                                    | now             | --        | <= 15     | > 25   |
+| Oldest open        | age of the oldest open, not waiting on the owner   | now             | --        | < 24 h    | > 72 h |
+| Merge ratio        | merged / created                                   | 1 h, 6 h agrees | 5 created | >= 0.9    | < 0.7  |
+| Auto-merge stuck   | armed, green and unmerged 2 h, or armed 6 h        | now             | --        | 0         | >= 3   |
+| Screenshot backlog | oldest pictures waiting for the owner              | now             | --        | < 24 h    | > 72 h |
+
+On a quiet hour (2026-10-25, 22:30 to 23:30: 2 merged, 3 created) both rates are gray "too few"
+with their 6 h values (74 min, 0.64) beside them; runner saturation, the cause, is red in CI.
 
 ### 4.3 CI
 
-| Member                       | Measure, window                                                   | Target   | Red               |
-| ---------------------------- | ----------------------------------------------------------------- | -------- | ----------------- |
-| Runner wait (H)              | p90 of job start minus created, organization, 24 h                | <= 5 min | > 15              |
-| Longest queued now           | oldest queued job, or queued run with no job yet, right now       | <= 5 min | > 15              |
-| Saturated time               | jobs queued > 2 min while running >= limit - 3, 24 h              | 0        | >= 1 h            |
-| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit, now         | 0 min    | >= 15 min         |
-| First-attempt pass rate      | pull request check suites passing attempt 1, 24 h                 | >= 85%   | < 70%             |
-| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 0 in 7 d | any in 24 h       |
-| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | <= 1x    | > 2x              |
-| Full-run shards over budget  | shards whose median passes their budget, 7 d (section 6)          | 0        | >= 3, or one > 2x |
-| Pull request bins over 8 min | share of bins past the 8 min packing target, 24 h                 | <= 10%   | > 25%             |
-| Reruns                       | run attempts above 1 / runs, 24 h                                 | < 5%     | > 15%             |
-| Superseded runs running      | see below; informational until it has fired on real data          | --       | --                |
+| Member                       | Measure                                                           | Window          | Min n    | Target   | Red                     |
+| ---------------------------- | ----------------------------------------------------------------- | --------------- | -------- | -------- | ----------------------- |
+| Runner wait (H)              | p90 of job start minus created, organization, jobs started        | 1 h             | 20 jobs  | <= 5 min | > 15                    |
+| Longest queued now           | oldest queued job, or queued run with no job yet                  | now             | --       | <= 5 min | > 15                    |
+| Saturated time               | minutes with jobs queued > 2 min while running >= limit - 3       | 1 h             | --       | 0        | >= 15 min               |
+| Runners not being assigned   | jobs queued > 2 min while running < 75% of the limit              | now             | --       | 0 min    | >= 15 min               |
+| First-attempt pass rate      | pull request check suites passing attempt 1, suites finished      | 1 h, 6 h agrees | 8 suites | >= 85%   | < 70%                   |
+| Hangs                        | jobs ended at their own timeout, or past 2x budget                | 1 h             | --       | 0        | >= 2 (1 is yellow)      |
+| PR check duration            | median run / its kind's budget (`run:ci.yml:pr` 20, `pr-wide` 35) | 1 h, 6 h agrees | 5 runs   | <= 1x    | > 2x                    |
+| Pull request bins over 8 min | share of bins past the 8 min packing target                       | 1 h, 6 h agrees | 10 bins  | <= 10%   | > 25%                   |
+| Reruns                       | run attempts above 1 / runs finished                              | 1 h, 6 h agrees | 10 runs  | < 5%     | > 15%                   |
+| Full-run shards over budget  | shards whose median passes their budget (section 6)               | slow, 7 d       | 5 runs   | 0        | >= 3 (never sets state) |
+| Superseded runs running      | see below; informational until it has fired on real data          | now             | --       | --       | --                      |
+
+Saturated time was "1 h in 24 h"; over one hour a quarter of it saturated is red. Hangs were "any in
+24 h"; over one hour one hang is yellow and two are red, and an earlier hang stays in the episode
+list. Full-run shard medians move only when a full run lands (at most four a day), so they are a slow
+measure; a shard that times out on a run is a hang, judged at once.
 
 **Runner use is counted in jobs**, from the jobs API (`filter=latest`) of every unfinished run,
 never from run status: a run reports `queued` while some of its jobs run (run 40240348348 had 9 jobs
@@ -330,13 +383,18 @@ real data.
 
 ### 4.4 Flaky tests
 
-| Member                         | Measure, window                                                        | Target | Red                  |
-| ------------------------------ | ---------------------------------------------------------------------- | ------ | -------------------- |
-| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI, 24 h                | < 2    | > 10                 |
-| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | 0      | >= 3, or any >= 24 h |
-| Flaky in CI with no open issue | distinct tests flaky in CI, 7 d, with no open issue                    | 0      | >= 3                 |
-| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed), 7 d         | <= 0   | > 3                  |
-| Detected to fixed              | median days from flaky issue opened to fixed, 28 d (min 5)             | <= 3 d | > 7 d                |
+| Member                         | Measure                                                                | Window          | Min n              | Target | Red                      |
+| ------------------------------ | ---------------------------------------------------------------------- | --------------- | ------------------ | ------ | ------------------------ |
+| Flake rate (H)                 | flaky test-file runs per 1,000 test-file runs, CI                      | 1 h, 6 h agrees | 125 test-file runs | < 2    | > 10                     |
+| Blocked by a flake             | open pull requests whose newest failure is flaky, or an unstable story | now             | --                 | 0      | >= 3, or any >= 24 h     |
+| Flaky in CI with no open issue | distinct tests seen flaky in CI in 7 d that have no open issue         | now             | --                 | 0      | >= 3                     |
+| Net new flaky                  | newly flaky minus resolved (10 clean runs or issue fixed)              | slow, 7 d       | --                 | <= 0   | > 3 (never sets state)   |
+| Detected to fixed              | median days from flaky issue opened to fixed                           | slow, 28 d      | 5                  | <= 3 d | > 7 d (never sets state) |
+
+"Flaky in CI with no open issue" is a backlog read now: the 7 d says how long a test stays on it
+without an issue, not a window it is judged over. The flake rate is judged as soon as per-test
+results cover the last hour; on 2026-10-25 they began at 20:42, so from 21:42 it was judged while
+its 6 h value still said "partial, 2.8 h of 6".
 
 "Flaky in CI with no open issue" replaces the quarantine members of version 2: CI keeps no
 quarantine state and files no issues (`tools/test-quarantine.mjs`), and the committed list is
@@ -349,13 +407,17 @@ Read from `release.yml`'s job conclusions, so a shadow run, which opens no "Rele
 judged like a legacy one; hold issues are read too. Lanes: `ci`, `t4`, `hosts`, `autosave_macos`,
 `audit`, `llm`, `version`, `land`, `publish`.
 
-| Member                         | Measure, window                                                        | Target | Red          |
-| ------------------------------ | ---------------------------------------------------------------------- | ------ | ------------ |
-| Lanes red on the candidate (H) | lanes red on the newest candidate a train tested (a hold)              | 0      | open >= 6 h  |
-| Release workflows failing      | failed runs of `release.yml`, `promote.yml`, `release-watch.yml`, 24 h | 0      | >= 3         |
-| Train skipped a new commit     | the newest attempt skipped every lane on an untested master commit     | no     | --           |
-| Tagged, not on npm             | versions tagged but not listed by `npm view <pkg> time`                | 0      | after 30 min |
-| Train first-attempt pass       | attempts that tested and passed first time, 7 d (min 5)                | >= 90% | < 75%        |
+| Member                         | Measure                                                                   | Window    | Min n | Target | Red                        |
+| ------------------------------ | ------------------------------------------------------------------------- | --------- | ----- | ------ | -------------------------- |
+| Lanes red on the candidate (H) | lanes red on the newest candidate a train tested (a hold)                 | now       | --    | 0      | open >= 6 h                |
+| Release workflows failing      | `release.yml`, `promote.yml`, `release-watch.yml` whose newest run failed | now       | --    | 0      | one failed 3 runs in a row |
+| Train skipped a new commit     | the newest attempt skipped every lane on an untested master commit        | now       | --    | no     | --                         |
+| Tagged, not on npm             | versions tagged but not listed by `npm view <pkg> time`                   | now       | --    | 0      | after 30 min               |
+| Train first-attempt pass       | attempts that tested and passed first time                                | slow, 7 d | 5     | >= 90% | < 75% (never sets state)   |
+
+"Release workflows failing" was a count of failed runs in 24 h. `release.yml` runs four times a day,
+so a 1 h count would drop a failure an hour after it; a workflow whose newest run failed is a state
+that lasts until a run passes.
 
 "Train skipped a new commit" is yellow at once, so a skipped candidate is seen hours before
 untested master age passes its target. The channel members (canary, nightly and production age,
@@ -364,7 +426,8 @@ channels exist; until then they are not set up ("channel not built yet, #3418").
 
 ### 4.6 Costs
 
-Month to date, projected to month end. Only money sets the state; list-price values and per-run
+Month to date, projected to month end, read now (billing data arrives daily, so an hour window would
+change nothing). Only money sets the state; list-price values and per-run
 figures are for comparison (section 7). Budgets are configured; these are sample values. The two
 usage members are not set up until their read-only tokens exist (section 16).
 
@@ -379,14 +442,14 @@ usage members are not set up until their read-only tokens exist (section 16).
 
 ### 4.7 Data sources
 
-| Member                          | Measure                                            | Target           | Red                              |
-| ------------------------------- | -------------------------------------------------- | ---------------- | -------------------------------- |
-| Stress run                      | the weekly run, from GitHub's job and step results | passed and filed | filing failed, or not run in 8 d |
-| Sources past their age limit    | sources past their limit (section 9)               | 0                | any past 2x                      |
-| Sources thin for their activity | rows per unit of activity / the 7 d median         | 0 below 50%      | any below 20%                    |
-| Collector                       | since its last run                                 | <= 10 min        | > 20 min                         |
-| GitHub App rate limit           | requests left in the collector App's hour          | > 50%            | < 20%                            |
-| Daily write budget              | rows written today / the daily limit               | < 50%            | > 90%                            |
+| Member                          | Measure                                                | Window          | Min n              | Target           | Red                              |
+| ------------------------------- | ------------------------------------------------------ | --------------- | ------------------ | ---------------- | -------------------------------- |
+| Stress run                      | the weekly run, from GitHub's job and step results     | now             | --                 | passed and filed | filing failed, or not run in 8 d |
+| Sources past their age limit    | sources past their limit (section 9)                   | now             | --                 | 0                | any past 2x                      |
+| Sources thin for their activity | rows per unit of activity in the hour / the 7 d median | 1 h, 6 h agrees | 3 runs of activity | 0 below 50%      | any below 20%                    |
+| Collector                       | since its last run                                     | now             | --                 | <= 10 min        | > 20 min                         |
+| GitHub App rate limit           | requests left in the collector App's hour              | now             | --                 | > 50%            | < 20%                            |
+| Daily write budget              | rows written today / the daily limit                   | now             | --                 | < 50%            | > 90%                            |
 
 The stress run is yellow when it found nothing three weeks running, and red when its filing step
 failed or it had failing tests and filed fewer issues. It is read from GitHub, because a run that
@@ -416,7 +479,8 @@ never mixed.
 
 ## 6. Shard and test-file times
 
-The Shard times section of the CI page has one row per shard of the **full runs** (the release
+The Shard times section of the CI page is a slow measure, with its own 7 d / 28 d choice (7 d by
+default) and the label "slow measure". It has one row per shard of the **full runs** (the release
 train's `ci` lane), worst against budget first: runs (n; shadow trains run at most four a day and
 skip an unchanged master, so expect 5 to 15 in 7 days, and a shard under 5 runs is drawn gray as
 "n=4" and left out of "full-run shards over budget"), median and p90 of the test step (attempt 1,
@@ -446,19 +510,35 @@ The Costs page answers what running the pipeline costs and which process costs i
 The page shows the money lines (projected, so far against budget, 28 d projection, state) and their
 total, which equals the headline; the usage members; "unit costs" for comparison only (money per
 release train, list-price value per merged pull request); money and list-price value by workflow as
-two sorted-bar lists, never summed. Ranges 7 d and 28 d. Rates live in
+two sorted-bar lists, never summed. Every Costs value is month to date, so this page alone has no
+1 h / 6 h / 24 h picker: its header offers 7 d and 28 d (default), labeled "slow measure", for the
+projection-by-day lines and the unit costs. Rates live in
 `tools/pipeline-health/config/rates.json` with the date each was checked; a missing rate or a
 rejected token shows NO DATA, never zero, and a token not yet created is not set up.
 
 ## 8. Time ranges and buckets
 
-- **24 h in 1 h steps** and **7 d in 6 h steps**.
-- **28 d in 1 d steps** only for slow measures: Flaky tests (hotspots, resolved, detected to fixed),
-  Releases (change failure rate) and Costs. Each page's picker offers only its own ranges: Overview,
-  Master, Pull requests, CI, Runners, Local runs and Data sources 24 h (default) and 7 d; Flaky tests
-  24 h, 7 d (default) and 28 d; Releases 24 h (default), 7 d and 28 d; Costs 7 d and 28 d (default).
+A problem must show within hours, not days, so the windows are measured in hours:
 
-The picker changes charts and tables, never the status line or the members' state. Counts are
+| Window | Buckets      | What it is for                                                                                 |
+| ------ | ------------ | ---------------------------------------------------------------------------------------------- |
+| 1 h    | 5 minutes    | decides every state: a member past its threshold shows within one collector cycle (5 minutes)  |
+| 6 h    | 15 minutes   | the trend: the value beside every 1 h value, the sparkline, and the agreement noisy rates need |
+| 24 h   | 1 hour       | backdrop only: the faint part of the sparkline and the "Last 24 hours" list; never a color     |
+| 7 d    | 1 day or raw | slow measures, on their detail sections only, labeled "slow measure"                           |
+| 28 d   | 1 day        | slow measures, likewise: costs, full-run shard medians, flake hotspots over weeks              |
+
+The picker on the overview and on every category page except Costs (section 7) is **1 h, 6 h and 24
+h, 1 h by default**. It sets the window of every value, table and count on the page; charts cover 6
+h at 1 h and 6 h, and 24 h at 24 h. It never changes the status line or a member's state, which are
+always judged as section 4 says. Slow sections carry their own 7 d / 28 d choice beside their heading.
+
+A 1 h value is judged against its threshold every cycle; the 6 h value only holds back RED for the
+noisy rates section 4 marks "6 h agrees" (Google SRE workbook, "Alerting on SLOs": a short window
+for speed and reset, a long one for precision). A rate below its minimum n in the hour is gray "too
+few" with its 6 h value beside it.
+
+Counts are
 summed per bucket, rates are ratios of sums, durations come from the bucket's histogram, stocks show
 the end-of-bucket value and peaks the bucket maximum. **Times are in UTC**, named once in the header
 ("updated 2 min ago, 23:30 UTC"), because the runs, issues and the release schedule all speak UTC.
@@ -522,13 +602,22 @@ AWS credential in GitHub at all.
 One on-demand DynamoDB table, `graphty-health`: runs and jobs (90 days by TTL); shard runs with
 per-file results and a row per failed or retried test (90 days; passing tests per file, which cuts
 writes 20 to 50 times); pull requests, issues, npm versions and cost lines (kept); rollup buckets
-`ROLL#<metric>#<dims>#<step>` (1 h kept 14 days, 6 h 60 days, 1 d 400 days); one precomputed item
-per page and range.
+`ROLL#<metric>#<step>`, one item per metric and bucket holding every dimension of that metric
+(5 min kept 2 days, 15 min 8 days, 1 h 14 days, 1 d 400 days; the 6 h step of the first version is
+gone, because no view is 7 d in 6 h steps any more); one precomputed item per page and range (the
+ten views at 1 h, 6 h and 24 h, plus the slow sections at 7 d and 28 d, about 40 items), stored
+gzipped.
 
 **Rollups are recomputed, never incremented**, so a retried post cannot double-count. Ingest writes
-raw items idempotently and marks each hour it touches dirty; every 5 minutes the collector
-recomputes those buckets, their parents and the page items. A bucket holds counts, sums and a
-32-bin log-scale duration histogram, so medians and p90 come from merged histograms.
+raw items idempotently and marks each 5-minute bucket it touches dirty; every 5 minutes the collector
+recomputes those buckets, their 15-minute, hourly and daily parents, the 1 h, 6 h and 24 h values of
+each metric, and the page items whose inputs changed. A bucket holds counts, sums and a 32-bin
+log-scale duration histogram, so medians and p90 come from merged histograms.
+
+**Reads stay small.** A page or an MCP call reads one precomputed item for its view and range (about
+6 KB gzipped, 2 read units), never buckets. The collector reads, per metric and cycle, three
+single-partition queries: twelve 5-minute buckets (1 h), twenty-four 15-minute buckets (6 h) and
+twenty-four hourly ones (24 h). A slow section reads its own item, built from daily buckets.
 
 ### 10.4 Collection
 
@@ -570,9 +659,15 @@ owner approves the connection.
 
 ### 10.7 Cost
 
-About 4 USD a month at 200 CI runs a day: HTTP API 0.50, Lambda 1.10, DynamoDB 1.65, CloudWatch
-Logs 0.50, Cost Explorer 0.30; storage, SSM, Scheduler, the alarm and SNS email free. The credits
-cover years, and the backend's own cost is a line on the Costs page.
+About 6.50 USD a month at 200 CI runs a day: HTTP API 0.50, Lambda 1.40, DynamoDB 3.80,
+CloudWatch Logs 0.50, Cost Explorer 0.30; storage, SSM, Scheduler, the alarm and SNS email free.
+DynamoDB on demand (0.625 USD per million write units, 0.125 per million read units) breaks down as
+raw ingest 1.00; rollups 0.90 (about 80 metrics, four 1 KB bucket items each per cycle, only the
+dirty ones written, about half); page items 0.70 (about 40 items of 6 KB, the changed ones, every 5
+minutes); collector reads 1.20 (80 metrics x 3 queries of 3 to 6 read units, 8,640 cycles a month);
+page and MCP reads under 0.05. The 5- and 15-minute buckets roughly double the first version's 4
+USD. The 120 USD of credits cover about 18 months, the 10 USD Budget still holds with room, and the
+backend's own cost is a line on the Costs page.
 
 ## 11. The page
 
@@ -660,7 +755,24 @@ Decided here and easy to change:
   gray every day teaches readers to ignore gray.
 - **"Train skipped a new commit" as its own Releases member**, rather than only a note on untested
   master age: it is yellow the moment it happens.
-- **Thresholds**, budgets and which measure heads each category: tune after two weeks of data.
+- **Thresholds**, budgets, minimum n, which rates need the 6 h to agree, and which measure heads each
+  category: tune after two weeks of data.
+- **Status on the last 1 h; 6 h is the trend; 24 h is backdrop** (owner, 2026-10-25, on version 2:
+  "picking time ranges in terms of days means that I can't identify and react to problems or trends
+  for days, as opposed to noticing them within hours"). Version 2 judged most rates over 24 h and
+  offered 24 h and 7 d pickers, so a rate that went bad took hours to move its 24 h value past a
+  threshold and an hour to clear after it recovered. Now every rate is judged on the last hour in
+  5-minute buckets, a state is read now, the noisy rates need the 6 h value to agree before red,
+  rates below a minimum n are gray rather than red on one event, the picker is 1 h / 6 h / 24 h with
+  1 h by default, and 7 d and 28 d survive only on slow detail sections. Reason: the dashboard exists
+  to be acted on within one collector cycle; weeks-long measures that cannot move in an hour are kept
+  as context, out of the status, instead of being forced into an hour window where one event would
+  swing them.
+- **Costs has no hour picker**, only its slow 7 d / 28 d choice: every Costs value is month to date
+  and billing arrives daily, so 1 h, 6 h and 24 h would show the same page.
+- **The sparkline is split rather than overlaid**: the 6 h trend in 15-minute buckets fills most of
+  it and the rest of the 24 h sits faint at its left, because drawing a 24 h line behind a 6 h line
+  would put two time scales on one axis.
 
 Where the two reviews of version 2 disagreed:
 

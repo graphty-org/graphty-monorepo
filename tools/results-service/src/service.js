@@ -6,7 +6,8 @@
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
-//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
+//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, deploy-pages.yml `site` (the site-<sha> it
+//   kept), each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
 import { getCandidate, getFailures, getPlan, getReleaseState, trendFor } from "./queries.js";
@@ -24,6 +25,12 @@ const MASTER_KINDS = {
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
+    "deploy-pages.yml": "site",
+};
+// Kinds that write no test records, and why.
+const NO_TESTS = {
+    deploy: "a site repository writes only durations",
+    site: "deploy-pages.yml writes only its site and durations",
 };
 const MASTER = "refs/heads/master";
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
@@ -180,7 +187,7 @@ const FAILURE_COLUMNS = [
 ];
 
 async function postInvocation(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
@@ -250,7 +257,7 @@ async function postInvocation(body, who, db, nowMs) {
 }
 
 async function postFailures(body, who, db, nowMs) {
-    if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
+    if (NO_TESTS[who.kind]) refuse(403, NO_TESTS[who.kind]);
     ownId(body?.invocation, who);
     const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
     // D1 refuses an empty batch
@@ -326,11 +333,23 @@ async function postVerdict(body, who, db, nowMs) {
     return { stored: meta.changes === 1 };
 }
 
+// A master build kept its site as artifact site-<sha> in this run: the full run's candidate pick reads it.
+async function postSite(body, who, db, nowMs) {
+    if (who.kind !== "site") refuse(403, "only master's own deploy-pages.yml records a site");
+    if (!/^[0-9a-f]{40}$/.test(body?.sha ?? "")) refuse(400, "sha must be a full commit id");
+    const { meta } = await db
+        .prepare("INSERT OR IGNORE INTO site (sha, built_at, run_id) VALUES (?, ?, ?)")
+        .bind(body.sha, nowMs, Number(who.claims.run_id))
+        .run();
+    return { stored: meta.changes === 1, sha: body.sha };
+}
+
 const ROUTES = {
     "POST /v1/verdicts": postVerdict,
     "POST /v1/invocations": postInvocation,
     "POST /v1/failures": postFailures,
     "POST /v1/durations": postDurations,
+    "POST /v1/sites": postSite,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
     "GET /v1/candidate": getCandidate,

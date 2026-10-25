@@ -14,6 +14,7 @@ issue.
 | `POST /v1/failures`    | CI, local             | stores one failure (`{ invocation, file, name, message }`) or a batch (`{ invocation, failures: [...] }`)                                  |
 | `POST /v1/durations`   | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`                                         |
 | `POST /v1/verdicts`    | master's release.yml  | stores the full run's verdict on its candidate (`{ sha, state, lane, issue }`; state `green-clean`, `green-images`, `red` or `owner-item`) |
+| `POST /v1/sites`       | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run           |
 
 A repeated post of the same record id stores nothing the second time (`"stored": false`).
 `POST /v1/durations` answers `trend` too: per posted key, within the run's kind, the median of its
@@ -42,8 +43,9 @@ token, never from the body:
     - a `pull_request` run of graphty-monorepo writes kind `pr`, only for its own merge commit;
     - master's own `release.yml` or `ci.yml`, and the lanes release.yml calls (`gpu.yml`, `hosts.yml`,
       `work-protection-macos.yml`), write `full`; `bisect.yml` writes `bisect`,
-      `base-check.yml` writes `base` and `restricted-cpu-stress.yml` writes `stress`, only when both the
-      run's ref and the workflow file's ref are `refs/heads/master`. Anything else is refused with 403;
+      `base-check.yml` writes `base`, `restricted-cpu-stress.yml` writes `stress` and `deploy-pages.yml`
+      writes `site` (sites and durations only), only when both the run's ref and the workflow file's ref
+      are `refs/heads/master`. Anything else is refused with 403;
     - a site repository (`DEPLOY_REPOSITORY_IDS` in `wrangler.toml`) writes only durations, of kind
       `deploy`.
 - **A local token**: `GRAPHTY_RESULTS_TOKEN` in the root `.env`. The Worker holds only its SHA-256 in

@@ -2843,9 +2843,10 @@ describe("the webgpu-graph-algorithms node suite on every lane", () => {
 });
 
 describe("hosts.yml", () => {
-    it("runs nightly, and a pull request's Windows leg on the short scope", () => {
+    it("runs no nightly, and a pull request's Windows leg on the short scope", () => {
         const hosts = workflow("hosts.yml");
-        assert.match(hosts, /schedule: \[\{ cron: /);
+        // the full run every 6 hours calls it on master's candidate; a cron would test master twice
+        assert.doesNotMatch(hosts.slice(0, hosts.indexOf("\njobs:")), /^ {4}schedule:/m);
         // a push to master runs no tests: the release train runs Hosts on its candidate instead
         assert.doesNotMatch(hosts.slice(0, hosts.indexOf("\njobs:")), /^ {4}push:/m);
         assert.match(hosts, /NARROW: .*github.event_name == 'pull_request'/);
@@ -2855,20 +2856,17 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and only reports a red hardware lane", () => {
+    it("freezes on a red master CI, lifts on a green one, and leaves the hardware lanes to the release train", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
         assert.equal(decide(run("CI", "cancelled")), "none");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
-        // Hosts runs on master only as the nightly: a push to master runs no Hosts
-        assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
-        assert.equal(decide(run("Hosts", "failure")), "none");
-        assert.equal(decide(run("Hosts", "success")), "none");
-        assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
-        // the T4 runs only in the release train, which files its own issue
+        // Hosts and the T4 run only in the release train, which files its own issue
+        assert.equal(decide(run("Hosts", "failure", "schedule")), "none");
+        assert.equal(decide(run("Hosts", "failure", "workflow_dispatch")), "none");
         assert.equal(decide(run("GPU", "failure")), "none");
-        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Deploy to GitHub Pages"\]/);
     });
 
     it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
@@ -4474,6 +4472,53 @@ describe("release.yml", () => {
 
         it("does not deploy a release that is live already", () => {
             assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        });
+
+        // The record step's script, against a stub curl that logs its arguments and answers (or fails) as told
+        const record = ({ url = "https://results.test/", store = 0 } = {}) => {
+            const dir = mkdtempSync(join(tmpdir(), "deploy-record-"));
+            writeFileSync(
+                join(dir, "curl"),
+                `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\ncase "$*" in\n*/v1/sites*) exit ${store};;\n*) echo '{"value":"jwt"}';;\nesac\n`,
+                { mode: 0o755 },
+            );
+            const step = /- name: Record the site in the results store\n[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
+                job(deploy, "build"),
+            );
+            const r = spawnSync("bash", ["-eo", "pipefail", "-c", step[1].replace(/^ {18}/gm, "")], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    RESULTS_URL: url,
+                    SHA: "a".repeat(40),
+                    ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.test/?x=1",
+                    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "req",
+                    PATH: `${dir}:${process.env.PATH}`,
+                },
+            });
+            const calls = existsSync(join(dir, "curl.log")) ? readFileSync(join(dir, "curl.log"), "utf8") : "";
+            rmSync(dir, { recursive: true, force: true });
+            return { status: r.status, out: r.stdout, calls };
+        };
+
+        it("records each kept site in the results store with the run's OIDC token, failing open", () => {
+            assert.match(deploy, /^ {4}id-token: write/m);
+            const ok = record();
+            assert.equal(ok.status, 0);
+            assert.match(ok.calls, /audience=graphty-results/);
+            assert.match(ok.calls, /-X POST https:\/\/results.test\/v1\/sites -H Authorization: Bearer jwt /);
+            assert.match(ok.calls, new RegExp(`-d \\{"sha":"${"a".repeat(40)}"\\}`));
+            const down = record({ store: 22 });
+            assert.equal(down.status, 0, "a store that does not answer never fails the deploy");
+            assert.match(down.out, /::warning::the results store did not record site-a{40}/);
+            const unset = record({ url: "" });
+            assert.equal(unset.status, 0);
+            assert.equal(unset.calls, "", "no store configured: no call");
+            // after the site is uploaded, so a recorded site always exists as an artifact
+            const build = job(deploy, "build");
+            assert.ok(
+                build.indexOf("name: Upload the site") < build.indexOf("name: Record the site in the results store"),
+            );
         });
     });
 });

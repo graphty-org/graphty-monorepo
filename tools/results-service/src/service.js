@@ -4,7 +4,8 @@
 //
 // Who may write what (5.4): every kind is set here from the credential, never from the body.
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
-//   for its own merge commit; master's own release.yml or ci.yml writes `full`, bisect.yml `bisect`,
+//   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
+//   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
 //   base-check.yml `base`, restricted-cpu-stress.yml `stress`, each only on refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
@@ -16,6 +17,10 @@ export const AUDIENCE = "graphty-results";
 const MASTER_KINDS = {
     "release.yml": "full",
     "ci.yml": "full",
+    // the lanes release.yml calls; a called workflow's token names its own file in job_workflow_ref
+    "gpu.yml": "full",
+    "hosts.yml": "full",
+    "work-protection-macos.yml": "full",
     "bisect.yml": "bisect",
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
@@ -61,6 +66,19 @@ async function signingKey(kid, doFetch) {
     return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
+// A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
+function decodeJwt(token) {
+    try {
+        const [header, payload, signature] = token.split(".");
+        const { alg, kid } = part(header);
+        const claims = part(payload);
+        if (claims === null || typeof claims !== "object") throw new TypeError("claims are not an object");
+        return { alg, kid, claims, signature: bytes(signature), signed: `${header}.${payload}` };
+    } catch {
+        return refuse(401, "the OIDC token is not a well-formed JWT");
+    }
+}
+
 /**
  * Checks an Actions OIDC token's signature, issuer, audience and lifetime.
  * @param token the JWT
@@ -69,15 +87,12 @@ async function signingKey(kid, doFetch) {
  * @returns its claims
  */
 async function verifyOidc(token, doFetch, nowMs) {
-    const [header, payload, signature] = token.split(".");
-    const { alg, kid } = part(header);
+    const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
     const key = await signingKey(kid, doFetch);
-    const signed = new TextEncoder().encode(`${header}.${payload}`);
-    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, bytes(signature), signed))) {
+    if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
-    const claims = part(payload);
     const now = nowMs / 1000;
     if (claims.iss !== ISSUER || claims.aud !== AUDIENCE) refuse(401, `OIDC token is not for ${AUDIENCE}`);
     if (typeof claims.exp !== "number" || claims.exp <= now || claims.nbf > now + 60)
@@ -144,6 +159,8 @@ function inserts(db, table, columns, rows) {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
+    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
         const { line, key, signature, status } = failureHashes(f.message, f.file, root);
@@ -235,9 +252,10 @@ async function postInvocation(body, who, db, nowMs) {
 async function postFailures(body, who, db, nowMs) {
     if (who.kind === "deploy") refuse(403, "a site repository writes only durations");
     ownId(body?.invocation, who);
-    const failures = body.failures ?? [body];
-    await db.batch(inserts(db, "failure", FAILURE_COLUMNS, failureRows(body.invocation, failures, body.root, nowMs)));
-    return { stored: failures.length };
+    const rows = failureRows(body.invocation, body.failures ?? [body], body.root, nowMs);
+    // D1 refuses an empty batch
+    if (rows.length) await db.batch(inserts(db, "failure", FAILURE_COLUMNS, rows));
+    return { stored: rows.length };
 }
 
 async function postDurations(body, who, db, nowMs) {

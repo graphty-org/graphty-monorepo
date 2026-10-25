@@ -266,6 +266,7 @@ export async function runShard(
         const list = activeList(committedList(root), state);
         const runs = expectedRuns(shard?.["test-command"] ?? command);
         const firstOutcome = outcomeOf({ code: r1.code, log: r1.text, runs, junit: first });
+        result.firstOutcome = firstOutcome;
         const retry =
             firstOutcome === "failed"
                 ? await retryFailed({ root, shard, first, family, list, env, viaRunTests, reports })
@@ -395,9 +396,10 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     const retryId = reports.id ? `${reports.id}.retry` : null;
     const retryEnv = retryId ? { ...env, TEST_LEDGER_RUN: retryId } : env;
     const run = viaRunTests ? `bash tools/run-tests.sh --command ${shard.shard} ${shQuote(cmd)}` : cmd;
+    const retryAt = Date.now();
     const r2 = await sh(run, retryEnv, root);
     const second = newReports(reports, ".retry");
-    return { second, facts: { retried: true, retryCode: r2.code, retryRunId: retryId, retryFiles: files } };
+    return { second, facts: { retried: true, retryCode: r2.code, retryRunId: retryId, retryFiles: files, retryAt } };
 }
 
 /**

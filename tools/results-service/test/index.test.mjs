@@ -148,6 +148,9 @@ describe("POST /v1/invocations", () => {
             ["bisect.yml", "bisect", 3],
             ["base-check.yml", "base", 4],
             ["restricted-cpu-stress.yml", "stress", 5],
+            ["gpu.yml", "full", 6],
+            ["hosts.yml", "full", 7],
+            ["work-protection-macos.yml", "full", 8],
         ]) {
             const res = await call("POST", "/v1/invocations", {
                 token: master(file),
@@ -155,7 +158,7 @@ describe("POST /v1/invocations", () => {
             });
             assert.deepEqual(res.body, { stored: true, kind }, file);
         }
-        assert.equal(rows("SELECT * FROM invocation").length, 5);
+        assert.equal(rows("SELECT * FROM invocation").length, 8);
     });
 
     it("refuses a full record from a branch ref, and from a branch's copy of a master workflow", async () => {
@@ -215,6 +218,9 @@ describe("POST /v1/invocations", () => {
             oidc({}, { kid: "nope" }),
             undefined,
             "wrong-local",
+            "not.a.jwt",
+            `${b64({ alg: "RS256", kid: "test-kid" })}.${b64(null)}.c2ln`,
+            `${b64({ alg: "RS256", kid: "test-kid" })}.${b64({})}.!!`,
         ]) {
             assert.equal((await call("POST", "/v1/invocations", { token, body: record() })).status, 401);
         }
@@ -289,6 +295,17 @@ describe("POST /v1/failures", () => {
             (await call("POST", "/v1/failures", { token: pr(), body: { ...one, invocation: "1.1.job.g.1" } })).status,
             403,
         );
+    });
+
+    it("refuses a failures field that is not a list with 400, and stores nothing for an empty one", async () => {
+        const { call } = service();
+        const body = { invocation: "4010.1.job.g.1", failures: "boom" };
+        assert.equal((await call("POST", "/v1/failures", { token: pr(), body })).status, 400);
+        assert.deepEqual((await call("POST", "/v1/failures", { token: pr(), body: { ...body, failures: [] } })).body, {
+            stored: 0,
+        });
+        const bad = { ...body, failures: [{ file: "a", name: "a", message: "m" }], root: 7 };
+        assert.equal((await call("POST", "/v1/failures", { token: pr(), body: bad })).status, 400);
     });
 });
 
@@ -611,6 +628,7 @@ describe("failureHashes", () => {
                 "/home/u/repo",
             ],
             ["boom 0123456789abcdef in /tmp/x/y\n<div>", "p/c.test.ts", undefined],
+            ["Error: frame\n \u276F p/d.test.ts:3:7\n \u276F node_modules/x.js:1:1", "p/d.test.ts", undefined],
         ];
         for (const [text, file, main] of samples)
             assert.deepEqual(failureHashes(text, file, main), ledgerHashes(text, file, main));

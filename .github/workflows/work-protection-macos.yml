@@ -157,3 +157,26 @@ jobs:
                   path: graphty-element/test-results/ios
                   if-no-files-found: ignore
                   retention-days: 7
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own timings job reports the whole run.
+    timings:
+        name: Timings
+        needs: [bundle, webkit, safari, ios]
+        if: ${{ always() && contains(github.workflow_ref, '/work-protection-macos.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}

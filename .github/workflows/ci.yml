@@ -98,6 +98,10 @@ jobs:
     packages:
         name: Build
         runs-on: ubuntu-24.04
+        timeout-minutes: 12
+        # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)
+        env:
+            NX_PROFILE: nx-profile.json
         # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
         permissions:
             contents: read
@@ -378,6 +382,17 @@ jobs:
                   # 14 days on a master push: the full run and the bisect reuse it (reuse_build_run).
                   retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
+            # The nx task timings of the build steps (NX_PROFILE), for the timings job.
+            - name: Upload the nx profile
+              if: ${{ !cancelled() }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: nx-profile
+                  path: nx-profile.json
+                  retention-days: 7
+                  if-no-files-found: ignore
+
             - name: Upload graph-format build
               uses: actions/upload-artifact@v4
               with:
@@ -467,6 +482,7 @@ jobs:
         name: Storybooks
         needs: packages
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
         permissions:
             contents: read
@@ -634,6 +650,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
@@ -704,6 +721,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
@@ -824,6 +842,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
@@ -906,6 +925,12 @@ jobs:
         needs: packages
         if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts each shard's record)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
@@ -1051,6 +1076,7 @@ jobs:
               id: tests
               run: ${{ matrix.test-command }}
               env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -1156,6 +1182,7 @@ jobs:
         needs: [packages, build, docs]
         if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1262,6 +1289,7 @@ jobs:
         if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
+        timeout-minutes: 50
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1331,6 +1359,7 @@ jobs:
         needs: packages
         if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1587,6 +1616,7 @@ jobs:
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, visual]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check all jobs passed
               env:
@@ -1713,6 +1743,7 @@ jobs:
         needs: [packages, all-checks]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
@@ -1817,3 +1848,44 @@ jobs:
               run: |
                   mkdir -p "$RUNNER_TEMP/visual"
                   node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own
+    # timings job reports the whole run.
+    timings:
+        name: Timings
+        needs:
+            [
+                packages,
+                build,
+                lint,
+                checks,
+                docs,
+                test,
+                links,
+                performance,
+                cost-accuracy,
+                visual,
+                all-checks,
+                queue-checks,
+                visual-flaky,
+            ]
+        if: ${{ always() && contains(github.workflow_ref, '/ci.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}

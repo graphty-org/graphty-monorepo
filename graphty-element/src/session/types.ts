@@ -1349,7 +1349,9 @@ export interface SessionDataApi {
      * @param name - The dataset's name, e.g. `"karate"`.
      * @param options - Whether to replace the graph (the default) or add to it, where to download
      *     from (`baseUrl`: a mirror of the published files; graphty.app by default) and a signal
-     *     that abandons the download.
+     *     that abandons the download. Loads land in the order they were asked for, so a load
+     *     asked for after this one waits until this download finishes or fails; aborting the
+     *     signal, even once the download has finished, stops it and lets the next load through.
      * @returns Settles once the graph is loaded. Rejects with `E_UNKNOWN_DATASET` for a name the
      *     catalogue does not list (unless `baseUrl` is given) and `E_FETCH_FAILED` when the
      *     download fails; nothing is recorded then.

@@ -6357,6 +6357,7 @@ export class UpdateManager implements Manager {
     thawActiveMeshes(): void;
     update(frameMs?: number): void;
     updateConfig(config: Partial<UpdateManagerConfig>): void;
+    viewMoved(): void;
     whyFrameIsNotStable(): string;
     get zoomToFitCompleted(): boolean;
 }

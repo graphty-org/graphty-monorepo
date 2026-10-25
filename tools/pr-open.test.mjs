@@ -229,6 +229,15 @@ describe("pr-open.sh", () => {
         assert.match(r.out, /no agent git config/);
     });
 
+    it("opens a breaking change without auto-merge, for the owner's go", () => {
+        branch("feat/1243-break", { "b.txt": "b\n" }, "feat(tools)!: drop a flag");
+        const r = run();
+        assert.equal(r.code, 0, r.out);
+        assert.match(r.out, /holds a breaking change; auto-merge is NOT on/);
+        assert.equal(calls().filter((x) => x.a[1] === "merge").length, 0);
+        assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
+    });
+
     it("reminds about the real GPU when webgpu-graph-algorithms changes", () => {
         branch("fix/1242-gpu", { "webgpu-graph-algorithms/src/a.ts": "x\n" });
         const r = run();

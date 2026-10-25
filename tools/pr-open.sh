@@ -12,7 +12,8 @@
 #   3. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
 #   4. opens the pull request (title: the branch's first commit header; body: the commit list, a line
 #      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one;
-#   5. turns on auto-merge with a merge commit, and prints the pull request's URL.
+#   5. turns on auto-merge with a merge commit (not for a breaking change: `type!:` or BREAKING CHANGE, which
+#      waits for the owner), and prints the pull request's URL.
 #
 # Every git and gh call runs as the agent account, never as the owner: GIT_CONFIG_GLOBAL is the agent's
 # git config (its name, its signing key, its SSH key), GH_CONFIG_DIR its gh login, and the session's
@@ -88,7 +89,12 @@ if [ -z "$url" ]; then
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
 fi
-gh pr merge "$url" --auto --merge || die "auto-merge could not be turned on for $url"
+# A breaking change reaches master only with the owner's go (it bumps a published major): no auto-merge.
+if git log --no-merges --format='%s%n%b' "$base..HEAD" | grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:'; then
+    echo "pr-open: $branch holds a breaking change; auto-merge is NOT on. The owner merges it when he gives the go" >&2
+else
+    gh pr merge "$url" --auto --merge || die "auto-merge could not be turned on for $url"
+fi
 
 if git diff --name-only "$base" HEAD | grep -q '^webgpu-graph-algorithms/'; then
     echo "pr-open: this changes webgpu-graph-algorithms; CI has no real GPU. Run its NVIDIA tests here before trusting the merge" >&2

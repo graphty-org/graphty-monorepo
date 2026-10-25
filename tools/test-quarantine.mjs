@@ -406,6 +406,11 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
     return { second, facts: { retried: true, retryCode: r2.code, retryRunId: retryId, retryFiles: files, retryAt } };
 }
 
+// A judge's own lines (runShard()'s `judge`), warnings as annotations in GitHub Actions.
+function printLines(lines, gh) {
+    for (const l of lines) console.log(gh && l.warn ? `::warning::${l.text}` : `test-quarantine: ${l.text}`);
+}
+
 /**
  * The loud lines, and in GitHub Actions a warning annotation per test.
  * @param shard the shard
@@ -416,7 +421,7 @@ async function retryFailed({ root, shard, first, family, list, env, viaRunTests,
 function printDecision(shard, d, env, unretried) {
     const gh = env.GITHUB_ACTIONS === "true";
     if (d.lines) {
-        for (const l of d.lines) console.log(gh && l.warn ? `::warning::${l.text}` : `test-quarantine: ${l.text}`);
+        printLines(d.lines, gh);
         return;
     }
     for (const f of d.flaky) {

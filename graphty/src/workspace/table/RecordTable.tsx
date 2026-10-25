@@ -1,4 +1,10 @@
-import { DataTable, type DataTableColumn, type DataTableSort, type DataTableValue } from "@graphty/compact-mantine";
+import {
+    DataTable,
+    type DataTableColumn,
+    type DataTableSort,
+    type DataTableValue,
+    PANEL_GRID,
+} from "@graphty/compact-mantine";
 import type {
     EdgeRecord,
     GraphSession,
@@ -234,6 +240,9 @@ export function RecordTable({
     return (
         <DataTable<Row>
             label={kind === "node" ? "Nodes" : "Edges"}
+            // The panel list pitch, not the spreadsheet rows DataTable draws by default.
+            rowHeight={PANEL_GRID.ROW_PITCH}
+            headerHeight={PANEL_GRID.ROW_PITCH}
             data={rows}
             rowCount={page.total}
             rowOffset={page.offset}

@@ -4,6 +4,7 @@
     "sourceRoot": "graph-io/src",
     "projectType": "library",
     "tags": [],
+    "implicitDependencies": ["!graphty-element"],
     "targets": {
         "build": {
             "executor": "nx:run-commands",
@@ -46,6 +47,21 @@
             "executor": "nx:run-commands",
             "options": {
                 "command": "npm run typecheck",
+                "cwd": "graph-io"
+            }
+        },
+        "build-storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run build-storybook",
+                "cwd": "graph-io"
+            },
+            "dependsOn": ["build", { "projects": ["graphty-element"], "target": "build" }]
+        },
+        "storybook": {
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "npm run storybook",
                 "cwd": "graph-io"
             }
         },

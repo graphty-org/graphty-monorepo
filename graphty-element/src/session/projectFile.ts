@@ -2098,8 +2098,10 @@ export function projectOf(
         );
         // The network loads wait, fetching nothing, until the application runs them.
         networkSources?.restore(member === undefined ? undefined : loads);
-        // A project opens with a fresh history: its opened state is the baseline.
-        session.history.clear();
+        // A project opens with a fresh history: its opened state is the baseline. Work the reader
+        // started since the open landed (a run, a style edit) and that has changed nothing yet is
+        // kept and records over it; a run of the replaced graph is already stale and cancelled.
+        session.history.clear({ pending: "keep" });
         fresh = false;
         adopt(pointNow());
     };

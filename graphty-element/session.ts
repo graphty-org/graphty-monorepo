@@ -97,6 +97,7 @@ export type {
     GraphSettingKey,
     GraphStatistics,
     HistoryCause,
+    HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
     HistoryStep,

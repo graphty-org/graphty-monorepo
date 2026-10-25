@@ -1,7 +1,8 @@
 /**
  * The workspace frame without the element: what it draws, its menus, its keys, rename, the
- * notice slot and the build stamp. The element is not registered in this file, so its tag stays
- * an empty box and no session arrives; `Workspace.real-element.test.tsx` covers the element.
+ * notice slot and the build stamp. The element is not registered in this file, so its host holds
+ * an empty box where the tag goes once defined and no session arrives;
+ * `Workspace.real-element.test.tsx` covers the element.
  */
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
@@ -80,7 +81,7 @@ describe("the workspace frame", () => {
         const frame = document.querySelector(".ws-app");
         assert.strictEqual(frame?.lastElementChild, bar, "the bar is the frame's bottom row");
         assert.isNotNull(screen.getByRole("region", { name: "Graph place" }));
-        assert.isNotNull(document.querySelector("graphty-element"));
+        assert.isNotNull(document.querySelector('[data-element-host="loading"]'));
         // The one main landmark needs no name, so the rail's Graph button is the only "Graph".
         assert.lengthOf(screen.getAllByRole("main"), 1);
         assert.isNull(screen.getByRole("main").getAttribute("aria-label"));
@@ -114,7 +115,7 @@ describe("the workspace frame", () => {
 
         assert.isNotNull(screen.getByRole("region", { name: "Data page" }));
         assert.isFalse(document.querySelector('aside[aria-label="Inspector"]')?.checkVisibility());
-        assert.isNotNull(document.querySelector("graphty-element"));
+        assert.isNotNull(document.querySelector('[data-element-host="loading"]'));
         // The Data place is lit while the Data page shows (tier1-design.md 2.10).
         assert.equal(screen.getByRole("button", { name: "Data" }).getAttribute("aria-current"), "page");
     });

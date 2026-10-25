@@ -286,6 +286,48 @@ describe("renderOnDemand", () => {
         );
     });
 
+    for (const onDemand of [true, false]) {
+        it(`holds a drawn graph in the frame a resize is painted in (renderOnDemand ${String(onDemand)})`, async () => {
+            const element = await mounted(onDemand);
+            if (onDemand) {
+                await untilResting(element);
+            }
+
+            const { canvas } = element.graph;
+            // Created after the element's own ResizeObserver, so the browser delivers the same
+            // size change to it right after the element's, in the same rendering step, before
+            // that step paints and before any animation frame can draw: the drawing buffer read
+            // here is exactly what the page shows for the resize (and what a full-page
+            // screenshot, which resizes the page, captures).
+            const height = HEIGHT + 100;
+            const painted = new Promise<boolean>((resolve) => {
+                const observer = new ResizeObserver(([entry]) => {
+                    // The first delivery observes the size the element already had.
+                    if (entry.contentRect.height !== height) {
+                        return;
+                    }
+
+                    observer.disconnect();
+                    const copy = document.createElement("canvas");
+                    copy.width = canvas.width;
+                    copy.height = canvas.height;
+                    const context = copy.getContext("2d");
+                    assert.isNotNull(context);
+                    context.drawImage(canvas, 0, 0);
+                    const pixels = context.getImageData(0, 0, copy.width, copy.height).data;
+                    resolve(pixels.some((value, i) => i % 4 === 3 && value !== 0));
+                });
+                observer.observe(element);
+                cleanups.push(() => {
+                    observer.disconnect();
+                });
+            });
+            element.style.height = `${String(height)}px`;
+
+            assert.isTrue(await painted, "the canvas holds a frame, not the buffer the resize cleared");
+        });
+    }
+
     it("draws a style change and still reaches a stable frame", async () => {
         const element = await mounted(true);
         await untilResting(element);
@@ -324,6 +366,19 @@ describe("renderOnDemand", () => {
         MeshBuilder.CreateBox("added-from-outside", { size: 2 }, element.graph.scene);
         await restsOnTheCurrentPicture(element);
         assert.isAbove(draws.count(), 0, "the added mesh was drawn");
+    });
+
+    it("draws a mesh added ready to draw in one frame, not again to check it", async () => {
+        const element = await mounted(true);
+        MeshBuilder.CreateBox("first-box", { size: 1 }, element.graph.scene);
+        await untilResting(element);
+        const before = loopTicks(element).drawn;
+
+        // Its shader is the first box's, already compiled: the frame that adds it draws it whole.
+        MeshBuilder.CreateBox("second-box", { size: 2 }, element.graph.scene);
+        await untilResting(element);
+        assert.strictEqual(loopTicks(element).drawn - before, 1, "one frame for the added mesh");
+        await restsOnTheCurrentPicture(element);
     });
 
     it("draws a selection style set while resting", async () => {

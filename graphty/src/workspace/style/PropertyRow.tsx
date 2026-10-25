@@ -883,7 +883,6 @@ function NumberValue({
             label={name}
             width="100%"
             numeric
-            variant="outlined"
             options={[]}
             value={typeof value === "number" ? Math.round(value * scale * 100) / 100 : ""}
             suffix={percent ? "%" : undefined}
@@ -919,7 +918,6 @@ function TextValue({
             // Keyed by the value, so Undo, Redo or another edit shows the new text.
             key={text}
             size="xs"
-            variant="outlined"
             aria-label={name}
             defaultValue={text}
             onBlur={(event) => {
@@ -1206,7 +1204,7 @@ export function Field({
                 <div className="ws-field-control">{control}</div>
                 <span className="ws-slot ws-vary">{varySlot}</span>
                 <span className="ws-slot">
-                    <Tooltip label={removeName} position="top">
+                    <Tooltip label={removeName}>
                         <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
                             <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
@@ -1332,8 +1330,7 @@ function VaryButton({
             <Popout.Trigger>
                 {/* The Tooltip passes the trigger's click and ref to the button, but not its ARIA,
                     so the button states its own. */}
-                {/* Above the row, so it never covers the line under the field. */}
-                <Tooltip label={label} position="top">
+                <Tooltip label={label}>
                     <PopoutButton
                         icon={<GLYPHS.link size={14} aria-hidden />}
                         // One name for the button, its tooltip and the pop-out it opens.

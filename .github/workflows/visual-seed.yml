@@ -79,7 +79,7 @@ jobs:
               id: sha
               run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:
@@ -132,7 +132,7 @@ jobs:
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
               run: git lfs pull --include "${{ matrix.baselines }}/${{ matrix.project }}/**,${{ matrix.fonts }}"
 
-            - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v6
 
             - uses: actions/setup-node@v4
               with:

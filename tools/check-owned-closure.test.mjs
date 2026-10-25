@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { isOwned, parseCodeowners, replay, unownedClosure } from "./check-owned-closure.mjs";
+import { isOwned, parseCodeowners, replay, unownedClosure, withoutComments } from "./check-owned-closure.mjs";
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
 
 // the code under test runs git itself, so the whole process gets the isolated environment
@@ -112,6 +112,17 @@ describe("unownedClosure, root paths", () => {
         });
         const unowned = unownedClosure(root, parseCodeowners("/nx.json @o\n/.github/workflows/ @o\n"));
         assert.deepEqual([...unowned.keys()].sort(), ["root.config.js", "tools/x.sh"]);
+    });
+});
+
+describe("withoutComments", () => {
+    it("keeps a JS string that holds a glob or a URL, and removes real comments", () => {
+        const text =
+            'const g = ["src/*.ts", "x/**"];\nconst u = "https://a"; // gone\n/* gone */ run("tools/kept.mjs");\n';
+        assert.equal(
+            withoutComments("a.mjs", text),
+            'const g = ["src/*.ts", "x/**"];\nconst u = "https://a"; \n run("tools/kept.mjs");\n',
+        );
     });
 });
 

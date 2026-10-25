@@ -32,6 +32,8 @@ const FOLLOWED = /\.(?:[cm]?[jt]sx?|ya?ml|sh|py|json)$/u;
 const PATH_RUN = /[\w@./+-]+/gu;
 const PATH_EXT = /\.(?:[cm]?[jt]sx?|sh|py|json)$/u;
 const JS = /\.[cm]?[jt]sx?$/u;
+/** A JS string literal (kept, group 1) or a comment (removed). */
+const JS_COMMENT = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/.*/gu;
 /** A variable a path is written under (`$CLAUDE_PROJECT_DIR/`, `${{ github.workspace }}/`): the checkout's root. */
 const ROOT_VAR = /\$\{\{[^}]*\}\}\/|\$\{?\w+\}?\//gu;
 /**
@@ -90,7 +92,8 @@ export const isOwned = (rules, path) => rules.some((r) => r.re.test(path));
  */
 export function withoutComments(file, text) {
     if (JS.test(file)) {
-        return text.replaceAll(/\/\*[\s\S]*?\*\//gu, "").replaceAll(/(^|\s)\/\/.*$/gmu, "$1");
+        // strings are kept whole, so a glob such as "tools/*.mjs" or a URL does not open a comment
+        return text.replaceAll(JS_COMMENT, (_, str) => str ?? "");
     }
     return file.endsWith(".json") ? text : text.replaceAll(/(^|\s)#.*$/gmu, "$1");
 }

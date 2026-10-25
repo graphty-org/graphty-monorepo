@@ -1,10 +1,11 @@
 name: Deploy to GitHub Pages
 
-# Every green CI run of a push to master assembles graphty.app (the app, the docs, the Storybooks and the hosted
-# data: one Pages site) from exactly that run's artifacts and keeps it as artifact site-<sha> (14 days). Only the
-# version merge release.yml's land job pushes ("chore(release): publish <tags> onto master") deploys it, so
-# graphty.app moves with npm's latest and nothing else moves it (design/ci/channels-pipeline.md, section 12,
-# step 0). To redeploy, re-run this workflow's run for that version merge.
+# Every green CI run of a push to master assembles the site (the app, the docs, the Storybooks and the hosted data:
+# one Pages site) from exactly that run's artifacts, keeps it as artifact site-<sha> (14 days) and deploys it to this
+# repository's GitHub Pages, served at canary.graphty.app (the custom domain is a Pages setting of this repository,
+# not a file in the site). Canary is the first channel (design/ci/channels-pipeline.md, section 3):
+# nightly.graphty.app and graphty.app are served by graphty-nightly and graphty-site and move only by promotion
+# (release.yml's nightly promotion, promote.yml). To redeploy, re-run this workflow's run for that commit.
 on:
     workflow_run:
         workflows: ["CI"]
@@ -24,12 +25,11 @@ permissions:
     actions: read # Required to download artifacts from other workflow runs
 
 jobs:
-    # Only a green CI run of a push to master builds the site, and only a release's version merge deploys it: a
-    # merge commit whose subject is the one release.yml's land job writes. The live page's build stamp says which
+    # Only a green CI run of a push to master builds and deploys the site. The live canary's build stamp says which
     # commit it serves; when it is this one (a re-run), or a newer one (CI runs finish out of order), there is
-    # nothing to deploy.
+    # nothing to deploy, and the site is still kept as site-<sha>.
     check:
-        name: Is this a release to deploy
+        name: Is this build newer than canary
         if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
         runs-on: ubuntu-24.04
         outputs:
@@ -38,36 +38,16 @@ jobs:
             - id: live
               env:
                   GH_TOKEN: ${{ github.token }}
-                  MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+                  CANARY_URL: https://canary.graphty.app/
               run: |
-                  # The subject alone proves nothing: any pull request can be merged with this subject. A real
-                  # version merge's second parent is the version commit, which the release's tags point at, and
-                  # only the release deploy key pushes those tags. So the first tag the subject names must
-                  # point at this merge's second parent.
-                  subject=${MESSAGE%%$'\n'*}
-                  second="" target=""
-                  case "$subject" in
-                      "chore(release): publish "*" onto master")
-                          tag=${subject#chore(release): publish }; tag=${tag% onto master}; tag=${tag%%,*}
-                          second=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}" --jq 'if (.parents | length) == 2 then .parents[1].sha else "" end')
-                          ref=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/$(jq -rn --arg t "$tag" '$t | @uri')" --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null || true)
-                          case "$ref" in
-                              "tag "*) target=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${ref#tag }" --jq .object.sha) ;;
-                              "commit "*) target=${ref#commit } ;;
-                          esac ;;
-                  esac
-                  if [ -z "$second" ] || [ "$target" != "$second" ]; then
-                      echo "::notice::${SHA} is not a release's version merge: its site is kept as artifact site-${SHA}, graphty.app stays"
-                      echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
-                  fi
-                  live=$(curl -fsSL --max-time 30 https://graphty.app/ | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  live=$(curl -fsSL --max-time 30 "$CANARY_URL" | grep -o 'name="graphty-build" content="[^"]*"' || true)
                   echo "live stamp: ${live:-none}"
                   live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
                   case "$live" in
-                      *"commit=${SHA} "*) echo "::notice::${SHA} is live already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                      *"commit=${SHA} "*) echo "::notice::${SHA} is live on canary already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
                   esac
                   if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
-                      echo "::notice::the live ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                      echo "::notice::canary's ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
                   fi
                   echo "deploy=true" >> "$GITHUB_OUTPUT"
 
@@ -269,7 +249,7 @@ jobs:
         needs: [check, build]
         if: ${{ needs.check.outputs.deploy == 'true' }}
         # One deploy at a time; a newer pending deploy replaces an older pending one. On this job, not the workflow,
-        # so an ordinary master build, which only keeps its site, never replaces a release's pending deploy.
+        # so every build still assembles and keeps its own site-<sha>.
         concurrency:
             group: deploy-pages
         runs-on: ubuntu-24.04

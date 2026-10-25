@@ -8,7 +8,7 @@
 # - either way: closes its own revert pull requests that master CI shows are no longer needed;
 # - Hosts red (the nightly; a push to master no longer runs Hosts): opens, or adds to, a priority:critical
 #   issue naming the merges since the lane's last green run. Never freezes; release.yml already refuses to release.
-# - Deploy to GitHub Pages red (graphty.app did not get the green master build): opens, or adds to, one
+# - Deploy to GitHub Pages red (canary.graphty.app did not get the green master build): opens, or adds to, one
 #   priority:critical issue. Never freezes or reverts: the commit passed CI, and the deploy only publishes it.
 # The T4 GPU lane (gpu.yml) no longer runs on master: the release train runs it and files its own issue.
 #

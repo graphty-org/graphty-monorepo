@@ -12,8 +12,9 @@ runs this skill under `/loop`, and each round looks at the repository, takes the
 
 **Interim rules, until the rest of the channels pipeline is built** (plan: `design/ci/channels-pipeline-plan.md`):
 
-- **Production is frozen.** graphty.app deploys only from a release's version merge; scheduled release trains run in
-  shadow and publish nothing. Never dispatch a release; only the owner runs `mode=legacy`.
+- **Production moves only on the owner's go.** Every green master build deploys to canary.graphty.app; graphty.app
+  moves only by `promote.yml`, which the owner dispatches and approves. Scheduled release trains run in shadow and
+  publish nothing. Never dispatch a release or a promotion.
 - **Screenshots still gate pull requests.** A pull request held only by its visual gate waits for the owner: one
   `ACTION NEEDED` line per pull request, once (step 4).
 - **A `master-guard` revert pull request whose capture changes a screenshot** gets its own immediate `ACTION NEEDED`
@@ -61,7 +62,7 @@ shared file:
 
 - **Shadow runs** (every scheduled `release.yml` run) open no hold: a red one comments once on #3418. Read the newest
   such comment: a code failure gets a fix subagent like step 1 with `Refs #3418`; an outside one gets one re-run.
-- **A "Release held" issue** (from an owner's `mode=legacy` run, such as #3318): read the run it names and classify
+- **A "Release held" issue** (a publish hold, or one left open from an earlier release, such as #3318): read the run it names and classify
   it. Code: a fix subagent with `Refs #<hold>` (never `Fixes`: the owner closes it with his next release). Paid
   capacity, a credential or npm's trusted publisher: owner item (CLAUDE.md "A new package's first npm publish").
 - **Red deploy run:** the newest `deploy-pages.yml` run failed and no open issue names its run id: open one,

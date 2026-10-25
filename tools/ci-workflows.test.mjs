@@ -1743,7 +1743,7 @@ describe("the Sentry source map upload", () => {
         );
     });
 
-    it("runs right after the build, only on a push to master, the build graphty.app deploys", () => {
+    it("runs right after the build, only on a push to master, the build canary.graphty.app deploys", () => {
         assert.ok(upload);
         assert.equal(
             upload.if,
@@ -2682,12 +2682,9 @@ describe("the re-run of a T4 run whose spot runner was lost", () => {
             held.slice(skip),
             /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+echo "reclaimed=true" >> "\$GITHUB_OUTPUT"\n\s+exit 0\n/,
         );
-        // and announces nothing: the re-run attempt announces its own outcome
-        assert.match(
-            held,
-            /- name: Announce the held release\n\s+if: \$\{\{ always\(\) && steps.hold.outputs.reclaimed != 'true' && inputs.mode == 'legacy' \}\}/,
-        );
-        assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
+        // and announces nothing: the re-run attempt reports its own outcome
+        assert.doesNotMatch(held, /Announce the held release|release-status\.mjs/);
+        assert.ok(skip < held.indexOf("gh issue comment 3418"), "before the run is reported");
         // versioning still requires a green T4: the re-run attempt must pass it
         assert.match(job(workflow("release.yml"), "version"), /needs.t4.result == 'success'/);
     });
@@ -2782,7 +2779,7 @@ describe("master-guard", () => {
         assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts", "Deploy to GitHub Pages"\]/);
     });
 
-    it("reports a failed graphty.app deploy, which runs on CI's workflow_run event", () => {
+    it("reports a failed canary deploy, which runs on CI's workflow_run event", () => {
         assert.equal(decide(run("Deploy to GitHub Pages", "failure", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "timed_out", "workflow_run")), "deploy-red");
         assert.equal(decide(run("Deploy to GitHub Pages", "success", "workflow_run")), "none");
@@ -3052,7 +3049,6 @@ describe("release.yml", () => {
     const version = job(release, "version");
     const land = job(release, "land");
     const publish = job(release, "publish");
-    const approve = job(release, "approve");
 
     it("opens no pull request and pushes to master only from the land job, with the deploy key", () => {
         assert.doesNotMatch(release, /gh pr create|head_commit/);
@@ -3072,26 +3068,29 @@ describe("release.yml", () => {
         assert.doesNotMatch(on, /^\s+push:/m);
     });
 
-    it("lands and publishes only in an owner-approved legacy run; a shadow run, the default, only tests", () => {
+    it("has no legacy mode: shadow is its one mode, which lands and publishes nothing (#3467)", () => {
         assert.match(
             release,
-            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: shadow\n\s+type: choice\n\s+options:\n\s+- shadow\n\s+- legacy\n/,
+            /\n {12}mode:\n[^\n]*\n\s+required: false\n\s+default: shadow\n\s+type: choice\n\s+options:\n\s+- shadow\n\n/,
         );
-        assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode == 'legacy' && 'legacy' \|\| 'shadow' \}\}\n/m);
-        // the owner's approval in production stands before the land job, and refuses a production that asks nobody
-        assert.match(approve, /\n {8}environment: production\n/);
-        assert.match(approve, /\n {8}permissions:\n {12}actions: read\n {8}steps:/);
-        assert.match(approve, /select\(.type == "required_reviewers"\)/);
-        assert.match(approve, /\[ "\$reviewers" -gt 0 \] \|\| \{\n[^\n]*::error::[^\n]*\n\s+exit 1\n/);
-        assert.doesNotMatch(approve, /secrets\./);
+        assert.match(release, /^ {4}MODE: \$\{\{ inputs.mode \|\| 'shadow' \}\}\n/m);
+        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /legacy/);
+        // no owner-approval job: an urgent release goes through promote.yml
+        assert.doesNotMatch(release, /^ {4}approve:$/m);
+        assert.doesNotMatch(release, /needs\.approve|environment: production/);
+        assert.match(release, /promote\.yml/);
+        // land, and so publish, run only for a mode that publishes, never for shadow
+        assert.match(
+            land,
+            /if: \$\{\{ !cancelled\(\) && needs.version.result == 'success' && inputs.mode != 'shadow' \}\}/,
+        );
         // every job that reads an outside-world secret declares its environment
         assert.match(land, /\n {8}environment: release # the deploy key\n/);
         assert.match(publish, /\n {8}environment: release # /);
         assert.match(llm, /\n {8}environment: full-run # GOOGLE_API_KEY\n/);
-        // pick and held read Pushover only for a legacy run's announcements
-        assert.match(pick, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
-        assert.match(held, /\n {8}environment: \$\{\{ inputs.mode == 'legacy' && 'release' \|\| '' \}\}\n/);
-        assert.equal(release.match(/\n {8}environment: /g).length, 6);
+        // pick and held announce nothing, so they take no environment
+        assert.doesNotMatch(pick + held, /\n {8}environment: /);
+        assert.equal(release.match(/\n {8}environment: /g).length, 3);
         // no job reads a secret without an environment, except GITHUB_TOKEN and the reusable-workflow calls
         for (const [, name] of release.slice(release.indexOf("\njobs:")).matchAll(/^ {4}(\w+):$/gm)) {
             const body = job(release, name);
@@ -3185,12 +3184,11 @@ describe("release.yml", () => {
         assert.match(version, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
         assert.match(version, /node tools\/release-diff.mjs "\$SHA" "\$commit"/);
         assert.match(land, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        // land and publish follow only a version commit made after every lane passed, and the owner's approval
+        // land and publish follow only a version commit made after every lane passed
         assert.match(
-            approve,
-            /needs: \[pick, version\]\n\s+if: \$\{\{ inputs.mode == 'legacy' && needs.version.result == 'success' \}\}/,
+            land,
+            /needs: \[pick, version\]\n[^\n]*\n\s+if: \$\{\{ !cancelled\(\) && needs.version.result == 'success'/,
         );
-        assert.match(land, /needs: \[pick, version, approve\]\n\s+if: \$\{\{ needs.approve.result == 'success' \}\}/);
         assert.match(
             publish,
             /needs: \[pick, version, land\]\n\s+if: \$\{\{ always\(\) && needs.land.outputs.pushed == 'true' \}\}/,
@@ -3242,8 +3240,8 @@ describe("release.yml", () => {
         }
     });
 
-    it("holds the whole release when anything fails: nothing pushed, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version, approve, land\]/);
+    it("reports a failed shadow run once, and it pushes and publishes nothing", () => {
+        assert.match(held, /needs: \[pick, ci, t4, hosts, autosave_macos, audit, llm, version\]/);
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the version job kept, and only the version job keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -3263,7 +3261,6 @@ describe("release.yml", () => {
             ["AUTOSAVE_MACOS", "work protection (macOS)"],
             ["AUDIT", "security audit"],
             ["VERSION", "versioning"],
-            ["LAND", "landing on master"],
         ]) {
             assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
@@ -3275,64 +3272,40 @@ describe("release.yml", () => {
             held,
             /if \[ -n "\$LLM_OWNER_ITEM" \]; then\n\s+echo\n\s+echo "The LLM regression job did not fail on code: [^\n]*it is an owner item/,
         );
-        assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
-        assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
-        const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
-        assert.match(helper, /startswith\(\\"\$\{1:-Release held: \}\\"\)/);
-        assert.match(helper, /gh issue edit "\$open"[^\n]*--title "\$2"/);
-        assert.match(helper, /gh issue comment "\$open"/);
-        assert.match(helper, /--label bug --label priority:high --label effort:medium/);
-        assert.match(held, /::error::release held/);
-        // the only way out without an issue is the T4 runner loss the re-run repeats (tested with it)
+        assert.match(held, /title="Shadow release run: \$\{what\} failed on \$\{SHA:0:7\}"/);
+        assert.doesNotMatch(held, /release-held\.sh|Release held/);
+        assert.match(held, /::error::shadow release run/);
+        // the only way out without a report is the T4 runner loss the re-run repeats (tested with it)
         assert.equal(held.match(/\n\s+exit [0-9]/g).length, 1);
-        // a refused or lost T4 runner has no code fix: the issue says so
+        // a refused or lost T4 runner has no code fix: the report says so
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
-        // and the next train that lands closes it, only after the push
-        const close = land.indexOf("tools/release-held.sh close");
-        assert.ok(close > land.indexOf("git push --atomic"), "closed only after the release is on master");
     });
 
-    // A train attempt ends with a release on master or a "Release held" issue, never with neither. Run
-    // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
-    // good, its result "abandoned", and held's `if` listed only failure and cancelled.
-    describe("never ends a train attempt without a landed release or a held issue", () => {
-        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version", "land"];
+    // A shadow run that did not pass is always reported. Run 37635516841 (2026-10-07) was not: a GitHub Actions
+    // outage left CI's "All Checks Pass" queued for good, its result "abandoned", and held's `if` listed only
+    // failure and cancelled.
+    describe("never ends a failed run without reporting it", () => {
+        const trainNeeds = [.../\n {8}needs: \[([^\]]*)\]/.exec(version)[1].split(", "), "version"];
         const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
-        // the condition as JavaScript: GitHub's expression syntax here is a subset of it. `pushed` is the land
-        // job's output: "true" once the release is on master, "" (GitHub's value for an unset output) before.
-        const runs = (results, release = "true", pushed = "") =>
+        // the condition as JavaScript: GitHub's expression syntax here is a subset of it
+        const runs = (results, release = "true") =>
             new Function(
                 "needs",
                 `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
             )(
                 Object.fromEntries(
-                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version", "approve", "land"].map(
-                        (j) => [
-                            j,
-                            {
-                                result: results[j] ?? "success",
-                                outputs: j === "pick" ? { release } : j === "land" ? { pushed } : {},
-                            },
-                        ],
-                    ),
+                    ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version"].map((j) => [
+                        j,
+                        { result: results[j] ?? "success", outputs: j === "pick" ? { release } : {} },
+                    ]),
                 ),
             );
         // every result a job can end with, including the ones GitHub does not document
         const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
 
-        it("needs every lane, the version job and the land job", () => {
-            assert.deepEqual(trainNeeds, [
-                "pick",
-                "ci",
-                "t4",
-                "hosts",
-                "autosave_macos",
-                "audit",
-                "llm",
-                "version",
-                "land",
-            ]);
-            assert.match(held, new RegExp(`needs: \\[${trainNeeds.slice(0, -1).join(", ")}, approve, land\\]`));
+        it("needs every lane and the version job", () => {
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "autosave_macos", "audit", "llm", "version"]);
+            assert.match(held, new RegExp(`needs: \\[${trainNeeds.join(", ")}\\]`));
         });
 
         it("runs whatever the run's state: always(), never a list of red results", () => {
@@ -3343,12 +3316,8 @@ describe("release.yml", () => {
         it("runs for every non-success result of every lane the train needs", () => {
             for (const lane of trainNeeds.filter((j) => j !== "pick")) {
                 for (const result of NOT_SUCCESS) {
-                    // a lane that did not succeed skips versioning and landing
-                    assert.equal(
-                        runs({ [lane]: result, version: "skipped", land: "skipped" }),
-                        true,
-                        `${lane} ${result}`,
-                    );
+                    // a lane that did not succeed skips versioning
+                    assert.equal(runs({ [lane]: result, version: "skipped" }), true, `${lane} ${result}`);
                 }
             }
         });
@@ -3365,7 +3334,6 @@ describe("release.yml", () => {
                             audit: "skipped",
                             llm: "skipped",
                             version: "skipped",
-                            land: "skipped",
                         },
                         "",
                     ),
@@ -3384,7 +3352,6 @@ describe("release.yml", () => {
                         audit: "skipped",
                         llm: "skipped",
                         version: "skipped",
-                        land: "skipped",
                     },
                     "",
                 ),
@@ -3392,8 +3359,8 @@ describe("release.yml", () => {
             );
         });
 
-        it("stays quiet when the release landed, or the pick found nothing to release", () => {
-            assert.equal(runs({}, "true", "true"), false);
+        it("stays quiet for a green run, and when the pick found nothing to release", () => {
+            assert.equal(runs({}), false);
             const none = {
                 ci: "skipped",
                 t4: "skipped",
@@ -3401,45 +3368,31 @@ describe("release.yml", () => {
                 audit: "skipped",
                 llm: "skipped",
                 version: "skipped",
-                land: "skipped",
             };
             assert.equal(runs(none, "false"), false);
         });
 
-        // Issue #1768: a bookkeeping step after the release went ahead (closing the held issue) failed, and this
-        // job posted "Release held" for a release that was going ahead.
-        it("opens no held issue when a step fails after the release landed", () => {
-            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
-                assert.equal(runs({ land: result }, "true", "true"), false, `land ${result}`);
+        it("reports a versioning that did not pass", () => {
+            for (const result of NOT_SUCCESS) {
+                assert.equal(runs({ version: result }), true, `version ${result}`);
             }
+        });
+
+        // Issue #1768: a bookkeeping step after the release went ahead failed; the land job says so itself
+        it("leaves a failure after a landed release to the land job, which reports it in the run", () => {
             assert.match(land, /\n {8}outputs:\n {12}pushed: \$\{\{ steps.push.outputs.pushed \}\}\n/);
-            // and the land job says so in the run, rather than failing silently
             assert.match(
                 land,
                 /- name: Report a failure after the release landed\n\s+if: \$\{\{ failure\(\) && steps.push.outputs.pushed == 'true' \}\}[\s\S]*::error::/,
             );
         });
 
-        it("stays quiet for a green shadow run, which lands nothing, and when the owner declines the approval", () => {
-            assert.equal(runs({ approve: "skipped", land: "skipped" }), false);
-            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
-                assert.equal(runs({ approve: result, land: "skipped" }), false, `approve ${result}`);
-            }
-        });
-
-        it("still opens the held issue when versioning or landing fails before the push", () => {
-            for (const result of NOT_SUCCESS) {
-                assert.equal(runs({ version: result, land: "skipped" }, "true", ""), true, `version ${result}`);
-                assert.equal(runs({ land: result }, "true", ""), true, `land ${result}`);
-            }
-        });
-
-        // The issue step, run in a scratch directory with stubs: gh lists this attempt's jobs (run 37635516841's
-        // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and tools/release-held.sh
-        // records the issue it would open.
+        // The report step, run in a scratch directory with stubs: gh lists this attempt's jobs (run 37635516841's
+        // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and records the comment.
         const issue = (env, jobs) => {
-            const script =
-                /- name: Open or update the held-release issue\n\s+id: hold\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
+            const script = /- name: Report the failed shadow run\n\s+id: hold\n\s+run: \|\n([\s\S]*?)\n\n/.exec(
+                held,
+            )[1];
             const dir = mkdtempSync(join(tmpdir(), "release-held-"));
             try {
                 mkdirSync(join(dir, "tools"));
@@ -3470,7 +3423,7 @@ describe("release.yml", () => {
                         GITHUB_OUTPUT: join(dir, "output"),
                         RUNNER_TEMP: dir,
                         TRIGGER: "schedule",
-                        MODE: "legacy",
+                        MODE: "shadow",
                         SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
                         PICK_RESULT: "success",
                         CI_RESULT: "success",
@@ -3481,7 +3434,6 @@ describe("release.yml", () => {
                         LLM_RESULT: "success",
                         LLM_OWNER_ITEM: "",
                         VERSION_RESULT: "success",
-                        LAND_RESULT: "skipped",
                         ...env,
                     },
                 });
@@ -3509,9 +3461,15 @@ describe("release.yml", () => {
             { id: 6, name: "Hold the release", status: "in_progress", conclusion: null, steps: [] },
         ];
 
-        it("opens the issue for an abandoned CI call, naming the job that never ran", () => {
-            const { title, body } = issue({ CI_RESULT: "abandoned" }, JOBS);
-            assert.equal(title, "Release held: CI failed on 44ab26d\n");
+        const headline = (env, jobs = []) => {
+            const { title, body } = issue(env, jobs);
+            assert.equal(title, "#3418\n");
+            return /^\*\*(.*)\*\*\n/.exec(body)[1];
+        };
+
+        it("reports an abandoned CI call, naming the job that never ran", () => {
+            const { body } = issue({ CI_RESULT: "abandoned" }, JOBS);
+            assert.match(body, /^\*\*Shadow release run: CI failed on 44ab26d\*\*\n/);
             assert.match(body, /Results: candidate pick success, CI abandoned, T4 GPU success, /);
             assert.match(body, /Jobs that did not pass: CI \/ All Checks Pass, CI \/ Queue Checks Pass\n/);
             assert.match(body, /\nCI \/ All Checks Pass: never finished \(still queued\)/);
@@ -3520,8 +3478,8 @@ describe("release.yml", () => {
             assert.doesNotMatch(body, /Hold the release|Coverage/);
         });
 
-        it("in a shadow run, comments once on #3418 instead of opening a Release held issue", () => {
-            const { title, body } = issue({ MODE: "shadow", T4_RESULT: "failure" }, []);
+        it("comments once on #3418, never a Release held issue", () => {
+            const { title, body } = issue({ T4_RESULT: "failure" }, []);
             assert.equal(title, "#3418\n");
             assert.match(body, /^\*\*Shadow release run: T4 GPU failed on 44ab26d\*\*\n/);
             assert.match(body, /A shadow run: it never pushes or publishes, and it holds nothing/);
@@ -3530,14 +3488,13 @@ describe("release.yml", () => {
             assert.equal(held.match(/gh issue comment/g).length, 1);
         });
 
-        it("opens the issue when a lane was only cancelled", () => {
-            const { title } = issue({ T4_RESULT: "cancelled" }, []);
-            assert.equal(title, "Release held: T4 GPU failed on 44ab26d\n");
+        it("reports a lane that was only cancelled", () => {
+            assert.equal(headline({ T4_RESULT: "cancelled" }), "Shadow release run: T4 GPU failed on 44ab26d");
         });
 
-        it("opens the issue when the pick itself failed", () => {
-            const { title } = issue(
-                {
+        it("reports a pick that itself failed", () => {
+            assert.equal(
+                headline({
                     PICK_RESULT: "failure",
                     CI_RESULT: "skipped",
                     T4_RESULT: "skipped",
@@ -3545,49 +3502,40 @@ describe("release.yml", () => {
                     AUTOSAVE_MACOS_RESULT: "skipped",
                     AUDIT_RESULT: "skipped",
                     LLM_RESULT: "skipped",
-                },
-                [],
+                }),
+                "Shadow release run: candidate pick failed on 44ab26d",
             );
-            assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
         });
 
         it("names a failed LLM lane, and an owner item as one", () => {
-            assert.equal(
-                issue({ LLM_RESULT: "failure" }, []).title,
-                "Release held: LLM regression failed on 44ab26d\n",
-            );
-            assert.equal(
-                issue({ LLM_RESULT: "cancelled" }, []).title,
-                "Release held: LLM regression failed on 44ab26d\n",
-            );
-            const { title, body } = issue(
+            assert.equal(headline({ LLM_RESULT: "failure" }), "Shadow release run: LLM regression failed on 44ab26d");
+            assert.equal(headline({ LLM_RESULT: "cancelled" }), "Shadow release run: LLM regression failed on 44ab26d");
+            const { body } = issue(
                 { LLM_RESULT: "failure", LLM_OWNER_ITEM: "the provider refused the account (credit balance too low)" },
                 [],
             );
-            assert.equal(title, "Release held: LLM regression (owner item: Google account) failed on 44ab26d\n");
+            assert.match(
+                body,
+                /^\*\*Shadow release run: LLM regression \(owner item: Google account\) failed on 44ab26d\*\*/,
+            );
             assert.match(body, /LLM regression \(owner item: Google account\) failure/);
             assert.match(body, /The LLM regression job did not fail on code: the provider refused the account/);
             assert.doesNotMatch(body, /githubstatus/);
         });
 
-        it("names a failed land, and holds the outage hint back when a job failed on its own", () => {
-            const { title, body } = issue({ LAND_RESULT: "failure" }, [
+        it("names a failed versioning, and holds the outage hint back when a job failed on its own", () => {
+            const { body } = issue({ VERSION_RESULT: "failure" }, [
                 {
                     id: 7,
-                    name: "Land the release on master",
+                    name: "Version the release",
                     status: "completed",
                     conclusion: "failure",
-                    steps: [{ name: "Push the version commit and its tags to master", conclusion: "failure" }],
+                    steps: [{ name: "Version the candidate", conclusion: "failure" }],
                 },
             ]);
-            assert.equal(title, "Release held: landing on master failed on 44ab26d\n");
-            assert.match(body, /Land the release on master \(failure\): Push the version commit/);
-            assert.match(body, /Nothing was pushed to master and nothing was published\./);
+            assert.match(body, /^\*\*Shadow release run: versioning failed on 44ab26d\*\*/);
+            assert.match(body, /Version the release \(failure\): Version the candidate/);
             assert.doesNotMatch(body, /githubstatus|pull request was/);
-            assert.equal(
-                issue({ VERSION_RESULT: "failure" }, []).title,
-                "Release held: versioning failed on 44ab26d\n",
-            );
         });
     });
 
@@ -3723,9 +3671,9 @@ describe("release.yml", () => {
             assert.match(release, /^concurrency:\n {4}group: release-train\n {4}cancel-in-progress: false/m);
         });
 
-        it("tells a legacy hold's fix to keep the issue open and dispatch again", () => {
-            assert.match(held, /Refs #<this issue>/);
-            assert.match(held, /gh workflow run release.yml --ref master -f mode=legacy/);
+        it("points an urgent release at promote.yml, not at a release.yml mode", () => {
+            assert.doesNotMatch(release, /mode=legacy/);
+            assert.match(release, /An urgent release to npm `latest` and graphty.app goes through promote.yml/);
         });
     });
 
@@ -3858,12 +3806,11 @@ describe("release.yml", () => {
         );
     });
 
-    it("announces every outcome on the Release status issue: held, published or failed", () => {
+    it("announces every publish outcome on the Release status issue: published or failed", () => {
         // tools/release-status.mjs mentions RELEASE_NOTIFY; a run the owner did not start notifies nobody otherwise
-        assert.match(held, /node tools\/release-status.mjs held /);
-        assert.match(held, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
+        // a shadow run's held job only comments on #3418: it announces nothing
+        assert.doesNotMatch(held, /release-status\.mjs/);
         assert.doesNotMatch(release, /release-status.mjs (opened|dequeued)/);
-        assert.match(held, /tools\/release-status.mjs\n/, "in the held job's sparse checkout");
         // the last step of the publish job, whatever happened above it, so a re-run (--failed) announces again
         assert.match(
             publish,
@@ -3872,18 +3819,9 @@ describe("release.yml", () => {
         assert.match(publish, /echo "tags=\$\(IFS=,; echo "\$\{tags\[\*\]\}"\)" >> "\$GITHUB_OUTPUT"/);
     });
 
-    it("sends a phone notice when a train starts testing a candidate, RETRYING after a fix or on a re-run", () => {
-        // after the pending and nothing-releasable checks, only when there is something to release
-        assert.ok(pick.indexOf("- name: Announce the train attempt") > pick.indexOf("id: releasable"));
-        assert.match(
-            pick,
-            /- name: Announce the train attempt\n\s+if: \$\{\{ steps.releasable.outputs.release == 'true' && inputs.mode == 'legacy' \}\}\n\s+continue-on-error: true\n/,
-        );
-        assert.match(pick, /TAGS: \$\{\{ steps.releasable.outputs.tags \}\}/);
-        assert.match(
-            pick,
-            /node tools\/release-status.mjs started --sha "\$SHA" --tags "\$TAGS" \\\n\s+--attempt "\$GITHUB_RUN_ATTEMPT"/,
-        );
+    it("sends a phone notice when a publish is retried on a re-run", () => {
+        // a shadow pick announces nothing (its announcement served only the old legacy mode)
+        assert.doesNotMatch(pick, /Announce the train attempt/);
         // a re-run of a failed publish says it is retrying, before anything else in the job
         assert.match(
             publish,
@@ -3895,8 +3833,11 @@ describe("release.yml", () => {
     it("hands the Pushover secrets only to the steps that announce (tools/release-status.mjs, publish-hold.mjs settle)", () => {
         for (const name of ["release.yml", "release-watch.yml", "gpu-rerun-on-runner-loss.yml"]) {
             const steps = workflow(name).split(/\n(?=\s+- (?:name|uses): )/);
-            const announcing = steps.filter((st) =>
-                /node tools\/(?:release-status\.mjs |publish-hold\.mjs settle )/.test(st),
+            // the pick's publish-hold settle runs without an environment, so it gets no Pushover secrets
+            const announcing = steps.filter(
+                (st) =>
+                    /node tools\/release-status\.mjs /.test(st) ||
+                    (name !== "release.yml" && /publish-hold\.mjs settle /.test(st)),
             );
             assert.ok(announcing.length > 0, name);
             for (const st of steps) {
@@ -3929,10 +3870,7 @@ describe("release.yml", () => {
             /if: \$\{\{ !contains\(fromJSON\('\["success","skipped","neutral"\]'\), github.event.workflow_run.conclusion\) && github.event.workflow_run.display_title != 'Release \(shadow\)' \}\}/,
         );
         // a shadow run is named so, and never announced: it publishes nothing
-        assert.match(
-            release,
-            /^run-name: \$\{\{ inputs.mode == 'legacy' && 'Release \(legacy\)' \|\| 'Release \(shadow\)' \}\}\n/m,
-        );
+        assert.match(release, /^run-name: Release \(shadow\)\n/m);
         assert.deepEqual(watch.match(/secrets\.\w+/g), PUSHOVER_SECRETS, "GITHUB_TOKEN and Pushover only");
         assert.deepEqual(watch.match(/\w+: write/g), ["issues: write"], "it writes only the comment");
         assert.match(watch, /RELEASE_NOTIFY: \$\{\{ vars.RELEASE_NOTIFY \}\}/);
@@ -4211,67 +4149,72 @@ describe("release.yml", () => {
             assert.doesNotMatch(
                 deploy,
                 /^concurrency:/m,
-                "an ordinary build must not replace a pending release deploy",
+                "every build keeps its own site-<sha>; only the deploy job is serialized",
             );
         });
 
-        // The check job's script, against a stub curl (the live stamp) and a stub gh (the commit's second
-        // parent, the first tag's annotated tag object and the commit that tag points at)
-        const decide = (message, { parents = 2, live = "0ld", tagged = "v1" } = {}) => {
+        // The check job's script, against a stub curl (canary's live stamp, or nothing when canary does not
+        // answer) and a stub gh (how this commit compares with the live one)
+        const decide = ({ live = "0ddba11", compare = "ahead" } = {}) => {
             const dir = mkdtempSync(join(tmpdir(), "deploy-pages-"));
             const bin = join(dir, "bin");
             mkdirSync(bin);
             writeFileSync(
                 join(bin, "curl"),
-                `#!/bin/bash\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
+                live === null
+                    ? `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\nexit 6\n`
+                    : `#!/bin/bash\necho "$*" >> "${dir}/curl.log"\necho '<meta name="graphty-build" content="commit=${live} release=graphty@1.0.0">'\n`,
                 { mode: 0o755 },
             );
-            writeFileSync(
-                join(bin, "gh"),
-                `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\ncase "$2" in\n*/commits/*) echo ${parents === 2 ? "v1" : ""};;\n*/git/ref/tags/graphty%401.2.0) echo "tag t1";;\n*/git/ref/tags/*) exit 1;;\n*/git/tags/t1) echo ${tagged};;\n*/compare/*) echo ahead;;\nesac\n`,
-                { mode: 0o755 },
-            );
-            const script = /run: \|\n([\s\S]*)$/.exec(job(deploy, "check"))[1].replace(/^ {18}/gm, "");
+            writeFileSync(join(bin, "gh"), `#!/bin/bash\necho "$*" >> "${dir}/gh.log"\necho ${compare}\n`, {
+                mode: 0o755,
+            });
+            const step = /- id: live\n([\s\S]*)$/.exec(job(deploy, "check"))[1];
+            const script = /run: \|\n([\s\S]*)$/.exec(step)[1].replace(/^ {18}/gm, "");
             const out = join(dir, "out");
             const r = spawnSync("bash", ["-e", "-c", script], {
                 encoding: "utf8",
                 env: {
                     ...process.env,
-                    MESSAGE: message,
                     SHA: "abc1",
+                    CANARY_URL: /CANARY_URL: (\S+)/.exec(step)[1],
                     GITHUB_REPOSITORY: "o/r",
                     GITHUB_OUTPUT: out,
                     PATH: `${bin}:${process.env.PATH}`,
                 },
             });
             assert.equal(r.status, 0, r.stderr);
-            const result = { deploy: readFileSync(out, "utf8").trim(), gh: existsSync(join(dir, "gh.log")) };
+            const result = {
+                deploy: readFileSync(out, "utf8").trim(),
+                curl: readFileSync(join(dir, "curl.log"), "utf8"),
+            };
             rmSync(dir, { recursive: true, force: true });
             return result;
         };
-        const RELEASE = "chore(release): publish graphty@1.2.0, layout@1.10.6 onto master";
 
-        it("deploys graphty.app only for the version merge release.yml's land job pushes", () => {
-            assert.deepEqual(decide(`${RELEASE}\n\nbody`), { deploy: "deploy=true", gh: true });
-            assert.equal(decide("Merge pull request #3500 from graphty-org/golden-cut\n\nship").deploy, "deploy=false");
-            assert.equal(decide("Merge pull request #3500").gh, false, "an ordinary merge asks GitHub nothing");
-            assert.equal(
-                decide("chore(release): publish graphty@1.2.0").deploy,
-                "deploy=false",
-                "the version commit itself",
+        it("deploys every green master build to canary.graphty.app, release or not (#3467)", () => {
+            // no commit-message rule: an ordinary merge deploys
+            assert.doesNotMatch(deploy, /chore\(release\)|head_commit|MESSAGE/);
+            assert.deepEqual(decide(), {
+                deploy: "deploy=true",
+                curl: "-fsSL --max-time 30 https://canary.graphty.app/\n",
+            });
+            // the stamp is read from canary, never from graphty.app, which graphty-site serves
+            assert.doesNotMatch(deploy.replace(/^\s*#.*$/gm, ""), /https:\/\/graphty\.app/);
+            assert.match(job(deploy, "check"), /CANARY_URL: https:\/\/canary\.graphty\.app\/\n/);
+            // a canary that does not answer yet (before its first deploy) gets one
+            assert.equal(decide({ live: null }).deploy, "deploy=true");
+            // the custom domain is this repository's Pages setting; the site carries no CNAME file
+            assert.doesNotMatch(
+                deploy + readFileSync(new URL("./assemble-pages-site.sh", import.meta.url), "utf8"),
+                /CNAME/,
             );
-            assert.equal(decide(RELEASE, { parents: 1 }).deploy, "deploy=false", "not a merge");
+            assert.match(job(deploy, "deploy"), /uses: actions\/deploy-pages@/);
         });
 
-        it("does not deploy a merge that only borrows the release subject", () => {
-            // a pull request merged with the release's subject: its second parent is not the tagged commit
-            assert.equal(decide(RELEASE, { tagged: "old" }).deploy, "deploy=false");
-            // a subject naming a tag that does not exist
-            assert.equal(decide("chore(release): publish nope@9.9.9 onto master").deploy, "deploy=false");
-        });
-
-        it("does not deploy a release that is live already", () => {
-            assert.equal(decide(RELEASE, { live: "abc1" }).deploy, "deploy=false");
+        it("does not deploy a commit canary already serves, or one older than canary's", () => {
+            assert.equal(decide({ live: "abc1" }).deploy, "deploy=false");
+            assert.equal(decide({ compare: "behind" }).deploy, "deploy=false");
         });
     });
 });

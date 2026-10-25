@@ -30,6 +30,7 @@ import {
     specimenSettingNames,
 } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
+import { judgesFor, type Reference, SHEET_JUDGES, specificationScene } from "./judges";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
 import { readSvgPrimitives } from "./svg-primitives";
@@ -49,6 +50,15 @@ const metas = import.meta.glob<Record<string, unknown>>("../../../../graph-io/te
     import: "default",
     eager: true,
 });
+// the stand-in programs' drawings of a sheet judged per setting (judges.ts): <sample>.<route>.svg and .oracle.json
+const standInSvgs = import.meta.glob<string>("../../../../graph-io/test/fidelity/oracles/stand-ins/*.svg", {
+    query: "?raw",
+    import: "default",
+});
+const standInMetas = import.meta.glob<Record<string, unknown>>(
+    "../../../../graph-io/test/fidelity/oracles/stand-ins/*.oracle.json",
+    { import: "default", eager: true },
+);
 const specimenPages = import.meta.glob<{ pages: { id: string; names?: Record<string, string> }[] }>(
     "../../../../graph-io/test/fidelity/specimens/*/pages.json",
     { import: "default", eager: true },
@@ -233,8 +243,23 @@ export interface JudgeInputs {
     command: string;
 }
 
+/**
+ * One reference's judgments of a sheet judged per setting: the sheet's oracle, a stand-in program or the
+ * specification, each scoring only the properties of the settings it draws (judges.json).
+ */
+export interface ReferenceJudgment {
+    reference: Reference;
+    /** Who drew it: the program's metadata, or the specification's citation. */
+    meta: Record<string, unknown>;
+    report: OracleReport;
+    scores: Record<string, number>;
+    /** Its drawing, associated with graph elements. */
+    scene: PScene;
+}
+
 /** One comparison of a drawing with the program's own. */
 export interface OracleComparison {
+    /** The sheet's oracle's report: for a sheet judged per setting, only what the oracle judges. */
     report: OracleReport;
     /** Pass rate per judged property, rounded to 4 places; empty for a sketch no program drew. */
     scores: Record<string, number>;
@@ -248,6 +273,24 @@ export interface OracleComparison {
     height: number;
     /** What the comparison took from the element, to judge another drawing of the same sample alike. */
     inputs: JudgeInputs;
+    /** A sheet judged per setting: every reference's judgments, the oracle's first; empty for any other sample. */
+    references: ReferenceJudgment[];
+}
+
+/**
+ * Pass rate per judged property, rounded to 4 places.
+ * @param report - the comparison
+ * @returns the scores
+ */
+function scoresOf(report: OracleReport): Record<string, number> {
+    const scores: Record<string, number> = {};
+    for (const p of ORACLE_PROPERTIES) {
+        const rate = report.properties[p].passRate;
+        if (rate !== null) {
+            scores[p] = Math.round(rate * 10000) / 10000;
+        }
+    }
+    return scores;
 }
 
 /**
@@ -317,47 +360,105 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);
     }
-    const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
-    const associated = await associateOracle(
-        id,
-        meta,
-        prims,
-        { width, height },
-        namedCaptions(graphty, numbers),
-        inputs.ownLayout,
-    );
-    // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
-    const association = {
-        ...associated,
-        scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
-    };
-    const report = compareOracle(
-        id,
-        association.scene,
-        graphty,
-        {
-            method: association.method,
-            guide: association.guide,
-            oracle: {
-                program: meta.program ?? null,
-                version: meta.version ?? null,
-                standIn: meta.standIn ?? null,
-                width,
-                height,
+    const sheet = SHEET_JUDGES[id] as (typeof SHEET_JUDGES)[string] | undefined;
+    // one drawing associated with graph elements and judged: the oracle's, or a stand-in program's
+    const judge = async (
+        svg: string,
+        drawnBy: Record<string, unknown>,
+        reference: Reference,
+    ): Promise<{ association: Association; report: OracleReport; width: number; height: number }> => {
+        const read = readSvgPrimitives(svg);
+        const associated = await associateOracle(
+            id,
+            drawnBy,
+            read.prims,
+            { width: read.width, height: read.height },
+            namedCaptions(graphty, numbers),
+            inputs.ownLayout,
+        );
+        // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
+        const association = {
+            ...associated,
+            scene: withoutCovered(namedCaptions(namedCaptions(associated.scene, captionOf), names), graphty),
+        };
+        const report = compareOracle(
+            id,
+            association.scene,
+            graphty,
+            {
+                method: association.method,
+                guide: association.guide,
+                oracle: {
+                    program: drawnBy.program ?? null,
+                    version: drawnBy.version ?? null,
+                    standIn: drawnBy.standIn ?? null,
+                    width: read.width,
+                    height: read.height,
+                },
+                graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
             },
-            graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
-        },
-        { mirror: meta.mirrored === true, standIn: isStandIn(meta), ownLayouts: inputs.ownLayouts },
-    );
+            {
+                mirror: drawnBy.mirrored === true,
+                standIn: isStandIn(drawnBy),
+                ownLayouts: inputs.ownLayouts,
+                ...(sheet === undefined ? {} : { judges: judgesFor(sheet, reference) }),
+            },
+        );
+        return { association, report, width: read.width, height: read.height };
+    };
+    const { association, report, width, height } = await judge(await svgs[svgPath](), meta, "oracle");
     // A stand-in drawn by no program at all (a sketch of our own reading of the file) is reported,
     // never scored; another program's real drawing standing in (draw.io for yEd) is scored.
     const sketch = meta.standIn === true && typeof meta.program === "string" && meta.program.startsWith("none");
-    const scores: Record<string, number> = {};
-    for (const p of sketch ? [] : ORACLE_PROPERTIES) {
-        const rate = report.properties[p].passRate;
-        if (rate !== null) {
-            scores[p] = Math.round(rate * 10000) / 10000;
+    const scores = sketch ? {} : scoresOf(report);
+    const references: ReferenceJudgment[] = [];
+    if (sheet !== undefined) {
+        references.push({ reference: "oracle", meta, report, scores, scene: association.scene });
+        for (const route of sheet.standIns) {
+            const name = `${id}.${route}`;
+            const svg = pathOf(standInSvgs, name);
+            const drawnBy = standInMetas[pathOf(standInMetas, name) ?? ""] as Record<string, unknown> | undefined;
+            if (svg === undefined || drawnBy === undefined) {
+                throw new Error(`${id}: judges.json names the stand-in ${route}, which oracles/stand-ins/ lacks`);
+            }
+            const r = await judge(await standInSvgs[svg](), drawnBy, route);
+            references.push({
+                reference: route,
+                meta: drawnBy,
+                report: r.report,
+                scores: scoresOf(r.report),
+                scene: r.association.scene,
+            });
         }
+        // the specification's drawing: the oracle's, with each setting's expectation written over it
+        const expected = specificationScene(
+            association.scene,
+            sheet,
+            references.map((r) => r.scene).filter((s) => s !== association.scene),
+        );
+        const spec = compareOracle(
+            id,
+            expected,
+            graphty,
+            {
+                method: "specification",
+                guide: null,
+                graphty: { command: inputs.command, width: graphty.width, height: graphty.height },
+            },
+            { judges: judgesFor(sheet, "specification") },
+        );
+        references.push({
+            reference: "specification",
+            meta: { program: "specification", about: SPECIFICATION_ABOUT },
+            report: spec,
+            scores: scoresOf(spec),
+            scene: expected,
+        });
     }
-    return { report, scores, meta, association, graphty, names, width, height, inputs };
+    return { report, scores, meta, association, graphty, names, width, height, inputs, references };
 }
+
+/** What the specification reference is (each expectation cites its own section in judges.json). */
+const SPECIFICATION_ABOUT =
+    "not a program: each setting's expected drawing, derived from the format's specification and recorded in " +
+    "graph-io/test/fidelity/specimens/<format>/judges.json with the section it comes from";

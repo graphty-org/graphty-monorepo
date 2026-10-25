@@ -18,6 +18,8 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import {
+    FLOOR_SECTIONS,
+    type FloorSection,
     type Floors,
     type KeyGate,
     type KnownRecords,
@@ -90,31 +92,32 @@ if (suite === "all" || suite === "oracle") {
         const knownPath = "test/fidelity/oracle-known-failures.json";
         const floorsPath = "test/fidelity/oracle-floors.json";
         const known = JSON.parse(readFileSync(knownPath, "utf8")) as KnownRecords;
-        const floors = JSON.parse(readFileSync(floorsPath, "utf8")) as {
+        const floors = JSON.parse(readFileSync(floorsPath, "utf8")) as Partial<Record<FloorSection, Floors>> & {
             about: string;
-            floors: Floors;
-            standInFloors: Floors;
             lowered: Record<string, unknown>;
         };
+        const sections = Object.fromEntries(FLOOR_SECTIONS.map((s) => [s, floors[s] ?? {}])) as Record<
+            FloorSection,
+            Floors
+        >;
         const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add);
         let raised = 0;
-        const standIn = new Map(gate.keys.map((g) => [g.key, g.standIn]));
+        const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
         for (const g of gate.keys) {
-            // a sample's floors go with the stand-ins or the real programs by its oracle
-            const [into, other] = g.standIn
-                ? [floors.standInFloors, floors.floors]
-                : [floors.floors, floors.standInFloors];
-            if (other[g.key] !== undefined && into[g.key] === undefined) {
-                into[g.key] = other[g.key];
+            // a key's floors go with the real programs, the stand-ins or the specification by what judged it
+            const into = sections[g.section];
+            const other = FLOOR_SECTIONS.map((s) => sections[s][g.key]).find((row) => row !== undefined);
+            if (other !== undefined && into[g.key] === undefined) {
+                into[g.key] = other;
             }
             raised += raiseFloors(into, g.key, g.scores);
         }
-        const kept = (t: Floors, standIns: boolean): Floors =>
+        const kept = (section: FloorSection): Floors =>
             Object.fromEntries(
-                Object.keys(t)
-                    .filter((k) => (standIn.get(k) ?? standIns) === standIns)
+                Object.keys(sections[section])
+                    .filter((k) => (sectionOf.get(k) ?? section) === section)
                     .sort()
-                    .map((k) => [k, t[k]]),
+                    .map((k) => [k, sections[section][k]]),
             );
         writeFileSync(knownPath, knownText(out.records));
         writeFileSync(
@@ -122,8 +125,9 @@ if (suite === "all" || suite === "oracle") {
             `${JSON.stringify(
                 {
                     about: floors.about,
-                    floors: kept(floors.floors, false),
-                    standInFloors: kept(floors.standInFloors, true),
+                    floors: kept("floors"),
+                    standInFloors: kept("standInFloors"),
+                    specificationFloors: kept("specificationFloors"),
                     lowered: floors.lowered,
                 },
                 null,

@@ -151,4 +151,12 @@ describe("style fidelity gate", () => {
         assert.strictEqual(raiseFloors(table, "s", { "node.fill": 0.6, "edge.color": 0.1, "node.shape": 1 }), 2);
         assert.deepEqual(table.s, { "node.fill": 0.6, "edge.color": 0.9, "node.shape": 1 });
     });
+
+    it("keeps a key's records with the real programs unless it says the stand-ins or the specification judged it", () => {
+        assert.strictEqual(judgeKey("s", run({}), undefined, undefined).section, "floors");
+        assert.strictEqual(
+            judgeKey("s~specification", run({}), undefined, undefined, { section: "specificationFloors" }).section,
+            "specificationFloors",
+        );
+    });
 });

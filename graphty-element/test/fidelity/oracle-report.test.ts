@@ -52,7 +52,7 @@ describe("style fidelity against the programs' own SVG drawings (every oracle)",
                 `${id}: the oracle was drawn from another file than the committed sample`,
             );
         }
-        const verdicts = gateRun(id, run, stored);
+        const verdicts = gateRun(run, stored);
         gates.push(...verdicts);
         assert.deepEqual(
             verdicts.flatMap(gateMessages),

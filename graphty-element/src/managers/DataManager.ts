@@ -9,7 +9,7 @@ import { GROUPS_VALUE, groupsOf, type NodeGroup, RANK_SETS_VALUE, type RankSet, 
 import { readonlyPositions, WRITABLE_LANE } from "../data/lane";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
-import type { LoadReport } from "../data/report";
+import type { ImportReport, LoadReport } from "../data/report";
 import { adoptEdgeRecord, Edge, placeEdgeRow } from "../Edge";
 import { GraphtyError } from "../errors/GraphtyError";
 import { type LayoutEngine, layoutEngineInternals } from "../layout/LayoutEngine";
@@ -561,6 +561,17 @@ export class DataManager implements Manager {
     private loadId: number | undefined = undefined;
 
     /**
+     * The finished-load events of the import running now, held until its step is recorded: an
+     * import reaches its last chunk before its placement, its whole-graph paint and its commit, and
+     * a load withdrawn in between must not have been announced (issue #3384). Null outside an
+     * import dispatched through the session, where the events go out at once.
+     */
+    private heldLoadEvents: (() => void) | null = null;
+
+    /** Numbers each held announcement, so two imports in one step each keep theirs. */
+    private heldLoadSeq = 0;
+
+    /**
      * Creates an instance of DataManager
      * @param eventManager - Event manager for emitting data events
      * @param styles - Styles instance for applying styles to data
@@ -744,13 +755,19 @@ export class DataManager implements Manager {
                 // Imports hold the whole graph, so one runs at a time and one field is enough.
                 this.loadId = command.source.config === undefined ? undefined : this.loadIds.get(command.source.config);
                 let outcome: ImportOutcome | null;
+                this.heldLoadEvents = () => undefined;
+                let announce: () => void;
                 try {
                     outcome = await this.ingest.importSource(command, writer, signal);
                 } finally {
                     this.cause = cause;
                     this.loadId = undefined;
+                    announce = this.heldLoadEvents;
+                    this.heldLoadEvents = null;
                     hooks.loading(false);
                 }
+
+                this.announceOnCommit(announce, after);
 
                 if (addsRows(command)) {
                     hooks.rowsAdded(after);
@@ -759,6 +776,63 @@ export class DataManager implements Manager {
                 return outcome;
             },
         };
+    }
+
+    /**
+     * Announce a finished import once it can no longer be withdrawn: when its step is recorded and
+     * the pass that places and paints it has run, still before the import's promise settles. A
+     * step that rolls back drops the announcement with it.
+     * @param announce - Emits the import's finished-load events.
+     * @param after - The import's way to start work once its step is recorded, when it has one.
+     */
+    private announceOnCommit(announce: () => void, after: UndoableContext["after"] | undefined): void {
+        const lane = this.dispatcher?.lane;
+        if (after === undefined || lane === undefined) {
+            announce();
+            return;
+        }
+
+        after(`load-complete:${String(this.heldLoadSeq++)}`, () => {
+            queueMicrotask(() => {
+                void lane.settled().then(announce);
+            });
+        });
+    }
+
+    /**
+     * Emit `data-loading-complete` and `data-loaded` for one finished load.
+     * @param format - The load's format.
+     * @param report - What the load did.
+     * @param chunks - How many chunks it read.
+     * @param duration - How long it took, in milliseconds.
+     * @param errors - How many errors its source counted.
+     * @param loadId - Which load it is.
+     */
+    private emitLoadComplete(
+        format: string,
+        report: ImportReport,
+        chunks: number,
+        duration: number,
+        errors: number,
+        loadId: number | undefined,
+    ): void {
+        if (!this.graphContext) {
+            return;
+        }
+
+        this.eventManager.emitDataLoadingComplete(
+            format,
+            report.counts.nodes,
+            report.counts.edges,
+            duration,
+            errors,
+            0, // warnings
+            true,
+            report,
+            loadId,
+        );
+        // Keep existing data-loaded event for backward compatibility
+        this.eventManager.emitGraphDataLoaded(this.graphContext, chunks, format, report, loadId);
     }
 
     /**
@@ -1267,26 +1341,14 @@ export class DataManager implements Manager {
                 }
             },
             loadComplete: (format, report, progress, duration, errors) => {
-                if (this.graphContext) {
-                    this.eventManager.emitDataLoadingComplete(
-                        format,
-                        report.counts.nodes,
-                        report.counts.edges,
-                        duration,
-                        errors,
-                        0, // warnings
-                        true,
-                        report,
-                        this.loadId,
-                    );
-                    // Keep existing data-loaded event for backward compatibility
-                    this.eventManager.emitGraphDataLoaded(
-                        this.graphContext,
-                        progress.chunks,
-                        format,
-                        report,
-                        this.loadId,
-                    );
+                const { loadId } = this;
+                const emit = (): void => {
+                    this.emitLoadComplete(format, report, progress.chunks, duration, errors, loadId);
+                };
+                if (this.heldLoadEvents === null) {
+                    emit();
+                } else {
+                    this.heldLoadEvents = emit;
                 }
             },
             progress: (change) => this.dispatcher?.services.progress?.(change),

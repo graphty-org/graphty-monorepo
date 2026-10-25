@@ -23153,40 +23153,32 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
+            "node.width": [],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
-            "node.shape": ["arrow-both-s","arrow-both-t","arrow-first-s","arrow-first-t","arrow-last-s","arrow-last-t","arrow-none-s","arrow-none-t","default-s","default-t"],
+            "node.shape": [],
             "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","arrow-both-s","arrow-both-t","arrow-first-s","arrow-first-t","arrow-last-s","arrow-last-t","arrow-none-s","arrow-none-t","default-s","default-t"],
+            "label.present": [],
             "edge.present": [],
             "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
-            "edge.color": ["default-s->default-t#g0"],
-            "edge.width": ["default-s->default-t#g0"],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": ["default-s->default-t#g0@target"],
+            "edge.arrow": [],
             "edge.arrowShape": [],
-            "edge.arrowParts": [],
-            "edge.arrowPlace": [],
             "edge.arrowFill": [],
             "edge.arrowColor": [],
-            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-arrows-p2": {
             "node.present": [],
@@ -23758,40 +23750,56 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
+            "node.width": [],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
-            "node.shape": ["arrow-both-s","arrow-both-t","arrow-first-s","arrow-first-t","arrow-last-s","arrow-last-t","arrow-none-s","arrow-none-t","default-s","default-t"],
+            "node.shape": [],
             "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","arrow-both-s","arrow-both-t","arrow-first-s","arrow-first-t","arrow-last-s","arrow-last-t","arrow-none-s","arrow-none-t","default-s","default-t"],
+            "label.present": [],
             "edge.present": [],
             "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
-            "edge.color": ["default-s->default-t#g0"],
-            "edge.width": ["default-s->default-t#g0"],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": ["default-s->default-t#g0@target"],
+            "edge.arrow": [],
             "edge.arrowShape": [],
-            "edge.arrowParts": [],
-            "edge.arrowPlace": [],
             "edge.arrowFill": [],
             "edge.arrowColor": [],
-            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
-            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-arrows~cytoscape-gml": {
+            "node.strokeWidth": [],
+            "edge.width": []
+        },
+        "gml-specimen-arrows~cytoscape-gml@matched": {
+            "node.strokeWidth": [],
+            "edge.width": []
+        },
+        "gml-specimen-arrows~gml2gv": {
+            "node.shape": []
+        },
+        "gml-specimen-arrows~gml2gv@matched": {
+            "node.shape": []
+        },
+        "gml-specimen-arrows~specification": {
+            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
+            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
+            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"]
+        },
+        "gml-specimen-arrows~specification@matched": {
+            "edge.arrowLength": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
+            "edge.arrowWidth": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"],
+            "edge.arrowToSpacing": ["arrow-both-s->arrow-both-t#g0@source","arrow-both-s->arrow-both-t#g0@target","arrow-first-s->arrow-first-t#g0@source","arrow-last-s->arrow-last-t#g0@target"]
         },
         "gml-specimen-edge-labels": {
             "node.present": [],
@@ -23802,30 +23810,26 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","label-bend-s","label-bend-t","label-text-s","label-text-t"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","label-bend-s","label-bend-t","label-text-s","label-text-t"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
-            "label.size": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
-            "label.weight": [],
-            "label.style": [],
             "label.color": [],
             "label.rotation": [],
             "label.opacity": [],
-            "label.family": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
             "label.lines": [],
             "label.alongLine": [],
-            "label.offLine": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
+            "label.offLine": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["label-bend-s->label-bend-t#0"],
-            "edge.curve": ["label-bend-s->label-bend-t#0"],
-            "edge.color": ["default-s->default-t#0"],
-            "edge.width": ["default-s->default-t#0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
@@ -23833,8 +23837,7 @@
             "edge.label": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-edge-labels-p2": {
             "node.present": [],
@@ -24191,30 +24194,26 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","label-bend-s","label-bend-t","label-text-s","label-text-t"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","label-bend-s","label-bend-t","label-text-s","label-text-t"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
-            "label.size": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
-            "label.weight": [],
-            "label.style": [],
             "label.color": [],
             "label.rotation": [],
             "label.opacity": [],
-            "label.family": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
             "label.lines": [],
             "label.alongLine": [],
-            "label.offLine": ["edge:label-bend-s->label-bend-t#0","edge:label-text-s->label-text-t#0"],
+            "label.offLine": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["label-bend-s->label-bend-t#0"],
-            "edge.curve": ["label-bend-s->label-bend-t#0"],
-            "edge.color": ["default-s->default-t#0"],
-            "edge.width": ["default-s->default-t#0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
@@ -24222,8 +24221,27 @@
             "edge.label": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-edge-labels~cytoscape-gml": {
+            "node.strokeWidth": [],
+            "edge.width": []
+        },
+        "gml-specimen-edge-labels~cytoscape-gml@matched": {
+            "node.strokeWidth": [],
+            "edge.width": []
+        },
+        "gml-specimen-edge-labels~gml2gv": {
+            "node.shape": []
+        },
+        "gml-specimen-edge-labels~gml2gv@matched": {
+            "node.shape": []
+        },
+        "gml-specimen-edge-labels~specification": {
+            "edge.arrow": ["default-s->default-t#g0@target"]
+        },
+        "gml-specimen-edge-labels~specification@matched": {
+            "edge.arrow": ["default-s->default-t#g0@target"]
         },
         "gml-specimen-edges-lines": {
             "node.present": [],
@@ -24234,25 +24252,24 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","fill-blue-s","fill-blue-t","fill-ff0000-s","fill-ff0000-t","line-one-bend-s","line-one-bend-t","line-straight-s","line-straight-t","line-two-bends-s","line-two-bends-t","loop-n","parallel-s","parallel-t","smooth-0-s","smooth-0-t","smooth-1-s","smooth-1-t","stipple-gray25-s","stipple-gray25-t","stipple-gray50-s","stipple-gray50-t","width-0-5-s","width-0-5-t","width-1-s","width-1-t","width-2-s","width-2-t","width-4-s","width-4-t","width-8-s","width-8-t"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","fill-blue-s","fill-blue-t","fill-ff0000-s","fill-ff0000-t","line-one-bend-s","line-one-bend-t","line-straight-s","line-straight-t","line-two-bends-s","line-two-bends-t","loop-n","parallel-s","parallel-t","smooth-0-s","smooth-0-t","smooth-1-s","smooth-1-t","stipple-gray25-s","stipple-gray25-t","stipple-gray50-s","stipple-gray50-t","width-0-5-s","width-0-5-t","width-1-s","width-1-t","width-2-s","width-2-t","width-4-s","width-4-t","width-8-s","width-8-t"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["line-one-bend-s->line-one-bend-t#0","line-two-bends-s->line-two-bends-t#0","loop-n->loop-n#0","parallel-s->parallel-t#0","parallel-s->parallel-t#1","smooth-0-s->smooth-0-t#0","smooth-1-s->smooth-1-t#0"],
-            "edge.curve": ["line-one-bend-s->line-one-bend-t#0","line-two-bends-s->line-two-bends-t#0","parallel-s->parallel-t#0","parallel-s->parallel-t#1","smooth-0-s->smooth-0-t#0","smooth-1-s->smooth-1-t#0"],
-            "edge.color": ["default-s->default-t#0"],
-            "edge.width": ["default-s->default-t#0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
             "edge.arrow": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-edges-lines-p2": {
             "node.present": [],
@@ -24619,25 +24636,62 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","fill-blue-s","fill-blue-t","fill-ff0000-s","fill-ff0000-t","line-one-bend-s","line-one-bend-t","line-straight-s","line-straight-t","line-two-bends-s","line-two-bends-t","loop-n","parallel-s","parallel-t","smooth-0-s","smooth-0-t","smooth-1-s","smooth-1-t","stipple-gray25-s","stipple-gray25-t","stipple-gray50-s","stipple-gray50-t","width-0-5-s","width-0-5-t","width-1-s","width-1-t","width-2-s","width-2-t","width-4-s","width-4-t","width-8-s","width-8-t"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default-s","default-t","fill-blue-s","fill-blue-t","fill-ff0000-s","fill-ff0000-t","line-one-bend-s","line-one-bend-t","line-straight-s","line-straight-t","line-two-bends-s","line-two-bends-t","loop-n","parallel-s","parallel-t","smooth-0-s","smooth-0-t","smooth-1-s","smooth-1-t","stipple-gray25-s","stipple-gray25-t","stipple-gray50-s","stipple-gray50-t","width-0-5-s","width-0-5-t","width-1-s","width-1-t","width-2-s","width-2-t","width-4-s","width-4-t","width-8-s","width-8-t"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["line-one-bend-s->line-one-bend-t#0","line-two-bends-s->line-two-bends-t#0","loop-n->loop-n#0","parallel-s->parallel-t#0","parallel-s->parallel-t#1","smooth-0-s->smooth-0-t#0","smooth-1-s->smooth-1-t#0"],
-            "edge.curve": ["line-one-bend-s->line-one-bend-t#0","line-two-bends-s->line-two-bends-t#0","parallel-s->parallel-t#0","parallel-s->parallel-t#1","smooth-0-s->smooth-0-t#0","smooth-1-s->smooth-1-t#0"],
-            "edge.color": ["default-s->default-t#0"],
-            "edge.width": ["default-s->default-t#0"],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
             "edge.arrow": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-edges-lines~cytoscape-gml": {
+            "node.strokeWidth": [],
+            "edge.present": [],
+            "edge.extra": [],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
+            "edge.width": [],
+            "edge.dash": []
+        },
+        "gml-specimen-edges-lines~cytoscape-gml@matched": {
+            "node.strokeWidth": [],
+            "edge.present": [],
+            "edge.extra": [],
+            "edge.route": [],
+            "edge.curve": [],
+            "edge.color": [],
+            "edge.width": [],
+            "edge.dash": []
+        },
+        "gml-specimen-edges-lines~gml2gv": {
+            "node.shape": []
+        },
+        "gml-specimen-edges-lines~gml2gv@matched": {
+            "node.shape": []
+        },
+        "gml-specimen-edges-lines~specification": {
+            "edge.route": ["smooth-1-s->smooth-1-t#g0"],
+            "edge.curve": ["smooth-1-s->smooth-1-t#g0"],
+            "edge.opacity": ["stipple-gray25-s->stipple-gray25-t#g0","stipple-gray50-s->stipple-gray50-t#g0"],
+            "edge.arrow": ["default-s->default-t#g0@target"]
+        },
+        "gml-specimen-edges-lines~specification@matched": {
+            "edge.route": ["smooth-1-s->smooth-1-t#g0"],
+            "edge.curve": ["smooth-1-s->smooth-1-t#g0"],
+            "edge.opacity": ["stipple-gray25-s->stipple-gray25-t#g0","stipple-gray50-s->stipple-gray50-t#g0"],
+            "edge.arrow": ["default-s->default-t#g0@target"]
         },
         "gml-specimen-groups": {
             "node.present": [],
@@ -24851,76 +24905,89 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["bitmap-fill","bitmap-xbm","default","image-on-oval","image-png","image-png-wide"],
-            "node.fill": ["default"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","bitmap-fill","bitmap-xbm","default","image-on-oval","image-png","image-png-wide"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-images-charts@matched": {
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["bitmap-fill","bitmap-xbm","default","image-on-oval","image-png","image-png-wide"],
-            "node.fill": ["default"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","bitmap-fill","bitmap-xbm","default","image-on-oval","image-png","image-png-wide"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-images-charts~cytoscape-gml": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-images-charts~cytoscape-gml@matched": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-images-charts~gml2gv": {
+
+        },
+        "gml-specimen-images-charts~gml2gv@matched": {
+
+        },
+        "gml-specimen-images-charts~specification": {
+            "node.shape": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"],
+            "node.stroke": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"]
+        },
+        "gml-specimen-images-charts~specification@matched": {
+            "node.shape": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"],
+            "node.stroke": ["bitmap-fill","bitmap-xbm","image-png","image-png-wide"]
         },
         "gml-specimen-labels": {
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["default","label-char-ref","label-entity","label-long","label-text"],
+            "node.width": [],
             "node.height": [],
-            "node.sizeToSpacing": ["label-entity","label-long"],
-            "node.sizeToExtent": ["label-entity","label-long"],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","label-char-ref","label-empty","label-entity","label-long","label-text"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","label-char-ref","label-empty","label-entity","label-long","label-text"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
             "label.text": [],
-            "label.size": [],
-            "label.weight": [],
-            "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["label-char-ref","label-entity","label-long","label-text"],
+            "label.offset": [],
             "label.opacity": [],
-            "label.family": ["label-char-ref","label-entity","label-long","label-text"],
             "label.lines": [],
-            "label.anchor": ["label-char-ref","label-entity","label-long","label-text"],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
+            "stray.present": ["rect#0","rect#1","rect#2","text#3","text#4","text#5"],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-labels-p2": {
             "node.present": [],
@@ -25416,55 +25483,70 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["default","label-char-ref","label-entity","label-long","label-text"],
+            "node.width": [],
             "node.height": [],
-            "node.sizeToSpacing": ["label-entity","label-long"],
-            "node.sizeToExtent": ["label-entity","label-long"],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","label-char-ref","label-empty","label-entity","label-long","label-text"],
-            "node.stroke": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","label-char-ref","label-empty","label-entity","label-long","label-text"],
-            "node.strokeWidth": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
             "node.strokeDash": [],
             "label.present": [],
             "label.text": [],
-            "label.size": [],
-            "label.weight": [],
-            "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": ["label-char-ref","label-entity","label-long","label-text"],
+            "label.offset": [],
             "label.opacity": [],
-            "label.family": ["label-char-ref","label-entity","label-long","label-text"],
             "label.lines": [],
-            "label.anchor": ["label-char-ref","label-entity","label-long","label-text"],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
+            "stray.present": ["rect#0","rect#1","rect#2","text#3","text#4","text#5"],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-labels~cytoscape-gml": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-labels~cytoscape-gml@matched": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-labels~gml2gv": {
+            "node.shape": [],
+            "label.text": []
+        },
+        "gml-specimen-labels~gml2gv@matched": {
+            "node.shape": [],
+            "label.text": []
+        },
+        "gml-specimen-labels~specification": {
+
+        },
+        "gml-specimen-labels~specification@matched": {
+
         },
         "gml-specimen-node-fills-borders": {
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","width-4","width-6"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","width-4","width-6"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["default","fill-hex12","fill-hex3","fill-hex6","fill-hex9","fill-name","fill-name-space","fill-name-upper","outline-hex6","outline-name","stipple-error","stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75","stipple-hourglass","stipple-info","stipple-questhead","stipple-question","stipple-warning","width-0","width-2","width-4","width-6"],
-            "node.fill": ["default","fill-hex12","fill-hex3","fill-hex9","fill-name-space"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","fill-hex12","fill-hex3","fill-hex6","fill-hex9","fill-name","fill-name-space","fill-name-upper","outline-hex6","outline-name","stipple-error","stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75","stipple-hourglass","stipple-info","stipple-questhead","stipple-question","stipple-warning","width-0","width-2","width-4","width-6"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-node-fills-borders-p2": {
             "node.present": [],
@@ -25732,43 +25814,75 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","width-4","width-6"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","width-4","width-6"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["default","fill-hex12","fill-hex3","fill-hex6","fill-hex9","fill-name","fill-name-space","fill-name-upper","outline-hex6","outline-name","stipple-error","stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75","stipple-hourglass","stipple-info","stipple-questhead","stipple-question","stipple-warning","width-0","width-2","width-4","width-6"],
-            "node.fill": ["default","fill-hex12","fill-hex3","fill-hex9","fill-name-space"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","fill-hex12","fill-hex3","fill-hex6","fill-hex9","fill-name","fill-name-space","fill-name-upper","outline-hex6","outline-name","stipple-error","stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75","stipple-hourglass","stipple-info","stipple-questhead","stipple-question","stipple-warning","width-0","width-2","width-4","width-6"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-node-fills-borders~cytoscape-gml": {
+            "node.fill": [],
+            "node.stroke": [],
+            "node.strokeWidth": [],
+            "node.strokeDash": []
+        },
+        "gml-specimen-node-fills-borders~cytoscape-gml@matched": {
+            "node.fill": [],
+            "node.stroke": [],
+            "node.strokeWidth": [],
+            "node.strokeDash": []
+        },
+        "gml-specimen-node-fills-borders~gml2gv": {
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": []
+        },
+        "gml-specimen-node-fills-borders~gml2gv@matched": {
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": []
+        },
+        "gml-specimen-node-fills-borders~specification": {
+            "node.fill": ["fill-hex12","fill-hex9","fill-name-space"],
+            "node.fillOpacity": ["stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75"],
+            "node.stroke": ["width-0"]
+        },
+        "gml-specimen-node-fills-borders~specification@matched": {
+            "node.fill": ["fill-hex12","fill-hex9","fill-name-space"],
+            "node.fillOpacity": ["stipple-gray12","stipple-gray25","stipple-gray50","stipple-gray75"],
+            "node.stroke": ["width-0"]
         },
         "gml-specimen-node-shapes": {
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["default","type-arc","type-bitmap","type-image","type-line","type-oval","type-polygon","type-text"],
-            "node.fill": ["default"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","type-arc","type-bitmap","type-image","type-line","type-oval","type-polygon","type-rectangle","type-text"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-node-shapes-p2": {
             "node.present": [],
@@ -26106,44 +26220,59 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.sizeToSpacing": ["default"],
-            "node.sizeToExtent": ["default"],
-            "node.shape": ["default","type-arc","type-bitmap","type-image","type-line","type-oval","type-polygon","type-text"],
-            "node.fill": ["default"],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","type-arc","type-bitmap","type-image","type-line","type-oval","type-polygon","type-rectangle","type-text"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-node-shapes~cytoscape-gml": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-node-shapes~cytoscape-gml@matched": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-node-shapes~gml2gv": {
+            "node.shape": []
+        },
+        "gml-specimen-node-shapes~gml2gv@matched": {
+            "node.shape": []
+        },
+        "gml-specimen-node-shapes~specification": {
+            "node.shape": ["type-bitmap","type-image"],
+            "node.stroke": ["type-bitmap","type-image"]
+        },
+        "gml-specimen-node-shapes~specification@matched": {
+            "node.shape": ["type-bitmap","type-image"],
+            "node.stroke": ["type-bitmap","type-image"]
         },
         "gml-specimen-node-sizes-opacity": {
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
+            "node.width": [],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
-            "node.shape": ["default","size-12x12","size-20x90","size-24x24","size-36x36","size-40x80","size-60x60","size-80x40","size-90x20","size-90x90"],
-            "node.fill": ["default"],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","rect-40x80","rect-80x40","size-12x12","size-24x24","size-36x36","size-40x80","size-60x60","size-80x40","size-90x20"],
-            "stray.present": ["text#0","text#1"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
         },
         "gml-specimen-node-sizes-opacity-p2": {
             "node.present": [],
@@ -26413,23 +26542,38 @@
             "node.present": [],
             "node.extra": [],
             "node.position": [],
-            "node.width": ["anchor-ne","anchor-nw","anchor-se","anchor-sw"],
-            "node.height": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default"],
+            "node.width": [],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
-            "node.shape": ["default","size-12x12","size-20x90","size-24x24","size-36x36","size-40x80","size-60x60","size-80x40","size-90x20","size-90x90"],
-            "node.fill": ["default"],
+            "node.shape": [],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": ["anchor-ne","anchor-nw","anchor-se","anchor-sw","default","rect-40x80","rect-80x40","size-12x12","size-24x24","size-36x36","size-40x80","size-60x60","size-80x40","size-90x20"],
-            "stray.present": ["text#0","text#1"],
+            "label.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
-            "frame.zoom": [],
-            "background": ["background"]
+            "frame.zoom": []
+        },
+        "gml-specimen-node-sizes-opacity~cytoscape-gml": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-node-sizes-opacity~cytoscape-gml@matched": {
+            "node.strokeWidth": []
+        },
+        "gml-specimen-node-sizes-opacity~gml2gv": {
+            "node.shape": []
+        },
+        "gml-specimen-node-sizes-opacity~gml2gv@matched": {
+            "node.shape": []
+        },
+        "gml-specimen-node-sizes-opacity~specification": {
+
+        },
+        "gml-specimen-node-sizes-opacity~specification@matched": {
+
         },
         "gml-synthetic-coverage": {
             "node.present": ["0","1"],

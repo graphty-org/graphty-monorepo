@@ -68,10 +68,20 @@ export interface ScoreChange {
     drawing?: number;
 }
 
-/** One sample's (or one sample@matched's) verdict and report. */
+/**
+ * Where a key's recorded pass rates are kept: with the real programs, with the stand-ins, or with the specification's
+ * expectations (a sheet judged per setting, `judges.ts`), each apart from the others.
+ */
+export type FloorSection = "floors" | "standInFloors" | "specificationFloors";
+
+/** Every floors section, in the order the floors file keeps them. */
+export const FLOOR_SECTIONS: readonly FloorSection[] = ["floors", "standInFloors", "specificationFloors"];
+
+/** One sample's (or one sample@matched's, or one reference's of a sheet judged per setting) verdict and report. */
 export interface KeyGate {
     key: string;
-    standIn: boolean;
+    /** Where its recorded pass rates are kept. */
+    section: FloorSection;
     /** The gate: elements failing a property the known failures do not list. Any one fails the sample. */
     newlyFailing: NewFailure[];
     /** Known failures that pass now, by property: the ratchet takes them off. */
@@ -175,7 +185,7 @@ function measured(run: Judgement, property: string, ids: readonly string[]): str
  * @param recorded - the recorded pass rates of this key
  * @param options - the rest
  * @param options.baseline - the baseline drawing's judgements, when the run judged one
- * @param options.standIn - whether the key's oracle stands in for the file's own program
+ * @param options.section - where the key's recorded pass rates are kept (default: with the real programs)
  * @param options.gpu - the GPU path it was drawn on (`GRAPHTY_BROWSER_GPU`, "none" when unset)
  * @returns the verdict and the report
  */
@@ -184,7 +194,7 @@ export function judgeKey(
     run: Judgement,
     known: Readonly<Record<string, readonly string[]>> | undefined,
     recorded: Readonly<Record<string, number>> | undefined,
-    options: { baseline?: Baseline; standIn?: boolean; gpu?: string } = {},
+    options: { baseline?: Baseline; section?: FloorSection; gpu?: string } = {},
 ): KeyGate {
     const { baseline } = options;
     const newlyFailing = Object.entries(run.failures).flatMap(([p, ids]) => {
@@ -237,7 +247,7 @@ export function judgeKey(
     }
     return {
         key,
-        standIn: options.standIn === true,
+        section: options.section ?? "floors",
         newlyFailing,
         nowPassing,
         notMeasurable,

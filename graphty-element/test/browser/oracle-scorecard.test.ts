@@ -44,7 +44,7 @@ describe("style fidelity against the programs' own SVG drawings", () => {
     it.each(CI_ORACLES)("%s", async (id) => {
         const run = await runOracle(id, { write: false });
         assert.deepEqual(
-            gateRun(id, run, stored).flatMap(gateMessages),
+            gateRun(run, stored).flatMap(gateMessages),
             [],
             `${id}: an element fails that oracle-known-failures.json does not list`,
         );

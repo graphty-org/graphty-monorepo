@@ -53,7 +53,7 @@ describe("the Export dialog", () => {
         assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));
     });
 
-    it("keeps its footer 12px above its own bottom edge and inside the window on a short screen", async () => {
+    it("keeps its buttons 8px above its own bottom edge and inside the window on a short screen", async () => {
         await page.viewport(1180, 640);
         render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
 
@@ -62,7 +62,8 @@ describe("the Export dialog", () => {
         const edge = content.getBoundingClientRect();
         const cancel = within(dialog).getByRole("button", { name: "Cancel" }).getBoundingClientRect();
         assert.isAtMost(edge.bottom, window.innerHeight);
-        assert.closeTo(edge.bottom - cancel.bottom, 12, 1);
+        // ModalFooter is Figma's 40px footer, so a 24px button sits 8px above the edge.
+        assert.closeTo(edge.bottom - cancel.bottom, 8, 1);
     });
 
     it("blocks the page behind it: the rail beside the dialog cannot be clicked", async () => {

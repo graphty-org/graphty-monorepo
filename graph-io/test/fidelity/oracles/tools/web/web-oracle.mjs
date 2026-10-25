@@ -46,9 +46,11 @@ const fonts = join(repo, "visual-fonts");
 if (!existsSync(join(fonts, "fonts.conf")) || !existsSync(join(repo, "graphty-element/package.json"))) {
     throw new Error(`web-oracle.mjs: no repository checkout at ${repo}`);
 }
-const req = createRequire(join(here, "package.json"));
+// the pinned libraries are graph-io's devDependencies
+const graphIo = resolve(here, "../../../../..");
+const req = createRequire(join(graphIo, "package.json"));
 const nm = (p) => readFileSync(req.resolve(p), "utf8");
-const versionOf = (pkg) => JSON.parse(readFileSync(join(here, "node_modules", pkg, "package.json"), "utf8")).version;
+const versionOf = (pkg) => JSON.parse(readFileSync(join(graphIo, "node_modules", pkg, "package.json"), "utf8")).version;
 const sha = (b) => createHash("sha256").update(b).digest("hex");
 
 const [family, id, input, outDir, settingsArg] = process.argv.slice(2);

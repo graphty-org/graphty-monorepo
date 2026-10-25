@@ -1,0 +1,46 @@
+# Dependabot version updates. Every pull request targets `golden`, not master: a dependency bump
+# lands like any other branch, through `node tools/land.mjs land <branch>` and the pre-push gate,
+# and its screenshots are reviewed on the cut (CLAUDE.md, "Landing changes (golden-local)").
+# The pipeline-round skill lands open dependabot/* branches and closes their pull requests.
+#
+# Security updates ignore `target-branch` and always open against master (a GitHub rule); the
+# pipeline-round skill lands and closes those the same way.
+version: 2
+updates:
+    - package-ecosystem: npm
+      directory: "/"
+      target-branch: golden
+      schedule:
+          interval: weekly
+          day: monday
+      labels: ["dependencies"]
+      commit-message:
+          prefix: "chore(deps)"
+      # Storybook's packages must move in lockstep: a bump of `storybook` alone leaves the addons
+      # and renderers on the old version and Storybook refuses to start. The group comes first
+      # (Dependabot puts a dependency in the first group that matches) and takes every update type,
+      # so a major moves them together too. addon-console is a separate project with its own versions.
+      groups:
+          storybook:
+              applies-to: version-updates
+              patterns: ["storybook", "@storybook/*", "eslint-plugin-storybook"]
+              exclude-patterns: ["@storybook/addon-console"]
+          storybook-security:
+              applies-to: security-updates
+              patterns: ["storybook", "@storybook/*", "eslint-plugin-storybook"]
+              exclude-patterns: ["@storybook/addon-console"]
+          npm-minor-and-patch:
+              update-types: ["minor", "patch"]
+
+    - package-ecosystem: github-actions
+      directories: ["/", "/.github/actions/*"]
+      target-branch: golden
+      schedule:
+          interval: weekly
+          day: monday
+      labels: ["dependencies"]
+      commit-message:
+          prefix: "chore(deps)"
+      groups:
+          actions-minor-and-patch:
+              update-types: ["minor", "patch"]

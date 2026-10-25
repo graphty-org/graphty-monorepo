@@ -24,6 +24,7 @@ import { GPU, mountSample, readJson } from "../mount";
 import { type OracleReport, pairNodes } from "./compare-oracle";
 import {
     type Baseline,
+    type FloorSection,
     type Floors,
     gateReportText,
     judgeKey,
@@ -60,6 +61,9 @@ export const ORACLE_GATE = `${ORACLE_OUT}/gate.json`;
 export const ORACLE_BASELINE = (import.meta.env.GRAPHTY_ORACLE_BASELINE as string | undefined) || undefined;
 /** The floors key of a sample's position-matched comparison. */
 export const matchedKey = (id: string): string => `${id}@matched`;
+/** The floors key of what one reference judged of a sheet judged per setting (the sheet's own oracle keeps the id). */
+export const referenceKey = (id: string, reference: string): string =>
+    reference === "oracle" ? id : `${id}~${reference}`;
 
 /**
  * graphty's canvas as a PNG: one more frame of the settled scene, read back in the same task (so
@@ -95,6 +99,50 @@ export interface OracleRun extends OracleScored {
     standIn: boolean;
     /** graphty drawn at the program's own node positions, so style is judged apart from layout; null when no node pairs. */
     matched: OracleScored | null;
+    /** Every floors key the run measured: the sample and its position-matched comparison, per reference. */
+    parts: OraclePart[];
+}
+
+/** One floors key's measurement: a comparison, or one reference's judgments of a sheet judged per setting. */
+export interface OraclePart {
+    key: string;
+    section: FloorSection;
+    scored: OracleScored;
+}
+
+/**
+ * The floors keys of one comparison: the sample's own, or, for a sheet judged per setting, one per reference, each
+ * kept with the programs, the stand-ins or the specification by what judged it.
+ * @param id - the floors key of the comparison (the sample, or its position-matched key)
+ * @param comparison - the comparison
+ * @param own - the sample's own key's measurement (with the raster regions where they are reported, and its baseline)
+ * @param standIn - the sample's oracle is a stand-in
+ * @returns the parts
+ */
+export function partsOf(
+    id: string,
+    comparison: Pick<OracleComparison, "references">,
+    own: OracleScored,
+    standIn: boolean,
+): OraclePart[] {
+    if (comparison.references.length === 0) {
+        return [{ key: id, section: standIn ? "standInFloors" : "floors", scored: own }];
+    }
+    const [base, matched] = id.split("@");
+    return comparison.references.map((r) => {
+        const key = referenceKey(base, r.reference);
+        let section: FloorSection = "standInFloors";
+        if (r.reference === "specification") {
+            section = "specificationFloors";
+        } else if (!isStandIn(r.meta)) {
+            section = "floors";
+        }
+        return {
+            key: matched === undefined ? key : `${key}@${matched}`,
+            section,
+            scored: r.reference === "oracle" ? own : { report: r.report, scores: r.scores },
+        };
+    });
 }
 
 /** The inverse of a fitted similarity: the point it takes to `q`. */
@@ -222,7 +270,9 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
     // The raster regions are reported like every property, at 2 places (a region's similarity is a mean over its
     // pixels, which a renderer's antialiasing moves in the third), and only where the layouts are related: between
     // unrelated layouts the regions of one drawing fall on nothing of the other. They never fail a sample.
-    if (raster !== null && report.transform?.unrelatedLayout === false) {
+    // A sheet judged per setting has no raster score: a region's similarity is a mean over every element in it, whatever
+    // reference judges each one's properties, so no one drawing can judge it.
+    if (raster !== null && report.transform?.unrelatedLayout === false && first.references.length === 0) {
         for (const r of RASTER_REGIONS) {
             const sim = raster.regions[r].similarity;
             if (sim !== null) {
@@ -281,18 +331,40 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
                 : { report: matched.report, scores: matched.scores, graphty: second.graphty };
         await commands.writeFile(
             `${ORACLE_OUT}/${id}.json`,
-            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched, scenes }, null, 1)}\n`,
+            `${JSON.stringify({ ...report, oracleMeta: meta, raster: rasterSummary, scores, positionMatched, scenes, references: referencesOf(first, second) }, null, 1)}\n`,
         );
     }
+    const own: OracleScored = { report, scores, ...(baseline === undefined ? {} : { baseline }) };
+    const parts = partsOf(id, first, own, isStandIn(meta));
+    if (matched !== null && second !== null) {
+        parts.push(...partsOf(matchedKey(id), second, matched, isStandIn(meta)));
+    }
     return {
-        report,
-        scores,
-        ...(baseline === undefined ? {} : { baseline }),
+        ...own,
         sha256,
         oracleSha256: typeof meta.sha256 === "string" ? meta.sha256 : null,
         standIn: isStandIn(meta),
         matched,
+        parts,
     };
+}
+
+/**
+ * For the report files: which reference judged what of a sheet judged per setting, each with its report, its
+ * position-matched report and its drawing.
+ * @param first - the comparison
+ * @param second - the position-matched comparison, or null
+ * @returns one entry per reference, empty for any other sample
+ */
+function referencesOf(first: OracleComparison, second: OracleComparison | null): unknown[] {
+    return first.references.map((r, i) => ({
+        reference: r.reference,
+        meta: r.meta,
+        report: r.report,
+        scores: r.scores,
+        positionMatched: second?.references[i]?.report ?? null,
+        scene: r.scene,
+    }));
 }
 
 /** What a run's report file keeps that a later run judges again: its judgement and graphty's drawing. */
@@ -334,6 +406,7 @@ export interface OracleStored {
     known: KnownRecords;
     floors: Floors;
     standInFloors: Floors;
+    specificationFloors: Floors;
 }
 
 /**
@@ -341,12 +414,13 @@ export interface OracleStored {
  * @returns them
  */
 export async function readOracleStored(): Promise<OracleStored> {
-    const f = (await readJson<{ floors?: Floors; standInFloors?: Floors }>(ORACLE_FLOORS)) ?? {};
+    const f = (await readJson<Partial<Record<FloorSection, Floors>>>(ORACLE_FLOORS)) ?? {};
     const k = (await readJson<Partial<KnownRecords>>(ORACLE_KNOWN_FAILURES)) ?? {};
     return {
         known: { about: k.about ?? "", known: k.known ?? {}, reasons: k.reasons ?? [] },
         floors: f.floors ?? {},
         standInFloors: f.standInFloors ?? {},
+        specificationFloors: f.specificationFloors ?? {},
     };
 }
 
@@ -357,25 +431,23 @@ const judgementOf = (scored: OracleScored): Judgement => ({
 });
 
 /**
- * The verdicts of a sample and of its position-matched comparison (`judgeKey`): which elements fail that the known
- * failures do not list, and the report beside the recorded values.
- * @param id - the sample
+ * The verdicts of every key a run measured (`judgeKey`): the sample, its position-matched comparison, and for a sheet
+ * judged per setting each reference's: which elements fail that the known failures do not list, and the report beside
+ * the recorded values.
  * @param run - its measurement
  * @param stored - the committed records
  * @returns one verdict per key
  */
-export function gateRun(id: string, run: OracleRun, stored: OracleStored): KeyGate[] {
-    const one = (key: string, scored: OracleScored): KeyGate =>
+export function gateRun(run: OracleRun, stored: OracleStored): KeyGate[] {
+    return run.parts.map(({ key, section, scored }) =>
         judgeKey(
             key,
             judgementOf(scored),
             stored.known.known[key],
-            (run.standIn ? stored.standInFloors : stored.floors)[key] ??
-                stored.floors[key] ??
-                stored.standInFloors[key],
-            { baseline: scored.baseline, standIn: run.standIn, gpu: GPU },
-        );
-    return run.matched === null ? [one(id, run)] : [one(id, run), one(matchedKey(id), run.matched)];
+            stored[section][key] ?? stored.floors[key] ?? stored.standInFloors[key] ?? stored.specificationFloors[key],
+            { baseline: scored.baseline, section, gpu: GPU },
+        ),
+    );
 }
 
 /**

@@ -263,7 +263,7 @@ jobs:
             # with a root `docs:api:<package>` script, or a file a docs page pulls in with `<!--@include: ...-->`);
             # the CI workflow tests only when tools/, .github/, .husky/, .claude/, a root file or a package file they
             # read changed;
-            # Cost Estimate Accuracy only when its own files changed. Every other run (the full run, a dispatch, a
+            # Cost Estimate Accuracy only when the estimator or what it reads and times changed. Every other run (the full run, a dispatch, a
             # master push) runs them all, so nothing runs nowhere.
             - name: Plan the optional jobs
               id: optional
@@ -276,10 +276,15 @@ jobs:
                       printf 'docs=true\ntool-tests=true\ncost-accuracy=true\n' | tee -a "$GITHUB_OUTPUT"
                       exit 0
                   fi
-                  changed=$(git diff --name-only "origin/$BASE_REF" HEAD)
+                  # --no-renames: a file moved out of a watched folder counts by its old path too
+                  changed=$(git diff --name-only --no-renames "origin/$BASE_REF" HEAD)
                   has() { grep -qE "$1" <<<"$changed" && echo true || echo false; }
-                  pkg_docs=$(sed -nE 's#^ *src: "([^"]+)".*#\1/#p' tools/copy-docs-content.js | paste -sd'|')
-                  docs=$(has "^(docs/|$pkg_docs|tools/copy-docs-content\.js$|tools/sanitize-api-docs\.js$)")
+                  # the base's list: a pull request that changes the script runs Docs anyway
+                  pkg_docs=$(git show "origin/$BASE_REF:tools/copy-docs-content.js" | sed -nE 's#^ *src: "([^"]+)".*#\1/#p' | paste -sd'|')
+                  # an empty list would make the pattern below match every path; fail loudly instead
+                  : "${pkg_docs:?found no package docs in tools/copy-docs-content.js}"
+                  # the content, and what builds it: the root scripts and versions, the lockfile, typedoc configs, ci.yml
+                  docs=$(has "^(docs/|$pkg_docs|tools/copy-docs-content\.js$|tools/sanitize-api-docs\.js$|package\.json$|pnpm-lock\.yaml$|typedoc[^/]*$|\.github/workflows/ci\.yml$)")
                   for p in $(node -p 'Object.keys(require("./package.json").scripts).filter((k) => k.startsWith("docs:api:")).map((k) => k.slice(9)).join(" ")'); do
                       jq -e --arg p "$p" 'index($p)' <<<"$AFFECTED" >/dev/null && docs=true
                   done
@@ -288,13 +293,15 @@ jobs:
                       m=${m#*@include:}; m=${m# }; realpath -m --relative-to=. "$(dirname "$file")/${m%--}"
                   done || true)
                   [[ -n "$includes" ]] && grep -qxFf <(echo "$includes") <<<"$changed" && docs=true
-                  # plus the package files the tool tests read: visual-review's template, gate and capture, its vitest
-                  # config, and compact-mantine's Figma fixture
-                  tool_tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$|^visual-review/(templates|trusted|capture)/|^visual-review/vitest\.config\.mjs$|^compact-mantine/tests/figma/')
+                  # plus the package files the tool tests read: visual-review's template, gate, capture, docs page and
+                  # vitest config, compact-mantine's Figma fixture, a package's scripts/ (run-browser-project.js), and
+                  # every test file (the bare-git test reads them all)
+                  tool_tests=$(has '^(tools|\.github|\.husky|\.claude)/|^[^/]+$|^visual-review/(templates|trusted|capture|docs)/|^visual-review/vitest\.config\.mjs$|^compact-mantine/tests/figma/|^[^/]+/scripts/|\.test\.[^/]+$')
                   {
                       echo "docs=$docs"
                       echo "tool-tests=$tool_tests"
-                      echo "cost-accuracy=$(has '^graphty-element/(src/session/cost|test/session/cost)/')"
+                      # the estimator, the catalog it reads costs from, the session and algorithm code it times, and algorithms itself
+                      echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)|test/session/cost)/|^algorithms/src/')"
                   } | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
@@ -495,8 +502,8 @@ jobs:
               timeout-minutes: 4
               env:
                   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-                  SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
-                  SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+                  SENTRY_ORG: ${{ vars.VITE_SENTRY_ORG }}
+                  SENTRY_PROJECT: ${{ vars.VITE_SENTRY_PROJECT }}
                   SENTRY_RELEASE: ${{ github.sha }}
               run: |
                   warn() { echo "::warning::sentry-cli $1 failed or timed out; the build is unaffected"; }

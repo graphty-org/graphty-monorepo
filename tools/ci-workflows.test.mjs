@@ -6114,7 +6114,7 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         git("commit", "-qm", "change", "--allow-empty");
         const out = join(dir, "out");
         writeFileSync(out, "");
-        const r = spawnSync("bash", ["-eo", "pipefail", "-c", step("packages", "Plan the optional jobs").run], {
+        const r = spawnSync("bash", ["-e", "-c", step("packages", "Plan the optional jobs").run], {
             cwd: dir,
             encoding: "utf8",
             env: {
@@ -6167,12 +6167,21 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
         assert.equal(optional(["visual-review/README.md"]).docs, "true");
     });
 
+    it("runs Docs when what builds the docs changed: root package.json, the lockfile, ci.yml", () => {
+        for (const f of ["package.json", "pnpm-lock.yaml", ".github/workflows/ci.yml"]) {
+            assert.equal(optional([f]).docs, "true", f);
+        }
+    });
+
     it("runs the tool tests when a package file a tool test reads changed", () => {
         for (const f of [
             "visual-review/templates/visual-review.yml",
             "visual-review/vitest.config.mjs",
             "visual-review/trusted/lib/results.mjs",
             "compact-mantine/tests/figma/figma-fixture.mjs",
+            "visual-review/docs/index.md",
+            "webgpu-graph-algorithms/scripts/run-browser-project.js",
+            "graphty-element/test/foo.test.ts",
         ]) {
             assert.equal(optional([f])["tool-tests"], "true", f);
         }
@@ -6194,6 +6203,9 @@ describe("the light check's optional jobs (#3443 part c, merging.md 4.1)", () =>
 
     it("runs Cost Estimate Accuracy on a pull request only when its files changed", () => {
         assert.equal(optional(["graphty-element/src/session/cost/estimate.ts"])["cost-accuracy"], "true");
+        for (const f of ["graphty-element/src/catalog/algorithms.ts", "algorithms/src/shortest-path/dijkstra.ts"]) {
+            assert.equal(optional([f])["cost-accuracy"], "true", f);
+        }
         assert.equal(optional(["graphty-element/src/Graph.ts"])["cost-accuracy"], "false");
         assert.match(jobs["cost-accuracy"].if, /&& needs\.packages\.outputs\.cost-accuracy == 'true'$/);
     });

@@ -1,0 +1,21 @@
+# The test results Worker. See README.md. Secret LOCAL_TOKEN_HASHES is set with `npx wrangler@4 secret put`,
+# never written here.
+name = "graphty-results"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+# node:crypto and node:util for src/signature.js, which the clients share
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# graphty-org/graphty-monorepo: the only repository whose runs write test records
+REPOSITORY_ID = "1122477634"
+# The site repositories, which write only deploy outcomes: graphty-org/graphty-site (add graphty-nightly's
+# id, comma-separated, once it exists: gh api repos/graphty-org/graphty-nightly --jq .id)
+DEPLOY_REPOSITORY_IDS = "1429353022"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "graphty-results"
+# results-service.yml writes the real id here before it deploys (it creates the database on its first run)
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

@@ -44,9 +44,10 @@ concurrency:
     group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
-# release commits change every package.json and nx.json sharedGlobals includes .github/workflows/**, and each
-# run saved a new 600 MB entry that pushed the Git LFS baseline caches toward eviction.
+# The Build job uses nx's self-hosted remote cache (tools/nx-cache-worker/, R2), not actions/cache of
+# .nx/cache: that never hit, because release commits change every package.json and nx.json sharedGlobals
+# includes .github/workflows/**, and each run saved a new 600 MB entry that pushed the Git LFS baseline
+# caches toward eviction. See the "Probe the nx remote cache" step.
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
@@ -87,19 +88,31 @@ jobs:
     packages:
         name: Build
         runs-on: ubuntu-24.04
+        timeout-minutes: 12
+        # every nx command of the job writes its task timings here; the timings job reads them (ci-budgets.mjs)
+        env:
+            NX_PROFILE: nx-profile.json
+        # Only master's runs (its push build, the release train's call) may write the nx remote cache: the
+        # write token is NX_CACHE_TOKEN in environment nx-cache-write (deployment branches: master only),
+        # which overrides the repository secret of the same name, the read token. A pull request can edit
+        # this file, so a write token it could see would let a branch plant build output master trusts.
+        environment: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' && 'nx-cache-write' || '' }}
         # actions: read to list this branch's earlier runs and download their builds (the "Reuse" step).
+        # id-token: write is the results store's credential for the bins step's one read (tools/results/plan-read.mjs).
         permissions:
             contents: read
             actions: read
             checks: write
+            id-token: write
         # What the rest of the run tests, decided once here: the test job's matrix and the other jobs'
         # conditions read these instead of each asking nx again. See the "Plan" step below.
         outputs:
             full: ${{ steps.plan.outputs.full }}
             light: ${{ steps.plan.outputs.light }}
             affected: ${{ steps.plan.outputs.affected }}
-            test-matrix: ${{ steps.plan.outputs.test-matrix }}
-            test-count: ${{ steps.plan.outputs.test-count }}
+            # the light check's bins when the bins step planned them, else the Plan step's whole shards
+            test-matrix: ${{ steps.bins.outputs.test-matrix || steps.plan.outputs.test-matrix }}
+            test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
             advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
@@ -149,6 +162,25 @@ jobs:
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
+
+            # The selector's Vite import graphs (tools/test-select.mjs, one file per package keyed by its tree),
+            # restored read-only for the light check's plan: only master's builds save them (the select-graphs
+            # job), and the prefix match restores master's newest set, so only the packages this pull request
+            # changed are walked again. A miss walks every package (slower, never wrong).
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              continue-on-error: true
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the selector's import graphs
+              if: steps.graphs-key.outputs.key != ''
+              continue-on-error: true
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  restore-keys: test-select-graphs-
 
             # Plan which packages this run tests. A pull request tests only what nx calls affected: the
             # packages it changed plus every package that depends on them. Each pull request run used to be
@@ -256,6 +288,29 @@ jobs:
             # train in release.yml audits before it publishes, and
             # dependency-review.yml reviews the pull requests that change dependencies.
 
+            # Turns on nx's remote cache for the build steps below when repository variable NX_CACHE_URL is set
+            # and the Worker accepts the token within 2 seconds; otherwise they build without it (slower, never
+            # wrong). The probe reads an entry with the token, not /v1/health: nx fails the whole build on a
+            # 401, so a wrong, rotated or not yet registered token must turn the cache off here (a 404 or 200
+            # means the token may read). Unset NX_CACHE_URL to turn it off. The token reaches the build steps
+            # through GITHUB_ENV, not a step's env, so no build step reads a secret directly.
+            - name: Probe the nx remote cache
+              env:
+                  NX_CACHE_URL: ${{ vars.NX_CACHE_URL }}
+                  NX_CACHE_TOKEN: ${{ secrets.NX_CACHE_TOKEN }}
+                  WRITES: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/master' }}
+              run: |
+                  if [[ -z "$NX_CACHE_URL" || -z "$NX_CACHE_TOKEN" ]]; then
+                      echo "nx remote cache: off (NX_CACHE_URL or NX_CACHE_TOKEN not set)" | tee -a "$GITHUB_STEP_SUMMARY"
+                  elif code="$(curl -sS -m 2 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $NX_CACHE_TOKEN" "$NX_CACHE_URL/v1/cache/probe")"; [[ "$code" =~ ^(200|404)$ ]]; then
+                      { echo "NX_SELF_HOSTED_REMOTE_CACHE_SERVER=$NX_CACHE_URL"
+                        echo "NX_SELF_HOSTED_REMOTE_CACHE_ACCESS_TOKEN=$NX_CACHE_TOKEN"; } >> "$GITHUB_ENV"
+                      echo "nx remote cache: on ($([[ "$WRITES" == true ]] && echo read and write || echo read only))" | tee -a "$GITHUB_STEP_SUMMARY"
+                  else
+                      echo "::warning::nx remote cache refused the token or did not answer in 2 s (HTTP ${code:-none}); building without it"
+                      echo "nx remote cache: off (HTTP ${code:-none} from $NX_CACHE_URL)" >> "$GITHUB_STEP_SUMMARY"
+                  fi
+
             # PR: build what the pull request affects (the lint job lints it). The base is named explicitly: the checkout
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
             # defaultBase "master" made nx affected fail with "unknown revision" on the first pull_request run
@@ -280,6 +335,49 @@ jobs:
                   VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
                   VITE_SENTRY_ORG: ${{ secrets.VITE_SENTRY_ORG }}
                   VITE_SENTRY_PROJECT: ${{ secrets.VITE_SENTRY_PROJECT }}
+
+            # The light check's test bins (merging.md 4.1), a pull request's own run only: the run's one read of the
+            # results store (the file durations the bins are packed by), then the selector's plan, whose bins
+            # replace the shards they cover and leave out a shard it selects nothing for. After the builds, because
+            # the selector's Vite import graphs resolve the other packages through their dist folders (before a
+            # build every graph fails to transform and every package runs whole). Fails open: a store that does
+            # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
+            # affected shard whole.
+            - name: Plan the light check's test bins
+              id: bins
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+                  HEAD_SHA: ${{ github.sha }}
+                  AFFECTED: ${{ steps.plan.outputs.affected }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+              run: |
+                  plan="$RUNNER_TEMP/results-plan"
+                  git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
+                  node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
+                      --base "$(git rev-parse "origin/$BASE_REF")" --files "$RUNNER_TEMP/changed.txt" || true
+                  if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
+                      --durations "$plan/durations.json" > "$plan/light-plan.json"; then
+                      echo "::warning::the test selector failed; every affected shard runs whole"
+                      exit 0
+                  fi
+                  jq -r '"light check: \(.bins | length) test bins, \(.whole | length) shards whole, \(.none | length) shards with nothing selected"' \
+                      "$plan/light-plan.json" | tee -a "$GITHUB_STEP_SUMMARY"
+                  node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" \
+                      | grep -E '^test-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+
+            # The run's one read of the results store and the light plan it fed, for every later job (quarantine
+            # and the master excuse read it from store-reads-live on). Absent when the run made no plan.
+            - name: Upload the results plan
+              if: steps.bins.outcome == 'success'
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: results-plan
+                  path: ${{ runner.temp }}/results-plan/
+                  retention-days: 7
+                  if-no-files-found: ignore
 
             # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
             # every project (the lint job lints them).
@@ -352,6 +450,17 @@ jobs:
                       remote-logger/dist/
                       compact-mantine/dist/
                   retention-days: 1
+
+            # The nx task timings of the build steps (NX_PROFILE), for the timings job.
+            - name: Upload the nx profile
+              if: ${{ !cancelled() }}
+              continue-on-error: true
+              uses: actions/upload-artifact@v4
+              with:
+                  name: nx-profile
+                  path: nx-profile.json
+                  retention-days: 7
+                  if-no-files-found: ignore
 
             - name: Upload graph-format build
               uses: actions/upload-artifact@v7
@@ -442,6 +551,7 @@ jobs:
         name: Storybooks
         needs: packages
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         # actions: read to download the Storybooks of the run whose results are reused (artifacts-run).
         permissions:
             contents: read
@@ -609,6 +719,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
@@ -679,6 +790,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 20
         steps:
             - uses: actions/checkout@v4
               with:
@@ -799,6 +911,7 @@ jobs:
         needs: packages
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         steps:
             - uses: actions/checkout@v4
               with:
@@ -870,6 +983,70 @@ jobs:
                   job: docs
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Saves the selector's Vite import graphs (tools/test-select.mjs) for the pull requests' light-check plan,
+    # which only restores them (budgets-and-trust.md 1.8: only master writes the entry a pull request trusts).
+    # Master's push build only: one walk of every package, walked cold whenever the key moved, so the entry
+    # holds only current graphs. Gates nothing; a failure here only makes the next pull request's plan walk more packages.
+    select-graphs:
+        name: Selector import graphs
+        needs: packages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.ref == ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            - uses: pnpm/action-setup@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            - name: Key of the selector's import graphs
+              id: graphs-key
+              run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
+
+            # Exact key only, no prefix restore: the saved set then holds only the current graphs, never the
+            # superseded ones of earlier commits, so the entry does not grow.
+            - name: Look up the import graphs
+              id: graphs
+              uses: actions/cache/restore@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+                  lookup-only: true
+
+            # The graphs resolve the other packages through their dist folders.
+            - name: Download all package builds
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-packages
+                  path: .
+
+            # Any selection walks every package's graph first (selectChange()), so this one call builds the set.
+            - name: Walk the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              run: node tools/test-select.mjs --base HEAD^1 --head HEAD --json > /dev/null
+
+            - name: Save the import graphs
+              if: steps.graphs.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: tmp/test-select/graphs
+                  key: ${{ steps.graphs-key.outputs.key }}
+
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
     # only the affected packages' shards on a pull request. A pull request that affects no package (a docs
@@ -881,6 +1058,12 @@ jobs:
         needs: packages
         if: needs.packages.outputs.test-count != '0' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        # id-token: write is the results store's credential (tools/results/run-group.mjs posts each shard's record)
+        permissions:
+            contents: read
+            checks: write
+            id-token: write
         strategy:
             fail-fast: false
             matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
@@ -1026,6 +1209,7 @@ jobs:
               id: tests
               run: ${{ matrix.test-command }}
               env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
@@ -1131,6 +1315,7 @@ jobs:
         needs: [packages, build, docs]
         if: needs.build.outputs.light != 'true' && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1236,6 +1421,7 @@ jobs:
         if: github.event_name != 'pull_request' && !inputs.verify
         continue-on-error: true
         runs-on: ubuntu-24.04
+        timeout-minutes: 50
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1305,6 +1491,7 @@ jobs:
         needs: packages
         if: contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - uses: actions/checkout@v4
               with:
@@ -1559,6 +1746,7 @@ jobs:
         needs: [packages, build, lint, checks, docs, test, links, cost-accuracy]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check all jobs passed
               env:
@@ -1569,6 +1757,7 @@ jobs:
                   LIGHT: ${{ needs.packages.outputs.light }}
                   REUSE_RUN: ${{ needs.packages.outputs.reuse-run }}
                   REUSE_URL: ${{ needs.packages.outputs.reuse-url }}
+                  TEST_COUNT: ${{ needs.packages.outputs.test-count }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
                       echo "::error::Build did not run, so nothing was checked. Re-run the workflow."
@@ -1591,6 +1780,13 @@ jobs:
                   bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" --argjson strict "$strict" \
                       'to_entries[] | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | ($ok | index($r)) == null or ((.key as $k | $strict | index($k)) and $r != "success")) | .key' \
                       <<<"$NEEDS")
+                  # The plan's Test jobs (whole shards, groups and light-check bins) are one matrix: when the plan
+                  # made any, the matrix must have run and passed, so a skipped or missing Test job is never a pass.
+                  test_result=$(jq -r '.test.result' <<<"$NEEDS")
+                  if [[ -z "$REUSE_RUN" && "${TEST_COUNT:-0}" != "0" && "$test_result" != "success" ]] && ! jq -e --arg k test 'index($k)' <<<"$adv" >/dev/null; then
+                      echo "::error::the plan made $TEST_COUNT Test jobs, but Test reports $test_result"
+                      bad="$bad test"
+                  fi
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"
                       exit 1
@@ -1627,6 +1823,7 @@ jobs:
         needs: [packages, all-checks]
         if: always()
         runs-on: ubuntu-24.04
+        timeout-minutes: 10
         steps:
             - name: Check the run passed, and was the full suite in the queue
               env:
@@ -1783,3 +1980,44 @@ jobs:
               run: |
                   mkdir -p "$RUNNER_TEMP/visual"
                   node tools/visual-flaky-report.mjs "$RUNNER_TEMP/visual" | tee -a "$GITHUB_STEP_SUMMARY"
+
+    # The run's durations against ci-budgets.json, and its rows to the results store (.github/actions/timings).
+    # Last, whatever happened; never fails. Skipped when another workflow calls this one: the caller's own
+    # timings job reports the whole run.
+    timings:
+        name: Timings
+        needs:
+            [
+                packages,
+                build,
+                lint,
+                checks,
+                docs,
+                test,
+                links,
+                performance,
+                cost-accuracy,
+                visual,
+                all-checks,
+                queue-checks,
+                visual-flaky,
+            ]
+        if: ${{ always() && contains(github.workflow_ref, '/ci.yml@') }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            actions: read
+            id-token: write
+            pull-requests: write
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: |
+                      tools
+                      .github/actions
+
+            - uses: ./.github/actions/timings
+              with:
+                  results-url: ${{ vars.RESULTS_URL }}

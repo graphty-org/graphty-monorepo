@@ -33,6 +33,7 @@ import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { shardCacheDir, workerShare } from "../tools/test-slots.mjs";
+import { storySpike } from "../visual-review/capture/story-spike.mjs";
 import { ciReporters } from "../vitest.ci-junit.mjs";
 import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
 
@@ -271,6 +272,22 @@ function appendBenchRow(log: string): undefined {
 
     return undefined;
 }
+
+/**
+ * SPIKE (issue #3389), off unless STORY_SPIKE_OUT is set: the storybook project shoots every story
+ * at the end of its test into that directory, for `visual-review parity` against the built
+ * Storybook's capture. STORY_SPIKE_BUILD=production runs it with production semantics.
+ */
+const STORY_SPIKE = process.env.STORY_SPIKE_OUT
+    ? storySpike({
+          root: path.join(dirname, ".."),
+          project: "graphty-element",
+          out: path.resolve(process.env.STORY_SPIKE_OUT),
+          mode: process.env.STORY_SPIKE_BUILD || "test",
+          fontconfig: path.join(dirname, "../visual-fonts/fonts.conf"),
+      })
+    : null;
+const STORY_SPIKE_PRODUCTION = process.env.STORY_SPIKE_BUILD === "production";
 
 /**
  * The version a project file's `generator` names (src/session/runs/engine.ts), as the builds set
@@ -816,7 +833,11 @@ export default defineConfig({
                 },
             },
             {
-                define: { ...define },
+                define: {
+                    ...define,
+                    ...(STORY_SPIKE_PRODUCTION && { "process.env.NODE_ENV": JSON.stringify("production") }),
+                },
+                ...(STORY_SPIKE_PRODUCTION && { mode: "production" }),
                 extends: "vite.config.ts",
                 plugins: [
                     // The plugin will run tests for the stories defined in your Storybook config
@@ -854,10 +875,15 @@ export default defineConfig({
                         enabled: true,
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
-                        provider: playwright(),
+                        provider: playwright(STORY_SPIKE?.providerOptions),
                         instances: [{ browser: "chromium" }],
+                        ...(STORY_SPIKE && { viewport: STORY_SPIKE.viewport, commands: STORY_SPIKE.commands }),
                     },
-                    setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
+                    setupFiles: [
+                        ...(STORY_SPIKE ? [".storybook/story-spike.setup.ts"] : []),
+                        BROWSER_COVERAGE_SETUP,
+                        ".storybook/vitest.setup.ts",
+                    ],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
                 },

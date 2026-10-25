@@ -5546,3 +5546,69 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         assert.equal(verdict("5", { lint: "failure" }).status, 1);
     });
 });
+
+describe("a workflow call grants what the called workflow's jobs ask for", () => {
+    // GitHub refuses a call at startup when a called job asks for more than the caller grants, even a job
+    // whose `if` would skip it.
+    const LEVEL = { none: 0, read: 1, write: 2 };
+    const dir = ".github/workflows";
+    const load = (f) => parseYaml(readFileSync(join(dir, f), "utf8"));
+    const asked = (wf) => [wf.permissions, ...Object.values(wf.jobs ?? {}).map((j) => j.permissions)];
+    it("for every local reusable workflow call", () => {
+        const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f));
+        let calls = 0;
+        for (const f of files) {
+            const wf = load(f);
+            for (const [name, job] of Object.entries(wf.jobs ?? {})) {
+                const m = /^\.\/\.github\/workflows\/(.+)$/.exec(job.uses ?? "");
+                const granted = job.permissions ?? wf.permissions;
+                if (!m || typeof granted !== "object") continue;
+                calls++;
+                for (const want of asked(load(m[1]))) {
+                    if (!want || typeof want !== "object") continue;
+                    for (const [scope, level] of Object.entries(want)) {
+                        assert.ok(
+                            (LEVEL[granted[scope]] ?? 0) >= LEVEL[level],
+                            `${f} job ${name} calls ${m[1]}, which asks ${scope}: ${level}; it grants ${granted[scope] ?? "none"}`,
+                        );
+                    }
+                }
+            }
+        }
+        assert.ok(calls > 0);
+    });
+});
+
+describe("release.yml's version dry run with nothing releasable", () => {
+    const steps = parseYaml(readFileSync(".github/workflows/release.yml", "utf8")).jobs.version_dry_run.steps;
+    const script = steps.find((s) => s.id === "approvals").run;
+    const runWith = (mode) => {
+        const dir = mkdtempSync(join(tmpdir(), "version-dry-run-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            writeFileSync(join(dir, "tools/release-version.sh"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+            spawnSync("git", ["init", "-q"], { cwd: dir });
+            return spawnSync("bash", ["-c", script], {
+                cwd: dir,
+                encoding: "utf8",
+                env: { ...process.env, MODE: mode, SHA: "abc", PACKAGES: "" },
+            });
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    it("passes the lane in full and restart mode", () => {
+        for (const mode of ["full", "restart"]) {
+            const r = runWith(mode);
+            assert.equal(r.status, 0, `${mode}: ${r.stdout}${r.stderr}`);
+            assert.match(r.stdout, /nothing releasable changed on abc/);
+        }
+    });
+    it("fails in shadow and legacy mode, where the pick job checked releasability", () => {
+        for (const mode of ["shadow", "legacy"]) {
+            const r = runWith(mode);
+            assert.equal(r.status, 1, mode);
+            assert.match(r.stdout, /nx versioned nothing on abc/);
+        }
+    });
+});

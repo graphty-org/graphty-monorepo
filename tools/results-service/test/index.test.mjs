@@ -724,6 +724,47 @@ describe("POST /v1/durations trend", () => {
     });
 });
 
+describe("GET /v1/durations/medians", () => {
+    it("answers master's median seconds per key over the last n runs of a kind, cancelled runs left out", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        for (let i = 0; i < 12; i++) s.duration(i, (i < 2 ? 900 : 100 + i) * 1000, NOW - DAY + i);
+        s.duration(50, 30_000, NOW - DAY, "pr");
+        s.duration(51, 60_000, NOW - DAY, "full", "Lint");
+        env.DB.sqlite.prepare("UPDATE duration SET conclusion = 'cancelled' WHERE run_id = 11").run();
+        const { status, body } = await call("GET", "/v1/durations/medians?workflows=ci.yml&kind=full&n=4", {
+            token: pr(),
+        });
+        assert.equal(status, 200);
+        // runs 7 to 10 (107..110 s): 11 is cancelled, 0 and 1 are older than the last 4
+        assert.deepEqual(body, { "job:ci.yml:Build": 108.5, "job:ci.yml:Lint": 60 });
+        assert.equal((await call("GET", "/v1/durations/medians?kind=full", { token: pr() })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/medians?workflows=ci.yml")).status, 401);
+    });
+});
+
+describe("/v1/durations/tests/<name>", () => {
+    const path = "/v1/durations/tests/graphty-element-browser-1";
+    it("keeps a shard's history written by master's runs and answers it to any credential", async () => {
+        const { call } = service();
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, {});
+        const history = { "browser\u0000a.test.ts\u0000zooms": [120, 130] };
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: history })).status, 200);
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, history);
+        const next = { "browser\u0000a.test.ts\u0000zooms": [130, 140] };
+        await call("PUT", path, { token: master("release.yml"), body: next });
+        assert.deepEqual((await call("GET", path, { token: pr() })).body, next);
+    });
+    it("refuses a pull request's or a local write, a bad name and a body that is not an object", async () => {
+        const { call } = service();
+        assert.equal((await call("PUT", path, { token: pr(), body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: LOCAL_TOKEN, body: {} })).status, 403);
+        assert.equal((await call("PUT", path, { token: master("ci.yml"), body: [1] })).status, 400);
+        assert.equal((await call("GET", "/v1/durations/tests/a%2Fb", { token: pr() })).status, 400);
+        assert.equal((await call("DELETE", path, { token: master("ci.yml") })).status, 404);
+    });
+});
+
 describe("failureHashes", () => {
     it("hashes every failure exactly as the test ledger does", () => {
         const samples = [

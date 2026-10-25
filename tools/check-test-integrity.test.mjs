@@ -232,6 +232,30 @@ describe("check-test-integrity: vitest configs", () => {
     });
 });
 
+describe("check-test-integrity: the tool test list", () => {
+    const LIST = "tools/tool-tests.txt";
+    const files = { [LIST]: "tools/a.test.mjs\ntools/b.test.mjs\n", "tools/a.test.mjs": "x", "tools/b.test.mjs": "y" };
+
+    it("reports a line removed while its test file still exists", () => {
+        has(
+            repo(files).change({ [LIST]: "tools/a.test.mjs\n" }),
+            "tools/b.test.mjs removed while the file still exists",
+        );
+        has(repo(files).change({ [LIST]: null }), "tools/a.test.mjs removed while the file still exists");
+    });
+
+    it("passes a line added, or removed with its file", () => {
+        assert.deepEqual(
+            repo(files).change({
+                [LIST]: "tools/a.test.mjs\ntools/b.test.mjs\ntools/c.test.mjs\n",
+                "tools/c.test.mjs": "z",
+            }),
+            [],
+        );
+        assert.deepEqual(repo(files).change({ [LIST]: "tools/a.test.mjs\n", "tools/b.test.mjs": null }), []);
+    });
+});
+
 describe("check-test-integrity: package.json and capture settings", () => {
     const pkg = (scripts, pnpm) => JSON.stringify({ name: "p", scripts, ...(pnpm ? { pnpm } : {}) }, null, 2);
 

@@ -289,6 +289,38 @@ function judgeTrend(rows, budgetSeconds) {
 }
 
 /**
+ * Master's median seconds per key (budgets 1.5), for a pull request's "slower than master" comment: over the
+ * last `n` runs (10, at most 50) of `kind` (full: master's own ci.yml and release.yml runs) of the asked
+ * workflows in 30 days, cancelled runs left out. Asked by workflow, not by key: a run has hundreds of keys,
+ * more than a URL holds.
+ * @param query `workflows` (comma list), `kind`, `n`
+ * @param _who the caller
+ * @param db the D1 database
+ * @param now milliseconds
+ * @returns seconds by key (`job:<workflow>:<job>`, `step:<workflow>:<job>:<step>`, `task:<task>`)
+ */
+export async function getMedians(query, _who, db, now) {
+    const workflows = list(query.get("workflows"));
+    if (!workflows.length || workflows.length > 20) refuse(400, "workflows names 1 to 20 workflow files");
+    const n = Math.min(Math.max(Number(query.get("n")) || 10, 1), 50);
+    const rows = await all(
+        db,
+        `SELECT workflow, job, step, task, ms FROM (SELECT d.*, row_number() OVER
+           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
+           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
+             AND coalesce(conclusion, '') != 'cancelled')
+         WHERE n <= ?`,
+        query.get("kind") || "full",
+        ...workflows,
+        now - 30 * DAY,
+        n,
+    );
+    return Object.fromEntries(
+        [...Map.groupBy(rows, keyOf)].map(([key, rs]) => [key, median(rs.map((r) => r.ms / 1000))]),
+    );
+}
+
+/**
  * The trend alarms for the keys of one posted run (budgets 1.6): per key within the run's kind, `recent` =
  * median of the last 5 runs, `earlier` = the 10 before; an alarm over the budget, or over 1.3 x earlier and
  * 60 s slower. The `timings` job that posted files or closes the issues.

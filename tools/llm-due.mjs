@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Whether release.yml's LLM regression lane is due on this run: once per UTC day, on the first run whose
-// "LLM regression tests" step passes, and on every run a person dispatched (TRIGGER=workflow_dispatch).
-// Scheduled attempts (TRIGGER=schedule) and restarts (workflow_run) skip once that step passed today.
+// "LLM regression tests" step passes, and on every run a person dispatched (TRIGGER=workflow_dispatch with
+// any MODE but restart). Scheduled attempts (TRIGGER=schedule) and restarts -- tools/release-due.mjs dispatches
+// them as workflow_dispatch with MODE=restart, older ones arrive as workflow_run -- skip once that step passed
+// today.
 // When it is due it also checks the month's spend: about $0.94 a run, a warning (budget key spend:llm)
 // at $60 in a calendar month, the owner's ceiling (2026-10-12).
 //
 // Until the results store exists (design/ci/channels-pipeline.md section 4), "an LLM run today" is read
 // from release.yml's own runs through the Actions API; the store's query replaces fetchPasses.
 //
-//   TRIGGER=schedule GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-due.mjs
+//   TRIGGER=schedule MODE=full GH_TOKEN=... GITHUB_REPOSITORY=o/r [GITHUB_RUN_ID=n] node tools/llm-due.mjs
 //   prints due=true|false (and appends it to $GITHUB_OUTPUT when set)
 //   node --test tools/llm-due.test.mjs
 import { execFile } from "node:child_process";
@@ -38,15 +40,27 @@ export function llmPasses(jobs, conclusions = ["success"]) {
 }
 
 /**
+ * Whether a person dispatched the run: a workflow_dispatch that is not a restart (release-due.mjs dispatches
+ * restarts with mode=restart).
+ * @param trigger the run's TRIGGER (workflow_dispatch, schedule, workflow_run)
+ * @param mode the run's MODE (full, restart, shadow, legacy)
+ * @returns whether it is a person's dispatch
+ */
+export function byPerson(trigger, mode) {
+    return trigger === "workflow_dispatch" && mode !== "restart";
+}
+
+/**
  * A person's dispatch always runs; anything else runs only when no LLM step passed on `day`.
  * @param input the run and the day's passes
  * @param input.trigger the run's TRIGGER (workflow_dispatch, schedule, workflow_run)
+ * @param input.mode the run's MODE (full, restart, shadow, legacy)
  * @param input.passes ISO times of passed LLM steps
  * @param input.day YYYY-MM-DD (UTC)
  * @returns whether the paid tests run
  */
-export function isDue({ trigger, passes, day }) {
-    return trigger === "workflow_dispatch" || !passes.some((t) => t?.startsWith(day));
+export function isDue({ trigger, mode, passes, day }) {
+    return byPerson(trigger, mode) || !passes.some((t) => t?.startsWith(day));
 }
 
 /**
@@ -114,20 +128,19 @@ async function fetchPasses(repo, since, ownRun, conclusions) {
 
 /** Prints due=true|false and appends it to $GITHUB_OUTPUT. */
 async function main() {
-    const { TRIGGER = "", GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: ownRun, GITHUB_OUTPUT } = process.env;
+    const { TRIGGER = "", MODE = "", GITHUB_REPOSITORY: repo, GITHUB_RUN_ID: ownRun, GITHUB_OUTPUT } = process.env;
     const now = new Date();
     const day = now.toISOString().slice(0, 10);
     const month = day.slice(0, 7);
     const yesterday = new Date(now.getTime() - DAY_MS).toISOString().slice(0, 10);
     // A lookup that fails runs the tests: an API hiccup costs one paid run, never an untested day or a held release.
-    const passes =
-        TRIGGER === "workflow_dispatch"
-            ? []
-            : await fetchPasses(repo, yesterday, ownRun).catch((error) => {
-                  console.log(`::warning::could not read today's LLM runs, so they run: ${error.message}`);
-                  return [];
-              });
-    const due = isDue({ trigger: TRIGGER, passes, day });
+    const passes = byPerson(TRIGGER, MODE)
+        ? []
+        : await fetchPasses(repo, yesterday, ownRun).catch((error) => {
+              console.log(`::warning::could not read today's LLM runs, so they run: ${error.message}`);
+              return [];
+          });
+    const due = isDue({ trigger: TRIGGER, mode: MODE, passes, day });
     if (due) {
         const monthStart = new Date(Date.parse(`${month}-01`) - DAY_MS).toISOString().slice(0, 10);
         await fetchPasses(repo, monthStart, ownRun, PAID).then(

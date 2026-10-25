@@ -6,7 +6,8 @@
 #
 # Owned closure: tools/check-owned-closure.mjs fails when an owned script or workflow reaches an
 # unowned file through its imports or the paths it runs; such a file is added below, in its own
-# pull request. Test files are deliberately not owned (the integrity check covers them).
+# pull request. Test files are deliberately not owned (the integrity check covers them), and so is
+# tools/tool-tests.txt, the tool test list: the integrity check flags a line removed from it.
 
 /.github/ @apowers313
 /.claude/ @apowers313

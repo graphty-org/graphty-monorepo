@@ -12,6 +12,7 @@
 //   - a coverage threshold that drops or goes, a vitest config's include or exclude changed, a
 //     vitest config deleted;
 //   - any package.json `scripts` entry changed, the root package.json's `pnpm` field changed;
+//   - a line removed from tools/tool-tests.txt (the tool tests CI runs) whose test file still exists;
 //   - a story's or a Storybook preview's `parameters.chromatic` settings added or changed.
 //
 // A finding is not always wrong: a story removed with its feature is legitimate. The pull request
@@ -31,6 +32,7 @@ const STORIES = /\.stories\.[cm]?[jt]sx?$/;
 const VITEST_CONFIG = /(^|\/)vitest(\.[\w-]+)*\.config\.[cm]?[jt]s$/;
 const PREVIEW = /(^|\/)\.storybook\/preview\.[cm]?[jt]sx?$/;
 const PACKAGE_JSON = /(^|\/)package\.json$/;
+const TOOL_TESTS = "tools/tool-tests.txt";
 
 // Counted over each file's whole text with its comments removed, so removing a commented-out test is
 // free and commenting tests out, with // or /* */, counts as removing them.
@@ -248,6 +250,22 @@ function packageFindings(f, read) {
     return out;
 }
 
+// A test dropped from the tool test list stops running in CI while its file stays, so the net
+// declaration count never sees it.
+function toolTestFindings(f, read) {
+    const entries = (t) =>
+        new Set(
+            t
+                .split("\n")
+                .map((l) => l.trim())
+                .filter((l) => l && !l.startsWith("#")),
+        );
+    const now = entries(sideText(f, read, "new"));
+    return [...entries(sideText(f, read, "old"))]
+        .filter((p) => !now.has(p) && read.new(p))
+        .map((p) => `${TOOL_TESTS}: ${p} removed while the file still exists`);
+}
+
 function chromaticFindings(f, read) {
     const before = chromaticBlocks(sideText(f, read, "old"));
     const after = chromaticBlocks(sideText(f, read, "new"));
@@ -277,6 +295,7 @@ function findings(files, read) {
         if (isConfig(f)) out.push(...configFindings(f));
         if (PACKAGE_JSON.test(f.oldPath) || PACKAGE_JSON.test(f.newPath)) out.push(...packageFindings(f, read));
         if (STORIES.test(pathOf(f)) || PREVIEW.test(pathOf(f))) out.push(...chromaticFindings(f, read));
+        if (f.oldPath === TOOL_TESTS) out.push(...toolTestFindings(f, read));
     }
     return out;
 }

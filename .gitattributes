@@ -35,4 +35,4 @@ graph-io/fidelity-stories/references/*.png filter=lfs diff=lfs merge=lfs -text
 graph-io/test/fidelity/oracles/*.png filter=lfs diff=lfs merge=lfs -text
 
 # The CI workflow test list: every branch adding a tool test appends a line, so a union merge keeps both sides.
-tools/ci-workflow-tests.txt merge=union
+tools/tool-tests.txt merge=union

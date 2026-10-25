@@ -7,14 +7,15 @@ issue.
 
 ## Endpoints
 
-| Call                   | Who may call it       | What it does                                                                                                                               |
-| ---------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /v1/health`       | anyone                | `{ "ok": true, "schema": 1 }` when the Worker and its database answer                                                                      |
-| `POST /v1/invocations` | CI, local             | stores one test group's record, its per-file counts and its failures                                                                       |
-| `POST /v1/failures`    | CI, local             | stores one failure (`{ invocation, file, name, message }`) or a batch (`{ invocation, failures: [...] }`)                                  |
-| `POST /v1/durations`   | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`                                         |
-| `POST /v1/verdicts`    | master's release.yml  | stores the full run's verdict on its candidate (`{ sha, state, lane, issue }`; state `green-clean`, `green-images`, `red` or `owner-item`) |
-| `POST /v1/sites`       | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run                                            |
+| Call                             | Who may call it       | What it does                                                                                                                               |
+| -------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /v1/health`                 | anyone                | `{ "ok": true, "schema": 1 }` when the Worker and its database answer                                                                      |
+| `POST /v1/invocations`           | CI, local             | stores one test group's record, its per-file counts and its failures                                                                       |
+| `POST /v1/failures`              | CI, local             | stores one failure (`{ invocation, file, name, message }`) or a batch (`{ invocation, failures: [...] }`)                                  |
+| `POST /v1/durations`             | CI, site repositories | stores `{ rows: [{ runId, attempt, workflow, job, step, task, sha, startedAt, ms, conclusion }] }`                                         |
+| `POST /v1/verdicts`              | master's release.yml  | stores the full run's verdict on its candidate (`{ sha, state, lane, issue }`; state `green-clean`, `green-images`, `red` or `owner-item`) |
+| `POST /v1/sites`                 | `deploy-pages.yml`    | records `{ sha }`: that master build kept its site as artifact `site-<sha>`, in the calling run                                            |
+| `PUT /v1/durations/tests/<name>` | master's own runs     | replaces test shard `<name>`'s duration history (tools/vitest-time-budget.mjs; a JSON object, at most 1.9 MB)                              |
 
 A repeated post of the same record id stores nothing the second time (`"stored": false`).
 `POST /v1/durations` answers `trend` too: per posted key, within the run's kind, the median of its
@@ -30,6 +31,8 @@ Reads take any credential and answer from stored records only, computed when the
 | `GET /v1/candidate`                                | the newest commit with a recorded site, and its latest verdict when it is already judged; `recent`: every commit's latest verdict of the last 30 days, newest first                                                                                                                                                                                                                                                                                                                               |
 | `GET /v1/failures?run=&good=`                      | the tests a run saw fail (`tests`: `{ shard, file, name }`), and in `failedBefore` those master's own runs saw fail before `good`'s site was built: a full run's bisect input                                                                                                                                                                                                                                                                                                                     |
 | `GET /v1/release-state`                            | `nightly` (sha, when it moved), the open `red` verdict, the `approved` candidates newer than nightly (each a resume that is due), the `offered` (oldest waiting) candidate, `canary`, `ageNightlyMs` and what is `blocking` canary                                                                                                                                                                                                                                                                |
+| `GET /v1/durations/medians?workflows=&kind=&n=`    | master's median seconds per key (`job:`, `step:`, `task:`) over the last `n` runs (10, at most 50) of `kind` (`full` by default) of the listed workflows in 30 days, cancelled runs left out                                                                                                                                                                                                                                                                                                      |
+| `GET /v1/durations/tests/<name>`                   | test shard `<name>`'s duration history, `{}` when none is stored                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 The `site`, `verdict` and `channel_move` tables these read (`migrations/0002_release_state.sql`) are
 written by deploy-pages.yml and release.yml once those post them.

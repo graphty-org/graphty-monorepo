@@ -55,6 +55,17 @@ describe("statusComment", () => {
         );
     });
 
+    it("announces a red full run and an owner item, and counts both as a reported failure", () => {
+        const red = statusComment("red", { run: RUN, sha: "abcdef123", what: "CI, Hosts", issue: "41" });
+        assert.match(red, /\*\*Full run red\*\*: CI, Hosts failed on abcdef1\. Nothing was published.*Details: #41\./);
+        const owner = statusComment("owner-item", { run: RUN, sha: "abcdef123", what: "LLM regression" });
+        assert.match(owner, /\*\*Owner item\*\*: the full run on abcdef1 failed for a reason no code change fixes/);
+        assert.equal(reportsFailure(red, RUN, "1"), true);
+        assert.equal(reportsFailure(owner, RUN, "1"), true);
+        assert.equal(pushMessage("red", { run: RUN, sha: "abcdef123", what: "CI", issue: "41" }).title, "Full run RED");
+        assert.equal(pushMessage("owner-item", { run: RUN, sha: "abcdef123" }).priority, "0");
+    });
+
     it("says a run ended badly without announcing, with its conclusion and attempt", () => {
         const c = statusComment("run-ended", { run: RUN, sha: "abcdef123", what: "timed_out", attempt: "2" });
         assert.match(c, /\*\*Release run ended timed_out\*\* \(re-run, attempt 2\) on abcdef1, and no comment here/);

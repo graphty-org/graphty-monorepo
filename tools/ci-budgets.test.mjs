@@ -16,6 +16,7 @@ import {
     fmt,
     hangMinutes,
     lintWorkflow,
+    mediansByKey,
     prComment,
     rowsFromJobs,
     storeRows,
@@ -177,6 +178,29 @@ describe("report", () => {
                 ["step:ci.yml:Build:Build all", 720],
             ],
         );
+    });
+
+    it("maps the store's medians, keyed by stored identity, back to each row's key", () => {
+        const rows = [
+            ...rowsFromJobs(run, jobs, "pr"),
+            ...taskRows({ traceEvents: [{ ph: "X", name: "graphty:build", dur: 83_000_000 }] }),
+        ];
+        const medians = mediansByKey(run, rows, {
+            "job:ci.yml:(run)": 900,
+            "job:ci.yml:Build": 800,
+            "step:ci.yml:Build:(queue)": 40,
+            "step:ci.yml:Build:Build all": 700,
+            "task:graphty:build": 80,
+            "job:ci.yml:Lint": 60,
+        });
+        assert.deepEqual(medians, {
+            "run:ci.yml:pr": 900,
+            "job:ci.yml:Build": 800,
+            "queue:ci.yml:Build": 40,
+            "step:ci.yml:Build:Build all": 700,
+            "task:graphty:build": 80,
+        });
+        assert.deepEqual(mediansByKey(run, rows, {}), {});
     });
 
     it("reads nx task durations from a profile", () => {

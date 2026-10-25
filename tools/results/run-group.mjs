@@ -59,8 +59,10 @@ export function junitOf(dir, id) {
 
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const firstOutcome = (code, result) => {
-    // The group's code is its verdict after the retry; the first try is judged by its own exit code.
-    if ((result.firstCode ?? code) === 0) return "passed";
+    // The group's code is its verdict after the retry; the first try is judged by its own exit code. A first try
+    // that exited 0 is never retried, so a group code other than 0 is runShard's own verdict on it (the output
+    // budget): an error, not a pass.
+    if ((result.firstCode ?? code) === 0) return code === 0 ? "passed" : "error";
     return OUTCOMES.has(result.firstOutcome) ? result.firstOutcome : "infra";
 };
 const retryOutcome = (result, junit) => {

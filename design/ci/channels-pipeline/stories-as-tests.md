@@ -130,7 +130,7 @@ everything-on configuration runs the same story tests without the visual step. A
 for an experimental feature switches the feature on in its own args and is screenshotted like any
 story (decided here; reversible).
 
-## 6. Results in the test-results store, keyed by baseline hash
+## 6. Results in the test results service, keyed by baseline hash
 
 Each story test job sends its visual items with its test-group record to the shared test-results
 store (the Cloudflare Worker and D1 database defined in the store section), as its last step, and
@@ -197,22 +197,25 @@ The flow for a full run on master's tip, commit C:
    Finish round is never repeated for an image whose bytes did not change.
 4. **Finish** commits the accepted PNGs, the review record and the signed approval as one accept
    commit A whose parent is C, on branch `visual/approve-<C short sha>`, pushed by the review
-   server as it pushes accept commits today. A differs from C only under `visual-baselines/` and
-   `visual-review-approvals/`.
-5. **The promotion job on A** (the workflow defined in the channels section):
-    - re-runs only the stories whose baselines changed between C and A (rule 2 of section 5) and
-      overlays them on C's full results with `merge-results`; this is sound because A's code is
-      C's code, which the job checks (`git diff --name-only C A` must hold only those two
-      directories);
-    - runs the gate exactly as ci.yml's "Check visual changes were accepted" step does today, from
-      the promoted side so a candidate cannot loosen it:
-      `git archive <current nightly sha> visual-review/trusted | tar -x -C "$gate"`, then
-      `node "$gate/visual-review/trusted/cli.mjs" gate --captures <dir> --base <current nightly sha> --head A`;
-    - on a pass, promotes A to nightly and opens a pull request from `visual/approve-<sha>` to
-      master with auto-merge, so master's baselines catch up through an ordinary merge (never a
-      rebase). A conflict there (a later pull request changed the same baseline) is resolved with
-      the existing `visual-review update <pr>`.
-6. **Rejected images:** the review page names the pull request that changed each one (section 6);
+   server as it pushes accept commits today, and opens a pull request from it to master that
+   merges on the light checks (channels section, "Promotion to nightly"). A differs from C only
+   under `visual-baselines/` and `visual-review-approvals/`; parenting it on C, not on master's
+   tip, keeps that true however far master has moved, and the merge into master is an ordinary
+   merge (never a rebase). A conflict (a later pull request changed the same baseline) is resolved
+   with the existing `visual-review update <pr>`.
+5. **The accept pull request's light checks** run exactly the stories whose baselines changed
+   (rule 2 of section 5) against A's baselines; each now reads `unchanged`. Their results are the
+   artifact the resume step needs.
+6. **The resume step** (release.yml with `mode: promote-nightly`, channels section) cannot hand
+   the gate C's own capture: those results say `changed` for exactly the images the owner
+   approved, and the gate passes only `unchanged` and `excluded`. So it first overlays the accept
+   pull request's re-check on C's full results with `merge-results` (sound because A's code is
+   C's code; the step checks that `git diff --name-only C A` holds only those two directories),
+   then runs the gate unchanged, from the promoted side so a candidate cannot loosen it:
+   `git archive <channel/nightly> visual-review/trusted | tar -x -C "$gate"`, then
+   `node "$gate/visual-review/trusted/cli.mjs" gate --captures <overlaid dir> --base <channel/nightly> --head A`.
+   A is in master's history once its pull request merged, so the gate's ancestry rule holds.
+7. **Rejected images:** the review page names the pull request that changed each one (section 6);
    the pipeline round reverts it or fixes forward on master, and the next full run is the next
    candidate.
 

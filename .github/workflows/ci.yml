@@ -859,6 +859,12 @@ jobs:
             - name: Public API report (graphty-element)
               run: pnpm run check:api-report
 
+            # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
+            # name is declared, every row has its issue, the features module reads nothing from the host, and
+            # no experimental item is in the public API report. The same check runs in tools/prepush.sh.
+            - name: Feature flags
+              run: pnpm run check:features
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 

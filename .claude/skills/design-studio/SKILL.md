@@ -148,13 +148,13 @@ true` rather than resuming the old one (see the lessons below).
 ## Landing
 
 Studio fixes reach master like every other change, through their own pull request (`CLAUDE.md`,
-"Shipping a change"; golden is retired). Workflow agents never push, so at every landing point the
+"Shipping a change"). Workflow agents never push, so at every landing point the
 workflow merges origin/master into the studio branch, builds, lints, commits, and logs one line:
 `ready to land: <branch> at <sha> (<pass>)`. The session that launched the workflow answers that
 line by running `tools/pr-open.sh --proof <file>` in the branch's worktree and fixing the branch if
 its pull request goes red; the line also names any breaking commit, which merges only with the
-owner's go. The saved workflow still waits for the commit on `origin/golden`; until it is changed to
-wait on `origin/master`, answer that wait by hand. Pass
+owner's go. The workflow then waits until the commit is on `origin/master` (the pull request merged)
+before it goes on. Pass
 `landEachPass: false` only for a run whose fixes must not reach master.
 
 Outputs, per round `r`: `tier<N>/rounds/round-<r>/` (`plan.md`, `sessions/<id>/` with screenshots,
@@ -337,7 +337,7 @@ Each rule below exists because breaking it cost a run.
   committed only after pass 3 piloted it. Commit before freezing a build (a build no commit
   reproduces is invalid), merge origin/master into the studio branch every pass, open its pull
   request with `tools/pr-open.sh` (see "Landing"), and commit the pilot reports and triage.
-- **Never commit walk screenshots.** Study screenshots filled golden with 83k LFS files (9.9 GB) on
+- **Never commit walk screenshots.** Study screenshots filled the repository with 83k LFS files (9.9 GB) on
   2026-10-21, almost all of them pilot and dry-run walk images. Walks write under the main
   checkout's `tmp/design-studio/`; only reports, scored round sessions and the images a report or
   insight file cites go in git.

@@ -16,7 +16,8 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
+    # (golden-verify.yml, removed, also called it; a caller that takes the ref from a dispatch input would run any
+    # commit in master's cache scope, so tools/ci-workflows.test.mjs allows only the release train.)
     # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
@@ -34,7 +35,18 @@ on:
                 type: string
                 required: false
                 default: ""
+            reuse_build_run:
+                description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
+                type: string
+                required: false
+                default: ""
     workflow_dispatch:
+        inputs:
+            reuse_build_run:
+                description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
+                type: string
+                required: false
+                default: ""
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
 # merge anything, and the runners it holds are what every other pull request is queued behind.
@@ -120,7 +132,7 @@ jobs:
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
-            artifacts-run: ${{ steps.reuse.outputs.artifacts-run }}
+            artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
         steps:
             - uses: actions/checkout@v4
               with:
@@ -277,13 +289,26 @@ jobs:
                   path: ${{ runner.temp }}/ci-tested/
                   retention-days: 30
 
+            # The full run and the bisect name the master push run that built the commit they test
+            # (input reuse_build_run, design/ci/channels-pipeline/channels.md section 5, "Build reuse"):
+            # this run downloads that run's package and Storybook builds instead of building, when it
+            # built this same commit and they have not expired. Anything unknown is a build.
+            - name: Reuse the builds of the run named by reuse_build_run
+              id: reuse-build
+              if: inputs.reuse_build_run != ''
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.reuse_build_run }}
+              run: node tools/ci-reuse-plan.mjs --build-run "$RUN" | tee -a "$GITHUB_OUTPUT"
+
             - name: Download the package builds of the run whose results are reused
-              if: steps.reuse.outputs.artifacts-run != ''
+              if: (steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run) != ''
               uses: actions/download-artifact@v8
               with:
                   name: build-packages
                   path: .
-                  run-id: ${{ steps.reuse.outputs.artifacts-run }}
+                  run-id: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
                   github-token: ${{ github.token }}
 
             # No security audit here: a new advisory is published against code a pull request did not
@@ -397,7 +422,7 @@ jobs:
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
             - name: Build all (master, a manual dispatch or the merge queue)
-              if: steps.plan.outputs.full == 'true'
+              if: steps.plan.outputs.full == 'true' && steps.reuse-build.outputs.artifacts-run == ''
               run: pnpm exec nx run-many -t build --parallel=3
               env:
                   VITE_BASE_PATH: /
@@ -458,13 +483,14 @@ jobs:
                       graphty-element/dist/
                       remote-logger/dist/
                       compact-mantine/dist/
-                  retention-days: 1
+                  # 14 days on a master push: the full run and the bisect reuse it (reuse_build_run).
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             # The nx task timings of the build steps (NX_PROFILE), for the timings job.
             - name: Upload the nx profile
               if: ${{ !cancelled() }}
               continue-on-error: true
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: nx-profile
                   path: nx-profile.json
@@ -668,49 +694,49 @@ jobs:
               with:
                   name: build-storybook-element
                   path: graphty-element/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (graphty)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-app
                   path: graphty/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (compact-mantine)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-compact-mantine
                   path: compact-mantine/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (algorithms)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-algorithms
                   path: algorithms/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (layout)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (cytoscape-extensions)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-cytoscape-extensions
                   path: cytoscape-extensions/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             - name: Upload Storybook build (graph-io-fidelity)
               uses: actions/upload-artifact@v7
               with:
                   name: build-storybook-graph-io-fidelity
                   path: graph-io/fidelity-stories/storybook-static/
-                  retention-days: 1
+                  retention-days: ${{ github.event_name == 'push' && !inputs.ref && 14 || 1 }}
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
@@ -1426,14 +1452,15 @@ jobs:
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
     # The algorithms benchmark table and graphty-element's timing benchmarks (a manual dispatch and
-    # the release train): measurements, gating nothing. A push to master runs no test job, so this
-    # one is skipped with it.
+    # the release train): measurements, gating nothing. A light run (a push to master, a run of named
+    # shards) skips them. They need only the build, not the tests, so they run beside the shards and
+    # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them.
     performance:
         name: Performance Benchmarks
-        needs: test
-        if: github.event_name != 'pull_request' && !inputs.verify
+        needs: packages
+        if: github.event_name != 'pull_request' && !inputs.verify && needs.packages.outputs.light != 'true'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -1728,7 +1755,7 @@ jobs:
     story-tests:
         name: Story tests (${{ matrix.project }})
         needs: packages
-        if: needs.packages.outputs.reuse-run == '' && contains(needs.packages.outputs.test-matrix, '"graphty-storybook"')
+        if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"'))
         runs-on: ubuntu-24.04
         continue-on-error: true
         timeout-minutes: 45
@@ -1739,13 +1766,30 @@ jobs:
                     - project: graphty
                       shard: graphty-storybook
                       command: cd graphty && pnpm exec vitest run --project=storybook
+                    # One job for the whole project: without coverage its story tests do not slow down as
+                    # they run, which is why the coverage shards split it in five.
+                    - project: graphty-element
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook
+                    - project: algorithms
+                      shard: algorithms-browser
+                      command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
         steps:
+            # A project this run does not test (its storybook shard is not in the test matrix) is skipped:
+            # every step below but the summary is.
+            - name: Skip a project this run does not test
+              id: skip
+              if: ${{ !contains(needs.packages.outputs.test-matrix, format('"{0}"', matrix.shard)) }}
+              run: echo "skip=true" >> "$GITHUB_OUTPUT"
+
             - uses: actions/checkout@v4
+              if: steps.skip.outputs.skip != 'true'
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
 
             - name: Restore this project's baseline images
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache/restore@v4
               with:
                   path: .git/lfs/objects
@@ -1753,22 +1797,27 @@ jobs:
                   restore-keys: lfs-${{ matrix.project }}-
 
             - name: Fetch this project's baseline images and the pinned fonts from Git LFS
+              if: steps.skip.outputs.skip != 'true'
               run: git lfs pull --include "visual-baselines/${{ matrix.project }}/**,visual-fonts/**"
 
             - uses: pnpm/action-setup@v4
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Setup Node.js
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/setup-node@v4
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
+              if: steps.skip.outputs.skip != 'true'
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
 
             - name: Download all package builds
+              if: steps.skip.outputs.skip != 'true'
               id: download-packages
               continue-on-error: true
               uses: actions/download-artifact@v4
@@ -1777,13 +1826,14 @@ jobs:
                   path: .
 
             - name: Download all package builds (retry)
-              if: steps.download-packages.outcome == 'failure'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.download-packages.outcome == 'failure') }}
               uses: actions/download-artifact@v4
               with:
                   name: build-packages
                   path: .
 
             - name: Cache Playwright browsers
+              if: steps.skip.outputs.skip != 'true'
               uses: actions/cache@v4
               id: playwright-cache
               with:
@@ -1791,19 +1841,22 @@ jobs:
                   key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
 
             - uses: ./.github/actions/drop-microsoft-apt-source
+              if: steps.skip.outputs.skip != 'true'
 
             - name: Install Playwright system packages
+              if: steps.skip.outputs.skip != 'true'
               uses: ./.github/actions/playwright-system-deps
               with:
                   browsers: chromium
 
             - name: Install Playwright browsers
-              if: steps.playwright-cache.outputs.cache-hit != 'true'
+              if: ${{ steps.skip.outputs.skip != 'true' && (steps.playwright-cache.outputs.cache-hit != 'true') }}
               run: pnpm exec playwright install chromium
 
             # VISUAL_REVIEW_STORY_OUT switches the visual step on (the project's vitest.config.ts); the retry of
             # failed story files writes into the same directory.
             - name: Run the story tests with their screenshots
+              if: steps.skip.outputs.skip != 'true'
               env:
                   SHARD: ${{ matrix.shard }}
                   COMMAND: ${{ matrix.command }}
@@ -1811,11 +1864,11 @@ jobs:
               run: node tools/test-quarantine.mjs run "$SHARD" "$COMMAND"
 
             - name: Combine the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
-              if: ${{ !cancelled() }}
+              if: ${{ steps.skip.outputs.skip != 'true' && (!cancelled()) }}
               uses: actions/upload-artifact@v4
               with:
                   name: story-tests-${{ matrix.project }}-${{ github.run_attempt }}
@@ -1830,7 +1883,7 @@ jobs:
               run: |
                   f="$RUNNER_TEMP/stories/merged/results.json"
                   {
-                      echo "### Stories ($PROJECT)"
+                      echo "### Story tests ($PROJECT)"
                       if [[ -f "$f" ]]; then
                           jq -r '"complete: \(.complete), \(.items | length) of \(.expected) items", "", "| status | items |", "|---|---|",
                               (.items | group_by(.status)[] | "| \(.[0].status) | \(length) |")' "$f"
@@ -1852,7 +1905,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                project: [graphty]
+                project: [graphty, graphty-element, algorithms]
         steps:
             - uses: actions/checkout@v4
               with:
@@ -2225,6 +2278,7 @@ jobs:
         needs: [packages, visual]
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         runs-on: ubuntu-24.04
+        timeout-minutes: 15
         continue-on-error: true
         steps:
             # The visual gate REPORTS and never blocks a pull request (channels pipeline, #3418, the owner's
@@ -2301,6 +2355,39 @@ jobs:
                       echo "::warning title=Visual gate (report only)::$msg"
                       echo "$msg" >> "$GITHUB_STEP_SUMMARY"
                   fi
+
+    # The last job of a green master push run: whether release.yml should run now (tools/release-due.mjs).
+    # release.yml has no workflow_run trigger, so this is how a merge that references an open "Full run red:"
+    # issue restarts the full run at once (mode restart); every other merge waits for the next 6-hour slot
+    # (design/ci/channels-pipeline/channels.md section 5). No concurrency group: release.yml's own group
+    # keeps one running and one pending run. Until the full run files red issues it dispatches nothing.
+    release-due:
+        name: Release due
+        needs: all-checks
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master' && !inputs.ref
+        # A failure here is not the merge's: it must not turn the master build red, which would skip the
+        # deploy and have master-guard revert the merge. A missed restart waits for the next slot.
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 5
+        # actions: write to dispatch release.yml; issues: read for the open red issues.
+        permissions:
+            contents: read
+            actions: write
+            issues: read
+        steps:
+            # The whole history without file contents, so the merge's commits (HEAD^1..HEAD) can be read.
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 0
+                  filter: blob:none
+                  sparse-checkout: tools
+
+            - name: Dispatch release.yml when a restart is due
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node tools/release-due.mjs
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different

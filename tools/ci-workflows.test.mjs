@@ -5291,3 +5291,133 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         assert.equal(verdict("5", { lint: "failure" }).status, 1);
     });
 });
+
+describe("the light pull-request check (#3443, merging.md 4.1)", () => {
+    const ci = workflow("ci.yml");
+    const build = job(ci, "packages");
+    const stepOf = (name) => {
+        const m = new RegExp(`\\n {12}- name: ${name}\\n([\\s\\S]*?)(?=\\n\\n {12}(?:#|- ))`).exec(build);
+        assert.ok(m, `Build has the step ${name}`);
+        return `\n${m[1]}`;
+    };
+    const index = (name) => build.indexOf(`- name: ${name}\n`);
+
+    it("plans inside Build after the builds: one results-store read, then the selector's bins, pull requests only", () => {
+        const bins = stepOf("Plan the light check's test bins");
+        assert.match(bins, /\n {14}id: bins\n/);
+        assert.match(
+            bins,
+            /\n {14}if: steps\.plan\.outputs\.full == 'false' && steps\.reuse\.outputs\.reuse-run == ''\n/,
+        );
+        assert.match(bins, /\n {14}continue-on-error: true\n/, "a failed plan keeps the whole-shard matrix");
+        assert.match(bins, /node tools\/results\/plan-read\.mjs "\$AFFECTED" "\$plan"/);
+        assert.match(bins, /node tools\/test-select\.mjs --base "origin\/\$BASE_REF" --head HEAD --plan/);
+        assert.match(bins, /--durations "\$plan\/durations\.json"/);
+        assert.match(bins, /node tools\/ci-test-matrix\.mjs [^\n]* --plan "\$plan\/light-plan\.json"/);
+        // the import graphs resolve the other packages through their dist folders
+        for (const b of ["Build affected (PR)", "Build the rest (PR), so every shard finds its artifact"]) {
+            assert.ok(index(b) > 0 && index(b) < index("Plan the light check's test bins"), `${b} runs first`);
+        }
+        assert.ok(
+            index("Plan the light check's test bins") < index("Upload all package builds"),
+            "planned before the uploads",
+        );
+        assert.match(
+            build,
+            /test-matrix: \$\{\{ steps\.bins\.outputs\.test-matrix \|\| steps\.plan\.outputs\.test-matrix \}\}/,
+        );
+        assert.match(
+            build,
+            /test-count: \$\{\{ steps\.bins\.outputs\.test-count \|\| steps\.plan\.outputs\.test-count \}\}/,
+        );
+        // the Plan step itself never packs bins: a full run keeps every shard
+        assert.doesNotMatch(stepOf("Plan affected projects and test shards"), /plan-read|--plan/);
+        assert.match(build, /\n {12}id-token: write\n/, "Build may read the store with its OIDC token");
+        assert.match(stepOf("Upload the results plan"), /name: results-plan\n/);
+    });
+
+    it("restores the selector's import graphs read-only; only master's push build saves them", () => {
+        assert.match(build, /- name: Restore the selector's import graphs\n[\s\S]*?uses: actions\/cache\/restore@v4/);
+        assert.doesNotMatch(build, /actions\/cache\/save@|actions\/cache@v4\n[^\n]*\n[^\n]*tmp\/test-select/);
+        const graphs = job(ci, "select-graphs");
+        assert.match(
+            graphs,
+            /\n {8}if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/master' && inputs\.ref == ''\n/,
+        );
+        assert.match(graphs, /uses: actions\/cache\/save@v4/);
+        assert.match(graphs, /lookup-only: true/, "the saved set holds only the current graphs");
+    });
+
+    it("runs the plan's bins as Test (<family>-<bin>) jobs, each through run-group.mjs", () => {
+        const test = job(ci, "test");
+        assert.match(test, /\n {8}name: Test \(\$\{\{ matrix\.shard \}\}\)\n/);
+        assert.match(test, /matrix: \$\{\{ fromJSON\(needs\.packages\.outputs\.test-matrix\) \}\}/);
+        assert.match(test, /\n {14}run: \$\{\{ matrix\.test-command \}\}\n/);
+        const light = {
+            bins: [
+                {
+                    name: "graphty-element-browser-1",
+                    family: "graphty-element-browser",
+                    shard: "graphty-element-browser-1",
+                    covers: SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard),
+                    files: ["graphty-element/test/browser/a.test.ts"],
+                    command: "pnpm exec vitest run --project=browser test/browser/a.test.ts",
+                },
+            ],
+            whole: [],
+            none: ["graphty-element-default"],
+        };
+        const include = plan(["graphty-element"], undefined, light);
+        const bin = include.find((e) => e.shard === "graphty-element-browser-1");
+        assert.deepEqual(bin.files, ["graphty-element/test/browser/a.test.ts"]);
+        assert.equal(bin.coverage, undefined, "a bin writes no coverage");
+        assert.ok(bin["test-command"].startsWith("node tools/results/run-group.mjs graphty-element-browser-1 '"));
+        assert.ok(!include.some((e) => /^graphty-element-browser-[2-5]$/.test(e.shard)), "the bin replaces its shards");
+        assert.ok(
+            !include.some((e) => e.shard === "graphty-element-default"),
+            "a shard with nothing selected runs nowhere",
+        );
+        for (const e of include) assert.match(e["test-command"], /^node tools\/results\/run-group\.mjs /);
+    });
+
+    it("a full run (dispatch, the release train) still runs every shard", () => {
+        const include = plan(PACKAGES);
+        const ran = new Set(include.flatMap((e) => [e.shard, ...(GROUPS[e.shard] ?? [])]));
+        assert.deepEqual(
+            SHARDS.map((s) => s.shard).filter((s) => !ran.has(s)),
+            [],
+        );
+    });
+
+    it("All Checks Pass fails when the plan made Test jobs that did not all pass", () => {
+        assert.match(job(ci, "all-checks"), /needs: \[[^\]]*\btest\b/);
+        const run = /- name: Check all jobs passed\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "all-checks"),
+        )[1];
+        const verdict = (count, testResult) =>
+            spawnSync("bash", ["-e", "-c", run], {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    BUILD: "success",
+                    FULL: "false",
+                    LIGHT: "false",
+                    ADVISORY: "[]",
+                    REUSE_RUN: "",
+                    TEST_COUNT: count,
+                    NEEDS: JSON.stringify(
+                        Object.fromEntries(
+                            ["packages", "build", "lint", "checks", "docs"]
+                                .map((n) => [n, { result: "success" }])
+                                .concat([["test", { result: testResult }]]),
+                        ),
+                    ),
+                },
+            });
+        assert.equal(verdict("3", "success").status, 0);
+        assert.equal(verdict("0", "skipped").status, 0, "no planned Test job: a skipped Test passes");
+        assert.equal(verdict("3", "skipped").status, 1, "a planned Test job that never ran fails");
+        assert.equal(verdict("3", "failure").status, 1);
+        assert.equal(verdict("3", "cancelled").status, 1);
+    });
+});

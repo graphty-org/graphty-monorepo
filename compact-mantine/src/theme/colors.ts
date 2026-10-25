@@ -5,8 +5,7 @@ import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
  * surface in the dark scheme matches the panels around it.
  *
  * - 0: text (#fff)
- * - 2: Mantine's dimmed text (#a3a3a3): the darkest gray that reads at 4.5:1 (WCAG 1.4.3) on
- *   the panel, a field and a menu; Figma's #8c8c8c measured 4.15:1 on the panel
+ * - 2: Mantine's dimmed text (#8c8c8c); the AA option points dimmed text at its secondary ink
  * - 5: hover (#444)
  * - 6: default field (#383838)
  * - 7: body / panel (#2c2c2c)
@@ -15,7 +14,7 @@ import { DEFAULT_THEME, type MantineColorsTuple } from "@mantine/core";
 export const compactDarkColors: MantineColorsTuple = [
     "#ffffff",
     "#b3b3b3",
-    "#a3a3a3",
+    "#8c8c8c",
     "#757575",
     "#444444",
     "#444444",
@@ -23,24 +22,6 @@ export const compactDarkColors: MantineColorsTuple = [
     "#2c2c2c",
     "#1e1e1e",
     "#111111",
-];
-
-/**
- * Mantine's `gray` ramp with shade 6 darkened. Mantine draws its dimmed text in the light scheme
- * with gray-6, and Mantine's #868e96 measures 3.32:1 on white; #6e6e6e reads at 4.5:1 (WCAG
- * 1.4.3) on white, a field (#f5f5f5) and gray-0 (#f8f9fa).
- */
-const compactGrayColors: MantineColorsTuple = [
-    "#f8f9fa",
-    "#f1f3f5",
-    "#e9ecef",
-    "#dee2e6",
-    "#ced4da",
-    "#adb5bd",
-    "#6e6e6e",
-    "#495057",
-    "#343a40",
-    "#212529",
 ];
 
 /**
@@ -82,11 +63,10 @@ export const compactGraphtyColors: MantineColorsTuple = [
 
 /**
  * Color configuration for the compact theme: every Mantine color, the neutral `dark` ramp, the
- * `gray` ramp, the `brand` accent and the `graphty` accent.
+ * the `brand` accent and the `graphty` accent.
  */
 export const compactColors = {
     ...DEFAULT_THEME.colors,
-    gray: compactGrayColors,
     dark: compactDarkColors,
     brand: compactBrandColors,
     graphty: compactGraphtyColors,

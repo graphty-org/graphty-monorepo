@@ -92,7 +92,7 @@ export const PANEL_GRID = {
 export const PANEL_INK = {
     /** primary text: a field's value, a row's name (#000000e5 / #fff) */
     VALUE: "var(--cm-text)",
-    /** secondary text: glyph labels, unit suffixes, legends (#0000008c / #ffffffb2) */
+    /** secondary text: glyph labels, unit suffixes, legends (#00000080 / #ffffffb2; #0000008c light in the AA mode) */
     CHROME: "var(--cm-text-secondary)",
     /** reading prose (secondary text) */
     PROSE: "var(--cm-text-secondary)",
@@ -146,9 +146,9 @@ export const PANEL_INK = {
     SELECTED_SECONDARY: "var(--cm-bg-selected-secondary)",
     /** danger text: an error message, a destructive verb (#dc3412 / #fca397; #c4381c light in the AA mode). DANGER is a fill */
     DANGER_TEXT: "var(--cm-text-danger)",
-    /** warning text (#a65900 / #f7d15f). WARNING is a fill */
+    /** warning text (#b86200 / #f7d15f; #a65900 light in the AA mode). WARNING is a fill */
     WARNING_TEXT: "var(--cm-text-warning)",
-    /** success text and glyphs: a passed check's tick (#008043 / #79d297). SUCCESS is a fill */
+    /** success text and glyphs: a passed check's tick (#009951 / #7cd797; #008043 light in the AA mode). SUCCESS is a fill */
     SUCCESS_TEXT: "var(--cm-text-success)",
     /** links and brand text (#007be5 / #7cc4f8) */
     BRAND_TEXT: "var(--cm-text-brand)",
@@ -164,7 +164,7 @@ export const PANEL_INK = {
     MENU: "var(--cm-bg-menu)",
     /** text on the menu: inside a menu #000000e5 / #fff, elsewhere #fff */
     ON_MENU: "var(--cm-text-menu)",
-    /** secondary text on the menu, shortcuts: inside a menu #0000008c / #ffffffb2, elsewhere #ffffffb2 */
+    /** secondary text on the menu, shortcuts: inside a menu #00000080 / #ffffffb2 (#0000008c light in the AA mode), elsewhere #ffffffb2 */
     ON_MENU_SECONDARY: "var(--cm-text-menu-secondary)",
     /** component (purple) text (#8638e5 / #d1a8ff) */
     COMPONENT: "var(--cm-text-component)",

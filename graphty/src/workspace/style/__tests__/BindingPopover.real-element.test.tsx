@@ -196,6 +196,12 @@ async function editValue(
         assert.equal(colorOfValue(session, layer.id, value), "#00aa00", `${value} takes its own color`);
     });
     assert.equal(colorOfValue(session, layer.id, other), otherBefore, "every other value keeps its color");
+    // Enter keeps the picker open (Figma); Escape closes it and only it.
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => {
+        assert.isNull(screen.queryByTestId("color-picker-value"), "Escape closes the picker");
+    });
+    assert.isTrue(popover.isConnected, "and leaves the popover open");
 
     // A palette change reaches every value without an entry and leaves the entry alone.
     await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));

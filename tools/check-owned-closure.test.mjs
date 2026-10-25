@@ -102,6 +102,19 @@ describe("unownedClosure", () => {
     });
 });
 
+describe("unownedClosure, root paths", () => {
+    it("reads nx's {workspaceRoot}/ and a trailing full stop as the checkout's root", () => {
+        const { root } = repo("root-paths", {
+            "nx.json": '{ "inputs": ["{workspaceRoot}/root.config.js"] }\n',
+            "root.config.js": "",
+            ".github/workflows/w.yml": "run: node tools/x.sh.\n",
+            "tools/x.sh": "",
+        });
+        const unowned = unownedClosure(root, parseCodeowners("/nx.json @o\n/.github/workflows/ @o\n"));
+        assert.deepEqual([...unowned.keys()].sort(), ["root.config.js", "tools/x.sh"]);
+    });
+});
+
 describe("replay", () => {
     it("counts the first-parent commits whose change touches an owned path", () => {
         const { root, git } = repo("replay", { "nx.json": "{}\n", "src/x.ts": "" });

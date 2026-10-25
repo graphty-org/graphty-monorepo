@@ -28,8 +28,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 
 /** Files whose references are followed: code, workflows, shell, JSON configs. */
 const FOLLOWED = /\.(?:[cm]?[jt]sx?|ya?ml|sh|py|json)$/u;
-/** A repository path with an extension, optionally `./`-prefixed, as a whole token. */
-const REPO_PATH = /(?<![\w@./-])(?:\.\/)?((?:[\w@.+-]+\/)+[\w@.+-]+\.(?:[cm]?[jt]sx?|sh|py|json))(?![\w/-])/gu;
+/** A run of path characters; one with a `/` and a code or data extension names a repository path. */
+const PATH_RUN = /[\w@./+-]+/gu;
+const PATH_EXT = /\/.*\.(?:[cm]?[jt]sx?|sh|py|json)$/u;
 const JS = /\.[cm]?[jt]sx?$/u;
 /** A variable a path is written under (`$CLAUDE_PROJECT_DIR/`, `${{ github.workspace }}/`): the checkout's root. */
 const ROOT_VAR = /\$\{\{[^}]*\}\}\/|\$\{?\w+\}?\//gu;
@@ -96,7 +97,8 @@ export function withoutComments(file, text) {
 
 /**
  * The tracked files one file references: its relative imports and `../` literals (the selector's graph)
- * and the repository paths its text names, resolved from its folder or the checkout's root.
+ * and the repository paths its text names, resolved from its folder or the checkout's root (a leading `/`,
+ * as in nx's `{workspaceRoot}/`, is the root).
  * @param root the checkout
  * @param file a repo-relative path
  * @param index pathIndex(root)
@@ -114,10 +116,15 @@ export function referencedFiles(root, file, index) {
     } catch {
         return out;
     }
-    for (const m of text.replaceAll(ROOT_VAR, " ").matchAll(REPO_PATH)) {
-        const hit = [posix.normalize(posix.join(posix.dirname(file), m[1])), posix.normalize(m[1])].find((p) =>
-            index.files.has(p),
-        );
+    for (const [run] of text.replaceAll(ROOT_VAR, " ").matchAll(PATH_RUN)) {
+        const path = run.replace(/\.+$/u, "");
+        if (!PATH_EXT.test(path)) {
+            continue;
+        }
+        const hit = [
+            posix.normalize(posix.join(posix.dirname(file), path)),
+            posix.normalize(path.replace(/^\/+/u, "")),
+        ].find((p) => index.files.has(p));
         if (hit && hit !== file) {
             out.add(hit);
         }
@@ -210,7 +217,8 @@ function main(argv) {
     }
     const unowned = unownedClosure(root, rules);
     for (const [file, { from, via }] of [...unowned].sort(([a], [b]) => a.localeCompare(b))) {
-        console.log(`unowned: ${file}  (reached from ${from}${via === from ? "" : ` via ${via}`})`);
+        const through = via === from ? "" : ` via ${via}`;
+        console.log(`unowned: ${file}  (reached from ${from}${through})`);
     }
     if (unowned.size > 0) {
         console.log(`${unowned.size} unowned files are reached from owned files: add them to .github/CODEOWNERS`);

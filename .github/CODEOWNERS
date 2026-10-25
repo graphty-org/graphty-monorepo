@@ -56,7 +56,9 @@
 
 # The owned closure: files the owned scripts and workflows above import or run
 # (node tools/check-owned-closure.mjs)
+/compact-mantine/eslint/mantine-replacements.js @apowers313
 /cytoscape-extensions/scripts/test-cytoscape-versions.sh @apowers313
+/eslint.config.js @apowers313
 /graph-samples/scripts/build-hosted.mjs @apowers313
 /graph-samples/scripts/graph-io-source.mjs @apowers313
 /graph-samples/scripts/hosted-sources.mjs @apowers313
@@ -68,11 +70,13 @@
 /tools/ci-reuse-plan.mjs @apowers313
 /tools/claude-area-rules.mjs @apowers313
 /tools/claude-no-foreground-wait.mjs @apowers313
+/tools/eslint-rules/no-test-timing.mjs @apowers313
+/tools/eslint-rules/story-wait-options.mjs @apowers313
 /tools/gpu-runner-lost.sh @apowers313
 /tools/master-guard.mjs @apowers313
 /tools/merge-coverage.sh @apowers313
-/tools/pr-issue-link.mjs @apowers313
 /tools/prepush-inputs.mjs @apowers313
+/tools/pr-issue-link.mjs @apowers313
 /tools/push-base.mjs @apowers313
 /tools/restricted-cpu-stress.mjs @apowers313
 /tools/shard-verdict.mjs @apowers313
@@ -87,3 +91,6 @@
 /tools/vitest-time-budget.mjs @apowers313
 /tools/wait-log.mjs @apowers313
 /tools/with-browser.sh @apowers313
+/tsconfig.base.json @apowers313
+/vite.shared.config.ts @apowers313
+/vitest.browser-coverage-setup.ts @apowers313

@@ -24,8 +24,8 @@ import { GPU, mountSample, readJson } from "../mount";
 import { type OracleReport, pairNodes } from "./compare-oracle";
 import {
     type Baseline,
-    type FloorSection,
     type Floors,
+    type FloorSection,
     gateReportText,
     judgeKey,
     type Judgement,

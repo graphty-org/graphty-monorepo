@@ -21,6 +21,8 @@
 //                                                   merge golden into every branch in progress (tools/branch-sync.mjs)
 //   --priority (land, revert, cut, cut-fix)         wait ahead of every ordinary landing: only for fixes that
 //                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
+//   --dry-run (cut-fix)                             merge into golden-cut and land on golden as dry runs, push nothing
+//   While <main checkout>/tmp/golden/flush exists, land and sync refuse; revert and cut-fix still run.
 //
 // Every run executes one copy of this tool, the live copy in <main checkout>/.worktrees/land-live (put a new
 // version there with `tools/live.sh land <branch>`), whichever checkout's copy was called: it re-runs the live
@@ -2233,7 +2235,7 @@ function failedRun(ctx, id) {
  * branch on golden, so both branches hold the same commits.
  * @param ctx the run's context
  * @param branch the fix, started from origin/golden-cut
- * @param [opts] `reason`: the --reason value, checked by cutFixReason
+ * @param [opts] `reason`: the --reason value, checked by cutFixReason; `dryRun`: merge, report, undo, push nothing
  * @returns the exit code: 0 done (or already on golden-cut), 1 refused, 2 a conflict, 3 the gate refused it
  */
 export async function cutFix(ctx, branch, opts = {}) {
@@ -2267,6 +2269,11 @@ export async function cutFix(ctx, branch, opts = {}) {
             git(ctx, ctx.cut, ["reset", "-q", "--hard", before]);
             console.error(`land: ${branch} does not merge into ${CUT}:\n${files || r.stderr || r.stdout}`);
             return files ? 2 : 1;
+        }
+        if (opts.dryRun) {
+            git(ctx, ctx.cut, ["reset", "-q", "--hard", before]);
+            console.log(`land: dry run: ${branch} merges into ${CUT}; nothing pushed`);
+            return 0;
         }
         const pushed = await pushGolden(ctx, before, before, { dir: ctx.cut, branch: CUT });
         if (pushed.code !== 0) return pushed.code;
@@ -2562,7 +2569,7 @@ export function context(cwd, overrides = {}) {
 
 const USAGE =
     "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] [--allow-copies <sha>,...] | revert <branch> | cut [<commit>] |" +
-    " cut-fix <branch> --reason <issue>|run:<id> | ship | auto-ship | status | prune-branches [--yes] |" +
+    " cut-fix <branch> --reason <issue>|run:<id> [--dry-run] | ship | auto-ship | status | prune-branches [--yes] |" +
     " sync [--branch <b>] [--dry-run] [--if-due] [--active-days N] (land, revert, cut and cut-fix also take --priority)";
 
 /**
@@ -2576,6 +2583,8 @@ export async function main(argv, ctx = context(process.cwd())) {
     const reason = takeOption(copies.rest, "--reason");
     const allowCopies = copies.value?.split(",").filter(Boolean) ?? [];
     const [command, ...branches] = reason.rest.filter((a) => !a.startsWith("--"));
+    const flushing = flushRefusal(ctx, command, argv);
+    if (flushing) return fail(flushing);
     if (command === "sync") return syncCommand(ctx, argv);
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
@@ -2593,6 +2602,16 @@ export async function main(argv, ctx = context(process.cwd())) {
         if (command === "revert") return revert(ctx, branch);
         return branches.length > 1 ? landMany(ctx, branches, { dryRun }) : land(ctx, branch, { dryRun, allowCopies });
     });
+}
+
+// The flush of golden to master (design/ci/channels-pipeline-plan.md, step 0): while the main checkout's
+// tmp/golden/flush exists, nothing new lands on golden and the sync moves no branch; revert and cut-fix
+// still run, and so does the landing on golden that a cut fix makes after its cut (AFTER_CUT_FIX).
+const AFTER_CUT_FIX = "--after-cut-fix";
+function flushRefusal(ctx, command, argv) {
+    const flush = join(ctx.main, "tmp/golden/flush");
+    if (!["land", "sync"].includes(command) || argv.includes(AFTER_CUT_FIX) || !existsSync(flush)) return null;
+    return `golden is being flushed to master (${flush} exists): no ${command} until the flush ships; only revert and cut-fix run`;
 }
 
 /**
@@ -2675,9 +2694,10 @@ const UNLOCKED = {
  */
 async function cutFixThenLand(ctx, branch, argv, lockOptions, opts = {}) {
     if (!branch) return fail(USAGE);
-    const code = await cutLocked(ctx, branch, lockOptions, cutFix, opts);
-    // The same branch, the same commits, on golden: a landing like any other.
-    return code === 0 ? main(["land", branch, ...argv.filter((a) => a === "--priority")], ctx) : code;
+    const code = await cutLocked(ctx, branch, lockOptions, cutFix, { ...opts, dryRun: argv.includes("--dry-run") });
+    // The same branch, the same commits, on golden: a landing like any other, even during a flush.
+    const passOn = argv.filter((a) => a === "--priority" || a === "--dry-run");
+    return code === 0 ? main(["land", branch, AFTER_CUT_FIX, ...passOn], ctx) : code;
 }
 
 // The cut (or a cut fix) under its own lock: its push runs the gate without holding up landings.

@@ -64,6 +64,10 @@ export function initSentry(config?: SentryConfig): void {
         integrations: [replay],
         // Every event, transaction and breadcrumb is cut down to an allowlist before it is sent.
         ...privacyFilters,
+        // Spans go out inside their transaction, through beforeSendTransaction above. Sentry 11's
+        // default, streaming each span on its own, skips that hook and would send span attributes
+        // (a request URL with its query, anything a caller set) unfiltered.
+        traceLifecycle: "static",
         transport: effectiveConfig.transport,
     });
     if (restart) {

@@ -322,8 +322,13 @@ const config: KnipConfig = {
                 "src/stories/**/*.stories.tsx",
                 "eslint-rules/**/*.test.ts",
                 "scripts/**/*.ts",
+                // Loaded by vitest.config.ts only when VISUAL_REVIEW_STORY_OUT is set (issue #3471).
+                ".storybook/vitest.setup.visual.ts",
             ],
             project: ["src/**/*.{ts,tsx}!", "eslint-rules/*.js", "eslint-rules/__tests__/*.ts", "scripts/**/*.ts"],
+            // ci.yml's Sentry upload runs it as `timeout 60 pnpm exec sentry-cli ...` (bounded so a hang
+            // cannot cancel the build), and knip does not read a command behind `timeout`.
+            ignoreDependencies: ["@sentry/cli"],
         },
 
         // remote-logger package

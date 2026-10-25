@@ -12,6 +12,7 @@ import { FieldRow } from "../../src/components/rows/FieldRow";
 import { PanelField } from "../../src/components/rows/PanelField";
 import { ResetButton } from "../../src/components/rows/TrailingSlot";
 import { renderThemed, resetHarness } from "../harness/measure";
+import { TOOLTIP_WAIT } from "../waits";
 
 afterEach(resetHarness);
 
@@ -45,6 +46,6 @@ describe("an icon-only reset button", () => {
             </PopoutManager>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Reset Shape to default" }));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe("Reset Shape to default");
+        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe("Reset Shape to default");
     });
 });

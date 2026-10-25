@@ -120,7 +120,7 @@ if [ -z "$url" ]; then
 fi
 # What only the owner merges. A pull request runs its own copy of ci.yml and the files it reads, so a change to
 # them would judge itself; the others guard the owner's credentials, approvals and releases.
-OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$)'
+OWNER_PATHS='^(\.github/|\.claude/|tools/ci-|tools/test-quarantine\.json$|tools/test-select|tools/claude-owner-credential-guard\.mjs$|tools/pr-open\.sh$|visual-review/|visual-review\.config\.json$|release-[^/]*\.json$|(.*/)?\.storybook/vitest\.setup\.)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then

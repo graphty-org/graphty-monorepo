@@ -11,4 +11,6 @@
 /tools/pr-open.sh                           @apowers313
 /visual-review/                             @apowers313
 /visual-review.config.json                  @apowers313
+# A Storybook project's Vitest setup files decide how its stories are rendered and shot as tests.
+**/.storybook/vitest.setup.*               @apowers313
 /release-*.json                             @apowers313

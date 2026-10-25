@@ -525,7 +525,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 **graphty:**
 - `browser` - Browser-based tests (Playwright)
 - `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
-- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`), and the job `Story tests parity (graphty)` compares that capture with the old `visual (graphty)` one
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**

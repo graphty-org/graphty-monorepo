@@ -46,13 +46,11 @@ self-sufficient and neutral.
 
 ### 3.1 Files
 
-| File                                             | Holds                                                                                                                                                 |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `graphty-element/src/features/registry.ts` (new) | The frozen tables `FEATURES` and `GRADUATED_FEATURES`, the `FeatureId` union                                                                          |
-| `graphty-element/src/features/resolve.ts` (new)  | `resolveFeatures()`, `featuresFromUrl()`, `setDefaultFeatures()`                                                                                      |
-| `graphty-element/src/catalog/index.ts`           | Re-exports the descriptors and `featuresFromUrl` (the `./catalog` entry stays free of Babylon.js, Lit and the DOM, so Node consumers can parse a URL) |
-| `graphty-element/src/extend/` entry              | Re-exports `setDefaultFeatures` (page-wide state, beside `Algorithm.register` and the other global registrations)                                     |
-| `graphty-element/src/errors/codes.ts`            | Two new codes, below                                                                                                                                  |
+- **`graphty-element/src/features/registry.ts` (new)** -- The frozen tables `FEATURES` and `GRADUATED_FEATURES`, the `FeatureId` union.
+- **`graphty-element/src/features/resolve.ts` (new)** -- `resolveFeatures()`, `featuresFromUrl()`, `setDefaultFeatures()`.
+- **`graphty-element/src/catalog/index.ts`** -- Re-exports the descriptors and `featuresFromUrl` (the `./catalog` entry stays free of Babylon.js, Lit and the DOM, so Node consumers can parse a URL).
+- **`graphty-element/src/extend/` entry** -- Re-exports `setDefaultFeatures` (page-wide state, beside `Algorithm.register` and the other global registrations).
+- **`graphty-element/src/errors/codes.ts`** -- Two new codes, below.
 
 The tables, as data (`plainName` is catalog data, which the principles allow; everything else is
 codes and values):
@@ -76,18 +74,16 @@ export const GRADUATED_FEATURES: readonly string[] = Object.freeze([/* ids that 
 
 ### 3.2 The public surface (all additive, so no owner approval is needed)
 
-| Surface                                                   | Shape                                                                                                      | Notes                                                                                                                                       |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Attribute `features`                                      | space-separated ids, `features="timeline location-map"`; the word `all` turns on every declared experiment | HTML token-list convention, like `class`                                                                                                    |
-| Property `features`                                       | `readonly string[]`                                                                                        | The same, for frameworks                                                                                                                    |
-| Property `enabledFeatures` (read-only)                    | `{ enabled: readonly FeatureId[]; unknown: readonly string[] }`                                            | What the element actually honored; the app renders a status chip from it                                                                    |
-| Event `graphty-features`                                  | `detail` is the same object                                                                                | Dispatched once per session creation                                                                                                        |
-| `createSession({ features })` in `./session`              | same strings                                                                                               | For Node and worker consumers with no element                                                                                               |
-| `featuresFromUrl(url, param = "features")` in `./catalog` | `(url: string \| URL, param?: string) => string[]`                                                         | Parses `?features=timeline,location-map` (comma separated, trimmed, lowercased, duplicates dropped); returns raw ids, unknown ones included |
-| `setDefaultFeatures(ids)` in `./extend`                   | `(ids: readonly string[]) => void`                                                                         | Page-wide default for every element and session that sets none; a page with many graphs sets it once                                        |
-| `FEATURES`, `GRADUATED_FEATURES` in `./catalog`           | descriptors                                                                                                | So a consumer can list what exists                                                                                                          |
-| Error `E_FEATURE_OFF`                                     | params `{ feature, key }`                                                                                  | A command, saved document or attribute asked for something whose feature is off                                                             |
-| Event code `features.unknown`                             | params `{ id }` in the `unknown` list                                                                      | An id that is neither declared nor graduated                                                                                                |
+- **Attribute `features`** -- space-separated ids, `features="timeline location-map"`; the word `all` turns on every declared experiment. HTML token-list convention, like `class`.
+- **Property `features`** -- `readonly string[]`. The same, for frameworks.
+- **Property `enabledFeatures` (read-only)** -- `{ enabled: readonly FeatureId[]; unknown: readonly string[] }`. What the element actually honored; the app renders a status chip from it.
+- **Event `graphty-features`** -- `detail` is the same object. Dispatched once per session creation.
+- **`createSession({ features })` in `./session`** -- same strings. For Node and worker consumers with no element.
+- **`featuresFromUrl(url, param = "features")` in `./catalog`** -- `(url: string | URL, param?: string) => string[]`. Parses `?features=timeline,location-map` (comma separated, trimmed, lowercased, duplicates dropped); returns raw ids, unknown ones included.
+- **`setDefaultFeatures(ids)` in `./extend`** -- `(ids: readonly string[]) => void`. Page-wide default for every element and session that sets none; a page with many graphs sets it once.
+- **`FEATURES`, `GRADUATED_FEATURES` in `./catalog`** -- descriptors. So a consumer can list what exists.
+- **Error `E_FEATURE_OFF`** -- params `{ feature, key }`. A command, saved document or attribute asked for something whose feature is off.
+- **Event code `features.unknown`** -- params `{ id }` in the `unknown` list. An id that is neither declared nor graduated.
 
 **Resolution.** `resolveFeatures(requested)` returns the enabled set and the unknown list.
 Graduated ids are accepted silently and change nothing (a nightly link pasted into production
@@ -246,11 +242,9 @@ reads that file too, so its ids get the same checks.
 
 ## 6. Which work starts behind a flag
 
-| Flag              | Element part                                                                                                                                                                          | App part                                               | Branches to restructure                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `location-map`    | the location-map layout (`src/layout/locationMap/`), its catalog entry in `catalog/layouts.ts`, the basemap catalog (`catalog/basemaps.ts`), `basemap` attribute and `BasemapManager` | the layout's picker entry, the location column control | `feat/location-map-prototype`, `fix/3317-locationmap-load`, `fix/location-map-applies`, design on `design/location-map-layout` |
-| `timeline`        | the time attribute and the visibility filter it drives (`src/session/visibility/`), its commands and events                                                                           | the scrubber                                           | `feat/timeline-data`, `feat/timeline-prototype`, `feat/timeline-samples`, design `design/data/timeline-attribute.md`           |
-| `data-management` | versioned, refreshed and joined data commands as they are built                                                                                                                       | the Data place                                         | none yet                                                                                                                       |
+- **`location-map`** -- Element part: the location-map layout (`src/layout/locationMap/`), its catalog entry in `catalog/layouts.ts`, the basemap catalog (`catalog/basemaps.ts`), `basemap` attribute and `BasemapManager`; App part: the layout's picker entry, the location column control; Branches to restructure: `feat/location-map-prototype`, `fix/3317-locationmap-load`, `fix/location-map-applies`, design on `design/location-map-layout`.
+- **`timeline`** -- Element part: the time attribute and the visibility filter it drives (`src/session/visibility/`), its commands and events; App part: the scrubber; Branches to restructure: `feat/timeline-data`, `feat/timeline-prototype`, `feat/timeline-samples`, design `design/data/timeline-attribute.md`.
+- **`data-management`** -- Element part: versioned, refreshed and joined data commands as they are built; App part: the Data place.
 
 The new `babylonjs-map` package itself is not flagged: a package is opt-in by install, and
 graphty-element loads it as an optional peer the way it loads webgpu-graph-algorithms.
@@ -299,11 +293,9 @@ On is never called flaky: flaky means passed and failed on the same commit and t
 
 ### 7.3 Where each configuration runs
 
-| Run                                      | Off                                                                        | On                                                                                                             |
-| ---------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Pull request (light checks)              | affected tests and affected story screenshots, as the merging section sets | affected test files of graphty-element and graphty only, tests without screenshot comparison, in the same jobs |
-| Every 6 hours (full run on master's tip) | every shard and the full capture                                           | every graphty-element and graphty shard, element story screenshots compared against the Off baselines          |
-| Local `pnpm run test:changed`            | yes                                                                        | yes, for the same two packages                                                                                 |
+- **Pull request (light checks)** -- Off: affected tests and affected story screenshots, as the merging section sets; On: affected test files of graphty-element and graphty only, tests without screenshot comparison, in the same jobs.
+- **Every 6 hours (full run on master's tip)** -- Off: every shard and the full capture; On: every graphty-element and graphty shard, element story screenshots compared against the Off baselines.
+- **Local `pnpm run test:changed`** -- Off: yes; On: yes, for the same two packages.
 
 `tools/ci-test-matrix.mjs` gains the On shards: `graphty-element-default-features-on`,
 `graphty-element-browser-features-on-1` to `-5`, `graphty-element-storybook-features-on-1` to `-5`,
@@ -357,19 +349,13 @@ graduated entry; its id then reports as unknown, which is harmless.
 
 ## 9. Failure modes
 
-| Failure                                                              | Handling                                                                                                                                                                                                                             |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| An experiment changes behavior with its flag off                     | The Off suite and zero changed screenshots on its first pull request; any later piece that changes an Off screenshot is a visible diff the owner must approve and the reviewer must reject                                           |
-| An experiment breaks something it does not touch when on             | The On run, including the screenshot invariant (7.4); nightly promotion waits for it                                                                                                                                                 |
-| `site.json` missing, unreadable, invalid or slow                     | Every experiment off and the app continues; the fetch has no timer of its own (it ends when the request does, and the element loads only after it), and the configuration-off case logs one console line with the site and the error |
-| A stale `site.json` in a reader's cache                              | `cache: "no-cache"` revalidates every load                                                                                                                                                                                           |
-| An agent switches an experiment on for nightly or production readers | CODEOWNERS on `graphty/sites/nightly.json` and `production.json`; the owner reviews                                                                                                                                                  |
-| An experimental API leaks into stable use                            | `@experimental <id>` tags show in the API report; check 4 in `tools/check-features.mjs`                                                                                                                                              |
-| A saved project needs a feature that is off                          | `requires` field and `E_FEATURE_OFF` for that part; the rest loads                                                                                                                                                                   |
-| A link with a removed or graduated id                                | Graduated ids accepted silently; unknown ids listed, never thrown                                                                                                                                                                    |
-| A test silently depends on the environment for its features          | No such variable exists; features come only from `setDefaultFeatures` in the On setup file or explicit test code                                                                                                                     |
-| A flag is never removed                                              | `--list` shows its age and references; the tracking issue stays open; graduation is an ordinary pull request                                                                                                                         |
-| A test fails only On and is called flaky                             | `config` is part of the inputs in the test store, so it is a consistent failure of the On configuration                                                                                                                              |
+- **An experiment changes behavior with its flag off.** The Off suite and zero changed screenshots on its first pull request; any later piece that changes an Off screenshot is a visible diff the owner must approve and the reviewer must reject.
+- **An experiment breaks something it does not touch when on.** The On run, including the screenshot invariant (7.4); nightly promotion waits for it.
+- **`site.json` missing, unreadable, invalid or slow.** Every experiment off and the app continues; the fetch has no timer of its own (it ends when the request does, and the element loads only after it), and the configuration-off case logs one console line with the site and the error.
+- **An agent switches an experiment on for nightly or production readers.** CODEOWNERS on `graphty/sites/nightly.json` and `production.json`; the owner reviews.
+- **An experimental API leaks into stable use.** `@experimental <id>` tags show in the API report; check 4 in `tools/check-features.mjs`.
+- **A saved project needs a feature that is off.** `requires` field and `E_FEATURE_OFF` for that part; the rest loads.
+- **A flag is never removed.** `--list` shows its age and references; the tracking issue stays open; graduation is an ordinary pull request.
 
 ## 10. What is reused, what is new, what is deleted
 
@@ -379,10 +365,6 @@ error codes (`errors/codes.ts`), the API report and its check (`tools/api-report
 matrix (`tools/ci-test-matrix.mjs`), the import-graph selector for the pull-request On pass
 (`tools/test-select.mjs`, or its successor in the testing section), the site assembly
 (`tools/assemble-pages-site.sh`), the sample-data test server (`graphty/vite.sample-data.ts`).
-
-New: `graphty-element/src/features/` (two files, about 200 lines), the descriptor field, two error
-and event codes, `graphty/src/siteConfig.ts`, `graphty/sites/*.json`, `tools/check-features.mjs`,
-`test/setup-features-on.ts` in two packages, the On projects and shards, CODEOWNERS lines.
 
 Deleted: the build-time per-site branches the configuration replaces (`import.meta.env.MODE` as
 Sentry's environment in `graphty/src/lib/sentry.ts`, and the dataset-base branch for built sites in

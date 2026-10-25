@@ -42,14 +42,20 @@ import type {
     TableMappingRead,
 } from "./types";
 
+/** Dispatches a command as the session's next step. */
+type DraftSend = (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+
 /** What a draft needs from the session it loads into. */
 interface DraftHost {
     /** The data configuration now. */
     config(): SessionDataConfig;
     /** The node ids the graph holds, its edge count and its edges' endpoint pairs, for a merge. */
     graph(): NonNullable<DataImportCommand["measure"]>;
-    /** Taken synchronously: dispatches a command as the session's next step. */
-    importer(): (command: DataImportCommand | BatchCommand) => Promise<unknown>;
+    /**
+     * Runs a load in the session's load line: `run` gets the dispatch, taken synchronously, which
+     * sends its command once every load asked for earlier has dispatched (issue #3382).
+     */
+    inLine(run: (send: DraftSend) => Promise<void>): Promise<void>;
     /** Runs an import in a scratch session with this configuration and returns its report. */
     measure(command: DataImportCommand, config: SessionDataConfig): Promise<LoadReport>;
     /** The draft has been disposed. */
@@ -580,7 +586,7 @@ export class Draft implements LoadDraft {
      * @returns Settles once the rows are in the graph.
      */
     async load(choices: LoadChoices = {}): Promise<void> {
-        await this.loadVia(this.host.importer(), choices);
+        await this.host.inLine((send) => this.loadVia(send, choices));
     }
 
     /**
@@ -589,7 +595,7 @@ export class Draft implements LoadDraft {
      * @param choices - The column roles and the rest.
      * @returns Settles once the rows are in the graph.
      */
-    async loadVia(send: ReturnType<DraftHost["importer"]>, choices: LoadChoices = {}): Promise<void> {
+    async loadVia(send: DraftSend, choices: LoadChoices = {}): Promise<void> {
         const read = this.live("load");
         const plan = this.plan(read, choices);
         // One entry per table name, the first table of a name giving what it held.

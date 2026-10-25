@@ -53,3 +53,37 @@
 /tools/pr-open.sh @apowers313
 /tools/pr-review.sh @apowers313
 /tools/check-quick.sh @apowers313
+
+# The owned closure: files the owned scripts and workflows above import or run
+# (node tools/check-owned-closure.mjs)
+/cytoscape-extensions/scripts/test-cytoscape-versions.sh @apowers313
+/graph-samples/scripts/build-hosted.mjs @apowers313
+/graph-samples/scripts/graph-io-source.mjs @apowers313
+/graph-samples/scripts/hosted-sources.mjs @apowers313
+/graph-samples/scripts/refresh-sources.mjs @apowers313
+/tools/assemble-pages-site.sh @apowers313
+/tools/check-links.sh @apowers313
+/tools/check-storybook-links.mjs @apowers313
+/tools/ci-advisory-checks.json @apowers313
+/tools/ci-reuse-plan.mjs @apowers313
+/tools/claude-area-rules.mjs @apowers313
+/tools/claude-no-foreground-wait.mjs @apowers313
+/tools/gpu-runner-lost.sh @apowers313
+/tools/master-guard.mjs @apowers313
+/tools/merge-coverage.sh @apowers313
+/tools/pr-issue-link.mjs @apowers313
+/tools/prepush-inputs.mjs @apowers313
+/tools/push-base.mjs @apowers313
+/tools/restricted-cpu-stress.mjs @apowers313
+/tools/shard-verdict.mjs @apowers313
+/tools/test-ledger.mjs @apowers313
+/tools/test-quarantine.json @apowers313
+/tools/test-quarantine.mjs @apowers313
+/tools/test-select-mutate.mjs @apowers313
+/tools/test-slots.mjs @apowers313
+/tools/visual-capture-plan.mjs @apowers313
+/tools/visual-flaky-report.mjs @apowers313
+/tools/visual-preview.sh @apowers313
+/tools/vitest-time-budget.mjs @apowers313
+/tools/wait-log.mjs @apowers313
+/tools/with-browser.sh @apowers313

@@ -2173,6 +2173,42 @@ describe("pr-title.yml", () => {
         assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
         assert.equal(pr.split(QUEUE).length, 2);
     });
+    // The breaking-change step's script, against a stub gh: the commits, the labels and who added them.
+    const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [] } = {}) => {
+        const pr = workflow("pr-title.yml");
+        const body = pr.slice(pr.indexOf("- name: No breaking change without the owner's go"));
+        const script = /run: \|\n([\s\S]*?)\n\n/.exec(body)[1].replaceAll(/^ {18}/gm, "");
+        const dir = mkdtempSync(join(tmpdir(), "pr-breaking-"));
+        writeFileSync(
+            join(dir, "gh"),
+            `#!/bin/bash\ncase "$2" in\n*/commits) printf '%s\\n' ${commits.map((c) => `$'${c.replaceAll("\n", "\\n")}'`).join(" ")};;\n` +
+                `*/labels) printf '%s\\n' ${labels.join(" ")};;\n*/events) printf '%s\\n' ${by.join(" ")};;\nesac\n`,
+            { mode: 0o755 },
+        );
+        const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
+            encoding: "utf8",
+            env: {
+                ...process.env,
+                PR: "1",
+                PR_TITLE: title,
+                OWNER: "apowers313",
+                GITHUB_REPOSITORY: "o/r",
+                PATH: `${dir}:${process.env.PATH}`,
+            },
+        });
+        rmSync(dir, { recursive: true, force: true });
+        return r.status;
+    };
+    it("fails a breaking change until the owner adds breaking-go, and re-checks on a label", () => {
+        assert.match(workflow("pr-title.yml"), /types: \[opened, edited, synchronize, reopened, labeled, unlabeled\]/);
+        assert.equal(breaking(), 0);
+        assert.equal(breaking({ commits: ["fix: a", "feat(tools)!: drop"] }), 1, "a breaking commit pushed later");
+        assert.equal(breaking({ commits: ["fix: a\n\nBREAKING CHANGE: gone"] }), 1);
+        assert.equal(breaking({ title: "feat!: x" }), 1, "a breaking title");
+        assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["graphty-agent"] }), 1);
+        assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
+        assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
+    });
     it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);

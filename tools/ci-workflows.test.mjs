@@ -1,6 +1,5 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
-// ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, verification of
-// golden in CI (golden-verify.yml calling ci.yml), the
+// ci.yml and pr-title.yml that decide what a pull request, a push and a called run do, the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml), the record tools/pr-status-broker.mjs writes for agents, the local commit and push hooks
 // (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh), and the warning period of new
 // required checks (tools/ci-advisory-checks.json).
@@ -33,8 +32,7 @@ import {
     decide,
     examineRed,
     fileIssue,
-    FREEZE_PREFIX,
-    frozenSha,
+    RED_PREFIX,
     mergedPrs,
     revertBody,
     revertTitle,
@@ -76,8 +74,6 @@ const job = (text, name) => {
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
-const QUEUE =
-    "startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]'";
 
 describe("the test matrix", () => {
     it("runs every shard exactly once on a full run, in 25 jobs", () => {
@@ -1184,13 +1180,12 @@ exec ${realGit} "$@"
 describe("ci.yml", () => {
     const ci = workflow("ci.yml");
 
-    it("runs every pull request, a draft too, and still names the merge queue once (#3418)", () => {
+    it("runs every pull request, a draft too (#3418)", () => {
         // Pull requests are opened ready (tools/pr-open.sh); there is no draft probe and no draft skip.
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.equal(parseJobs(ci).draft, undefined, "no Draft state job");
         assert.doesNotMatch(job(ci, "packages"), /\n {8}(needs|if):/, "Build has no needs and no condition");
         assert.doesNotMatch(ci, /github\.event\.pull_request\.draft/);
-        assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
     it("cancels a pull request's older run, never a push to master, and has no golden-cut exemption (#1108, #3418)", () => {
@@ -1209,18 +1204,15 @@ describe("ci.yml", () => {
 
     it("fails, never skips, the summary checks when Build did not run", () => {
         // A skipped required check counts as passing.
-        for (const name of ["all-checks", "queue-checks"]) {
-            assert.match(job(ci, name), /\n {8}if: always\(\)\n/, `${name} always runs`);
-        }
+        assert.match(job(ci, "all-checks"), /\n {8}if: always\(\)\n/, "all-checks always runs");
         assert.match(
             job(ci, "all-checks"),
             /if \[\[ "\$BUILD" == "skipped" \]\]; then\n.*Build did not run.*\n\s+exit 1/,
         );
     });
 
-    it("runs the full suite on a merge-queue branch", () => {
+    it("builds and lints everything on a full run", () => {
         const step = job(ci, "packages");
-        assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
         assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
         assert.match(
             job(ci, "lint"),
@@ -1228,15 +1220,11 @@ describe("ci.yml", () => {
         );
     });
 
-    it("holds the merge queue to master's rule that every job succeeds", () => {
+    it("holds a full run to the rule that every job succeeds", () => {
         assert.match(
             job(ci, "all-checks"),
             /\[\[ "\$FULL" == "false" \|\| "\$LIGHT" == "true" \]\] && ok='\["success","skipped"\]'/,
         );
-        const queue = job(ci, "queue-checks");
-        assert.match(queue, /name: Queue Checks Pass/);
-        assert.match(queue, /"\$ALL_CHECKS" != "success"/);
-        assert.match(queue, /"\$MERGE_QUEUE" == "true" && "\$FULL" != "true"/);
     });
 
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
@@ -1253,15 +1241,14 @@ describe("ci.yml", () => {
         assert.equal(jobs["visual-flaky"].coe, "true");
         assert.match(job(ci, "visual-flaky"), /pattern: visual-\*\n/);
         assert.match(job(ci, "visual-flaky"), /node tools\/visual-flaky-report\.mjs "\$RUNNER_TEMP\/visual"/);
-        for (const name of ["all-checks", "queue-checks"]) assert.ok(!jobs[name].needs.includes("visual-flaky"), name);
+        assert.ok(!jobs["all-checks"].needs.includes("visual-flaky"));
     });
 
-    it("runs no security audit on pull requests or merge-queue runs", () => {
+    it("runs no security audit on pull requests", () => {
         // advisories land against code a pull request did not change; the release train audits instead
         assert.doesNotMatch(ci, /pnpm audit/);
         const review = workflow("dependency-review.yml");
         assert.match(review, /paths:\n\s+- "pnpm-lock.yaml"/);
-        assert.match(review, /if: \$\{\{ !startsWith\(github.head_ref, 'mergify\/merge-queue\/'\) \}\}/);
         assert.match(review, /fail-on-severity: high/);
     });
 
@@ -1321,22 +1308,20 @@ describe("ci.yml", () => {
         // jobs must succeed
         assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
         assert.match(job(ci, "all-checks"), /strict='\["packages","build","lint","checks","docs"\]'\n/);
-        assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
-    it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
+    it("still runs every test job on pull requests, dispatches and the release train", () => {
         const build = job(ci, "packages");
-        // light is set only on a push of master itself and on a call that names its shards; every other
-        // event takes the affected (pull request) or full path
-        assert.equal(build.match(/echo "light=true"/g).length, 2);
-        assert.match(build, /if \[\[ -n "\$SHARDS" \]\]; then\n\s+echo "light=true" >> "\$GITHUB_OUTPUT"\n/);
-        assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
+        // light is set only on a push of master itself; every other event takes the affected (pull
+        // request) or full path
+        assert.equal(build.match(/echo "light=true"/g).length, 1);
+        assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" \]\]; then/);
         assert.equal(plan(PACKAGES).length, 25, "a full run is every shard");
         // no test-type job is limited to pushes or to master
         for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
-        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request' && !inputs.verify\n/);
+        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
     });
 
     it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
@@ -1387,9 +1372,8 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
     });
 });
 
-describe("verification of golden in CI (golden-verify.yml)", () => {
+describe("ci.yml's plan step and the screenshot report", () => {
     const ci = workflow("ci.yml");
-    const verify = workflow("golden-verify.yml");
 
     // The plan step's script, run as GitHub runs it (bash -eo pipefail), with nx answered by a stub.
     const planStep = (env) => {
@@ -1414,12 +1398,10 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
                 ...process.env,
                 PATH: `${bin}:${process.env.PATH}`,
                 GITHUB_OUTPUT: output,
-                MERGE_QUEUE: "false",
                 BASE_REF: "master",
                 SKIP_UNAFFECTED_CAPTURES: "false",
                 LABELS: "[]",
                 CALLED_REF: "",
-                SHARDS: "",
                 ...env,
             },
         });
@@ -1432,22 +1414,11 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         return { status: r.status, stderr: r.stderr, out };
     };
 
-    it("is called with a ref, an optional verify flag and an optional shard list", () => {
-        assert.match(
-            ci,
-            /\n {12}verify:\n {16}description: .*\n {16}type: boolean\n {16}required: false\n {16}default: false\n/,
-        );
-        assert.match(
-            ci,
-            /\n {12}shards:\n {16}description: .*\n {16}type: string\n {16}required: false\n {16}default: ""\n/,
-        );
-    });
-
     it("plans a full run for a called run started by a push, and build-only for a push of master", () => {
         const called = planStep({ EVENT: "push", CALLED_REF: "abc123" });
         assert.equal(called.status, 0, called.stderr);
         assert.equal(called.out.full, "true");
-        assert.equal(called.out.light, undefined, "a verification run is not light");
+        assert.equal(called.out.light, undefined, "a called run is not light");
         assert.equal(called.out["test-count"], "25");
         const master = planStep({ EVENT: "push" });
         assert.equal(master.status, 0, master.stderr);
@@ -1456,22 +1427,6 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         const pr = planStep({ EVENT: "pull_request" });
         assert.equal(pr.out.full, "false");
         assert.equal(pr.out.light, undefined);
-    });
-
-    it("runs only the named shards as a light run, and fails on an unknown one", () => {
-        const point = planStep({ EVENT: "push", CALLED_REF: "abc123", SHARDS: '["graph-io","graphty-3"]' });
-        assert.equal(point.status, 0, point.stderr);
-        assert.equal(point.out.light, "true");
-        assert.deepEqual(
-            JSON.parse(point.out["test-matrix"]).include.map((e) => e.shard),
-            ["graph-io", "graphty-3"],
-        );
-        const bad = planStep({ EVENT: "workflow_dispatch", CALLED_REF: "abc123", SHARDS: '["nope"]' });
-        assert.notEqual(bad.status, 0);
-    });
-
-    it("skips the benchmarks on a verification run", () => {
-        assert.match(job(ci, "performance"), /\n {8}if: github.event_name != 'pull_request' && !inputs.verify\n/);
     });
 
     it("uploads every shard's JUnit reports, without letting the upload decide the shard", () => {
@@ -1484,41 +1439,6 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
             text,
             /name: junit-\$\{\{ matrix.shard \}\}\n\s+path: test-results\/junit-\*.xml\n\s+retention-days: 7\n/,
         );
-    });
-
-    it("runs on a push to exactly the four scratch branches, and on dispatch with a ref and shards", () => {
-        assert.match(
-            verify,
-            /\non:\n {4}push:\n {8}branches: \[golden-candidate, golden-cut-candidate, golden-bisect-1, golden-bisect-2\]\n {4}workflow_dispatch:\n/,
-        );
-        assert.match(verify, /\n {12}ref:\n(?: {16}.*\n)*? {16}required: true\n/);
-        assert.match(verify, /\n {12}shards:\n(?: {16}.*\n)*? {16}required: false\n/);
-        const triggers = verify.slice(verify.indexOf("\non:\n"), verify.indexOf("\nconcurrency:\n"));
-        assert.doesNotMatch(triggers, /pull_request|schedule|workflow_run/);
-    });
-
-    it("names each run by the commit it verifies, so tools/verify.mjs finds a dispatched run", () => {
-        assert.match(verify, /\nrun-name: Golden verify \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-    });
-
-    it("never cancels a run, one group per commit, pushed or dispatched", () => {
-        assert.match(
-            verify,
-            /\nconcurrency:\n {4}group: golden-verify-\$\{\{ inputs.ref \|\| github.sha \}\}\n {4}cancel-in-progress: false\n/,
-        );
-    });
-
-    it("has one named job that calls ci.yml as a verification run, so no check is a bare All Checks Pass", () => {
-        const jobs = verify.slice(verify.indexOf("\njobs:\n")).match(/\n {4}[\w-]+:\n/g);
-        assert.deepEqual(jobs, ["\n    verify:\n"]);
-        const body = job(verify, "verify");
-        // The caller job's name prefixes every check of the called run: "Verify / All Checks Pass".
-        assert.match(body, /\n {8}name: Verify\n/);
-        assert.match(body, /\n {8}uses: \.\/\.github\/workflows\/ci\.yml\n/);
-        assert.match(body, /\n {12}ref: \$\{\{ inputs.ref \|\| github.sha \}\}\n/);
-        assert.match(body, /\n {12}verify: true\n/);
-        assert.match(body, /\n {8}secrets: inherit\n/);
-        assert.match(verify, /\npermissions:\n {4}contents: read\n {4}actions: read\n {4}checks: write\n/);
     });
 
     it("leaves the visual job and the visual gate step exactly as master has them", () => {
@@ -1550,14 +1470,6 @@ describe("verification of golden in CI (golden-verify.yml)", () => {
         );
         assert.match(report, /- name: Report the visual gate \(does not block\)\n/);
         assert.match(report, /::warning title=Visual gate \(report only\)::/);
-    });
-
-    it("is not seen by the workflows that react to master's CI", () => {
-        for (const name of ["master-guard.yml", "deploy-pages.yml", "release.yml"]) {
-            const on = workflow(name);
-            const triggers = on.slice(on.indexOf("\non:\n"), on.search(/\n(permissions|concurrency|jobs|env):/));
-            assert.doesNotMatch(triggers, /Golden verify|golden-/, name);
-        }
     });
 });
 
@@ -1594,8 +1506,8 @@ const parseJobs = (text) => {
     return jobs;
 };
 
-// The (job, step) pairs that can fail "All Checks Pass" or "Queue Checks Pass": every step of every job
-// in their `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
+// The (job, step) pairs that can fail "All Checks Pass": every step of every job
+// in its `needs` closure, less a job or step marked `continue-on-error: true`, as { job: [step names] }.
 const requiredChecks = (jobs) => {
     const closure = new Set();
     const visit = (name) => {
@@ -1604,7 +1516,6 @@ const requiredChecks = (jobs) => {
         for (const need of jobs[name].needs) visit(need);
     };
     visit("all-checks");
-    visit("queue-checks");
     return Object.fromEntries(
         [...closure]
             .filter((name) => jobs[name].coe !== "true")
@@ -1751,7 +1662,7 @@ describe("the Sentry source map upload", () => {
                 "github.ref == 'refs/heads/master' && !inputs.ref",
         );
         const i = steps.indexOf(upload);
-        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the merge queue)");
+        assert.equal(steps[i - 1].name, "Build all (master, a manual dispatch or the release train)");
         assert.equal(steps[i + 1].name, "Upload all package builds");
         // deploy-pages.yml publishes only a push run's build, so that one carries the debug ids
         assert.match(workflow("deploy-pages.yml"), /github\.event\.workflow_run\.event == 'push'/);
@@ -1774,7 +1685,7 @@ describe("new required checks start as warnings", () => {
     it("finds the required jobs and steps", () => {
         const checks = requiredChecks(parseJobs(ci));
         assert.ok(checks.packages.includes("Install dependencies"));
-        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
+        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the release train)"));
         // The visual gate reports and never blocks a pull request (#3418).
         assert.ok(!checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
@@ -2073,7 +1984,8 @@ describe("the summary checks fail as soon as a required job fails", () => {
 
     it("only ever reports a failure, and never for a job in its warning period", () => {
         const action = readFileSync(new URL("../.github/actions/early-verdict/action.yml", import.meta.url), "utf8");
-        assert.match(action, /for check in "All Checks Pass" "Queue Checks Pass"; do/);
+        assert.match(action, /-f name="All Checks Pass" -f head_sha=/);
+        assert.doesNotMatch(action, /Queue Checks Pass/);
         assert.equal(action.match(/conclusion=/g).length, 1);
         assert.match(action, /-f status=completed -f conclusion=failure/);
         const program = /if jq -e --arg job "\$JOB" '([^']+)'/.exec(action)[1];
@@ -2087,15 +1999,12 @@ describe("the summary checks fail as soon as a required job fails", () => {
 
 describe("a passing summary job clears its early verdicts (#2639)", () => {
     // An early verdict lands in another workflow's check suite, which the summary job's own check run
-    // does not replace, so Mergify kept reading it after a re-run passed.
+    // does not replace, so it stayed red after a re-run passed.
     const ci = workflow("ci.yml");
     const jobs = parseJobs(ci);
 
-    it("ends both summary jobs with the clearing step, on a passing pull request run only", () => {
-        for (const [name, check] of [
-            ["all-checks", "All Checks Pass"],
-            ["queue-checks", "Queue Checks Pass"],
-        ]) {
+    it("ends the summary job with the clearing step, on a passing pull request run only", () => {
+        for (const [name, check] of [["all-checks", "All Checks Pass"]]) {
             const last = jobs[name].steps.at(-1);
             assert.equal(last.name, "Clear this check's early verdicts", name);
             assert.equal(last.if, "success() && github.event_name == 'pull_request'", name);
@@ -2105,7 +2014,7 @@ describe("a passing summary job clears its early verdicts (#2639)", () => {
     });
 
     it("rewrites only the failing early verdicts of its own name, never a job's check run", () => {
-        const program = /--jq '([^']+)'\); do/.exec(job(ci, "queue-checks"))[1];
+        const program = /--jq '([^']+)'\); do/.exec(job(ci, "all-checks"))[1];
         const page = {
             check_runs: [
                 { id: 1, name: "All Checks Pass", conclusion: "failure", details_url: "https://x/actions/runs/7" },
@@ -2245,14 +2154,6 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
 });
 
 describe("pr-title.yml", () => {
-    it("skips the whole job, not a step, for Mergify's own merge-queue draft and only for it", () => {
-        // A skipped job completes at once; a job that installs first leaves the required check in progress
-        // for a minute after each of Mergify's body edits.
-        const pr = workflow("pr-title.yml");
-        assert.ok(pr.includes(`        name: Lint PR Title\n`));
-        assert.ok(pr.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
-        assert.equal(pr.split(QUEUE).length, 2);
-    });
     // The breaking-change step's script, against a stub gh: the commits, the labels and who added them.
     const breaking = ({ title = "fix(tools): a", commits = ["fix: a"], labels = [], by = [] } = {}) => {
         const pr = workflow("pr-title.yml");
@@ -2289,7 +2190,7 @@ describe("pr-title.yml", () => {
         assert.equal(breaking({ commits: ["feat!: x"], labels: ["breaking-go"], by: ["apowers313"] }), 0);
         assert.equal(breaking({ commits: ["feat!: x"], by: ["apowers313"] }), 1, "the label was removed");
     });
-    it("is never cancelled by a later run, so Mergify's body edits cannot interrupt the required check", () => {
+    it("is never cancelled by a later run, so a description edit cannot interrupt the required check", () => {
         // A concurrency group cancels superseded runs even without cancel-in-progress.
         assert.doesNotMatch(workflow("pr-title.yml"), /^concurrency:/m);
     });
@@ -2329,10 +2230,9 @@ describe("pr-issue-link.yml", () => {
         assert.equal(skipReason({ author: "github-actions[bot]" }), null);
         assert.equal(skipReason({ author: "someone" }), null);
     });
-    it("skips the whole job for Mergify's own merge-queue draft, and re-runs on a description edit", () => {
+    it("runs on every pull request and re-runs on a description edit", () => {
         const wf = workflow("pr-issue-link.yml");
-        assert.ok(wf.includes(`        name: Link PR Issue\n`));
-        assert.ok(wf.includes(`\n        if: \${{ !(${QUEUE}) }}\n        runs-on: ubuntu-24.04\n`));
+        assert.ok(wf.includes(`        name: Link PR Issue\n        runs-on: ubuntu-24.04\n`));
         assert.match(wf, /types: \[opened, edited, synchronize, reopened\]/);
         assert.doesNotMatch(wf, /^concurrency:/m);
         // never in an environment variable: one over 128 KiB stops the runner starting the step
@@ -2547,8 +2447,26 @@ echo "${aptSays}"`,
 });
 
 describe("Mergify is retired", () => {
-    it("has no .mergify.yml: changes land through the golden branch (tools/land.mjs)", () => {
+    it("has no .mergify.yml: changes merge as pull requests (tools/pr-open.sh)", () => {
         assert.equal(existsSync(new URL("../.mergify.yml", import.meta.url)), false);
+    });
+    it("leaves no workflow handling the merge queue or golden's verification (#3477)", () => {
+        assert.equal(existsSync(new URL("../.github/workflows/golden-verify.yml", import.meta.url)), false);
+        const dirs = ["../.github/workflows/", "../.github/actions/early-verdict/"];
+        for (const dir of dirs) {
+            for (const name of readdirSync(new URL(dir, import.meta.url))) {
+                const text = readFileSync(new URL(dir + name, import.meta.url), "utf8");
+                for (const word of [
+                    /mergify\/merge-queue/i,
+                    /golden-(cut-)?candidate|golden-bisect/,
+                    /Queue Checks Pass/,
+                    /MERGIFY_API_KEY/,
+                ]) {
+                    assert.doesNotMatch(text, word, `${dir}${name}`);
+                }
+            }
+        }
+        assert.doesNotMatch(workflow("ci.yml"), /^ {12}(verify|shards):\n/m, "ci.yml has no verify or shards input");
     });
     it("uploads nothing to Mergify: GitHub refused its token with 403 on every test job", () => {
         for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
@@ -2766,7 +2684,7 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and only reports a red hardware lane", () => {
+    it("acts on a red or green master CI, and only reports a red hardware lane", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
@@ -2792,10 +2710,9 @@ describe("master-guard", () => {
         assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
-    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
-        const sha = "a".repeat(40);
-        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
-        assert.equal(frozenSha("release freeze"), null);
+    it("finds the pull request in a merge commit, and never calls Mergify", () => {
+        const guard = readFileSync(new URL("./master-guard.mjs", import.meta.url), "utf8");
+        assert.doesNotMatch(guard, /api\.mergify\.com|MERGIFY_API_KEY|scheduled_freeze/);
         assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
         assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
         assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
@@ -2833,8 +2750,8 @@ describe("master-guard", () => {
         return { gh, writes };
     };
     const red = (sha) => ({
-        prefix: FREEZE_PREFIX,
-        title: `${FREEZE_PREFIX}${sha}`,
+        prefix: RED_PREFIX,
+        title: `${RED_PREFIX}${sha}`,
         labels: ["bug"],
         body: `body ${sha}`,
         comment: `also ${sha}`,
@@ -2844,7 +2761,7 @@ describe("master-guard", () => {
         const { gh, writes } = repo([
             { number: 7, title: "Something else" },
             { number: 9, title: "Fix the thing", pull_request: {} },
-            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+            { number: 1124, title: `${RED_PREFIX}7edecd1` },
         ]);
         assert.equal(await fileIssue(gh, red("056ee80")), 1124);
         assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
@@ -2854,12 +2771,12 @@ describe("master-guard", () => {
         const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
         assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
         assert.deepEqual(writes, [
-            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+            ["POST", "/issues", { title: `${RED_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
         ]);
     });
 
     it("closes its own issue as a duplicate when a racing run opened one first", async () => {
-        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 1128, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 1128);
         assert.deepEqual(writes.slice(1), [
             ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
@@ -2869,7 +2786,7 @@ describe("master-guard", () => {
     });
 
     it("keeps its issue when the racing run's issue is the newer one", async () => {
-        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 3000, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 2000);
         assert.equal(writes.length, 1);
     });
@@ -5262,7 +5179,7 @@ describe("a run reuses an earlier run's results when only screenshot records cha
         const packages = job(ci, "packages");
         assert.match(
             packages,
-            /id: reuse\n {14}if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'\n {14}continue-on-error: true\n/,
+            /id: reuse\n {14}if: github.event_name == 'pull_request'\n {14}continue-on-error: true\n/,
         );
         assert.match(packages, /reuse-run: \$\{\{ steps.reuse.outputs.reuse-run \}\}/);
         assert.match(packages, /permissions:\n {12}contents: read\n {12}actions: read\n {12}checks: write\n/);

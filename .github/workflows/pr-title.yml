@@ -4,11 +4,8 @@ name: PR Title
 # re-run of a job reuses the event it started from, so a CI re-run after a rename still read the
 # old title and failed. `edited` also fires for body edits; the check takes seconds.
 #
-# No concurrency group, on purpose. Mergify edits a merge-queue draft's body about once a minute,
-# and each edit starts a run. In a group, every new run cancelled the one before it -- and even
-# with cancel-in-progress off, a group keeps one pending run and cancels the others ("a higher
-# priority waiting request exists"). A cancelled "Lint PR Title" is a required check that was
-# interrupted, and Mergify dequeued the whole batch for it. Overlapping runs are harmless: each
+# No concurrency group: a group keeps one pending run and cancels the others, and a cancelled
+# "Lint PR Title" is a required check that was interrupted. Overlapping runs are harmless: each
 # lints the title in its own event and finishes in seconds.
 on:
     pull_request:
@@ -23,14 +20,6 @@ permissions:
 jobs:
     lint-pr:
         name: Lint PR Title
-        # A Mergify merge-queue draft (branch mergify/merge-queue/*) carries Mergify's own title, not a commit
-        # message; the pull requests it holds were each checked here on their own. The whole job is skipped, not
-        # one step: under merge_method merge-batch (.mergify.yml) GitHub merges the draft itself, so this required
-        # check must be complete on the draft's head when Mergify merges, and Mergify edits the draft's body about
-        # once a minute. A skipped job completes at once and counts as passing; a job that installs first stays in
-        # progress for a minute after every edit. Only Mergify's own draft: the branch prefix alone is open to
-        # anyone, a fork included, so the repository and author must match.
-        if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
         runs-on: ubuntu-24.04
         steps:
             # A breaking change bumps a published major, and nothing lowers it afterwards, so it reaches master

@@ -13,8 +13,7 @@
  * githerd/lib/merged.mjs), so the check and githerd agree on what a link is. A bare `#12` in prose
  * names an issue without claiming any work on it, and does not pass.
  *
- * Dependabot's pull requests pass without a link: githerd already handles them. Mergify's
- * merge-queue drafts never reach the script: the workflow skips that job, as pr-title.yml does.
+ * Dependabot's pull requests pass without a link: githerd already handles them.
  *
  * Usage: PR_AUTHOR=... node tools/pr-issue-link.mjs   (in Actions; or PR_BODY=... locally)
  * (exit 1 with what to add)

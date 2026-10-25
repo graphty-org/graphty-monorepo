@@ -4,8 +4,7 @@ on:
     push:
         branches: [master]
     pull_request:
-        # No "labeled": no job reads labels, and Mergify adds
-        # and removes labels (queued, dequeued) on every queued pull request, each of which re-ran all of CI.
+        # No "labeled": no job reads labels, so a label change must not re-run all of CI.
         # A draft runs like any other pull request (agents open them ready, with tools/pr-open.sh);
         # "ready_for_review" stays so a draft someone opened by hand starts a run when it is marked ready.
         types: [opened, synchronize, reopened, ready_for_review]
@@ -16,24 +15,12 @@ on:
     # the history to work around a scheduling hiccup.
     # The release train (release.yml) calls this workflow on the commit it is about to release: the full
     # suite, every shard of every package, and the builds it publishes (design/ci/ci-cd-plan.md, section 10).
-    # golden-verify.yml calls it the same way to verify a golden commit (design/ci/ci-full-testing.md):
-    # `verify` leaves out the benchmarks, and `shards` (a CI bisect point) runs only the named test shards.
     workflow_call:
         inputs:
             ref:
                 description: "the commit to test and build"
                 type: string
                 required: true
-            verify:
-                description: "a verification run of golden: skip the Performance benchmarks, which gate nothing"
-                type: boolean
-                required: false
-                default: false
-            shards:
-                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
-                type: string
-                required: false
-                default: ""
     workflow_dispatch:
 
 # A new commit on a pull request cancels that pull request's older run: its result can no longer
@@ -58,16 +45,10 @@ concurrency:
 # Three kinds of run (design/ci/ci-cd-plan.md, sections 3, 5 and 8):
 # - a pull request into master (tools/pr-open.sh opens it ready, with auto-merge on): the affected
 #   build, lint, checks and test shards, and the screenshots, which are reported and never block.
-# - a Mergify merge-queue run: a draft pull request on a mergify/merge-queue/* branch, holding master
-#   plus the pull requests being merged. It runs the FULL suite, every shard of every package, and is
-#   held to master's rule that every job succeeds. "Queue Checks Pass" is its verdict.
-# - a push to master: NO tests. The merge queue already ran the full suite on exactly this tree. The build
+# - a push to master: NO tests (the full run of release.yml tests master). The build
 #   job builds every package, Storybook and docs site (deploy-pages.yml publishes them) and skips every
 #   test job; "All Checks Pass" counts the skipped ones as passing. Owner decision, 2026-10-06.
 # - a manual dispatch, or the release train's call (release.yml, on the candidate commit): the full suite.
-# A Mergify merge-queue run: a draft on a mergify/merge-queue/* branch of this repository, opened by
-# Mergify's app. The branch name alone is not enough: anyone can push a branch with that prefix. A job's
-# `if` cannot read env, so the build job repeats this test.
 # The jobs read the repository and download this run's artifacts; checks: write lets a failed job mark the
 # summary checks failed at once (.github/actions/early-verdict), and a passing summary job clears them
 # (its "Clear this check's early verdicts" step). The visual job asks for its own.
@@ -75,15 +56,12 @@ permissions:
     contents: read
     checks: write
 
-env:
-    MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
-
 jobs:
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
     # the only thing the test jobs download. It does nothing else, so the test jobs start as soon as the
     # packages are built: the checks that need a build but no test (lint, docs, the Storybooks, knip,
     # formatting, the API report and the other checks) run beside the tests in jobs of their own, which
-    # "All Checks Pass" and "Queue Checks Pass" require just as they required these steps when they were
+    # "All Checks Pass" requires just as they required these steps when they were
     # part of one Build job (it took 23 minutes, and only its first 4 produced what the tests need).
     packages:
         name: Build
@@ -172,7 +150,7 @@ jobs:
             # changed are walked again. A miss walks every package (slower, never wrong).
             - name: Key of the selector's import graphs
               id: graphs-key
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
 
@@ -191,20 +169,16 @@ jobs:
             # requests queued each other; a pull request confined to graph-io now runs one test shard, not
             # twenty-one. A manual dispatch and the release train's call pass every project as "affected", so
             # they run every shard; the release train runs it on the exact commit it publishes. A push to
-            # master passes none: it builds and tests nothing (the merge queue tested that tree).
+            # master passes none: it builds and tests nothing (the full run tests master).
             # What counts as "everything" on a pull request is nx.json's sharedGlobals: the root TypeScript,
             # ESLint, Vite and Vitest configs, pnpm-workspace.yaml, .npmrc and every file under
             # .github/workflows (nx already treats nx.json, package.json and pnpm-lock.yaml that way). A
             # change to any of them affects every project, so it runs the full set here too.
             # The shard list itself lives in tools/ci-test-matrix.mjs, which filters it; the base is named
-            # explicitly for the same reason as "Build affected (PR)" below. A merge-queue run is a pull
-            # request event but tests everything, like master: full=true selects the master path for the
-            # build and lint steps below as well.
-            # A called run (inputs.ref: the release train, golden-verify.yml) is full even when the caller was
-            # started by a push: a called workflow sees its caller's event, and golden-verify.yml runs on a push
-            # to golden-candidate. Only a push of master itself (no inputs.ref) is the build-only run.
-            # A `shards` input keeps only those shards (tools/ci-test-matrix.mjs --only) and makes the run light,
-            # so the summary accepts the jobs it skipped and no screenshots are taken.
+            # explicitly for the same reason as "Build affected (PR)" below.
+            # A called run (inputs.ref: the release train) is full even when the caller was started by a
+            # push: a called workflow sees its caller's event. Only a push of master itself (no inputs.ref) is
+            # the build-only run.
             # visual-skip names the Storybooks whose screenshots this run leaves out (tools/visual-capture-plan.mjs:
             # only on a pull request's own run, never with a root file changed or the "dequeued" label). The
             # switch stays "false" until master's visual-review/trusted/gate.mjs accepts the not-affected marker:
@@ -214,7 +188,6 @@ jobs:
               env:
                   EVENT: ${{ github.event_name }}
                   CALLED_REF: ${{ inputs.ref }}
-                  SHARDS: ${{ inputs.shards }}
                   BASE_REF: ${{ github.base_ref }}
                   SKIP_UNAFFECTED_CAPTURES: "false"
                   LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
@@ -224,20 +197,15 @@ jobs:
                       # master: build only, test nothing (the "light" run)
                       { echo "full=true"; echo "light=true"; } >> "$GITHUB_OUTPUT"
                       affected='[]'
-                  elif [[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]]; then
+                  elif [[ "$EVENT" == "pull_request" ]]; then
                       echo "full=false" >> "$GITHUB_OUTPUT"
                       affected=$(pnpm exec nx show projects --affected --base="origin/$BASE_REF" --head=HEAD --json)
                   else
                       echo "full=true" >> "$GITHUB_OUTPUT"
                       affected="$all"
                   fi
-                  only=()
-                  if [[ -n "$SHARDS" ]]; then
-                      echo "light=true" >> "$GITHUB_OUTPUT"
-                      only=(--only "$SHARDS")
-                  fi
-                  node tools/ci-test-matrix.mjs "$all" "$affected" "${only[@]}" | tee -a "$GITHUB_OUTPUT"
-                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" && "$MERGE_QUEUE" != "true" ]] && echo true || echo false) \
+                  node tools/ci-test-matrix.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
+                  PULL_REQUEST=$([[ "$EVENT" == "pull_request" ]] && echo true || echo false) \
                       node tools/visual-capture-plan.mjs "$all" "$affected" | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
@@ -253,7 +221,7 @@ jobs:
             # next one. A failure here is a full run.
             - name: Reuse an earlier run's results when only screenshot records changed
               id: reuse
-              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              if: github.event_name == 'pull_request'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
@@ -382,7 +350,7 @@ jobs:
                   retention-days: 7
                   if-no-files-found: ignore
 
-            # Master, every manual dispatch and every merge-queue run (full=true from the plan step): build
+            # Master, every manual dispatch and the release train's call (full=true from the plan step): build
             # every project (the lint job lints them).
             # graphty build needs Sentry env vars for error tracking. SENTRY_RELEASE names the release its
             # events are filed under (graphty/vite.config.ts); the source maps are uploaded under the same
@@ -396,7 +364,7 @@ jobs:
             # download (run 35943267536, this branch). A branch dispatch cannot take the pull request's
             # `nx affected` path, which needs a base ref to diff against and a dispatch has none, so it takes
             # this one and builds every project -- which is what the shards need from it anyway.
-            - name: Build all (master, a manual dispatch or the merge queue)
+            - name: Build all (master, a manual dispatch or the release train)
               if: steps.plan.outputs.full == 'true'
               run: pnpm exec nx run-many -t build --parallel=3
               env:
@@ -535,7 +503,7 @@ jobs:
                   path: compact-mantine/dist/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -706,7 +674,7 @@ jobs:
                   path: graph-io/fidelity-stories/storybook-static/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -757,7 +725,7 @@ jobs:
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
 
-            - name: Lint all (master, a manual dispatch or the merge queue)
+            - name: Lint all (master, a manual dispatch or the release train)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
 
@@ -775,7 +743,7 @@ jobs:
                       echo "::warning title=Lint over its time budget::lint took ${took}s, over its ${BUDGET_SECONDS}s budget. Time it with TIMING=1 (eslint) to find the rule or check that grew."
                   fi
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -820,7 +788,7 @@ jobs:
                   name: build-packages
                   path: .
 
-            # The shard groups, the draft and merge-queue conditions and the title check's queue exemption.
+            # The workflows' conditions, shard groups and summary checks (tools/ci-workflows.test.mjs).
             - name: CI workflow tests
               if: needs.packages.outputs.light != 'true'
               run: pnpm run test:ci-workflows
@@ -903,7 +871,7 @@ jobs:
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -982,7 +950,7 @@ jobs:
                   path: layout/gh-pages/
                   retention-days: 1
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1222,8 +1190,8 @@ jobs:
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
-            # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
-            # failing test files and run only those on this machine. continue-on-error: a report that did
+            # The shard's JUnit reports, so a failure's exact test files can be read back and run again
+            # (a bisect point runs only those). continue-on-error: a report that did
             # not upload never changes the shard's verdict.
             - name: Upload JUnit results
               if: ${{ !cancelled() }}
@@ -1304,7 +1272,7 @@ jobs:
                   if-no-files-found: error
                   overwrite: true
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1409,7 +1377,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1427,7 +1395,7 @@ jobs:
     performance:
         name: Performance Benchmarks
         needs: test
-        if: github.event_name != 'pull_request' && !inputs.verify
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         runs-on: ubuntu-24.04
         timeout-minutes: 50
@@ -1541,7 +1509,7 @@ jobs:
                       echo '```'
                   } >> "$GITHUB_STEP_SUMMARY"
 
-            # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
+            # A failure here settles "All Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
@@ -1966,60 +1934,13 @@ jobs:
                   echo "All checks passed!"
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
+            # this job's success does not replace, so a re-run that passed stayed red (#2639).
             - name: Clear this check's early verdicts
               if: success() && github.event_name == 'pull_request'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ github.token }}
                   CHECK: All Checks Pass
-                  SHA: ${{ github.event.pull_request.head.sha }}
-                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              run: |
-                  # An early verdict is a failure posted through the Checks API: its details link is a run,
-                  # never a job (".../job/<id>"), and only those can be rewritten.
-                  for id in $(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?filter=all&per_page=100" --paginate \
-                      --jq '.check_runs[] | select(.name == $ENV.CHECK and .conclusion == "failure" and (.details_url | contains("/job/") | not)) | .id'); do
-                      gh api -X PATCH "repos/$GITHUB_REPOSITORY/check-runs/$id" --silent -f conclusion=success \
-                          -f "output[title]=Superseded by a passing run" \
-                          -f "output[summary]=An earlier early verdict said this run could not pass. A later run of the same commit passed: $RUN_URL"
-                      echo "cleared early verdict $id"
-                  done
-
-    # The merge queue's verdict, which Mergify's merge_conditions name. The job exists in every run so
-    # the check name is always reported, but it succeeds only when "All Checks Pass" succeeded
-    # and, on a merge-queue run (MERGE_QUEUE above), only when the run was the full suite: a
-    # pass on a pull request's own affected run can never stand in for the queue's run.
-    queue-checks:
-        name: Queue Checks Pass
-        needs: [packages, all-checks]
-        if: always()
-        runs-on: ubuntu-24.04
-        timeout-minutes: 10
-        steps:
-            - name: Check the run passed, and was the full suite in the queue
-              env:
-                  ALL_CHECKS: ${{ needs.all-checks.result }}
-                  FULL: ${{ needs.packages.outputs.full }}
-              run: |
-                  echo "All Checks Pass: $ALL_CHECKS, full suite: $FULL, merge queue: $MERGE_QUEUE"
-                  if [[ "$ALL_CHECKS" != "success" ]]; then
-                      echo "::error::All Checks Pass did not succeed"
-                      exit 1
-                  fi
-                  if [[ "$MERGE_QUEUE" == "true" && "$FULL" != "true" ]]; then
-                      echo "::error::a merge-queue run must run the full suite"
-                      exit 1
-                  fi
-
-            # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
-            # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
-            - name: Clear this check's early verdicts
-              if: success() && github.event_name == 'pull_request'
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ github.token }}
-                  CHECK: Queue Checks Pass
                   SHA: ${{ github.event.pull_request.head.sha }}
                   RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
               run: |

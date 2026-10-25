@@ -16,8 +16,6 @@ permissions:
 jobs:
     dependency-review:
         name: Dependency Review
-        # merge-queue drafts re-test changes their pull requests already reviewed
-        if: ${{ !startsWith(github.head_ref, 'mergify/merge-queue/') }}
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/dependency-review-action@v4

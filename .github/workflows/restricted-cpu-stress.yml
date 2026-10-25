@@ -2,7 +2,7 @@ name: Restricted CPU stress (weekly)
 
 # Every gating test shard of ci.yml, run with less CPU than CI gives it, to find load-sensitive tests
 # on purpose instead of when they fail someone's push (issue #1603). It never gates anything: it is
-# not a required check, not in .mergify.yml, and nothing in ci.yml, release.yml or master-guard.yml
+# not a required check, and nothing in ci.yml, release.yml or master-guard.yml
 # waits on it or reads it. tools/restricted-cpu-stress.test.mjs checks that.
 #
 # Each test that fails or times out gets one issue in the flaky-test tracker's format (title, labels,

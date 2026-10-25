@@ -17,9 +17,6 @@ permissions:
 jobs:
     link-issue:
         name: Link PR Issue
-        # Mergify's own merge-queue draft carries Mergify's body; the pull requests it holds were each
-        # checked here. Skipped as a whole job, for the reason pr-title.yml gives.
-        if: ${{ !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') }}
         runs-on: ubuntu-24.04
         steps:
             - uses: actions/checkout@v4

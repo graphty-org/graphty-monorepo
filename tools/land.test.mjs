@@ -1587,6 +1587,41 @@ describe("cut fixes", () => {
         assert.match(r.out, /already on golden/);
         assert.equal(pushes, 0);
     });
+
+    describe("while golden is being flushed", () => {
+        const flush = () => join(repo, "tmp/golden/flush");
+        beforeEach(() => {
+            mkdirSync(join(repo, "tmp/golden"), { recursive: true });
+            writeFileSync(flush(), "");
+        });
+        after(() => rmSync(flush(), { force: true }));
+
+        it("refuses land and sync, naming the flush, and pushes nothing", async () => {
+            branch("flush/feature", { "ff.txt": "f\n" }, "feat: during the flush");
+            for (const argv of [["land", "flush/feature", "--dry-run"], ["land", "flush/feature"], ["sync"]]) {
+                const r = await run(...argv);
+                assert.equal(r.code, 1, r.out);
+                assert.match(r.out, /golden is being flushed to master \(.*tmp\/golden\/flush exists\)/);
+            }
+            assert.equal(pushes, 0);
+        });
+
+        it("still runs a cut fix, its dry run pushing nothing and its run landing on both", async () => {
+            const wt = branch("flush/cutfix", { "fc.txt": "fix\n" }, "fix: the cut in a flush", "origin/golden-cut");
+            const tip = git(wt, "rev-parse", "HEAD");
+            gh.open = true;
+            gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: "x" };
+            const dry = await run("cut-fix", "flush/cutfix", "--reason", "500", "--dry-run");
+            assert.equal(dry.code, 0, dry.out);
+            assert.match(dry.out, /dry run: flush\/cutfix merges into golden-cut; nothing pushed/);
+            assert.equal(pushes, 0);
+            const r = await run("cut-fix", "flush/cutfix", "--reason", "500");
+            assert.equal(r.code, 0, r.out);
+            assert.deepEqual(refspecs, ["HEAD:refs/heads/golden-cut", "golden:golden"]);
+            git(repo, "fetch", "-q", "origin");
+            assert.ok(onBoth(tip), "on golden-cut and golden");
+        });
+    });
 });
 
 describe("open work", () => {

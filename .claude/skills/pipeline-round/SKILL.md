@@ -5,6 +5,17 @@ description: Use with /loop (for example `/loop 30m /pipeline-round`) to run one
 
 # One round of the pipeline
 
+**Interim rules, in force from the flush of golden until the channels pipeline's shipping instructions replace
+them** (plan: `design/ci/channels-pipeline-plan.md`, issue #3418). They override every step below:
+
+- **Flush in progress** (the main checkout's `tmp/golden/flush` exists): no `land`, no `sync`; only `revert` and
+  `cut-fix`. `land.mjs` refuses `land` and `sync` itself while the file exists.
+- **After the flush ships:** the rollout branches of #3418 open pull requests into master, in the order of the plan's
+  section 3 (critical path). Nothing else is landed or opened until the plan's step 5 acceptance, except a fix for a
+  red master.
+- **A `master-guard` revert pull request whose capture changes a screenshot** gets its own immediate `ACTION NEEDED`
+  line: the old visual gate holds it until the plan's step 9, though PR Integrity exempts reverts.
+
 Changes reach master through the local integration branch `golden` and one standing golden pull request (see
 "Landing changes (golden-local)" in CLAUDE.md and `design/ci/golden-local.md`). Nobody routes work: a session runs this
 skill under `/loop`, and each run is one round that looks at the repository, takes the few actions that are due, and

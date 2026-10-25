@@ -15,6 +15,13 @@ const flat = skill.replace(/\s*\n\s*>?\s*/g, " ");
 const shared = read("shared.md");
 
 describe("pipeline-round skill", () => {
+    it("puts the flush's interim rules above every step", () => {
+        assert.ok(flat.indexOf("**Interim rules") < flat.indexOf("### 1."));
+        assert.match(flat, /no `land`, no `sync`; only `revert` and `cut-fix`/);
+        assert.match(flat, /rollout branches of #3418 open pull requests into master/);
+        assert.match(flat, /changes a screenshot\*\* gets its own immediate `ACTION NEEDED` line/);
+    });
+
     it("sends a deploy, release or red-master fix alone through cut-fix from the cut", () => {
         assert.match(flat, /fast route: a fix for a red master build, a failed graphty\.app deploy or a train hold/);
         assert.match(flat, /node tools\/land\.mjs cut-fix --priority <branch> --reason <alarm>/);
